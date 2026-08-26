@@ -5,7 +5,7 @@ The source descriptions below are against `main` at `bd2b0dc`, with unrelated un
 in the checkout. Re-check the code and every named method before acting.
 
 This is the second half of the playlist-editing slice. Implement and verify
-`docs/future/playlist-row-removal.md` first: this plan reuses its index rebuild, structural observer
+`docs/done/playlist-row-removal.md` first — it is implemented: this plan reuses its index rebuild, structural observer
 shape, shell follow-up and live oracles, but remains a separate change and review. Read the root
 `CLAUDE.md`, `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`,
 `Vibe/Mac/MainWindow/CLAUDE.md` and `Tests/CLAUDE.md` first. Live verification requires the
@@ -196,12 +196,12 @@ Add deterministic model cases for:
 
 ### 1c. Shared-target fallout
 
-Implement the new required `PlaylistObserver` move selector in iOS `PlaybackController`. Recompute
-the metadata neighborhood and broadcast the structural-edit event introduced by the removal plan;
-its four view observers already use their full-refresh paths for invalidated row positions. No iOS
-drag UI is added. Unlike removal, a move is transport-safe at the model boundary because the exact
-current `AudioTrack` object survives, but future iOS callers must still go through
-`PlaybackController`, never mutate its private playlist from a view.
+Implement the new required `PlaylistObserver` move selector in iOS `PlaybackController` as a no-op.
+No iOS drag UI is added, so do not add a speculative `PlaybackObserver` event or view refreshes just
+to keep the shared target compiling. Unlike removal, a move is transport-safe at the model boundary
+because the exact current `AudioTrack` object survives, but a future iOS caller must still go through
+`PlaybackController` and add the screen reconciliation its actual feature needs; a view may never
+mutate the private playlist directly.
 
 ## Phase 2 — AppKit drag source and destination
 
@@ -374,7 +374,7 @@ make check-translations   # same condition
 
 ### Row removal
 
-`docs/future/playlist-row-removal.md` must land first. Reuse its `rebuildIndexes`, one-event
+`docs/done/playlist-row-removal.md` has landed. Reuse its `rebuildIndexes`, one-event
 structural observer discipline, precise row reconciliation and cross-target implementations. Do
 not add a second drag-owned index or notify the shells through replace-all.
 
@@ -403,7 +403,7 @@ adjacency while shuffle is active.
 
 ## Explicit non-goals
 
-- No row removal in this file; it is the prerequisite plan.
+- No row removal in this file; it is the prerequisite plan, and it has shipped.
 - No multi-selection or group drag.
 - No external file insertion at a chosen row.
 - No file movement, copying, renaming or Trash operation.

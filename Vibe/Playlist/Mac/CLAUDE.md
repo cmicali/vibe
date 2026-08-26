@@ -32,13 +32,20 @@ The macOS indicator is always white and never inherits artwork color. `PlaylistT
 
 `setTableView:`, called from `MainPlayerController.windowDidLoad`, wires the delegate, dataSource and double-click and installs the row context menu: Show in Finder, a separator, then Copy Name and Copy File, carrying the same SF Symbols their counterparts have elsewhere.
 
-All three act on the **clicked** row, and read `clickedRow` at action time rather than capturing it when the menu opened, since the playlist can be replaced while the menu is up. The window-body menu's items and the Convert menu's act on the *current* track and stay with `MainPlayerController`. **Convert to FLAC is deliberately not a row action** — it converts the current track only.
+Those three act on the **clicked** row, and read `clickedRow` at action time rather than capturing it when the menu opened, since the playlist can be replaced while the menu is up. The window-body menu's items and the Convert menu's act on the *current* track and stay with `MainPlayerController`. **Convert to FLAC is deliberately not a row action** — it converts the current track only.
+
+Below them, after a separator, sits **Remove from Playlist** (`minus.circle`, not `trash`: this edits the in-memory list and leaves the file on disk). It is the one row command that changes **structure**, and that changes how it names its row twice over.
+
+- **It captures the clicked `AudioTrack` as the menu opens**, in `menuNeedsUpdate:`. Validation resolves that object through `getIndexForTrack:`, while the action forwards only the object and the shell resolves its live row once. The content commands can afford to re-read `clickedRow`, because acting on the wrong row merely copies the wrong name; a structural edit that fell through onto whatever a playlist replacement put at that number would remove an unrelated track. A departed object resolves to `-1` and the action no-ops; an object merely shifted by another edit is followed to its live row. **The capture is in `menuNeedsUpdate:`, not `menuWillOpen:`, because AppKit validates the items in between** — the validator has to see a fresh capture. It is weak and is deliberately *not* cleared when the menu closes: the chosen item's action can run after that callback, which would leave the removal with nothing to act on. Every open overwrites it, and a weak reference holds nothing open in the meantime.
+- **It does not perform the removal.** The controller raises `removeTrackRequestHandler` with the exact object, and the shell decides the playback consequences — removing the *current* row is a transport operation, and this directory owns no player, download monitor, waveform, metadata sweep or empty-state teardown. `removeTrackAtIndex:` here is the pass-through the shell calls once it has decided; nothing a user gesture reaches may call it directly.
 
 ## Keyboard
 
 The up and down arrows are `NSTableView`'s own `moveUp:`/`moveDown:`; nothing here implements them. Return is their counterpart, `playSelectedTrack`, which takes the same two steps `doubleClick:` does. Both read the selection **at action time**, like the context menu's clicked row, because the playlist can be replaced between the press and here.
 
-Neither works while the playlist is collapsed. That gate is not here — the table has no say in the window's height — but in `TransportKeyMonitor` (`Mac/MainWindow/CLAUDE.md`), which swallows all four keys, and in the Playback menu's validation of Play Selected Track, which needs the pane showing *and* `hasSelectedTrack`.
+Backspace and Forward Delete are the other pair, and they remove the selected row rather than playing it — again read at action time, and again nothing here implements them.
+
+None of them works while the playlist is collapsed. That gate is not here — the table has no say in the window's height — but in `TransportKeyMonitor` (`Mac/MainWindow/CLAUDE.md`), which swallows all six keys, and in the menu validation of Play Selected Track and Remove from Playlist, which share one gate: the player window key, the pane showing, *and* a selection.
 
 ## Scrolling and swaps
 
@@ -47,3 +54,18 @@ Neither works while the playlist is collapsed. That gate is not here — the tab
 `replaceTrackAtIndex:withURL:` and `indexesOfTracksWithURL:` forward to the model and are where the convert swap lands — see `Vibe/Playlist/CLAUDE.md` for why the model keeps a URL index, and `Mac/MainWindow/CLAUDE.md` for why the swap mints a fresh `AudioTrack`.
 
 `currentIndexDidChangeHandler` is this shell's one current-index funnel, and is what sends a playlist position to the metadata cache's cloud-lane ranking (`Audio/Metadata/CLAUDE.md`).
+
+`playStartPaused:` is `play`'s parked twin, for the shell's removal funnel: it submits the current track at its start with nothing rendering until playPause, through the same funnel, so `playWillStartHandler` fires after submission exactly as an ordinary start's does. Keeping it here rather than letting the shell reach `AudioPlayer` directly is what preserves the one-play-funnel rule — the header is repainted at submission, which is all a slow open would otherwise show.
+
+## Removal: the precise table update
+
+The model's removal event is one edit, so the table reconciles it once, in the observer method and nowhere else:
+
+1. `removeRowsAtIndexes:withAnimation:` with **no animation** — a deletion shifts every row below it, and sliding thousands of them is motion and work nobody asked for, the same reason the append inserts without one. The model has already shrunk, so `numberOfRows` agrees.
+2. Selection moves to the row that closed the gap, or to the new last row when the removed one was at the end. **Presentation only** — it must never call `playSelectedTrack`, and the playing row stays a separate concept from the selection.
+3. `refreshRowViewPlayingStates` re-stamps the visible rows from the final cursor: a row removal keeps row views, exactly as a cell reload does.
+4. All visible **number cells** are reconfigured in place (`reconfigureVisibleNumberCells`, shared with the cloud-transfer refresh), so their numbers, loading bars, equalizer ownership and current equalizer visibility agree. The full visible pass includes the promoted row when the removed current row was last and costs at most one screenful. Never `reloadData` and never row reloads, which would rebuild the playing row's `EqualizerIndicatorView` and disturb its demand balancing.
+
+**`currentIndexDidChangeHandler` is deliberately NOT invoked** as a second edge for the same edit. The shell's removal funnel refreshes the metadata neighborhood and the transport once, from the final state, right after the synchronous mutation returns; raising the ordinary cursor callback as well would make one structural edit reconcile twice and obscure the ordering.
+
+The insert event — the undo of a removal — mirrors the same reconciliation: `insertRowsAtIndexes:` with no animation, re-stamped row views, reconfigured number cells, no cursor callback. It differs in one deliberate way: the restored row is selected **and scrolled to visible**, because an undo whose row is off screen would otherwise read as a no-op. `insertTrack:atIndex:` is the same pass-through contract as `removeTrackAtIndex:` — only the shell's undo funnel calls it.

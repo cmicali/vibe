@@ -48,6 +48,12 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         // anyway — which no other signal would reveal.
         @"manualRendering": @(player.manualRenderingActive),
     }];
+    // The keyboard selection, which is not the playing row: only this platform
+    // has one, and it is what Remove from Playlist and Play Selected Track act
+    // on. -1 when there is none.
+    [state[@"playlist"] addEntriesFromDictionary:@{
+        @"selectedRow": @(controller.playlistController.selectedRow),
+    }];
 
     [state addEntriesFromDictionary:@{
         @"ui": @{

@@ -70,6 +70,12 @@ NS_ASSUME_NONNULL_BEGIN
 // app to the empty state.
 - (IBAction)closeFile:(nullable id)sender;
 
+// Edit > Remove from Playlist, and the same through Backspace and Forward
+// Delete: takes the selected row out of the playlist, leaving its file where it
+// is. Removing a row that is not playing never interrupts playback; removing
+// the playing one moves to a deterministic adjacent row.
+- (IBAction)removeSelectedPlaylistTrack:(nullable id)sender;
+
 // MainPlayerController+Transport.h declares, and implements, the
 // relative-seek skips and the DJ effect toggles.
 

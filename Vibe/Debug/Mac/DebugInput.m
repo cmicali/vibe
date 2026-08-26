@@ -46,6 +46,7 @@ static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
             @"o": @31, @"u": @32, @"i": @34, @"p": @35, @"l": @37, @"j": @38,
             @"k": @40, @"n": @45, @"m": @46,
             @"return": @36, @"tab": @48, @"space": @49, @"delete": @51, @"esc": @53,
+            @"forward_delete": @117,
             @"left": @123, @"right": @124, @"down": @125, @"up": @126,
         };
     });
@@ -59,6 +60,9 @@ static NSString *VibeKeyCharacters(NSString *name) {
         special = @{
             @"return": @"\r", @"tab": @"\t", @"space": @" ",
             @"delete": @"\x7f", @"esc": @"\x1b",
+            // Backspace and Forward Delete are different characters and reach
+            // different code, so `key delete` does not cover both.
+            @"forward_delete": [NSString stringWithFormat:@"%C", (unichar)NSDeleteFunctionKey],
             @"left": [NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey],
             @"right": [NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey],
             @"up": [NSString stringWithFormat:@"%C", (unichar)NSUpArrowFunctionKey],
@@ -87,13 +91,33 @@ static BOOL VibeKeyIsArrow(NSString *name) {
     return [@[@"left", @"right", @"up", @"down"] containsObject:name];
 }
 
-// Any tokens trailing the key name are modifier names.
+// Characters AppKit places in the function-key private-use range — the arrows,
+// both delete keys, the page and home cluster — which real events flag as such.
+static BOOL VibeCharacterIsFunctionKey(NSString *chars) {
+    if (chars.length != 1) {
+        return NO;
+    }
+    unichar c = [chars characterAtIndex:0];
+    return c >= NSUpArrowFunctionKey && c <= NSModeSwitchFunctionKey;
+}
+
+// Any tokens trailing the key name are modifier names, plus the repeat token.
 static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
-                               NSEventModifierFlags *outFlags, NSString **errorJSON) {
+                               NSEventModifierFlags *outFlags, BOOL *outRepeat,
+                               NSString **errorJSON) {
     NSEventModifierFlags flags = 0;
+    BOOL repeat = NO;
     for (NSUInteger i = start; i < tokens.count; i++) {
         NSString *mod = tokens[i].lowercaseString;
-        if ([mod isEqualToString:@"shift"]) {
+        // Hardware key repeat, which several handlers gate on: a held delete
+        // key must take one playlist row rather than walk the list, and the
+        // momentary FX keys ignore repeats outright. It rides the modifier
+        // token list because it is spelled like one, but it is not a modifier
+        // flag — it is parsed out into its own out-param.
+        if ([mod isEqualToString:@"repeat"]) {
+            repeat = YES;
+        }
+        else if ([mod isEqualToString:@"shift"]) {
             flags |= NSEventModifierFlagShift;
         }
         else if ([mod isEqualToString:@"cmd"] || [mod isEqualToString:@"command"]) {
@@ -106,11 +130,12 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
             flags |= NSEventModifierFlagControl;
         }
         else {
-            *errorJSON = VibeErrorJSON(@"unknown modifier '%@' (shift, cmd, opt, ctrl)", tokens[i]);
+            *errorJSON = VibeErrorJSON(@"unknown modifier '%@' (shift, cmd, opt, ctrl, repeat)", tokens[i]);
             return NO;
         }
     }
     *outFlags = flags;
+    *outRepeat = repeat;
     return YES;
 }
 
@@ -121,24 +146,29 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
                                BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {
-        return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl ...]", verb);
+        return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl|repeat ...]", verb);
     }
     NSString *name = tokens[1].lowercaseString;
     NSNumber *code = VibeKeyCodeMap()[name];
     if (code == nil) {
-        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, up, down, left, right)",
+        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, forward_delete, up, down, left, right)",
                 tokens[1]);
     }
     NSEventModifierFlags flags = 0;
+    BOOL isRepeat = NO;
     NSString *errorJSON = nil;
-    if (!VibeParseModifiers(tokens, 2, &flags, &errorJSON)) {
+    if (!VibeParseModifiers(tokens, 2, &flags, &isRepeat, &errorJSON)) {
         return errorJSON;
     }
-    if (VibeKeyIsArrow(name)) {
-        // Real arrow events carry these, and some responders check them.
-        flags |= NSEventModifierFlagFunction | NSEventModifierFlagNumericPad;
-    }
     NSString *chars = VibeKeyCharacters(name);
+    // Derived from the character, not a list of key names, so a key added to
+    // VibeKeyCodeMap carries the flag a real event would without a second edit.
+    if (VibeCharacterIsFunctionKey(chars)) {
+        flags |= NSEventModifierFlagFunction;
+    }
+    if (VibeKeyIsArrow(name)) {
+        flags |= NSEventModifierFlagNumericPad;   // real arrow events carry it too
+    }
     // charactersIgnoringModifiers ignores Option, NOT Shift: hardware delivers
     // the shifted character in BOTH fields, and AppKit's menu key-equivalent
     // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
@@ -154,7 +184,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
                                            context:nil
                                         characters:charsWithMods
                        charactersIgnoringModifiers:charsWithMods
-                                         isARepeat:NO
+                                         isARepeat:isRepeat
                                            keyCode:code.unsignedShortValue];
         [NSApp postEvent:event atStart:NO];
     };
@@ -164,7 +194,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     if (up) {
         post(NSEventTypeKeyUp);
     }
-    return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name});
+    return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
 }
 
 // The shared tail for the mouse verbs. It converts to bottom-left window

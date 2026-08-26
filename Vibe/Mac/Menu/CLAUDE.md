@@ -6,7 +6,7 @@ Vended item constructors (`copyNameItemWithTarget:`, `copyFileItemWithTarget:`, 
 
 **Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (backed by `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, and waveform Style to the player controller itself.
 
-**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, Return, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
+**TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, Return, Backspace, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
 
 **TRAP: a shifted key equivalent rides in the capital letter** (`"Z"`, `"C"`) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press.
 
@@ -22,9 +22,13 @@ It follows that any table reachable by the chain must answer honestly — `NSTab
 
 **The cleaner deliberately does not implement `menuHasKeyEquivalent:…`** the way the app's other menu delegates do: Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items.
 
-Undo/Redo forward to the window's lazily created `NSUndoManager`; the only registered action is Convert to FLAC (`MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
+Undo/Redo forward to the window's lazily created `NSUndoManager`; two actions register — Convert to FLAC and Remove from Playlist (both `MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
 
 Copy Name copies the current track's `singleLineTitle`; Copy File puts its file URL on the general pasteboard. Both validate against `currentTrack`, like Show in Finder.
+
+**Remove from Playlist** is the one Edit item that acts on the **selected** row rather than the current track, and the only one that changes the playlist. Its symbol is `minus.circle`, never `trash`: it edits the in-memory list and leaves the file on disk. It carries bare Backspace as display and fallback — spelled `NSBackspaceCharacter`, which is what AppKit draws as ⌫ while a real press delivers `NSDeleteCharacter`, so `TransportKeyMonitor` is the actual handler, for its unadvertised Forward Delete twin as well. Validation needs all three of: the player window key, the playlist showing, and a selection, so a Delete press with Settings or About in front cannot edit an invisible playlist. Its separators are `menu_edit_separator_remove` before it and `menu_edit_separator_select` after; both keep the `menu_edit_*` prefix because the cleaner drops unidentified separators along with unidentified items. The playlist's own row menu carries the same command against the **clicked** row, under its own identifier (`Playlist/Mac/CLAUDE.md`).
+
+**There is deliberately no Clear Playlist item.** File > Close already retitles itself to Close All Files, and `MainPlayerController.closeFile:` owns the complete teardown that emptying the deck needs; a second whole-list command would be either an alias with no behavior of its own or a second teardown path liable to omit a future piece of playback state.
 
 ## Playback
 

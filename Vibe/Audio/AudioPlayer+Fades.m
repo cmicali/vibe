@@ -98,7 +98,7 @@
 // which the remover owns the pair's teardown.
 - (void)stepRetiredFadeAsync:(VibeRetiredFade *)fade step:(int)step from:(float)start totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds {
     if (![_retiredFades containsObject:fade]) {
-        return; // Preempted: stop, pause or reset tears the pair down.
+        return; // Preempted: stop, pause, parked play or reset owns teardown.
     }
     // Registered fades are crossfade-length by construction (retireNode:), so
     // this is always the equal-power side of a crossfade; see FadeMath.h.
@@ -147,9 +147,9 @@
 }
 
 // Cuts every in-flight crossfade-length retired fade down to the declick
-// minimum: stop, pause and the failure reset must not leave an outgoing track
-// audible for up to the full crossfade. Skips never call this, so rapid skips
-// keep the full fade-out.
+// minimum: stop, pause, a parked play and the failure reset must not leave an
+// outgoing track audible for up to the full crossfade. Skips never call this,
+// so rapid skips keep the full fade-out.
 - (void)preemptRetiredFadesOnQueue {
     if (_retiredFades.count == 0) {
         return;
@@ -166,9 +166,9 @@
 // Tears down a node and varispeed pair the caller has already pulled out of
 // the live state; either may be nil. An audible pair — engine running, state
 // still Playing — fades out on its own varispeed and is detached once silent;
-// a crossfade-length fade registers in _retiredFades so stop, pause and reset
-// can still silence it early. Paused, stopped or on a first play there is
-// nothing to click, so both are torn down at once.
+// a crossfade-length fade registers in _retiredFades so stop, pause, a parked
+// play and reset can still silence it early. Paused, stopped or on a first play
+// there is nothing to click, so both are torn down at once.
 - (void)retireNode:(AVAudioPlayerNode *)node varispeed:(AVAudioUnitVarispeed *)varispeed milliseconds:(uint64_t)milliseconds {
     VibeRetiredFade *fade = [[VibeRetiredFade alloc] init];
     fade.node = node;

@@ -51,7 +51,7 @@
                    classify:VibeMenuValidationDomainFile];
 
     [self assertIdentifiers:@[@"menu_edit_undo", @"menu_edit_redo", @"menu_edit_copy_file",
-                              @"menu_edit_copy_name"]
+                              @"menu_edit_copy_name", @"menu_edit_remove_from_playlist"]
                    classify:VibeMenuValidationDomainEdit];
 
     [self assertIdentifiers:@[@"menu_convert_to_flac", @"menu_convert_delete_original"]
@@ -74,10 +74,12 @@
 }
 
 // The whole point of the enum: an item nobody claimed is not silently enabled.
-// The first four are owned elsewhere or carry no action; the rest are the
-// shapes a typo and a missing identifier take.
+// The first five are owned elsewhere or carry no action — the two clicked-row
+// commands are PlaylistController's, which validates them itself — and the rest
+// are the shapes a typo and a missing identifier take.
 - (void)testUnclaimedIdentifiersAreUnknownRatherThanEnabled {
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
+                              @"remove_clicked_track_from_playlist",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
                               @"view_appearance", @"waveform_style", @"view_size", @"", @"menu_"]
                    classify:VibeMenuValidationDomainUnknown];

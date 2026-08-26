@@ -168,9 +168,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
     // ---- The fades, owned by AudioPlayer+Fades.m.
     // Crossfade-length retired fades in flight, registered by retireNode:.
-    // Queue-confined. Stop, pause and the failure reset preempt them through
-    // preemptRetiredFadesOnQueue, so an outgoing track cannot stay audible
-    // for up to the full crossfade; declick-length retires never register.
+    // Queue-confined. Stop, pause, a parked play and the failure reset preempt
+    // them through preemptRetiredFadesOnQueue, so an outgoing track cannot stay
+    // audible for up to the full crossfade; declick-length retires never register.
     NSMutableArray<VibeRetiredFade *> *_retiredFades;
     // A pause fade is in flight. Queue-confined. A second playPause during the
     // fade-out cancels the pending pause and ramps back up rather than pausing

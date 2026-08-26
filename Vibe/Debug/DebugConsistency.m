@@ -127,6 +127,21 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"%lu nodes attached to the engine", (unsigned long)nodes);
     }
 
+    // The barrier above drains the player queue, not callbacks waiting on main:
+    // a gapless promotion can still be one valid transient ahead of the
+    // playlist. Re-checking after settlement clears it; any persistent non-nil
+    // mismatch is bad state. A real Loading state has cleared currentTrack.
+    checked++;
+    AudioTrack *playerTrack = player.currentTrack;
+    if (playerTrack && playerTrack != current) {
+        VibeDebugViolation(v, @"player.current_track_matches_playlist",
+                @"player has %@ (%p), playlist has %@ (%p)",
+                playerTrack.url.lastPathComponent ?: @"(nil)",
+                (__bridge void *)playerTrack,
+                current.url.lastPathComponent ?: @"(nil)",
+                (__bridge void *)current);
+    }
+
     // ---- Equalizer producer and renderer ----
 
     NSDictionary *equalizer = [player debugEqualizerState];

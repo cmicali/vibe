@@ -735,6 +735,60 @@ materializationCoordinator:coordinator
     ]));
 }
 
+// The shell's row removal: an abandoned queued entry must never start a
+// provider transfer, and the later priority edge — the undo of the removal —
+// rebuilds a fresh record and parses the row after all.
+- (void)testAbandonedQueuedTrackNeverMaterializesAndPriorityRebuildsIt {
+    AudioTrack *first = [self trackNamed:@"first.wav"];
+    AudioTrack *removed = [self trackNamed:@"removed.wav"];
+    AudioTrack *last = [self trackNamed:@"last.wav"];
+
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    // Park the first materialization: stage one has fully drained by the time
+    // it starts (the barrier), so the other two entries are sitting in the
+    // pending list — exactly where an abandon must catch them.
+    controller.blocksUntilCancelled = YES;
+    controller.firstStartExpectation = [self expectationWithDescription:@"first started"];
+    NSObject *parsedLock = [[NSObject alloc] init];
+    NSMutableSet<NSString *> *parsedNames = [NSMutableSet set];
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            cacheReader:nil
+             fileParser:^AudioTrackMetadata *(NSURL *url) {
+        @synchronized (parsedLock) {
+            [parsedNames addObject:url.lastPathComponent];
+        }
+        return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
+    }];
+
+    [loader load:@[first, removed, last]];
+    [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
+
+    [loader abandonQueuedTrack:removed];
+    controller.blocksUntilCancelled = NO;
+    [controller completeFirstReady];
+
+    [self waitForCondition:^BOOL{
+        @synchronized (parsedLock) {
+            return [parsedNames containsObject:@"first.wav"]
+                    && [parsedNames containsObject:@"last.wav"];
+        }
+    } description:@"surviving rows did not parse"];
+    XCTAssertEqualObjects(controller.startedURLs, (@[first.url, last.url]),
+            @"the abandoned row must never start a materialization");
+
+    // The undo: a fresh priority edge rebuilds the record from scratch.
+    [loader prioritizeTrack:removed];
+    [self waitForCondition:^BOOL{
+        @synchronized (parsedLock) {
+            return [parsedNames containsObject:@"removed.wav"];
+        }
+    } description:@"the restored row did not parse"];
+    XCTAssertEqualObjects(controller.startedURLs.lastObject, removed.url);
+    XCTAssertEqualObjects(controller.startedRoles.lastObject,
+            @(VibeAudioFileMaterializationRoleMetadataPriority));
+}
+
 - (void)testPriorityInvalidatesAnOffLockScanPickBeforeItCanClaimTheRecord {
     AudioTrack *track = [self trackNamed:@"priority-during-scan-pick.wav"];
     dispatch_semaphore_t pickGate = dispatch_semaphore_create(0);

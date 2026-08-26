@@ -55,6 +55,18 @@ NS_ASSUME_NONNULL_BEGIN
 // repainting is NOT its business — that rides the observer directly.
 @property (nonatomic, copy, nullable) void (^currentIndexDidChangeHandler)(void);
 
+// Staleness counter for work stamped against the current row set — the
+// shell's removal-undo registrations. It follows the model's own replace-all
+// announcement (playlistDidReplaceAllTracks:, which both replaceAllWithURLs:
+// and clear fire), so ANY path that replaces the list bumps it — there is no
+// call-site discipline to forget. Appends, swaps, removals and inserts leave
+// it alone: they never invalidate a stamped row number wholesale.
+@property (nonatomic, readonly) NSUInteger structureGeneration;
+
+// A row-menu removal request. The shell resolves the exact object to its live
+// row and owns the transport consequences; this controller never removes it.
+@property (nonatomic, copy, nullable) void (^removeTrackRequestHandler)(AudioTrack *track);
+
 - (NSArray<AudioTrack *> *)playlist;
 
 // Single-element access. Unlike the playlist getter it makes no defensive
@@ -67,6 +79,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;
+
+// The parked twin of play: the current track is submitted at its start with
+// nothing rendering until playPause. It shares play's funnel, so
+// playWillStartHandler fires after submission exactly as an ordinary start's
+// does — that hook is what repaints the header through a slow open, and having
+// one funnel is why no caller reaches the player directly.
+- (void)playStartPaused:(BOOL)startPaused;
 
 // Adds tracks to the end without touching playback or currentIndex, whereas
 // play: replaces and restarts. AppDelegate's open burst uses it.
@@ -105,11 +124,26 @@ NS_ASSUME_NONNULL_BEGIN
 // Playback is untouched; a caller replacing the playing row restarts it.
 - (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
+// Takes the row out of the list, returning the exact object removed, or nil
+// when index is out of range. Rows below it shift up and the cursor follows
+// them; the file itself is untouched.
+//
+// It performs the model mutation and nothing else, so call it ONLY from the
+// shell's removal funnel, which has already decided what the player must do
+// about it. Everything a user gesture reaches goes through
+// removeTrackRequestHandler instead.
+- (AudioTrack * _Nullable)removeTrackAtIndex:(NSUInteger)index;
+
+// The removal's inverse, same pass-through contract: the model mutation and
+// nothing else, so call it ONLY from the shell's undo of a removal, which owns
+// what the player and the metadata sweep must do about the restored row.
+- (void)insertTrack:(AudioTrack *)track atIndex:(NSUInteger)index;
+
 // The keyboard selection, which is not the playing row: the arrow keys move
-// selectedRow, and it stays put while playback moves currentIndex. NO when
-// nothing is selected, or when a playlist replacement has outrun the
-// selection.
-- (BOOL)hasSelectedTrack;
+// it, and it stays put while playback moves currentIndex. -1 when nothing is
+// selected or a playlist replacement has outrun the selection, so >= 0 is
+// also the one "is there a selection" predicate.
+- (NSInteger)selectedRow;
 
 // Plays the selected row, exactly as a double-click on it does. A no-op with
 // no selection.

@@ -39,7 +39,8 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     VibeMenuValidationDomainPitchRange,
     // Play/Close/Show in Finder: dynamic titles and symbols over the playlist.
     VibeMenuValidationDomainFile,
-    // Undo/Redo titles from NSUndoManager, and the Copy items.
+    // Undo/Redo titles from NSUndoManager, the Copy items, and Remove from
+    // Playlist.
     VibeMenuValidationDomainEdit,
     // Convert to FLAC and its preference. AudioFileConverter stays the
     // authority for the enablement and the retitling.
@@ -135,7 +136,8 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
     if ([identifier isEqualToString:@"menu_edit_undo"]
             || [identifier isEqualToString:@"menu_edit_redo"]
             || [identifier isEqualToString:@"menu_edit_copy_file"]
-            || [identifier isEqualToString:@"menu_edit_copy_name"]) {
+            || [identifier isEqualToString:@"menu_edit_copy_name"]
+            || [identifier isEqualToString:@"menu_edit_remove_from_playlist"]) {
         return VibeMenuValidationDomainEdit;
     }
     if ([identifier isEqualToString:@"menu_convert_to_flac"]

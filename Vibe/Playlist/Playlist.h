@@ -34,6 +34,17 @@ NS_ASSUME_NONNULL_BEGIN
 // The track at index was replaced by a fresh AudioTrack.
 - (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index;
 
+// The row at index left the list: every later row has shifted up by one, and
+// currentIndex is already at its final value. It is the ONE event a removal
+// sends — currentIndexDidChangeFromIndex: deliberately does not also fire, so a
+// table reconciles one structural edit once.
+- (void)playlist:(Playlist *)playlist didRemoveTrackAtIndex:(NSUInteger)index;
+
+// The removal's inverse: the row at index joined the list, it and every later
+// row have shifted down by one, and currentIndex is already at its final
+// value. Like the removal it is the ONE event the edit sends.
+- (void)playlist:(Playlist *)playlist didInsertTrackAtIndex:(NSUInteger)index;
+
 // currentIndex moved; the rows at previousIndex and currentIndex both render
 // playing state and are stale.
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex;
@@ -96,6 +107,40 @@ NS_ASSUME_NONNULL_BEGIN
 // under the old entries. Duration, detected BPM, and detected key carry
 // across — same audio.
 - (nullable AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
+
+// Removes and returns the exact row object, or nil when index is out of range,
+// in which case nothing changes and no event is sent. Rows below it shift up
+// by one, so this is the one mutation that MOVES rows and therefore rebuilds
+// both indexes.
+//
+// The surviving current track keeps its identity: removing a row before it
+// decrements currentIndex so it names the same object, and removing one after
+// it leaves the cursor alone. Removing the current row leaves the cursor on the
+// successor that slid into the same row, or on the new last row when the
+// removed one was last; emptying the list resets it to 0.
+//
+// The CALLING SHELL owns the corresponding audio-player transition. This
+// method does not stop, start or park anything, so removing the current row
+// through it alone would leave the player sounding a track the playlist no
+// longer contains — see MainPlayerController's removal funnel for the
+// coordinated version.
+- (nullable AudioTrack *)removeTrackAtIndex:(NSUInteger)index;
+
+// The removal's inverse, for the shell's undo: puts the exact object back at
+// index — clamped to the end, so a restore landing after later edits still
+// lands — shifting the rows at and below it down by one. The other mutation
+// that MOVES rows, so it too rebuilds both indexes. A nil track is refused,
+// and nothing changes.
+//
+// The current track keeps its identity: an insert at or before the cursor
+// moves the cursor down one so it names the same object. Inserting into an
+// empty list leaves the cursor at 0, naming the new row, exactly as
+// replaceAllWithURLs: would.
+//
+// Like removal, this touches no audio and sends ONE observer event with the
+// cursor already final. The shell owns any transport consequence — restoring
+// a removed current row does not replay it.
+- (void)insertTrack:(AudioTrack *)track atIndex:(NSUInteger)index;
 
 @end
 

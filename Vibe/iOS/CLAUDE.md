@@ -22,6 +22,8 @@ The longest file in the tree, so: **[The model](#the-model)** is `PlaybackContro
 
 **It broadcasts, where the rest of the app uses a single weak delegate**, and that is the reason the class exists. Three views describe the same playback at once — the library row's playing indicator, the mini strip, and the card — and `Playlist` has exactly one observer slot, so the fan-out had to live somewhere other than a view controller. `PlaybackObserver` is delivered synchronously on main, in registration order, through a weak `NSPointerArray`. **Weak is load-bearing**: an observer is a view or view controller, and outlives its registration only by accident.
 
+**The required playlist-removal observer method is deliberately a no-op here.** iOS exposes no remove UI, and forwarding a model-only removal to the views would not make it safe: removing the current row is a transport operation. A future iOS remove UI must first add its own player coordinator — the mac's `MainPlayerController` removal funnel is the model — rather than calling `Playlist.removeTrackAtIndex:` directly and leaving this controller playing a departed object.
+
 Two categories, both the mac's split brought over with contracts intact:
 
 - **`+PlayerEvents`** — every `AudioPlayerDelegate` callback. Same two rules as the mac's: **every callback can be stale** and must match the delivered track against the playlist's current one, and **`stop` fires no callback**, so nothing there drives auto-advance.

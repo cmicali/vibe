@@ -196,9 +196,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // The end of the still-current track: advance when the playlist and Settings >
-// Playback allow, park on it otherwise. Callers own didFinishPlaying:'s
-// staleness guard.
-- (void)advanceOrParkAtTrackEnd {
+// Playback allow, park on it otherwise, and return whether it advanced. Callers
+// own didFinishPlaying:'s staleness guard.
+- (BOOL)advanceOrParkAtTrackEnd {
     // Folds the finished run.
     [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
@@ -234,6 +234,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         [self.trackDisplay resetPlayheadToStartWithDuration:self.playlistController.currentTrack.duration
                                                        rate:self.playbackRate];
     }
+    return advances;
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -255,7 +256,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // precondition the track-end handler leaves to its caller.
     NSUInteger nextIndex = self.playlistController.currentIndex + 1;
     if (startedTrack != [self.playlistController trackAtIndex:nextIndex]) {
-        [self advanceOrParkAtTrackEnd];
+        BOOL advanced = [self advanceOrParkAtTrackEnd];
+        // Advancing submits the real successor and retires the mismatched
+        // segment. With no advance, reload the finished row parked so the
+        // already-sounding segment is replaced and the player/UI agree again.
+        if (!advanced) {
+            [self.playlistController playStartPaused:YES];
+        }
         return;
     }
     [self.playlistController advanceToNextTrackWithoutPlaying];

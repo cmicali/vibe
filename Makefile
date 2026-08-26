@@ -62,6 +62,7 @@ test: project check-cloud-scenarios
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
 	    -enableCodeCoverage YES \
+	    -collect-test-diagnostics never \
 	    test
 
 # The live cloud suite needs a Debug app and a window, but its trace matching,

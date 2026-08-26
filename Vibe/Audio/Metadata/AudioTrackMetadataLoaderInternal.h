@@ -64,6 +64,14 @@ NS_ASSUME_NONNULL_BEGIN
 // a bounded 1s clock while gated.
 - (void)prioritizeTrack:(AudioTrack *)track;
 
+// Drops the not-yet-picked queued work for one departed row — the pending or
+// delayed scan entry that would start a provider transfer, and, when nothing
+// is in flight for the track, the identity marks that would otherwise block a
+// later prioritizeTrack: from rebuilding a fresh record. Work already picked
+// settles through the ordinary path, whose delivery the shells drop for a row
+// no longer in the playlist. Main thread, like prioritizeTrack:.
+- (void)abandonQueuedTrack:(AudioTrack *)track;
+
 // Re-ranks pending scan materializations so these URLs go first, in the order
 // given; everything else falls to the back of the sweep.
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;

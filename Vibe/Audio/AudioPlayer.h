@@ -112,12 +112,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pause;
 - (void)resume;
 
+// Action-only coordination read for a structural replacement. Unlike the
+// lock-only UI predicates below, this waits for transport commands already
+// submitted to the player queue, including a pause fade which has begun but
+// not completed. Do not poll it; main-thread actions call it once before
+// committing the model edit that must preserve that ordered intent.
+- (BOOL)playingIntentAfterPendingCommands;
+
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.
-// Exists for Convert to FLAC's swap, and therefore always declicks rather
-// than crossfades: it replaces a track with the same audio at the same
-// position, which a crossfade would only dip. Everything else — crossfade,
-// delegate callbacks, prefetch — is an ordinary play:.
+// Used for Convert to FLAC's same-audio swap and a playlist replacement that
+// must land parked. It always declicks rather than crossfades: crossfading the
+// swap would only dip it, while a parked replacement should render nothing.
+// Everything else — delegate callbacks and prefetch — is an ordinary play:.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
 // Seeking is AudioPlayer+Seek.h, declared where it is implemented.
@@ -188,12 +195,15 @@ NS_ASSUME_NONNULL_BEGIN
 // is not exposed by AVAudioEngine and is therefore not guessed here.
 @property (readonly) BOOL outputAudioActive;
 
+// Published transport state: exactly one of these three is true. During
+// Loading, isPlaying/isPaused reflect whether the open will land playing or
+// parked. A pause keeps reporting playing through its short fade. An action
+// that must order after pending transport uses playingIntentAfterPendingCommands.
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
-// The in-flight file open. isPlaying reflects whether it will start playing;
-// isPaused reflects a pending parked start. Position and duration read 0 here,
-// meaning unknown rather than zero.
+// File-open observability, orthogonal to the transport state above. Position
+// and duration read 0 during Loading, meaning unknown rather than zero.
 - (BOOL)isLoading;
 
 - (NSUInteger)numChannels;

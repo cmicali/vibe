@@ -679,6 +679,15 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 }
 
+// iOS exposes no remove UI. A future caller must first coordinate the player;
+// forwarding this model-only event would leave it playing the departed track.
+- (void)playlist:(Playlist *)playlist didRemoveTrackAtIndex:(NSUInteger)index {
+}
+
+// The removal's inverse; a no-op for the same reason.
+- (void)playlist:(Playlist *)playlist didInsertTrackAtIndex:(NSUInteger)index {
+}
+
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
     [self updateMetadataNeighborhood];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {

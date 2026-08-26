@@ -32,6 +32,15 @@ NS_ASSUME_NONNULL_BEGIN
 // thread only, like loadMetadata:.
 - (void)loadMetadataNow:(AudioTrack *)track;
 
+// Drops one departed row's queued scan work — the pending materialization that
+// would download its file, and the identity marks that would block a later
+// re-queue. For the shell's removal of a playlist row: a removed row must not
+// spend a provider transfer, and its restoration (undo of the removal)
+// re-requests through loadMetadataNow:. Work already in flight settles
+// normally; the receivers drop its delivery for a row no longer in the
+// playlist. Main thread only.
+- (void)abandonQueuedTrack:(AudioTrack *)track;
+
 // The same ranking, expressed as a playlist position — which is what a shell
 // actually has at hand. The offset table lives here rather than in each shell,
 // so there is one of it rather than one per platform: both shells call this

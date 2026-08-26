@@ -159,6 +159,10 @@
     [loader load:tracks];
 }
 
+- (void)abandonQueuedTrack:(AudioTrack *)track {
+    [_currentLoader abandonQueuedTrack:track];
+}
+
 - (void)setNeighborhoodURLs:(NSArray<NSURL *> *)urls {
     _neighborhood = [urls copy];
     [_currentLoader setNeighborhoodURLs:_neighborhood];
