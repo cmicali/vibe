@@ -43,26 +43,27 @@
     NSSize paneSize = [self naturalPaneSize];
 
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
-    // The size constraints define the pane's fitting size, which IS the
-    // settings window's settled size: the constraint engine re-sizes a
-    // contentViewController window to its content's fitting size after every
-    // layout pass (_changeWindowFrameFromConstraintsIfNecessary), so a frame
-    // held anywhere else snaps back. At 999, not required: a required size
-    // forces the window there in a single layout pass when shared size changes;
-    // at 999 the window edge wins while the coordinated frame and pane layout
-    // animate to that size.
+    // The size constraints are MINIMUMS at a remeasured constant: the window
+    // is user-resizable, so the pane must stretch with a larger window edge
+    // (extra height is blank space below the top-pinned sections, extra width
+    // stretches the cards) while the constants keep the initial fitting size
+    // — and the tab controller's contentMinSize — at the panes' shared size.
+    // At 999, not required, so a stale autosaved frame below the floor
+    // compresses for one pass instead of raising an unsatisfiable-constraint
+    // break; the tab controller's grow-to-floor pass then corrects it.
     //
     // The height rides the safe-area guide, not the view: the titlebar
     // overlays the pane (full-size content view), and anchoring the guide
     // makes the engine add that overlay to the window on its own.
     //
-    // TRAP: the height is a CONSTANT, remeasured by paneContentDidChange, and
-    // must stay one. Expressing it as an inequality against the stack instead
-    // — height >= stack.height + padding — leaves the stack's own height
+    // TRAP: the floor is a CONSTANT, remeasured by paneContentDidChange, and
+    // must stay one. Deriving it from the stack instead — height >=
+    // stack.height + padding — leaves the stack's own height
     // under-determined, and the solver spends the slack by stretching the
     // first section card down the pane.
-    _paneWidth = [view.widthAnchor constraintEqualToConstant:paneSize.width];
-    _paneHeight = [view.safeAreaLayoutGuide.heightAnchor constraintEqualToConstant:paneSize.height];
+    _paneWidth = [view.widthAnchor constraintGreaterThanOrEqualToConstant:paneSize.width];
+    _paneHeight = [view.safeAreaLayoutGuide.heightAnchor
+            constraintGreaterThanOrEqualToConstant:paneSize.height];
     _paneWidth.priority = NSLayoutPriorityRequired - 1;
     _paneHeight.priority = NSLayoutPriorityRequired - 1;
     [NSLayoutConstraint activateConstraints:@[_paneWidth, _paneHeight]];

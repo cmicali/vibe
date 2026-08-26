@@ -41,6 +41,12 @@ NS_ASSUME_NONNULL_BEGIN
 // "current".
 + (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark;
 
+// The solid background's seed — a near-opaque neutral in each appearance's
+// register — shared by the window and playlist Solid choices' editor seeding
+// and the playlist's fallback when a solid style arrives with no color (a
+// hand-edited import).
++ (NSColor *)defaultSolidBackgroundColorForDark:(BOOL)dark;
+
 // Re-shapes the header glass panel and its tint layer to the themed radius;
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;

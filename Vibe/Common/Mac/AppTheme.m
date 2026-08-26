@@ -13,7 +13,6 @@ NSString *const kVibeThemeIdentifierVibe = @"vibe";
 NSString *const kVibeThemeIdentifierIndustrial = @"industrial";
 
 static const CGFloat kCornerRadiusMin = 0;
-static const CGFloat kCornerRadiusDefault = 20;
 
 NSString *const kVibeThemeRecordNameKey = @"name";
 NSString *const kVibeThemeRecordVersionKey = @"version";
@@ -25,6 +24,7 @@ static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWindowTint = @"windowTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
+static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
 static NSString *const kFieldWindowCornerRadius = @"windowCornerRadius";
 static NSString *const kFieldShowFileInfo = @"showFileInfo";
 static NSString *const kFieldShowRemainingTime = @"showRemainingTime";
@@ -117,7 +117,8 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
             kFieldWaveformTheme:         SETTINGS_VALUE_WAVEFORM_THEME_MONO,
             kFieldWindowTint:            SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             kFieldWindowBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-            kFieldWindowCornerRadius:    @(kCornerRadiusDefault),
+            kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
+            kFieldWindowCornerRadius:    @(kVibeThemeCornerRadiusDefault),
             kFieldShowFileInfo:          @(YES),
             kFieldShowRemainingTime:     @(NO),
             kFieldShowBPM:               @(YES),
@@ -194,7 +195,8 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
     if ([key isEqualToString:kFieldWindowTint]) {
         return VibeNormalizedWindowTint(raw);
     }
-    if ([key isEqualToString:kFieldWindowBackgroundStyle]) {
+    if ([key isEqualToString:kFieldWindowBackgroundStyle] ||
+        [key isEqualToString:kFieldPlaylistBackgroundStyle]) {
         return VibeNormalizedWindowBackgroundStyle(raw);
     }
     if ([key isEqualToString:kFieldKeyNotation]) {
@@ -410,6 +412,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)windowBackgroundStyle { return [self stringForKey:kFieldWindowBackgroundStyle]; }
 - (void)setWindowBackgroundStyle:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowBackgroundStyle]; }
+
+- (NSString *)playlistBackgroundStyle { return [self stringForKey:kFieldPlaylistBackgroundStyle]; }
+- (void)setPlaylistBackgroundStyle:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistBackgroundStyle]; }
 
 - (CGFloat)windowCornerRadius { return [self floatForKey:kFieldWindowCornerRadius]; }
 - (void)setWindowCornerRadius:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldWindowCornerRadius]; }

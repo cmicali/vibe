@@ -730,12 +730,25 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     return dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35];
 }
 
++ (NSColor *)defaultSolidBackgroundColorForDark:(BOOL)dark {
+    return dark ? [NSColor colorWithWhite:0.11 alpha:0.95]
+                : [NSColor colorWithWhite:0.93 alpha:0.95];
+}
+
 - (void)applyPlaylistBackground {
     BOOL dark = self.isDark;
-    NSColor *background =
-            [AppSettings.sharedInstance.currentTheme playlistBackgroundColorForDark:dark];
-    _playlistDimView.layer.backgroundColor = (background
-            ?: [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark]).CGColor;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL solid = [theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    // Solid removes the behind-window blur outright; the wash layer then
+    // carries the whole background over whatever the window backdrop shows.
+    // Under glass the wash is the themed color, else today's appearance lift.
+    _playlistFrostView.hidden = solid;
+    NSColor *background = [theme playlistBackgroundColorForDark:dark];
+    NSColor *fallback = solid
+            ? [MainPlayerContentView defaultSolidBackgroundColorForDark:dark]
+            : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
+    _playlistDimView.layer.backgroundColor = (background ?: fallback).CGColor;
 }
 
 // The one home of the pre/post-26 backdrop dichotomy: Liquid Glass takes a

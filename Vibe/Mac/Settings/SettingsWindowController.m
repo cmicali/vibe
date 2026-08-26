@@ -164,23 +164,32 @@ static const CGFloat kSettingsSidebarWidth = 200;
     [self resizeWindowToPaneSize:self.tabViewItems[(NSUInteger)index].viewController];
 }
 
+// The floor needs a laid-out window (the titlebar height comes from the
+// engine), so the first chance to set it is here rather than at build.
+- (void)viewDidAppear {
+    [super viewDidAppear];
+    [self settingsPaneSizeDidChange];
+}
+
 - (void)resizeWindowToPaneSize:(NSViewController *)pane {
     NSWindow *window = self.view.window;
     if (!pane || !window) {
         return;
     }
-    // The target is the frame the constraint engine will settle the window at
-    // anyway (the pane's fitting size is the window's size — see
-    // SettingsPaneViewController), computed from the engine's own numbers:
-    // this view's leading edge in the window is the sidebar plus divider, and
-    // the content rect past contentLayoutRect is the titlebar overlaying the
-    // content. Animating to the same answer keeps the post-animation snap a
-    // no-op.
+    // The panes' shared size is the window's FLOOR, not its size: the window
+    // is user-resizable above it, so a shared-size change moves the minimum
+    // and grows an undersized window, never shrinking one the user enlarged.
+    // The floor is computed from the engine's own numbers: this view's
+    // leading edge in the window is the sidebar plus divider, and the content
+    // rect past contentLayoutRect is the titlebar overlaying the content.
     NSSize paneSize = pane.preferredContentSize;
     CGFloat leading = NSMinX([self.view convertRect:self.view.bounds toView:nil]);
     NSRect content = [window contentRectForFrameRect:window.frame];
     CGFloat titlebar = NSHeight(content) - NSHeight(window.contentLayoutRect);
-    NSSize target = NSMakeSize(leading + paneSize.width, paneSize.height + titlebar);
+    NSSize minContent = NSMakeSize(leading + paneSize.width, paneSize.height + titlebar);
+    window.contentMinSize = minContent;
+    NSSize target = NSMakeSize(MAX(minContent.width, content.size.width),
+                               MAX(minContent.height, content.size.height));
     content.origin.y += content.size.height - target.height;
     content.size = target;
     NSRect targetFrame = [window frameRectForContentRect:content];
@@ -266,10 +275,14 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     split.title = tabs.tabViewItems.firstObject.viewController.title;
 
     NSWindow *window = [NSWindow windowWithContentViewController:split];
-    // Not resizable: each pane owns its size. Full-size content view is what
-    // lets the sidebar run the window's full height.
+    // Resizable above the panes' shared size, which is the FLOOR the tab
+    // controller keeps in contentMinSize — a pane's own constraints are
+    // minimums, so extra height is blank space below the sections and the
+    // theme editor's scroll area grows. Full-size content view is what lets
+    // the sidebar run the window's full height.
     window.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-            | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskFullSizeContentView;
+            | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
+            | NSWindowStyleMaskFullSizeContentView;
     window.releasedWhenClosed = NO;
     [window center];
 

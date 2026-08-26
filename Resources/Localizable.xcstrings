@@ -18790,12 +18790,6 @@
     "menu.view.theme": {
       "comment": "View menu: submenu selecting the appearance theme; checkmarks the active one.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Theme"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -18824,6 +18818,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Θέμα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme"
           }
         },
         "es": {
@@ -18976,12 +18976,6 @@
     "menu.view.theme.edit": {
       "comment": "Theme submenu item: opens Settings on the theme editor. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Themes…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -19010,6 +19004,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Επεξεργασία θεμάτων…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Themes…"
           }
         },
         "es": {
@@ -24742,12 +24742,6 @@
     "settings.appearance.fonts_section": {
       "comment": "Theme editor: heading above the three font rows.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fonts"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -24776,6 +24770,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Γραμματοσειρές"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonts"
           }
         },
         "es": {
@@ -25669,15 +25669,195 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.playlist_section": {
-      "comment": "Theme editor: heading above the playlist color rows.",
+    "settings.appearance.player_section": {
+      "comment": "Theme editor: heading above the player rows — the label colors and the info-display choices.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist"
+            "value": "Player"
           }
         },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плейър"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přehrávač"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspiller"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Player"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πρόγραμμα αναπαραγωγής"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproductor"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soitin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecteur"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduktor"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lejátszó"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pemutar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lettore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレーヤー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "플레이어"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiller"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speler"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odtwarzacz"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Player"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leitor"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Player"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плеер"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prehrávač"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spelare"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เครื่องเล่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatıcı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плеєр"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trình phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放器"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.playlist_section": {
+      "comment": "Theme editor: heading above the playlist background and row-color rows.",
+      "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -25706,6 +25886,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Λίστα αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
           }
         },
         "es": {
@@ -26416,12 +26602,6 @@
     "settings.appearance.theme.add": {
       "comment": "Settings, Appearance pane: pull-down button over the ways to add a theme — new, duplicate, import.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -26450,6 +26630,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Προσθήκη"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
           }
         },
         "es": {
@@ -26602,12 +26788,6 @@
     "settings.appearance.theme.add_new": {
       "comment": "Add menu item: creates a theme from the current appearance. Also the created theme's default name.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New Theme"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -26636,6 +26816,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Νέο θέμα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Theme"
           }
         },
         "es": {
@@ -26788,12 +26974,6 @@
     "settings.appearance.theme.back": {
       "comment": "Theme editor: button returning from the editor page to the theme list, like a System Settings sub-page's back control.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -26822,6 +27002,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Πίσω"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
           }
         },
         "es": {
@@ -26974,12 +27160,6 @@
     "settings.appearance.theme.background.glass": {
       "comment": "Window background choice: the translucent glass look the app ships with.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Glass"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27008,6 +27188,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Γυαλί"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glass"
           }
         },
         "es": {
@@ -27160,12 +27346,6 @@
     "settings.appearance.theme.background.solid": {
       "comment": "Window background choice: a picked color covers the glass; the color's opacity decides how much glass still shows.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solid color"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27194,6 +27374,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Συμπαγές χρώμα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solid color"
           }
         },
         "es": {
@@ -27346,12 +27532,6 @@
     "settings.appearance.theme.background_colors": {
       "comment": "Theme editor, Window group: row beside the solid background's two color wells, one per appearance.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Background colors"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27380,6 +27560,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώματα φόντου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background colors"
           }
         },
         "es": {
@@ -27532,12 +27718,6 @@
     "settings.appearance.theme.background_label": {
       "comment": "Theme editor, Window group: row beside the dropdown choosing the window background — the glass look, or a solid color.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Background"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27566,6 +27746,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Φόντο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background"
           }
         },
         "es": {
@@ -27718,12 +27904,6 @@
     "settings.appearance.theme.built_in_caption": {
       "comment": "Theme editor: caption on a built-in theme's read-only page, shown beside a Duplicate button that makes an editable copy.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Built-in themes can't be edited."
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27752,6 +27932,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Δεν είναι δυνατή η επεξεργασία των ενσωματωμένων θεμάτων."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in themes can't be edited."
           }
         },
         "es": {
@@ -27904,12 +28090,6 @@
     "settings.appearance.theme.color_artist": {
       "comment": "Theme editor, Window group: row beside the secondary text's color wells — the artist lines and the playlist's number and length columns.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artist color"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -27938,6 +28118,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώμα καλλιτέχνη"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artist color"
           }
         },
         "es": {
@@ -28090,12 +28276,6 @@
     "settings.appearance.theme.color_info": {
       "comment": "Theme editor, Window group: row beside the color wells for the header's codec and BPM/key readouts.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Info color"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28124,6 +28304,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώμα πληροφοριών"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info color"
           }
         },
         "es": {
@@ -28276,12 +28462,6 @@
     "settings.appearance.theme.color_times": {
       "comment": "Theme editor, Window group: row beside the color wells for the two time labels.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Time color"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28310,6 +28490,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώμα χρόνου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time color"
           }
         },
         "es": {
@@ -28462,12 +28648,6 @@
     "settings.appearance.theme.color_title": {
       "comment": "Theme editor, Window group: row beside the title text's color wells. Governs the header title and the playlist titles.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Title color"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28496,6 +28676,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώμα τίτλου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title color"
           }
         },
         "es": {
@@ -28648,12 +28834,6 @@
     "settings.appearance.theme.corner_radius": {
       "comment": "Theme editor, Window group: row beside the slider rounding the window's corners.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Corner radius"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28682,6 +28862,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Στρογγύλεμα γωνιών"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corner radius"
           }
         },
         "es": {
@@ -28831,15 +29017,195 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.dark": {
-      "comment": "Theme editor: caption after a color well — the color used while the app is in dark mode.",
+    "settings.appearance.theme.corner_radius_value": {
+      "comment": "Theme editor: the corner-radius slider's live readout, e.g. '20 px'. %ld is the radius in pixels.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dark"
+            "value": "%ld px"
           }
         },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld пкс"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld пкс"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld пкс"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.dark": {
+      "comment": "Theme editor: caption after a color well — the color used while the app is in dark mode.",
+      "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28868,6 +29234,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Σκούρα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
           }
         },
         "es": {
@@ -29020,12 +29392,6 @@
     "settings.appearance.theme.duplicate": {
       "comment": "Add menu item, and the button on a built-in theme's read-only editor page: copies the selected theme into an editable one.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duplicate"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29054,6 +29420,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Διπλότυπο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate"
           }
         },
         "es": {
@@ -29206,12 +29578,6 @@
     "settings.appearance.theme.edit": {
       "comment": "Settings, Appearance pane: button that opens the selected theme's editor page. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29240,6 +29606,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Επεξεργασία…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit…"
           }
         },
         "es": {
@@ -29392,12 +29764,6 @@
     "settings.appearance.theme.export": {
       "comment": "Settings, Appearance pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Export…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29426,6 +29792,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Εξαγωγή…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export…"
           }
         },
         "es": {
@@ -29578,12 +29950,6 @@
     "settings.appearance.theme.font_info": {
       "comment": "Theme editor, Fonts group: row for the font of the times and the codec and BPM/key readouts.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Info font"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29612,6 +29978,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Γραμματοσειρά πληροφοριών"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info font"
           }
         },
         "es": {
@@ -29764,12 +30136,6 @@
     "settings.appearance.theme.font_main": {
       "comment": "Theme editor, Fonts group: row for the title and artist font.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Main font"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29798,6 +30164,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Κύρια γραμματοσειρά"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Main font"
           }
         },
         "es": {
@@ -29950,12 +30322,6 @@
     "settings.appearance.theme.font_playlist": {
       "comment": "Theme editor, Fonts group: row for the playlist rows' font.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playlist font"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29984,6 +30350,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Γραμματοσειρά λίστας αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist font"
           }
         },
         "es": {
@@ -30136,12 +30508,6 @@
     "settings.appearance.theme.font_select": {
       "comment": "Theme editor, Fonts group: button opening the system font panel for that row's font. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30170,6 +30536,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Επιλογή…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select…"
           }
         },
         "es": {
@@ -30322,12 +30694,6 @@
     "settings.appearance.theme.font_value": {
       "comment": "Theme editor, Fonts group: the current choice, e.g. 'Helvetica Neue 23 pt'. %1$@ is the font's name, %2$ld its size in points.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ %2$ld pt"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30353,6 +30719,12 @@
           }
         },
         "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$ld pt"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ %2$ld pt"
@@ -30508,12 +30880,6 @@
     "settings.appearance.theme.import": {
       "comment": "Add menu item: opens a file chooser for a theme JSON file. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Import…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30542,6 +30908,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Εισαγωγή…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import…"
           }
         },
         "es": {
@@ -30694,12 +31066,6 @@
     "settings.appearance.theme.import_failed": {
       "comment": "Alert shown when an imported file could not be read as a theme JSON.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file isn't a Vibe theme."
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30728,6 +31094,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Αυτό το αρχείο δεν είναι θέμα Vibe."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file isn't a Vibe theme."
           }
         },
         "es": {
@@ -30880,12 +31252,6 @@
     "settings.appearance.theme.light": {
       "comment": "Theme editor: caption after a color well — the color used while the app is in light mode.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Light"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30914,6 +31280,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ανοιχτή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
           }
         },
         "es": {
@@ -31066,12 +31438,6 @@
     "settings.appearance.theme.name_label": {
       "comment": "Theme editor: row beside the theme's editable name field.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -31100,6 +31466,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Όνομα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
           }
         },
         "es": {
@@ -31252,12 +31624,6 @@
     "settings.appearance.theme.playing_row": {
       "comment": "Theme editor, Playlist group: row beside the color wells filling the playing track's row.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playing row"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -31286,6 +31652,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Σειρά σε αναπαραγωγή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing row"
           }
         },
         "es": {
@@ -31436,14 +31808,8 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_background": {
-      "comment": "Theme editor, Playlist group: row beside the color wells washing the playlist area's background.",
+      "comment": "Theme editor, Playlist group: row beside the dropdown choosing the playlist background — the frosted glass look, or a solid color.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playlist background"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -31472,6 +31838,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Φόντο λίστας αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist background"
           }
         },
         "es": {
@@ -31621,15 +31993,195 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.remove": {
-      "comment": "Settings, Appearance pane: button that deletes the selected theme. Built-in themes cannot be removed.",
+    "settings.appearance.theme.playlist_background_colors": {
+      "comment": "Theme editor, Playlist group: row beside the playlist background's two color wells, one per appearance — the wash over glass, or the solid cover.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Remove"
+            "value": "Playlist background colors"
           }
         },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цветове на фона на плейлиста"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Barvy pozadí playlistu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spillelistebaggrundsfarver"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundfarben der Wiedergabeliste"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Χρώματα φόντου λίστας αναπαραγωγής"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colores de fondo de la lista de reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soittolistan taustavärit"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleurs d’arrière-plan de la liste de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boje pozadine popisa pjesama"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lejátszási lista háttérszínei"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warna latar belakang playlist"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colori dello sfondo della playlist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレイリストの背景色"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생목록 배경 색상"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spillelistebakgrunnsfarger"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Achtergrondkleuren van afspeellijst"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kolory tła playlisty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cores do fundo da playlist"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cores do fundo da lista de reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Culorile fundalului playlistului"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвета фона плейлиста"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farby pozadia playlistu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spellistebakgrundsfärger"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สีพื้นหลังเพลย์ลิสต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalma listesi arka plan renkleri"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кольори тла плейлиста"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Màu nền danh sách phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放列表背景颜色"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放列表背景顏色"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.remove": {
+      "comment": "Settings, Appearance pane: button that deletes the selected theme. Built-in themes cannot be removed.",
+      "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -31658,6 +32210,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Αφαίρεση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
           }
         },
         "es": {
@@ -31810,12 +32368,6 @@
     "settings.appearance.theme.selected_row": {
       "comment": "Theme editor, Playlist group: row beside the color wells filling selected rows.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected row"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -31844,6 +32396,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Επιλεγμένη σειρά"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected row"
           }
         },
         "es": {
@@ -31996,12 +32554,6 @@
     "settings.appearance.themes_section": {
       "comment": "Settings, Appearance pane: heading above the theme list and its buttons.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Themes"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -32030,6 +32582,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Θέματα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Themes"
           }
         },
         "es": {
@@ -49294,12 +49852,6 @@
     "theme.name.custom": {
       "comment": "Default name for the user theme created on upgrade: it carries the appearance settings the user had customized before themes existed.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Custom"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -49328,6 +49880,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Προσαρμοσμένο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
           }
         },
         "es": {
@@ -49480,12 +50038,6 @@
     "theme.name.imported": {
       "comment": "Default name for an imported theme whose file carried no name.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imported Theme"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -49514,6 +50066,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Εισαγμένο θέμα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported Theme"
           }
         },
         "es": {
@@ -49666,12 +50224,6 @@
     "theme.name.industrial": {
       "comment": "Built-in theme name: the machine-room look — detailed orange waveform, monospaced info font. A style name; translate it the way a paint-color name would be.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Industrial"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -49700,6 +50252,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Βιομηχανικό"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Industrial"
           }
         },
         "es": {

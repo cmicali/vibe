@@ -463,6 +463,21 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
             return matches.firstObject;
         }
         if (matches.count > 1) {
+            // A readout beside a control legitimately shares its row's label
+            // (the corner-radius slider's px value), and a readout cannot be
+            // clicked — so the unclickable kinds only make a name ambiguous
+            // when nothing clickable matched.
+            NSMutableArray<VibeSettingsElement *> *clickable = [NSMutableArray array];
+            for (VibeSettingsElement *match in matches) {
+                if (![match.kind isEqualToString:@"label"] &&
+                        ![match.kind isEqualToString:@"field"] &&
+                        ![match.kind isEqualToString:@"control"]) {
+                    [clickable addObject:match];
+                }
+            }
+            if (clickable.count == 1) {
+                return clickable.firstObject;
+            }
             NSMutableArray<NSString *> *names = [NSMutableArray array];
             for (VibeSettingsElement *match in matches) {
                 [names addObject:match.name];

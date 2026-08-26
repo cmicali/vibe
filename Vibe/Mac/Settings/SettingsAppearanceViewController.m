@@ -82,6 +82,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSColorWell *_windowTintDarkWell, *_windowTintLightWell;
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
     NSSlider *_cornerRadiusSlider;
+    NSTextField *_cornerRadiusValue;
     NSSwitch *_fileInfoSwitch;
     NSButton *_timeTotalRadio, *_timeRemainingRadio;
     NSSwitch *_showBPMSwitch, *_showKeySwitch;
@@ -98,6 +99,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSColorWell *_customDarkPlayedWell, *_customDarkUnplayedWell;
     NSColorWell *_customLightPlayedWell, *_customLightUnplayedWell;
     SettingsRowView *_customDarkRow, *_customLightRow;
+    NSPopUpButton *_playlistBackgroundPopUp;
     NSColorWell *_playlistBackgroundDarkWell, *_playlistBackgroundLightWell;
     NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
@@ -261,10 +263,27 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
                                                 control:_windowTintLightWell];
 
-    _cornerRadiusSlider = [NSSlider sliderWithValue:20 minValue:0 maxValue:kVibeThemeCornerRadiusMax
+    _cornerRadiusSlider = [NSSlider sliderWithValue:kVibeThemeCornerRadiusDefault
+                                           minValue:0 maxValue:kVibeThemeCornerRadiusMax
                                              target:self action:@selector(cornerRadiusChanged:)];
     _cornerRadiusSlider.continuous = YES;
     [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _cornerRadiusValue = [NSTextField labelWithString:@""];
+    _cornerRadiusValue.textColor = NSColor.secondaryLabelColor;
+    // Right-aligned at a fixed width, so the readout's changing digit count
+    // never nudges the slider.
+    _cornerRadiusValue.alignment = NSTextAlignmentRight;
+    [_cornerRadiusValue.widthAnchor constraintEqualToConstant:50].active = YES;
+    NSStackView *radiusCluster = [NSStackView stackViewWithViews:
+            @[_cornerRadiusSlider, _cornerRadiusValue]];
+    radiusCluster.spacing = 10;
+
+    _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                                   action:@selector(playlistBackgroundStyleChanged:)];
+    [_playlistBackgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
+    _playlistBackgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+    [_playlistBackgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_SOLID];
+    _playlistBackgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID;
 
     _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
@@ -347,13 +366,14 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
             _windowTintDarkRow,
             _windowTintLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:_cornerRadiusSlider],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_FONTS_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE
                     control:[self darkLightPairWithDark:_titleDarkWell light:_titleLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST
@@ -362,6 +382,12 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                     control:[self darkLightPairWithDark:_infoDarkWell light:_infoLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES
                     control:[self darkLightPairWithDark:_timeDarkWell light:_timeLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
@@ -371,16 +397,13 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
+                    control:_playlistBackgroundPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
                     control:[self darkLightPairWithDark:_playlistBackgroundDarkWell light:_playlistBackgroundLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
                     control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
                     control:[self darkLightPairWithDark:_selectedRowDarkWell light:_selectedRowLightWell]],
-        ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_FONTS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
         ]],
     ];
 
@@ -544,13 +567,16 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
     [_backgroundPopUp selectItemAtIndex:
             [_backgroundPopUp indexOfItemWithRepresentedObject:theme.windowBackgroundStyle]];
-    _backgroundDarkWell.color = [theme windowBackgroundColorForDark:YES] ?: DefaultSolidBackgroundColor(YES);
-    _backgroundLightWell.color = [theme windowBackgroundColorForDark:NO] ?: DefaultSolidBackgroundColor(NO);
+    _backgroundDarkWell.color = [theme windowBackgroundColorForDark:YES]
+            ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:YES];
+    _backgroundLightWell.color = [theme windowBackgroundColorForDark:NO]
+            ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:NO];
     [_windowTintPopUp selectItemAtIndex:
             [_windowTintPopUp indexOfItemWithRepresentedObject:theme.windowTint]];
     _windowTintDarkWell.color = [theme windowTintColorForDark:YES] ?: DefaultWindowTintColor(YES);
     _windowTintLightWell.color = [theme windowTintColorForDark:NO] ?: DefaultWindowTintColor(NO);
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
+    [self refreshCornerRadiusValue];
 
     _fileInfoSwitch.state = theme.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
     BOOL remaining = theme.showRemainingTime;
@@ -587,10 +613,16 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
     _customLightUnplayedWell.color = [theme waveformUnplayedColorForDark:NO] ?: DefaultCustomUnplayedColor(NO);
 
+    [_playlistBackgroundPopUp selectItemAtIndex:
+            [_playlistBackgroundPopUp indexOfItemWithRepresentedObject:theme.playlistBackgroundStyle]];
+    BOOL playlistSolid = [theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     _playlistBackgroundDarkWell.color = [theme playlistBackgroundColorForDark:YES]
-            ?: [MainPlayerContentView defaultPlaylistBackgroundColorForDark:YES];
+            ?: (playlistSolid ? [MainPlayerContentView defaultSolidBackgroundColorForDark:YES]
+                              : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:YES]);
     _playlistBackgroundLightWell.color = [theme playlistBackgroundColorForDark:NO]
-            ?: [MainPlayerContentView defaultPlaylistBackgroundColorForDark:NO];
+            ?: (playlistSolid ? [MainPlayerContentView defaultSolidBackgroundColorForDark:NO]
+                              : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:NO]);
     _playingRowDarkWell.color = [theme playlistPlayingRowColorForDark:YES]
             ?: [PlaylistRowView neutralRowFillColorForDark:YES];
     _playingRowLightWell.color = [theme playlistPlayingRowColorForDark:NO]
@@ -825,13 +857,6 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 #pragma mark - Editor: window
 
-// The solid background's seeds: near-opaque neutrals in each appearance's
-// register, a starting point to pick from.
-static NSColor *DefaultSolidBackgroundColor(BOOL isDark) {
-    return isDark ? [NSColor colorWithWhite:0.11 alpha:0.95]
-                  : [NSColor colorWithWhite:0.93 alpha:0.95];
-}
-
 - (void)backgroundStyleChanged:(id)sender {
     NSString *identifier = _backgroundPopUp.selectedItem.representedObject;
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
@@ -842,7 +867,9 @@ static NSColor *DefaultSolidBackgroundColor(BOOL isDark) {
         for (int darkPass = 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
             if (![theme windowBackgroundColorForDark:isDark]) {
-                [theme setWindowBackgroundColor:DefaultSolidBackgroundColor(isDark) forDark:isDark];
+                [theme setWindowBackgroundColor:
+                        [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]
+                                        forDark:isDark];
             }
         }
     }
@@ -890,8 +917,21 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 }
 
 - (void)cornerRadiusChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.windowCornerRadius = _cornerRadiusSlider.doubleValue;
+    // A magnetic detent at the factory radius — the reset, without a button:
+    // dragging near the default snaps onto it.
+    double radius = _cornerRadiusSlider.doubleValue;
+    if (fabs(radius - kVibeThemeCornerRadiusDefault) < 1.5) {
+        radius = kVibeThemeCornerRadiusDefault;
+        _cornerRadiusSlider.doubleValue = radius;
+    }
+    AppSettings.sharedInstance.currentTheme.windowCornerRadius = radius;
+    [self refreshCornerRadiusValue];
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+}
+
+- (void)refreshCornerRadiusValue {
+    _cornerRadiusValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_CORNER_RADIUS_VALUE,
+            (long)lround(AppSettings.sharedInstance.currentTheme.windowCornerRadius)];
 }
 
 #pragma mark - Editor: info display
@@ -1006,6 +1046,26 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 #pragma mark - Editor: playlist
+
+- (void)playlistBackgroundStyleChanged:(id)sender {
+    NSString *identifier = _playlistBackgroundPopUp.selectedItem.representedObject;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
+        // Choosing Solid seeds any unset color from the wells' displayed
+        // fallbacks, so the playlist immediately matches them.
+        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![theme playlistBackgroundColorForDark:isDark]) {
+                [theme setPlaylistBackgroundColor:
+                        [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]
+                                          forDark:isDark];
+            }
+        }
+    }
+    theme.playlistBackgroundStyle = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+    [self refreshFromSettings];
+}
 
 - (void)playlistColorChanged:(NSColorWell *)sender {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;

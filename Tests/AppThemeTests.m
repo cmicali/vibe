@@ -23,6 +23,7 @@
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
+    XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertFalse(theme.showRemainingTime);
@@ -77,6 +78,7 @@
         @"waveformTheme": @"purple",
         @"windowTint": @"plaid",
         @"windowBackgroundStyle": @"translucent",
+        @"playlistBackgroundStyle": @"frosted",
         @"keyNotation": @"solfege",
     }];
     // Every snap lands on the default, so nothing is stored.
@@ -84,6 +86,7 @@
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
+    XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
 }
 

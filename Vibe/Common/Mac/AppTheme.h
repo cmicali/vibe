@@ -26,9 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
 
-// The window background's stable identifiers: glass, the default, is the
-// full-bleed glass backdrop as shipped; solid covers the glass with the
-// windowBackground color pair, whose alpha is the cover's opacity.
+// The background styles' stable identifiers, shared by the window and the
+// playlist: glass, the default, is the translucent look as shipped; solid
+// covers it with the surface's color pair, whose alpha is the cover's
+// opacity. On the playlist, solid also removes the behind-window blur.
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS              @"glass"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 
@@ -37,6 +38,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
 // — a static frame that must stay valid for every legal radius rather than
 // follow the live value.
 #define kVibeThemeCornerRadiusMax ((CGFloat)30)
+// The factory radius — the editor's slider detent snaps back to it.
+#define kVibeThemeCornerRadiusDefault ((CGFloat)20)
 
 // The font slots' reference sizes — the base each slot's reference site
 // passes (the title, the info labels, the playlist rows). Macros for the same
@@ -111,6 +114,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid
+@property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid
 @property (nonatomic) CGFloat windowCornerRadius;           // clamped [0, kVibeThemeCornerRadiusMax]
 @property (nonatomic) BOOL showFileInfo;
 @property (nonatomic) BOOL showRemainingTime;
