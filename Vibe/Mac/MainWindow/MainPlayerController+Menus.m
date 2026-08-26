@@ -136,8 +136,21 @@
 
 #pragma mark - Conditional domains
 
-- (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
+// A selection nobody can see is not a selection: with the playlist collapsed
+// the arrow keys do not move one either (TransportKeyMonitor), so both commands
+// that act on the selected row have nothing to act on. The key-window half is
+// part of the same fact — a bare Return or Delete press in Settings or About
+// falls through to these items' fallback key equivalents, and must not act on
+// a playlist that is not even frontmost. One home, because both commands must
+// agree; the play half used to skip the key-window check, which let Return in
+// Settings start playback of a selection the user was not looking at.
+- (BOOL)hasVisiblePlaylistSelection {
     MainWindow *window = (MainWindow *)self.window;
+    return window.isKeyWindow && window.isPlaylistShown
+            && self.playlistController.selectedRow >= 0;
+}
+
+- (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
     // Only when there really is a track after the current one. At the end of
     // the playlist, next: is a no-op.
     if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
@@ -146,11 +159,8 @@
     if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
         return self.playlistController.hasPreviousTrack;
     }
-    // A selection nobody can see is not a selection: with the playlist
-    // collapsed the arrow keys do not move it either (TransportKeyMonitor), so
-    // Return has nothing to act on.
     if ([menuItem.identifier isEqualToString:@"menu_play_selected"]) {
-        return window.isPlaylistShown && self.playlistController.hasSelectedTrack;
+        return [self hasVisiblePlaylistSelection];
     }
     // The skips need both a loaded track and a player that is not stopped:
     // after the playlist ends there is no node left to seek. See
@@ -189,6 +199,11 @@
     if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
         menuItem.title = self.window.undoManager.redoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canRedo;
+    }
+    // The one structural edit: it acts on the SELECTED row, so it shares Play
+    // Selected Track's whole gate — key window included.
+    if ([menuItem.identifier isEqualToString:@"menu_edit_remove_from_playlist"]) {
+        return [self hasVisiblePlaylistSelection];
     }
     // The Copy items act on the current track, like Show in Finder.
     if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {

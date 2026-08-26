@@ -21,9 +21,10 @@ NS_ASSUME_NONNULL_BEGIN
 // so the compiler checks the implementation in this file.
 - (IBAction)convertCurrentTrackToFLAC:(nullable id)sender;
 
-// Edit > Undo and Redo, forwarding to the window's NSUndoManager. Convert to
-// FLAC registers the only undoable action; the round trip moves files through
-// the Trash and never re-encodes.
+// Edit > Undo and Redo, forwarding to the window's NSUndoManager. Two actions
+// register on it: a conversion (whose round trip moves files through the
+// Trash and never re-encodes) and a playlist row removal
+// (MainPlayerController.m's reinsert funnel, which moves no files at all).
 - (IBAction)undo:(nullable id)sender;
 - (IBAction)redo:(nullable id)sender;
 

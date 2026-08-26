@@ -36,11 +36,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^appearanceChangedHandler)(void);
 
 // Only the buttons the controller drives, through their symbol and enabled
-// state, are exposed. The traffic lights and the playlist toggle are entirely
-// self-contained — their action is wired at build and their hover fade is
-// internal — so they stay private to the view.
+// state, are exposed. The traffic lights and the playlist toggle keep their
+// actions and hover fade internal, so they stay private to the view.
 @property (readonly) SymbolButton *playButton;
 @property (readonly) SymbolButton *nextButton;
+
+// Applies the persisted visibility of the custom close and minimize buttons.
+- (void)setTrafficLightsShown:(BOOL)shown;
 
 // The tint wash over the header's glass panel. The artwork controller sets its
 // layer background to the current track's dominant art color. It is a plain

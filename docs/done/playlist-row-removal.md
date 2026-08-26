@@ -1,8 +1,26 @@
-# Future: Playlist row removal (macOS)
+# Playlist row removal (macOS) — DONE
 
-Written 2026-08-23, planned but not implemented. Nothing in the repo has changed for it yet.
-The source descriptions below are against `main` at `bd2b0dc`, with unrelated uncommitted work
-in the checkout. Re-check the code and every named method before acting.
+Implemented 2026-08-25, from the plan below. The plan is kept as the record of the reasoning; the
+code and the directory docs are the authority on what shipped. The implementation diverged in
+these places:
+
+- **The row menu's clicked-track capture is in `menuNeedsUpdate:`, not `menuWillOpen:`, and is not
+  cleared when the menu closes.** AppKit validates the items between those two callbacks, so a
+  capture made in `menuWillOpen:` would be stale for the validator, and the chosen item's action
+  can run after `menuDidClose:`, so clearing there would leave the removal with nothing to act on.
+  The reference is weak and every open overwrites it, so an uncleared capture retains nothing.
+- **The shell funnel takes only the exact track** (`removePlaylistTrack:`) and resolves its live row
+  once, rather than passing and immediately rechecking an index/identity pair.
+- **The debug key injector gained a `repeat` token** as well as `forward_delete`, because nothing
+  else can synthesize `isARepeat` and the plan's "repeat removes only one row" acceptance is not
+  otherwise testable.
+- **The iOS observer boundary is a no-op**, rather than broadcasting a speculative structural
+  event to four screens. iOS exposes no removal path, and view reconciliation belongs with the
+  transport-safe coordinator a future removal feature would first have to add.
+
+Not verified end to end: **clicking the row context menu's item**. `click_menu` searches the menu
+bar only, and a real context menu blocks the debug channel until dismissed, so that one path was
+checked by construction and by opening the menu, not by driving the click.
 
 This plan is written to be executed phase by phase by an implementation agent. Read the root
 `CLAUDE.md`, `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`,
@@ -90,9 +108,11 @@ current row therefore changes as one coordinated transport operation:
 | Current row was last, earlier rows survive | The new last row | Paused, even if the removed last row was playing; removal must not replay backward |
 | It was the only row | None | Call `closeFile:`; ordinary empty-state teardown |
 
-`AudioPlayer.isPlaying` is the correct intent snapshot: while Loading it means the pending open
-will land playing, whereas `outputAudioActive` answers whether pixels/FFT should run and is not a
-transport intent. Paused, Loading-paused, Stopped and error states all land the replacement parked.
+For a successor, `AudioPlayer.playingIntentAfterPendingCommands` resolves the intent after every
+transport command already submitted to the player queue. This includes a pause whose fade has
+started but not completed, without mirroring transport state in the controller. `outputAudioActive`
+answers whether pixels/FFT should run and is not a transport intent. Paused, Loading-paused,
+Stopped and error states all land the replacement parked.
 
 The replacement starts at file position 0. A playing successor goes through ordinary `play:` so
 the configured track-change crossfade applies. A parked replacement uses
@@ -100,9 +120,9 @@ the configured track-change crossfade applies. A parked replacement uses
 that invokes `playWillStartHandler` after submission. That hook is what immediately repaints the
 header during a slow open and keeps every play entry point on one path.
 
-If the removed current row was the last row and had been playing, fold the listening clock before
-parking the previous row. `AudioPlayer.stop` and a parked start do not imply the same stats edge as
-a natural track end; the coordinator must make the transition explicit.
+Before every parked replacement, fold the listening clock and stop the UI timer. Both operations
+are idempotent, and must happen before the new submission suppresses any pending stop or pause
+callback from the departed track. A slow parked open therefore produces no app-side UI wakeups.
 
 ### Async work and other features
 
@@ -188,20 +208,17 @@ Add a model operation with an unambiguous invalid case:
 - (nullable AudioTrack *)removeTrackAtIndex:(NSUInteger)index;
 ```
 
-Add one synchronous structural observer delivery carrying the removed row and previous cursor,
-for example:
+Add one synchronous structural observer delivery carrying the removed index:
 
 ```objc
-- (void)playlist:(Playlist *)playlist
-        didRemoveTrack:(AudioTrack *)track
-               atIndex:(NSUInteger)index
-      previousCurrentIndex:(NSUInteger)previousCurrentIndex;
+- (void)playlist:(Playlist *)playlist didRemoveTrackAtIndex:(NSUInteger)index;
 ```
 
 Set `_tracks`, both indexes and `_currentIndex` to their final coherent state before calling the
 observer. Do not also send `currentIndexDidChangeFromIndex:`: two callbacks for one structural
-edit make the table reconcile against the same action twice and obscure event ordering. The new
-event carries enough information for each shell to refresh structure and cursor-derived work once.
+edit make the table reconcile against the same action twice and obscure event ordering. The
+removed index is all the table reconciliation consumes; the shell already knows the exact
+requested object and whether it was current before it invokes the mutation.
 
 An invalid index returns nil, changes nothing and sends no event. Empty removal resets
 `_currentIndex` to 0.
@@ -211,24 +228,13 @@ An invalid index returns nil, changes nothing and sends no event. Empty removal 
 Implement the new required `PlaylistObserver` method in both observer owners:
 
 - macOS `PlaylistController` performs the precise table update described in Phase 2;
-- iOS `PlaybackController` updates the metadata neighborhood and broadcasts one optional
-  `PlaybackObserver` structural-edit event. Library, Search, the pager and the mini player answer
-  it through their existing full-refresh paths. Use one event for both removal and the later move;
-  it describes invalidated row positions, not a transport decision.
+- iOS `PlaybackController` implements the required selector as an explicit no-op. The iOS app
+  exposes no remove UI and adds no caller in this feature, so speculative metadata and view
+  reconciliation would have no safe production path to serve.
 
-Use an explicit shape such as:
-
-```objc
-// Row positions changed. Re-read the final playlist; this says nothing about
-// whether the audio-player intent changed.
-- (void)playbackDidChangePlaylistStructure:(PlaybackController *)playback;
-```
-
-The iOS app exposes no remove UI and adds no removal caller in this feature. The broadcast keeps
-the shared target compiling and its views coherent, but it does **not** make current-row removal
-transport-safe on iOS: `PlaybackController` would still be playing the departed object. Document
-on the model operation that a shell must coordinate current-track consequences. Any future iOS
-remove UI must first add that coordinator; it may not call the model method directly.
+Any future iOS remove UI must first add a player coordinator: `PlaybackController` would otherwise
+keep playing the departed object. Add the matching view reconciliation with that feature; it may
+not call the model method directly.
 
 ### 1d. Unit tests
 
@@ -241,7 +247,7 @@ Add pure model cases for:
 - removed identity returns `-1`, every survivor resolves to its shifted row;
 - duplicate URL sets lose exactly the removed occurrence and `trackForURL:` still returns the
   first surviving row;
-- observer payload, final state and exact synchronous event order;
+- observer index payload, final state and exact synchronous event order;
 - a metadata-bearing `AudioTrack` remains the exact same object after another row is removed.
 
 **Acceptance:** `make test`, `make check-layout`, `make check-vocabulary`, and
@@ -258,17 +264,17 @@ Add:
 
 - a range-checked selected-row accessor for the shell action;
 - a range-checked clicked-row removal action for the context menu;
-- a synchronous request block from the playlist controller to its shell owner, carrying the row
-  index and expected exact `AudioTrack` identity, never a track guessed from its URL;
+- a synchronous request block from the playlist controller to its shell owner, carrying the exact
+  `AudioTrack` identity, never a track guessed from its URL;
 - a public pass-through that performs `Playlist.removeTrackAtIndex:` only when the shell has
   decided the playback consequences;
 - a play helper that accepts `startPaused` and always fires `playWillStartHandler` after
   submission, preserving the existing “one play funnel” rule.
 
 The request block keeps the app-shell work out of `Playlist/Mac/`. The selected-row action captures
-its identity at invocation; the context action captures it when the menu opens and clears it when
-the menu closes. `MainPlayerController` wires the block beside the existing play and current-index
-handlers and rejects a request whose expected object no longer resolves to the supplied live row.
+its identity at invocation; the context action captures it when the menu opens. `MainPlayerController`
+wires the block beside the existing play and current-index handlers and resolves the exact object to
+its live row once; a departed object no-ops and a shifted one is followed.
 
 ### 2b. Precise table update
 
@@ -278,11 +284,11 @@ On the model's removal event:
    shifts thousands of rows; animating them is motion and work nobody requested.
 2. Select the row that closed the gap, or the new final row.
 3. Re-stamp visible `PlaylistRowView.playingRow` values from the model's final current index.
-4. Reconfigure visible number-column cells from the removed row downward in place so their row
-   numbers, loading bars and equalizer ownership agree. Do not `reloadData` and do not rebuild
-   every column.
-5. Reconcile the current equalizer's clip/window intersection.
-6. Do not invoke `currentIndexDidChangeHandler` as a second edge for the same structural edit. The
+4. Reconfigure all visible number-column cells in place so their row numbers, loading bars,
+   equalizer ownership and current equalizer visibility agree. This includes the promoted current
+   row when the removed row was last and costs at most one screenful. Do not `reloadData` and do
+   not rebuild every column.
+5. Do not invoke `currentIndexDidChangeHandler` as a second edge for the same structural edit. The
    shell removal funnel performs the final-state metadata-neighborhood and transport refresh once
    after the synchronous mutation; duplicating that work through the ordinary cursor callback
    obscures the one-mutation/one-reconciliation ordering.
@@ -307,22 +313,22 @@ the central controller unless it makes that file materially less readable; if a
 `MainPlayerController+PlaylistEditing` category is introduced, add it to the category table in
 `Vibe/Mac/MainWindow/CLAUDE.md` and declare its implementation methods in its own header.
 
-One private `removePlaylistTrackAtIndex:` is the funnel for Edit, keyboard and context requests:
+One private `removePlaylistTrack:` is the funnel for Edit, keyboard and context requests:
 
-1. Range-check again at execution time. Verify that the expected `AudioTrack` still resolves to
-   that row; otherwise no-op.
+1. Resolve the exact `AudioTrack` through `getIndexForTrack:` once; no-op if it has departed.
 2. If the playlist has one row, call `closeFile:` and return without first mutating the model.
-3. Capture the current `AudioTrack`, whether the requested row is current, the old
-   `isPlaying` intent and whether a forward successor exists.
+3. Capture whether the requested row is current and whether a forward successor exists. Only for
+   that successor case, resolve the ordered intent through
+   `AudioPlayer.playingIntentAfterPendingCommands` before mutating.
 4. Perform the model removal through `PlaylistController`.
 5. Recompute the metadata neighborhood from the final rows exactly once; do not route this through
    `currentIndexDidChangeHandler` as a second structural notification.
 6. If the current identity survived, leave audio alone, re-park `successorPrefetchTrack`, and run
    the lightweight UI/Now Playing refresh.
-7. If current was removed and a forward successor existed, submit the new current track playing
-   or parked from the captured intent.
-8. If current was the last row, fold any active listening clock and submit the previous row
-   parked.
+7. If current was removed, derive one landing intent: a successor preserves the captured intent;
+   the previous row chosen after removing the last track always parks.
+8. Before a parked landing, fold the listening clock and stop the UI timer synchronously, then
+   submit through the common play helper.
 9. Ensure the branch's final state has passed `successorPrefetchTrack` to `prefetchTrack:` once.
    Reuse that reconciliation when the ordinary play funnel already owns it; do not double-submit.
 
@@ -460,7 +466,9 @@ its own and should land first; drag reordering remains a separate user-visible c
 - No Clear Playlist alias; use File > Close All Files.
 - No file deletion or Trash integration.
 - No multi-selection or batch removal.
-- No undo/redo for playlist edits in this slice.
+- No undo/redo for playlist edits in this slice. (Added the day after, in the audit follow-up:
+  `Playlist.insertTrack:atIndex:` as the removal's inverse and the shell's generation-stamped
+  reinsert funnel — see `Mac/MainWindow/CLAUDE.md`.)
 - No drag reordering here.
 - No sortable columns, shuffle, repeat, saved playlist editor or library database.
 - No iOS removal UI.

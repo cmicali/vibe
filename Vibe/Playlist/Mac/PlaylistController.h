@@ -55,6 +55,31 @@ NS_ASSUME_NONNULL_BEGIN
 // repainting is NOT its business — that rides the observer directly.
 @property (nonatomic, copy, nullable) void (^currentIndexDidChangeHandler)(void);
 
+// Fires once after every completed row move — drag, undo or redo — with the
+// model, the table and the cursor already final, carrying the move it
+// describes. The shell's one follow-up edge for a reorder: register the
+// inverse on the undo stack, re-park the gapless successor, re-rank the
+// metadata neighborhood, refresh transport UI. A move never enters a play
+// funnel, so this is deliberately not currentIndexDidChangeHandler — one
+// structural edit, one edge.
+@property (nonatomic, copy, nullable) void (^playlistOrderDidChangeHandler)(NSIndexSet *sourceIndexes, NSIndexSet *destinationIndexes);
+
+// Staleness counter for work stamped against the current row set — the
+// shell's removal-undo and reorder-undo registrations. It follows the model's
+// own replace-all announcement (playlistDidReplaceAllTracks:, which both
+// replaceAllWithURLs: and clear fire), so ANY path that replaces the list
+// bumps it — there is no call-site discipline to forget. Appends, swaps,
+// removals and inserts leave it alone: they never invalidate a stamped row
+// number wholesale, because a stamped registration only runs after every
+// undoable edit made since it has itself been unwound (NSUndoManager is
+// LIFO), which restores the coordinates it was stamped in.
+@property (nonatomic, readonly) NSUInteger structureGeneration;
+
+// A row-menu removal request. The shell resolves the exact objects to their
+// live rows and owns the transport consequences; this controller never
+// removes them.
+@property (nonatomic, copy, nullable) void (^removeTracksRequestHandler)(NSArray<AudioTrack *> *tracks);
+
 - (NSArray<AudioTrack *> *)playlist;
 
 // Single-element access. Unlike the playlist getter it makes no defensive
@@ -67,6 +92,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)play;
 - (void)play:(NSArray<NSURL *> *)urls;
+
+// The parked twin of play: the current track is submitted at its start with
+// nothing rendering until playPause. It shares play's funnel, so
+// playWillStartHandler fires after submission exactly as an ordinary start's
+// does — that hook is what repaints the header through a slow open, and having
+// one funnel is why no caller reaches the player directly.
+- (void)playStartPaused:(BOOL)startPaused;
 
 // Adds tracks to the end without touching playback or currentIndex, whereas
 // play: replaces and restarts. AppDelegate's open burst uses it.
@@ -105,11 +137,45 @@ NS_ASSUME_NONNULL_BEGIN
 // Playback is untouched; a caller replacing the playing row restarts it.
 - (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
+// Takes the rows out of the list, returning the exact objects removed in
+// ascending row order, or nil when the set is empty or out of range. Survivors
+// close the gaps and the cursor follows them; the files are untouched.
+//
+// It performs the model mutation and nothing else, so call it ONLY from the
+// shell's removal funnel, which has already decided what the player must do
+// about it. Everything a user gesture reaches goes through
+// removeTracksRequestHandler instead.
+- (NSArray<AudioTrack *> * _Nullable)removeTracksAtIndexes:(NSIndexSet *)indexes;
+
+// The removal's inverse, same pass-through contract: the model mutation and
+// nothing else, so call it ONLY from the shell's undo of a removal, which owns
+// what the player and the metadata sweep must do about the restored rows.
+- (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes;
+
+// A move's own inverse, for the shell's undo of a reorder: the model mutation
+// and nothing else — the observer reconciles the table and re-raises
+// playlistOrderDidChangeHandler, which is what re-registers the opposite
+// direction while the undo manager unwinds. The drag itself never calls this;
+// it lands through the table's acceptDrop.
+- (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes toIndexes:(NSIndexSet *)destinationIndexes;
+
 // The keyboard selection, which is not the playing row: the arrow keys move
-// selectedRow, and it stays put while playback moves currentIndex. NO when
-// nothing is selected, or when a playlist replacement has outrun the
-// selection.
-- (BOOL)hasSelectedTrack;
+// it, and it stays put while playback moves currentIndex. Empty when nothing
+// is selected or a playlist replacement has outrun the selection. The
+// selection primitive — selectedRow and selectedTracks derive from it.
+- (NSIndexSet *)selectedRows;
+
+// The topmost selected row, or -1 with no selection — so >= 0 is also the one
+// "is there a selection" predicate.
+- (NSInteger)selectedRow;
+
+// Every selected row's track, in row order. Empty when nothing is selected.
+- (NSArray<AudioTrack *> *)selectedTracks;
+
+// The live rows the exact objects occupy now, departed ones dropped: the
+// identity-resolution rule every group gesture rests on, in its one home. The
+// drag session and the shell's removal funnel both resolve through this.
+- (NSIndexSet *)rowsForTracks:(NSArray<AudioTrack *> *)tracks;
 
 // Plays the selected row, exactly as a double-click on it does. A no-op with
 // no selection.

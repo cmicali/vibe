@@ -22,7 +22,7 @@
 //    pair's teardown. A retired fade is deliberately NOT preemptable by an
 //    ordinary generation bump: a second skip inside the fade window would
 //    otherwise stop the node at mid-fade volume, which clicks. Only stop,
-//    pause and the failure reset silence one early, through
+//    pause, a parked play and the failure reset silence one early, through
 //    preemptRetiredFadesOnQueue.
 //
 //  Everything here runs on the player queue.

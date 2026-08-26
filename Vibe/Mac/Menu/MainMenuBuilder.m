@@ -198,9 +198,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 }
 
 + (void)buildEditMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
-    // Edit: undo, redo, and the two copy items below — the app has no text
-    // selection, so none of the standard editing items. Validation retitles
-    // undo and redo from NSUndoManager.
+    // Edit: undo, redo, the two copy items and Remove from Playlist below —
+    // the app has no text selection, so none of the standard editing items.
+    // Validation retitles undo and redo from NSUndoManager.
     NSMenuItem *editItem = Submenu(mainMenu, STR_MENU_EDIT);
     NSMenu *editMenu = editItem.submenu;
     // The delegate reference is weak, so the Edit item itself retains its
@@ -233,14 +233,24 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [editMenu addItem:copyFileItem];
 
+    AddSeparator(editMenu).identifier = @"menu_edit_separator_remove";
+    // minus.circle, not trash: this edits the in-memory playlist and leaves the
+    // file on disk. The equivalent is NSBackspaceCharacter because that is what
+    // AppKit draws as ⌫ — a real Backspace press delivers NSDeleteCharacter, so
+    // like the other bare keys this is display and fallback only and
+    // TransportKeyMonitor does the actual handling, for Forward Delete too.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_REMOVE_FROM_PLAYLIST, @"minus.circle",
+                  @selector(removeSelectedPlaylistTracks:), player,
+                  [NSString stringWithFormat:@"%C", (unichar)NSBackspaceCharacter], 0,
+                  @"menu_edit_remove_from_playlist");
+
     AddSeparator(editMenu).identifier = @"menu_edit_separator_select";
     // The one Edit item with NO explicit target: ⌘A has to reach whichever
-    // list has keyboard focus — today the granted-folder list in Settings >
-    // Permissions — so it rides the responder chain instead. Without an item
-    // carrying the key equivalent nothing sends selectAll: at all, since
-    // AppKit dispatches ⌘A through the menu bar and NSTableView never claims
-    // it itself. PlaylistTableView declines it, being single-selection, so the
-    // item disables rather than sitting enabled and inert over the playlist.
+    // list has keyboard focus — the playlist, or the granted-folder list in
+    // Settings > Permissions — so it rides the responder chain instead.
+    // Without an item carrying the key equivalent nothing sends selectAll: at
+    // all, since AppKit dispatches ⌘A through the menu bar and NSTableView
+    // never claims it itself.
     AddSymbolItem(editMenu, STR_MENU_EDIT_SELECT_ALL, @"checklist", @selector(selectAll:), nil,
                   @"a", NSEventModifierFlagCommand, @"menu_edit_select_all");
 }

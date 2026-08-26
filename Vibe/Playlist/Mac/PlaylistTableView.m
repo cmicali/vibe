@@ -37,7 +37,7 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
     if (self) {
         self.rowHeight = kPlaylistRowHeight;
         self.headerView = nil;
-        self.allowsMultipleSelection = NO;
+        self.allowsMultipleSelection = YES;
         self.allowsColumnReordering = NO;
         self.allowsColumnResizing = NO;
         self.allowsExpansionToolTips = YES;
@@ -164,8 +164,10 @@ static NSTextField *makeCellTextField(NSRect frame) {
 
 // Edit > Select All is nil-targeted, so the responder chain hands it to
 // whichever table has focus, and NSTableView answers to selectAll: whether or
-// not it can act on it. This one cannot — it is single-selection — and an
-// enabled item that does nothing when clicked is worse than a disabled one.
+// not it can act on it. Tied to the capability rather than hardcoded YES, so
+// the item enables exactly while the table can honor it — it could not when
+// the table was single-selection, and an enabled item that does nothing when
+// clicked is worse than a disabled one.
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(selectAll:)) {
         return self.allowsMultipleSelection;

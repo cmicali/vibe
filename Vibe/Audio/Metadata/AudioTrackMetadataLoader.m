@@ -1519,6 +1519,49 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     });
 }
 
+- (void)abandonQueuedTrack:(AudioTrack *)track {
+    if (!track) {
+        return;
+    }
+    NSString *path = VibeStandardizedAudioOpenPath(track.url);
+    os_unfair_lock_lock(&_materializationLock);
+    // Only app-owned, not-yet-picked records by exact row identity: a picked
+    // entry has already left both lists. A duplicate row of the same file is a
+    // different AudioTrack, so its entries are untouched.
+    NSIndexSet *pendingRemovals = [_pendingMaterializations
+            indexesOfObjectsPassingTest:^BOOL(MetadataScanEntry *entry,
+                                              NSUInteger idx, BOOL *stop) {
+        return entry.track == track;
+    }];
+    [_pendingMaterializations removeObjectsAtIndexes:pendingRemovals];
+    BOOL removed = pendingRemovals.count > 0;
+    for (MetadataScanEntry *entry in [_delayedScanRetryEntries copy]) {
+        if (entry.track == track) {
+            [_delayedScanRetryEntries removeObject:entry];
+            removed = YES;
+        }
+    }
+    if (removed) {
+        _scanOrderGeneration++;
+        // With no in-flight carrier left, drop the identity marks too, so a
+        // later prioritizeTrack: — the undo of the removal — builds a fresh
+        // record rather than reactivating one that no longer exists.
+        // In-flight work keeps them: its settlement is what retires a mark. A
+        // track whose stage-1 record has not yet emitted its entry is missed
+        // here entirely and costs at most one transfer when it lands; its
+        // delivery still no-ops.
+        BOOL inFlight = [_parseOperationsByTrack objectForKey:track] != nil
+                || (path != nil
+                    && ([path isEqualToString:_scanMaterializationPath]
+                        || [path isEqualToString:_priorityMaterializationPath]));
+        if (!inFlight) {
+            [_queuedTracks removeObject:track];
+            [_tracksWithCarrier removeObject:track];
+        }
+    }
+    os_unfair_lock_unlock(&_materializationLock);
+}
+
 - (void)cancel {
     self.isCancelled = YES;
     [_queue cancelAllOperations];

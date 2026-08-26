@@ -48,6 +48,20 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         // anyway — which no other signal would reveal.
         @"manualRendering": @(player.manualRenderingActive),
     }];
+    // The keyboard selection, which is not the playing row: only this platform
+    // has one, and it is what Remove from Playlist and Play Selected Track act
+    // on. selectedRow is the topmost selected row or -1; selectedRows is every
+    // selected row, the group-gesture oracle — read from the controller's own
+    // selection primitive, not reconstructed.
+    NSMutableArray<NSNumber *> *selectedRows = [NSMutableArray array];
+    [controller.playlistController.selectedRows
+            enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        [selectedRows addObject:@(row)];
+    }];
+    [state[@"playlist"] addEntriesFromDictionary:@{
+        @"selectedRow": @(controller.playlistController.selectedRow),
+        @"selectedRows": selectedRows,
+    }];
 
     [state addEntriesFromDictionary:@{
         @"ui": @{
@@ -87,6 +101,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
             @"showBPM": @(AppSettings.sharedInstance.showBPM),
             @"showKey": @(AppSettings.sharedInstance.showKey),
+            @"showTrafficLights": @(AppSettings.sharedInstance.showTrafficLights),
             @"windowTint": AppSettings.sharedInstance.windowTint,
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
             @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),

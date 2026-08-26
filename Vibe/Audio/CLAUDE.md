@@ -4,7 +4,7 @@ Playback engine, FX, devices, and pointers to the sub-directories with their own
 
 ## AudioPlayer
 
-Drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open and reports position and duration of zero. Its pending intent stays live: play/pause toggles whether the opened file starts or parks, seek replaces its start position, and `isPlaying`/`isPaused` report that intent so every transport surface stays honest.
+Drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State machine `{Stopped, Playing, Paused, Loading}`; `Loading` covers the in-flight file open and reports position and duration of zero. Its pending intent stays live: play/pause toggles whether the opened file starts or parks, seek replaces its start position, and exactly one of `isPlaying`/`isPaused`/`isStopped` reports the published transport state. `isLoading` is orthogonal. An action which must also order itself after already-submitted pause/resume commands calls `playingIntentAfterPendingCommands` once; that action-only queue barrier avoids another mirrored transport state while the ordinary UI getters remain lock-only.
 
 `PlaybackRequestCoordinator` owns that in-flight open — identity, row, intent, slow-load state, and what the delegate must be told. Foundation-only and tested. Three rules:
 
@@ -41,11 +41,11 @@ Every engine mutation runs on a serial `dispatch_queue` (`com.vibe.audioplayer`)
 
 **TRAP: the deferred idle stop must retire a paused node's scheduled segment first.** Pause deliberately leaves `_segmentGeneration` current, so stopping the node would fire that segment's completion as a natural track end and auto-advance out of a pause. `+Engine` bumps the generation, clears the armed splice, silences and stops, then reschedules in place from the paused frame.
 
-**TRAP: `+Fades` has two liveness mechanisms and confusing them is the bug that file exists to keep visible.** Generation-tagged ramps belong to the *current* node and a newer operation preempts them. Registered retired fades (`_retiredFades`) belong to a node already pulled out of the live state — membership in the array *is* the ramp's liveness, and a retired fade is deliberately **not** preemptable by an ordinary generation bump, or a second skip inside the fade window stops the node at mid-fade volume and clicks. Only stop, pause and the failure reset silence one early.
+**TRAP: `+Fades` has two liveness mechanisms and confusing them is the bug that file exists to keep visible.** Generation-tagged ramps belong to the *current* node and a newer operation preempts them. Registered retired fades (`_retiredFades`) belong to a node already pulled out of the live state — membership in the array *is* the ramp's liveness, and a retired fade is deliberately **not** preemptable by an ordinary generation bump, or a second skip inside the fade window stops the node at mid-fade volume and clicks. Only stop, pause, a parked play and the failure reset silence one early.
 
 ### Crossfades and seeks
 
-Track-change crossfade length is `crossfadeMilliseconds` (default the 10ms declick minimum; Settings > Playback offers 500 and 2000). It applies only when a play replaces an *audibly playing* track. Three cases force the minimum, and `VibeIncomingFadeMilliseconds` (`FadeMath.h`, tested) is the single place that decides: first plays and the pause/seek/stop declicks, `play:atPosition:startPaused:` (the convert swap, which replaces a track with its own audio), and an armed gapless splice.
+Track-change crossfade length is `crossfadeMilliseconds` (default the 10ms declick minimum; Settings > Playback offers 500 and 2000). It applies only when a play replaces an *audibly playing* track. Three cases force the minimum, and `VibeIncomingFadeMilliseconds` (`FadeMath.h`, tested) is the single place that decides: first plays and the pause/seek/stop declicks, `play:atPosition:startPaused:` (the convert swap or a playlist replacement that must land parked), and an armed gapless splice.
 
 Longer fades keep ~10ms per step (`VibeFadeStepsForMilliseconds`) so the curve stays smooth. Crossfade-length fades ride an equal-power curve — complementary sides sum to ~unity power, so a 2s crossfade holds level instead of dipping at the midpoint — while declick-length fades keep the log curve; `VibeFadeVolumeForFadeLength` picks per length.
 

@@ -23,6 +23,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectFolderArt        = 1UL << 10,
     VibeSettingsLiveEffectConvertMenu      = 1UL << 11,
     VibeSettingsLiveEffectFXControls       = 1UL << 12,
+    VibeSettingsLiveEffectTrafficLights    = 1UL << 13,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 

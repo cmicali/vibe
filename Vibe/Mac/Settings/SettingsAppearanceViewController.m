@@ -21,6 +21,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
 @implementation SettingsAppearanceViewController {
     NSPopUpButton *_appearancePopUp;
+    NSSwitch *_trafficLightsSwitch;
     NSPopUpButton *_windowTintPopUp;
     NSColorWell *_windowTintDarkWell;
     NSColorWell *_windowTintLightWell;
@@ -59,8 +60,10 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_DARK];
     _appearancePopUp.lastItem.tag = VibeAppearanceTagDark;
 
+    _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
+
     _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_MONO];
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
     _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
     [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
     _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
@@ -141,9 +144,10 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_LABEL control:_windowTintPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
             _windowTintDarkRow,
             _windowTintLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
@@ -214,6 +218,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     else {
         [_appearancePopUp selectItemWithTag:VibeAppearanceTagSystem];
     }
+    _trafficLightsSwitch.state = AppSettings.sharedInstance.showTrafficLights
+            ? NSControlStateValueOn : NSControlStateValueOff;
 
     // An unknown persisted identifier renders as the default style — the
     // waveform view's own fallback — so the popup shows that rather than
@@ -299,6 +305,12 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 - (void)toggleShowBPM:(id)sender {
     AppSettings.sharedInstance.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)toggleTrafficLights:(id)sender {
+    AppSettings.sharedInstance.showTrafficLights =
+            (_trafficLightsSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
 }
 
 - (void)toggleShowKey:(id)sender {

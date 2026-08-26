@@ -22,6 +22,9 @@
     if (effects & VibeSettingsLiveEffectAlwaysOnTop) {
         [self applyAlwaysOnTop];
     }
+    if (effects & VibeSettingsLiveEffectTrafficLights) {
+        [self applyTrafficLights];
+    }
     if (effects & VibeSettingsLiveEffectPitchRange) {
         [self applyPitchRange];
     }

@@ -291,7 +291,8 @@ def user_settings_snapshot(channel) -> dict:
     # `in`, not truthiness: the system-default appearance IS the empty string
     # (SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT), so a truthiness test
     # would silently decline to restore exactly the users who never chose one.
-    return {key: settings[key] for key in ("windowAppearance", "waveformStyle")
+    return {key: settings[key]
+            for key in ("windowAppearance", "waveformStyle", "pauseAtTrackEnd")
             if key in settings}
 
 
@@ -305,6 +306,13 @@ def user_settings_restore(channel, snapshot: dict):
     style = snapshot.get("waveformStyle")
     if style:
         channel.run(["click_menu", f"waveform_style_{style}"])
+    pause = snapshot.get("pauseAtTrackEnd")
+    if pause is not None:
+        channel.run(["set_pause_at_track_end", "on" if pause else "off"])
+    # The analyzer flips end wherever the RNG left them; put the gates back the
+    # way the run forces them at start, per FEATURE_SETTINGS' contract.
+    for argv in FEATURE_SETTINGS.values():
+        channel.run(argv)
 
 
 def launch(corpus: Path, app: Path):
@@ -651,16 +659,105 @@ class OpGenerator:
         pts = [*self.point(), *self.point()]
         return [("drag", ["drag", *[str(p) for p in pts]], [])]
 
-    def op_drag_drop(self):
+    def op_file_drag_drop(self):
         if not self.files:
             return self.op_click()
         x, y = self.point()
-        ops = [("drag_hover", ["drag_hover", str(x), str(y)], [])]
+        ops = [("file_drag_hover", ["file_drag_hover", str(x), str(y)], [])]
         if self.rng.random() < 0.6:
-            ops.append(("drag_drop",
-                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
+            ops.append(("file_drag_drop",
+                        ["file_drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
         else:
-            ops.append(("drag_end", ["drag_end"], []))
+            ops.append(("file_drag_end", ["file_drag_end"], []))
+        return ops
+
+    def op_remove(self):
+        """Select a row and take it out with the delete key — the removal
+        funnel end to end: the landing on the survivor that slid in or the
+        parked step back, the undo registration, and the abandoned scan work
+        when the sweep is mid-folder. Sometimes shift-extends first so the
+        batch paths run, and sometimes follows with a REPEAT delete, which the
+        monitor must swallow (one gesture takes one selection, a held key must
+        not walk the playlist). Row geometry assumes the table's fixed
+        250-point pane under the header; with the playlist collapsed the click
+        lands in the header and the delete is swallowed — a documented no-op,
+        not worth a dump_state per op to avoid. A posted click on an
+        already-selected row keeps the selection rather than collapsing it,
+        which only widens what the delete takes."""
+        w, h = self.window
+        row = self.rng.randrange(0, 9)
+        y = int(h) - 250 + 14 + 28 * row
+        if y >= int(h) - 8:
+            y = int(h) - 20
+        x = round(self.rng.uniform(120, max(180.0, w - 80)), 1)
+        ops = [("remove_select", ["click", str(x), str(y)], [])]
+        for _ in range(self.rng.choice([0, 0, 0, 1, 1, 2])):
+            ops.append(("remove_extend", ["key", "down", "shift"], []))
+        ops.append(("remove_delete",
+                    ["key", self.rng.choice(["delete", "forward_delete"])], []))
+        if self.rng.random() < 0.1:
+            ops.append(("remove_repeat", ["key", "delete", "repeat"], []))
+        return ops
+
+    def op_append(self):
+        """Extend the playlist instead of replacing it. append has its own
+        contract — no cursor touch, FIFO prefetch behind a same-turn play —
+        and the random file_drag_drop only reaches the Add well by coordinate
+        luck."""
+        if not self.files:
+            return self.op_click()
+        return [("append", ["append", str(self.rng.choice(self.files))], PATH_REFUSALS)]
+
+    def op_end_of_track(self):
+        """Flip Settings > Playback > On track end under whatever is armed.
+        The setting is enforced in two places (the successor prefetch answers
+        nil under Pause, and the track-end advance re-reads it), and the write
+        requests the live effect that re-parks or drops an already-armed
+        gapless successor — an arm/unschedule race only a mid-play flip
+        reaches. Snapshot-restored after the run."""
+        return [("end_of_track",
+                 ["set_pause_at_track_end", self.rng.choice(["on", "off"])], [])]
+
+    def op_analysis_flip(self):
+        """Flip a decode-pass analyzer under in-flight loads. The waveform
+        decode reads the setting when it starts, so a mid-run flip races the
+        loader's read and varies which deliveries the next track change must
+        drop. The run's teardown forces both analyzers back on, per
+        FEATURE_SETTINGS' contract."""
+        return [("analysis_flip",
+                 ["set_analysis", self.rng.choice(["bpm", "key"]),
+                  self.rng.choice(["on", "off"])], [])]
+
+    def op_reorder_begin(self):
+        """Start a synthetic row-reorder drag and leave it OPEN.
+
+        begin and finish are separate ops on purpose: whatever the scheduler
+        deals in between — an open that replaces the playlist, a removal, a
+        convert swap, a burst — lands inside a live drag session, which is
+        exactly the mid-drag race family no pointer can stage. A leftover
+        session is cancelled by the next begin, and rows are drawn against a
+        ceiling rather than the live count for playlist_jump's reason: out of
+        range is a tolerated refusal, cheaper than a dump_state per drag.
+        """
+        rows = {self.rng.randrange(0, 24) for _ in range(self.rng.choice([1, 1, 2, 3]))}
+        return [("reorder_begin", ["reorder_begin", *map(str, sorted(rows))],
+                 ["not draggable"])]
+
+    def op_reorder_finish(self):
+        """Resolve whatever drag session is live: probe a slot, then drop or
+        cancel. Without a session these are tolerated refusals, which also
+        keeps the no-session guard exercised."""
+        roll = self.rng.random()
+        if roll < 0.15:
+            return [("reorder_cancel", ["reorder_cancel"], ["no reorder session"])]
+        ops = []
+        if roll < 0.55:
+            ops.append(("reorder_update",
+                        ["reorder_update", str(self.rng.randrange(0, 26))],
+                        ["no reorder session"]))
+        ops.append(("reorder_drop",
+                    ["reorder_drop", str(self.rng.randrange(0, 26))],
+                    ["no reorder session"]))
         return ops
 
     def op_menu(self):
@@ -808,9 +905,11 @@ PROFILES = {
         "cache_churn": 2, "clear_caches": 1,
         "transport": 14, "seek": 8, "pitch": 5,
         "fx": 5, "held_fx": 4, "key": 4,
-        "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
+        "window": 3, "resize": 3, "click": 4, "drag": 2, "file_drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
+        "reorder_begin": 3, "reorder_finish": 4,
+        "remove": 4, "append": 4, "end_of_track": 2, "analysis_flip": 2,
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
         "waveform_style": 2, "appearance": 2, "resize_storm": 2,
     },
@@ -820,8 +919,10 @@ PROFILES = {
         "cache_churn": 6, "clear_caches": 2,
         "transport": 10, "seek": 4, "pitch": 1,
         "fx": 1, "held_fx": 1, "key": 1,
-        "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
+        "window": 1, "resize": 1, "click": 1, "drag": 0, "file_drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
+        "reorder_begin": 2, "reorder_finish": 3,
+        "remove": 3, "append": 6, "end_of_track": 1, "analysis_flip": 3,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "waveform_style": 2, "appearance": 2, "resize_storm": 2,
     },
@@ -839,8 +940,10 @@ PROFILES = {
         "seek": 8, "pitch": 2,
         "fx": 2, "held_fx": 3, "key": 2,
         "window": 2, "resize": 2, "resize_storm": 8,
-        "click": 2, "drag": 1, "drag_drop": 3,
+        "click": 2, "drag": 1, "file_drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
+        "reorder_begin": 6, "reorder_finish": 8,
+        "remove": 8, "append": 8, "end_of_track": 3, "analysis_flip": 4,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
         "waveform_style": 5, "appearance": 3,
     },
@@ -854,8 +957,10 @@ PROFILES = {
         "cache_churn": 3, "clear_caches": 3,
         "transport": 12, "seek": 2, "pitch": 0,
         "fx": 0, "held_fx": 0, "key": 2,
-        "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
+        "window": 10, "resize": 4, "click": 3, "drag": 0, "file_drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
+        "reorder_begin": 2, "reorder_finish": 2,
+        "remove": 2, "append": 4, "end_of_track": 0, "analysis_flip": 1,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "waveform_style": 3, "appearance": 6, "resize_storm": 3,
     },
@@ -885,8 +990,16 @@ PROFILES = {
         "transport": 18, "seek": 6, "pitch": 0,
         "playlist_jump": 18, "burst": 12,
         "fx": 0, "held_fx": 0, "key": 1,
-        "window": 1, "resize": 1, "click": 2, "drag": 0, "drag_drop": 1,
+        "window": 1, "resize": 1, "click": 2, "drag": 0, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
+        # Reorder earns a thin slot here despite the settle budget: moving the
+        # successor away re-parks prefetch, which is a live cloud transfer
+        # being retargeted — a race only this profile can reach.
+        "reorder_begin": 2, "reorder_finish": 2,
+        # remove is cloud-relevant for the same reason: a removed row's queued
+        # scan work is abandoned mid-transfer, and a removed current row
+        # supersedes a live foreground download.
+        "remove": 2, "append": 2, "end_of_track": 2, "analysis_flip": 1,
         # Kept deliberately thin. This profile's weights are a measured balance
         # between opens and settles — every op kind added here is a settle not
         # taken, and the sweep needs those seconds. block_main earns its place
@@ -901,8 +1014,10 @@ PROFILES = {
         "cache_churn": 0, "clear_caches": 0,
         "transport": 10, "seek": 8, "pitch": 10,
         "fx": 10, "held_fx": 8, "key": 8,
-        "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
+        "window": 8, "resize": 8, "click": 12, "drag": 6, "file_drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
+        "reorder_begin": 5, "reorder_finish": 6,
+        "remove": 5, "append": 0, "end_of_track": 2, "analysis_flip": 0,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "waveform_style": 8, "appearance": 6, "resize_storm": 10,
     },

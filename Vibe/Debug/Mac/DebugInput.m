@@ -6,6 +6,7 @@
 //
 
 #import "DebugInternal.h"
+#import "PlaylistTableView.h" // the reorder verbs hand the real table to the drag delegate methods
 
 #if DEBUG
 
@@ -46,6 +47,7 @@ static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
             @"o": @31, @"u": @32, @"i": @34, @"p": @35, @"l": @37, @"j": @38,
             @"k": @40, @"n": @45, @"m": @46,
             @"return": @36, @"tab": @48, @"space": @49, @"delete": @51, @"esc": @53,
+            @"forward_delete": @117,
             @"left": @123, @"right": @124, @"down": @125, @"up": @126,
         };
     });
@@ -59,6 +61,9 @@ static NSString *VibeKeyCharacters(NSString *name) {
         special = @{
             @"return": @"\r", @"tab": @"\t", @"space": @" ",
             @"delete": @"\x7f", @"esc": @"\x1b",
+            // Backspace and Forward Delete are different characters and reach
+            // different code, so `key delete` does not cover both.
+            @"forward_delete": [NSString stringWithFormat:@"%C", (unichar)NSDeleteFunctionKey],
             @"left": [NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey],
             @"right": [NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey],
             @"up": [NSString stringWithFormat:@"%C", (unichar)NSUpArrowFunctionKey],
@@ -87,13 +92,33 @@ static BOOL VibeKeyIsArrow(NSString *name) {
     return [@[@"left", @"right", @"up", @"down"] containsObject:name];
 }
 
-// Any tokens trailing the key name are modifier names.
+// Characters AppKit places in the function-key private-use range — the arrows,
+// both delete keys, the page and home cluster — which real events flag as such.
+static BOOL VibeCharacterIsFunctionKey(NSString *chars) {
+    if (chars.length != 1) {
+        return NO;
+    }
+    unichar c = [chars characterAtIndex:0];
+    return c >= NSUpArrowFunctionKey && c <= NSModeSwitchFunctionKey;
+}
+
+// Any tokens trailing the key name are modifier names, plus the repeat token.
 static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
-                               NSEventModifierFlags *outFlags, NSString **errorJSON) {
+                               NSEventModifierFlags *outFlags, BOOL *outRepeat,
+                               NSString **errorJSON) {
     NSEventModifierFlags flags = 0;
+    BOOL repeat = NO;
     for (NSUInteger i = start; i < tokens.count; i++) {
         NSString *mod = tokens[i].lowercaseString;
-        if ([mod isEqualToString:@"shift"]) {
+        // Hardware key repeat, which several handlers gate on: a held delete
+        // key must take one playlist row rather than walk the list, and the
+        // momentary FX keys ignore repeats outright. It rides the modifier
+        // token list because it is spelled like one, but it is not a modifier
+        // flag — it is parsed out into its own out-param.
+        if ([mod isEqualToString:@"repeat"]) {
+            repeat = YES;
+        }
+        else if ([mod isEqualToString:@"shift"]) {
             flags |= NSEventModifierFlagShift;
         }
         else if ([mod isEqualToString:@"cmd"] || [mod isEqualToString:@"command"]) {
@@ -106,11 +131,12 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
             flags |= NSEventModifierFlagControl;
         }
         else {
-            *errorJSON = VibeErrorJSON(@"unknown modifier '%@' (shift, cmd, opt, ctrl)", tokens[i]);
+            *errorJSON = VibeErrorJSON(@"unknown modifier '%@' (shift, cmd, opt, ctrl, repeat)", tokens[i]);
             return NO;
         }
     }
     *outFlags = flags;
+    *outRepeat = repeat;
     return YES;
 }
 
@@ -121,24 +147,29 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
                                BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {
-        return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl ...]", verb);
+        return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl|repeat ...]", verb);
     }
     NSString *name = tokens[1].lowercaseString;
     NSNumber *code = VibeKeyCodeMap()[name];
     if (code == nil) {
-        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, up, down, left, right)",
+        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, forward_delete, up, down, left, right)",
                 tokens[1]);
     }
     NSEventModifierFlags flags = 0;
+    BOOL isRepeat = NO;
     NSString *errorJSON = nil;
-    if (!VibeParseModifiers(tokens, 2, &flags, &errorJSON)) {
+    if (!VibeParseModifiers(tokens, 2, &flags, &isRepeat, &errorJSON)) {
         return errorJSON;
     }
-    if (VibeKeyIsArrow(name)) {
-        // Real arrow events carry these, and some responders check them.
-        flags |= NSEventModifierFlagFunction | NSEventModifierFlagNumericPad;
-    }
     NSString *chars = VibeKeyCharacters(name);
+    // Derived from the character, not a list of key names, so a key added to
+    // VibeKeyCodeMap carries the flag a real event would without a second edit.
+    if (VibeCharacterIsFunctionKey(chars)) {
+        flags |= NSEventModifierFlagFunction;
+    }
+    if (VibeKeyIsArrow(name)) {
+        flags |= NSEventModifierFlagNumericPad;   // real arrow events carry it too
+    }
     // charactersIgnoringModifiers ignores Option, NOT Shift: hardware delivers
     // the shifted character in BOTH fields, and AppKit's menu key-equivalent
     // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
@@ -154,7 +185,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
                                            context:nil
                                         characters:charsWithMods
                        charactersIgnoringModifiers:charsWithMods
-                                         isARepeat:NO
+                                         isARepeat:isRepeat
                                            keyCode:code.unsignedShortValue];
         [NSApp postEvent:event atStart:NO];
     };
@@ -164,7 +195,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     if (up) {
         post(NSEventTypeKeyUp);
     }
-    return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name});
+    return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
 }
 
 // The shared tail for the mouse verbs. It converts to bottom-left window
@@ -335,7 +366,7 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
 
 #pragma mark Synthetic file drags
 
-// drag_hover, drag_drop and drag_end drive the same FileDropDelegate path a
+// file_drag_hover, file_drag_drop and file_drag_end drive the same FileDropDelegate path a
 // real external file drag takes through MainWindow. A genuine
 // NSDraggingSession cannot be synthesized, because only the window server can
 // start one, which is what makes the playlist drop zone untestable through the
@@ -351,7 +382,7 @@ static NSString *VibeWellName(PlaylistDropWellAction action) {
     }
 }
 
-// The shared coordinate parse and conversion for drag_hover and drag_drop. It
+// The shared coordinate parse and conversion for file_drag_hover and file_drag_drop. It
 // returns NO with *errorJSON set on a malformed pair.
 static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
                                   NSPoint *outLocation, double *outX, double *outY,
@@ -360,7 +391,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     double x = 0, y = 0;
     if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
         *errorJSON = VibeErrorJSON(@"usage: %@ <x> <y>%@", verb,
-                [verb isEqualToString:@"drag_drop"] ? @" <file-or-directory>" : @"");
+                [verb isEqualToString:@"file_drag_drop"] ? @" <file-or-directory>" : @"");
         return NO;
     }
     *outX = x;
@@ -369,7 +400,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     return YES;
 }
 
-NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     MainWindow *window = (MainWindow *)controller.window;
     NSPoint location;
     double x, y;
@@ -384,19 +415,19 @@ NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSStr
     // the assertable part of the reply.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
-    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_hover",
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_hover",
                             @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
 }
 
-NSString *VibeSyntheticDragEnd(MainPlayerController *controller) {
+NSString *VibeSyntheticFileDragEnd(MainPlayerController *controller) {
     MainWindow *window = (MainWindow *)controller.window;
     if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
         [window.dropDelegate mainWindowFileDraggingEnded:window];
     }
-    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_end"});
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_end"});
 }
 
-NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     MainWindow *window = (MainWindow *)controller.window;
     NSPoint location;
     double x, y;
@@ -405,7 +436,7 @@ NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSStri
         return errorJSON;
     }
     if (tokens.count < 4) {
-        return VibeErrorJSON(@"usage: drag_drop <x> <y> <file-or-directory>");
+        return VibeErrorJSON(@"usage: file_drag_drop <x> <y> <file-or-directory>");
     }
     NSString *path = [[tokens subarrayWithRange:NSMakeRange(3, tokens.count - 3)]
             componentsJoinedByString:@" "].stringByExpandingTildeInPath;
@@ -433,6 +464,222 @@ NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSStri
     }
     return VibeJSONString(@{@"ok": @YES, @"dropping": path,
                             @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
+}
+
+#pragma mark Synthetic reorder drags
+
+// reorder_begin, reorder_update, reorder_drop and reorder_cancel drive the
+// playlist's internal row-reorder drag through the same NSTableViewDataSource
+// methods a real drag session calls, in the same order — writer per dragged
+// row, willBegin, validate, accept, ended. A genuine NSDraggingSession cannot
+// be synthesized (only the window server starts one, the same limit the file
+// drags above document), so these calls carry a stand-in NSDraggingInfo whose
+// draggingSource is the real table and whose draggingPasteboard holds what
+// the real writers minted. Everything downstream — token match, survivor
+// resolution, slot arithmetic, the model move, the table reconciliation, the
+// undo registration — is the shipping path. What is NOT exercised is AppKit's
+// half: the drag threshold, which rows a gesture picks up, the insertion
+// line, autoscroll. The session survives across channel commands on purpose:
+// begin a drag, mutate the playlist with any other verb, then update or drop
+// — the mid-drag races no pointer can stage deterministically.
+
+// The private drag surface these verbs drive; the class extension owns the
+// real declarations.
+@interface PlaylistController (VibeDebugReorder)
+- (PlaylistTableView *)tableView;
+- (id<NSPasteboardWriting>)tableView:(NSTableView *)tableView
+              pasteboardWriterForRow:(NSInteger)row;
+- (void)tableView:(NSTableView *)tableView
+  draggingSession:(NSDraggingSession *)session
+ willBeginAtPoint:(NSPoint)screenPoint
+    forRowIndexes:(NSIndexSet *)rowIndexes;
+- (NSDragOperation)tableView:(NSTableView *)tableView
+                validateDrop:(id<NSDraggingInfo>)info
+                 proposedRow:(NSInteger)row
+       proposedDropOperation:(NSTableViewDropOperation)dropOperation;
+- (BOOL)tableView:(NSTableView *)tableView
+       acceptDrop:(id<NSDraggingInfo>)info
+              row:(NSInteger)row
+    dropOperation:(NSTableViewDropOperation)dropOperation;
+- (void)tableView:(NSTableView *)tableView
+  draggingSession:(NSDraggingSession *)session
+     endedAtPoint:(NSPoint)screenPoint
+        operation:(NSDragOperation)operation;
+@end
+
+// The stand-in dragging info. Only draggingSource and draggingPasteboard are
+// read by the reorder path; the rest of the protocol is inert.
+@interface VibeDebugReorderDraggingInfo : NSObject <NSDraggingInfo>
+@property (nonatomic, weak) id source;
+@property (nonatomic, strong) NSPasteboard *pasteboard;
+@end
+
+@implementation VibeDebugReorderDraggingInfo
+@synthesize numberOfValidItemsForDrop = _numberOfValidItemsForDrop;
+@synthesize animatesToDestination = _animatesToDestination;
+@synthesize draggingFormation = _draggingFormation;
+
+- (NSWindow *)draggingDestinationWindow { return nil; }
+- (NSDragOperation)draggingSourceOperationMask { return NSDragOperationMove; }
+- (NSPoint)draggingLocation { return NSZeroPoint; }
+- (NSPoint)draggedImageLocation { return NSZeroPoint; }
+// Deprecated protocol members, implemented inertly only to satisfy
+// conformance.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-implementations"
+- (NSImage *)draggedImage { return nil; }
+- (NSPasteboard *)draggingPasteboard { return self.pasteboard; }
+- (id)draggingSource { return self.source; }
+- (NSInteger)draggingSequenceNumber { return 1; }
+- (void)slideDraggedImageTo:(NSPoint)screenPoint {}
+- (NSArray<NSString *> *)namesOfPromisedFilesDroppedAtDestination:(NSURL *)dropDestination {
+    return nil;
+}
+#pragma clang diagnostic pop
+- (void)enumerateDraggingItemsWithOptions:(NSDraggingItemEnumerationOptions)enumOpts
+                                  forView:(NSView *)view
+                                  classes:(NSArray<Class> *)classArray
+                            searchOptions:(NSDictionary<NSPasteboardReadingOptionKey, id> *)searchOptions
+                               usingBlock:(void (^)(NSDraggingItem *, NSInteger, BOOL *))block {}
+- (NSSpringLoadingHighlight)springLoadingHighlight { return NSSpringLoadingHighlightNone; }
+- (void)resetSpringLoading {}
+@end
+
+// One synthetic session at most, mirroring the real world's one drag at a
+// time. Statics rather than controller state: this is harness bookkeeping,
+// not app state, and the controller's own session ivars are set and cleared
+// by the real delegate calls below exactly as a genuine drag would.
+static VibeDebugReorderDraggingInfo *vibeReorderInfo;
+static NSPasteboard *vibeReorderPasteboard;
+
+static void VibeReorderClearSession(void) {
+    [vibeReorderPasteboard releaseGlobally];
+    vibeReorderPasteboard = nil;
+    vibeReorderInfo = nil;
+}
+
+// Ends a live synthetic session the way a real cancel would, so the
+// controller's token and retained tracks are cleared through the same call.
+static void VibeReorderEndSession(PlaylistController *playlist, NSDragOperation operation) {
+    NSDraggingSession *noSession = nil;
+    [playlist tableView:playlist.tableView draggingSession:noSession
+           endedAtPoint:NSZeroPoint operation:operation];
+    VibeReorderClearSession();
+}
+
+NSString *VibeReorderBegin(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    PlaylistController *playlist = controller.playlistController;
+    NSTableView *table = playlist.tableView;
+    if (!table) {
+        return VibeErrorJSON(@"no playlist table");
+    }
+    if (tokens.count < 2) {
+        return VibeErrorJSON(@"usage: reorder_begin <row> [row ...]");
+    }
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    for (NSString *token in [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]) {
+        double row = 0;
+        if (!VibeParseDouble(token, &row) || row < 0) {
+            return VibeErrorJSON(@"usage: reorder_begin <row> [row ...]");
+        }
+        [rows addIndex:(NSUInteger)row];
+    }
+    // A leftover session would strand the controller's token; a real drag
+    // cannot start while another is live, so neither can this one.
+    if (vibeReorderInfo) {
+        VibeReorderEndSession(playlist, NSDragOperationNone);
+    }
+    // The real writer path: per dragged row, exactly as AppKit asks, which is
+    // what mints the controller's session token.
+    NSMutableArray<id<NSPasteboardWriting>> *items = [NSMutableArray arrayWithCapacity:rows.count];
+    __block NSUInteger refusedRow = NSNotFound;
+    [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        id<NSPasteboardWriting> item = [playlist tableView:table
+                                    pasteboardWriterForRow:(NSInteger)row];
+        if (!item) {
+            refusedRow = row;
+            *stop = YES;
+            return;
+        }
+        [items addObject:item];
+    }];
+    if (refusedRow != NSNotFound) {
+        VibeReorderEndSession(playlist, NSDragOperationNone);
+        return VibeErrorJSON(@"row %lu is not draggable", (unsigned long)refusedRow);
+    }
+    vibeReorderPasteboard = [NSPasteboard pasteboardWithUniqueName];
+    [vibeReorderPasteboard clearContents];
+    [vibeReorderPasteboard writeObjects:items];
+    NSDraggingSession *noSession = nil;
+    [playlist tableView:table draggingSession:noSession
+       willBeginAtPoint:NSZeroPoint forRowIndexes:rows];
+    vibeReorderInfo = [VibeDebugReorderDraggingInfo new];
+    vibeReorderInfo.source = table;
+    vibeReorderInfo.pasteboard = vibeReorderPasteboard;
+    NSMutableArray<NSNumber *> *began = [NSMutableArray arrayWithCapacity:rows.count];
+    [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        [began addObject:@(row)];
+    }];
+    return VibeJSONString(@{@"ok": @YES, @"rows": began});
+}
+
+static NSString *VibeReorderSlotArgument(NSArray<NSString *> *tokens, NSInteger *outSlot) {
+    double slot = 0;
+    if (tokens.count < 2 || !VibeParseDouble(tokens[1], &slot)) {
+        return VibeErrorJSON(@"usage: %@ <slot>", tokens.firstObject);
+    }
+    *outSlot = (NSInteger)slot;
+    return nil;
+}
+
+NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    PlaylistController *playlist = controller.playlistController;
+    if (!vibeReorderInfo) {
+        return VibeErrorJSON(@"no reorder session; run reorder_begin first");
+    }
+    NSInteger slot = 0;
+    NSString *errorJSON = VibeReorderSlotArgument(tokens, &slot);
+    if (errorJSON) {
+        return errorJSON;
+    }
+    NSDragOperation operation = [playlist tableView:playlist.tableView
+                                       validateDrop:vibeReorderInfo
+                                        proposedRow:slot
+                              proposedDropOperation:NSTableViewDropAbove];
+    return VibeJSONString(@{@"ok": @YES, @"slot": @(slot),
+                            @"operation": operation == NSDragOperationMove ? @"move" : @"none"});
+}
+
+NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    PlaylistController *playlist = controller.playlistController;
+    if (!vibeReorderInfo) {
+        return VibeErrorJSON(@"no reorder session; run reorder_begin first");
+    }
+    NSInteger slot = 0;
+    NSString *errorJSON = VibeReorderSlotArgument(tokens, &slot);
+    if (errorJSON) {
+        return errorJSON;
+    }
+    // AppKit's ordering: a drop is only delivered through a passing
+    // validation, and the session ends either way — a refused slot slides
+    // back, it does not keep dragging.
+    NSTableView *table = playlist.tableView;
+    BOOL dropped = NO;
+    if ([playlist tableView:table validateDrop:vibeReorderInfo proposedRow:slot
+      proposedDropOperation:NSTableViewDropAbove] == NSDragOperationMove) {
+        dropped = [playlist tableView:table acceptDrop:vibeReorderInfo row:slot
+                        dropOperation:NSTableViewDropAbove];
+    }
+    VibeReorderEndSession(playlist, dropped ? NSDragOperationMove : NSDragOperationNone);
+    return VibeJSONString(@{@"ok": @YES, @"slot": @(slot), @"dropped": @(dropped)});
+}
+
+NSString *VibeReorderCancel(MainPlayerController *controller) {
+    if (!vibeReorderInfo) {
+        return VibeErrorJSON(@"no reorder session; run reorder_begin first");
+    }
+    VibeReorderEndSession(controller.playlistController, NSDragOperationNone);
+    return VibeJSONString(@{@"ok": @YES, @"cancelled": @YES});
 }
 
 #endif

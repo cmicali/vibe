@@ -9674,7 +9674,7 @@
       "extractionState": "manual"
     },
     "menu.edit": {
-      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items and Select All.",
+      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items, Remove from Playlist and Select All.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10417,8 +10417,380 @@
       },
       "extractionState": "manual"
     },
+    "menu.edit.remove_from_playlist": {
+      "comment": "Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахни от плейлиста"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odebrat z playlistu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra spilleliste"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Wiedergabeliste entfernen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση από τη λίστα αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar de la lista de reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poista soittolistalta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer de la liste de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni s popisa pjesama"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eltávolítás a lejátszási listáról"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus dari Playlist"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi dalla playlist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレイリストから削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생목록에서 제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra spilleliste"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder uit afspeellijst"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń z playlisty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover da Playlist"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover da lista de reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminați din playlist"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из плейлиста"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstrániť z playlistu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bort från spellista"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ลบออกจากเพลย์ลิสต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalma Listesinden Kaldır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити з плейлиста"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa khỏi danh sách phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从播放列表中移除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從播放列表中移除"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.edit.reorder": {
+      "comment": "Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пренареждане"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Změna pořadí"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omarrangering"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuanordnung"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αναδιάταξη"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reorder"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reordenación"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uudelleenjärjestys"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réorganisation"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Promjena redoslijeda"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Átrendezés"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penyusunan Ulang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riordino"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "並べ替え"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재정렬"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omorganisering"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herordenen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zmiana kolejności"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reordenação"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reordenação"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reordonare"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение порядка"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zmena poradia"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omordning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การจัดลำดับใหม่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden Sıralama"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зміна порядку"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sắp xếp lại"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新排序"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新排序"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.edit.select_all": {
-      "comment": "Edit menu item: selects every row of the list that has keyboard focus — the granted-folder list in Settings > Permissions. macOS uses this same name in every app.",
+      "comment": "Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25111,6 +25483,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.show_traffic_lights": {
+      "comment": "Settings, Appearance pane, Window group: switch showing or hiding the main window's custom close and minimize buttons. The buttons are the red and yellow macOS-style dots. The default is on.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показване на бутоните на прозореца"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobrazit ovládací prvky okna"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis vinduesknapper"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenstertasten einblenden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εμφάνιση κουμπιών παραθύρου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show traffic lights"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar los controles de la ventana"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Näytä ikkunasäätimet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher les boutons de la fenêtre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži gumbe prozora"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablakvezérlők megjelenítése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampilkan kontrol jendela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra i controlli della finestra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウコントロールを表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우 제어 버튼 보기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis vindusknapper"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toon vensterknoppen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaż przyciski okna"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar os controles da janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar os controlos da janela"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afișați butoanele ferestrei"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать элементы управления окном"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zobraziť ovládacie prvky okna"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visa fönsterknappar"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แสดงตัวควบคุมหน้าต่าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencere denetimlerini göster"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показувати елементи керування вікном"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện điều khiển cửa sổ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示窗口控制按钮"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示視窗控制按鈕"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.time_label": {
       "comment": "Settings, Appearance pane: label beside the choice between showing the track's total time or the remaining time. Ends with a colon.",
       "localizations": {
@@ -29390,186 +29948,186 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint.mono": {
-      "comment": "Settings, window tint choice: no color wash — the window's plain glass, the same under every track. 'Mono' as in monochrome, not monaural audio.",
+      "comment": "Settings, background tint choice: no color wash — the window's plain glass, the same under every track.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Монохромно"
+            "value": "Няма"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochromatický"
+            "value": "Žádný"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokrom"
+            "value": "Ingen"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochrom"
+            "value": "Keine"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μονόχρωμο"
+            "value": "Καμία"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mono"
+            "value": "None"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monocromo"
+            "value": "Ninguno"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yksivärinen"
+            "value": "Ei mitään"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochrome"
+            "value": "Aucune"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokromatski"
+            "value": "Nijedna"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokróm"
+            "value": "Nincs"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokrom"
+            "value": "Tidak ada"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monocromatico"
+            "value": "Nessuna"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "モノクロ"
+            "value": "なし"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모노크롬"
+            "value": "없음"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokrom"
+            "value": "Ingen"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochroom"
+            "value": "Geen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochromatyczny"
+            "value": "Brak"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monocromático"
+            "value": "Nenhuma"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monocromático"
+            "value": "Nenhum"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monocrom"
+            "value": "Niciuna"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Монохромный"
+            "value": "Нет"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monochromatický"
+            "value": "Žiadny"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokrom"
+            "value": "Ingen"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "โมโนโครม"
+            "value": "ไม่มี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Monokrom"
+            "value": "Yok"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Монохромний"
+            "value": "Немає"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đơn sắc"
+            "value": "Không có"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "单色"
+            "value": "无"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "單色"
+            "value": "無"
           }
         }
       },
@@ -29948,186 +30506,186 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint_label": {
-      "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the color wash laid over the player window's header.",
+      "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the translucent color wash laid over the player window's header background.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Прозорец"
+            "value": "Оттенък на фона"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Okno"
+            "value": "Odstín pozadí"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vindue"
+            "value": "Baggrundsnuance"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fenster"
+            "value": "Hintergrundtönung"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Παράθυρο"
+            "value": "Απόχρωση φόντου"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Window"
+            "value": "Background tint"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ventana"
+            "value": "Tinte de fondo"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ikkuna"
+            "value": "Taustan sävy"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fenêtre"
+            "value": "Teinte d’arrière-plan"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prozor"
+            "value": "Nijansa pozadine"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ablak"
+            "value": "Háttér árnyalata"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jendela"
+            "value": "Rona latar belakang"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finestra"
+            "value": "Tonalità dello sfondo"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ウインドウ"
+            "value": "背景の色合い"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "윈도우"
+            "value": "배경 색조"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vindu"
+            "value": "Bakgrunnsnyanse"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Venster"
+            "value": "Achtergrondtint"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Okno"
+            "value": "Odcień tła"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Janela"
+            "value": "Tonalidade do fundo"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Janela"
+            "value": "Matiz do fundo"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fereastră"
+            "value": "Tentă de fundal"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Окно"
+            "value": "Оттенок фона"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Okno"
+            "value": "Odtieň pozadia"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fönster"
+            "value": "Bakgrundston"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "หน้าต่าง"
+            "value": "โทนสีพื้นหลัง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pencere"
+            "value": "Arka plan renk tonu"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вікно"
+            "value": "Відтінок тла"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cửa sổ"
+            "value": "Sắc thái màu nền"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "窗口"
+            "value": "背景色调"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "視窗"
+            "value": "背景色調"
           }
         }
       },

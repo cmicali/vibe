@@ -618,7 +618,8 @@ here as well (trap 1).
 `ArtworkImageView.m:106-110` and `SearchFolderStore`.
 
 The refcounting in `SearchFolderStore` exists only because an iOS row can be removed while a
-grant handle still retains it. The last playlist has no per-row removal and no outstanding
+grant handle still retains it. The mac's per-row removal (`docs/done/playlist-row-removal.md`,
+implemented) mutates rows without touching grants, and the last playlist has no outstanding
 handles, so a flat retain-and-never-stop array is the honest analogue — and it must be written
 down as a rule: **nothing else may stop these scopes.** An unbalanced stop over-releases the
 sandbox extension and revokes the whole playlist's access mid-session. In particular, turning

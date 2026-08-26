@@ -183,11 +183,18 @@ API_AVAILABLE(macos(26.0))
     SymbolButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
     __weak NSView *_windowHoverHost;
+    // AppSettings.showTrafficLights, as an input to the hover fade rather than
+    // a second writer of the same alpha. Seeded before the tracking area
+    // exists, so it defaults to the setting's own default.
+    BOOL _trafficLightsShown;
 }
 
 - (instancetype)initWithTarget:(id)target {
     self = [super initWithFrame:NSMakeRect(0, 0, kMainWindowContentWidth, kMainWindowDesignHeight)];
     if (self) {
+        // Shown until told otherwise: a zero-filled ivar would mean a caller
+        // that forgot setTrafficLightsShown: silently loses the buttons.
+        _trafficLightsShown = YES;
         self.wantsLayer = YES;
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
@@ -320,6 +327,14 @@ API_AVAILABLE(macos(26.0))
     return NSMouseInRect(p, host.bounds, host.isFlipped);
 }
 
+- (void)setTrafficLightsShown:(BOOL)shown {
+    _trafficLightsShown = shown;
+    // Through the fade funnel, from where the cursor actually is: hidden and
+    // alpha are decided in one place, so a toggle while the pointer is over
+    // the window brings the lights back at the alpha the hover state calls for.
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
+}
+
 - (void)mouseEntered:(NSEvent *)event {
     [self setControlsShown:YES animated:YES];
 }
@@ -328,9 +343,14 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:NO animated:YES];
 }
 
+// The one place button visibility is decided. The traffic lights fold the
+// persisted setting in, so a hidden pair is never left fading to full alpha
+// behind its own hidden flag.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
-    CGFloat traffic   = shown ? 1.0 : 0.0;
+    CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
     CGFloat transport = shown ? 1.0 : 0.0;
+    _closeButton.hidden = !_trafficLightsShown;
+    _minimizeButton.hidden = !_trafficLightsShown;
     if (animated) {
         [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
             ctx.duration = kControlFadeDur;

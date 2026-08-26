@@ -467,9 +467,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [self playTrack:track atPosition:0 startPaused:NO declick:NO];
 }
 
-// The convert swap's entry: the same audio resumes at the same position, so
-// the replace declicks rather than crossfades — a crossfade of a signal with
-// itself only dips the volume for the fade length.
+// Convert resumes the same audio in place; playlist removal uses this to land
+// a replacement parked. Both declick rather than crossfade: the first would
+// only dip identical audio, and the second should render nothing until resume.
 - (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
     [self playTrack:track atPosition:position startPaused:startPaused declick:YES];
 }
@@ -508,6 +508,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // to the playback context it superseded. This precedes the rebind, which
     // returns early but is still a newer submission.
     [self terminallyRetirePrefetchRequestOnQueue];
+    // A parked play is a pause outcome. Cut any older crossfade tail before the
+    // same-path Loading rebind can return without touching the graph.
+    if (intent.paused) {
+        [self preemptRetiredFadesOnQueue];
+    }
     if ([self rebindLoadingPlayOnQueueForTrack:track
                                           path:path
                                         intent:intent
@@ -1107,6 +1112,27 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     dispatch_async(_queue, ^{
         [self resumeOnQueue];
     });
+}
+
+- (BOOL)playingIntentAfterPendingCommands {
+    __block BOOL playing = NO;
+    dispatch_block_t read = ^{
+        if (self->_state == VibePlayerStateLoading) {
+            // The mirror the public predicates answer from, not the pending
+            // request: one fact, so this and isPlaying/isPaused cannot
+            // disagree about a Loading start's intent.
+            playing = !self->_loadingStartPaused;
+            return;
+        }
+        playing = self->_state == VibePlayerStatePlaying && !self->_pausePending;
+    };
+    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
+        read();
+    }
+    else {
+        dispatch_sync(_queue, read);
+    }
+    return playing;
 }
 
 // Explicit desired-state transport. Unlike playPause, duplicate calls are

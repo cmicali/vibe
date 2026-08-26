@@ -61,6 +61,10 @@ NS_ASSUME_NONNULL_BEGIN
 // construction and by the settings live-effect mapping.
 - (void)applyAlwaysOnTop;
 
+// Pushes AppSettings.sharedInstance.showTrafficLights to the content view's
+// hover fade. Same two callers, so the setting is read in one place.
+- (void)applyTrafficLights;
+
 // View > Appearance, dispatching on the menu item's identifier and storing it.
 - (IBAction)setAppearance:(id)sender;
 // Applies the already-stored appearance without writing it.

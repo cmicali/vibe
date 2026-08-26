@@ -166,29 +166,40 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
 
 #pragma mark - Event handling
 
-// Return, the numeric keypad's Enter, and the up and down arrows: everything
-// whose meaning is the playlist's, and so is dead while it is collapsed.
-- (BOOL)isPlaylistKey:(NSString *)chars {
-    if (chars.length != 1) {
-        return NO;
-    }
-    switch ([chars characterAtIndex:0]) {
-        case NSCarriageReturnCharacter:
-        case NSEnterCharacter:
-        case NSUpArrowFunctionKey:
-        case NSDownArrowFunctionKey:
-            return YES;
-    }
-    return NO;
+// The single character of a bare keypress, or 0 for anything longer. None of
+// the keys below is NUL, so 0 matches nothing.
+static unichar VibeBareKeyChar(NSString *chars) {
+    return chars.length == 1 ? [chars characterAtIndex:0] : 0;
 }
 
 // Return and the keypad's Enter both mean "play the selected row".
 - (BOOL)isPlaySelectionKey:(NSString *)chars {
-    if (chars.length != 1) {
-        return NO;
-    }
-    unichar c = [chars characterAtIndex:0];
+    unichar c = VibeBareKeyChar(chars);
     return c == NSCarriageReturnCharacter || c == NSEnterCharacter;
+}
+
+// Backspace and Forward Delete both mean "remove the selected row". The Edit
+// menu advertises Backspace alone; Forward Delete is a physical-key twin, not a
+// second shortcut, so only this monitor knows about it.
+- (BOOL)isRemoveSelectionKey:(NSString *)chars {
+    unichar c = VibeBareKeyChar(chars);
+    return c == NSDeleteCharacter || c == NSDeleteFunctionKey;
+}
+
+// The up and down arrows, which are the table's own moveUp:/moveDown:.
+- (BOOL)isSelectionMoveKey:(NSString *)chars {
+    unichar c = VibeBareKeyChar(chars);
+    return c == NSUpArrowFunctionKey || c == NSDownArrowFunctionKey;
+}
+
+// Everything whose meaning is the playlist's, and so is dead while it is
+// collapsed. Composed from the three above rather than re-listing their
+// characters: a key added to one of them must be swallowed here too, or it
+// falls through to the focused table with the pane closed.
+- (BOOL)isPlaylistKey:(NSString *)chars {
+    return [self isPlaySelectionKey:chars]
+            || [self isRemoveSelectionKey:chars]
+            || [self isSelectionMoveKey:chars];
 }
 
 // Returns nil to swallow a handled key, or the event to pass it on.
@@ -250,6 +261,15 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         }
         if ([self isPlaySelectionKey:chars]) {
             [controller playSelectedTrack:nil];   // the keyboard's double-click
+            return nil;
+        }
+        if ([self isRemoveSelectionKey:chars]) {
+            // Repeat downs are swallowed: a held delete key must take one row,
+            // not walk the playlist. The transport and skip keys below honor
+            // repeat deliberately; a structural edit cannot.
+            if (!event.isARepeat) {
+                [controller removeSelectedPlaylistTracks:nil];
+            }
             return nil;
         }
         return event;   // the arrows are the table's own moveUp:/moveDown:

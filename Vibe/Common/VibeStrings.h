@@ -88,12 +88,14 @@ static inline NSString *VibeAppName(void) {
 // ("Undo Convert to FLAC"), which draws the localized prefix from AppKit and
 // the action name from STR_MENU_CONVERT_TO_FLAC.
 
-#define STR_MENU_EDIT            NSLS(@"menu.edit",            @"Edit",       @"Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items and Select All.")
-#define STR_MENU_EDIT_UNDO       NSLS(@"menu.edit.undo",       @"Undo",       @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
-#define STR_MENU_EDIT_REDO       NSLS(@"menu.edit.redo",       @"Redo",       @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
-#define STR_MENU_EDIT_COPY_FILE  NSLS(@"menu.edit.copy_file",  @"Copy File",  @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
-#define STR_MENU_EDIT_COPY_NAME  NSLS(@"menu.edit.copy_name",  @"Copy Name",  @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
-#define STR_MENU_EDIT_SELECT_ALL NSLS(@"menu.edit.select_all", @"Select All", @"Edit menu item: selects every row of the list that has keyboard focus — the granted-folder list in Settings > Permissions. macOS uses this same name in every app.")
+#define STR_MENU_EDIT                      NSLS(@"menu.edit",                      @"Edit",                 @"Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items, Remove from Playlist and Select All.")
+#define STR_MENU_EDIT_UNDO                 NSLS(@"menu.edit.undo",                 @"Undo",                 @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_REDO                 NSLS(@"menu.edit.redo",                 @"Redo",                 @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_COPY_FILE            NSLS(@"menu.edit.copy_file",            @"Copy File",            @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
+#define STR_MENU_EDIT_COPY_NAME            NSLS(@"menu.edit.copy_name",            @"Copy Name",            @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
+#define STR_MENU_EDIT_REMOVE_FROM_PLAYLIST NSLS(@"menu.edit.remove_from_playlist", @"Remove from Playlist", @"Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.")
+#define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_REORDER              NSLS(@"menu.edit.reorder",              @"Reorder",              @"Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.")
 
 #pragma mark - Transport
 
@@ -240,8 +242,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_KEY_COLORS         NSLS(@"settings.appearance.key_colors",                 @"Color keys with Camelot colors", @"Settings, Appearance pane: checkbox — when on, the key readout is drawn bold and in the color that key occupies on the Camelot wheel. 'Camelot' is the name of that wheel, a proper noun, left untranslated.")
 
 #define STR_SETTINGS_APPEARANCE_LABEL   NSLS(@"settings.appearance.appearance_label",           @"Appearance:",              @"Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.")
-#define STR_SETTINGS_WINDOW_TINT_LABEL  NSLS(@"settings.appearance.window_tint_label",          @"Window",                   @"Settings, Appearance pane, Window group: row beside the dropdown choosing the color wash laid over the player window's header.")
-#define STR_SETTINGS_WINDOW_TINT_MONO   NSLS(@"settings.appearance.window_tint.mono",           @"Mono",                     @"Settings, window tint choice: no color wash — the window's plain glass, the same under every track. 'Mono' as in monochrome, not monaural audio.")
+#define STR_SETTINGS_SHOW_TRAFFIC_LIGHTS NSLS(@"settings.appearance.show_traffic_lights",       @"Show traffic lights",      @"Settings, Appearance pane, Window group: switch showing or hiding the main window's custom close and minimize buttons. The buttons are the red and yellow macOS-style dots. The default is on.")
+#define STR_SETTINGS_BACKGROUND_TINT_LABEL NSLS(@"settings.appearance.window_tint_label",      @"Background tint",          @"Settings, Appearance pane, Window group: row beside the dropdown choosing the translucent color wash laid over the player window's header background.")
+#define STR_SETTINGS_WINDOW_TINT_NONE   NSLS(@"settings.appearance.window_tint.mono",           @"None",                     @"Settings, background tint choice: no color wash — the window's plain glass, the same under every track.")
 #define STR_SETTINGS_WINDOW_TINT_ARTWORK NSLS(@"settings.appearance.window_tint.artwork",       @"Artwork color",            @"Settings, window tint choice: the header is washed with the dominant color of the playing track's cover artwork. The default.")
 #define STR_SETTINGS_WINDOW_TINT_CUSTOM NSLS(@"settings.appearance.window_tint.custom",         @"Custom",                   @"Settings, window tint choice: the user picks the wash color with a color well.")
 #define STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL NSLS(@"settings.appearance.window_tint_custom_dark_label", @"Dark color:", @"Settings, Appearance pane: label beside the custom window tint color well used while the app is in dark mode. Ends with a colon.")

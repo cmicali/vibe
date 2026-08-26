@@ -156,6 +156,12 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // light/dark setting rather than pinning one.
 - (nullable NSAppearance *)windowAppearance;
 
+// YES, the default, shows the custom close and minimize traffic lights in the
+// main window. A writer requests VibeSettingsLiveEffectTrafficLights so the
+// already-built controls update immediately.
+- (BOOL)showTrafficLights;
+- (void)setShowTrafficLights:(BOOL)show;
+
 // The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
 // identifiers above. Normalized on read: an unknown stored value reads as
 // artwork. ArtworkDisplayController's refreshHeaderTint is the one place that

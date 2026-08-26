@@ -100,6 +100,11 @@
 }
 
 - (void)windowDidLoad {
+    // Unlimited (the default) lets dead removal registrations accumulate for
+    // the window's lifetime, each pinning its removed AudioTrack and metadata
+    // after a playlist replacement has made it unrestorable. The cap bounds
+    // that; nobody unwinds 32 conversions or removals deep.
+    self.window.undoManager.levelsOfUndo = 32;
     [self buildCollaborators];
     [self wireCollaboratorHandlers];
     [self registerGrantAndArtworkObservers];
@@ -220,9 +225,41 @@
     // just reached. The playlist's index funnel is the one place every play,
     // skip and gapless auto-advance passes through.
     self.playlistController.currentIndexDidChangeHandler = ^{
-        MainPlayerController *strongSelf = weakControllerForPlaylist;
-        [strongSelf.metadataCache setNeighborhoodAroundIndex:strongSelf.playlistController.currentIndex
-                                                    inTracks:strongSelf.playlistController];
+        [weakControllerForPlaylist updateMetadataNeighborhood];
+    };
+
+    // A row context menu asked for a removal. This side resolves the captured
+    // objects and owns every playback consequence.
+    self.playlistController.removeTracksRequestHandler = ^(NSArray<AudioTrack *> *tracks) {
+        [weakControllerForPlaylist removePlaylistTracks:tracks];
+    };
+
+    // Rows were reordered. The current track kept its identity and its audio,
+    // so beyond the shared structural-edit tail there is nothing to do — no
+    // play funnel, ever: a Loading current row keeps its exact pending play
+    // object, and a paused one stays paused where it was.
+    //
+    // A move is undoable as the list edit it is, and this handler is the ONE
+    // registration point: it fires for every completed move — drag, undo or
+    // redo alike — with the sets swapped, the move's own inverse, and
+    // NSUndoManager routes a registration made while it unwinds onto the
+    // opposite stack, so undo and redo chain with no second bookkeeping path.
+    // Stamped like removal's restore; a refused restore performs no move,
+    // fires no handler and so registers nothing, and its empty group pops
+    // harmlessly.
+    self.playlistController.playlistOrderDidChangeHandler =
+            ^(NSIndexSet *sourceIndexes, NSIndexSet *destinationIndexes) {
+        MainPlayerController *controller = weakControllerForPlaylist;
+        if (!controller) {
+            return;
+        }
+        NSUndoManager *undoManager = controller.window.undoManager;
+        [[undoManager prepareWithInvocationTarget:controller]
+                movePlaylistTracksFromIndexes:destinationIndexes
+                                    toIndexes:sourceIndexes
+                                   generation:controller.playlistController.structureGeneration];
+        [undoManager setActionName:STR_MENU_EDIT_REORDER];
+        [controller reconcileAfterPlaylistStructureEdit];
     };
 
     __weak MainPlayerController *weakControllerForArt = self;
@@ -676,6 +713,185 @@
     [self.playlistController playSelectedTrack];   // refresh rides the funnel; see next:
 }
 
+#pragma mark - Playlist editing
+
+// The scan's cloud-lane ranking follows the cursor. Called from the playlist's
+// index funnel and from the removal funnel, which the index funnel deliberately
+// does not fire for: one structural edit, one reconciliation.
+- (void)updateMetadataNeighborhood {
+    [self.metadataCache setNeighborhoodAroundIndex:self.playlistController.currentIndex
+                                          inTracks:self.playlistController];
+}
+
+// Edit > Remove from Playlist, and the same through Backspace and Forward
+// Delete. Resolve the selection when the action is dispatched.
+- (IBAction)removeSelectedPlaylistTracks:(nullable id)sender {
+    NSArray<AudioTrack *> *tracks = self.playlistController.selectedTracks;
+    if (tracks.count == 0) {
+        return;
+    }
+    [self removePlaylistTracks:tracks];
+}
+
+// The one funnel for every removal — the Edit menu, the two delete keys and the
+// row context menu — and the only place the playback consequences of one are
+// decided. Playlist.removeTracksAtIndexes: deliberately touches no audio, so
+// removing the CURRENT row through it alone would leave the player sounding a
+// track the playlist no longer contains: the identity guards on every player
+// callback would then read correct events as stale, and auto-advance would have
+// no authoritative successor. The files themselves are never touched.
+- (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks {
+    PlaylistController *playlist = self.playlistController;
+    // Resolve each exact object once — departed objects drop out, and the
+    // index set dedupes a track a gesture managed to name twice.
+    NSIndexSet *rows = [playlist rowsForTracks:tracks];
+    if (rows.count == 0) {
+        return;
+    }
+    // Removing every row is an unload, not an edit. closeFile: owns the
+    // complete teardown — stop, download monitor, parked successor, waveform
+    // load, deferred metadata and the scan, error mask, UI timer, empty state
+    // — and a model-only removal would do none of it. Nothing is mutated
+    // first: it clears the playlist itself.
+    if (rows.count == playlist.count) {
+        [self closeFile:nil];
+        return;
+    }
+
+    NSUInteger currentIndex = playlist.currentIndex;
+    BOOL removingCurrent = [rows containsIndex:currentIndex];
+    // Only a removed CURRENT row with a surviving forward successor can keep
+    // sounding: the first row after it not also being removed is the one the
+    // model will slide into its place. When everything after the current row
+    // is going too, the cursor moves BACK onto a previous row, and removal
+    // must not replay backward. The intent resolves after every transport
+    // command already submitted to the player queue; the two short-circuits
+    // are what keep every other edit off that round trip.
+    NSUInteger successorRow = currentIndex + 1;
+    while ([rows containsIndex:successorRow]) {
+        successorRow += 1;
+    }
+    BOOL continuesPlaying = removingCurrent
+            && successorRow < playlist.count
+            && [self.audioPlayer playingIntentAfterPendingCommands];
+
+    // A removal is a plain list edit, so it is undoable like one: undo
+    // restores the exact objects to their rows — identity, metadata and
+    // analysis intact — and deliberately does not touch transport, so undoing
+    // a removed current row does not replay it. The whole-list path above
+    // registers nothing: that removal is File > Close, never undoable. The
+    // stamped structureGeneration follows the model's own replace-all
+    // announcement, and is what keeps a restore from editing a replaced
+    // playlist. Registered from the model's own return — the exact objects in
+    // ascending row order — which grouping permits: registration and mutation
+    // share this run-loop turn's undo group whichever comes first.
+    NSArray<AudioTrack *> *removed = [playlist removeTracksAtIndexes:rows];
+    NSUndoManager *undoManager = self.window.undoManager;
+    [[undoManager prepareWithInvocationTarget:self]
+            reinsertPlaylistTracks:removed
+                         atIndexes:rows
+                        generation:playlist.structureGeneration];
+    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
+
+    // The departed rows' queued scan work must not spend a provider transfer
+    // on files nobody can see; reinsertPlaylistTracks: re-requests it through
+    // loadMetadataNow: when the removal is undone.
+    for (AudioTrack *track in removed) {
+        [self.metadataCache abandonQueuedTrack:track];
+    }
+    // Once, from the final rows. The playlist's cursor callback is deliberately
+    // not raised for a structural edit, so this is the removal's own
+    // reconciliation rather than a second notification of the same event.
+    if (!removingCurrent) {
+        // The current track kept its identity, so its audio, playhead and
+        // header are untouched. Only which row is next can have moved — the
+        // removed row may have been the parked successor, or a row before it.
+        [self reconcileAfterPlaylistStructureEdit];
+        return;
+    }
+    [self updateMetadataNeighborhood];
+
+    // The current row is gone. Submit through the playlist's one play funnel,
+    // so playWillStartHandler repaints the header at submission and
+    // didStartPlaying:'s per-track refresh — waveform, artwork, recents,
+    // duration cache, prefetch, stats — comes free. The submission also mints a
+    // newer play identity, so the removed open's settlement is dropped by
+    // AudioPlayer.submittedPlayIsCurrent:.
+    [self clearErrorMask];
+    // The monitor belongs to the removed row's open, and a fast local
+    // replacement never reaches didBeginLoading: to replace it.
+    [self teardownDownloadMonitor];
+    // A successor keeps the old intent; the preceding row chosen after removing
+    // the last track always parks, because removal must not replay backward.
+    BOOL startPaused = !continuesPlaying;
+    if (startPaused) {
+        // The new submission drops any pending stop or pause callback for the
+        // removed track, so settle its app-side lifecycle before superseding it.
+        [[AppStats sharedInstance] playbackStopped];
+        [self pauseUIUpdateTimer];
+    }
+    [playlist playStartPaused:startPaused];
+}
+
+// The tail every structural playlist edit shares once the model is final: the
+// successor re-park, the one metadata-neighborhood recompute, and the
+// transport/Now Playing refresh (rows themselves were reconciled by the
+// model's structural event). Every prefetch goes through
+// successorPrefetchTrack, so Settings > Playback > On track end still
+// outranks it. A Stopped player is the exception: it advances nothing, holds
+// no parked handle to retarget, and a new play re-prefetches at its start —
+// so an errored player must not open (or download) a successor over a mere
+// list edit.
+- (void)reconcileAfterPlaylistStructureEdit {
+    if (!self.audioPlayer.isStopped) {
+        [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    }
+    [self updateMetadataNeighborhood];
+    [self updateUI];
+}
+
+// The removal's undo. The redo registration comes first — while the manager
+// isUndoing it lands on the redo stack — and precedes the generation bail so a
+// refused restore is not also a lost one. A dead pair stays dead on its own:
+// its redo hands removePlaylistTracks: tracks no playlist contains, which
+// no-op in the departed-object guard. Restoring is a list edit only — the
+// rows come back where they were, selected, but transport is untouched: a
+// removed current row does not replay, exactly as removing it did not restart
+// what survived.
+- (void)reinsertPlaylistTracks:(NSArray<AudioTrack *> *)tracks
+                     atIndexes:(NSIndexSet *)indexes
+                    generation:(NSUInteger)generation {
+    NSUndoManager *undoManager = self.window.undoManager;
+    [[undoManager prepareWithInvocationTarget:self] removePlaylistTracks:tracks];
+    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
+    if (generation != self.playlistController.structureGeneration) {
+        return;
+    }
+    [self.playlistController insertTracks:tracks atIndexes:indexes];
+    // The rows' queued scan work was abandoned at removal; this re-requests
+    // it, and no-ops when the metadata had already landed. A restored row may
+    // also be the new successor, which the shared tail re-parks.
+    for (AudioTrack *track in tracks) {
+        [self.metadataCache loadMetadataNow:track];
+    }
+    [self reconcileAfterPlaylistStructureEdit];
+}
+
+// A reorder's undo — and, because the handler above re-registers with the
+// sets swapped while the manager unwinds, its redo too. The stamped
+// generation dies quietly on a replaced playlist; indexes a later edit
+// invalidated are refused by the model's own validation. Either way nothing
+// moves, nothing registers, and the dead group pops harmlessly.
+- (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
+                            toIndexes:(NSIndexSet *)destinationIndexes
+                           generation:(NSUInteger)generation {
+    if (generation != self.playlistController.structureGeneration) {
+        return;
+    }
+    [self.playlistController moveTracksAtIndexes:sourceIndexes
+                                       toIndexes:destinationIndexes];
+}
+
 - (IBAction)closeApp:(id)sender {
     [self close];
 }
@@ -846,18 +1062,24 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 // The Edit and window-body menus act on the current track; the playlist's row
-// menu runs the same three commands against the clicked one.
+// menu runs the same three commands against the clicked row or the selection
+// containing it.
+
+- (NSArray<AudioTrack *> *)currentTrackAsList {
+    AudioTrack *track = self.playlistController.currentTrack;
+    return track ? @[track] : @[];
+}
 
 - (IBAction) showInFinder:(id)sender {
-    [TrackCommands revealInFinder:self.playlistController.currentTrack];
+    [TrackCommands revealInFinder:[self currentTrackAsList]];
 }
 
 - (IBAction) copyFile:(id)sender {
-    [TrackCommands copyFile:self.playlistController.currentTrack];
+    [TrackCommands copyFiles:[self currentTrackAsList]];
 }
 
 - (IBAction) copyName:(id)sender {
-    [TrackCommands copyName:self.playlistController.currentTrack];
+    [TrackCommands copyNames:[self currentTrackAsList]];
 }
 
 #if DEBUG

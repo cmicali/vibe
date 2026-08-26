@@ -2,13 +2,14 @@
 //  TrackCommands.h
 //  Vibe
 //
-//  The three commands that act on one track and nothing else: reveal it, copy
-//  the file, copy the name. Each has two call sites that differ only in which
-//  track they name — the Edit and window-body menus act on the CURRENT track
-//  (MainPlayerController), the playlist's row context menu on the CLICKED one
-//  (PlaylistController) — so the commands live here and the two menus supply
-//  the track. A nil track, or one with nothing to copy, is a no-op: the menus
-//  validate, and the bare-key and debug paths do not.
+//  The three commands that act on a list of tracks and nothing else: reveal
+//  them, copy the files, copy the names. Each has two call sites that differ
+//  only in which tracks they name — the Edit and window-body menus act on the
+//  CURRENT track (MainPlayerController), the playlist's row context menu on
+//  the CLICKED row or the selection containing it (PlaylistController) — so
+//  the commands live here and the two menus supply the tracks. An empty list,
+//  or one with nothing to copy, is a no-op: the menus validate, and the
+//  bare-key and debug paths do not.
 //
 
 #import <Foundation/Foundation.h>
@@ -19,13 +20,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface TrackCommands : NSObject
 
-+ (void)revealInFinder:(nullable AudioTrack *)track;
++ (void)revealInFinder:(NSArray<AudioTrack *> *)tracks;
 
-// The file URL itself goes on the pasteboard, so a Finder paste duplicates the
-// file rather than pasting its path as text.
-+ (void)copyFile:(nullable AudioTrack *)track;
+// The file URLs themselves go on the pasteboard, so a Finder paste duplicates
+// the files rather than pasting their paths as text.
++ (void)copyFiles:(NSArray<AudioTrack *> *)tracks;
 
-+ (void)copyName:(nullable AudioTrack *)track;
+// One name per line: a multi-row copy pastes as a list.
++ (void)copyNames:(NSArray<AudioTrack *> *)tracks;
 
 @end
 
