@@ -103,7 +103,11 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
 // these strings are rebuilt only on content changes.
 static NSDictionary *cornerTextAttributes(void) {
     NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
-    attributes[NSForegroundColorAttributeName] = NSColor.tertiaryLabelColor;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    attributes[NSForegroundColorAttributeName] =
+            [AppTheme dynamicColorWithDark:[theme infoColorForDark:YES]
+                                     light:[theme infoColorForDark:NO]
+                                  fallback:NSColor.tertiaryLabelColor];
     return attributes;
 }
 
@@ -212,6 +216,16 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // freshly pushed fonts.
 - (void)refitTitle {
     [self fitTitleFontForText:self.titleTextField.stringValue];
+}
+
+// A theme color change must repaint text whose string did not change; the
+// composed-line guards compare content, never color. The follow-up updateUI
+// pass recomposes both corner lines.
+- (void)resetRenderGuards {
+    _fileMetadataText = nil;
+    // NSIntegerMin, not -1: -1 is the legitimate "no color" key, and a reset
+    // to it would still satisfy the equality guard and skip the repaint.
+    _lastKeyColorKey = NSIntegerMin;
 }
 
 - (void)refitTitleIfWidthChanged {

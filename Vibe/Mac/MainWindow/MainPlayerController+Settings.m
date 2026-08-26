@@ -13,6 +13,7 @@
 #import "AudioWaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"
+#import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
 #import "TrackDisplayController.h"
 
@@ -62,6 +63,11 @@
         [self.playerContentView applyThemedTextStyle];
         [self.trackDisplay refitTitle];
     }
+    if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
+        [PlaylistTableView invalidateCellAttributes];
+        [self.playerContentView applyPlaylistBackground];
+        [self.playlistTableView reloadData];
+    }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
         self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
     }
@@ -72,6 +78,10 @@
         [self refreshWindowTint];
     }
     if (effects & VibeSettingsLiveEffectTrackDisplay) {
+        // Label colors ride this effect too: re-style the fields, then drop
+        // the content guards so unchanged strings still repaint.
+        [self.playerContentView applyThemedTextStyle];
+        [self.trackDisplay resetRenderGuards];
         [self updateUI];
     }
     if (effects & VibeSettingsLiveEffectFolderArt) {

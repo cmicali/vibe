@@ -108,6 +108,10 @@ typedef struct {
 // effect's hook, where the width-change check above would see nothing moved.
 - (void)refitTitle;
 
+// Clears the corner lines' content guards so the next updateUI repaints them
+// in a freshly themed color — the TrackDisplay effect's hook.
+- (void)resetRenderGuards;
+
 // End-of-playlist parking: pin the finished track's header at its start, with
 // progress 0, an elapsed time of 0:00 and the right label at the full
 // duration. The caller's didFinishPlaying: explains why the resting values

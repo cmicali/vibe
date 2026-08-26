@@ -27,6 +27,11 @@ extern NSString *const kPlaylistColumnLength;
 // layout or a cell font.
 @interface PlaylistTableView : NSTableView
 
+// Drops the cached cell attributes so the next cell rebuild reads the
+// theme's fonts and label colors — the PlaylistAppearance effect's hook; the
+// caller reloads the table.
++ (void)invalidateCellAttributes;
+
 // Builds the table inside its enclosing scroll view, where the table is the
 // documentView. MainPlayerContentView only places the frame.
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame;

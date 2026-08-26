@@ -34,9 +34,14 @@ NS_ASSUME_NONNULL_BEGIN
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;
 
-// Re-resolves the header labels' themed fonts after a Fonts push. The title's
-// shrink-to-fit re-runs separately (TrackDisplayController owns the fit).
+// Re-resolves the header labels' themed fonts and colors. The title's
+// shrink-to-fit re-runs separately (TrackDisplayController owns the fit),
+// and the corner readouts' color rides their attributed strings.
 - (void)applyThemedTextStyle;
+
+// Re-resolves the themed wash over the playlist frost; also runs on every
+// appearance change (updateMaterialForAppearance).
+- (void)applyPlaylistBackground;
 
 // Fires from the effective-appearance funnel, after the view's own material
 // and tint updates, so that appearance-dependent state owned elsewhere — the

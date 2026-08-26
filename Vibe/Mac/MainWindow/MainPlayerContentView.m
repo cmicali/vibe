@@ -217,8 +217,7 @@ API_AVAILABLE(macos(26.0))
     // mode gets a white wash, brightening rather than dimming, which lifts row
     // contrast for the dark text while letting the blur through.
     _playlistFrostView.material = NSVisualEffectMaterialUnderWindowBackground;
-    _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
-                                                  : [NSColor colorWithWhite:1 alpha:0.35].CGColor;
+    [self applyPlaylistBackground];
     // The header-label shadows lift readability for light text on dark glass.
     // Dark text on the bright light material needs none, and a dark shadow
     // under dark text reads simply as smudge.
@@ -723,6 +722,32 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _fileMetadataTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
     _bpmTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
+    // The corner readouts' color rides their attributed strings
+    // (cornerTextAttributes); the drop hint stays unthemed with the rest of
+    // the empty state.
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    _titleTextField.textColor = [AppTheme dynamicColorWithDark:[theme titleColorForDark:YES]
+                                                         light:[theme titleColorForDark:NO]
+                                                      fallback:NSColor.labelColor];
+    _artistTextField.textColor = [AppTheme dynamicColorWithDark:[theme artistColorForDark:YES]
+                                                          light:[theme artistColorForDark:NO]
+                                                       fallback:NSColor.secondaryLabelColor];
+    NSColor *timeColor = [AppTheme dynamicColorWithDark:[theme timeColorForDark:YES]
+                                                  light:[theme timeColorForDark:NO]
+                                               fallback:NSColor.secondaryLabelColor];
+    _totalTimeTextField.textColor = timeColor;
+    _currentTimeTextField.textColor = timeColor;
+}
+
+// The themed wash over the playlist frost: the theme's color when set, else
+// today's appearance-dependent lift (clear in dark, a white brightening wash
+// in light).
+- (void)applyPlaylistBackground {
+    BOOL dark = self.isDark;
+    NSColor *background =
+            [AppSettings.sharedInstance.currentTheme playlistBackgroundColorForDark:dark];
+    _playlistDimView.layer.backgroundColor = (background
+            ?: (dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35])).CGColor;
 }
 
 - (void)applyCornerRadius:(CGFloat)radius {

@@ -4,6 +4,7 @@
 //
 
 #import "PlaylistTableView.h"
+#import "AppSettings.h"
 #import "AudioTrack.h"
 #import "Fonts.h"
 #import "PlaylistCoverImageView.h"
@@ -106,10 +107,14 @@ static NSDictionary *numColumnAttributes;
 static NSDictionary *lengthColumnAttributes;
 static NSDictionary *titleAttributes;
 static NSDictionary *artistAttributes;
+// Not dispatch_once: the attributes carry the theme's fonts and label
+// colors, so the PlaylistAppearance effect invalidates and the next cell
+// rebuilds — the invalidate-on-effect idiom, in place of cached-forever.
+static BOOL cellAttributesBuilt;
 
 static void ensureCellAttributes(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    if (!cellAttributesBuilt) {
+        cellAttributesBuilt = YES;
         // Every column's paragraph style truncates. These strings are set as
         // attributed values, and an attributed string's paragraph style beats
         // the cell's own line break mode, so leaving the style out left the
@@ -118,31 +123,45 @@ static void ensureCellAttributes(void) {
         left.lineBreakMode = NSLineBreakByTruncatingTail;
         NSMutableParagraphStyle *right = [left mutableCopy];
         right.alignment = NSTextAlignmentRight;
+        // One label-color set spans the header and the playlist: titleColor
+        // is every title, artistColor every secondary line — here the artist
+        // run and both numeric columns, which already share its fallback.
+        AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+        NSColor *titleColor = [AppTheme dynamicColorWithDark:[theme titleColorForDark:YES]
+                                                       light:[theme titleColorForDark:NO]
+                                                    fallback:NSColor.labelColor];
+        NSColor *artistColor = [AppTheme dynamicColorWithDark:[theme artistColorForDark:YES]
+                                                        light:[theme artistColorForDark:NO]
+                                                     fallback:NSColor.secondaryLabelColor];
         numColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.5),
                 NSFontAttributeName: [Fonts fontForNumbers:12],
                 NSParagraphStyleAttributeName: right,
         };
         lengthColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.0),
                 NSFontAttributeName: [Fonts fontForNumbers:12],
                 NSParagraphStyleAttributeName: right,
         };
         titleAttributes = @{
-                NSForegroundColorAttributeName: NSColor.labelColor,
+                NSForegroundColorAttributeName: titleColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
+                NSFontAttributeName: [Fonts playlistFont:14],
                 NSParagraphStyleAttributeName: left,
         };
         artistAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
+                NSFontAttributeName: [Fonts playlistFont:14],
                 NSParagraphStyleAttributeName: left,
         };
-    });
+    }
+}
+
++ (void)invalidateCellAttributes {
+    cellAttributesBuilt = NO;
 }
 
 // A static text field for a table cell, backed by the vertically centering

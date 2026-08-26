@@ -150,6 +150,14 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 - (nullable VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark;
 - (void)setPlaylistSelectedRowColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
+// A per-appearance override pair over a semantic fallback, as one dynamic
+// color: a nil override resolves to the fallback in that appearance. The
+// pair is captured at call time, so a theme change means rebuilding whatever
+// holds the color — an appearance flip re-resolves by itself.
++ (VibeColor *)dynamicColorWithDark:(nullable VibeColor *)dark
+                              light:(nullable VibeColor *)light
+                           fallback:(VibeColor *)fallback;
+
 @end
 
 NS_ASSUME_NONNULL_END

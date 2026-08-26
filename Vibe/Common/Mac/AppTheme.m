@@ -4,6 +4,7 @@
 //
 
 #import "AppTheme.h"
+#import <AppKit/AppKit.h>
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
@@ -216,6 +217,21 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 @implementation AppTheme {
     // Only sanitized values differing from the defaults — the sparse record.
     NSMutableDictionary<NSString *, id> *_fields;
+}
+
++ (VibeColor *)dynamicColorWithDark:(VibeColor *)dark
+                              light:(VibeColor *)light
+                           fallback:(VibeColor *)fallback {
+    if (!dark && !light) {
+        return fallback;
+    }
+    return [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+        NSAppearanceName matched = [appearance bestMatchFromAppearancesWithNames:@[
+            NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
+        ]];
+        BOOL isDark = [matched isEqualToString:NSAppearanceNameDarkAqua];
+        return (isDark ? dark : light) ?: fallback;
+    }];
 }
 
 #pragma mark Built-ins

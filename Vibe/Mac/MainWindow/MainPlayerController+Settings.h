@@ -30,6 +30,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The three themed font slots: push the theme's choice into Fonts, then
     // re-resolve every label that holds a slot font.
     VibeSettingsLiveEffectFonts            = 1UL << 15,
+    // The playlist's themed colors and font: cell attributes rebuild, rows
+    // redraw, and the wash over the frost re-resolves.
+    VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
     // Everything applying a whole theme moves at once. Deliberately not the
     // common settings (WindowAppearance, TrafficLights), which live outside
     // the theme.
@@ -38,6 +41,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectWindowTint
                                            | VibeSettingsLiveEffectWindowChrome
                                            | VibeSettingsLiveEffectFonts
+                                           | VibeSettingsLiveEffectPlaylistAppearance
                                            | VibeSettingsLiveEffectTrackDisplay,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
