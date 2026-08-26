@@ -24,10 +24,27 @@
 static const CGFloat kInlineBadgeDiameter = 19;
 static const CGFloat kInlineBadgeGap = 8;
 
+// Sized to the DISPLAYED value, not the widest menu item — the badge stays
+// pinned at the row's trailing edge and the text hugs it, like the
+// reference. The height is the cell's own answer.
 - (NSSize)intrinsicContentSize {
     NSSize size = [super intrinsicContentSize];
-    size.width += kInlineBadgeDiameter + kInlineBadgeGap;
+    NSString *title = self.selectedItem.title ?: @"";
+    CGFloat text = ceil([title sizeWithAttributes:@{NSFontAttributeName: self.font}].width);
+    size.width = text + 8 + kInlineBadgeGap + kInlineBadgeDiameter + 2;
     return size;
+}
+
+// Selection reaches the displayed title through here, for a user pick and
+// the programmatic selects alike — the moment the width's input changes.
+- (void)synchronizeTitleAndSelectedItem {
+    [super synchronizeTitleAndSelectedItem];
+    [self invalidateIntrinsicContentSize];
+}
+
+- (void)selectItem:(NSMenuItem *)item {
+    [super selectItem:item];
+    [self invalidateIntrinsicContentSize];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
