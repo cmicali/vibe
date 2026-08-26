@@ -34,7 +34,10 @@ static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerCon
 // The undo and redo verbs. A conversion's file moves settle after the manager
 // call returns, so the reply waits on the controller's one-shot settled hook
 // rather than racing the Trash; a reply outliving the client's timeout writes
-// one orphan response and cannot fire on a later menu-driven undo.
+// one orphan response and cannot fire on a later menu-driven undo. A
+// non-conversion undo — a playlist removal's restore — settles inside the
+// manager call and never fires that hook, so the post-call check answers it
+// synchronously instead of timing the client out.
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
     if (controller.isConversionUndoRedoInFlight) {
@@ -62,6 +65,20 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     }
     else {
         [controller undo:nil];
+    }
+    // The hook is one-shot and clears itself as it fires. Still installed with
+    // no conversion transaction running means this undo never was a
+    // conversion's: it settled synchronously, so answer now.
+    if (controller.conversionUndoRedoSettledHandler
+            && !controller.isConversionUndoRedoInFlight) {
+        controller.conversionUndoRedoSettledHandler = nil;
+        return VibeJSONString(@{
+            @"ok": @YES,
+            (redo ? @"redid" : @"undid"): actionName ?: @"",
+            @"committed": @YES,
+            @"canUndo": @(undoManager.canUndo),
+            @"canRedo": @(undoManager.canRedo),
+        });
     }
     return nil; // response written by the settled hook
 }

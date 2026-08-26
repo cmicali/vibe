@@ -10,9 +10,9 @@
     // A track-to-row map for getIndexForTrack:. The metadata sweep resolves a
     // row once per track on the main thread, and a linear scan would make the
     // sweep O(n²) in playlist size. replaceAllWithURLs: rebuilds the map and
-    // appendURLs: extends it. removeTrackAtIndex: is the one mutation that
-    // MOVES rows, and rebuilds both indexes rather than patching them; every
-    // other path leaves the recorded positions valid.
+    // appendURLs: extends it. The remove, insert and move operations are the
+    // mutations that MOVE rows, and rebuild both indexes rather than patching
+    // them; every other path leaves the recorded positions valid.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     // The same thing keyed by URL, for indexesOfTracksWithURL: and
     // trackForURL:. A file can occupy several rows, so the value is a row set
@@ -226,58 +226,108 @@
     return incoming;
 }
 
-- (AudioTrack *)removeTrackAtIndex:(NSUInteger)index {
-    if (index >= _tracks.count) {
+- (NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes {
+    if (indexes.count == 0 || indexes.lastIndex >= _tracks.count) {
         return nil;
     }
-    AudioTrack *removed = _tracks[index];
-    [_tracks removeObjectAtIndex:index];
-    // Every row below the removed one has moved, so the indexes are rebuilt
+    NSUInteger previousCurrentIndex = _currentIndex;
+    NSArray<AudioTrack *> *removed = [_tracks objectsAtIndexes:indexes];
+    [_tracks removeObjectsAtIndexes:indexes];
+    // Every survivor below a removed row has moved, so the indexes are rebuilt
     // rather than patched; the incremental unindex the convert swap uses would
-    // leave every later entry naming the row above its own.
+    // leave every later entry naming a row above its own.
     [self rebuildIndexes];
     // The cursor is positional, so it follows the rows rather than the object:
-    // a row removed above it moves it up one, which is what keeps it naming the
-    // same AudioTrack, and one removed below leaves it alone. Removing the
-    // current row itself keeps the cursor on the successor that slid into that
-    // row, or moves it to the new last row when the removed one was last.
-    // Written straight to the ivar: one structural edit sends ONE event, and
-    // the property's setter would fire currentIndexDidChangeFromIndex: as a
-    // second edge for the same action.
-    if (index < _currentIndex) {
-        _currentIndex -= 1;
-    }
+    // it drops by the number of removed rows above it, which is what keeps it
+    // naming the same AudioTrack. When the current row itself was removed the
+    // same subtraction lands on the survivor that slid into its position — the
+    // gap between them was entirely removed rows — and the clamp below moves
+    // an emptied tail back onto the new last row. Written straight to the
+    // ivar: one structural edit sends ONE event, and the property's setter
+    // would fire currentIndexDidChangeFromIndex: as a second edge for the same
+    // action.
+    _currentIndex = previousCurrentIndex
+            - [indexes countOfIndexesInRange:NSMakeRange(0, previousCurrentIndex)];
     // Unconditional, not chained to the shift above: every removal must leave
     // the cursor in range (or 0 in an emptied list), whatever state it arrived
     // in — a chained else-if would carry a corrupt cursor straight through.
     if (_currentIndex >= _tracks.count) {
         _currentIndex = _tracks.count == 0 ? 0 : _tracks.count - 1;
     }
-    [self.observer playlist:self didRemoveTrackAtIndex:index];
+    [self.observer playlist:self didRemoveTracksAtIndexes:indexes];
     return removed;
 }
 
-- (void)insertTrack:(AudioTrack *)track atIndex:(NSUInteger)index {
-    if (!track) {
+- (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes {
+    if (tracks.count == 0 || tracks.count != indexes.count) {
         return;
     }
-    // Clamped, not refused: the undo of a removal can land after later edits
-    // have moved the end of the list, and a past-the-end restore should come
-    // back as the last row rather than not at all.
-    NSUInteger insertIndex = MIN(index, _tracks.count);
-    BOOL wasEmpty = _tracks.count == 0;
-    [_tracks insertObject:track atIndex:insertIndex];
-    // The mirror of removal's rebuild: every row at or below the insert moved.
+    AudioTrack *current = self.currentTrack;
+    // Each index clamped, not refused: the undo of a removal can land after
+    // later edits have moved the end of the list, and a past-the-end restore
+    // should come back as the last row rather than not at all. Ascending
+    // insertion order keeps each landed row from disturbing the ones already
+    // placed, and the landed set — not the requested one — is what the event
+    // carries, since clamping can shift a request.
+    NSMutableIndexSet *landed = [NSMutableIndexSet indexSet];
+    __block NSUInteger trackPosition = 0;
+    [indexes enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        NSUInteger insertIndex = MIN(index, self->_tracks.count);
+        [self->_tracks insertObject:tracks[trackPosition] atIndex:insertIndex];
+        [landed addIndex:insertIndex];
+        trackPosition += 1;
+    }];
+    // The mirror of removal's rebuild: every row at or below an insert moved.
     [self rebuildIndexes];
-    // The cursor is positional and follows the rows, exactly as removal's
-    // does: an insert at or before it moves it down one, which keeps it naming
-    // the same AudioTrack. Into an empty list it stays 0, naming the new row,
+    // The cursor follows its object: an insert never removes it, so resolving
+    // the captured identity against the rebuilt map covers every case in one
+    // step. Into a previously empty list it stays 0, naming the first new row,
     // as a replacement would leave it. Written straight to the ivar for
     // removal's reason: one structural edit, one event.
-    if (!wasEmpty && insertIndex <= _currentIndex) {
-        _currentIndex += 1;
+    NSInteger resolvedCurrent = [self getIndexForTrack:current];
+    if (resolvedCurrent >= 0) {
+        _currentIndex = (NSUInteger)resolvedCurrent;
     }
-    [self.observer playlist:self didInsertTrackAtIndex:insertIndex];
+    [self.observer playlist:self didInsertTracksAtIndexes:landed];
+}
+
+- (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes
+                    toIndex:(NSUInteger)destinationIndex {
+    NSUInteger moving = sourceIndexes.count;
+    if (moving == 0 || sourceIndexes.lastIndex >= _tracks.count
+            || destinationIndex > _tracks.count - moving) {
+        return NO;
+    }
+    // A contiguous block landing on its own first row changes nothing; a
+    // non-contiguous set never qualifies, because gathering it moves the
+    // survivors between its members whatever the destination.
+    BOOL contiguous = sourceIndexes.lastIndex - sourceIndexes.firstIndex + 1 == moving;
+    if (contiguous && destinationIndex == sourceIndexes.firstIndex) {
+        return NO;
+    }
+    AudioTrack *current = self.currentTrack;
+    NSArray<AudioTrack *> *moved = [_tracks objectsAtIndexes:sourceIndexes];
+    [_tracks removeObjectsAtIndexes:sourceIndexes];
+    [_tracks insertObjects:moved
+                 atIndexes:[NSIndexSet indexSetWithIndexesInRange:
+                            NSMakeRange(destinationIndex, moving)]];
+    [self rebuildIndexes];
+    // The cursor follows its object, resolved against the rebuilt map: one
+    // step covers the current row inside the moved block, a block crossing it
+    // in either direction, and a move that never touches it. A move removes
+    // nothing, so the lookup can only fail for a cursor that arrived corrupt;
+    // removal's clamp keeps the defensive stance. Written straight to the
+    // ivar: one structural edit, one event.
+    NSInteger resolvedCurrent = [self getIndexForTrack:current];
+    if (resolvedCurrent >= 0) {
+        _currentIndex = (NSUInteger)resolvedCurrent;
+    }
+    if (_currentIndex >= _tracks.count) {
+        _currentIndex = _tracks.count == 0 ? 0 : _tracks.count - 1;
+    }
+    [self.observer playlist:self didMoveTracksFromIndexes:sourceIndexes
+                    toIndex:destinationIndex];
+    return YES;
 }
 
 @end

@@ -74,7 +74,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Delete: takes the selected row out of the playlist, leaving its file where it
 // is. Removing a row that is not playing never interrupts playback; removing
 // the playing one moves to a deterministic adjacent row.
-- (IBAction)removeSelectedPlaylistTrack:(nullable id)sender;
+- (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 
 // MainPlayerController+Transport.h declares, and implements, the
 // relative-seek skips and the DJ effect toggles.

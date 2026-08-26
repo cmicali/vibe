@@ -8,31 +8,48 @@
 
 @implementation TrackCommands
 
-+ (void)revealInFinder:(AudioTrack *)track {
-    NSURL *url = track.url;
-    if (url) {
-        [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[url]];
++ (NSArray<NSURL *> *)urlsOfTracks:(NSArray<AudioTrack *> *)tracks {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:tracks.count];
+    for (AudioTrack *track in tracks) {
+        NSURL *url = track.url;
+        if (url) {
+            [urls addObject:url];
+        }
+    }
+    return urls;
+}
+
++ (void)revealInFinder:(NSArray<AudioTrack *> *)tracks {
+    NSArray<NSURL *> *urls = [self urlsOfTracks:tracks];
+    if (urls.count) {
+        [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:urls];
     }
 }
 
-+ (void)copyFile:(AudioTrack *)track {
-    NSURL *url = track.url;
-    if (url) {
-        [self writeToPasteboard:url];
++ (void)copyFiles:(NSArray<AudioTrack *> *)tracks {
+    NSArray<NSURL *> *urls = [self urlsOfTracks:tracks];
+    if (urls.count) {
+        [self writeToPasteboard:urls];
     }
 }
 
-+ (void)copyName:(AudioTrack *)track {
-    NSString *name = track.singleLineTitle;
-    if (name.length) {
-        [self writeToPasteboard:name];
++ (void)copyNames:(NSArray<AudioTrack *> *)tracks {
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:tracks.count];
+    for (AudioTrack *track in tracks) {
+        NSString *name = track.singleLineTitle;
+        if (name.length) {
+            [names addObject:name];
+        }
+    }
+    if (names.count) {
+        [self writeToPasteboard:@[[names componentsJoinedByString:@"\n"]]];
     }
 }
 
-+ (void)writeToPasteboard:(id<NSPasteboardWriting>)object {
++ (void)writeToPasteboard:(NSArray<id<NSPasteboardWriting>> *)objects {
     NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
     [pasteboard clearContents];
-    [pasteboard writeObjects:@[object]];
+    [pasteboard writeObjects:objects];
 }
 
 @end

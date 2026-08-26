@@ -1,15 +1,42 @@
-# Future: Playlist drag reordering (macOS)
+# Done: Playlist drag reordering, multi-select and group delete (macOS)
 
-Written 2026-08-23, planned but not implemented. Nothing in the repo has changed for it yet.
-The source descriptions below are against `main` at `bd2b0dc`, with unrelated uncommitted work
-in the checkout. Re-check the code and every named method before acting.
+Written 2026-08-23 as a single-row plan; implemented 2026-08-26 on top of
+`docs/done/playlist-row-removal.md`, at the user's request **with multi-select added** — group
+drag, group delete, and a selection-aware row context menu — which this plan had scoped out.
+The body below is the plan as written; where it and the code disagree, the code and the
+directory `CLAUDE.md`s are the authority. The deliberate divergences:
 
-This is the second half of the playlist-editing slice. Implement and verify
-`docs/done/playlist-row-removal.md` first — it is implemented: this plan reuses its index rebuild, structural observer
-shape, shell follow-up and live oracles, but remains a separate change and review. Read the root
-`CLAUDE.md`, `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`,
-`Vibe/Mac/MainWindow/CLAUDE.md` and `Tests/CLAUDE.md` first. Live verification requires the
-`vibe-debug` skill.
+- **Every structural model op is batch-shaped, and the single-row APIs are gone.** The plan's
+  `moveTrackAtIndex:toIndex:` was never built; `moveTracksAtIndexes:toIndex:` is the one move op
+  and a single row is the one-index case. Row removal's `removeTrackAtIndex:` /
+  `insertTrack:atIndex:` and their observer events were likewise **replaced** by
+  `removeTracksAtIndexes:` / `insertTracks:atIndexes:` (the undo pair generalized with them:
+  `reinsertPlaylistTracks:atIndexes:generation:`), so one code path serves both arities.
+- **The move event carries only sources and destination.** `previousCurrentIndex` had no
+  consumer — `refreshRowViewPlayingStates` re-stamps from final state — and was dropped.
+- **`PlaylistDragRules.h` grew a second pure function**, `VibePlaylistMoveSequenceEnumerate`:
+  the evolving-coordinate `moveRowAtIndex:toIndex:` sequence for a group drop is exactly the
+  kind of off-by-one arithmetic the seam exists to test. The slot-`count` clamp special case
+  disappeared into the general `slot − |sources below slot|` formula.
+- **The visual reconciliation reuses removal's whole-visible-band pass** rather than the plan's
+  `min(source, destination)` band; `reconfigureVisibleNumberCells` was already the shared helper
+  and is bounded by one screenful anyway.
+- **A group drag proceeds with its survivors.** Retained dragged objects that no longer resolve
+  (replacement, convert swap, removal mid-drag) drop out per track; the drag dies only when none
+  survive. All-or-nothing would let one background conversion silently kill a ten-row drag.
+- **Multi-select fallout the plan scoped out**: `allowsMultipleSelection` is on, which enables
+  Edit > Select All through the table's existing validator; Return plays the topmost selected
+  row (`selectedRow` pins that deterministically); the delete pair and Edit > Remove act on the
+  whole selection through the renamed `removeSelectedPlaylistTracks:` /
+  `removePlaylistTracks:` funnel; Select All + Delete routes to `closeFile:` like the one-row
+  playlist did; the context menu follows the platform rule (click in selection → selection,
+  outside → that row) with a weak-pointer-array capture; `TrackCommands` takes track arrays.
+- **The prefetch re-park in `playlistOrderDidChangeHandler` is gated on a not-Stopped player**,
+  matching the gate removal grew after this plan was written.
+- Accessibility: the VoiceOver verification the plan requires has **not** been run, and the
+  conditional Move Up/Move Down custom actions were not added — both remain open follow-ups.
+
+Live verification requires the `vibe-debug` skill; pointer drags are manual.
 
 ## The feature
 

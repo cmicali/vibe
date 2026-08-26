@@ -681,11 +681,20 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 // iOS exposes no remove UI. A future caller must first coordinate the player;
 // forwarding this model-only event would leave it playing the departed track.
-- (void)playlist:(Playlist *)playlist didRemoveTrackAtIndex:(NSUInteger)index {
+- (void)playlist:(Playlist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
 }
 
 // The removal's inverse; a no-op for the same reason.
-- (void)playlist:(Playlist *)playlist didInsertTrackAtIndex:(NSUInteger)index {
+- (void)playlist:(Playlist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
+}
+
+// iOS exposes no reorder UI either. A move is transport-safe at the model
+// boundary — the current object survives — but a future caller still goes
+// through this controller and adds the screen reconciliation its feature
+// needs; no speculative PlaybackObserver event until then.
+- (void)playlist:(Playlist *)playlist
+        didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
+                         toIndex:(NSUInteger)destinationIndex {
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {

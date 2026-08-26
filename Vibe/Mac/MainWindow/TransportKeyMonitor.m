@@ -268,7 +268,7 @@ static unichar VibeBareKeyChar(NSString *chars) {
             // not walk the playlist. The transport and skip keys below honor
             // repeat deliberately; a structural edit cannot.
             if (!event.isARepeat) {
-                [controller removeSelectedPlaylistTrack:nil];
+                [controller removeSelectedPlaylistTracks:nil];
             }
             return nil;
         }
