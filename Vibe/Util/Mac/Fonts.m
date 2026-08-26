@@ -64,4 +64,95 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
     }
 }
 
+#pragma mark Themed slots
+
+typedef NS_ENUM(NSInteger, VibeFontSlot) {
+    VibeFontSlotMain = 0,
+    VibeFontSlotInfo,
+    VibeFontSlotPlaylist,
+};
+
+// The slots' reference bases — the sizes their reference sites pass — and the
+// pushed configuration. All access is under @synchronized(Fonts.class): not
+// every caller is on the main thread, same as the caches above.
+static const CGFloat kSlotBase[3] = {23, 13, 14};
+static NSString *slotFace[3];
+static CGFloat slotOffset[3];
+static NSMutableDictionary<NSString *, NSFont *> *slotCache;
+
++ (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
+               infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
+           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize {
+    @synchronized (self) {
+        slotFace[VibeFontSlotMain] = mainFace.length ? mainFace : nil;
+        slotFace[VibeFontSlotInfo] = infoFace.length ? infoFace : nil;
+        slotFace[VibeFontSlotPlaylist] = playlistFace.length ? playlistFace : nil;
+        slotOffset[VibeFontSlotMain] = mainSize - kSlotBase[VibeFontSlotMain];
+        slotOffset[VibeFontSlotInfo] = infoSize - kSlotBase[VibeFontSlotInfo];
+        slotOffset[VibeFontSlotPlaylist] = playlistSize - kSlotBase[VibeFontSlotPlaylist];
+        [slotCache removeAllObjects];
+    }
+}
+
++ (NSFont *)fontForSlot:(VibeFontSlot)slot base:(CGFloat)base bold:(BOOL)bold {
+    @synchronized (self) {
+        if (!slotCache) {
+            slotCache = [NSMutableDictionary new];
+        }
+        NSString *key = [NSString stringWithFormat:@"%ld-%g%@",
+                (long)slot, base, bold ? @"-bold" : @""];
+        NSFont *cached = slotCache[key];
+        if (cached) {
+            return cached;
+        }
+        CGFloat size = base + slotOffset[slot];
+        NSFont *font = nil;
+        NSString *face = slotFace[slot];
+        if (face) {
+            font = [NSFont fontWithName:face size:size];
+            if (font && bold) {
+                NSFont *bolded = [NSFontManager.sharedFontManager convertFont:font
+                                                                  toHaveTrait:NSBoldFontMask];
+                font = bolded ?: font;
+            }
+            if (font && slot == VibeFontSlotInfo) {
+                // Times tick every second; a proportional-digit face would
+                // jitter them, so ask for the monospaced-digits feature. A
+                // face without it ignores the request.
+                NSFontDescriptor *mono = [font.fontDescriptor fontDescriptorByAddingAttributes:@{
+                    NSFontFeatureSettingsAttribute: @[@{
+                        NSFontFeatureTypeIdentifierKey: @(kNumberSpacingType),
+                        NSFontFeatureSelectorIdentifierKey: @(kMonospacedNumbersSelector),
+                    }],
+                }];
+                font = [NSFont fontWithDescriptor:mono size:size] ?: font;
+            }
+        }
+        if (!font) {
+            font = slot == VibeFontSlotInfo
+                    ? [NSFont monospacedDigitSystemFontOfSize:size
+                                                       weight:bold ? NSFontWeightBold : NSFontWeightRegular]
+                    : [self font:size bold:bold];
+        }
+        slotCache[key] = font;
+        return font;
+    }
+}
+
++ (NSFont *)mainFont:(CGFloat)baseSize {
+    return [self fontForSlot:VibeFontSlotMain base:baseSize bold:NO];
+}
+
++ (NSFont *)mainFont:(CGFloat)baseSize bold:(BOOL)bold {
+    return [self fontForSlot:VibeFontSlotMain base:baseSize bold:bold];
+}
+
++ (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold {
+    return [self fontForSlot:VibeFontSlotInfo base:baseSize bold:bold];
+}
+
++ (NSFont *)playlistFont:(CGFloat)baseSize {
+    return [self fontForSlot:VibeFontSlotPlaylist base:baseSize bold:NO];
+}
+
 @end

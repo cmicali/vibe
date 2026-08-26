@@ -187,19 +187,31 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // The fit itself, always measured at the base font size, so that re-running it
 // on a widened label restores the font a narrower fit shrank.
 - (void)fitTitleFontForText:(NSString *)text {
-    static const CGFloat kTitleFontSize = 23;
-    static const CGFloat kTitleMinFontSize = 15;
-    NSFont *font = [Fonts font:kTitleFontSize];
+    static const CGFloat kTitleBaseSize = 23;
+    // The shrink floor scales with the themed size: 15/23 of the base, the
+    // pre-theme ratio.
+    static const CGFloat kTitleMinRatio = 15.0 / 23.0;
+    NSFont *font = [Fonts mainFont:kTitleBaseSize];
+    CGFloat baseSize = font.pointSize;
     CGFloat maxWidth = self.titleTextField.frame.size.width;
     _titleFittedWidth = maxWidth;
     CGFloat width = [text sizeWithAttributes:@{NSFontAttributeName: font}].width;
     if (width > maxWidth) {
         // Glyph advance scales linearly with point size, so one scale step
         // lands on the fitting size. The 2% margin covers the rounding.
-        CGFloat fitted = kTitleFontSize * (maxWidth / width) * 0.98;
-        font = [Fonts font:MAX(kTitleMinFontSize, floor(fitted * 2) / 2)];
+        // Derive the shrunk font from the resolved font's own descriptor, so
+        // the fit math holds under any themed face.
+        CGFloat fitted = baseSize * (maxWidth / width) * 0.98;
+        CGFloat size = MAX(baseSize * kTitleMinRatio, floor(fitted * 2) / 2);
+        font = [NSFont fontWithDescriptor:font.fontDescriptor size:size] ?: font;
     }
     self.titleTextField.font = font;
+}
+
+// The Fonts live effect's hook: re-fit whatever the title shows under the
+// freshly pushed fonts.
+- (void)refitTitle {
+    [self fitTitleFontForText:self.titleTextField.stringValue];
 }
 
 - (void)refitTitleIfWidthChanged {
@@ -389,8 +401,11 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         // The key sits at the tail, after the separator when both are shown.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
         [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
+        // Bold is derived from the field's own themed font rather than asked
+        // of a slot with the field's size, which would double the size offset.
         [line addAttribute:NSFontAttributeName
-                     value:[Fonts fontForNumbers:_bpmTextField.font.pointSize bold:YES]
+                     value:[NSFontManager.sharedFontManager convertFont:_bpmTextField.font
+                                                            toHaveTrait:NSBoldFontMask]
                      range:range];
     }
     _bpmTextField.attributedStringValue = line;

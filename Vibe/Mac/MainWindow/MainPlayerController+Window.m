@@ -70,6 +70,8 @@
     self.windowBackgroundOverlayView = backgroundOverlay;
     [self applyWindowBackground];
 
+    // The themed fonts must be in Fonts before any label is built.
+    [self applyStoredFonts];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
     self.playerContentView = content;
     [self applyTrafficLights];

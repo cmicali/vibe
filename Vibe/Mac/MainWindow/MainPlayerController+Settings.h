@@ -27,6 +27,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The themed window shape and background: the corner radius at its five
     // consumers, and the solid-background cover over the glass.
     VibeSettingsLiveEffectWindowChrome     = 1UL << 14,
+    // The three themed font slots: push the theme's choice into Fonts, then
+    // re-resolve every label that holds a slot font.
+    VibeSettingsLiveEffectFonts            = 1UL << 15,
     // Everything applying a whole theme moves at once. Deliberately not the
     // common settings (WindowAppearance, TrafficLights), which live outside
     // the theme.
@@ -34,11 +37,17 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectWaveformTheme
                                            | VibeSettingsLiveEffectWindowTint
                                            | VibeSettingsLiveEffectWindowChrome
+                                           | VibeSettingsLiveEffectFonts
                                            | VibeSettingsLiveEffectTrackDisplay,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 
 @interface MainPlayerController (Settings)
+
+// Pushes the theme's font choice into Fonts (Util may not read a setting).
+// buildContentInWindow: runs it before any label exists; the Fonts effect
+// re-runs it live.
+- (void)applyStoredFonts;
 
 // Applies the running-app half of settings that were already stored. Never
 // writes settings or window geometry.

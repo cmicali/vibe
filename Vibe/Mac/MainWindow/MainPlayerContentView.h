@@ -34,6 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;
 
+// Re-resolves the header labels' themed fonts after a Fonts push. The title's
+// shrink-to-fit re-runs separately (TrackDisplayController owns the fit).
+- (void)applyThemedTextStyle;
+
 // Fires from the effective-appearance funnel, after the view's own material
 // and tint updates, so that appearance-dependent state owned elsewhere — the
 // header art tint, in ArtworkDisplayController — can re-derive itself.

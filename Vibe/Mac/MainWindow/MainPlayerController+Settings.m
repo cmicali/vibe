@@ -11,9 +11,21 @@
 #import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
+#import "Fonts.h"
 #import "MainMenuBuilder.h"
+#import "MainPlayerContentView.h"
+#import "TrackDisplayController.h"
 
 @implementation MainPlayerController (Settings)
+
+// The theme's font choice, pushed into Fonts — which may not read a setting
+// itself. Runs before label construction at launch and from the Fonts effect.
+- (void)applyStoredFonts {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [Fonts applyThemeFonts:theme.mainFontFace mainSize:theme.mainFontSize
+                  infoFace:theme.infoFontFace infoSize:theme.infoFontSize
+              playlistFace:theme.playlistFontFace playlistSize:theme.playlistFontSize];
+}
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
     NSAssert(NSThread.isMainThread, @"Settings live effects are main-thread only");
@@ -44,6 +56,11 @@
     }
     if (effects & VibeSettingsLiveEffectWindowChrome) {
         [self applyWindowChrome];
+    }
+    if (effects & VibeSettingsLiveEffectFonts) {
+        [self applyStoredFonts];
+        [self.playerContentView applyThemedTextStyle];
+        [self.trackDisplay refitTitle];
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
         self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;

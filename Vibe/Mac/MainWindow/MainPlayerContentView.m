@@ -558,7 +558,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _artistTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kHeaderContentX, kArtistY, kArtistWidth, kArtistHeight)];
-    _artistTextField.font = [Fonts font:16];
+    _artistTextField.font = [Fonts mainFont:16];
     _artistTextField.textColor = dimmedTextColor;
     // Truncating, not the shared clipping default: this line takes whatever a
     // file's artist tag holds, and long ones are common. Clipping cut a glyph
@@ -570,7 +570,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _titleTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kHeaderContentX, kTitleY, kTitleWidth, kTitleHeight)];
-    _titleTextField.font = [Fonts font:23];
+    _titleTextField.font = [Fonts mainFont:23];
     _titleTextField.textColor = [NSColor labelColor];
     _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
@@ -579,7 +579,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _totalTimeTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kTotalTimeX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
-    _totalTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
+    _totalTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
     _totalTimeTextField.textColor = dimmedTextColor;
     _totalTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
@@ -588,7 +588,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _currentTimeTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kHeaderContentX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
-    _currentTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
+    _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.textColor = dimmedTextColor;
     // Left-anchored, unlike the right-aligned total time it pairs with.
     _currentTimeTextField.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
@@ -668,7 +668,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
-    _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
+    _fileMetadataTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
     // Full alpha, because this field also carries the inline FX symbols, which
@@ -684,7 +684,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // The BPM readout, directly below the codec line and styled to match.
     _bpmTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
-    _bpmTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
+    _bpmTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.textColor = dimmedTextColor;
     // Matches the codec label above it, with full alpha and the dimming in the
@@ -716,6 +716,15 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
 // A stretchable rounded-rect alpha mask, cap-inset so the corners never
 // scale. See the header comment for why maskImage rather than a layer radius.
+- (void)applyThemedTextStyle {
+    _artistTextField.font = [Fonts mainFont:16];
+    _titleTextField.font = [Fonts mainFont:23];
+    _totalTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
+    _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
+    _fileMetadataTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
+    _bpmTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
+}
+
 - (void)applyCornerRadius:(CGFloat)radius {
     if (@available(macOS 26.0, *)) {
         if ([_backgroundGlassView isKindOfClass:NSGlassEffectView.class]) {

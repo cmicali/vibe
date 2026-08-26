@@ -115,6 +115,15 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count),
             @"windowCornerRadius": @(AppSettings.sharedInstance.currentTheme.windowCornerRadius),
             @"windowBackgroundStyle": AppSettings.sharedInstance.currentTheme.windowBackgroundStyle,
+            @"mainFont": [NSString stringWithFormat:@"%@ %g",
+                    AppSettings.sharedInstance.currentTheme.mainFontFace,
+                    AppSettings.sharedInstance.currentTheme.mainFontSize],
+            @"infoFont": [NSString stringWithFormat:@"%@ %g",
+                    AppSettings.sharedInstance.currentTheme.infoFontFace,
+                    AppSettings.sharedInstance.currentTheme.infoFontSize],
+            @"playlistFont": [NSString stringWithFormat:@"%@ %g",
+                    AppSettings.sharedInstance.currentTheme.playlistFontFace,
+                    AppSettings.sharedInstance.currentTheme.playlistFontSize],
         },
     }];
     return state;

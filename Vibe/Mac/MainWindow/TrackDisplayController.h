@@ -104,6 +104,10 @@ typedef struct {
 // narrowed and restoring toward the full font when widened.
 - (void)refitTitleIfWidthChanged;
 
+// Re-fits the title under freshly pushed themed fonts — the Fonts live
+// effect's hook, where the width-change check above would see nothing moved.
+- (void)refitTitle;
+
 // End-of-playlist parking: pin the finished track's header at its start, with
 // progress 0, an elapsed time of 0:00 and the right label at the full
 // duration. The caller's didFinishPlaying: explains why the resting values
