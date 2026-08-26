@@ -624,7 +624,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // refuses to expand past the design height. It sits under the scroll view,
     // since an NSClipView background does not composite semi-transparent
     // colors over a backdrop, so it also covers the empty area below the last
-    // row. The light-mode dim wash rides inside it.
+    // row. The wash layers directly above it.
     _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
@@ -632,10 +632,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistFrostView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistFrostView];
 
-    _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.bounds];
+    // A sibling above the frost, never its child: the solid playlist style
+    // hides the frost and keeps the wash as the whole background, which a
+    // parented wash would vanish along with.
+    _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
     _playlistDimView.wantsLayer = YES;
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [_playlistFrostView addSubview:_playlistDimView];
+    [self addSubview:_playlistDimView];
 
     // The table — its columns, row metrics and cell construction — belongs
     // entirely to PlaylistTableView. Only the frame is placed here.
