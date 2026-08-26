@@ -18,11 +18,15 @@
     BOOL _hovered;
 }
 
-static const CGFloat kInlineChevronWidth = 16;
+// The badge is the System Settings treatment, measured off its pixels: the
+// chevrons sit in a filled circle one lift-step above the card, label-colored
+// so both halves adapt to the appearance.
+static const CGFloat kInlineBadgeDiameter = 19;
+static const CGFloat kInlineBadgeGap = 8;
 
 - (NSSize)intrinsicContentSize {
     NSSize size = [super intrinsicContentSize];
-    size.width += kInlineChevronWidth;
+    size.width += kInlineBadgeDiameter + kInlineBadgeGap;
     return size;
 }
 
@@ -57,27 +61,30 @@ static const CGFloat kInlineChevronWidth = 16;
     if (_hovered) {
         return; // the hover bezel brings AppKit's own arrows
     }
-    static NSImage *chevrons;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSImageSymbolConfiguration *small = [NSImageSymbolConfiguration
-                configurationWithPointSize:9 weight:NSFontWeightMedium];
-        chevrons = [[NSImage imageWithSystemSymbolName:@"chevron.up.chevron.down"
-                              accessibilityDescription:nil]
-                imageWithSymbolConfiguration:small];
-    });
     NSRect bounds = self.bounds;
+    NSRect circle = NSMakeRect(NSMaxX(bounds) - kInlineBadgeDiameter - 2,
+                               NSMidY(bounds) - kInlineBadgeDiameter / 2,
+                               kInlineBadgeDiameter, kInlineBadgeDiameter);
+    circle = [self backingAlignedRect:circle options:NSAlignAllEdgesNearest];
+    [[NSColor.labelColor colorWithAlphaComponent:0.08] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
+    // Built per draw so the palette color resolves against the appearance the
+    // draw runs under — a template drawInRect: renders black, not tinted.
+    NSImageSymbolConfiguration *config = [[NSImageSymbolConfiguration
+            configurationWithPointSize:9 weight:NSFontWeightBold]
+            configurationByApplyingConfiguration:[NSImageSymbolConfiguration
+                    configurationWithPaletteColors:@[NSColor.labelColor]]];
+    NSImage *chevrons = [[NSImage imageWithSystemSymbolName:@"chevron.up.chevron.down"
+                                   accessibilityDescription:nil]
+            imageWithSymbolConfiguration:config];
     NSSize size = chevrons.size;
-    NSRect target = NSMakeRect(NSMaxX(bounds) - size.width - 4,
-                               NSMidY(bounds) - size.height / 2,
+    NSRect target = NSMakeRect(NSMidX(circle) - size.width / 2,
+                               NSMidY(circle) - size.height / 2,
                                size.width, size.height);
-    // Template draw at the secondary label level, tracking the appearance.
-    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.9] set];
-    NSRect aligned = [self backingAlignedRect:target options:NSAlignAllEdgesNearest];
-    [chevrons drawInRect:aligned
+    [chevrons drawInRect:[self backingAlignedRect:target options:NSAlignAllEdgesNearest]
                 fromRect:NSZeroRect
                operation:NSCompositingOperationSourceOver
-                fraction:0.9
+                fraction:1.0
           respectFlipped:YES
                    hints:nil];
 }
