@@ -44,6 +44,20 @@ Everything below runs in CI (`.github/workflows/build.yml`) and can be run local
 
 Anything that must be verified against the *running* app belongs in the debug command channel, not in a unit test.
 
+## Complexity budget
+
+Every check above passes exactly as happily on a 400-line addition as on a 40-line one, so none of them constrains complexity. This section does, and it is as much a part of done as they are.
+
+**The budget for a feature is zero new files and zero new types.** Fit it into whatever already owns the concern — the subsystem map says which that is. A new class, protocol, `*Rules.h` or directory is a request made *before* the code is written and argued on the feature's own terms; "it needs its own state machine" is the claim under question, not a reason for one.
+
+**Say what the change removes.** Every feature reports its net line count, its new files, its new types, and either what it deleted or unified, or a plain statement that it consolidated nothing and why. A "nothing, because …" that reads badly is itself the finding: a feature that touches a subsystem and simplifies nothing in it is usually sitting in the wrong place.
+
+**Deleting and rewriting are expected, not risks to be managed.** `make test`, the stress suites and git make them recoverable. Never keep a mechanism because it exists, because it was expensive to write, or because it is only *probably* dead — find out what reaches it, and if nothing does, remove it in the same change instead of leaving it beside the new path. Two mechanisms splitting one job is worse than either of them alone.
+
+**Prefer the boring shape.** A branch in an existing method beats a strategy object; a field beats a state machine; a direct call beats a notification; a parameter beats a coordinator. Reach for machinery once the simple shape has been written and demonstrably fails — concurrency the call sites cannot see, a lifetime outliving its caller, a third caller that would otherwise copy the logic — never in anticipation of that.
+
+**The consolidating pass is part of the feature, not a favor to the reader.** Once it works, re-read the whole file it landed in and fold the new code into what was already there. `/simplify` in a *fresh* session does this better than the session that wrote the code, which will defend it.
+
 ## Debugging and verification
 
 Use the **`vibe-debug` skill** (`.claude/skills/vibe-debug/`) to launch, drive, inspect or screenshot either app. It is the canonical reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, `Vibe/Debug/`): state dumps, the view tree, menus, Now Playing, screenshots, transport/FX/UI driving, file opening, waveform-cache control, and the `scan_bpm`/`scan_key` analyzers that run in the CLI process with no app. It also covers the iOS simulator loop (`launch-ios.sh`, `debug-ios.sh`, `drive-ios.sh`), log streaming, and the launch-time build-provenance block.
@@ -88,6 +102,8 @@ Nested `CLAUDE.md` files hold the detail and load only when you work under that 
 ## Cross-directory guarantees
 
 A **guarantee** is a condition the code must keep true, written once so a new call site can be checked against it. Each side is documented in its own directory; the coupling lives here.
+
+**A guarantee is a cost, not an achievement.** Every bullet here is a rule each future change must be checked against, so the list is the running total of what has to be held in the head at once — and nothing about writing one creates pressure to retire one, which is how a list like this quietly becomes the design instead of describing it. Adding a bullet means first trying to remove a bullet: the change that needs a new rule can often retire an old one, two bullets stating one rule from different directories are one bullet, and a rule with a single call site belongs in that directory's own doc instead. The best version of a change deletes a guarantee.
 
 - **Tag-over-analysis precedence.** A file's tagged tempo (`AudioTrackMetadata.bpm`) beats the analyzed one (`AudioTrack.detectedBPM`); tagged key likewise beats `detectedKey`. `AudioTrack.bpm` and `.key` are the single homes of both rules. Analysis is macOS-only, so on iOS the tagged half is the whole answer.
 - **Embedded art beats folder art.** A file's own artwork always wins; a cover beside it (`FolderArtResolver`) fills in only for a file carrying none. Folder art is resolved per *directory*, lazily, off the metadata scan's path entirely, and is never persisted — the metadata cache is keyed by the audio file's size and mtime, which a sidecar image cannot move. A folder the app holds no *active* grant for is left untouched rather than probed: unasked-for background work must never raise a permission panel.
