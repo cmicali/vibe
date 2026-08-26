@@ -24,6 +24,17 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectConvertMenu      = 1UL << 11,
     VibeSettingsLiveEffectFXControls       = 1UL << 12,
     VibeSettingsLiveEffectTrafficLights    = 1UL << 13,
+    // The themed window shape and background: the corner radius at its five
+    // consumers, and the solid-background cover over the glass.
+    VibeSettingsLiveEffectWindowChrome     = 1UL << 14,
+    // Everything applying a whole theme moves at once. Deliberately not the
+    // common settings (WindowAppearance, TrafficLights), which live outside
+    // the theme.
+    VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWaveformStyle
+                                           | VibeSettingsLiveEffectWaveformTheme
+                                           | VibeSettingsLiveEffectWindowTint
+                                           | VibeSettingsLiveEffectWindowChrome
+                                           | VibeSettingsLiveEffectTrackDisplay,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 

@@ -11,7 +11,6 @@
 NSString *const kVibeThemeIdentifierVibe = @"vibe";
 NSString *const kVibeThemeIdentifierIndustrial = @"industrial";
 
-const CGFloat kVibeThemeCornerRadiusMax = 30;
 static const CGFloat kCornerRadiusMin = 0;
 static const CGFloat kCornerRadiusDefault = 20;
 

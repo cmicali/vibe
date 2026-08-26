@@ -191,6 +191,10 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // identifier that names nothing.
 - (nullable NSString *)displayNameForThemeIdentifier:(NSString *)identifier;
 
+// The named theme's sanitized sparse record — what export serializes and
+// apply installs. An unknown identifier answers vibe's (the empty record).
+- (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
+
 // Repopulates currentTheme from the named record and makes it active. Store
 // only — the caller requests VibeSettingsLiveEffectThemeApply, per the
 // store-first contract.

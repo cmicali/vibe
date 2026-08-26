@@ -89,6 +89,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (weak) PlaylistTableView *playlistTableView;
 @property (weak) MainPlayerContentView *playerContentView;
+// The full-window glass backdrop and the themed solid-background cover over
+// it, kept so applyWindowChrome can re-shape and re-color them live.
+@property (weak) NSView *windowBackdropView;
+@property (weak) NSView *windowBackgroundOverlayView;
 // Kept alongside trackDisplay's rendering role. The controller wires the
 // view's delegate, style and appearance, the Menus category included, while
 // the per-track rendering states go through trackDisplay.

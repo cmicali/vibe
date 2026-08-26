@@ -14,6 +14,7 @@
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "MainWindowLayout.h"
+#import "AppSettings.h"
 #import "VibeStrings.h"
 
 // The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
@@ -44,7 +45,10 @@ static const CGFloat kArtSize = kHeaderHeight; // square, fills the header band
 // rounds all its corners, and the window shape clipping the right-side arcs
 // off-screen is what keeps the header's right edge square. The bleed must be
 // at least the radius.
-static const CGFloat kHeaderPanelRightBleed = kMainWindowCornerRadius + 2;
+// Sized to the radius CLAMP's ceiling, not the live value: the bleed only
+// needs to be at least the radius, and the ceiling keeps this design-time
+// frame valid for every legal radius without re-deriving it on a change.
+static const CGFloat kHeaderPanelRightBleed = kVibeThemeCornerRadiusMax + 2;
 static const CGFloat kHeaderPanelX = kArtSize - 25;
 static const CGFloat kHeaderPanelWidth =
         kMainWindowContentWidth + kHeaderPanelRightBleed - kHeaderPanelX;
@@ -404,9 +408,10 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // above them.
 - (void)buildHeaderBackdrop {
     NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
+    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     if (@available(macOS 26.0, *)) {
         VibePassthroughGlassView *glass = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
-        glass.cornerRadius = kMainWindowCornerRadius;
+        glass.cornerRadius = cornerRadius;
         _backgroundGlassView = glass;
     }
     else {
@@ -414,7 +419,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
         frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         frost.state = NSVisualEffectStateActive; // never dims, like the playlist frost
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
-        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:kMainWindowCornerRadius];
+        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:cornerRadius];
         _backgroundGlassView = frost;
     }
     // Width-flexible, so the bleed stays past the moving right edge. The
@@ -428,7 +433,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // color.
     _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
     _headerTintView.wantsLayer = YES;
-    _headerTintView.layer.cornerRadius = kMainWindowCornerRadius;
+    _headerTintView.layer.cornerRadius = cornerRadius;
     _headerTintView.layer.masksToBounds = YES;
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
     [self addSubview:_headerTintView];
@@ -711,6 +716,19 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
 // A stretchable rounded-rect alpha mask, cap-inset so the corners never
 // scale. See the header comment for why maskImage rather than a layer radius.
+- (void)applyCornerRadius:(CGFloat)radius {
+    if (@available(macOS 26.0, *)) {
+        if ([_backgroundGlassView isKindOfClass:NSGlassEffectView.class]) {
+            ((NSGlassEffectView *)_backgroundGlassView).cornerRadius = radius;
+        }
+    }
+    else if ([_backgroundGlassView isKindOfClass:NSVisualEffectView.class]) {
+        ((NSVisualEffectView *)_backgroundGlassView).maskImage =
+                [MainPlayerContentView frostCornerMaskWithRadius:radius];
+    }
+    _headerTintView.layer.cornerRadius = radius;
+}
+
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius {
     NSSize size = NSMakeSize(radius * 2 + 1, radius * 2 + 1);
     NSImage *mask = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {

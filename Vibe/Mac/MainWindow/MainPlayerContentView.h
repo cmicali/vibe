@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 // cornerRadius clips its tint but not the blur region.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius;
 
+// Re-shapes the header glass panel and its tint layer to the themed radius;
+// the window mask and backdrop are the controller's (applyWindowChrome).
+- (void)applyCornerRadius:(CGFloat)radius;
+
 // Fires from the effective-appearance funnel, after the view's own material
 // and tint updates, so that appearance-dependent state owned elsewhere — the
 // header art tint, in ArtworkDisplayController — can re-derive itself.

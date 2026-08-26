@@ -65,6 +65,13 @@ NS_ASSUME_NONNULL_BEGIN
 // hover fade. Same two callers, so the setting is read in one place.
 - (void)applyTrafficLights;
 
+// The themed window shape and background — the WindowChrome live effect's
+// whole body. applyWindowBackground alone is the appearance-flip half: the
+// overlay's color pair resolves per appearance and its layer color is not
+// dynamic.
+- (void)applyWindowChrome;
+- (void)applyWindowBackground;
+
 // View > Appearance, dispatching on the menu item's identifier and storing it.
 - (IBAction)setAppearance:(id)sender;
 // Applies the already-stored appearance without writing it.

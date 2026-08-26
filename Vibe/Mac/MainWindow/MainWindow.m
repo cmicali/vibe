@@ -77,7 +77,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         //
         // This radius is load-bearing despite the absent masksToBounds: AppKit
         // shapes the window from it, and without it the corners render square.
-        self.contentView.layer.cornerRadius = kMainWindowCornerRadius;
+        self.contentView.layer.cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
 
         // Adopt the previous session's frame, then keep saving under the same
         // name. loadSettings reconciles the frame with the persisted flags for

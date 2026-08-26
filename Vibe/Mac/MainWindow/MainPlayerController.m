@@ -286,6 +286,9 @@
         MainPlayerController *strongSelf = weakControllerForArt;
         if (strongSelf) {
             [strongSelf->_artworkController refreshHeaderTint];
+            // The solid background's color pair resolves per appearance and
+            // its layer color is not dynamic.
+            [strongSelf applyWindowBackground];
         }
     };
 }

@@ -32,10 +32,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS              @"glass"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 
-// The corner-radius clamp. The max is exported because the header panel's
-// right bleed is sized to it — a static frame that must stay valid for every
-// legal radius rather than follow the live value.
-FOUNDATION_EXPORT const CGFloat kVibeThemeCornerRadiusMax;
+// The corner-radius clamp's ceiling. A macro rather than an exported const
+// because the header panel's right bleed is a compile-time frame sized to it
+// — a static frame that must stay valid for every legal radius rather than
+// follow the live value.
+#define kVibeThemeCornerRadiusMax ((CGFloat)30)
 
 // Keys a theme JSON carries beside the field overrides. The name travels on
 // export/import; the version marks the schema; a record's id never leaves the

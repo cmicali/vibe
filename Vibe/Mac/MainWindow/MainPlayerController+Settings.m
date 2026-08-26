@@ -42,6 +42,9 @@
     if (effects & VibeSettingsLiveEffectWindowAppearance) {
         [self applyStoredAppearance];
     }
+    if (effects & VibeSettingsLiveEffectWindowChrome) {
+        [self applyWindowChrome];
+    }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
         self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
     }

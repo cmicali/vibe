@@ -207,6 +207,70 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
+            VibeCmd(@"set_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_theme <id-or-name>");
+                }
+                NSString *query = tokens[1];
+                NSString *match = nil;
+                for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
+                    NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
+                    if ([identifier isEqualToString:query] ||
+                        [name caseInsensitiveCompare:query] == NSOrderedSame) {
+                        match = identifier;
+                        break;
+                    }
+                }
+                if (!match) {
+                    return VibeErrorJSON(@"unknown theme: %@", query);
+                }
+                [AppSettings.sharedInstance applyThemeWithIdentifier:match];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+                return VibeJSONString(@{@"ok": @YES, @"activeTheme": match});
+            }),
+            // Inline JSON or a path the APP can read (the container, or a
+            // granted folder) — the sandboxed open panel this bypasses is the
+            // UI's business.
+            VibeCmd(@"import_theme <json|path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: import_theme <json|path>");
+                }
+                NSData *data = [tokens[1] hasPrefix:@"{"]
+                        ? [tokens[1] dataUsingEncoding:NSUTF8StringEncoding]
+                        : [NSData dataWithContentsOfFile:tokens[1]];
+                NSString *name = nil;
+                NSError *error = nil;
+                NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
+                if (!record) {
+                    return VibeErrorJSON(@"not a theme: %@", error.localizedDescription ?: @"unreadable");
+                }
+                NSString *identifier = [AppSettings.sharedInstance addUserThemeWithRecord:record
+                                                                                     name:name];
+                return VibeJSONString(@{@"ok": @YES, @"imported": identifier,
+                        @"name": [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier],
+                        @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});
+            }),
+            VibeCmd(@"dump_theme [id-or-name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeJSONString(@{@"ok": @YES,
+                            @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
+                            @"theme": AppSettings.sharedInstance.currentTheme.dictionaryRepresentation});
+                }
+                NSString *query = tokens[1];
+                for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
+                    NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
+                    if ([identifier isEqualToString:query] ||
+                        [name caseInsensitiveCompare:query] == NSOrderedSame) {
+                        NSData *json = [AppTheme JSONDataForRecord:
+                                [AppSettings.sharedInstance recordForThemeIdentifier:identifier]
+                                                              name:name];
+                        NSDictionary *record = [NSJSONSerialization JSONObjectWithData:json
+                                                                               options:0 error:NULL];
+                        return VibeJSONString(@{@"ok": @YES, @"id": identifier, @"theme": record});
+                    }
+                }
+                return VibeErrorJSON(@"unknown theme: %@", query);
+            }),
             // App-side, not a CLI-process prefs write: the key-label display
             // lives on the current theme, an in-memory object a cross-process
             // defaults write cannot reach.

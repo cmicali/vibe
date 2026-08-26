@@ -113,6 +113,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
             @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
             @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count),
+            @"windowCornerRadius": @(AppSettings.sharedInstance.currentTheme.windowCornerRadius),
+            @"windowBackgroundStyle": AppSettings.sharedInstance.currentTheme.windowBackgroundStyle,
         },
     }];
     return state;
