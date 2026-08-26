@@ -328,6 +328,7 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
             kFieldInfoFontFace:            @"Monaco",
             kFieldInfoFontSize:            @(11),
             kFieldPlaylistFontFace:        @"Helvetica",
+            kFieldPlaylistDurationFontFace: @"Monaco",
 
             ColorFieldKey(kColorWindowBackground, NO):     @"#C9C9C3",
             ColorFieldKey(kColorPlaylistBackground, NO):   @"#BFBFB9",

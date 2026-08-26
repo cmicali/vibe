@@ -28,7 +28,10 @@
 #import "VibeStrings.h"
 
 static const CGFloat kAppearancePopUpWidth = 220;
-static const CGFloat kThemeListHeight = 150;
+static const CGFloat kThemeListRowHeight = 22;
+// Ten rows: the two group headers, the built-ins, and room for a handful of
+// the user's own before it scrolls.
+static const CGFloat kThemeListHeight = 10 * kThemeListRowHeight;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
@@ -84,7 +87,9 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSButton *_removeThemeButton;
     NSButton *_editThemeButton;
     NSButton *_exportThemeButton;
-    // The table's rows, in store order: built-ins first, then user themes.
+    // The themes in store order: built-ins first, then user themes. The table
+    // shows a group header above each run, so a row is one past the headers
+    // before it rather than an index into this — see identifierForRow:.
     NSArray<NSString *> *_themeIdentifiers;
     // The pane's own sections, kept so the editor swap can hide them — the
     // stack itself is the base class's.
@@ -169,7 +174,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _themeTable.allowsEmptySelection = NO;
     _themeTable.dataSource = self;
     _themeTable.delegate = self;
-    _themeTable.rowHeight = 22;
+    _themeTable.rowHeight = kThemeListRowHeight;
     _themeTable.target = self;
     _themeTable.doubleAction = @selector(editTheme:);
     [_themeTable addTableColumn:[[NSTableColumn alloc] initWithIdentifier:kThemeCellIdentifier]];
@@ -199,6 +204,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSStackView *buttons = [NSStackView stackViewWithViews:
             @[_addThemeButton, _removeThemeButton, _editThemeButton, _exportThemeButton]];
     buttons.spacing = 8;
+    SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
     _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
@@ -207,9 +213,12 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             [SettingsRowView rowWithContentView:scrollView],
-            [SettingsRowView rowWithContentView:buttons],
+            buttonRow,
         ]],
     ];
+    // The buttons act on the list right above them; the hairline the section
+    // stamps between rows reads as a divider between two unrelated ones.
+    buttonRow.showsTopSeparator = NO;
 }
 
 // A well whose alpha is part of the choice: a fill's strength, the solid
@@ -633,10 +642,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _themeIdentifiers = settings.orderedThemeIdentifiers;
     _refreshingThemeList = YES;
     [_themeTable reloadData];
-    NSUInteger activeRow = [_themeIdentifiers indexOfObject:active];
-    if (activeRow != NSNotFound) {
-        [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:activeRow]
+    NSInteger activeRow = [self rowForIdentifier:active];
+    if (activeRow >= 0) {
+        [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)activeRow]
                  byExtendingSelection:NO];
+        // A programmatic selection does not scroll, and the user group sits
+        // past the fold once a few themes exist — so an added or imported
+        // theme would land selected and invisible.
+        [_themeTable scrollRowToVisible:activeRow];
     }
     _refreshingThemeList = NO;
     BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
@@ -767,11 +780,53 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 #pragma mark - Theme list
 
+// Row 0 is the Built-in header and the User header sits one past the last
+// built-in, so every row-to-theme hop is arithmetic over the built-in count
+// rather than a second array to keep in step with the store's order.
+
+// -1 while the user has no themes: the group does not exist rather than
+// standing empty.
+- (NSInteger)userGroupRow {
+    NSInteger builtIns = (NSInteger)AppTheme.builtInThemeIdentifiers.count;
+    return (NSInteger)_themeIdentifiers.count > builtIns ? builtIns + 1 : -1;
+}
+
+// nil for a group header, and for no row at all — which is what makes a
+// header unselectable and keeps selection-IS-activation off them.
+- (nullable NSString *)identifierForRow:(NSInteger)row {
+    NSInteger userHeader = [self userGroupRow];
+    if (row <= 0 || row == userHeader) {
+        return nil;
+    }
+    NSInteger index = (userHeader >= 0 && row > userHeader) ? row - 2 : row - 1;
+    return index < (NSInteger)_themeIdentifiers.count ? _themeIdentifiers[(NSUInteger)index] : nil;
+}
+
+- (NSInteger)rowForIdentifier:(NSString *)identifier {
+    NSUInteger index = [_themeIdentifiers indexOfObject:identifier];
+    if (index == NSNotFound) {
+        return -1;
+    }
+    return (NSInteger)index + (index >= AppTheme.builtInThemeIdentifiers.count ? 2 : 1);
+}
+
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_themeIdentifiers.count;
+    return (NSInteger)_themeIdentifiers.count + ([self userGroupRow] >= 0 ? 2 : 1);
+}
+
+// A header is an ordinary row the delegate refuses to select, NOT an AppKit
+// group row: that style tacks a section gap above each header and its own row
+// height onto a list whose whole budget is ten rows.
+- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
+    return [self identifierForRow:row] != nil;
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSString *identifier = [self identifierForRow:row];
+    if (!identifier) {
+        return [self groupCellInTableView:tableView title:
+                (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
+    }
     NSTableCellView *cell = [tableView makeViewWithIdentifier:kThemeCellIdentifier owner:self];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
@@ -794,13 +849,37 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }
-    NSString *identifier = _themeIdentifiers[(NSUInteger)row];
     BOOL isActive = [identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier];
     cell.imageView.image = isActive
             ? [NSImage imageWithSystemSymbolName:@"checkmark" accessibilityDescription:nil]
             : nil;
     cell.textField.stringValue =
             [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    return cell;
+}
+
+// A header row: the label alone, at the card's own left margin so the themes
+// under it read as indented beneath their group.
+- (NSTableCellView *)groupCellInTableView:(NSTableView *)tableView title:(NSString *)title {
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:kThemeGroupCellIdentifier owner:self];
+    if (!cell) {
+        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+        cell.identifier = kThemeGroupCellIdentifier;
+        NSTextField *label = [NSTextField labelWithString:@""];
+        label.translatesAutoresizingMaskIntoConstraints = NO;
+        label.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
+                                       weight:NSFontWeightSemibold];
+        label.textColor = NSColor.secondaryLabelColor;
+        label.lineBreakMode = NSLineBreakByTruncatingTail;
+        [cell addSubview:label];
+        cell.textField = label;
+        [NSLayoutConstraint activateConstraints:@[
+            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+        ]];
+    }
+    cell.textField.stringValue = title;
     return cell;
 }
 
@@ -820,11 +899,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (nullable NSString *)selectedThemeIdentifier {
-    NSInteger row = _themeTable.selectedRow;
-    if (row < 0 || row >= (NSInteger)_themeIdentifiers.count) {
-        return nil;
-    }
-    return _themeIdentifiers[(NSUInteger)row];
+    return [self identifierForRow:_themeTable.selectedRow];
 }
 
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
