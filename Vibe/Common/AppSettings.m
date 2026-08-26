@@ -469,6 +469,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
         return STR_THEME_NAME_INDUSTRIAL;
     }
+    if ([identifier isEqualToString:kVibeThemeIdentifierAdolescentEngineering]) {
+        return STR_THEME_NAME_ADOLESCENT_ENGINEERING;
+    }
     return [self storedUserThemeWithIdentifier:identifier][kVibeThemeRecordNameKey];
 }
 

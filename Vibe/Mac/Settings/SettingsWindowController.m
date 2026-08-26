@@ -20,18 +20,51 @@ static const CGFloat kSettingsSidebarWidth = 200;
     // The pane host; SettingsTabViewController is defined further down, and
     // everything reached through this ivar is NSTabViewController API.
     NSTabViewController *_tabs;
-    // The content view's size, pinned EQUAL to the live frame: the constraint
-    // engine re-sizes a contentViewController window to its content's fitting
-    // size after every layout pass, so a user's drag snaps back unless the
-    // fitting answer follows the drag. windowDidResize: keeps the constants
-    // at whatever size the window holds, which turns the snap into a no-op —
-    // the one arrangement that survives it (no constraints at all leaves the
-    // fitting ambiguous and the window snaps to the sidebar's answer instead;
-    // observed both ways).
-    NSLayoutConstraint *_contentWidth;
-    NSLayoutConstraint *_contentHeight;
     NSSegmentedControl *_navigationControl;
 }
+@end
+
+// The constraint engine re-sizes any window hosting an auto layout subtree
+// to the content's ideal frame after layout passes
+// (_changeWindowFrameFromConstraintsIfNecessary), through setFrame:display: —
+// and the priority games that could defeat that snap also clamp interactive
+// resizing: frame-tracking equality constants at 999 and at 509 collapsed the
+// user-resize range to a point (no resize cursor at all), while 500 and no
+// constraints lost the snap fight instead, all four observed. So the frame is
+// guarded here, in public API alone: a size change lands only from the user's
+// live resize, from a blessed path inside resizeUnlocked:, or while the
+// window is not yet visible (setup, autosave restore). The snap becomes the
+// no-op no constraint arrangement could make it, origin-only changes — moves
+// — always pass, and zoom is the one casualty (refused; System Settings does
+// not zoom either).
+@interface SettingsWindow : NSWindow
+- (void)resizeUnlocked:(void (^)(void))block;
+@end
+
+@implementation SettingsWindow {
+    BOOL _resizeUnlocked;
+}
+
+// Strictly scoped: the engine's snap fires inside the very next layout
+// flush, so a time-boxed unlock re-admits it (observed — a 0.35s tail let
+// layoutIfNeeded revert a blessed resize before the caller ever saw it).
+// Blessed resizes are therefore SYNCHRONOUS plain setFrame: calls; nothing
+// animates the frame, so there is no in-flight animation to outlive the
+// block.
+- (void)resizeUnlocked:(void (^)(void))block {
+    _resizeUnlocked = YES;
+    block();
+    _resizeUnlocked = NO;
+}
+
+- (void)setFrame:(NSRect)frameRect display:(BOOL)flag {
+    if (!NSEqualSizes(frameRect.size, self.frame.size) && self.isVisible
+            && !self.inLiveResize && !_resizeUnlocked) {
+        return;
+    }
+    [super setFrame:frameRect display:flag];
+}
+
 @end
 
 // The same swallow as the tab controller's: AppKit resizes the window the
@@ -45,6 +78,14 @@ static const CGFloat kSettingsSidebarWidth = 200;
 @implementation SettingsSplitViewController
 
 - (void)setPreferredContentSize:(NSSize)preferredContentSize {
+}
+
+// Assigning contentViewController after init does not establish the title
+// binding windowWithContentViewController: would have, so the pane-title
+// chain's last hop — split to window — is explicit.
+- (void)setTitle:(NSString *)title {
+    [super setTitle:title];
+    self.view.window.title = title ?: @"";
 }
 
 @end
@@ -253,10 +294,17 @@ static const CGFloat kSettingsSidebarWidth = 200;
         [window setFrame:targetFrame display:NO];
         return;
     }
-    // The pane owns the explicit animation context so its arranged views and
-    // this frame share one transaction. The animator, not the legacy blocking
-    // setFrame:display:animate:, supplies the intermediate frames.
-    [[window animator] setFrame:targetFrame display:YES];
+    // Synchronous, not animated: the guard's unlock is scoped to the block,
+    // and an animator's later frames would arrive locked out. The pane's
+    // arranged views still animate inside their own transaction; the window
+    // edge lands at once.
+    if ([window isKindOfClass:SettingsWindow.class]) {
+        [(SettingsWindow *)window resizeUnlocked:^{
+            [window setFrame:targetFrame display:YES];
+        }];
+    } else {
+        [window setFrame:targetFrame display:YES];
+    }
 }
 
 @end
@@ -313,39 +361,60 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 
     NSSplitViewController *split = [[SettingsSplitViewController alloc] init];
     NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:sidebar];
+    sidebarItem.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
     sidebarItem.minimumThickness = kSettingsSidebarWidth;
     sidebarItem.maximumThickness = kSettingsSidebarWidth;
     sidebarItem.canCollapse = NO;
     sidebarItem.allowsFullHeightLayout = YES;
     [split addSplitViewItem:sidebarItem];
-    [split addSplitViewItem:[NSSplitViewItem splitViewItemWithViewController:tabs]];
+    // Each split item carries its OWN titlebar separator style, defaulting to
+    // automatic — which draws a hairline under the toolbar the moment the
+    // pane's content can scroll beneath it, exactly what the theme editor's
+    // scroll view does. The window-level None does not reach through.
+    NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:tabs];
+    contentItem.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
+    [split addSplitViewItem:contentItem];
     // The window title comes from the pane-title chain (didSelectTabViewItem
     // above), never set directly; the initial selection ran before the split
     // controller existed, so seed it here once.
     split.title = tabs.tabViewItems.firstObject.viewController.title;
 
-    NSWindow *window = [NSWindow windowWithContentViewController:split];
-    // The panes carry no size constraints (see SettingsPaneViewController), so
-    // the fitting pass cannot size the window: seed it from the settled shared
-    // size explicitly. The height is short of the titlebar here; the tab
-    // controller's grow-to-floor pass on first appearance corrects it, and an
-    // autosaved frame overrides the whole thing anyway.
+    // The seed is the settled shared size; the height is short of the
+    // titlebar here — the tab controller's grow-to-floor pass on first
+    // appearance corrects it, and an autosaved frame overrides it anyway.
     NSSize seedSize = tabs.tabViewItems.firstObject.viewController.preferredContentSize;
-    [window setContentSize:NSMakeSize(kSettingsSidebarWidth + 1 + seedSize.width,
-                                      seedSize.height)];
-    // Resizable above the panes' shared size, which is the FLOOR the tab
-    // controller keeps in contentMinSize — a pane's own constraints are
-    // minimums, so extra height is blank space below the sections and the
-    // theme editor's scroll area grows. Full-size content view is what lets
-    // the sidebar run the window's full height.
-    window.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-            | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
-            | NSWindowStyleMaskFullSizeContentView;
+    NSRect seedRect = NSMakeRect(0, 0, kSettingsSidebarWidth + 1 + seedSize.width,
+                                 seedSize.height);
+    // The guarded subclass is what makes contentViewController livable: the
+    // engine re-sizes such a window to its content's fitting answer after
+    // layout passes, and every constraint arrangement that could defeat that
+    // snap also collapsed the user-resize range to a point (no resize cursor;
+    // 999 and 509 equalities, 500, and none — all observed). The guard
+    // refuses the snap at the setFrame:display: funnel instead, so the
+    // content can stay constraint-free and the resize range open. The split
+    // controller must remain the contentViewController — hosting its view
+    // bare re-created the titlebar scroll pocket as an unmanaged window-wide
+    // band whose hard edge drew a stray hairline over the theme editor
+    // (macOS 26); through the controller, the split items' separator style
+    // governs it. Full-size content view lets the sidebar run the window's
+    // full height; extra height past the floor is blank space below the
+    // sections, and the theme editor's scroll area grows.
+    SettingsWindow *window = [[SettingsWindow alloc]
+            initWithContentRect:seedRect
+                      styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                              | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
+                              | NSWindowStyleMaskFullSizeContentView)
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+    window.contentViewController = split;
+    window.title = split.title ?: @"";
+    [window setContentSize:seedRect.size];
     window.releasedWhenClosed = NO;
     [window center];
 
     self = [super initWithWindow:window];
     if (self) {
+        _tabs = tabs;
         // An item-less toolbar except for the sidebar tracking separator,
         // which AppKit vends for a split-view content controller: it gives the
         // titlebar its unified height and carries the sidebar divider through
@@ -361,38 +430,24 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         window.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
 
         // After center, so a saved position wins over the default one. The
-        // SIZE the autosave restores — possibly a different pane's — needs no
-        // correction here: the constraint engine re-sizes the window to the
-        // selected pane's fitting size on the first layout pass.
+        // SIZE the autosave restores needs no correction here: the tab
+        // controller's grow-to-floor pass raises an undersized restore to the
+        // panes' floor on first appearance and never shrinks an enlarged one.
         self.windowFrameAutosaveName = @"SettingsWindow";
         [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
-        _tabs = tabs;
 
         window.delegate = self;
-        NSView *content = split.view;
-        _contentWidth = [content.widthAnchor constraintEqualToConstant:content.frame.size.width];
-        _contentHeight = [content.heightAnchor constraintEqualToConstant:content.frame.size.height];
-        // TRAP: 509 exactly — the one value between two observed failures.
-        // A user's edge drag is evaluated at NSLayoutPriorityDragThatCanResizeWindow
-        // (510): at 999 these equalities beat it, the resizable range collapsed
-        // to a point, and AppKit showed no resize cursor at all — while
-        // settings_resize, which sets the frame directly, kept working. At
-        // WindowSizeStayPut (500) they lost the other fight: the fitting snap
-        // re-sized the window to a content-derived answer and ignored the floor.
-        _contentWidth.priority = NSLayoutPriorityDragThatCanResizeWindow - 1;
-        _contentHeight.priority = NSLayoutPriorityDragThatCanResizeWindow - 1;
-        [NSLayoutConstraint activateConstraints:@[_contentWidth, _contentHeight]];
     }
     return self;
 }
 
-// Every resize — the user's drag, the grow-to-floor pass, the autosave
-// restore — lands the new size in the constants, so the engine's fitting
-// answer is always the frame the window already holds.
-- (void)windowDidResize:(NSNotification *)notification {
-    NSSize size = ((NSView *)self.window.contentView).frame.size;
-    _contentWidth.constant = size.width;
-    _contentHeight.constant = size.height;
+- (void)applyWindowFrame:(NSRect)frame {
+    // Plain and synchronous — nothing animates this window's frame anymore,
+    // so there is no in-flight animation to retarget.
+    SettingsWindow *window = (SettingsWindow *)self.window;
+    [window resizeUnlocked:^{
+        [window setFrame:frame display:YES];
+    }];
 }
 
 - (void)showThemeEditor {
@@ -419,7 +474,6 @@ static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_na
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier];
 }
 
-// The tracking separator is AppKit's own; there are no custom items to build.
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
     if ([itemIdentifier isEqualToString:kThemeNavigationItemIdentifier]) {

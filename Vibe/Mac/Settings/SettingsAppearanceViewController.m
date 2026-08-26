@@ -404,6 +404,9 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _playlistFontValue = playlistFontValue;
 
     NSArray<NSView *> *sections = @[
+        // The pair swaps visibility — exactly one shows — so the second row
+        // must not keep the between-rows hairline the section stamps on it:
+        // with the first row hidden it would sit stranded at the card's top.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
@@ -454,6 +457,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         ]],
     ];
 
+    _nameRow.showsTopSeparator = NO;
     _editorStack = [NSStackView stackViewWithViews:sections];
     _editorStack.orientation = NSUserInterfaceLayoutOrientationVertical;
     _editorStack.alignment = NSLayoutAttributeLeading;
@@ -468,6 +472,11 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.hasVerticalScroller = YES;
     scroll.drawsBackground = NO;
+    // Without this, macOS 26 associates the scroll view with the titlebar
+    // above it and builds a scroll pocket — a full-column blur band whose
+    // hard bottom edge reads as a stray hairline over the editor page. The
+    // scroll view starts below the toolbar, so there is nothing to inset.
+    scroll.automaticallyAdjustsContentInsets = NO;
     scroll.documentView = _editorStack;
 
     NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
@@ -940,18 +949,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         }
     }
     theme.windowBackgroundStyle = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowAppearance
-            | VibeSettingsLiveEffectWindowChrome];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
     [self resolveLayoutStateFromSettings];
 }
 
 - (void)backgroundColorChanged:(NSColorWell *)sender {
     [AppSettings.sharedInstance.currentTheme setWindowBackgroundColor:sender.color
             forDark:(sender == _backgroundDarkWell)];
-    // WindowAppearance too: a single-mode theme's background color decides
-    // which side the window pins to.
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowAppearance
-            | VibeSettingsLiveEffectWindowChrome];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
 }
 
 // The custom wash's fallbacks, shared by the wells' display and the seed on

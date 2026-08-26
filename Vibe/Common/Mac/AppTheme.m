@@ -11,6 +11,7 @@
 
 NSString *const kVibeThemeIdentifierVibe = @"vibe";
 NSString *const kVibeThemeIdentifierIndustrial = @"industrial";
+NSString *const kVibeThemeIdentifierAdolescentEngineering = @"adolescent_engineering";
 
 static const CGFloat kCornerRadiusMin = 0;
 
@@ -277,7 +278,8 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 #pragma mark Built-ins
 
 + (NSArray<NSString *> *)builtInThemeIdentifiers {
-    return @[kVibeThemeIdentifierVibe, kVibeThemeIdentifierIndustrial];
+    return @[kVibeThemeIdentifierVibe, kVibeThemeIdentifierIndustrial,
+             kVibeThemeIdentifierAdolescentEngineering];
 }
 
 + (BOOL)isBuiltInIdentifier:(NSString *)identifier {
@@ -291,6 +293,52 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
             kFieldWaveformStyle: @"detailed",
             kFieldWaveformTheme: SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
             kFieldInfoFontFace:  @"Menlo-Regular",
+        };
+    }
+    if ([identifier isEqualToString:kVibeThemeIdentifierAdolescentEngineering]) {
+        // A device panel rather than a floating card: square corners, a solid
+        // grey-plastic chassis with the playlist recessed a shade under it,
+        // and the colour budget spent on ONE element — the played waveform,
+        // orange on the grey unit and mint on the black one, echoed at a
+        // wash's strength on the playing row. Two type roles: Helvetica for
+        // anything a person wrote, a monospace for anything the machine
+        // measured, which is also why the remaining-time readout is on —
+        // elapsed / remaining / total is a three-part instrument readout.
+        return @{
+            kFieldWaveformStyle:           @"basic",
+            kFieldWaveformTheme:           SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM,
+            kFieldWaveformGradient:        @(NO),
+            kFieldWindowTint:              SETTINGS_VALUE_WINDOW_TINT_MONO,
+            kFieldWindowBackgroundStyle:   SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
+            kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
+            kFieldWindowCornerRadius:      @(0),
+            kFieldShowRemainingTime:       @(YES),
+            kFieldMainFontFace:            @"Helvetica",
+            kFieldInfoFontFace:            @"Monaco",
+            kFieldInfoFontSize:            @(11),
+            kFieldPlaylistFontFace:        @"Helvetica",
+
+            ColorFieldKey(kColorWindowBackground, NO):     @"#C9C9C3",
+            ColorFieldKey(kColorPlaylistBackground, NO):   @"#BFBFB9",
+            ColorFieldKey(kColorWaveformPlayed, NO):       @"#E04A28",
+            ColorFieldKey(kColorWaveformUnplayed, NO):     @"#A9A9A3",
+            ColorFieldKey(kColorTitle, NO):                @"#141412",
+            ColorFieldKey(kColorArtist, NO):               @"#6E6E68",
+            ColorFieldKey(kColorInfo, NO):                 @"#6E6E68",
+            ColorFieldKey(kColorTime, NO):                 @"#3D3D39",
+            ColorFieldKey(kColorPlaylistPlayingRow, NO):   @"#E04A2826",
+            ColorFieldKey(kColorPlaylistSelectedRow, NO):  @"#0000001F",
+
+            ColorFieldKey(kColorWindowBackground, YES):    @"#0E0E0E",
+            ColorFieldKey(kColorPlaylistBackground, YES):  @"#171717",
+            ColorFieldKey(kColorWaveformPlayed, YES):      @"#8DE8B0",
+            ColorFieldKey(kColorWaveformUnplayed, YES):    @"#3C5A48",
+            ColorFieldKey(kColorTitle, YES):               @"#F0F0EE",
+            ColorFieldKey(kColorArtist, YES):              @"#9A9A94",
+            ColorFieldKey(kColorInfo, YES):                @"#8A8A84",
+            ColorFieldKey(kColorTime, YES):                @"#8DE8B0",
+            ColorFieldKey(kColorPlaylistPlayingRow, YES):  @"#8DE8B026",
+            ColorFieldKey(kColorPlaylistSelectedRow, YES): @"#FFFFFF1F",
         };
     }
     return @{};
@@ -497,20 +545,8 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 }
 
 - (NSAppearance *)requiredWindowAppearance {
-    if (!self.isSingleMode ||
-        ![self.windowBackgroundStyle isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
-        return nil;
-    }
-    VibeColor *color = [self windowBackgroundColorForDark:YES];
-    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    if (!srgb) {
-        return nil;
-    }
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    [srgb getRed:&r green:&g blue:&b alpha:&a];
-    BOOL light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5;
-    return [NSAppearance appearanceNamed:light ? NSAppearanceNameAqua
-                                               : NSAppearanceNameDarkAqua];
+    return self.isSingleMode
+            ? [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua] : nil;
 }
 
 - (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kColorWaveformPlayed dark:isDark]; }

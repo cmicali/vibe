@@ -236,8 +236,9 @@
     XCTAssertFalse([AppTheme isBuiltInIdentifier:@"Vibe"]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:nil]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:NSUUID.UUID.UUIDString]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"adolescent_engineering"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"industrial"]));
+                          (@[@"vibe", @"industrial", @"adolescent_engineering"]));
 }
 
 // The Vibe theme is the empty record BY CONSTRUCTION: it cannot drift from
@@ -257,6 +258,32 @@
     // And it survives its own sanitizer unchanged.
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
+}
+
+// The dual-mode built-in: what a light/dark theme has to spell out for BOTH
+// sides, and the one that would silently degrade if a color were dropped —
+// the custom waveform theme falls back to mono unless the pair is complete.
+- (void)testAdolescentEngineeringBuiltInIsDualAndComplete {
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"adolescent_engineering"];
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
+    XCTAssertFalse(theme.isSingleMode);
+
+    for (NSNumber *dark in @[@NO, @YES]) {
+        BOOL isDark = dark.boolValue;
+        XCTAssertNotNil([theme waveformPlayedColorForDark:isDark]);
+        XCTAssertNotNil([theme waveformUnplayedColorForDark:isDark]);
+        XCTAssertNotNil([theme windowBackgroundColorForDark:isDark]);
+        XCTAssertNotNil([theme playlistBackgroundColorForDark:isDark]);
+        XCTAssertNotNil([theme titleColorForDark:isDark]);
+        XCTAssertNotNil([theme artistColorForDark:isDark]);
+        XCTAssertNotNil([theme infoColorForDark:isDark]);
+        XCTAssertNotNil([theme timeColorForDark:isDark]);
+        XCTAssertNotNil([theme playlistPlayingRowColorForDark:isDark]);
+        XCTAssertNotNil([theme playlistSelectedRowColorForDark:isDark]);
+    }
+    // Dual, so a solid background never outranks the appearance setting.
+    XCTAssertNil(theme.requiredWindowAppearance);
 }
 
 #pragma mark Names
@@ -310,28 +337,17 @@
     XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#EEEEEE");
 }
 
-- (void)testSingleModeSolidBackgroundDemandsItsSide {
-    // The pin exists only for single mode + a solid background color; its
-    // side is the color's luminance, so a white look gets light chrome and
-    // dark default labels in every mode.
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
-        @"mode": @"single",
-        @"windowBackgroundStyle": @"solid",
-        @"windowBackgroundColorDark": @"#FFFFFF",
-    }];
-    XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameAqua);
-    [theme setWindowBackgroundColor:VibeColorFromHexString(@"#111111") forDark:NO];
+- (void)testSingleModeAlwaysPinsTheDarkAppearance {
+    // Single mode is one constant look, no consideration of light or dark:
+    // the window pins to the app's native dark appearance whatever the theme
+    // sets, and every specified color is literal. Dual never pins.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
+    XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameDarkAqua);
+    [theme setWindowBackgroundColor:VibeColorFromHexString(@"#FFFFFF") forDark:YES];
+    theme.windowBackgroundStyle = @"solid";
     XCTAssertEqualObjects(theme.requiredWindowAppearance.name, NSAppearanceNameDarkAqua);
     theme.mode = @"dual";
     XCTAssertNil(theme.requiredWindowAppearance);
-    theme.mode = @"single";
-    theme.windowBackgroundStyle = @"glass";
-    XCTAssertNil(theme.requiredWindowAppearance);
-    // No background color set: nothing to derive from, the setting rules.
-    AppTheme *bare = [[AppTheme alloc] initWithRecord:@{
-        @"mode": @"single", @"windowBackgroundStyle": @"solid",
-    }];
-    XCTAssertNil(bare.requiredWindowAppearance);
 }
 
 - (void)testModeSnapsToDual {

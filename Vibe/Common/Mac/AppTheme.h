@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 // the two namespaces cannot collide.
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
+FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierAdolescentEngineering;
 
 // The theme's color mode. dual — the factory default, and what the built-in
 // Vibe theme is — keeps a separate color set per appearance and follows
@@ -71,7 +72,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 + (NSArray<NSString *> *)builtInThemeIdentifiers;
 + (BOOL)isBuiltInIdentifier:(nullable NSString *)identifier;
 
-// The built-in's sparse record: empty for vibe, industrial's three overrides.
+// The built-in's sparse record: empty for vibe, its overrides for the rest.
 // Empty for an identifier that names no built-in — callers gate on
 // isBuiltInIdentifier:.
 + (NSDictionary<NSString *, id> *)builtInRecordForIdentifier:(NSString *)identifier;
@@ -189,11 +190,12 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // corner readouts cannot disagree about a slot's fallback. Same capture
 // semantics as dynamicColorWithDark: above.
 // The appearance a single-mode theme demands, or nil when the appearance
-// setting should rule. A single-mode theme with a solid background pins the
-// window to the side its background color reads as — a white background gets
-// light chrome, light materials and dark default labels in every mode, which
-// is what makes the theme's one look actually one look. Dual themes, and
-// single themes without a solid background color, never pin.
+// setting should rule. Single mode is one constant look with no consideration
+// of light or dark at all: the window pins to the dark appearance — the app's
+// native look — so materials and unset defaults stop following the OS and the
+// setting, and every color the theme sets is literal. A light background with
+// unset label colors therefore keeps the dark defaults' white text: set the
+// labels too; single mode never second-guesses the palette.
 - (nullable NSAppearance *)requiredWindowAppearance;
 
 - (VibeColor *)resolvedTitleColor;

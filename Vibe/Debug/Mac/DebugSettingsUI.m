@@ -40,7 +40,12 @@ static NSTabViewController *VibeSettingsTabs(NSString **errorJSON) {
     // controller that owns pane selection is its content child. Driving IT is
     // what keeps this channel honest — didSelectTabViewItem syncs the sidebar
     // row back, so a programmatic selection looks exactly like a click.
-    NSViewController *root = window.contentViewController;
+    // The settings window installs the split view as a plain content view
+    // (no contentViewController), so reach its controller through the
+    // responder chain, where every view controller inserts itself.
+    NSResponder *next = window.contentView.nextResponder;
+    NSViewController *root = window.contentViewController
+            ?: ([next isKindOfClass:NSViewController.class] ? (NSViewController *)next : nil);
     if ([root isKindOfClass:NSSplitViewController.class]) {
         for (NSViewController *child in root.childViewControllers) {
             if ([child isKindOfClass:NSTabViewController.class]) {
@@ -727,15 +732,12 @@ NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens) {
     NSRect content = [window contentRectForFrameRect:window.frame];
     content.origin.y += content.size.height - MAX(height, minSize.height);
     content.size = NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height));
-    // Through the animator at zero duration: a plain setFrame: does not
-    // retarget an in-flight frame animation (the grow-to-floor pass), which
-    // would finish afterward and clobber this resize.
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-        context.duration = 0;
-        [[window animator] setFrame:[window frameRectForContentRect:content] display:YES];
-    }];
-    // Flush layout so a constraint-driven snap-back happens before the reply
-    // reads the frame.
+    // The window refuses engine-driven size changes, so the resize must go
+    // through the controller's blessed funnel.
+    [(SettingsWindowController *)window.windowController
+            applyWindowFrame:[window frameRectForContentRect:content]];
+    // Flush layout so any constraint-driven snap-back would happen before the
+    // reply reads the frame — its absence is what this verb verifies.
     [window layoutIfNeeded];
     return VibeJSONString(@{
         @"ok": @YES,
