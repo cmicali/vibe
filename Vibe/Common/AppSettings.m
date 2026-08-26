@@ -10,6 +10,7 @@
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
+#import "VibeStrings.h"
 
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_WAVEFORM_THEME                      @"Settings.waveformTheme"
@@ -55,6 +56,9 @@
 // every existing user's setting to the default. It predates the folder-artwork
 // → folder-art vocabulary and stays as written.
 #define SETTING_FOLDER_ART                          @"Audio.folderArtwork"
+#define SETTING_ACTIVE_THEME                        @"Appearance.activeTheme"
+#define SETTING_USER_THEMES                         @"Appearance.userThemes"
+#define SETTING_CURRENT_THEME                       @"Appearance.currentTheme"
 
 const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 const size_t kVibeSkipBasePresetCount =
@@ -112,6 +116,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 @implementation AppSettings {
 #if TARGET_OS_OSX
+    AppTheme   *_currentTheme;
     BOOL        _hotCacheValid;
     BOOL        _hotShowRemainingTime;
     BOOL        _hotShowFileInfo;
@@ -142,6 +147,9 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
         // domain, so a registered default would read as stored.
         [self migrateLegacyWaveformStyle];
         [self migrateWaveformTheme];
+#if TARGET_OS_OSX
+        [self migrateLooseAppearanceSettingsToTheme];
+#endif
         [self registerDefaults];
 #if TARGET_OS_OSX
         [self installHotCacheInvalidator];
@@ -176,7 +184,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
     ] mutableCopy];
 #if TARGET_OS_OSX
-    [keys addObjectsFromArray:@[SETTING_WINDOW_TINT_CUSTOM_DARK, SETTING_WINDOW_TINT_CUSTOM_LIGHT]];
+    [keys addObjectsFromArray:@[SETTING_WINDOW_TINT_CUSTOM_DARK, SETTING_WINDOW_TINT_CUSTOM_LIGHT,
+                                SETTING_USER_THEMES, SETTING_CURRENT_THEME]];
 #endif
     return keys;
 }
@@ -200,6 +209,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     }
 #if TARGET_OS_OSX
     [self invalidateHotCache];
+    [_currentTheme replaceWithRecord:nil];
 #endif
 }
 
@@ -342,7 +352,271 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_WINDOW_TINT:                    SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
+            SETTING_ACTIVE_THEME:                   kVibeThemeIdentifierVibe,
     }];
+}
+
+#pragma mark Themes
+
+// The pre-theme loose appearance settings, keyed by their AppTheme field
+// names. One-time: any stored active-theme key means it already ran, and a
+// successful run writes one. Runs before registerDefaults — the decision
+// keys on "no stored value" — and consumes the loose keys it migrates,
+// shared-named waveform keys included: this is the Mac store, and iOS is a
+// separate app over a separate one.
+- (void)migrateLooseAppearanceSettingsToTheme {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:SETTING_ACTIVE_THEME]) {
+        return;
+    }
+    NSDictionary<NSString *, NSString *> *legacyKeys = @{
+        @"waveformStyle":              SETTING_WAVEFORM_STYLE,
+        @"waveformTheme":              SETTING_WAVEFORM_THEME,
+        @"waveformPlayedColorDark":    SETTING_WAVEFORM_CUSTOM_PLAYED_DARK,
+        @"waveformUnplayedColorDark":  SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK,
+        @"waveformPlayedColorLight":   SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT,
+        @"waveformUnplayedColorLight": SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
+        @"windowTint":                 SETTING_WINDOW_TINT,
+        @"windowTintColorDark":        SETTING_WINDOW_TINT_CUSTOM_DARK,
+        @"windowTintColorLight":       SETTING_WINDOW_TINT_CUSTOM_LIGHT,
+        @"showFileInfo":               SETTING_SHOW_FILE_INFO,
+        @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,
+        @"showBPM":                    SETTING_SHOW_BPM,
+        @"showKey":                    SETTING_SHOW_KEY,
+        @"keyColorsEnabled":           SETTING_KEY_COLORS,
+        @"keyNotation":                SETTING_KEY_NOTATION,
+    };
+    NSMutableDictionary *legacyValues = [NSMutableDictionary dictionary];
+    for (NSString *field in legacyKeys) {
+        id value = [defaults objectForKey:legacyKeys[field]];
+        if (value) {
+            legacyValues[field] = value;
+        }
+    }
+    NSDictionary *record = [AppTheme migratedRecordFromLegacyValues:legacyValues];
+    if (record) {
+        NSString *identifier = NSUUID.UUID.UUIDString;
+        [defaults setObject:@[UserThemeEntry(record, identifier, STR_THEME_NAME_CUSTOM)]
+                     forKey:SETTING_USER_THEMES];
+        [defaults setObject:identifier forKey:SETTING_ACTIVE_THEME];
+    }
+    for (NSString *field in legacyKeys) {
+        [defaults removeObjectForKey:legacyKeys[field]];
+    }
+}
+
+// A stored user-theme entry is its sparse record plus id and name, flat —
+// the same shape a theme JSON carries, minus the version.
+static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, NSString *name) {
+    NSMutableDictionary *entry = [record mutableCopy];
+    entry[kVibeThemeRecordIdentifierKey] = identifier;
+    entry[kVibeThemeRecordNameKey] = name;
+    return entry;
+}
+
+// Sanitized on read: an entry without a usable id and name is dropped, and
+// every entry's fields go back through AppTheme's gate, so an external
+// defaults write cannot smuggle in what an import would refuse.
+- (NSArray<NSDictionary *> *)storedUserThemes {
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] arrayForKey:SETTING_USER_THEMES];
+    NSMutableArray<NSDictionary *> *themes = [NSMutableArray array];
+    for (id entry in stored) {
+        if (![entry isKindOfClass:NSDictionary.class]) {
+            continue;
+        }
+        NSString *identifier = entry[kVibeThemeRecordIdentifierKey];
+        NSString *name = entry[kVibeThemeRecordNameKey];
+        if (![identifier isKindOfClass:NSString.class] || identifier.length == 0 ||
+            [AppTheme isBuiltInIdentifier:identifier] ||
+            ![name isKindOfClass:NSString.class] || name.length == 0) {
+            continue;
+        }
+        NSDictionary *record = [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
+        [themes addObject:UserThemeEntry(record, identifier, name)];
+    }
+    return themes;
+}
+
+- (void)persistUserThemes:(NSArray<NSDictionary *> *)themes {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (themes.count) {
+        [defaults setObject:themes forKey:SETTING_USER_THEMES];
+    } else {
+        [defaults removeObjectForKey:SETTING_USER_THEMES];
+    }
+}
+
+- (NSString *)activeThemeIdentifier {
+    return [self resolvedThemeIdentifier:
+            [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ACTIVE_THEME]];
+}
+
+// An identifier naming no built-in and no stored user theme — a deleted
+// theme, an external write — snaps to vibe.
+- (NSString *)resolvedThemeIdentifier:(NSString *)identifier {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return identifier;
+    }
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            return identifier;
+        }
+    }
+    return kVibeThemeIdentifierVibe;
+}
+
+- (NSArray<NSString *> *)orderedThemeIdentifiers {
+    NSMutableArray<NSString *> *identifiers = [[AppTheme builtInThemeIdentifiers] mutableCopy];
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        [identifiers addObject:entry[kVibeThemeRecordIdentifierKey]];
+    }
+    return identifiers;
+}
+
+- (NSString *)displayNameForThemeIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:kVibeThemeIdentifierVibe]) {
+        return VibeAppName();
+    }
+    if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
+        return STR_THEME_NAME_INDUSTRIAL;
+    }
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            return entry[kVibeThemeRecordNameKey];
+        }
+    }
+    return nil;
+}
+
+- (NSArray<NSString *> *)allThemeDisplayNames {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (NSString *identifier in [self orderedThemeIdentifiers]) {
+        NSString *name = [self displayNameForThemeIdentifier:identifier];
+        if (name) {
+            [names addObject:name];
+        }
+    }
+    return names;
+}
+
+- (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return [AppTheme builtInRecordForIdentifier:identifier];
+    }
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            return [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
+        }
+    }
+    return [AppTheme builtInRecordForIdentifier:kVibeThemeIdentifierVibe];
+}
+
+- (AppTheme *)currentTheme {
+    NSAssert(NSThread.isMainThread, @"AppSettings.currentTheme is main-thread only");
+    if (!_currentTheme) {
+        NSDictionary *diverged =
+                [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
+        _currentTheme = [[AppTheme alloc] initWithRecord:
+                diverged ?: [self recordForThemeIdentifier:self.activeThemeIdentifier]];
+    }
+    return _currentTheme;
+}
+
+- (void)applyThemeWithIdentifier:(NSString *)identifier {
+    NSString *resolved = [self resolvedThemeIdentifier:identifier];
+    [self.currentTheme replaceWithRecord:[self recordForThemeIdentifier:resolved]];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
+    [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+}
+
+- (void)currentThemeDidChange {
+    if (!_currentTheme) {
+        return;
+    }
+    NSDictionary *record = _currentTheme.dictionaryRepresentation;
+    NSString *active = self.activeThemeIdentifier;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([AppTheme isBuiltInIdentifier:active]) {
+        // A built-in stays pristine; the working record carries the
+        // divergence, and only while there is one.
+        if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
+            [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+        } else {
+            [defaults setObject:record forKey:SETTING_CURRENT_THEME];
+        }
+        return;
+    }
+    // A user theme IS its working state: the record lands in the entry, from
+    // the same dictionary, so the two cannot drift.
+    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+    for (NSUInteger i = 0; i < themes.count; i++) {
+        if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
+            themes[i] = UserThemeEntry(record, active, themes[i][kVibeThemeRecordNameKey]);
+            break;
+        }
+    }
+    [self persistUserThemes:themes];
+    [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+}
+
+- (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
+                                name:(NSString *)name {
+    NSString *deduped = [AppTheme dedupedThemeName:name
+                                          fallback:STR_THEME_NAME_CUSTOM
+                                     existingNames:[self allThemeDisplayNames]];
+    NSDictionary *sanitized = [[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation];
+    NSString *identifier = NSUUID.UUID.UUIDString;
+    NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
+    [themes addObject:UserThemeEntry(sanitized, identifier, deduped)];
+    [self persistUserThemes:themes];
+    return identifier;
+}
+
+- (NSString *)duplicateThemeWithIdentifier:(NSString *)identifier {
+    NSString *name = [self displayNameForThemeIdentifier:identifier];
+    if (!name) {
+        return nil;
+    }
+    return [self addUserThemeWithRecord:[self recordForThemeIdentifier:identifier] name:name];
+}
+
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return;
+    }
+    BOOL wasActive = [[self activeThemeIdentifier] isEqualToString:identifier];
+    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+    [themes filterUsingPredicate:[NSPredicate predicateWithBlock:
+            ^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+        return ![entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier];
+    }]];
+    [self persistUserThemes:themes];
+    if (wasActive) {
+        [self applyThemeWithIdentifier:kVibeThemeIdentifierVibe];
+    }
+}
+
+- (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return;
+    }
+    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+    for (NSUInteger i = 0; i < themes.count; i++) {
+        if (![themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            continue;
+        }
+        NSMutableArray *otherNames = [[self allThemeDisplayNames] mutableCopy];
+        [otherNames removeObject:themes[i][kVibeThemeRecordNameKey]];
+        NSString *deduped = [AppTheme dedupedThemeName:name
+                                              fallback:STR_THEME_NAME_CUSTOM
+                                         existingNames:otherNames];
+        NSMutableDictionary *entry = [themes[i] mutableCopy];
+        entry[kVibeThemeRecordNameKey] = deduped;
+        themes[i] = entry;
+        [self persistUserThemes:themes];
+        return;
+    }
 }
 
 #pragma mark The hot-path cache

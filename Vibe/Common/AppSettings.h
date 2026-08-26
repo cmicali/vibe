@@ -17,6 +17,9 @@
 #import <Foundation/Foundation.h>
 #import "FolderOpenSort.h"
 #import "PlatformTypes.h"
+#if TARGET_OS_OSX
+#import "AppTheme.h"
+#endif
 
 // Nonnull by default: every string getter is backed by a registered default
 // (registerDefaults covers each key, the device name and UID as @""), and the
@@ -176,6 +179,49 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // resolves as mono, so the pane seeds it when Custom is chosen.
 - (nullable VibeColor *)windowTintCustomColorForDark:(BOOL)isDark;
 - (void)setWindowTintCustomColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+
+#pragma mark Themes
+
+// The one working theme every appearance consumer reads. Materialized once
+// from the stored working record — or, when none diverges, from the active
+// theme's record — and mutated in place from then on. Main thread only, like
+// every reader of it.
+- (AppTheme *)currentTheme;
+
+// The named theme the working state derives from: a built-in identifier or a
+// user theme's minted id, snapped to vibe when it names neither.
+- (NSString *)activeThemeIdentifier;
+
+// Built-ins first, then the user themes in creation order.
+- (NSArray<NSString *> *)orderedThemeIdentifiers;
+
+// A user theme's stored name; the built-ins' localized names. nil for an
+// identifier that names nothing.
+- (nullable NSString *)displayNameForThemeIdentifier:(NSString *)identifier;
+
+// Repopulates currentTheme from the named record and makes it active. Store
+// only — the caller requests VibeSettingsLiveEffectThemeApply, per the
+// store-first contract.
+- (void)applyThemeWithIdentifier:(NSString *)identifier;
+
+// The one persist funnel: every currentTheme field edit calls this after
+// writing the field. The working record lands in the active user theme's own
+// record; diverging from a read-only built-in, it lands in its own key
+// instead, so a casual toggle survives relaunch without dirtying the
+// built-in, and re-applying the theme resets it.
+- (void)currentThemeDidChange;
+
+// User-theme CRUD. Every mutation refuses a built-in identifier; names are
+// deduped against every display name. addUserThemeWithRecord returns the
+// minted id; duplicateThemeWithIdentifier resolves built-ins and user themes
+// alike and returns the copy's id, nil for an unknown source. Removing the
+// active theme falls back to applying vibe — the caller requests
+// VibeSettingsLiveEffectThemeApply as it would for any apply.
+- (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
+                                name:(nullable NSString *)name;
+- (nullable NSString *)duplicateThemeWithIdentifier:(NSString *)identifier;
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier;
+- (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;

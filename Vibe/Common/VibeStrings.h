@@ -188,6 +188,11 @@ static inline NSString *VibeAppName(void) {
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X4 NSLS(@"waveform.style.oversampling_x4", @"Oversampling Detailed x4", @"Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X8 NSLS(@"waveform.style.oversampling_x8", @"Oversampling Detailed x8", @"Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.")
 
+#pragma mark - Themes
+
+#define STR_THEME_NAME_INDUSTRIAL NSLS(@"theme.name.industrial", @"Industrial", @"Built-in theme name: the machine-room look — detailed orange waveform, monospaced info font. A style name; translate it the way a paint-color name would be.")
+#define STR_THEME_NAME_CUSTOM     NSLS(@"theme.name.custom",     @"Custom",     @"Default name for the user theme created on upgrade: it carries the appearance settings the user had customized before themes existed.")
+
 #pragma mark - Header and readout labels
 
 #define STR_LABEL_TRACK_ARTIST_TITLE NSLS(@"label.track.artist_title", @"%1$@ - %2$@",             @"Single-line track label when artist and title are both known. %1$@ is the artist, %2$@ the title — reorder them if that reads better.")

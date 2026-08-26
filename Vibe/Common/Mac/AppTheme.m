@@ -266,6 +266,49 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
     return record.count ? record : nil;
 }
 
+#pragma mark JSON
+
+// Far above any real theme, low enough that a mispicked video file fails
+// before the parser sees it.
+static const NSUInteger kThemeJSONByteCap = 64 * 1024;
+
++ (NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
+                                                name:(NSString **)outName
+                                               error:(NSError **)error {
+    if (outName) {
+        *outName = nil;
+    }
+    if (data.length == 0 || data.length > kThemeJSONByteCap) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:1 userInfo:nil];
+        }
+        return nil;
+    }
+    NSError *parseError = nil;
+    id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:&parseError];
+    if (![parsed isKindOfClass:NSDictionary.class]) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:2 userInfo:
+                    parseError ? @{NSUnderlyingErrorKey: parseError} : nil];
+        }
+        return nil;
+    }
+    if (outName && [parsed[kVibeThemeRecordNameKey] isKindOfClass:NSString.class]) {
+        *outName = parsed[kVibeThemeRecordNameKey];
+    }
+    return [[[AppTheme alloc] initWithRecord:parsed] dictionaryRepresentation];
+}
+
++ (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record name:(NSString *)name {
+    NSMutableDictionary *json =
+            [[[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation] mutableCopy];
+    json[kVibeThemeRecordVersionKey] = @1;
+    json[kVibeThemeRecordNameKey] = name;
+    return [NSJSONSerialization dataWithJSONObject:json
+                                           options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys
+                                             error:NULL];
+}
+
 #pragma mark Record
 
 - (instancetype)init {

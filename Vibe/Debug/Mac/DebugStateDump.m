@@ -111,6 +111,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"uiUpdateHzCap": @(AppSettings.sharedInstance.uiUpdateHzCap),
             @"folderArt": @(AppSettings.sharedInstance.useFolderArt),
             @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
+            @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
+            @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count),
         },
     }];
     return state;

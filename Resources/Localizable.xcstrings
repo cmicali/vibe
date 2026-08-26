@@ -42781,6 +42781,30 @@
       },
       "extractionState": "manual"
     },
+    "theme.name.custom": {
+      "comment": "Default name for the user theme created on upgrade: it carries the appearance settings the user had customized before themes existed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "theme.name.industrial": {
+      "comment": "Built-in theme name: the machine-room look — detailed orange waveform, monospaced info font. A style name; translate it the way a paint-color name would be.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Industrial"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "transport.next": {
       "comment": "Jumps to the next track. Menu item and transport button.",
       "localizations": {

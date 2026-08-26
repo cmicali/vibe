@@ -167,6 +167,62 @@
     XCTAssertEqual(theme.windowCornerRadius, 20);
 }
 
+#pragma mark JSON
+
+- (void)testJSONRoundTripCarriesNameAndVersionAndStripsIds {
+    NSDictionary *record = @{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
+                             @"id": @"SHOULD-NOT-TRAVEL"};
+    NSData *data = [AppTheme JSONDataForRecord:record name:@"Exported"];
+    XCTAssertNotNil(data);
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+    XCTAssertEqualObjects(json[@"version"], @1);
+    XCTAssertEqualObjects(json[@"name"], @"Exported");
+    XCTAssertNil(json[@"id"]);
+    NSString *name = nil;
+    NSError *error = nil;
+    NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6}));
+    XCTAssertEqualObjects(name, @"Exported");
+}
+
+- (void)testJSONImportSanitizesFields {
+    NSData *data = [@"{\"name\": 42, \"windowCornerRadius\": 900, \"future\": [1,2]}"
+            dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *name = @"sentinel";
+    NSError *error = nil;
+    NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
+    XCTAssertNil(error);
+    XCTAssertNil(name);  // a non-string name does not travel
+    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @30});
+}
+
+- (void)testJSONImportRefusesJunk {
+    NSError *error = nil;
+    XCTAssertNil([AppTheme recordFromJSONData:[@"[1,2,3]" dataUsingEncoding:NSUTF8StringEncoding]
+                                         name:NULL error:&error]);
+    XCTAssertNotNil(error);
+    error = nil;
+    XCTAssertNil([AppTheme recordFromJSONData:[@"not json" dataUsingEncoding:NSUTF8StringEncoding]
+                                         name:NULL error:&error]);
+    XCTAssertNotNil(error);
+    error = nil;
+    XCTAssertNil([AppTheme recordFromJSONData:NSData.data name:NULL error:&error]);
+    XCTAssertNotNil(error);
+    error = nil;
+    NSMutableData *huge = [NSMutableData dataWithLength:80 * 1024];
+    XCTAssertNil([AppTheme recordFromJSONData:huge name:NULL error:&error]);
+    XCTAssertNotNil(error);
+}
+
+- (void)testEmptyJSONObjectIsAValidDefaultTheme {
+    NSError *error = nil;
+    NSDictionary *record = [AppTheme recordFromJSONData:[@"{}" dataUsingEncoding:NSUTF8StringEncoding]
+                                                   name:NULL error:&error];
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(record, @{});
+}
+
 #pragma mark Built-ins
 
 - (void)testBuiltInIdentifiers {

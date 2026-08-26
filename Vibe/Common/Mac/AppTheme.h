@@ -67,6 +67,18 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 + (nullable NSDictionary<NSString *, id> *)migratedRecordFromLegacyValues:
         (NSDictionary<NSString *, id> *)legacyValues;
 
+// A theme JSON, both ways. recordFromJSONData caps the input size, requires a
+// JSON object, reports the name it carried (nil when absent), and returns the
+// sanitized sparse record — an empty record is a valid theme that looks like
+// the defaults. JSONDataForRecord composes record + version + name, sorted
+// and pretty-printed. The id key never travels: export strips it, import
+// mints a fresh one.
++ (nullable NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
+                                                         name:(NSString *_Nullable *_Nullable)outName
+                                                        error:(NSError **)error;
++ (nullable NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
+                                  name:(NSString *)name;
+
 // Sanitized: unknown keys are dropped (a newer build's fields import as the
 // defaults), malformed values are dropped, identifiers snap to their ladders,
 // numbers clamp. nil builds the defaults — the Vibe look.
