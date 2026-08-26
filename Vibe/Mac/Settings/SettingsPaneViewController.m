@@ -7,6 +7,84 @@
 #import "WindowAnimation.h"
 
 
+// The System Settings inline dropdown: borderless at rest, the value beside
+// an always-visible chevron badge, the bezel appearing on hover. AppKit
+// draws the arrows only with the bezel, so the badge is drawn here while the
+// bezel is absent, in width the intrinsic size reserves for it.
+@interface VibeInlinePopUpButton : NSPopUpButton
+@end
+
+@implementation VibeInlinePopUpButton {
+    BOOL _hovered;
+}
+
+static const CGFloat kInlineChevronWidth = 16;
+
+- (NSSize)intrinsicContentSize {
+    NSSize size = [super intrinsicContentSize];
+    size.width += kInlineChevronWidth;
+    return size;
+}
+
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    for (NSTrackingArea *area in self.trackingAreas) {
+        if (area.owner == self) {
+            [self removeTrackingArea:area];
+        }
+    }
+    [self addTrackingArea:[[NSTrackingArea alloc]
+            initWithRect:self.bounds
+                 options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow
+                   owner:self
+                userInfo:nil]];
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    [super mouseEntered:event];
+    _hovered = YES;
+    self.needsDisplay = YES;
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [super mouseExited:event];
+    _hovered = NO;
+    self.needsDisplay = YES;
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    if (_hovered) {
+        return; // the hover bezel brings AppKit's own arrows
+    }
+    static NSImage *chevrons;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSImageSymbolConfiguration *small = [NSImageSymbolConfiguration
+                configurationWithPointSize:9 weight:NSFontWeightMedium];
+        chevrons = [[NSImage imageWithSystemSymbolName:@"chevron.up.chevron.down"
+                              accessibilityDescription:nil]
+                imageWithSymbolConfiguration:small];
+    });
+    NSRect bounds = self.bounds;
+    NSSize size = chevrons.size;
+    NSRect target = NSMakeRect(NSMaxX(bounds) - size.width - 4,
+                               NSMidY(bounds) - size.height / 2,
+                               size.width, size.height);
+    // Template draw at the secondary label level, tracking the appearance.
+    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.9] set];
+    NSRect aligned = [self backingAlignedRect:target options:NSAlignAllEdgesNearest];
+    [chevrons drawInRect:aligned
+                fromRect:NSZeroRect
+               operation:NSCompositingOperationSourceOver
+                fraction:0.9
+          respectFlipped:YES
+                   hints:nil];
+}
+
+@end
+
+
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;
     id _windowKeyObserver;
@@ -170,13 +248,18 @@
     }];
 }
 
+// The width is a CAP for a runaway localized or device-named title, not a
+// fixed size — the value hugs the row's trailing edge.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
-    NSPopUpButton *popUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    NSPopUpButton *popUp = [[VibeInlinePopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     if (action) {
         popUp.target = self;
         popUp.action = action;
     }
-    [popUp.widthAnchor constraintEqualToConstant:width].active = YES;
+    popUp.showsBorderOnlyWhileMouseInside = YES;
+    [popUp setContentHuggingPriority:NSLayoutPriorityDefaultHigh
+                      forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [popUp.widthAnchor constraintLessThanOrEqualToConstant:width].active = YES;
     return popUp;
 }
 

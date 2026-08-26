@@ -71,8 +71,10 @@ static const CGFloat kHeaderCardGap = 6;
     BOOL dark = [[self.effectiveAppearance
             bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
             isEqualToString:NSAppearanceNameDarkAqua];
+    // 3.2% white lands the card ~7/255 above the window background — the
+    // System Settings dark-card delta, measured off its own pixels.
     self.layer.backgroundColor = dark
-            ? [NSColor colorWithWhite:1 alpha:0.06].CGColor
+            ? [NSColor colorWithWhite:1 alpha:0.032].CGColor
             : NSColor.whiteColor.CGColor;
     self.layer.borderWidth = dark ? 0 : 1;
     self.layer.borderColor = [NSColor colorWithWhite:0 alpha:0.07].CGColor;

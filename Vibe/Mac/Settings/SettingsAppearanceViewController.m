@@ -677,6 +677,10 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     // Read-only built-ins: every editor control disables, honestly reported
     // by the debug walker; then the always-live sub-rules re-apply.
     SetDescendantControlsEnabled(_editorStack, !builtIn);
+    // The built-in page's one live control sits inside the swept stack now
+    // that the caption row is a card row: without this, a built-in could
+    // never be duplicated from its own page. Observed, not hypothetical.
+    _duplicateButton.enabled = YES;
     if (!builtIn) {
         _keyNotationPopUp.enabled = showKey;
         _keyColorsSwitch.enabled = showKey;

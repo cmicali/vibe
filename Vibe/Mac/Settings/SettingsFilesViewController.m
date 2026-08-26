@@ -76,9 +76,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 
     // The choices carry the VibeFolderOpenSort itself: the stored identifiers
     // are AppSettings' business, and a menu item has no reason to know them.
-    _folderSortPopUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    _folderSortPopUp.target = self;
-    _folderSortPopUp.action = @selector(folderOpenSortChanged:);
+    _folderSortPopUp = [self popUpButtonWithWidth:260 action:@selector(folderOpenSortChanged:)];
     [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_NAME];
     _folderSortPopUp.lastItem.representedObject = @(VibeFolderOpenSortName);
     [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST];
@@ -86,9 +84,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [_folderSortPopUp addItemWithTitle:STR_SETTINGS_FOLDER_SORT_AS_RECEIVED];
     _folderSortPopUp.lastItem.representedObject = @(VibeFolderOpenSortAsReceived);
 
-    _albumArtPopUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    _albumArtPopUp.target = self;
-    _albumArtPopUp.action = @selector(albumArtSourceChanged:);
+    _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
     [_albumArtPopUp addItemWithTitle:STR_SETTINGS_ALBUM_ART_FILE_ONLY];
     _albumArtPopUp.lastItem.representedObject = kAlbumArtFileOnly;
     [_albumArtPopUp addItemWithTitle:STR_SETTINGS_ALBUM_ART_FOLDER];

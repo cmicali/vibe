@@ -56,8 +56,9 @@ static const CGFloat kPanePadding = 20;
 // switch resizes nothing. Full refreshes remain selected-pane work.
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
-// A fixed-width popup targeting the pane; pass NULL for a popup whose items
-// carry their own targets.
+// The System Settings inline dropdown — borderless at rest, bezel on hover,
+// value hugging the row's trailing edge; width caps a runaway title. Pass
+// NULL for a popup whose items carry their own targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
 
 // The iOS-style toggle every boolean row uses; reads and writes exactly like
