@@ -663,6 +663,38 @@ class OpGenerator:
             ops.append(("file_drag_end", ["file_drag_end"], []))
         return ops
 
+    def op_reorder_begin(self):
+        """Start a synthetic row-reorder drag and leave it OPEN.
+
+        begin and finish are separate ops on purpose: whatever the scheduler
+        deals in between — an open that replaces the playlist, a removal, a
+        convert swap, a burst — lands inside a live drag session, which is
+        exactly the mid-drag race family no pointer can stage. A leftover
+        session is cancelled by the next begin, and rows are drawn against a
+        ceiling rather than the live count for playlist_jump's reason: out of
+        range is a tolerated refusal, cheaper than a dump_state per drag.
+        """
+        rows = {self.rng.randrange(0, 24) for _ in range(self.rng.choice([1, 1, 2, 3]))}
+        return [("reorder_begin", ["reorder_begin", *map(str, sorted(rows))],
+                 ["not draggable"])]
+
+    def op_reorder_finish(self):
+        """Resolve whatever drag session is live: probe a slot, then drop or
+        cancel. Without a session these are tolerated refusals, which also
+        keeps the no-session guard exercised."""
+        roll = self.rng.random()
+        if roll < 0.15:
+            return [("reorder_cancel", ["reorder_cancel"], ["no reorder session"])]
+        ops = []
+        if roll < 0.55:
+            ops.append(("reorder_update",
+                        ["reorder_update", str(self.rng.randrange(0, 26))],
+                        ["no reorder session"]))
+        ops.append(("reorder_drop",
+                    ["reorder_drop", str(self.rng.randrange(0, 26))],
+                    ["no reorder session"]))
+        return ops
+
     def op_menu(self):
         if not self.menu_ids:
             return self.op_window()
@@ -811,6 +843,7 @@ PROFILES = {
         "window": 3, "resize": 3, "click": 4, "drag": 2, "file_drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
+        "reorder_begin": 3, "reorder_finish": 4,
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
         "waveform_style": 2, "appearance": 2, "resize_storm": 2,
     },
@@ -822,6 +855,7 @@ PROFILES = {
         "fx": 1, "held_fx": 1, "key": 1,
         "window": 1, "resize": 1, "click": 1, "drag": 0, "file_drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
+        "reorder_begin": 2, "reorder_finish": 3,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "waveform_style": 2, "appearance": 2, "resize_storm": 2,
     },
@@ -841,6 +875,7 @@ PROFILES = {
         "window": 2, "resize": 2, "resize_storm": 8,
         "click": 2, "drag": 1, "file_drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
+        "reorder_begin": 6, "reorder_finish": 8,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
         "waveform_style": 5, "appearance": 3,
     },
@@ -856,6 +891,7 @@ PROFILES = {
         "fx": 0, "held_fx": 0, "key": 2,
         "window": 10, "resize": 4, "click": 3, "drag": 0, "file_drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
+        "reorder_begin": 2, "reorder_finish": 2,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "waveform_style": 3, "appearance": 6, "resize_storm": 3,
     },
@@ -887,6 +923,10 @@ PROFILES = {
         "fx": 0, "held_fx": 0, "key": 1,
         "window": 1, "resize": 1, "click": 2, "drag": 0, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
+        # Reorder earns a thin slot here despite the settle budget: moving the
+        # successor away re-parks prefetch, which is a live cloud transfer
+        # being retargeted — a race only this profile can reach.
+        "reorder_begin": 2, "reorder_finish": 2,
         # Kept deliberately thin. This profile's weights are a measured balance
         # between opens and settles — every op kind added here is a settle not
         # taken, and the sweep needs those seconds. block_main earns its place
@@ -903,6 +943,7 @@ PROFILES = {
         "fx": 10, "held_fx": 8, "key": 8,
         "window": 8, "resize": 8, "click": 12, "drag": 6, "file_drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
+        "reorder_begin": 5, "reorder_finish": 6,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "waveform_style": 8, "appearance": 6, "resize_storm": 10,
     },
