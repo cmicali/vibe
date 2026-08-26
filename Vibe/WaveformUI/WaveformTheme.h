@@ -51,6 +51,11 @@ NS_ASSUME_NONNULL_BEGIN
 // unplayedOverPlayedOpacity, with two it needs its own bake.
 @property (readonly) BOOL unplayedSharesPlayedHue;
 
+// NO vertical ramp: every stop a renderer builds is the side's color as-is.
+// Set by macOS's resolution site from the app theme's waveformGradient after
+// construction; iOS never sets it, so its bars keep the ramp.
+@property (nonatomic) BOOL flatFill;
+
 // Mono's answer: the pre-theme monochrome palette for the appearance. The
 // renderers' default before a view resolves anything.
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;

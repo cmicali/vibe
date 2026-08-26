@@ -86,11 +86,13 @@ static const CGFloat kWaveformDragHysteresis = 4;
     }
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL isDark = self.isDark;
-    _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:theme.waveformTheme
-                                                                isDark:isDark
-                                                          artworkColor:self.artworkThemeColor
-                                                          customPlayed:[theme waveformPlayedColorForDark:isDark]
-                                                        customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
+    WaveformTheme *resolved = [WaveformTheme themeForIdentifier:theme.waveformTheme
+                                                          isDark:isDark
+                                                    artworkColor:self.artworkThemeColor
+                                                    customPlayed:[theme waveformPlayedColorForDark:isDark]
+                                                  customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
+    resolved.flatFill = !theme.waveformGradient;
+    _currentWaveformRenderer.theme = resolved;
     [_currentWaveformRenderer updateColors:isDark];
 }
 

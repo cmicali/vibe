@@ -112,6 +112,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 @property (nonatomic, copy) NSString *waveformStyle;        // renderer styleIdentifier
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
+@property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid

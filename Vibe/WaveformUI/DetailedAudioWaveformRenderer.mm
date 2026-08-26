@@ -212,6 +212,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
 // The stops are the same in light and dark, because the gradient's startPoint
 // and endPoint fix the direction, not the array order.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
+    if (self.theme.flatFill) {
+        return @[color, color];
+    }
     const CGFloat kBottomAlpha = 0.45;
     return @[
             color,

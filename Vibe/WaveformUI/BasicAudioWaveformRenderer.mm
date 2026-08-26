@@ -51,6 +51,9 @@ static const NSUInteger kBasicMaxBars = 1024;
 // the played stops halved, which is now the theme colors' levels doing the
 // halving.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
+    if (self.theme.flatFill) {
+        return @[color, color];
+    }
     NSArray *colors = @[
             VibeColorAtRampFraction(color, 0.1),
             VibeColorAtRampFraction(color, 0.65),

@@ -22,6 +22,7 @@ NSString *const kVibeThemeRecordIdentifierKey = @"id";
 // self-describing in a theme JSON. Never renamed: they are persisted.
 static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
+static NSString *const kFieldWaveformGradient = @"waveformGradient";
 static NSString *const kFieldWindowTint = @"windowTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
 static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
@@ -81,7 +82,8 @@ static NSSet<NSString *> *BoolFieldKeys(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         keys = [NSSet setWithArray:@[kFieldShowFileInfo, kFieldShowRemainingTime,
-                                     kFieldShowBPM, kFieldShowKey, kFieldKeyColorsEnabled]];
+                                     kFieldShowBPM, kFieldShowKey, kFieldKeyColorsEnabled,
+                                     kFieldWaveformGradient]];
     });
     return keys;
 }
@@ -115,6 +117,7 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
         defaults = @{
             kFieldWaveformStyle:         SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             kFieldWaveformTheme:         SETTINGS_VALUE_WAVEFORM_THEME_MONO,
+            kFieldWaveformGradient:      @(YES),
             kFieldWindowTint:            SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             kFieldWindowBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
             kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
@@ -406,6 +409,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)waveformTheme { return [self stringForKey:kFieldWaveformTheme]; }
 - (void)setWaveformTheme:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformTheme]; }
+
+- (BOOL)waveformGradient { return [self boolForKey:kFieldWaveformGradient]; }
+- (void)setWaveformGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformGradient]; }
 
 - (NSString *)windowTint { return [self stringForKey:kFieldWindowTint]; }
 - (void)setWindowTint:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowTint]; }

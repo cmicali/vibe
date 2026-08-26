@@ -115,6 +115,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSSwitch *_showBPMSwitch, *_showKeySwitch;
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
+    NSSwitch *_waveformGradientSwitch;
     NSColorWell *_titleDarkWell, *_titleLightWell;
     NSColorWell *_artistDarkWell, *_artistLightWell;
     NSColorWell *_infoDarkWell, *_infoLightWell;
@@ -366,6 +367,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
     [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+
+    _waveformGradientSwitch = [self switchWithAction:@selector(toggleWaveformGradient:)];
     _customDarkPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customDarkUnplayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customLightPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
@@ -426,6 +429,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
             _customDarkRow,
             _customLightRow,
         ]],
@@ -648,6 +652,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [_waveformPopUp selectItemAtIndex:styleIndex];
     [_waveformThemePopUp selectItemAtIndex:
             [_waveformThemePopUp indexOfItemWithRepresentedObject:theme.waveformTheme]];
+    _waveformGradientSwitch.state =
+            theme.waveformGradient ? NSControlStateValueOn : NSControlStateValueOff;
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
     _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
     _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
@@ -1042,6 +1048,12 @@ static NSColor *DefaultCustomPlayedColor(BOOL isDark) {
 
 static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
+- (void)toggleWaveformGradient:(id)sender {
+    AppSettings.sharedInstance.currentTheme.waveformGradient =
+            (_waveformGradientSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
 }
 
 - (void)waveformStyleChanged:(id)sender {

@@ -115,12 +115,18 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     VibeColor *played = self.theme.playedColor;
     VibeColor *unplayed = self.theme.unplayedColor;
     _playedColorTop = played;
-    _playedColorBottom = VibeColorAtRampFraction(
-            [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
-                    colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
-            kPlayedBottomAlphaRatio);
     _unPlayedColorTop = unplayed;
-    _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
+    if (self.theme.flatFill) {
+        // No ramp: the mirror bars take the tops as-is.
+        _playedColorBottom = played;
+        _unPlayedColorBottom = unplayed;
+    } else {
+        _playedColorBottom = VibeColorAtRampFraction(
+                [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
+                        colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
+                kPlayedBottomAlphaRatio);
+        _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
+    }
     _hoverColor = self.theme.hoverColor;
 }
 

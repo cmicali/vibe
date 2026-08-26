@@ -26,6 +26,7 @@
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
+    XCTAssertTrue(theme.waveformGradient);
     XCTAssertFalse(theme.showRemainingTime);
     XCTAssertTrue(theme.showBPM);
     XCTAssertTrue(theme.showKey);
