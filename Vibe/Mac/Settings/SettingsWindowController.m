@@ -71,6 +71,23 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 @end
 
+// The icon flips white through backgroundStyle — the row view pushes it the
+// moment its selection moves, mouse-down tracking included. Re-tinting from
+// tableViewSelectionDidChange: left the pressed row mis-tinted for the whole
+// press: that notification waits for mouse-up.
+@interface SettingsSidebarCellView : NSTableCellView
+@end
+
+@implementation SettingsSidebarCellView
+
+- (void)setBackgroundStyle:(NSBackgroundStyle)backgroundStyle {
+    [super setBackgroundStyle:backgroundStyle];
+    self.imageView.contentTintColor =
+            backgroundStyle == NSBackgroundStyleEmphasized ? NSColor.whiteColor : nil;
+}
+
+@end
+
 @implementation SettingsSidebarController {
     NSTableView *_tableView;
 }
@@ -105,9 +122,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:@"pane" owner:nil];
+    SettingsSidebarCellView *cell = [tableView makeViewWithIdentifier:@"pane" owner:nil];
     if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+        cell = [[SettingsSidebarCellView alloc] initWithFrame:NSZeroRect];
         cell.identifier = @"pane";
         NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
         icon.translatesAutoresizingMaskIntoConstraints = NO;
@@ -130,9 +147,6 @@ static const CGFloat kSettingsSidebarWidth = 200;
     }
     NSTabViewItem *item = self.tabs.tabViewItems[(NSUInteger)row];
     cell.imageView.image = item.image;
-    // The emphasized selection flips the LABEL white through the cell's
-    // backgroundStyle; the template icon does not follow on its own.
-    cell.imageView.contentTintColor = row == tableView.selectedRow ? NSColor.whiteColor : nil;
     cell.textField.stringValue = item.label ?: @"";
     return cell;
 }
@@ -146,14 +160,6 @@ static const CGFloat kSettingsSidebarWidth = 200;
     if (row >= 0 && self.tabs.selectedTabViewItemIndex != row) {
         self.tabs.selectedTabViewItemIndex = row;
     }
-    // Re-tint the icons around the moved selection in place. Not reloadData:
-    // reloading inside the selection callback resets the selection to row
-    // zero and reenters, which yanked every settings_open straight back to
-    // the General pane. Observed, not hypothetical.
-    [_tableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
-        NSTableCellView *cell = [rowView viewAtColumn:0];
-        cell.imageView.contentTintColor = rowView.isSelected ? NSColor.whiteColor : nil;
-    }];
 }
 
 @end
