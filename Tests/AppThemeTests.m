@@ -1,0 +1,259 @@
+//
+// AppTheme's record contract: the same sanitization gates a JSON import, a
+// stored record and a UI edit, records stay sparse against the defaults, and
+// the built-ins are exactly what they claim — vibe the empty record,
+// industrial its three overrides.
+//
+
+#import <XCTest/XCTest.h>
+
+#import "AppTheme.h"
+#import "PlatformColor.h"
+
+@interface AppThemeTests : XCTestCase
+@end
+
+@implementation AppThemeTests
+
+#pragma mark Defaults and sparseness
+
+- (void)testEmptyRecordIsTheDefaultLook {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    XCTAssertEqualObjects(theme.waveformStyle, @"oversampling_detailed_x4");
+    XCTAssertEqualObjects(theme.waveformTheme, @"mono");
+    XCTAssertEqualObjects(theme.windowTint, @"artwork");
+    XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
+    XCTAssertEqual(theme.windowCornerRadius, 20);
+    XCTAssertTrue(theme.showFileInfo);
+    XCTAssertFalse(theme.showRemainingTime);
+    XCTAssertTrue(theme.showBPM);
+    XCTAssertTrue(theme.showKey);
+    XCTAssertFalse(theme.keyColorsEnabled);
+    XCTAssertEqualObjects(theme.keyNotation, @"camelot");
+    XCTAssertEqualObjects(theme.mainFontFace, @"");
+    XCTAssertEqual(theme.mainFontSize, 23);
+    XCTAssertEqual(theme.infoFontSize, 13);
+    XCTAssertEqual(theme.playlistFontSize, 14);
+    XCTAssertNil([theme titleColorForDark:YES]);
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+- (void)testDefaultValuedFieldsAreNotStored {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"waveformTheme": @"mono",
+        @"windowCornerRadius": @20,
+        @"showFileInfo": @YES,
+        @"mainFontFace": @"",
+    }];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+- (void)testSettingBackToTheDefaultEmptiesTheRecord {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    theme.windowCornerRadius = 8;
+    theme.waveformTheme = @"orange";
+    XCTAssertEqual(theme.dictionaryRepresentation.count, 2u);
+    theme.windowCornerRadius = 20;
+    theme.waveformTheme = @"mono";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+#pragma mark Sanitization
+
+- (void)testUnknownFieldsAreDropped {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"version": @1,
+        @"name": @"Someone's Theme",
+        @"id": @"ABC",
+        @"futureField": @"whatever",
+        @"windowCornerRadius": @12,
+    }];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          @{@"windowCornerRadius": @12});
+}
+
+- (void)testIdentifiersSnapToTheirLadders {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"waveformTheme": @"purple",
+        @"windowTint": @"plaid",
+        @"windowBackgroundStyle": @"translucent",
+        @"keyNotation": @"solfege",
+    }];
+    // Every snap lands on the default, so nothing is stored.
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+    XCTAssertEqualObjects(theme.waveformTheme, @"mono");
+    XCTAssertEqualObjects(theme.windowTint, @"artwork");
+    XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
+    XCTAssertEqualObjects(theme.keyNotation, @"camelot");
+}
+
+- (void)testNumbersClampBothEnds {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"windowCornerRadius": @500,
+        @"mainFontSize": @5,
+        @"infoFontSize": @72,
+        @"playlistFontSize": @(-3),
+    }];
+    XCTAssertEqual(theme.windowCornerRadius, 30);
+    XCTAssertEqual(theme.mainFontSize, 20);
+    XCTAssertEqual(theme.infoFontSize, 15);
+    XCTAssertEqual(theme.playlistFontSize, 11);
+    theme.windowCornerRadius = -10;
+    XCTAssertEqual(theme.windowCornerRadius, 0);
+}
+
+- (void)testMalformedValuesAreDropped {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"windowCornerRadius": @"big",
+        @"mainFontSize": @(NAN),
+        @"showBPM": @"true",
+        @"titleColorDark": @"#GGHHII",
+        @"artistColorDark": @123,
+        @"waveformStyle": @7,
+    }];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+    XCTAssertTrue(theme.showBPM);
+}
+
+- (void)testBoolsCoerceFromNumbersOnly {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"showRemainingTime": @1,
+        @"showKey": @NO,
+    }];
+    XCTAssertTrue(theme.showRemainingTime);
+    XCTAssertFalse(theme.showKey);
+    XCTAssertEqual(theme.dictionaryRepresentation.count, 2u);
+}
+
+- (void)testFontFacesAreTrimmedAndCapped {
+    NSString *longFace = [@"" stringByPaddingToLength:200 withString:@"F" startingAtIndex:0];
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"infoFontFace": @"  Menlo-Regular  ",
+        @"mainFontFace": longFace,
+    }];
+    XCTAssertEqualObjects(theme.infoFontFace, @"Menlo-Regular");
+    XCTAssertEqual(theme.mainFontFace.length, 64u);
+}
+
+- (void)testColorsRoundTripThroughHexWithAlpha {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    [theme setPlaylistPlayingRowColor:VibeColorFromHexString(@"#FF6600AA") forDark:YES];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          @{@"playlistPlayingRowColorDark": @"#FF6600AA"});
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme playlistPlayingRowColorForDark:YES]),
+                          @"#FF6600AA");
+    XCTAssertNil([theme playlistPlayingRowColorForDark:NO]);
+    [theme setPlaylistPlayingRowColor:nil forDark:YES];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+- (void)testRecordRoundTrips {
+    AppTheme *first = [[AppTheme alloc] initWithRecord:nil];
+    first.waveformStyle = @"detailed";
+    first.windowBackgroundStyle = @"solid";
+    first.infoFontSize = 11;
+    [first setWindowBackgroundColor:VibeColorFromHexString(@"#101014F0") forDark:YES];
+    [first setTitleColor:VibeColorFromHexString(@"#FFFFFF") forDark:NO];
+    AppTheme *second = [[AppTheme alloc] initWithRecord:first.dictionaryRepresentation];
+    XCTAssertEqualObjects(second.dictionaryRepresentation, first.dictionaryRepresentation);
+    XCTAssertEqualObjects(second.waveformStyle, @"detailed");
+    XCTAssertEqual(second.infoFontSize, 11);
+}
+
+- (void)testReplaceWithRecordSwitchesEveryField {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @4}];
+    [theme replaceWithRecord:@{@"waveformTheme": @"orange"}];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"waveformTheme": @"orange"});
+    XCTAssertEqual(theme.windowCornerRadius, 20);
+}
+
+#pragma mark Built-ins
+
+- (void)testBuiltInIdentifiers {
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"vibe"]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"industrial"]);
+    XCTAssertFalse([AppTheme isBuiltInIdentifier:@"Vibe"]);
+    XCTAssertFalse([AppTheme isBuiltInIdentifier:nil]);
+    XCTAssertFalse([AppTheme isBuiltInIdentifier:NSUUID.UUID.UUIDString]);
+    XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
+                          (@[@"vibe", @"industrial"]));
+}
+
+// The Vibe theme is the empty record BY CONSTRUCTION: it cannot drift from
+// the factory look because it stores nothing to drift with.
+- (void)testVibeBuiltInIsTheEmptyRecord {
+    XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
+}
+
+- (void)testIndustrialBuiltInIsExactlyItsThreeOverrides {
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"industrial"];
+    XCTAssertEqualObjects(record, (@{
+        @"waveformStyle": @"detailed",
+        @"waveformTheme": @"orange",
+        @"infoFontFace": @"Menlo-Regular",
+    }));
+    // And it survives its own sanitizer unchanged.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
+}
+
+#pragma mark Names
+
+- (void)testThemeNamesTrimCapAndFallBack {
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:@"  My Theme  " fallback:@"Custom"
+                                       existingNames:@[]], @"My Theme");
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:@"   " fallback:@"Custom"
+                                       existingNames:@[]], @"Custom");
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:nil fallback:@"Custom"
+                                       existingNames:@[]], @"Custom");
+    NSString *longName = [@"" stringByPaddingToLength:200 withString:@"N" startingAtIndex:0];
+    XCTAssertEqual([AppTheme dedupedThemeName:longName fallback:@"Custom"
+                                existingNames:@[]].length, 64u);
+}
+
+- (void)testThemeNamesDedupWithSuffixes {
+    NSArray *existing = @[@"Vibe", @"industrial", @"My Theme", @"My Theme 2"];
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:@"My Theme" fallback:@"Custom"
+                                       existingNames:existing], @"My Theme 3");
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:@"Industrial" fallback:@"Custom"
+                                       existingNames:existing], @"Industrial 2");
+    XCTAssertEqualObjects([AppTheme dedupedThemeName:@"Fresh" fallback:@"Custom"
+                                       existingNames:existing], @"Fresh");
+}
+
+#pragma mark Migration
+
+- (void)testUntouchedLegacyValuesMigrateToNothing {
+    XCTAssertNil([AppTheme migratedRecordFromLegacyValues:@{}]);
+    // Stored-but-default values are no reason to mint a theme either.
+    XCTAssertNil(([AppTheme migratedRecordFromLegacyValues:@{
+        @"waveformTheme": @"mono",
+        @"showFileInfo": @YES,
+    }]));
+}
+
+- (void)testCustomizedLegacyValuesMigrateToTheirSparseDiff {
+    NSDictionary *record = [AppTheme migratedRecordFromLegacyValues:@{
+        @"waveformStyle": @"sonic_cirrus",
+        @"waveformTheme": @"orange",
+        @"windowTint": @"mono",
+        @"showFileInfo": @NO,
+        @"waveformPlayedColorDark": @"#FF7300",
+    }];
+    XCTAssertEqualObjects(record, (@{
+        @"waveformStyle": @"sonic_cirrus",
+        @"waveformTheme": @"orange",
+        @"windowTint": @"mono",
+        @"showFileInfo": @NO,
+        @"waveformPlayedColorDark": @"#FF7300",
+    }));
+}
+
+- (void)testJunkLegacyValuesMigrateToNothing {
+    XCTAssertNil(([AppTheme migratedRecordFromLegacyValues:@{
+        @"waveformTheme": @"never_a_theme",
+        @"windowTintColorDark": @"not-hex",
+    }]));
+}
+
+@end
