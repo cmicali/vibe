@@ -71,13 +71,14 @@ static const CGFloat kHeaderCardGap = 6;
     BOOL dark = [[self.effectiveAppearance
             bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
             isEqualToString:NSAppearanceNameDarkAqua];
-    // 3.2% white lands the card ~7/255 above the window background — the
-    // System Settings dark-card delta, measured off its own pixels.
+    // One lift-step off the pane background in each direction, borderless —
+    // the System Settings pairing, measured off its pixels: dark cards sit
+    // ~7/255 above the background, light cards ~8/255 below the white one
+    // the pane paints (SettingsPaneViewController).
     self.layer.backgroundColor = dark
             ? [NSColor colorWithWhite:1 alpha:0.032].CGColor
-            : NSColor.whiteColor.CGColor;
-    self.layer.borderWidth = dark ? 0 : 1;
-    self.layer.borderColor = [NSColor colorWithWhite:0 alpha:0.07].CGColor;
+            : [NSColor colorWithWhite:0 alpha:0.032].CGColor;
+    self.layer.borderWidth = 0;
 }
 
 - (void)viewDidChangeEffectiveAppearance {

@@ -80,6 +80,32 @@ static const CGFloat kInlineBadgeGap = 8;
 @end
 
 
+// The pane's own backdrop: white in light mode — System Settings' light
+// content area is white, not the window gray, with the cards a step DARKER —
+// and nothing in dark, where the window background already matches.
+@interface SettingsPaneBackgroundView : NSView
+@end
+
+@implementation SettingsPaneBackgroundView
+
+- (BOOL)wantsUpdateLayer {
+    return YES;
+}
+
+- (void)updateLayer {
+    BOOL dark = [[self.effectiveAppearance
+            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
+            isEqualToString:NSAppearanceNameDarkAqua];
+    self.layer.backgroundColor = dark ? NSColor.clearColor.CGColor : NSColor.whiteColor.CGColor;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    self.needsDisplay = YES;
+}
+
+@end
+
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;
     id _windowKeyObserver;
@@ -113,7 +139,9 @@ static const CGFloat kInlineBadgeGap = 8;
     // edges (Greek was the first to overflow the original fixed width).
     NSSize paneSize = [self naturalPaneSize];
 
-    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
+    SettingsPaneBackgroundView *view = [[SettingsPaneBackgroundView alloc]
+            initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
+    view.wantsLayer = YES;
     // TRAP: the pane carries NO size constraints of its own — the view just
     // tracks the window through the tab view's edge pins. Any pane-side size
     // constraint, equality or minimum, re-enters the fitting-size snap: the
