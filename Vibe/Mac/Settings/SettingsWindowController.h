@@ -16,4 +16,9 @@
 // delegate's showThemeSettings: does both).
 - (void)showThemeEditor;
 
+// Re-reads the Appearance pane's back/forward state into the toolbar's
+// navigation control. The pane calls it on every page swap, the tab
+// controller on every pane switch.
+- (void)updateThemeNavigation;
+
 @end

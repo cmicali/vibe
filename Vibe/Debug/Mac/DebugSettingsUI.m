@@ -4,6 +4,7 @@
 //
 
 #import "DebugSettingsUI.h"
+#import "SettingsAppearanceViewController.h"
 
 #if DEBUG
 
@@ -712,6 +713,37 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
     });
 }
 
+NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens) {
+    double width = 0, height = 0;
+    if (tokens.count != 3 || !VibeParseDouble(tokens[1], &width)
+            || !VibeParseDouble(tokens[2], &height)) {
+        return VibeErrorJSON(@"usage: settings_resize <width> <height>");
+    }
+    NSWindow *window = VibeSettingsWindow();
+    if (!window) {
+        return VibeErrorJSON(@"settings window is not open (run settings_open)");
+    }
+    NSSize minSize = window.contentMinSize;
+    NSRect content = [window contentRectForFrameRect:window.frame];
+    content.origin.y += content.size.height - MAX(height, minSize.height);
+    content.size = NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height));
+    // Through the animator at zero duration: a plain setFrame: does not
+    // retarget an in-flight frame animation (the grow-to-floor pass), which
+    // would finish afterward and clobber this resize.
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0;
+        [[window animator] setFrame:[window frameRectForContentRect:content] display:YES];
+    }];
+    // Flush layout so a constraint-driven snap-back happens before the reply
+    // reads the frame.
+    [window layoutIfNeeded];
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"frame": NSStringFromRect(window.frame),
+        @"contentMinSize": NSStringFromSize(window.contentMinSize),
+    });
+}
+
 NSString *VibeDebugSettingsClose(void) {
     NSWindow *window = VibeSettingsWindow();
     if (!window || !window.isVisible) {
@@ -765,6 +797,31 @@ NSString *VibeDebugSettingsDump(void) {
 }
 
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
+    // The toolbar's navigation pill sits outside the pane, beyond the
+    // walker's reach; Back and Forward route to it by name so scripts keep
+    // one addressing scheme.
+    if (tokens.count == 2 && ([tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame
+            || [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame)) {
+        NSString *tabsError = nil;
+        NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
+        if (!tabs) {
+            return tabsError;
+        }
+        for (NSTabViewItem *item in tabs.tabViewItems) {
+            if (![item.identifier isEqualToString:@"appearance"]) {
+                continue;
+            }
+            SettingsAppearanceViewController *pane =
+                    (SettingsAppearanceViewController *)item.viewController;
+            BOOL back = [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
+            if (back ? pane.canGoBack : pane.canGoForward) {
+                back ? [pane navigateBack] : [pane navigateForward];
+                return VibeJSONString(@{@"ok": @YES, @"control": tokens[1].lowercaseString,
+                                        @"action": @"navigated"});
+            }
+            return VibeErrorJSON(@"%@ is not available here", tokens[1].lowercaseString);
+        }
+    }
     NSString *usage = @"usage: settings_click <control> [value] — quote names with spaces";
     if (tokens.count < 2 || tokens.count > 3) {
         return VibeErrorJSON(@"%@", usage);

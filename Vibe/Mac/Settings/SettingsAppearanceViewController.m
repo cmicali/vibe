@@ -24,6 +24,7 @@
 #import "Fonts.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
+#import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "VibeStrings.h"
 
 static const CGFloat kAppearancePopUpWidth = 220;
@@ -48,6 +49,33 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     VibeThemeFontSlotPlaylist,
 };
 
+// The corner-radius slider, with a tick above and below the track at the
+// factory default — the visual for the action's magnetic detent. NSSlider's
+// own tick marks are evenly spaced and single-sided, so the pair is drawn
+// here; the knob geometry mirrors AppKit's linear layout (half the knob
+// inset at each end).
+@interface VibeDetentSlider : NSSlider
+@property (nonatomic) double detentValue;
+@end
+
+@implementation VibeDetentSlider
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    if (self.maxValue <= self.minValue) {
+        return;
+    }
+    CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
+    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
+    CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
+    CGFloat midY = NSMidY(self.bounds);
+    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
+    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY + 5, 1, 4), NSCompositingOperationSourceOver);
+    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY - 9, 1, 4), NSCompositingOperationSourceOver);
+}
+
+@end
+
 @interface SettingsAppearanceViewController ()
         <NSTableViewDataSource, NSTableViewDelegate, NSFontChanging, NSTextFieldDelegate>
 @end
@@ -69,9 +97,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     // The editor page.
     NSView *_detailContainer;
-    NSTextField *_editorTitleLabel;
-    NSTextField *_builtInCaption;
     NSButton *_duplicateButton;
+    SettingsRowView *_builtInRow;
     NSStackView *_editorStack;
     NSTextField *_nameField;
     SettingsRowView *_nameRow;
@@ -81,7 +108,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSPopUpButton *_windowTintPopUp;
     NSColorWell *_windowTintDarkWell, *_windowTintLightWell;
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
-    NSSlider *_cornerRadiusSlider;
+    VibeDetentSlider *_cornerRadiusSlider;
     NSTextField *_cornerRadiusValue;
     NSSwitch *_fileInfoSwitch;
     NSButton *_timeTotalRadio, *_timeRemainingRadio;
@@ -106,6 +133,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSTextField *_mainFontValue, *_infoFontValue, *_playlistFontValue;
     VibeThemeFontSlot _fontEditingSlot;
     BOOL _editorShown;
+    // Armed by a Back pop; the toolbar's forward half re-opens the editor.
+    BOOL _editorForwardAvailable;
     // Reentrancy guard: reloadData and the programmatic reselect both post
     // selection-changed, and the delegate treating those as user activations
     // recursed refreshFromSettings into a stack overflow. Observed, not
@@ -238,6 +267,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _nameField.delegate = self;
     [_nameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _nameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_NAME_LABEL control:_nameField];
+    _duplicateButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_DUPLICATE
+                                          target:self action:@selector(duplicateActiveTheme:)];
+    _builtInRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUILT_IN_CAPTION
+                                        control:_duplicateButton];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
@@ -263,9 +296,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
                                                 control:_windowTintLightWell];
 
-    _cornerRadiusSlider = [NSSlider sliderWithValue:kVibeThemeCornerRadiusDefault
-                                           minValue:0 maxValue:kVibeThemeCornerRadiusMax
-                                             target:self action:@selector(cornerRadiusChanged:)];
+    _cornerRadiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
+                                                   minValue:0 maxValue:kVibeThemeCornerRadiusMax
+                                                     target:self action:@selector(cornerRadiusChanged:)];
+    _cornerRadiusSlider.detentValue = kVibeThemeCornerRadiusDefault;
     _cornerRadiusSlider.continuous = YES;
     [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _cornerRadiusValue = [NSTextField labelWithString:@""];
@@ -359,7 +393,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _playlistFontValue = playlistFontValue;
 
     NSArray<NSView *> *sections = @[
-        [SettingsSectionView sectionWithRows:@[_nameRow]],
+        [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
             _backgroundColorsRow,
@@ -417,24 +451,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         [section.widthAnchor constraintEqualToAnchor:_editorStack.widthAnchor].active = YES;
     }
 
-    NSButton *back = [NSButton buttonWithTitle:STR_SETTINGS_THEME_BACK
-                                        target:self action:@selector(popToThemeList:)];
-    back.image = [NSImage imageWithSystemSymbolName:@"chevron.backward"
-                           accessibilityDescription:STR_SETTINGS_THEME_BACK];
-    back.imagePosition = NSImageLeading;
-    back.bordered = NO;
-    _editorTitleLabel = [NSTextField labelWithString:@""];
-    _editorTitleLabel.font = [NSFont boldSystemFontOfSize:15];
-    _builtInCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_BUILT_IN_CAPTION];
-    _builtInCaption.textColor = NSColor.secondaryLabelColor;
-    _builtInCaption.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-    _duplicateButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_DUPLICATE
-                                          target:self action:@selector(duplicateActiveTheme:)];
-    NSStackView *header = [NSStackView stackViewWithViews:
-            @[back, _editorTitleLabel, _builtInCaption, _duplicateButton]];
-    header.spacing = 10;
-    [header setCustomSpacing:16 afterView:back];
-
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.hasVerticalScroller = YES;
@@ -444,8 +460,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
     container.translatesAutoresizingMaskIntoConstraints = NO;
     container.hidden = YES;
-    header.translatesAutoresizingMaskIntoConstraints = NO;
-    [container addSubview:header];
     [container addSubview:scroll];
     [self.view addSubview:container];
     _detailContainer = container;
@@ -456,10 +470,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         [container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:kPanePadding],
         [container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kPanePadding],
         [container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-kPanePadding],
-        [header.topAnchor constraintEqualToAnchor:container.topAnchor],
-        [header.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
-        [header.trailingAnchor constraintLessThanOrEqualToAnchor:container.trailingAnchor],
-        [scroll.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:12],
+        [scroll.topAnchor constraintEqualToAnchor:container.topAnchor],
         [scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
@@ -481,16 +492,47 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
     }
+    // The editor page retitles the window the way a pane switch would — the
+    // title rides the pane-title chain (pane → tab controller → split, whose
+    // title the window binds), and the sidebar label reads the tab ITEM, so
+    // it keeps saying Appearance.
+    NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
+    self.title = _editorShown
+            ? ([AppSettings.sharedInstance displayNameForThemeIdentifier:active]
+                    ?: STR_MENU_VIEW_APPEARANCE)
+            : STR_MENU_VIEW_APPEARANCE;
+    self.parentViewController.parentViewController.title = self.title;
+    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+}
+
+- (BOOL)canGoBack {
+    return _editorShown;
+}
+
+- (BOOL)canGoForward {
+    return _editorForwardAvailable && !_editorShown;
+}
+
+- (void)navigateBack {
+    [self popToThemeList:nil];
+}
+
+- (void)navigateForward {
+    if (self.canGoForward) {
+        [self showThemeEditorForActiveTheme];
+    }
 }
 
 - (void)showThemeEditorForActiveTheme {
     _editorShown = YES;
+    _editorForwardAvailable = NO;
     [self refreshFromSettings];
     [self applyEditorVisibility];
 }
 
 - (void)popToThemeList:(id)sender {
     _editorShown = NO;
+    _editorForwardAvailable = YES;
     [self closeFontPanel];
     [self applyEditorVisibility];
     [self refreshFromSettings];
@@ -559,11 +601,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _removeThemeButton.enabled = !builtIn;
 
     // The editor, from the working theme.
-    _editorTitleLabel.stringValue = [settings displayNameForThemeIdentifier:active] ?: @"";
-    _builtInCaption.hidden = !builtIn;
-    _duplicateButton.hidden = !builtIn;
-    _nameField.stringValue = builtIn ? @"" : (_editorTitleLabel.stringValue ?: @"");
+    _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
     _nameRow.hidden = builtIn;
+    _builtInRow.hidden = !builtIn;
 
     [_backgroundPopUp selectItemAtIndex:
             [_backgroundPopUp indexOfItemWithRepresentedObject:theme.windowBackgroundStyle]];

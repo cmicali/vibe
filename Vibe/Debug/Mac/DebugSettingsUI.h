@@ -39,6 +39,12 @@ NSString *VibeDebugSettingsDump(void);
 // pane; see the usage text in the implementation for the per-kind values.
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens);
 
+// settings_resize <width> <height> — a user resize by other means: sets the
+// settings window's frame (content points, clamped to contentMinSize like a
+// real drag), flushes layout, and replies with the SETTLED frame — which is
+// what makes a constraint snap-back observable from a test.
+NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens);
+
 #ifdef __cplusplus
 }
 #endif

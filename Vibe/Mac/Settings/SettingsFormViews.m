@@ -8,9 +8,9 @@
 
 static const CGFloat kRowPaddingH = 16;
 static const CGFloat kRowPaddingV = 8;
-static const CGFloat kRowMinHeight = 38;
+static const CGFloat kRowMinHeight = 40;
 static const CGFloat kRowTitleControlGap = 8;
-static const CGFloat kCardCornerRadius = 6;
+static const CGFloat kCardCornerRadius = 10;
 static const CGFloat kHeaderCardGap = 6;
 
 // updateLayer resolves colors against the current appearance, and the
@@ -235,9 +235,9 @@ static const CGFloat kHeaderCardGap = 6;
     if (header.length) {
         NSTextField *headerLabel = [NSTextField labelWithString:header.vibeFormLabel];
         headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        headerLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
-                                             weight:NSFontWeightSemibold];
-        headerLabel.textColor = NSColor.secondaryLabelColor;
+        // Semibold primary at text size — the System Settings section heading.
+        headerLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
+        headerLabel.textColor = NSColor.labelColor;
         [section addSubview:headerLabel];
         section->_headerLabel = headerLabel;
         [NSLayoutConstraint activateConstraints:@[

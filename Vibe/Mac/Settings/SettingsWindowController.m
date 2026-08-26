@@ -16,10 +16,21 @@
 
 static const CGFloat kSettingsSidebarWidth = 200;
 
-@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate> {
+@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate, NSWindowDelegate> {
     // The pane host; SettingsTabViewController is defined further down, and
     // everything reached through this ivar is NSTabViewController API.
     NSTabViewController *_tabs;
+    // The content view's size, pinned EQUAL to the live frame: the constraint
+    // engine re-sizes a contentViewController window to its content's fitting
+    // size after every layout pass, so a user's drag snaps back unless the
+    // fitting answer follows the drag. windowDidResize: keeps the constants
+    // at whatever size the window holds, which turns the snap into a no-op —
+    // the one arrangement that survives it (no constraints at all leaves the
+    // fitting ambiguous and the window snaps to the sidebar's answer instead;
+    // observed both ways).
+    NSLayoutConstraint *_contentWidth;
+    NSLayoutConstraint *_contentHeight;
+    NSSegmentedControl *_navigationControl;
 }
 @end
 
@@ -45,6 +56,19 @@ static const CGFloat kSettingsSidebarWidth = 200;
 @interface SettingsSidebarController : NSViewController <NSTableViewDataSource, NSTableViewDelegate>
 @property (weak, nonatomic) NSTabViewController *tabs;
 @property (readonly, nonatomic) NSTableView *tableView;
+@end
+
+// System Settings shows the accent-colored selection whether or not the
+// sidebar has focus; a stock source list dims to gray when it does not.
+@interface SettingsSidebarRowView : NSTableRowView
+@end
+
+@implementation SettingsSidebarRowView
+
+- (BOOL)isEmphasized {
+    return YES;
+}
+
 @end
 
 @implementation SettingsSidebarController {
@@ -106,8 +130,15 @@ static const CGFloat kSettingsSidebarWidth = 200;
     }
     NSTabViewItem *item = self.tabs.tabViewItems[(NSUInteger)row];
     cell.imageView.image = item.image;
+    // The emphasized selection flips the LABEL white through the cell's
+    // backgroundStyle; the template icon does not follow on its own.
+    cell.imageView.contentTintColor = row == tableView.selectedRow ? NSColor.whiteColor : nil;
     cell.textField.stringValue = item.label ?: @"";
     return cell;
+}
+
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    return [SettingsSidebarRowView new];
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
@@ -115,6 +146,14 @@ static const CGFloat kSettingsSidebarWidth = 200;
     if (row >= 0 && self.tabs.selectedTabViewItemIndex != row) {
         self.tabs.selectedTabViewItemIndex = row;
     }
+    // Re-tint the icons around the moved selection in place. Not reloadData:
+    // reloading inside the selection callback resets the selection to row
+    // zero and reenters, which yanked every settings_open straight back to
+    // the General pane. Observed, not hypothetical.
+    [_tableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
+        NSTableCellView *cell = [rowView viewAtColumn:0];
+        cell.imageView.contentTintColor = rowView.isSelected ? NSColor.whiteColor : nil;
+    }];
 }
 
 @end
@@ -151,6 +190,11 @@ static const CGFloat kSettingsSidebarWidth = 200;
     // The window binds its title to the split controller's; the pane's title
     // reaches it through here, never set on the window directly.
     self.parentViewController.title = pane.title;
+    SettingsWindowController *controller =
+            (SettingsWindowController *)self.view.window.windowController;
+    if ([controller isKindOfClass:SettingsWindowController.class]) {
+        [controller updateThemeNavigation];
+    }
 }
 
 // A pane revealed or hid a row, so every pane's shared size moved under the
@@ -275,6 +319,14 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     split.title = tabs.tabViewItems.firstObject.viewController.title;
 
     NSWindow *window = [NSWindow windowWithContentViewController:split];
+    // The panes carry no size constraints (see SettingsPaneViewController), so
+    // the fitting pass cannot size the window: seed it from the settled shared
+    // size explicitly. The height is short of the titlebar here; the tab
+    // controller's grow-to-floor pass on first appearance corrects it, and an
+    // autosaved frame overrides the whole thing anyway.
+    NSSize seedSize = tabs.tabViewItems.firstObject.viewController.preferredContentSize;
+    [window setContentSize:NSMakeSize(kSettingsSidebarWidth + 1 + seedSize.width,
+                                      seedSize.height)];
     // Resizable above the panes' shared size, which is the FLOOR the tab
     // controller keeps in contentMinSize — a pane's own constraints are
     // minimums, so extra height is blank space below the sections and the
@@ -297,6 +349,10 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         toolbar.allowsUserCustomization = NO;
         window.toolbar = toolbar;
         window.toolbarStyle = NSWindowToolbarStyleUnified;
+        // The System Settings look: the page title sits beside the navigation
+        // control with no hairline under the toolbar.
+        window.titleVisibility = NSWindowTitleVisible;
+        window.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
 
         // After center, so a saved position wins over the default one. The
         // SIZE the autosave restores — possibly a different pane's — needs no
@@ -305,8 +361,27 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         self.windowFrameAutosaveName = @"SettingsWindow";
         [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
         _tabs = tabs;
+
+        window.delegate = self;
+        NSView *content = split.view;
+        _contentWidth = [content.widthAnchor constraintEqualToConstant:content.frame.size.width];
+        _contentHeight = [content.heightAnchor constraintEqualToConstant:content.frame.size.height];
+        // Just below required, so the one pass where the frame moved ahead of
+        // the constants resolves by stretching instead of breaking loudly.
+        _contentWidth.priority = NSLayoutPriorityRequired - 1;
+        _contentHeight.priority = NSLayoutPriorityRequired - 1;
+        [NSLayoutConstraint activateConstraints:@[_contentWidth, _contentHeight]];
     }
     return self;
+}
+
+// Every resize — the user's drag, the grow-to-floor pass, the autosave
+// restore — lands the new size in the constants, so the engine's fitting
+// answer is always the frame the window already holds.
+- (void)windowDidResize:(NSNotification *)notification {
+    NSSize size = ((NSView *)self.window.contentView).frame.size;
+    _contentWidth.constant = size.width;
+    _contentHeight.constant = size.height;
 }
 
 - (void)showThemeEditor {
@@ -323,18 +398,75 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     }
 }
 
+static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_navigation";
+
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
-    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier];
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier];
+    return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier];
 }
 
 // The tracking separator is AppKit's own; there are no custom items to build.
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
+    if ([itemIdentifier isEqualToString:kThemeNavigationItemIdentifier]) {
+        // The System Settings navigation pill: back pops the theme editor to
+        // the list, forward — armed by a pop — re-opens it. Disabled outside
+        // the Appearance pane; updateThemeNavigation keeps it honest.
+        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
+                [NSImage imageWithSystemSymbolName:@"chevron.backward"
+                          accessibilityDescription:STR_SETTINGS_THEME_BACK],
+                [NSImage imageWithSystemSymbolName:@"chevron.forward"
+                          accessibilityDescription:STR_SETTINGS_THEME_FORWARD]]
+                trackingMode:NSSegmentSwitchTrackingMomentary
+                      target:self action:@selector(navigateThemeEditor:)];
+        [control setEnabled:NO forSegment:0];
+        [control setEnabled:NO forSegment:1];
+        _navigationControl = control;
+        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.view = control;
+        // Leading, before the window title — where System Settings puts its
+        // navigation pill.
+        item.navigational = YES;
+        return item;
+    }
     return nil;
+}
+
+- (SettingsAppearanceViewController *)appearancePane {
+    for (NSTabViewItem *item in _tabs.tabViewItems) {
+        if ([item.identifier isEqualToString:@"appearance"]) {
+            return (SettingsAppearanceViewController *)item.viewController;
+        }
+    }
+    return nil;
+}
+
+- (BOOL)appearancePaneIsSelected {
+    NSInteger index = _tabs.selectedTabViewItemIndex;
+    return index >= 0 && index < (NSInteger)_tabs.tabViewItems.count
+            && [_tabs.tabViewItems[(NSUInteger)index].identifier isEqualToString:@"appearance"];
+}
+
+- (void)updateThemeNavigation {
+    SettingsAppearanceViewController *pane = [self appearancePane];
+    BOOL selected = [self appearancePaneIsSelected];
+    [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
+    [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
+}
+
+- (void)navigateThemeEditor:(NSSegmentedControl *)sender {
+    SettingsAppearanceViewController *pane = [self appearancePane];
+    if (![self appearancePaneIsSelected] || !pane) {
+        return;
+    }
+    if (sender.selectedSegment == 0) {
+        [pane navigateBack];
+    } else {
+        [pane navigateForward];
+    }
 }
 
 // File > Close (⌘W) is nil-targeted closeFile:; catching it while this window

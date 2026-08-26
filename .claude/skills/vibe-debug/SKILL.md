@@ -345,7 +345,7 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 ### The settings window
 
-The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+The Settings window has five verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click`, `settings_resize` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
 
 ### In-process input injection
 

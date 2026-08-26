@@ -25672,12 +25672,6 @@
     "settings.appearance.player_section": {
       "comment": "Theme editor: heading above the player rows — the label colors and the info-display choices.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Player"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -25706,6 +25700,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Πρόγραμμα αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Player"
           }
         },
         "es": {
@@ -26972,7 +26972,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.back": {
-      "comment": "Theme editor: button returning from the editor page to the theme list, like a System Settings sub-page's back control.",
+      "comment": "Settings toolbar: the back half of the navigation control — returns from the theme editor page to the theme list. Accessibility label.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29020,12 +29020,6 @@
     "settings.appearance.theme.corner_radius_value": {
       "comment": "Theme editor: the corner-radius slider's live readout, e.g. '20 px'. %ld is the radius in pixels.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%ld px"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29051,6 +29045,12 @@
           }
         },
         "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld px"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "%ld px"
@@ -30877,6 +30877,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.theme.forward": {
+      "comment": "Settings toolbar: the forward half of the navigation control — returns to the theme editor page just left. Accessibility label.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forward"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напред"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vpřed"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frem"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorwärts"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εμπρός"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adelante"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eteenpäin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivant"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naprijed"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Előre"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maju"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avanti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進む"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앞으로"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frem"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vooruit"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalej"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avançar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avançar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Înainte"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вперед"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vpred"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Framåt"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไปข้างหน้า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İleri"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вперед"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiến"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前进"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前進"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.theme.import": {
       "comment": "Add menu item: opens a file chooser for a theme JSON file. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
@@ -31996,12 +32182,6 @@
     "settings.appearance.theme.playlist_background_colors": {
       "comment": "Theme editor, Playlist group: row beside the playlist background's two color wells, one per appearance — the wash over glass, or the solid cover.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Playlist background colors"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -32030,6 +32210,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Χρώματα φόντου λίστας αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist background colors"
           }
         },
         "es": {

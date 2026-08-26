@@ -12,4 +12,13 @@
 // Themes… lands here through SettingsWindowController.showThemeEditor.
 - (void)showThemeEditorForActiveTheme;
 
+// The toolbar navigation control's model: back pops the editor to the theme
+// list; forward, armed by a pop, re-opens the editor. The window controller
+// reads the two flags for the control's enablement whenever the pane
+// re-resolves its pages.
+@property (readonly, nonatomic) BOOL canGoBack;
+@property (readonly, nonatomic) BOOL canGoForward;
+- (void)navigateBack;
+- (void)navigateForward;
+
 @end
