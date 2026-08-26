@@ -271,6 +271,18 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeCmd(@"drag_end", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticDragEnd(controller);
             }),
+            VibeCmd(@"reorder_begin <row> [row ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeReorderBegin(controller, tokens);
+            }),
+            VibeCmd(@"reorder_update <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeReorderUpdate(controller, tokens);
+            }),
+            VibeCmd(@"reorder_drop <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeReorderDrop(controller, tokens);
+            }),
+            VibeCmd(@"reorder_cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeReorderCancel(controller);
+            }),
             VibeCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectDrag(controller, tokens);
             }),

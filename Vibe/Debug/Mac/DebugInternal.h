@@ -85,6 +85,10 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
 NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSyntheticDragEnd(MainPlayerController *controller);
 NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeReorderBegin(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeReorderCancel(MainPlayerController *controller);
 
 // DebugCommandTable.m — the verb table the dispatcher walks.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);
