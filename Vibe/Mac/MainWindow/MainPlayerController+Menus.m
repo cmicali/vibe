@@ -75,7 +75,7 @@
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.showFileInfo);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.currentTheme.showFileInfo);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
@@ -280,7 +280,8 @@
     if ([sender isKindOfClass:NSMenuItem.class]) {
         NSString *identifier = ((NSMenuItem *)sender).representedObject;
         if (identifier) {
-            AppSettings.sharedInstance.waveformStyle = identifier;
+            AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
+            [AppSettings.sharedInstance currentThemeDidChange];
             [self applySettingsLiveEffects:VibeSettingsLiveEffectWaveformStyle];
         }
     }

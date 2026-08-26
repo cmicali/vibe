@@ -196,12 +196,12 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 }
 
 - (void)resolveLayoutStateFromSettings {
-    AppSettings *settings = AppSettings.sharedInstance;
-    BOOL customTheme = [settings.waveformTheme
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL customTheme = [theme.waveformTheme
             isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme;
-    BOOL customTint = [settings.windowTint
+    BOOL customTint = [theme.windowTint
             isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint;
@@ -225,7 +225,7 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     // waveform view's own fallback — so the popup shows that rather than
     // leaving whatever was selected before standing, which would misreport
     // what is on screen.
-    NSString *current = AppSettings.sharedInstance.waveformStyle;
+    NSString *current = AppSettings.sharedInstance.currentTheme.waveformStyle;
     NSMenuItem *match = nil;
     for (NSMenuItem *item in _waveformPopUp.itemArray) {
         if ([item.representedObject isEqualToString:current]) {
@@ -247,64 +247,71 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
     // The getter is normalized, so an unknown persisted identifier selects
     // White — matching what the waveform actually draws.
-    NSString *theme = AppSettings.sharedInstance.waveformTheme;
+    NSString *waveformTheme = AppSettings.sharedInstance.currentTheme.waveformTheme;
     for (NSMenuItem *item in _waveformThemePopUp.itemArray) {
-        if ([item.representedObject isEqualToString:theme]) {
+        if ([item.representedObject isEqualToString:waveformTheme]) {
             [_waveformThemePopUp selectItem:item];
             break;
         }
     }
-    AppSettings *settings = AppSettings.sharedInstance;
-    _customDarkPlayedWell.color = [settings waveformCustomPlayedColorForDark:YES]
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES]
             ?: DefaultCustomPlayedColor(YES);
-    _customDarkUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:YES]
+    _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES]
             ?: DefaultCustomUnplayedColor(YES);
-    _customLightPlayedWell.color = [settings waveformCustomPlayedColorForDark:NO]
+    _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO]
             ?: DefaultCustomPlayedColor(NO);
-    _customLightUnplayedWell.color = [settings waveformCustomUnplayedColorForDark:NO]
+    _customLightUnplayedWell.color = [theme waveformUnplayedColorForDark:NO]
             ?: DefaultCustomUnplayedColor(NO);
 
     // The getter is normalized, so an unknown persisted identifier selects
     // Artwork color — matching the wash actually on the window.
-    NSString *tint = AppSettings.sharedInstance.windowTint;
+    NSString *tint = theme.windowTint;
     for (NSMenuItem *item in _windowTintPopUp.itemArray) {
         if ([item.representedObject isEqualToString:tint]) {
             [_windowTintPopUp selectItem:item];
             break;
         }
     }
-    _windowTintDarkWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:YES]
+    _windowTintDarkWell.color = [theme windowTintColorForDark:YES]
             ?: DefaultWindowTintColor(YES);
-    _windowTintLightWell.color = [AppSettings.sharedInstance windowTintCustomColorForDark:NO]
+    _windowTintLightWell.color = [theme windowTintColorForDark:NO]
             ?: DefaultWindowTintColor(NO);
 
-    _fileInfoSwitch.state = AppSettings.sharedInstance.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+    _fileInfoSwitch.state = theme.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
 
-    BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
+    BOOL remaining = theme.showRemainingTime;
     _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
     _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
 
-    _showBPMSwitch.state = AppSettings.sharedInstance.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    _showBPMSwitch.state = theme.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
 
     // With Show key off the two rows below it have nothing to govern, so they
     // dim rather than pretending a write would change anything on screen.
-    BOOL showKey = AppSettings.sharedInstance.showKey;
+    BOOL showKey = theme.showKey;
     _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
     _keyNotationPopUp.enabled = showKey;
     _keyColorsSwitch.enabled = showKey;
-    NSString *notation = AppSettings.sharedInstance.keyNotation;
+    NSString *notation = theme.keyNotation;
     for (NSMenuItem *item in _keyNotationPopUp.itemArray) {
         if ([item.representedObject isEqualToString:notation]) {
             [_keyNotationPopUp selectItem:item];
             break;
         }
     }
-    _keyColorsSwitch.state = AppSettings.sharedInstance.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _keyColorsSwitch.state = theme.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
 }
 
 - (void)toggleShowBPM:(id)sender {
-    AppSettings.sharedInstance.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+// The pane's themed rows all funnel here after writing their currentTheme
+// field: persist the working record, then request the row's live effect.
+- (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect {
+    [AppSettings.sharedInstance currentThemeDidChange];
+    [self.playerController applySettingsLiveEffects:effect];
 }
 
 - (void)toggleTrafficLights:(id)sender {
@@ -314,8 +321,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 }
 
 - (void)toggleShowKey:(id)sender {
-    AppSettings.sharedInstance.showKey = (_showKeySwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.showKey = (_showKeySwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
     [self refreshFromSettings];
 }
 
@@ -339,8 +346,8 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     if (!identifier) {
         return;
     }
-    AppSettings.sharedInstance.waveformStyle = identifier;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformStyle];
+    AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
 }
 
 // The custom pairs' fallbacks, shared by the wells' display and the seed on
@@ -359,22 +366,22 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 - (void)waveformThemeChanged:(id)sender {
     NSString *identifier = _waveformThemePopUp.selectedItem.representedObject;
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
         // Choosing Custom seeds any unset color from the wells' displayed
         // fallbacks, so the waveform immediately matches what the wells show.
-        AppSettings *settings = AppSettings.sharedInstance;
         for (int darkPass = 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
-            if (![settings waveformCustomPlayedColorForDark:isDark]) {
-                [settings setWaveformCustomPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
+            if (![theme waveformPlayedColorForDark:isDark]) {
+                [theme setWaveformPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
             }
-            if (![settings waveformCustomUnplayedColorForDark:isDark]) {
-                [settings setWaveformCustomUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
+            if (![theme waveformUnplayedColorForDark:isDark]) {
+                [theme setWaveformUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
             }
         }
     }
-    AppSettings.sharedInstance.waveformTheme = identifier;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformTheme];
+    theme.waveformTheme = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
     [self animatePaneContentChange:^{
         self->_customDarkRow.hidden = !custom;
         self->_customLightRow.hidden = !custom;
@@ -382,17 +389,17 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 - (void)customColorChanged:(NSColorWell *)sender {
-    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (sender == _customDarkPlayedWell) {
-        [settings setWaveformCustomPlayedColor:sender.color forDark:YES];
+        [theme setWaveformPlayedColor:sender.color forDark:YES];
     } else if (sender == _customDarkUnplayedWell) {
-        [settings setWaveformCustomUnplayedColor:sender.color forDark:YES];
+        [theme setWaveformUnplayedColor:sender.color forDark:YES];
     } else if (sender == _customLightPlayedWell) {
-        [settings setWaveformCustomPlayedColor:sender.color forDark:NO];
+        [theme setWaveformPlayedColor:sender.color forDark:NO];
     } else {
-        [settings setWaveformCustomUnplayedColor:sender.color forDark:NO];
+        [theme setWaveformUnplayedColor:sender.color forDark:NO];
     }
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformTheme];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
 }
 
 // The custom wash's fallbacks, shared by the wells' display and the seed on
@@ -407,19 +414,19 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 - (void)windowTintChanged:(id)sender {
     NSString *identifier = _windowTintPopUp.selectedItem.representedObject;
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
         // As with the waveform's custom theme: seed any unset color from the
         // wells' displayed fallbacks, so the wash immediately matches them.
         for (int darkPass = 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
-            if (![settings windowTintCustomColorForDark:isDark]) {
-                [settings setWindowTintCustomColor:DefaultWindowTintColor(isDark) forDark:isDark];
+            if (![theme windowTintColorForDark:isDark]) {
+                [theme setWindowTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
             }
         }
     }
-    settings.windowTint = identifier;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowTint];
+    theme.windowTint = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
     [self animatePaneContentChange:^{
         self->_windowTintDarkRow.hidden = !custom;
         self->_windowTintLightRow.hidden = !custom;
@@ -427,29 +434,29 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 }
 
 - (void)windowTintColorChanged:(NSColorWell *)sender {
-    [AppSettings.sharedInstance setWindowTintCustomColor:sender.color
-                                                 forDark:(sender == _windowTintDarkWell)];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowTint];
+    [AppSettings.sharedInstance.currentTheme setWindowTintColor:sender.color
+                                                        forDark:(sender == _windowTintDarkWell)];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
 }
 
 - (void)toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)timeDisplayChanged:(NSButton *)sender {
-    AppSettings.sharedInstance.showRemainingTime = (sender == _timeRemainingRadio);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.showRemainingTime = (sender == _timeRemainingRadio);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)keyNotationChanged:(id)sender {
-    AppSettings.sharedInstance.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
 - (void)toggleKeyColors:(id)sender {
-    AppSettings.sharedInstance.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    AppSettings.sharedInstance.currentTheme.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
 @end

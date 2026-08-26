@@ -211,9 +211,10 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 // picked, alpha and all; the clamps exist to tame a color nobody chose. Mono,
 // and an unset custom color, are no wash.
 - (NSColor *)resolvedHeaderTintIsDark:(BOOL)dark {
-    NSString *tint = AppSettings.sharedInstance.windowTint;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSString *tint = theme.windowTint;
     if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
-        return [AppSettings.sharedInstance windowTintCustomColorForDark:dark];
+        return [theme windowTintColorForDark:dark];
     }
     if (![tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] || !_dominantArtColor) {
         return nil;

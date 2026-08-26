@@ -562,19 +562,20 @@
     // "Bbm" renders as "3A" under Camelot rather than as written.
     // Show key off blanks the readout entirely; detection and tags are
     // untouched, so flipping it back on redraws whatever the track carries.
-    NSInteger key = track && AppSettings.sharedInstance.showKey ? track.key : -1;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSInteger key = track && theme.showKey ? track.key : -1;
     NSString *keyText = @"";
     if (key >= 0) {
-        keyText = [AppSettings.sharedInstance.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
+        keyText = [theme.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
     // Show BPM off blanks the label's tempo half; the fx write above is
     // unconditional, since a hidden readout must not change the audio.
-    float labelBPM = track && AppSettings.sharedInstance.showBPM ? scaledBPM : 0;
+    float labelBPM = track && theme.showBPM ? scaledBPM : 0;
     [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
-                        colorKey:(AppSettings.sharedInstance.keyColorsEnabled ? key : -1)];
+                        colorKey:(theme.keyColorsEnabled ? key : -1)];
 }
 
 - (IBAction)playPause:(nullable id)sender {
@@ -921,7 +922,9 @@
 #pragma mark - Actions
 
 - (IBAction) toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.showFileInfo = !AppSettings.sharedInstance.showFileInfo;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    theme.showFileInfo = !theme.showFileInfo;
+    [AppSettings.sharedInstance currentThemeDidChange];
     [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 
@@ -1057,7 +1060,9 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // re-renders. The full updateUI funnel keeps the label's change guards
 // coherent.
 - (IBAction)toggleTimeDisplayMode:(id)sender {
-    AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    theme.showRemainingTime = !theme.showRemainingTime;
+    [AppSettings.sharedInstance currentThemeDidChange];
     [self applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
 }
 

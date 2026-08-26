@@ -43,7 +43,7 @@
         [self applyStoredAppearance];
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
-        self.waveformView.waveformStyle = settings.waveformStyle;
+        self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];

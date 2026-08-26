@@ -84,13 +84,11 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 // ---- The hot-path cache, which lives for ONE turn of the main run loop.
 //
-// The cached settings are the ones read far more often than the rest: the
-// right time label's mode on every playback tick, the file-info, BPM, key,
-// key-notation and key-color flags several times per updateUI pass, and the
-// refresh cap on every live-resize frame. Every other accessor here is a
-// CFPreferences lookup apiece, which is what FolderArtResolver caches its own
-// setting to avoid. All of them are macOS settings, which is why the whole
-// cache is inside this block; the ivar block below is the list.
+// One setting is left in it: uiUpdateHzCap, read on every live-resize frame.
+// Every other accessor here is a CFPreferences lookup apiece, which is what
+// FolderArtResolver caches its own setting to avoid. The display flags the
+// cache used to carry moved into AppTheme, whose fields are in-memory and
+// need no cache.
 //
 // TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
 // does NOT fire for a write from another process — and the debug channel's
@@ -118,13 +116,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #if TARGET_OS_OSX
     AppTheme   *_currentTheme;
     BOOL        _hotCacheValid;
-    BOOL        _hotShowRemainingTime;
-    BOOL        _hotShowFileInfo;
-    BOOL        _hotShowBPM;
-    BOOL        _hotShowKey;
-    BOOL        _hotKeyColorsEnabled;
     NSInteger   _hotUIUpdateHzCap;
-    NSString   *_hotKeyNotation;
 #endif
 }
 
@@ -184,8 +176,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
     ] mutableCopy];
 #if TARGET_OS_OSX
-    [keys addObjectsFromArray:@[SETTING_WINDOW_TINT_CUSTOM_DARK, SETTING_WINDOW_TINT_CUSTOM_LIGHT,
-                                SETTING_USER_THEMES, SETTING_CURRENT_THEME]];
+    [keys addObjectsFromArray:@[SETTING_USER_THEMES, SETTING_CURRENT_THEME]];
 #endif
     return keys;
 }
@@ -332,8 +323,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
             SETTING_PITCH_RANGE:                    @(8),
-            SETTING_SHOW_REMAINING_TIME:            @(NO),
-            SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
@@ -345,11 +334,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
-            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-            SETTING_KEY_COLORS:                     @(NO),
-            SETTING_SHOW_BPM:                       @(YES),
-            SETTING_SHOW_KEY:                       @(YES),
-            SETTING_WINDOW_TINT:                    SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
             SETTING_ACTIVE_THEME:                   kVibeThemeIdentifierVibe,
@@ -626,14 +610,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if (_hotCacheValid) {
         return;
     }
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    _hotShowRemainingTime = [defaults boolForKey:SETTING_SHOW_REMAINING_TIME];
-    _hotShowFileInfo = [defaults boolForKey:SETTING_SHOW_FILE_INFO];
-    _hotShowBPM = [defaults boolForKey:SETTING_SHOW_BPM];
-    _hotShowKey = [defaults boolForKey:SETTING_SHOW_KEY];
-    _hotKeyColorsEnabled = [defaults boolForKey:SETTING_KEY_COLORS];
     _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
-    _hotKeyNotation = [self storedKeyNotation];
     _hotCacheValid = YES;
 }
 
@@ -739,46 +716,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 #pragma mark Header labels
 
-// Cached; see primeHotCache. Read on every playback tick.
-- (BOOL)showRemainingTime {
-    [self primeHotCache];
-    return _hotShowRemainingTime;
-}
-
-- (void)setShowRemainingTime:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
-    [self invalidateHotCache];
-}
-
-// Cached; read twice per updateUI pass, by the codec and BPM lines.
-- (BOOL)showFileInfo {
-    [self primeHotCache];
-    return _hotShowFileInfo;
-}
-
-- (void)setShowFileInfo:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
-    [self invalidateHotCache];
-}
-
-// Not cached: read once per art install and per appearance flip, not per frame.
-- (NSString *)windowTint {
-    return VibeNormalizedWindowTint([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_TINT]);
-}
-
-- (void)setWindowTint:(NSString *)identifier {
-    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WINDOW_TINT];
-}
-
-- (VibeColor *)windowTintCustomColorForDark:(BOOL)isDark {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
-            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT]);
-}
-
-- (void)setWindowTintCustomColor:(VibeColor *)color forDark:(BOOL)isDark {
-    [self setHexColor:color forKey:
-            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT];
-}
 
 // Not cached: read once per mouse-down on the waveform, not per frame.
 - (NSString *)waveformDragBehavior {
@@ -880,59 +817,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_KEY];
 }
 
-- (NSString *)storedKeyNotation {
-    NSString *notation = [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_KEY_NOTATION];
-    // An unrecognized persisted value renders as Camelot rather than nothing.
-    if (![notation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]) {
-        return SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
-    }
-    return notation;
-}
-
-// Cached; read on every updateUI pass and every fader tick, through
-// effectiveTempoDidChange.
-- (NSString *)keyNotation {
-    [self primeHotCache];
-    return _hotKeyNotation;
-}
-
-- (void)setKeyNotation:(NSString *)notation {
-    [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)showBPM {
-    [self primeHotCache];
-    return _hotShowBPM;
-}
-
-- (void)setShowBPM:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_BPM];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)showKey {
-    [self primeHotCache];
-    return _hotShowKey;
-}
-
-- (void)setShowKey:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_KEY];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)keyColorsEnabled {
-    [self primeHotCache];
-    return _hotKeyColorsEnabled;
-}
-
-- (void)setKeyColorsEnabled:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_KEY_COLORS];
-    [self invalidateHotCache];
-}
 
 #pragma mark Files and conversion
 

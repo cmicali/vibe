@@ -84,13 +84,13 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if (!_currentWaveformRenderer) {
         return;
     }
-    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL isDark = self.isDark;
-    _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
+    _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:theme.waveformTheme
                                                                 isDark:isDark
                                                           artworkColor:self.artworkThemeColor
-                                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
-                                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+                                                          customPlayed:[theme waveformPlayedColorForDark:isDark]
+                                                        customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
     [_currentWaveformRenderer updateColors:isDark];
 }
 
@@ -347,7 +347,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         // Prefer the persisted style, then the app default; the registry owns
         // the chain.
         [self setWaveformStyle:[WaveformRendererRegistry
-                resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]]];
+                resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle]];
     }
     [self drawWaveform];
 }

@@ -245,7 +245,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         }
         // The line itself is AudioTrackMetadata's, shared with the iOS page
         // header; the setting decides only whether it is shown.
-        [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
+        [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
         break;
 
     case TrackDisplayStateLaunchGrace:
@@ -331,7 +331,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
     NSString *text;
-    if (AppSettings.sharedInstance.showRemainingTime) {
+    if (AppSettings.sharedInstance.currentTheme.showRemainingTime) {
         NSTimeInterval remaining = MAX(0, duration / rate - displayPosition);
         text = [VibeNotLocalized(@"-") stringByAppendingString:
                 [[Formatters sharedInstance] durationStringFromTimeInterval:remaining]];
@@ -354,7 +354,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
-    if (!AppSettings.sharedInstance.showFileInfo) {
+    if (!AppSettings.sharedInstance.currentTheme.showFileInfo) {
         // Hidden along with the codec text above it; the FX symbols are deck
         // state, not file info, and keep rendering.
         displayBPM = 0;

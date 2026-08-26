@@ -207,6 +207,28 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
+            // App-side, not a CLI-process prefs write: the key-label display
+            // lives on the current theme, an in-memory object a cross-process
+            // defaults write cannot reach.
+            VibeCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSDictionary<NSString *, NSString *> *notations = @{
+                    @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+                    @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
+                };
+                NSString *notation = tokens.count == 3 ? notations[tokens[1].lowercaseString] : nil;
+                BOOL colorsOn = tokens.count == 3 && [tokens[2] isEqualToString:@"colors"];
+                BOOL colorsOff = tokens.count == 3 && [tokens[2] isEqualToString:@"plain"];
+                if (!notation || (!colorsOn && !colorsOff)) {
+                    return VibeErrorJSON(@"usage: set_key_display <camelot|musical> <colors|plain>");
+                }
+                AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+                theme.keyNotation = notation;
+                theme.keyColorsEnabled = colorsOn;
+                [AppSettings.sharedInstance currentThemeDidChange];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+                return VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
+                                        @"keyColors": @(colorsOn)});
+            }),
             VibeCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
                 if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {

@@ -165,22 +165,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
 
-// The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
-// identifiers above. Normalized on read: an unknown stored value reads as
-// artwork. ArtworkDisplayController's refreshHeaderTint is the one place that
-// resolves it; a writer requests VibeSettingsLiveEffectWindowTint to fade the
-// wash across.
-- (NSString *)windowTint;
-- (void)setWindowTint:(NSString *)identifier;
-
-// The custom tint's color, one per appearance — a wash that reads over dark
-// glass silhouettes the labels over light — persisted as #RRGGBB[AA], the
-// alpha being the wash's strength. nil when unset or unparsable, which
-// resolves as mono, so the pane seeds it when Custom is chosen.
-- (nullable VibeColor *)windowTintCustomColorForDark:(BOOL)isDark;
-- (void)setWindowTintCustomColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
 #pragma mark Themes
+
+// The themed appearance fields — window tint, info-display toggles, key
+// notation and colors, waveform style and palette, fonts, playlist colors,
+// window chrome — are AppTheme's, read through currentTheme below. They have
+// no loose accessors here; the pre-theme keys are migrated at init and
+// consumed.
 
 // The one working theme every appearance consumer reads. Materialized once
 // from the stored working record — or, when none diverges, from the active
@@ -236,18 +228,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)alwaysOnTop;
 - (void)setAlwaysOnTop:(BOOL)onTop;
 
-// The right-hand time label's mode. YES shows the minus-prefixed remaining
-// time, such as "-1:50", and NO, the default, shows the total duration.
-// Clicking the label toggles it.
-- (BOOL)showRemainingTime;
-- (void)setShowRemainingTime:(BOOL)show;
-
-// YES, the default, shows the header's file-format readout (codec, bitrate,
-// sample rate) and the BPM/key line. View > Show File Info and Settings >
-// Appearance share this setting; TrackDisplayController reads it at render
-// time, and VibeSettingsLiveEffectTrackDisplay repaints a toggle.
-- (BOOL)showFileInfo;
-- (void)setShowFileInfo:(BOOL)show;
 
 // What a drag starting on the waveform does — see the SETTINGS_VALUE_WAVEFORM_DRAG_*
 // identifiers above. Normalized on read: an unknown stored value reads as
@@ -333,31 +313,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
 
-// Whether the header shows the tempo at all. Default on; off, the BPM half of
-// the header's readout is blank. Detection is Playback's analyzeBPM — this
-// only hides the readout, and the delay's BPM-synced taps still follow the
-// track's tempo.
-- (BOOL)showBPM;
-- (void)setShowBPM:(BOOL)show;
-
-// Whether the header shows the musical key at all. Default on; off, the
-// notation and color settings below have nothing to govern. Detection is
-// Playback's analyzeKey — this only hides the readout.
-- (BOOL)showKey;
-- (void)setShowKey:(BOOL)show;
-
-// YES draws the key label in the CDJ-style color of its Camelot number, in
-// bold. Default off — the plain dimmed label matches the rest of the corner.
-- (BOOL)keyColorsEnabled;
-- (void)setKeyColorsEnabled:(BOOL)enabled;
-
-// How the key label renders: VibeKeyNotationCamelot ("8A") or
-// VibeKeyNotationMusical ("Am"). Stable identifiers, never display names.
-// It governs every key the app shows, including one read from the file's own
-// tag: a tagged "Bbm" displays as "3A" under Camelot, because the tag is
-// parsed to a VibeMusicalKey at the boundary and never shown as written.
-- (NSString *)keyNotation;
-- (void)setKeyNotation:(NSString *)notation;
 
 // YES makes Convert to FLAC always run the save panel instead of writing the
 // FLAC silently beside the source.
