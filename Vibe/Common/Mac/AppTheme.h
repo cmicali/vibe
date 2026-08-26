@@ -129,6 +129,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
+@property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid
 @property (nonatomic) CGFloat windowCornerRadius;           // clamped [0, kVibeThemeCornerRadiusMax]
@@ -166,6 +167,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 - (void)setWaveformUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)windowTintColorForDark:(BOOL)isDark;
 - (void)setWindowTintColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+- (nullable VibeColor *)playlistTintColorForDark:(BOOL)isDark;
+- (void)setPlaylistTintColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)windowBackgroundColorForDark:(BOOL)isDark;
 - (void)setWindowBackgroundColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)titleColorForDark:(BOOL)isDark;

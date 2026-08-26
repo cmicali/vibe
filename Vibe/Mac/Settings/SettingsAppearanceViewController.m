@@ -19,7 +19,7 @@
 #import "SettingsAppearanceViewController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
-#import "MainPlayerContentView.h" // the playlist wash's unthemed default, shown by the wells
+#import "MainPlayerContentView.h" // the solid background's default, shown by the wells
 #import "PlaylistRowView.h"       // the row fills' unthemed default, shown by the wells
 #import "Fonts.h"
 #import "MainPlayerController+Menus.h"
@@ -133,6 +133,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     SettingsRowView *_customDarkRow, *_customLightRow;
     NSPopUpButton *_playlistBackgroundPopUp;
     NSColorWell *_playlistBackgroundDarkWell, *_playlistBackgroundLightWell;
+    SettingsRowView *_playlistBackgroundColorsRow;
+    NSPopUpButton *_playlistTintPopUp;
+    NSColorWell *_playlistTintDarkWell, *_playlistTintLightWell;
+    SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
     NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
     NSTextField *_mainFontValue, *_infoFontValue, *_playlistFontValue;
@@ -406,6 +410,26 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     _playlistBackgroundDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
     _playlistBackgroundLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _playlistBackgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
+            control:[self darkLightPairWithDark:_playlistBackgroundDarkWell light:_playlistBackgroundLightWell]];
+
+    // The playlist's tint mirrors the window's: the same three choices, the
+    // same custom-color rows shown only under Custom.
+    _playlistTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                             action:@selector(playlistTintChanged:)];
+    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
+    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
+    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
+    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
+    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+    _playlistTintDarkWell = [self themeColorWellWithAction:@selector(playlistTintColorChanged:)];
+    _playlistTintLightWell = [self themeColorWellWithAction:@selector(playlistTintColorChanged:)];
+    _playlistTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
+                                                 control:_playlistTintDarkWell];
+    _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
+                                                  control:_playlistTintLightWell];
+
     _playingRowDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
     _playingRowLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
     _selectedRowDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
@@ -471,8 +495,11 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
                     control:_playlistBackgroundPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
-                    control:[self darkLightPairWithDark:_playlistBackgroundDarkWell light:_playlistBackgroundLightWell]],
+            _playlistBackgroundColorsRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_TINT
+                    control:_playlistTintPopUp],
+            _playlistTintDarkRow,
+            _playlistTintLightRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
                     control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
@@ -614,6 +641,11 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _windowTintLightRow.hidden = !customTint || single;
     _backgroundColorsRow.hidden = ![theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    BOOL customPlaylistTint = [theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _playlistTintDarkRow.hidden = !customPlaylistTint;
+    _playlistTintLightRow.hidden = !customPlaylistTint || single;
+    _playlistBackgroundColorsRow.hidden = ![theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     [self applyEditorVisibility];
 }
 
@@ -718,14 +750,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
     [_playlistBackgroundPopUp selectItemAtIndex:
             [_playlistBackgroundPopUp indexOfItemWithRepresentedObject:theme.playlistBackgroundStyle]];
-    BOOL playlistSolid = [theme.playlistBackgroundStyle
-            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     _playlistBackgroundDarkWell.color = [theme playlistBackgroundColorForDark:YES]
-            ?: (playlistSolid ? [MainPlayerContentView defaultSolidBackgroundColorForDark:YES]
-                              : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:YES]);
+            ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:YES];
     _playlistBackgroundLightWell.color = [theme playlistBackgroundColorForDark:NO]
-            ?: (playlistSolid ? [MainPlayerContentView defaultSolidBackgroundColorForDark:NO]
-                              : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:NO]);
+            ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:NO];
+    [_playlistTintPopUp selectItemAtIndex:
+            [_playlistTintPopUp indexOfItemWithRepresentedObject:theme.playlistTint]];
+    _playlistTintDarkWell.color = [theme playlistTintColorForDark:YES] ?: DefaultWindowTintColor(YES);
+    _playlistTintLightWell.color = [theme playlistTintColorForDark:NO] ?: DefaultWindowTintColor(NO);
     _playingRowDarkWell.color = [theme playlistPlayingRowColorForDark:YES]
             ?: [PlaylistRowView neutralRowFillColorForDark:YES];
     _playingRowLightWell.color = [theme playlistPlayingRowColorForDark:NO]
@@ -1260,8 +1292,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
         // Choosing Solid seeds any unset color from the wells' displayed
-        // fallbacks, so the playlist immediately matches them.
-        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        // fallbacks, so the playlist immediately matches them. Single mode has
+        // one slot, seeded once from the dark default — without the guard the
+        // light pass would land the light default in it.
+        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
             BOOL isDark = darkPass == 1;
             if (![theme playlistBackgroundColorForDark:isDark]) {
                 [theme setPlaylistBackgroundColor:
@@ -1272,7 +1306,30 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     }
     theme.playlistBackgroundStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-    [self refreshFromSettings];
+    [self resolveLayoutStateFromSettings];
+}
+
+- (void)playlistTintChanged:(id)sender {
+    NSString *identifier = _playlistTintPopUp.selectedItem.representedObject;
+    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (custom) {
+        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![theme playlistTintColorForDark:isDark]) {
+                [theme setPlaylistTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
+            }
+        }
+    }
+    theme.playlistTint = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
+    [self resolveLayoutStateFromSettings];
+}
+
+- (void)playlistTintColorChanged:(NSColorWell *)sender {
+    [AppSettings.sharedInstance.currentTheme setPlaylistTintColor:sender.color
+            forDark:(sender == _playlistTintDarkWell)];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
 }
 
 - (void)playlistColorChanged:(NSColorWell *)sender {

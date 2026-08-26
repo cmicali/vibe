@@ -31,7 +31,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // re-resolve every label that holds a slot font.
     VibeSettingsLiveEffectFonts            = 1UL << 15,
     // The playlist's themed colors and font: cell attributes rebuild, rows
-    // redraw, and the wash over the frost re-resolves.
+    // redraw, and the background under the rows re-resolves (glass lift or
+    // solid cover — the tint wash above it rides WindowTint).
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme's solid background can demand a

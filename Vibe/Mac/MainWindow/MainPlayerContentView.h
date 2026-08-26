@@ -36,11 +36,6 @@ NS_ASSUME_NONNULL_BEGIN
 // applyWindowChrome).
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
 
-// The unthemed playlist wash — clear in dark, a white brightening lift in
-// light — shared with the theme editor's wells, which display it as
-// "current".
-+ (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark;
-
 // The solid background's seed — a near-opaque neutral in each appearance's
 // register — shared by the window and playlist Solid choices' editor seeding
 // and the playlist's fallback when a solid style arrives with no color (a
@@ -80,6 +75,10 @@ NS_ASSUME_NONNULL_BEGIN
 // its tint entirely while the window is inactive, and the wash must not change
 // with key state; see ArtworkDisplayController.
 @property (readonly) NSView *headerTintView;
+// The playlist's counterpart: the tint wash over the playlist background —
+// frost or solid cover — under the table, driven by the same controller from
+// the theme's playlistTint.
+@property (readonly) NSView *playlistTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
 @property (readonly) AudioWaveformView *waveformView;
 

@@ -285,7 +285,7 @@
     self.playerContentView.appearanceChangedHandler = ^{
         MainPlayerController *strongSelf = weakControllerForArt;
         if (strongSelf) {
-            [strongSelf->_artworkController refreshHeaderTint];
+            [strongSelf->_artworkController refreshTintWashes];
             // The solid background's color pair resolves per appearance and
             // its layer color is not dynamic.
             [strongSelf applyWindowBackground];
@@ -944,8 +944,9 @@
 }
 
 - (void)refreshWindowTint {
-    // The artwork color has already settled; only re-resolve the wash from it.
-    [_artworkController refreshHeaderTint];
+    // The artwork color has already settled; only re-resolve the header and
+    // playlist washes from it.
+    [_artworkController refreshTintWashes];
 }
 
 // A grant arrived or went. No-grant discovery answers are forgotten; a known

@@ -24,6 +24,7 @@ static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
 static NSString *const kFieldWindowTint = @"windowTint";
+static NSString *const kFieldPlaylistTint = @"playlistTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
 static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
 static NSString *const kFieldWindowCornerRadius = @"windowCornerRadius";
@@ -48,6 +49,7 @@ static NSString *const kFieldShowPlaylistDuration = @"showPlaylistDuration";
 static NSString *const kColorWaveformPlayed = @"waveformPlayedColor";
 static NSString *const kColorWaveformUnplayed = @"waveformUnplayedColor";
 static NSString *const kColorWindowTint = @"windowTintColor";
+static NSString *const kColorPlaylistTint = @"playlistTintColor";
 static NSString *const kColorWindowBackground = @"windowBackgroundColor";
 static NSString *const kColorTitle = @"titleColor";
 static NSString *const kColorArtist = @"artistColor";
@@ -63,8 +65,9 @@ static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
 
 static NSArray<NSString *> *ColorFieldBases(void) {
     return @[kColorWaveformPlayed, kColorWaveformUnplayed, kColorWindowTint,
-             kColorWindowBackground, kColorTitle, kColorArtist, kColorInfo, kColorTime,
-             kColorPlaylistBackground, kColorPlaylistPlayingRow, kColorPlaylistSelectedRow];
+             kColorPlaylistTint, kColorWindowBackground, kColorTitle, kColorArtist,
+             kColorInfo, kColorTime, kColorPlaylistBackground, kColorPlaylistPlayingRow,
+             kColorPlaylistSelectedRow];
 }
 
 static NSSet<NSString *> *ColorFieldKeys(void) {
@@ -127,6 +130,7 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
             kFieldWaveformTheme:         SETTINGS_VALUE_WAVEFORM_THEME_MONO,
             kFieldWaveformGradient:      @(YES),
             kFieldWindowTint:            SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
+            kFieldPlaylistTint:          SETTINGS_VALUE_WINDOW_TINT_MONO,
             kFieldWindowBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
             kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
             kFieldWindowCornerRadius:    @(kVibeThemeCornerRadiusDefault),
@@ -161,6 +165,17 @@ static NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identif
     return [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
             ? SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
             : SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+}
+
+// The window tint's ladder with the playlist's own default: the factory
+// playlist takes no artwork wash, so unknowns snap to mono rather than the
+// window's artwork.
+static NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WINDOW_TINT_MONO;
 }
 
 static NSString *VibeNormalizedKeyNotation(NSString *_Nullable identifier) {
@@ -218,6 +233,9 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
     }
     if ([key isEqualToString:kFieldWindowTint]) {
         return VibeNormalizedWindowTint(raw);
+    }
+    if ([key isEqualToString:kFieldPlaylistTint]) {
+        return VibeNormalizedPlaylistTint(raw);
     }
     if ([key isEqualToString:kFieldWindowBackgroundStyle] ||
         [key isEqualToString:kFieldPlaylistBackgroundStyle]) {
@@ -493,6 +511,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (NSString *)windowTint { return [self stringForKey:kFieldWindowTint]; }
 - (void)setWindowTint:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowTint]; }
 
+- (NSString *)playlistTint { return [self stringForKey:kFieldPlaylistTint]; }
+- (void)setPlaylistTint:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistTint]; }
+
 - (NSString *)windowBackgroundStyle { return [self stringForKey:kFieldWindowBackgroundStyle]; }
 - (void)setWindowBackgroundStyle:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowBackgroundStyle]; }
 
@@ -583,6 +604,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (VibeColor *)windowTintColorForDark:(BOOL)isDark { return [self colorForBase:kColorWindowTint dark:isDark]; }
 - (void)setWindowTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWindowTint dark:isDark]; }
+
+- (VibeColor *)playlistTintColorForDark:(BOOL)isDark { return [self colorForBase:kColorPlaylistTint dark:isDark]; }
+- (void)setPlaylistTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorPlaylistTint dark:isDark]; }
 
 - (VibeColor *)windowBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kColorWindowBackground dark:isDark]; }
 - (void)setWindowBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWindowBackground dark:isDark]; }

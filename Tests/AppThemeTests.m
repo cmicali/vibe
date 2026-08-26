@@ -22,6 +22,7 @@
     XCTAssertEqualObjects(theme.waveformStyle, @"oversampling_detailed_x4");
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
+    XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqual(theme.windowCornerRadius, 20);
@@ -82,6 +83,7 @@
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"waveformTheme": @"purple",
         @"windowTint": @"plaid",
+        @"playlistTint": @"plaid",
         @"windowBackgroundStyle": @"translucent",
         @"playlistBackgroundStyle": @"frosted",
         @"keyNotation": @"solfege",
@@ -90,9 +92,23 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
+    XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
+}
+
+- (void)testPlaylistTintLadderKeepsItsOwnDefault {
+    // The playlist tint shares the window tint's identifiers but not its
+    // fallback: the factory playlist takes no artwork wash, so unknowns snap
+    // to mono while the window's snap to artwork.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"playlistTint": @"artwork"}];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"playlistTint": @"artwork"});
+    theme.playlistTint = @"custom";
+    XCTAssertEqualObjects(theme.playlistTint, @"custom");
+    theme.playlistTint = @"plaid";
+    XCTAssertEqualObjects(theme.playlistTint, @"mono");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
 - (void)testNumbersClampBothEnds {

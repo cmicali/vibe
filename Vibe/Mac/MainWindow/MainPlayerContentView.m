@@ -640,6 +640,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistDimView];
 
+    // The themed tint wash above the background, below the table — the
+    // playlist's headerTintView. ArtworkDisplayController colors it.
+    _playlistTintView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
+    _playlistTintView.wantsLayer = YES;
+    _playlistTintView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self addSubview:_playlistTintView];
+
     // The table — its columns, row metrics and cell construction — belongs
     // entirely to PlaylistTableView. Only the frame is placed here.
     NSScrollView *playlistScrollView = [PlaylistTableView scrollViewWithFrame:
@@ -726,9 +733,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
 }
 
-// The themed wash over the playlist frost: the theme's color when set, else
-// today's appearance-dependent lift (clear in dark, a white brightening wash
-// in light).
+// The glass style's unthemed lift: clear in dark, a white brightening wash in
+// light that lifts row contrast for the dark text while letting the blur
+// through.
 + (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark {
     return dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35];
 }
@@ -743,15 +750,17 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL solid = [theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
-    // Solid removes the behind-window blur outright; the wash layer then
+    // Solid removes the behind-window blur outright; the background layer then
     // carries the whole background over whatever the window backdrop shows.
-    // Under glass the wash is the themed color, else today's appearance lift.
+    // Under glass it is the unthemed appearance lift — the theme's color pair
+    // belongs to the solid cover alone, and any themed color over glass is the
+    // playlist tint wash layered above (ArtworkDisplayController).
     _playlistFrostView.hidden = solid;
-    NSColor *background = [theme playlistBackgroundColorForDark:dark];
-    NSColor *fallback = solid
-            ? [MainPlayerContentView defaultSolidBackgroundColorForDark:dark]
+    NSColor *background = solid
+            ? ([theme playlistBackgroundColorForDark:dark]
+                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:dark])
             : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
-    _playlistDimView.layer.backgroundColor = (background ?: fallback).CGColor;
+    _playlistDimView.layer.backgroundColor = background.CGColor;
 }
 
 // The one home of the pre/post-26 backdrop dichotomy: Liquid Glass takes a
