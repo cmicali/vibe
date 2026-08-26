@@ -331,7 +331,8 @@ static NSTextField *makeCellTextField(NSRect frame) {
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {
-    return thumbnail ?: [NSImage imageNamed:@"record-bg"];
+    return thumbnail ?: [AppTheme imageForDefaultAlbumArt:
+            AppSettings.sharedInstance.currentTheme.defaultAlbumArt];
 }
 
 @end

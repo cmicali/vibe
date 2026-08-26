@@ -3,7 +3,6 @@
   "strings": {
     "a11y.favorite.add": {
       "comment": "iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -185,11 +184,11 @@
             "value": "加入收藏"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.favorite.remove": {
       "comment": "iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -371,11 +370,11 @@
             "value": "從收藏中移除"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.miniplayer.expand": {
       "comment": "iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -557,11 +556,11 @@
             "value": "正在播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.pitch_fader": {
       "comment": "Accessibility label for the pitch fader, the slider that speeds the track up or slows it down like a turntable's. Read aloud by a screen reader, never drawn on screen; the drawn legend is the separate upper-case 'PITCH'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -743,11 +742,11 @@
             "value": "Pitch"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.player.minimize": {
       "comment": "iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -929,11 +928,11 @@
             "value": "最小化"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.player.output_route": {
       "comment": "iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1115,11 +1114,11 @@
             "value": "輸出裝置"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.playlist.open": {
       "comment": "Accessibility label for the empty playlist pane's drop well, which opens the file picker when pressed.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1301,11 +1300,11 @@
             "value": "打開曲目或檔案夾"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.playlist.toggle": {
       "comment": "Accessibility label for the button that shows and hides the playlist.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1487,11 +1486,11 @@
             "value": "顯示或隱藏播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.waveform": {
       "comment": "Accessibility label for the waveform, which is a slider: it shows where playback has reached in the track and seeks when adjusted. Read aloud by a screen reader, never drawn on screen. Both platforms.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1673,11 +1672,11 @@
             "value": "播放位置"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.window.close": {
       "comment": "Accessibility label for the window's close button.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1859,11 +1858,11 @@
             "value": "關閉"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a11y.window.minimize": {
       "comment": "Accessibility label for the window's minimize button.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2045,11 +2044,11 @@
             "value": "縮到最小"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "app.name": {
       "comment": "The application's name, as shown in the app menu and as the window title. A product name — translate only if it would otherwise be unreadable in the target script.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2231,11 +2230,11 @@
             "value": "Vibe"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "button.ok": {
       "comment": "Dismiss button of an alert that only reports something, with nothing to choose. Use the wording the system uses for this button in this language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2417,11 +2416,11 @@
             "value": "好"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "button.open": {
       "comment": "iOS: button that opens the system document picker to choose a folder or file to play.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2603,11 +2602,11 @@
             "value": "打開"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.device_unavailable": {
       "comment": "Inline playback error: no usable audio output device.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2789,11 +2788,11 @@
             "value": "音訊裝置無法使用"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.engine_start_failed": {
       "comment": "Inline playback error: the audio engine failed to start.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2975,11 +2974,11 @@
             "value": "無法開始播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.favorite.unavailable": {
       "comment": "iOS: alert message shown when tapping a favorite whose folder could not be found. The alert’s title is the folder’s name. Uses a curly apostrophe (’).",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3161,11 +3160,11 @@
             "value": "目前無法打開此檔案夾。它可能已被移動或刪除，或者其雲端服務已登出。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.folder_empty": {
       "comment": "iOS: shown after picking a folder that contains no playable audio files.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3347,11 +3346,11 @@
             "value": "此檔案夾中沒有音訊檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.load_timeout": {
       "comment": "Inline playback error: opening the file took too long, e.g. an undownloaded cloud file.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3533,11 +3532,11 @@
             "value": "載入逾時"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.open_failed": {
       "comment": "Inline playback error: the audio file could not be opened.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3719,11 +3718,11 @@
             "value": "無法打開檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "error.playback_generic": {
       "comment": "Inline playback error: fallback for an unrecognized failure.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3905,11 +3904,11 @@
             "value": "播放錯誤"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.about.version": {
       "comment": "About window, and the About screen on both platforms: %@ is the version number, e.g. '1.5 (15) · Release'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4091,11 +4090,11 @@
             "value": "版本 %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.bitrate": {
       "comment": "Codec label: bitrate in kilobits per second, e.g. '320 kbps'. %@ is the already-formatted number.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4277,11 +4276,11 @@
             "value": "%@ kbps"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.bpm": {
       "comment": "Tempo label: beats per minute, e.g. '128.0 BPM'. %@ is the already-formatted number.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4463,11 +4462,11 @@
             "value": "%@ BPM"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.convert.save_message": {
       "comment": "Message atop the save panel that appears when the app may not write next to the source file.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4649,11 +4648,11 @@
             "value": "請選取轉換後的 FLAC 檔案的儲存位置。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.drop_hint": {
       "comment": "Empty-state hint shown when no track is loaded. %@ is the Open shortcut, rendered as key glyphs (⌘O) — keep it as a placeholder, don't spell it out.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4835,11 +4834,11 @@
             "value": "拖放檔案或按 %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.favorites.empty.message": {
       "comment": "iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5021,11 +5020,11 @@
             "value": "打開檔案夾後點一下星號，即可保留在這裡。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.favorites.empty.title": {
       "comment": "iOS: headline of the empty favorites screen, shown when the user has not starred any folder yet.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5207,11 +5206,11 @@
             "value": "沒有收藏"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.library.empty.message": {
       "comment": "iOS: explanatory line under the empty library headline, above the Open button.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5393,11 +5392,11 @@
             "value": "選擇檔案夾或檔案即可開始。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.library.empty.title": {
       "comment": "iOS: headline of the empty library screen, shown when no folder or file has been opened.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5579,11 +5578,11 @@
             "value": "沒有可播放的內容"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.pitch": {
       "comment": "Label above the pitch fader. Upper-case, like the printed legend on a DJ turntable. Very tight space — about 8 characters.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5765,11 +5764,11 @@
             "value": "PITCH"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.playlist.drag_hint": {
       "comment": "Empty playlist pane, first hint line: invites dragging files in.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -5951,11 +5950,11 @@
             "value": "將曲目或檔案夾拖到這裡"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.playlist.drop_add": {
       "comment": "Drop-target label shown while dragging files over the playlist: dropping here appends to the playlist.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6137,11 +6136,11 @@
             "value": "放開以加入播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.playlist.drop_replace": {
       "comment": "Drop-target label shown while dragging files over a populated playlist: dropping here replaces the whole playlist.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6323,11 +6322,11 @@
             "value": "放開以取代播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.playlist.or_press": {
       "comment": "Empty playlist pane, second hint line: followed by a drawn ⌘O keycap, reading 'or press ⌘O'. Lower-case — it continues the first line's sentence.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6509,11 +6508,11 @@
             "value": "或按"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.sample_rate": {
       "comment": "Codec label: sample rate in kilohertz, e.g. '44.1 kHz'. %@ is the already-formatted number.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6695,11 +6694,11 @@
             "value": "%@ kHz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.search": {
       "comment": "iOS: title and placeholder of the search screen, which searches both the current playlist and the files in reach.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6881,11 +6880,11 @@
             "value": "搜尋"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.time.unknown": {
       "comment": "Placeholder in the elapsed/total time labels when the time is not yet known.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7067,11 +7066,11 @@
             "value": "--:--"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "label.track.artist_title": {
       "comment": "Single-line track label when artist and title are both known. %1$@ is the artist, %2$@ the title — reorder them if that reads better.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7253,11 +7252,11 @@
             "value": "%1$@ - %2$@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.about": {
       "comment": "App menu item: opens the About window. %@ is the app name. Also the About window's title.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7439,11 +7438,11 @@
             "value": "關於 %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.hide": {
       "comment": "App menu item: hides the app. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7625,11 +7624,11 @@
             "value": "隱藏 %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.hide_others": {
       "comment": "App menu item: hides every other application.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7811,11 +7810,11 @@
             "value": "隱藏其他"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.quit": {
       "comment": "App menu item: quits the app. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -7997,11 +7996,11 @@
             "value": "結束 %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.services": {
       "comment": "App menu: submenu of system Services. macOS uses this same name in every app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -8183,11 +8182,11 @@
             "value": "服務"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.settings": {
       "comment": "App menu item: opens the Settings window. macOS uses this same name in every app. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -8369,11 +8368,11 @@
             "value": "設定…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.app.show_all": {
       "comment": "App menu item: unhides all applications.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -8555,11 +8554,11 @@
             "value": "顯示全部"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.context.show_in_finder": {
       "comment": "Context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -8741,11 +8740,11 @@
             "value": "在 Finder 中顯示"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.convert": {
       "comment": "Menu bar: the Convert menu.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -8927,11 +8926,11 @@
             "value": "轉換"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.convert.converting": {
       "comment": "Convert menu item, disabled: replaces 'Convert to FLAC' while a conversion is running. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -9113,11 +9112,11 @@
             "value": "轉換中…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.convert.delete_original": {
       "comment": "Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -9299,11 +9298,11 @@
             "value": "轉換後刪除原始檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.convert.flac_exists": {
       "comment": "Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -9485,11 +9484,11 @@
             "value": "FLAC 已存在"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.convert.to_flac": {
       "comment": "Convert menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -9671,11 +9670,11 @@
             "value": "轉換為 FLAC"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit": {
       "comment": "Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items, Remove from Playlist and Select All.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -9857,11 +9856,11 @@
             "value": "編輯"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.copy_file": {
       "comment": "Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10043,11 +10042,11 @@
             "value": "拷貝檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.copy_name": {
       "comment": "Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10229,11 +10228,11 @@
             "value": "拷貝名稱"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.redo": {
       "comment": "Edit menu item: redoes the last undone action. macOS uses this same name in every app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10415,11 +10414,11 @@
             "value": "重做"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.remove_from_playlist": {
       "comment": "Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10601,11 +10600,11 @@
             "value": "從播放列表中移除"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.reorder": {
       "comment": "Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10787,11 +10786,11 @@
             "value": "重新排序"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.select_all": {
       "comment": "Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10973,11 +10972,11 @@
             "value": "全選"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.edit.undo": {
       "comment": "Edit menu item: undoes the last action. macOS uses this same name in every app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11159,11 +11158,11 @@
             "value": "還原"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file": {
       "comment": "Menu bar: the File menu.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11345,11 +11344,11 @@
             "value": "檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file.close": {
       "comment": "File menu item: unloads the current track. Becomes 'Close All Files' when more than one is loaded — two independent strings, not a plural; the count is never shown.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11531,11 +11530,11 @@
             "value": "關閉檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file.close_all": {
       "comment": "File menu item: unloads the whole playlist. Replaces 'Close File' when more than one track is loaded.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11717,11 +11716,11 @@
             "value": "關閉所有檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file.open": {
       "comment": "File menu item: shows the open panel. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -11903,11 +11902,11 @@
             "value": "打開…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file.open_recent": {
       "comment": "File menu: submenu listing recently opened files.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12089,11 +12088,11 @@
             "value": "打開最近使用過的"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.file.open_recent.clear": {
       "comment": "Open Recent submenu: empties the list of recent files.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12275,11 +12274,11 @@
             "value": "清除選單"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx": {
       "comment": "Menu bar: the effects menu. 'FX' is the standard DJ-console abbreviation for effects; keep it short — this is a top-level menu title.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12461,11 +12460,11 @@
             "value": "FX"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx.delay_16": {
       "comment": "FX menu item: delay synced to sixteenth notes. '1/16' is a note value — keep the fraction.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12647,11 +12646,11 @@
             "value": "延遲 1/16"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx.delay_8": {
       "comment": "FX menu item: delay synced to eighth notes. '1/8' is a note value — keep the fraction.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12833,11 +12832,11 @@
             "value": "延遲 1/8"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx.low_kill": {
       "comment": "FX menu item: high-pass filter that removes the bass.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13019,11 +13018,11 @@
             "value": "低頻切除"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx.low_kill_boost": {
       "comment": "FX menu item: raises the Low Kill filter's cutoff further.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13205,11 +13204,11 @@
             "value": "低頻切除增強"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.fx.reverb": {
       "comment": "FX menu item: reverb send.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13391,11 +13390,11 @@
             "value": "殘響"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.help": {
       "comment": "Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13577,11 +13576,11 @@
             "value": "輔助說明"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.help.support": {
       "comment": "Help menu item: opens the app's support page in the browser, where a user gets help or reports a problem.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13763,11 +13762,11 @@
             "value": "取得支援"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.output": {
       "comment": "Menu bar: the menu selecting the audio output device.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -13949,11 +13948,11 @@
             "value": "輸出"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.output.system": {
       "comment": "Output menu item: follow the system's default output device, used when its name is unknown.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -14135,11 +14134,11 @@
             "value": "系統輸出"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.output.system_named": {
       "comment": "Output menu item: follow the system's default output device. %@ is that device's name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -14321,11 +14320,11 @@
             "value": "系統輸出（%@）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback": {
       "comment": "Menu bar: the Playback menu.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -14507,11 +14506,11 @@
             "value": "播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.pitch_range": {
       "comment": "Playback menu: submenu selecting the pitch fader's range (±8% or ±16%).",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -14693,11 +14692,11 @@
             "value": "音高範圍"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.pitch_range.16": {
       "comment": "Pitch Range submenu item: a ±16% fader range. Matches the printed scale on the fader itself.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -14879,11 +14878,11 @@
             "value": "16%"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.pitch_range.8": {
       "comment": "Pitch Range submenu item: a ±8% fader range. Matches the printed scale on the fader itself.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15065,11 +15064,11 @@
             "value": "8%"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.play_selected": {
       "comment": "Playback menu item: play the playlist row the user has selected, rather than the one already playing.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15251,11 +15250,11 @@
             "value": "播放所選曲目"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_back": {
       "comment": "Playback menu item: seek backward a short step.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15437,11 +15436,11 @@
             "value": "倒退一小段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_back_more": {
       "comment": "Playback menu item: seek backward a medium step, larger than 'Skip Back'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15623,11 +15622,11 @@
             "value": "倒退一段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_back_most": {
       "comment": "Playback menu item: seek backward the largest step.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15809,11 +15808,11 @@
             "value": "倒退一大段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_forward": {
       "comment": "Playback menu item: seek forward a short step.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15995,11 +15994,11 @@
             "value": "前進一小段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_forward_more": {
       "comment": "Playback menu item: seek forward a medium step, larger than 'Skip Forward'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16181,11 +16180,11 @@
             "value": "前進一段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.playback.skip_forward_most": {
       "comment": "Playback menu item: seek forward the largest step.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16367,11 +16366,11 @@
             "value": "前進一大段"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view": {
       "comment": "Menu bar: the View menu.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16553,11 +16552,11 @@
             "value": "顯示方式"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.always_on_top": {
       "comment": "View menu item: checkmarked toggle that keeps the player window above all other apps' windows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16739,11 +16738,11 @@
             "value": "永遠顯示在最上層"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.appearance": {
       "comment": "View menu: submenu choosing the light/dark appearance; also the Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for all three.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16925,11 +16924,11 @@
             "value": "外觀"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.appearance.dark": {
       "comment": "Appearance choice, View menu and Settings: always use the dark appearance.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17111,11 +17110,11 @@
             "value": "深色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.appearance.light": {
       "comment": "Appearance choice, View menu and Settings: always use the light appearance.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17297,11 +17296,11 @@
             "value": "淺色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.appearance.system": {
       "comment": "Appearance choice, View menu and Settings: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17483,11 +17482,11 @@
             "value": "自動"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.file_info": {
       "comment": "View menu item: checkmarked toggle showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17669,11 +17668,11 @@
             "value": "顯示檔案資訊"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.pitch_control": {
       "comment": "View menu item: shows the pitch fader panel.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17855,11 +17854,11 @@
             "value": "顯示音高控制"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.playlist": {
       "comment": "View menu item: expands the window to show the playlist.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18041,11 +18040,11 @@
             "value": "顯示播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.size": {
       "comment": "View menu: submenu choosing the window's width preset.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18227,11 +18226,11 @@
             "value": "大小"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.size.default": {
       "comment": "Size menu item: the standard window width.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18413,11 +18412,11 @@
             "value": "預設"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.size.large": {
       "comment": "Size menu item: the widest window width preset.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18599,11 +18598,11 @@
             "value": "大"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.size.small": {
       "comment": "Size menu item: the narrowest window width.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18785,11 +18784,11 @@
             "value": "小"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.theme": {
       "comment": "View menu: submenu selecting the appearance theme; checkmarks the active one.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -18971,11 +18970,11 @@
             "value": "主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.theme.edit": {
       "comment": "Theme submenu item: opens Settings on the theme editor. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19157,11 +19156,11 @@
             "value": "編輯主題…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "menu.view.waveform": {
       "comment": "View menu: submenu choosing the waveform drawing style.",
-      "extractionState": "stale",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19343,11 +19342,11 @@
             "value": "波形"
           }
         }
-      }
+      },
+      "extractionState": "stale"
     },
     "playlist.grant.button": {
       "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19529,11 +19528,11 @@
             "value": "允許取用"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "playlist.grant.message": {
       "comment": "Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %1$@ is the app name, %2$@ the playlist file's name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19715,11 +19714,11 @@
             "value": "%1$@ 需要權限才能讀取「%2$@」中列出的音訊檔案。請選擇包含這些檔案的檔案夾。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "search.files.scanning": {
       "comment": "iOS: shown under the search results while the app is still looking through the user's files, so a short list reads as incomplete rather than final. Ends with an ellipsis character.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -19901,11 +19900,11 @@
             "value": "正在搜尋檔案…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "search.section.files": {
       "comment": "iOS: header of the search results section listing matching audio files found elsewhere in the user's files, which are not in the playlist yet.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20087,11 +20086,11 @@
             "value": "檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "search.section.playlist": {
       "comment": "iOS: header of the search results section listing matches among the tracks queued to play.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20273,11 +20272,11 @@
             "value": "播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.about": {
       "comment": "Settings window: the About pane's sidebar item, and the window's title while that pane is selected; also the About row and screen title on iOS. It shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20459,11 +20458,11 @@
             "value": "關於"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.about.support": {
       "comment": "Settings, About pane on both platforms: row title beside the link to the app's support page, where a user gets help or reports a problem.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20645,11 +20644,11 @@
             "value": "支援"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.about.web": {
       "comment": "Settings, About pane on both platforms: row title beside the link to the app's website. Short label for a website address; keep it to one word.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20831,11 +20830,11 @@
             "value": "網站"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced": {
       "comment": "Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21017,11 +21016,11 @@
             "value": "進階"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.audio_played_label": {
       "comment": "Settings, About pane on both platforms, statistics: label beside the total listening time, shown in words like '3 days, 4 hours'. Ends with a colon, dropped where the layout puts the value in its own column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21203,11 +21202,11 @@
             "value": "已播放音訊："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.build_section": {
       "comment": "Settings, Advanced pane: heading above the rows describing this exact build of the app — version, source revision and languages. 'Build' as the software-development noun.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21389,11 +21388,11 @@
             "value": "建置"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.cache_label": {
       "comment": "Settings, Advanced pane: label beside the readout of the metadata and waveform caches' current size. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21575,11 +21574,11 @@
             "value": "快取大小："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.cache_value": {
       "comment": "Settings, Advanced pane: the cache-size readout, e.g. '312 files, 48.2 MB'. %1$@ is the already-formatted file count, %2$@ the already-formatted megabytes.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21761,11 +21760,11 @@
             "value": "%1$@個檔案，%2$@ MB"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.clear_cache": {
       "comment": "Settings, Advanced pane: button that empties the metadata and waveform caches.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -21947,11 +21946,11 @@
             "value": "清除快取"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.factory_reset_label": {
       "comment": "Settings, Advanced pane: label beside the Reset to Defaults button, which restores every setting and the window shape to their shipping state. The term a consumer device uses for restoring factory settings. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22133,11 +22132,11 @@
             "value": "出廠設定："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.files_opened_label": {
       "comment": "Settings, About pane on both platforms, statistics: label beside the lifetime count of files opened. Ends with a colon, dropped where the layout puts the value in its own column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22319,11 +22318,11 @@
             "value": "打開的檔案："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.folders_opened_label": {
       "comment": "Settings, About pane on both platforms, statistics: label beside the lifetime count of folders opened. Ends with a colon, dropped where the layout puts the value in its own column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22505,11 +22504,11 @@
             "value": "打開的檔案夾："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.git_label": {
       "comment": "Settings, Advanced pane, Build group: label beside the source-control revision the app was built from. 'Git' is the version-control system's name and is not translated. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22691,11 +22690,11 @@
             "value": "Git 雜湊："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.language_label": {
       "comment": "Settings, Advanced pane, Build group: label beside the language the app is currently running in. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22877,11 +22876,11 @@
             "value": "語言："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.languages_label": {
       "comment": "Settings, Advanced pane, Build group: label beside the row of flags for every language this build ships. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23063,11 +23062,11 @@
             "value": "可用語言："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.refresh_rate.high": {
       "comment": "Settings, Advanced pane, playhead refresh choice: up to sixty redraws a second, the smoothest and the most power-hungry. Hz is the international unit symbol for times per second and is not translated.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23249,11 +23248,11 @@
             "value": "高（60 Hz）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.refresh_rate.low": {
       "comment": "Settings, Advanced pane, playhead refresh choice: the slowest and cheapest, three redraws a second. Hz is the international unit symbol for times per second and is not translated.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23435,11 +23434,11 @@
             "value": "低（3 Hz）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.refresh_rate.normal": {
       "comment": "Settings, Advanced pane, playhead refresh choice: up to thirty redraws a second. The default. Hz is the international unit symbol for times per second and is not translated.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23621,11 +23620,11 @@
             "value": "標準（30 Hz）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.refresh_rate_label": {
       "comment": "Settings, Advanced pane: label beside the dropdown choosing how often the playhead — the marker moving across the waveform — is redrawn. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23807,11 +23806,11 @@
             "value": "播放磁頭更新："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.reset_defaults": {
       "comment": "Settings, Advanced pane: button that returns every setting to its default value. Disabled while nothing has been changed.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23993,11 +23992,11 @@
             "value": "重設為預設值"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.stats_section": {
       "comment": "Settings, About pane on both platforms: heading above the group of lifetime playback-statistics rows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24179,11 +24178,11 @@
             "value": "統計"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.advanced.version_label": {
       "comment": "Settings, Advanced pane, Build group: label beside the app's version number. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24365,11 +24364,11 @@
             "value": "版本："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.appearance_label": {
       "comment": "Settings, Appearance pane: label beside the light/dark appearance choice. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24551,11 +24550,11 @@
             "value": "外觀："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.file_info": {
       "comment": "Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24737,11 +24736,11 @@
             "value": "顯示檔案資訊"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.fonts_section": {
       "comment": "Theme editor: heading above the three font rows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24923,11 +24922,11 @@
             "value": "字體"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.key_colors": {
       "comment": "Settings, Appearance pane: checkbox — when on, the key readout is drawn bold and in the color that key occupies on the Camelot wheel. 'Camelot' is the name of that wheel, a proper noun, left untranslated.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25109,11 +25108,11 @@
             "value": "使用 Camelot 配色顯示調性"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.key_notation.camelot": {
       "comment": "Settings, Appearance pane, key notation choice: the Camelot wheel numbers DJs use for harmonic mixing. Keep 'Camelot' and the '8A' example untranslated — they are notation. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25295,11 +25294,11 @@
             "value": "Camelot (8A)"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.key_notation.musical": {
       "comment": "Settings, Appearance pane, key notation choice: standard musical note names. Keep the 'Am' example untranslated — it is notation.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25481,11 +25480,11 @@
             "value": "音樂記法 (Am)"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.key_notation_label": {
       "comment": "Settings, Appearance pane: label beside the choice of how the musical key is written. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25667,11 +25666,11 @@
             "value": "調性記法："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.player_section": {
       "comment": "Theme editor: heading above the player rows — the label colors and the info-display choices.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25853,11 +25852,11 @@
             "value": "播放器"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.playlist_section": {
       "comment": "Theme editor: heading above the playlist background and row-color rows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26039,11 +26038,11 @@
             "value": "播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.show_bpm": {
       "comment": "Settings, Appearance pane: switch showing or hiding the header's tempo readout. BPM is beats per minute. Off leaves detection and tags untouched.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26225,11 +26224,11 @@
             "value": "顯示 BPM"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.show_key": {
       "comment": "Settings, Appearance pane: switch showing or hiding the header's musical-key readout. Off dims the key notation and key color rows below it, which then have nothing to govern.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26411,11 +26410,11 @@
             "value": "顯示調性"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.show_traffic_lights": {
       "comment": "Settings, Appearance pane, Window group: switch showing or hiding the main window's custom close and minimize buttons. The buttons are the red and yellow macOS-style dots. The default is on.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26597,11 +26596,11 @@
             "value": "顯示視窗控制按鈕"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.add": {
       "comment": "Settings, Appearance pane: pull-down button over the ways to add a theme — new, duplicate, import.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26783,11 +26782,11 @@
             "value": "加入"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.add_new": {
       "comment": "Add menu item: creates a theme from the current appearance. Also the created theme's default name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26969,11 +26968,941 @@
             "value": "新增主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.album_art": {
+      "comment": "Theme editor, Player group: row beside the dropdown choosing the placeholder image shown when a track has no artwork.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обложка на албума"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obal alba"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumcover"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumcover"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εξώφυλλο άλμπουμ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album art"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portada del álbum"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumin kansi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pochette d’album"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omot albuma"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumborító"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sampul album"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copertina album"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アルバムアート"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앨범 아트"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumomslag"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumhoes"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okładka albumu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capa do álbum"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capa do álbum"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coperta albumului"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обложка альбома"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obal albumu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albumomslag"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ปกอัลบั้ม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albüm Kapağı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обкладинка альбому"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bìa album"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "专辑封面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "專輯封面"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.album_art_custom": {
+      "comment": "Theme editor, Album art dropdown: pick a square JPEG or PNG of your own; opens a file panel.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Персонализирана…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vlastní…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilpasset…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenes…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσαρμοσμένο…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizada…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muokattu…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personnalisée…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilagođeno…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egyéni…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kustom…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizzata…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カスタム…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용자화…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilpasset…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aangepast…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niestandardowa…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizada…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizada…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personalizată…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своя…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vlastný…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anpassad…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กำหนดเอง…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özel…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Власна…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tùy chỉnh…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.album_art_default": {
+      "comment": "Theme editor, Album art dropdown: the factory record image.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стандартна"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Výchozí"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προεπιλογή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por omisión"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oletus"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par défaut"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadano"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alapértelmezett"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bawaan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predefinita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기본"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standaard"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domyślna"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padrão"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predefinição"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Implicită"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стандартная"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predvolený"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ค่าเริ่มต้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılan"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стандартна"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mặc định"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.album_art_invalid": {
+      "comment": "Alert title when a picked album-art image fails validation.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Това изображение не може да се използва."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento obrázek nelze použít."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dette billede kan ikke bruges."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Bild kann nicht verwendet werden."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτή η εικόνα δεν μπορεί να χρησιμοποιηθεί."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This image can’t be used."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen no se puede usar."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tätä kuvaa ei voi käyttää."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette image ne peut pas être utilisée."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova se slika ne može koristiti."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez a kép nem használható."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gambar ini tidak dapat digunakan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa immagine non può essere usata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この画像は使用できません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 이미지는 사용할 수 없습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dette bildet kan ikke brukes."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze afbeelding kan niet worden gebruikt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można użyć tego obrazka."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagem não pode ser usada."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagem não pode ser utilizada."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Această imagine nu poate fi folosită."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это изображение нельзя использовать."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento obrázok nie je možné použiť."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den här bilden kan inte användas."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถใช้รูปภาพนี้ได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu görsel kullanılamaz."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Це зображення не можна використати."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể dùng hình ảnh này."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法使用此图像。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法使用此圖像。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.album_art_requirements": {
+      "comment": "Alert detail under the invalid-album-art title, stating every requirement.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изображението трябва да е квадратен JPEG или PNG, между 64 и 4096 пиксела, под 8 МБ."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrázek musí být čtvercový JPEG nebo PNG, 64 až 4096 pixelů, do 8 MB."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Billedet skal være et kvadratisk JPEG eller PNG, mellem 64 og 4096 pixels, under 8 MB."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild muss ein quadratisches JPEG oder PNG sein, zwischen 64 und 4096 Pixeln, unter 8 MB."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Η εικόνα πρέπει να είναι τετράγωνη JPEG ή PNG, από 64 έως 4096 pixel, κάτω από 8 MB."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The image must be a square JPEG or PNG, between 64 and 4096 pixels, under 8 MB."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La imagen debe ser un JPEG o PNG cuadrado, de entre 64 y 4096 píxeles, de menos de 8 MB."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kuvan on oltava neliömäinen JPEG tai PNG, 64–4096 pikseliä, alle 8 Mt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’image doit être un JPEG ou PNG carré, entre 64 et 4096 pixels, de moins de 8 Mo."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slika mora biti kvadratni JPEG ili PNG, između 64 i 4096 piksela, ispod 8 MB."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A képnek négyzet alakú JPEG-nek vagy PNG-nek kell lennie, 64 és 4096 pixel között, 8 MB alatt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gambar harus JPEG atau PNG persegi, antara 64 dan 4096 piksel, di bawah 8 MB."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’immagine deve essere un JPEG o PNG quadrato, tra 64 e 4096 pixel, sotto gli 8 MB."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画像は正方形のJPEGまたはPNGで、64〜4096ピクセル、8 MB未満である必要があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미지는 정사각형 JPEG 또는 PNG여야 하며, 64~4096픽셀, 8MB 미만이어야 합니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildet må være et kvadratisk JPEG eller PNG, mellom 64 og 4096 piksler, under 8 MB."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De afbeelding moet een vierkante JPEG of PNG zijn, tussen 64 en 4096 pixels, kleiner dan 8 MB."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrazek musi być kwadratowym plikiem JPEG lub PNG, od 64 do 4096 pikseli, poniżej 8 MB."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A imagem deve ser um JPEG ou PNG quadrado, entre 64 e 4096 pixels, com menos de 8 MB."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A imagem deve ser um JPEG ou PNG quadrado, entre 64 e 4096 píxeis, com menos de 8 MB."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imaginea trebuie să fie un JPEG sau PNG pătrat, între 64 și 4096 de pixeli, sub 8 MB."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изображение должно быть квадратным JPEG или PNG, от 64 до 4096 пикселей, менее 8 МБ."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrázok musí byť štvorcový JPEG alebo PNG, 64 až 4096 pixelov, do 8 MB."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilden måste vara en kvadratisk JPEG eller PNG, mellan 64 och 4096 pixlar, under 8 MB."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รูปภาพต้องเป็น JPEG หรือ PNG จัตุรัส ขนาด 64 ถึง 4096 พิกเซล และเล็กกว่า 8 MB"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görsel kare bir JPEG veya PNG olmalı, 64 ile 4096 piksel arasında ve 8 MB altında olmalıdır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зображення має бути квадратним JPEG або PNG, від 64 до 4096 пікселів, менш ніж 8 МБ."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hình ảnh phải là JPEG hoặc PNG vuông, từ 64 đến 4096 pixel, dưới 8 MB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图像必须是正方形的JPEG或PNG，64至4096像素，小于8 MB。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖像必須是正方形的JPEG或PNG，64至4096像素，小於8 MB。"
+          }
+        }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.appearance": {
       "comment": "Theme editor, Window group: row beside the dropdown choosing whether the theme keeps one color set used in every appearance (single mode) or separate colors for light and dark.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27155,11 +28084,11 @@
             "value": "外觀"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.back": {
       "comment": "Settings toolbar: the back half of the navigation control — returns from the theme editor page to the theme list. Accessibility label.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27341,11 +28270,11 @@
             "value": "返回"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.background.glass": {
       "comment": "Window background choice: the translucent glass look the app ships with.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27527,11 +28456,11 @@
             "value": "玻璃"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.background.solid": {
       "comment": "Window background choice: a picked color covers the glass; the color's opacity decides how much glass still shows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27713,11 +28642,11 @@
             "value": "純色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.background_colors": {
       "comment": "Theme editor, Window group: row beside the solid background's two color wells, one per appearance.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27899,11 +28828,11 @@
             "value": "背景顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.background_label": {
       "comment": "Theme editor, Window group: row beside the dropdown choosing the window background — the glass look, or a solid color.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28085,11 +29014,11 @@
             "value": "背景"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.built_in_caption": {
       "comment": "Theme editor: caption on a built-in theme's read-only page, shown beside a Duplicate button that makes an editable copy.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28271,11 +29200,11 @@
             "value": "內建主題無法編輯。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.color_artist": {
       "comment": "Theme editor, Window group: row beside the secondary text's color wells — the artist lines and the playlist's number and length columns.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28457,11 +29386,11 @@
             "value": "藝人顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.color_info": {
       "comment": "Theme editor, Window group: row beside the color wells for the header's codec and BPM/key readouts.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28643,11 +29572,11 @@
             "value": "資訊顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.color_times": {
       "comment": "Theme editor, Window group: row beside the color wells for the two time labels.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28829,11 +29758,11 @@
             "value": "時間顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.color_title": {
       "comment": "Theme editor, Window group: row beside the title text's color wells. Governs the header title and the playlist titles.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29015,11 +29944,11 @@
             "value": "標題顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.corner_radius": {
       "comment": "Theme editor, Window group: row beside the slider rounding the window's corners.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29201,11 +30130,11 @@
             "value": "圓角半徑"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.corner_radius_value": {
       "comment": "Theme editor: the corner-radius slider's live readout, e.g. '20 px'. %ld is the radius in pixels.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29387,11 +30316,11 @@
             "value": "%ld px"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.dark": {
       "comment": "Theme editor: caption after a color well — the color used while the app is in dark mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29573,11 +30502,11 @@
             "value": "深色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.duplicate": {
       "comment": "Add menu item, and the button on a built-in theme's read-only editor page: copies the selected theme into an editable one.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29759,11 +30688,11 @@
             "value": "複製"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.edit": {
       "comment": "Settings, Appearance pane: button that opens the selected theme's editor page. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29945,11 +30874,11 @@
             "value": "編輯…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.export": {
       "comment": "Settings, Appearance pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30131,11 +31060,11 @@
             "value": "匯出…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_info": {
       "comment": "Theme editor, Fonts group: row for the font of the times and the codec and BPM/key readouts.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30317,11 +31246,11 @@
             "value": "資訊字體"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_main": {
       "comment": "Theme editor, Fonts group: row for the title and artist font.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30503,11 +31432,11 @@
             "value": "主要字體"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_playlist": {
       "comment": "Theme editor, Fonts group: row for the playlist rows' font.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30689,11 +31618,11 @@
             "value": "播放列表字體"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_playlist_duration": {
       "comment": "Theme editor, Fonts group: row for the font of the playlist's duration column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30875,11 +31804,11 @@
             "value": "播放列表時長"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_select": {
       "comment": "Theme editor, Fonts group: button opening the system font panel for that row's font. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31061,11 +31990,11 @@
             "value": "選擇…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.font_value": {
       "comment": "Theme editor, Fonts group: the current choice, e.g. 'Helvetica Neue 23 pt'. %1$@ is the font's name, %2$ld its size in points.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31247,11 +32176,11 @@
             "value": "%1$@ %2$ld pt"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.forward": {
       "comment": "Settings toolbar: the forward half of the navigation control — returns to the theme editor page just left. Accessibility label.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31433,11 +32362,11 @@
             "value": "前進"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.group_built_in": {
       "comment": "Settings, Appearance pane: header row in the theme list, above the themes that ship with the app.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31619,11 +32548,11 @@
             "value": "內建"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.group_user": {
       "comment": "Settings, Appearance pane: header row in the theme list, above the themes the user created, duplicated or imported. Shown only once at least one exists.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31805,11 +32734,11 @@
             "value": "使用者"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.import": {
       "comment": "Add menu item: opens a file chooser for a theme JSON file. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31991,11 +32920,11 @@
             "value": "匯入…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.import_failed": {
       "comment": "Alert shown when an imported file could not be read as a theme JSON.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32177,11 +33106,11 @@
             "value": "此檔案不是 Vibe 主題。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.light": {
       "comment": "Theme editor: caption after a color well — the color used while the app is in light mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32363,11 +33292,11 @@
             "value": "淺色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.mode_dual": {
       "comment": "Theme editor, Appearance dropdown: the theme keeps separate colors for the light and dark appearances and follows whichever the window has.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32549,11 +33478,11 @@
             "value": "淺色與深色模式"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.mode_single": {
       "comment": "Theme editor, Appearance dropdown: the theme keeps one color per field and always uses it, whatever the system or Vibe appearance setting says.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32735,11 +33664,11 @@
             "value": "單一模式"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.name_label": {
       "comment": "Theme editor: row beside the theme's editable name field.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32921,11 +33850,11 @@
             "value": "名稱"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playing_row": {
       "comment": "Theme editor, Playlist group: row beside the color wells filling the playing track's row.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33107,11 +34036,11 @@
             "value": "播放中的列"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_artwork": {
       "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's album-art column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33293,11 +34222,11 @@
             "value": "封面列"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_background": {
       "comment": "Theme editor, Playlist group: row beside the dropdown choosing the playlist background — the frosted glass look, or a solid color.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33479,11 +34408,11 @@
             "value": "播放列表背景"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_background_colors": {
       "comment": "Theme editor, Playlist group: row beside the solid playlist background's two color wells, one per appearance.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33665,11 +34594,11 @@
             "value": "播放列表背景顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_duration_column": {
       "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's track-duration column.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33851,11 +34780,11 @@
             "value": "時長列"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.playlist_tint_label": {
       "comment": "Theme editor, Playlist group: row beside the dropdown choosing the translucent color wash laid over the playlist background — the same choices as the window's background tint.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34037,11 +34966,11 @@
             "value": "播放列表背景色調"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.remove": {
       "comment": "Settings, Appearance pane: button that deletes the selected theme. Built-in themes cannot be removed.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34223,11 +35152,11 @@
             "value": "移除"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.selected_row": {
       "comment": "Theme editor, Playlist group: row beside the color wells filling selected rows.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34409,11 +35338,11 @@
             "value": "選取的列"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_gradient": {
       "comment": "Settings, theme editor, Waveform group: switch enabling the vertical gradient shading on the waveform bars; off draws them in flat color.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34595,11 +35524,11 @@
             "value": "漸層"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.themes_section": {
       "comment": "Settings, Appearance pane: heading above the theme list and its buttons.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34781,11 +35710,11 @@
             "value": "主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.time_label": {
       "comment": "Settings, Appearance pane: label beside the choice between showing the track's total time or the remaining time. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34967,11 +35896,11 @@
             "value": "時間顯示："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.time_remaining": {
       "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label counts down the time left, e.g. '-1:50'. Pairs with 'Total time' — use the same noun in both.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35153,11 +36082,11 @@
             "value": "剩餘時間"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.time_total": {
       "comment": "Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label shows the track's full length. Pairs with 'Remaining time' — use the same noun in both.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35339,11 +36268,11 @@
             "value": "總時間"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.played": {
       "comment": "Settings, custom waveform colors: caption beside the color well for the part of the waveform already played.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35525,11 +36454,11 @@
             "value": "已播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.played_dark": {
       "comment": "iOS settings screen, custom waveform colors: row holding the color well for the played part of the waveform in dark mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35711,11 +36640,11 @@
             "value": "已播放（深色）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.played_light": {
       "comment": "iOS settings screen, custom waveform colors: row holding the color well for the played part of the waveform in light mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35897,11 +36826,11 @@
             "value": "已播放（淺色）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.unplayed": {
       "comment": "Settings, custom waveform colors: caption beside the color well for the part of the waveform not yet played.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36083,11 +37012,11 @@
             "value": "未播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.unplayed_dark": {
       "comment": "iOS settings screen, custom waveform colors: row holding the color well for the not-yet-played part of the waveform in dark mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36269,11 +37198,11 @@
             "value": "未播放（深色）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom.unplayed_light": {
       "comment": "iOS settings screen, custom waveform colors: row holding the color well for the not-yet-played part of the waveform in light mode.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36455,11 +37384,11 @@
             "value": "未播放（淺色）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_dark_label": {
       "comment": "Settings, Appearance pane: label beside the custom waveform color wells used while the app is in dark mode. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36641,11 +37570,11 @@
             "value": "深色模式顏色："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_light_label": {
       "comment": "Settings, Appearance pane: label beside the custom waveform color wells used while the app is in light mode. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36827,11 +37756,11 @@
             "value": "淺色模式顏色："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.seek": {
       "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform scrubs through the track like a slider — playback jumps to where the mouse is released — and the window stays put.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37013,11 +37942,11 @@
             "value": "調整播放位置"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.window": {
       "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform moves the whole window, and only a click without movement jumps playback. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37199,11 +38128,11 @@
             "value": "移動視窗"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
       "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. Ends with a colon, stripped at display. The key keeps its historical settings.appearance prefix.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37385,11 +38314,11 @@
             "value": "波形拖移："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_label": {
       "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform drawing style.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37571,11 +38500,11 @@
             "value": "樣式"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_section": {
       "comment": "Settings, Appearance pane: heading above the group of waveform rows — style, color theme, custom colors and drag behavior.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37757,11 +38686,11 @@
             "value": "波形"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.album_art": {
       "comment": "Settings, waveform color theme choice: the not-yet-played part of the waveform draws in a color derived from the track's cover artwork, under a white (dark mode) or black (light mode) played part.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37943,11 +38872,11 @@
             "value": "專輯插圖"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.custom": {
       "comment": "Settings, waveform color theme choice: the user picks the two waveform colors with color wells.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38129,11 +39058,11 @@
             "value": "自訂"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.mono": {
       "comment": "Settings, waveform color theme choice: the monochrome default — white-based in dark mode, black-based in light. 'Mono' as in monochrome, not monaural audio. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38315,11 +39244,11 @@
             "value": "單色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_theme.orange": {
       "comment": "Settings, waveform color theme choice: the played part of the waveform draws in orange.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38501,11 +39430,11 @@
             "value": "橙色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.waveform_theme_label": {
       "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38687,11 +39616,11 @@
             "value": "配色主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint.artwork": {
       "comment": "Settings, window tint choice: the header is washed with the dominant color of the playing track's cover artwork. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38873,11 +39802,11 @@
             "value": "插圖顏色"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint.custom": {
       "comment": "Settings, window tint choice: the user picks the wash color with a color well.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39059,11 +39988,11 @@
             "value": "自訂"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint.mono": {
       "comment": "Settings, background tint choice: no color wash — the window's plain glass, the same under every track.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39245,11 +40174,11 @@
             "value": "無"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint_custom_dark_label": {
       "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in dark mode. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39431,11 +40360,11 @@
             "value": "深色模式顏色："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint_custom_light_label": {
       "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in light mode. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39617,11 +40546,11 @@
             "value": "淺色模式顏色："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.appearance.window_tint_label": {
       "comment": "Settings, Appearance pane, Window group: row beside the dropdown choosing the translucent color wash laid over the player window's header background.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39803,11 +40732,11 @@
             "value": "背景色調"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.convert.delete_original": {
       "comment": "Settings, Convert pane: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39989,11 +40918,11 @@
             "value": "轉換後刪除原始檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.convert.destination.ask": {
       "comment": "Settings, Convert pane, converted-file destination choice: every conversion shows a save panel asking where to put the FLAC.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40175,11 +41104,11 @@
             "value": "每次詢問儲存位置"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.convert.destination.beside": {
       "comment": "Settings, Convert pane, converted-file destination choice: the FLAC is written into the same folder as the source file. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40361,11 +41290,11 @@
             "value": "儲存在原始檔案旁邊"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.convert.destination_label": {
       "comment": "Settings, Convert pane: label beside the dropdown choosing where Convert to FLAC writes its output. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40547,11 +41476,11 @@
             "value": "轉換檔案儲存位置："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.convert.enabled": {
       "comment": "Settings, Convert pane: switch showing or hiding the whole Convert feature — off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40733,11 +41662,11 @@
             "value": "啟用"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files": {
       "comment": "Settings window: the Files pane's toolbar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40919,11 +41848,11 @@
             "value": "檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.album_art.file_only": {
       "comment": "Settings, Files pane, album art choice: use only the artwork stored inside the song file, and show nothing for a song carrying none.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41105,11 +42034,11 @@
             "value": "僅從檔案載入"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.album_art.folder": {
       "comment": "Settings, Files pane, album art choice: prefer the artwork stored inside the track's own file, and for a track carrying none use a cover image file sitting beside it in the same folder. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41291,11 +42220,11 @@
             "value": "優先檔案，其次搜尋檔案夾"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.album_art_label": {
       "comment": "Settings, Files pane: label beside the dropdown choosing where the cover image shown for a song comes from. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41477,11 +42406,11 @@
             "value": "專輯插圖："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.folder_sort.as_received": {
       "comment": "Settings, Files pane, folder open sort choice: do not reorder the songs at all — keep whatever order the disk or the cloud storage service listed them in.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41663,11 +42592,11 @@
             "value": "保持檔案夾順序"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.folder_sort.name": {
       "comment": "Settings, Files pane, folder open sort choice: order the songs by filename, counting numbers in a filename as numbers. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -41849,11 +42778,11 @@
             "value": "按名稱排序"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.folder_sort.newest_first": {
       "comment": "Settings, Files pane, folder open sort choice: order the songs by the date each file was last changed, most recent first — the same date the Finder and the iPhone Files app call Date Modified.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42035,11 +42964,11 @@
             "value": "最新的在前"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.files.folder_sort_label": {
       "comment": "Settings, Files pane: label beside the dropdown choosing the order a folder's songs are added to the playlist when that folder is opened. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42221,11 +43150,11 @@
             "value": "打開檔案夾時："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general": {
       "comment": "Settings window: the General pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42407,11 +43336,11 @@
             "value": "一般"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.always_on_top": {
       "comment": "Settings, General pane: checkbox that keeps the player window above all other apps' windows. The same setting as the View menu's 'Always on Top' item, in sentence case per checkbox convention.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42593,11 +43522,11 @@
             "value": "永遠顯示在最上層"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.artwork_drag.copy_artist_title": {
       "comment": "Settings, General pane, artwork drag choice: the drop receives the track's name as text — 'Artist - Title' when both are tagged. Use the words for the performer and the track's name, separated by a slash.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42779,11 +43708,11 @@
             "value": "拷貝演出者／名稱"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.artwork_drag.copy_file": {
       "comment": "Settings, General pane, artwork drag choice: the drop receives the song file itself, so dropping on the Finder copies the file. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -42965,11 +43894,11 @@
             "value": "拷貝檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.artwork_drag.copy_path": {
       "comment": "Settings, General pane, artwork drag choice: the drop receives the song file's location on disk as text, e.g. '/Users/me/Music/song.flac'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43151,11 +44080,11 @@
             "value": "拷貝檔案路徑"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.artwork_drag_label": {
       "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the album artwork out of the window hands to the app it is dropped on. Ends with a colon, stripped at display.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43337,11 +44266,11 @@
             "value": "專輯插圖拖移："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.audio_section": {
       "comment": "Settings, General pane: heading above the audio rows — the output-device choice.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43523,11 +44452,11 @@
             "value": "音訊"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.default_player.is": {
       "comment": "Settings, General pane, 'Default music player' row: disabled button title replacing 'Set … as default' once the app already holds every audio type. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43709,11 +44638,11 @@
             "value": "%@ 已是預設"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.default_player.set": {
       "comment": "Settings, General pane, 'Default music player' row: button that claims every supported audio type for the app. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -43895,11 +44824,11 @@
             "value": "將 %@ 設為預設"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.default_player_label": {
       "comment": "Settings, General pane: row title beside the button that makes the app the system's default player for audio files. Ends with a colon, stripped at display.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44081,11 +45010,11 @@
             "value": "預設音樂播放器："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.output_label": {
       "comment": "Settings, General pane, Audio group: row beside the dropdown selecting the audio output device. Ends with a colon, stripped at display.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44267,11 +45196,11 @@
             "value": "輸出："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.general.window_section": {
       "comment": "Settings: heading above the window rows — always on top and waveform drag in the General pane, appearance and tint in the Appearance pane. One key for both, the word being the same; the key keeps its historical settings.general prefix.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44453,11 +45382,11 @@
             "value": "視窗"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.add_common_folder": {
       "comment": "Settings, Files pane: pull-down button whose menu grants the app access to one of the usual music locations — the home folder, Documents, iCloud Drive or Dropbox.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44639,11 +45568,11 @@
             "value": "加入常用檔案夾"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.add_folder": {
       "comment": "Settings, Files pane: button that opens a folder chooser to grant the app access to another folder. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44825,11 +45754,11 @@
             "value": "加入檔案夾…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.explain": {
       "comment": "Settings, Files pane: explanatory text above the list of granted folders. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45011,11 +45940,11 @@
             "value": "%@ 可以讀取這些檔案夾中的音樂。加入常用的檔案夾，即可避免重複出現權限請求。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.already_added": {
       "comment": "Settings, Files pane, Add Common Folder menu: a disabled entry for a folder the app can already read, because it or a folder above it is in the list. %@ is the folder's name, e.g. 'Documents'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45197,11 +46126,11 @@
             "value": "%@（已可取用）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.documents": {
       "comment": "Settings, Files pane, Add Common Folder menu: the Documents folder inside the user's home folder. Use the name the Finder gives it in this language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45383,11 +46312,11 @@
             "value": "文件"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.home": {
       "comment": "Settings, Files pane, Add Common Folder menu: the user's home folder. Use the name the Finder gives it in this language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45569,11 +46498,11 @@
             "value": "個人檔案夾"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.not_found": {
       "comment": "Settings, Files pane, Add Common Folder menu: a disabled entry for a folder that does not exist on this Mac. %@ is the folder's name, e.g. 'Dropbox'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45755,11 +46684,11 @@
             "value": "%@（找不到）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.unavailable": {
       "comment": "Settings, Files pane, granted-folder list: a dimmed row for a folder the app can no longer reach, because it was deleted or renamed or its disk is not connected. %@ is the folder's path.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45941,11 +46870,11 @@
             "value": "%@（無法使用）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder.unavailable.tip": {
       "comment": "Settings, Files pane, granted-folder list: tooltip on a dimmed row, explaining why an unreachable folder is still listed. %@ is the app name. Uses a curly apostrophe (’).",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46127,11 +47056,11 @@
             "value": "此檔案夾遺失，或位於未連接的磁碟上。%@ 會保留其權限，檔案夾恢復後將繼續使用。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder_grant.button": {
       "comment": "Confirm button of the folder-picker panel opened from the Add Common Folder menu.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46313,11 +47242,11 @@
             "value": "允許取用"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.folder_grant.message": {
       "comment": "Message atop the folder-picker panel opened from the Add Common Folder menu, which starts in the chosen folder. %1$@ is the app name, %2$@ that folder's name, e.g. 'Documents'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46499,11 +47428,11 @@
             "value": "允許 %1$@ 取用「%2$@」，以便讀取其中任何位置的音樂。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.label": {
       "comment": "Settings, Files pane: label beside the list of folders the app may read, and the paragraph above it. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46685,11 +47614,11 @@
             "value": "權限："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.permissions.remove": {
       "comment": "Settings, Files pane: button that removes the selected folder from the granted list, giving up the app's access to it.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -46871,11 +47800,11 @@
             "value": "移除"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.analysis_section": {
       "comment": "Settings, Playback pane: heading above the group of rows enabling automatic tempo and key analysis.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47057,11 +47986,11 @@
             "value": "分析"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.crossfade.instant": {
       "comment": "Settings, Playback pane, crossfade choice: no audible blend — the next track starts immediately. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47243,11 +48172,11 @@
             "value": "立即"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.crossfade.long": {
       "comment": "Settings, Playback pane, crossfade choice: a two-second blend into the next track. 's' abbreviates seconds.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47429,11 +48358,11 @@
             "value": "長（2秒）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.crossfade.short": {
       "comment": "Settings, Playback pane, crossfade choice: a half-second blend into the next track. Localize the decimal separator; 's' abbreviates seconds.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47615,11 +48544,11 @@
             "value": "短（0.5秒）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.crossfade_label": {
       "comment": "Settings, Playback pane: label beside the dropdown choosing how long one track blends into the next on a track change. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47801,11 +48730,11 @@
             "value": "交叉淡化："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.detect_bpm": {
       "comment": "Settings, Playback pane: checkbox enabling tempo analysis of loaded files. BPM is beats per minute; a tempo already tagged in the file always shows regardless.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47987,11 +48916,11 @@
             "value": "自動偵測 BPM"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.detect_key": {
       "comment": "Settings, Playback pane: checkbox enabling musical-key analysis of loaded files. A key already tagged in the file always shows regardless.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -48173,11 +49102,11 @@
             "value": "自動偵測調性"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.enable_fx": {
       "comment": "Settings, Playback pane: checkbox choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -48359,11 +49288,11 @@
             "value": "啟用音訊 FX"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.enable_fx_restart": {
       "comment": "Settings, Playback pane: small caption shown only when this run has no audio-FX graph, explaining that enabling FX requires reopening. %@ is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -48545,11 +49474,11 @@
             "value": "重新開啟 %@ 後生效。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.on_end.pause": {
       "comment": "Settings, Playback pane, choice for what happens when a track finishes: playback stops on the finished track instead of continuing.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -48731,11 +49660,11 @@
             "value": "暫停"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.on_end.play_next": {
       "comment": "Settings, Playback pane, choice for what happens when a track finishes: playback continues with the following track in the playlist. The default.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -48917,11 +49846,11 @@
             "value": "播放播放列表中的下一首曲目"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.on_end_label": {
       "comment": "Settings, Playback pane: label beside the dropdown choosing what happens when a track finishes playing. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -49103,11 +50032,11 @@
             "value": "曲目結束時："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.pitch_range_label": {
       "comment": "Settings, Playback pane: label beside the pitch fader range choice (8% or 16%). Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -49289,11 +50218,11 @@
             "value": "音高範圍："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.skip_steps_label": {
       "comment": "Settings, Playback pane: label beside the dropdown choosing how many bars the three skip actions jump. Ends with a colon.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -49475,11 +50404,11 @@
             "value": "跳過步長："
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.playback.skip_steps_option": {
       "comment": "Settings, Playback pane: one skip-size choice, e.g. '8 / 16 / 32 bars' — the three jump sizes of the small, medium and large skip. %1$ld, %2$ld and %3$ld are the bar counts; 'bars' is the musical unit.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -49661,11 +50590,11 @@
             "value": "%1$ld / %2$ld / %3$ld小節"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.search_folders.add": {
       "comment": "iOS settings screen: the last row under the searchable folders, which opens the system folder picker. Ends with a real ellipsis character (…), not three periods.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -49847,11 +50776,11 @@
             "value": "加入檔案夾…"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.search_folders.covered": {
       "comment": "iOS settings screen: alert message shown when the user adds a folder that sits inside a folder already on the list. Permission to a folder covers everything inside it, so nothing needed to be added.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50033,11 +50962,11 @@
             "value": "該檔案夾已位於你加入的檔案夾中，因此已在搜尋範圍內。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.search_folders.footer": {
       "comment": "iOS settings screen: explanation under the list of searchable folders. %@ is the app name. Says what search already covers, that subfolders are included, and why adding a folder is necessary — iOS gives an app no access to files the user has not handed it.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50219,11 +51148,11 @@
             "value": "搜尋會查找你開啟的檔案夾以及在此加入的所有內容，包括子檔案夾。未提供檔案夾時，%@ 無法搜尋你的檔案。"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.section.folder_sort": {
       "comment": "iOS settings screen: heading above the choice of what order a folder's songs are added to the playlist in when that folder is opened.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50405,11 +51334,11 @@
             "value": "打開檔案夾時"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.section.search_folders": {
       "comment": "iOS settings screen: heading above the list of folders the user has given the app permission to search.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50591,11 +51520,11 @@
             "value": "要搜尋的檔案夾"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.section.time": {
       "comment": "iOS settings screen: heading above the choice between showing the track's total duration and the time remaining.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50777,11 +51706,11 @@
             "value": "時間顯示"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.section.waveform": {
       "comment": "iOS settings screen: heading above the list of waveform drawing styles.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -50963,11 +51892,11 @@
             "value": "波形樣式"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.section.waveform_theme": {
       "comment": "iOS settings screen: heading above the list of waveform color themes.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -51149,11 +52078,11 @@
             "value": "波形主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "settings.title": {
       "comment": "iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -51335,11 +52264,11 @@
             "value": "設定"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "tab.favorites": {
       "comment": "iOS: title of the tab listing the folders the user starred, to reopen one in a tap.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -51521,11 +52450,11 @@
             "value": "收藏"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "tab.files": {
       "comment": "iOS: title of the tab showing the system file browser, for picking music to play.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -51707,11 +52636,11 @@
             "value": "檔案"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "tab.playlist": {
       "comment": "iOS: title of the tab showing the tracks queued to play.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -51893,11 +52822,11 @@
             "value": "播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "theme.name.custom": {
       "comment": "Default name for the user theme created on upgrade: it carries the appearance settings the user had customized before themes existed.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52079,11 +53008,11 @@
             "value": "自訂"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "theme.name.imported": {
       "comment": "Default name for an imported theme whose file carried no name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52265,11 +53194,11 @@
             "value": "匯入的主題"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "transport.next": {
       "comment": "Jumps to the next track. Menu item and transport button.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52451,11 +53380,11 @@
             "value": "下一首"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "transport.pause": {
       "comment": "Pauses playback. Menu item and transport button; toggles with 'Play'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52637,11 +53566,11 @@
             "value": "暫停"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "transport.play": {
       "comment": "Starts playback. Menu item and transport button; toggles with 'Pause'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52823,11 +53752,11 @@
             "value": "播放"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "transport.previous": {
       "comment": "Jumps to the previous track.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53009,11 +53938,11 @@
             "value": "上一首"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.basic": {
       "comment": "Waveform style name: the simplest bar rendering.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53195,11 +54124,11 @@
             "value": "基本"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.detailed": {
       "comment": "Waveform style name: a higher-resolution bar rendering.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53381,11 +54310,11 @@
             "value": "精細"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.oversampling_x2": {
       "comment": "Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53567,11 +54496,11 @@
             "value": "精細（超取樣 x2）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.oversampling_x4": {
       "comment": "Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53753,11 +54682,11 @@
             "value": "精細（超取樣 x4）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.oversampling_x8": {
       "comment": "Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53939,11 +54868,11 @@
             "value": "精細（超取樣 x8）"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waveform.style.sonic_cirrus": {
       "comment": "Waveform style name: a cloud-like rendering. An invented proper name — transliterate rather than translate it literally.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -54125,7 +55054,8 @@
             "value": "Sonic Cirrus"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     }
   },
   "version": "1.0"

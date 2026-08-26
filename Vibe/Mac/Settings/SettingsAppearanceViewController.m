@@ -117,6 +117,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSSwitch *_keyColorsSwitch;
     NSSwitch *_waveformGradientSwitch;
     NSSwitch *_playlistArtworkSwitch;
+    NSPopUpButton *_albumArtPopUp;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
@@ -298,6 +299,20 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _modePopUp.lastItem.representedObject = SETTINGS_VALUE_THEME_MODE_DUAL;
     [_modePopUp addItemWithTitle:STR_SETTINGS_THEME_MODE_SINGLE];
     _modePopUp.lastItem.representedObject = SETTINGS_VALUE_THEME_MODE_SINGLE;
+
+    _albumArtPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                         action:@selector(albumArtChanged:)];
+    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_THEME_ALBUM_ART_DEFAULT];
+    _albumArtPopUp.lastItem.representedObject = @"";
+    for (NSString *name in [AppTheme bundledAlbumArtNames]) {
+        // Bundled art names are data, like theme identifiers — the title is
+        // the prettified stem.
+        [_albumArtPopUp addItemWithTitle:VibeNotLocalized([[name
+                stringByReplacingOccurrencesOfString:@"_" withString:@" "] capitalizedString])];
+        _albumArtPopUp.lastItem.representedObject = name;
+    }
+    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_THEME_ALBUM_ART_CUSTOM];
+    _albumArtPopUp.lastItem.representedObject = @"custom";
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
@@ -484,6 +499,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
@@ -741,6 +757,10 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             theme.waveformGradient ? NSControlStateValueOn : NSControlStateValueOff;
     _playlistArtworkSwitch.state =
             theme.showPlaylistArtwork ? NSControlStateValueOn : NSControlStateValueOff;
+    NSString *art = theme.defaultAlbumArt;
+    NSInteger artIndex = [_albumArtPopUp indexOfItemWithRepresentedObject:
+            [art hasPrefix:@"custom:"] ? @"custom" : art];
+    [_albumArtPopUp selectItemAtIndex:artIndex >= 0 ? artIndex : 0];
     _playlistDurationSwitch.state =
             theme.showPlaylistDuration ? NSControlStateValueOn : NSControlStateValueOff;
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
@@ -1009,16 +1029,17 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
-    panel.allowedContentTypes = @[UTTypeJSON];
+    panel.allowedContentTypes = @[UTTypeJSON, UTTypeZIP];
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result != NSModalResponseOK || !panel.URL) {
             return;
         }
         NSString *name = nil;
         NSError *error = nil;
-        NSDictionary *record = [AppTheme recordFromJSONData:[NSData dataWithContentsOfURL:panel.URL]
-                                                       name:&name
-                                                      error:&error];
+        NSDictionary *record = [AppTheme
+                recordFromJSONOrArchiveData:[NSData dataWithContentsOfURL:panel.URL]
+                                       name:&name
+                                      error:&error];
         if (!record) {
             NSAlert *alert = [[NSAlert alloc] init];
             alert.messageText = STR_SETTINGS_THEME_IMPORT_FAILED;
@@ -1038,16 +1059,21 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         return;
     }
     NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
+    // A custom image travels beside the JSON, so those themes export as a
+    // ZIP; everything else stays a plain JSON file.
+    NSDictionary *record = [AppSettings.sharedInstance recordForThemeIdentifier:selected];
+    NSData *archive = [AppTheme archiveDataForRecord:record name:name];
+    NSString *extension = archive ? @"zip" : @"json";
     NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.allowedContentTypes = @[UTTypeJSON];
-    panel.nameFieldStringValue = [name stringByAppendingPathExtension:@"json"] ?: @"theme.json";
+    panel.allowedContentTypes = @[archive ? UTTypeZIP : UTTypeJSON];
+    panel.nameFieldStringValue =
+            [name stringByAppendingPathExtension:extension] ?: @"theme.json";
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
         if (response != NSModalResponseOK || !panel.URL) {
             return;
         }
-        NSData *json = [AppTheme JSONDataForRecord:
-                [AppSettings.sharedInstance recordForThemeIdentifier:selected] name:name];
-        [json writeToURL:panel.URL atomically:YES];
+        NSData *payload = archive ?: [AppTheme JSONDataForRecord:record name:name];
+        [payload writeToURL:panel.URL atomically:YES];
     }];
 }
 
@@ -1220,6 +1246,41 @@ static NSColor *DefaultCustomPlayedColor(BOOL isDark) {
 
 static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
+- (void)albumArtChanged:(id)sender {
+    NSString *value = _albumArtPopUp.selectedItem.representedObject;
+    if (![value isEqualToString:@"custom"]) {
+        AppSettings.sharedInstance.currentTheme.defaultAlbumArt = value;
+        [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
+                | VibeSettingsLiveEffectPlaylistAppearance];
+        return;
+    }
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseDirectories = NO;
+    panel.allowsMultipleSelection = NO;
+    panel.allowedContentTypes = @[UTTypeJPEG, UTTypePNG];
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
+        if (result != NSModalResponseOK || !panel.URL) {
+            [self refreshFromSettings]; // canceled: the popup snaps back
+            return;
+        }
+        NSError *error = nil;
+        NSString *stored = [AppTheme storeCustomAlbumArtData:
+                [NSData dataWithContentsOfURL:panel.URL] error:&error];
+        if (!stored) {
+            [self refreshFromSettings];
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = STR_SETTINGS_THEME_ALBUM_ART_INVALID;
+            alert.informativeText = STR_SETTINGS_THEME_ALBUM_ART_REQUIREMENTS;
+            [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+            return;
+        }
+        AppSettings.sharedInstance.currentTheme.defaultAlbumArt = stored;
+        [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
+                | VibeSettingsLiveEffectPlaylistAppearance];
+        [self refreshFromSettings];
+    }];
 }
 
 - (void)togglePlaylistArtwork:(id)sender {

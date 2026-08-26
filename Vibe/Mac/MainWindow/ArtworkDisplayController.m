@@ -480,6 +480,13 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     [self showDefaultArtworkInvalidatingRender:YES];
 }
 
+- (void)refreshDefaultArtwork {
+    if (_showingDefaultArt) {
+        _showingDefaultArt = NO;
+        [self showDefaultArtworkInvalidatingRender:NO];
+    }
+}
+
 - (void)showDefaultArtworkInvalidatingRender:(BOOL)invalidateRender {
     if (invalidateRender) {
         _artworkRenderGeneration++; // orphan any in-flight crop-and-color result
@@ -489,7 +496,8 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     if (_showingDefaultArt && _initialized) {
         return;
     }
-    _artworkView.image = [NSImage imageNamed:@"record-bg"];
+    _artworkView.image = [AppTheme imageForDefaultAlbumArt:
+            AppSettings.sharedInstance.currentTheme.defaultAlbumArt];
     _dominantArtColor = nil;
     if (self.dominantColorDidChangeHandler) {
         self.dominantColorDidChangeHandler();

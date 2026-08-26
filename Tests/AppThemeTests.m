@@ -377,6 +377,71 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"mode": @"single"});
 }
 
+- (void)testDefaultAlbumArtSanitizesByShape {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"defaultAlbumArt": @"vinyl_red"}];
+    XCTAssertEqualObjects(theme.defaultAlbumArt, @"vinyl_red");
+    theme.defaultAlbumArt =
+            @"custom:0123456789abcdef0123456789abcdef01234567.png";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultAlbumArt"],
+            @"custom:0123456789abcdef0123456789abcdef01234567.png");
+    // Wrong shapes drop to the default.
+    for (NSString *bad in @[@"Vinyl", @"../etc/passwd", @"custom:short.png",
+                            @"custom:0123456789abcdef0123456789abcdef01234567.gif"]) {
+        theme.defaultAlbumArt = bad;
+        XCTAssertNil(theme.dictionaryRepresentation[@"defaultAlbumArt"], @"%@", bad);
+    }
+    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:nil]);
+    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:@"never_shipped"]);
+}
+
+static NSData *SquarePNG(NSInteger side) {
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
+            initWithBitmapDataPlanes:NULL pixelsWide:side pixelsHigh:side
+            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+            colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+}
+
+- (void)testCustomAlbumArtStoreValidatesAndRoundTripsThroughTheArchive {
+    NSError *error = nil;
+    // Not square: rejected.
+    NSBitmapImageRep *wide = [[NSBitmapImageRep alloc]
+            initWithBitmapDataPlanes:NULL pixelsWide:128 pixelsHigh:64
+            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+            colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    XCTAssertNil([AppTheme storeCustomAlbumArtData:
+            [wide representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+            error:&error]);
+    // Too small: rejected. Garbage: rejected.
+    XCTAssertNil([AppTheme storeCustomAlbumArtData:SquarePNG(32) error:NULL]);
+    XCTAssertNil([AppTheme storeCustomAlbumArtData:
+            [@"not an image" dataUsingEncoding:NSUTF8StringEncoding] error:NULL]);
+
+    // A valid square stores, resolves, and survives the ZIP round trip.
+    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(256) error:&error];
+    XCTAssertTrue([stored hasPrefix:@"custom:"], @"%@", error);
+    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:stored]);
+
+    NSDictionary *record = @{@"defaultAlbumArt": stored, @"waveformTheme": @"orange"};
+    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Art Theme"];
+    XCTAssertNotNil(zip);
+    NSString *name = nil;
+    NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:&error];
+    XCTAssertEqualObjects(name, @"Art Theme");
+    XCTAssertEqualObjects(back, record); // same bytes re-hash to the same reference
+
+    // A record without a custom image has no archive form.
+    XCTAssertNil([AppTheme archiveDataForRecord:@{@"waveformTheme": @"orange"}
+                                           name:@"Plain"]);
+    // JSON-only import with a dangling custom reference drops the field.
+    NSDictionary *dangling = [AppTheme recordFromJSONOrArchiveData:
+            [NSJSONSerialization dataWithJSONObject:@{@"version": @1, @"name": @"D",
+                    @"defaultAlbumArt": @"custom:ffffffffffffffffffffffffffffffffffffffff.png",
+                    @"waveformTheme": @"orange"} options:0 error:NULL]
+            name:NULL error:NULL];
+    XCTAssertEqualObjects(dangling, @{@"waveformTheme": @"orange"});
+}
+
 - (void)testBundledThemesAreValid {
     // The gate a theme pull request runs against. The import path is
     // deliberately tolerant — a typo'd field key or malformed color is
@@ -414,6 +479,27 @@
                 @"or out-of-range value", file);
     }
     XCTAssertTrue([seen containsObject:@"vibe"], @"vibe.json must exist");
+
+    // A built-in cannot reference a container image nobody has, and any
+    // bundled art must itself pass the custom-art validation.
+    for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
+        NSString *art = [AppTheme builtInRecordForIdentifier:identifier][@"defaultAlbumArt"];
+        XCTAssertFalse([art hasPrefix:@"custom:"],
+                @"%@: a built-in must name bundled art, not a custom image", identifier);
+        if (art.length) {
+            XCTAssertTrue([[AppTheme bundledAlbumArtNames] containsObject:art],
+                    @"%@: names art the bundle does not carry (%@)", identifier, art);
+        }
+    }
+    for (NSString *ext in @[@"png", @"jpg"]) {
+        for (NSURL *url in [bundle URLsForResourcesWithExtension:ext
+                subdirectory:@"Themes/art"]) {
+            NSError *artError = nil;
+            XCTAssertNotNil([AppTheme storeCustomAlbumArtData:
+                    [NSData dataWithContentsOfURL:url] error:&artError],
+                    @"%@: %@", url.lastPathComponent, artError);
+        }
+    }
 }
 
 #pragma mark Migration

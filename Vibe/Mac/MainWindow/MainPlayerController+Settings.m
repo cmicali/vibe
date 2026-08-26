@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerController+Settings.h"
+#import "ArtworkDisplayController.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
@@ -89,7 +90,9 @@
     }
     if (effects & VibeSettingsLiveEffectTrackDisplay) {
         // Label colors ride this effect too (the shared re-style above); drop
-        // the content guards so unchanged strings still repaint.
+        // the content guards so unchanged strings still repaint. The themed
+        // no-artwork placeholder re-applies here for the same reason.
+        [self->_artworkController refreshDefaultArtwork];
         [self.trackDisplay resetRenderGuards];
         [self updateUI];
     }

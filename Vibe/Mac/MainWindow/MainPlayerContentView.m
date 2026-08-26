@@ -450,7 +450,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 - (void)buildAlbumArt {
     _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
-    _albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
+    _albumArtImageView.image = [AppTheme imageForDefaultAlbumArt:
+            AppSettings.sharedInstance.currentTheme.defaultAlbumArt];
     _albumArtImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
     _albumArtImageView.refusesFirstResponder = YES;
     _albumArtImageView.focusRingType = NSFocusRingTypeNone;

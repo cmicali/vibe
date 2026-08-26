@@ -80,6 +80,39 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // AppSettings overlays the ThemeNames catalog for the localized form.
 + (nullable NSString *)builtInNameForIdentifier:(NSString *)identifier;
 
+#pragma mark Default album art
+
+// Never nil: the resolved placeholder for a theme's defaultAlbumArt value —
+// the bundled or container image it names, or the factory record image for
+// "", an unknown name, or a missing file. Cached for the app's lifetime;
+// custom references are content-hashed, so a changed image is a new key.
++ (NSImage *)imageForDefaultAlbumArt:(nullable NSString *)value;
+
+// The bundled choices: the filename stems under Resources/Themes/art.
++ (NSArray<NSString *> *)bundledAlbumArtNames;
+
+// Validates (JPEG or PNG, square, within pixel and byte caps), copies into
+// the app container, and returns the record value ("custom:<sha1>.<ext>"),
+// or nil with the reason. The bytes are stored as-is, never re-encoded.
++ (nullable NSString *)storeCustomAlbumArtData:(NSData *)data
+                                         error:(NSError *_Nullable *_Nullable)error;
+
+#pragma mark Theme archives (JSON + image)
+
+// A theme whose record carries a custom image exports as a ZIP of theme.json
+// and the image file; one without exports as plain JSON (JSONDataForRecord:).
+// Returns nil when the record has no resolvable custom image.
++ (nullable NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
+                                     name:(NSString *)name;
+
+// Imports either form: raw JSON, or a ZIP holding one .json plus images. A
+// custom-art reference is re-validated and re-hashed from the shipped image
+// (the filename is not trusted) and the returned record points at the stored
+// copy; a JSON-only import with a dangling custom reference drops the field.
++ (nullable NSDictionary<NSString *, id> *)recordFromJSONOrArchiveData:(NSData *)data
+                                                                  name:(NSString *_Nullable *_Nullable)outName
+                                                                 error:(NSError *_Nullable *_Nullable)error;
+
 // A usable theme name: trimmed, length-capped, the fallback when empty, and
 // suffixed " 2", " 3", … past any name already in use.
 + (NSString *)dedupedThemeName:(nullable NSString *)candidate
@@ -156,6 +189,12 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) CGFloat playlistFontSize;             // clamped [11, 16]
 @property (nonatomic, copy) NSString *playlistDurationFontFace;
 @property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
+
+// The no-artwork placeholder: "" (the default) is the factory record image; a
+// bundled name picks Resources/Themes/art/<name>.png|jpg; "custom:<sha1>.<ext>"
+// names an image the user picked, copied into the app container. Resolution
+// and its lifetime cache are imageForDefaultAlbumArt: below.
+@property (nonatomic, copy) NSString *defaultAlbumArt;
 
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's

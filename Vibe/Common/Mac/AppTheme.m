@@ -5,6 +5,9 @@
 
 #import "AppTheme.h"
 #import <AppKit/AppKit.h>
+#import <compression.h>
+#import <CommonCrypto/CommonDigest.h>
+#import <ImageIO/ImageIO.h>
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
@@ -42,6 +45,9 @@ static NSString *const kFieldPlaylistFontFace = @"playlistFontFace";
 static NSString *const kFieldPlaylistFontSize = @"playlistFontSize";
 static NSString *const kFieldPlaylistDurationFontFace = @"playlistDurationFontFace";
 static NSString *const kFieldPlaylistDurationFontSize = @"playlistDurationFontSize";
+static NSString *const kFieldDefaultAlbumArt = @"defaultAlbumArt";
+
+static BOOL VibeIsValidDefaultAlbumArtValue(NSString *_Nullable value);
 static NSString *const kFieldShowPlaylistArtwork = @"showPlaylistArtwork";
 static NSString *const kFieldShowPlaylistDuration = @"showPlaylistDuration";
 
@@ -148,6 +154,7 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
             kFieldPlaylistFontSize:      @(kVibeThemePlaylistFontBaseSize),
             kFieldPlaylistDurationFontFace: @"",
             kFieldPlaylistDurationFontSize: @(kVibeThemePlaylistDurationFontBaseSize),
+            kFieldDefaultAlbumArt:       @"",
             kFieldShowPlaylistArtwork:   @(YES),
             kFieldShowPlaylistDuration:  @(YES),
         };
@@ -243,6 +250,10 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
     }
     if ([key isEqualToString:kFieldKeyNotation]) {
         return VibeNormalizedKeyNotation(raw);
+    }
+    if ([key isEqualToString:kFieldDefaultAlbumArt]) {
+        NSString *value = TrimmedCappedString(raw);
+        return VibeIsValidDefaultAlbumArtValue(value) ? value : nil;
     }
     return nil;
 }
@@ -374,6 +385,375 @@ static void VibeLoadBuiltInThemes(void) {
 + (NSString *)builtInNameForIdentifier:(NSString *)identifier {
     VibeLoadBuiltInThemes();
     return builtInNames[identifier];
+}
+
+#pragma mark Default album art
+
+// A bundled stem (lowercase snake, matching the theme identifiers' shape) or
+// a container reference whose name is the content hash — which is also what
+// makes the lifetime image cache below safe: a changed image is a new key.
+static BOOL VibeIsValidDefaultAlbumArtValue(NSString *_Nullable value) {
+    if (value.length == 0) {
+        return NO;
+    }
+    static NSRegularExpression *shape;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        shape = [NSRegularExpression regularExpressionWithPattern:
+                @"^([a-z0-9]+(_[a-z0-9]+)*|custom:[0-9a-f]{40}\\.(png|jpg))$"
+                options:0 error:NULL];
+    });
+    return [shape numberOfMatchesInString:value options:0
+                                    range:NSMakeRange(0, value.length)] == 1;
+}
+
+static NSString *VibeCustomAlbumArtDirectory(void) {
+    NSString *support = NSSearchPathForDirectoriesInDomains(
+            NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
+    return [support stringByAppendingPathComponent:@"ThemeArt"];
+}
+
+// JPEG or PNG by magic, square by pixel counts, bounded in bytes and pixels.
+// Returns the extension, or nil with the failed expectation in outReason.
+static const NSUInteger kAlbumArtByteCap = 8 * 1024 * 1024;
+static const NSInteger kAlbumArtPixelCap = 4096;
+static const NSInteger kAlbumArtPixelFloor = 64;
+
+static NSString *VibeValidatedAlbumArtExtension(NSData *data, NSString **outReason) {
+    *outReason = nil;
+    if (data.length == 0 || data.length > kAlbumArtByteCap) {
+        *outReason = @"the image is empty or over 8 MB";
+        return nil;
+    }
+    const uint8_t *b = data.bytes;
+    NSString *ext = nil;
+    if (data.length > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) {
+        ext = @"jpg";
+    } else if (data.length > 8 && b[0] == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') {
+        ext = @"png";
+    } else {
+        *outReason = @"the image must be a JPEG or PNG";
+        return nil;
+    }
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
+    NSDictionary *props = source ? CFBridgingRelease(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, NULL)) : nil;
+    if (source) {
+        CFRelease(source);
+    }
+    NSInteger width = [props[(__bridge NSString *)kCGImagePropertyPixelWidth] integerValue];
+    NSInteger height = [props[(__bridge NSString *)kCGImagePropertyPixelHeight] integerValue];
+    if (width < kAlbumArtPixelFloor || width > kAlbumArtPixelCap || width != height) {
+        *outReason = @"the image must be square, between 64 and 4096 pixels";
+        return nil;
+    }
+    return ext;
+}
+
++ (NSString *)storeCustomAlbumArtData:(NSData *)data error:(NSError **)error {
+    NSString *reason = nil;
+    NSString *ext = VibeValidatedAlbumArtExtension(data, &reason);
+    if (!ext) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:3
+                    userInfo:@{NSLocalizedDescriptionKey: reason}];
+        }
+        return nil;
+    }
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1(data.bytes, (CC_LONG)data.length, digest);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        [hex appendFormat:@"%02x", digest[i]];
+    }
+    NSString *directory = VibeCustomAlbumArtDirectory();
+    [NSFileManager.defaultManager createDirectoryAtPath:directory
+            withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *file = [NSString stringWithFormat:@"%@.%@", hex, ext];
+    NSString *path = [directory stringByAppendingPathComponent:file];
+    if (![NSFileManager.defaultManager fileExistsAtPath:path] &&
+        ![data writeToFile:path atomically:YES]) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:4
+                    userInfo:@{NSLocalizedDescriptionKey: @"could not save the image"}];
+        }
+        return nil;
+    }
+    return [@"custom:" stringByAppendingString:file];
+}
+
++ (NSArray<NSString *> *)bundledAlbumArtNames {
+    NSMutableArray *names = [NSMutableArray array];
+    for (NSString *ext in @[@"png", @"jpg"]) {
+        for (NSURL *url in [[NSBundle bundleForClass:self]
+                URLsForResourcesWithExtension:ext subdirectory:@"Themes/art"]) {
+            [names addObject:url.lastPathComponent.stringByDeletingPathExtension];
+        }
+    }
+    return [names sortedArrayUsingSelector:@selector(compare:)];
+}
+
++ (NSImage *)imageForDefaultAlbumArt:(NSString *)value {
+    static NSMutableDictionary<NSString *, NSImage *> *cache;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ cache = [NSMutableDictionary dictionary]; });
+    NSString *key = VibeIsValidDefaultAlbumArtValue(value) ? value : @"";
+    @synchronized (cache) {
+        NSImage *cached = cache[key];
+        if (cached) {
+            return cached;
+        }
+        NSImage *image = nil;
+        if ([key hasPrefix:@"custom:"]) {
+            NSString *path = [VibeCustomAlbumArtDirectory()
+                    stringByAppendingPathComponent:[key substringFromIndex:7]];
+            image = [[NSImage alloc] initWithContentsOfFile:path];
+        } else if (key.length) {
+            for (NSString *ext in @[@"png", @"jpg"]) {
+                NSURL *url = [[NSBundle bundleForClass:self] URLForResource:key
+                        withExtension:ext subdirectory:@"Themes/art"];
+                if (url) {
+                    image = [[NSImage alloc] initWithContentsOfURL:url];
+                    break;
+                }
+            }
+        }
+        // The factory record image; the blank square is for the host-less
+        // test bundle, which carries no asset catalog.
+        image = image ?: [NSImage imageNamed:@"record-bg"]
+                ?: [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+        cache[key] = image;
+        return image;
+    }
+}
+
+#pragma mark Theme archives
+
+// Minimal ZIP, self-contained: the writer emits stored (uncompressed)
+// entries; the reader takes stored and raw-deflate ones, which covers both
+// our own exports and a zip a person made by hand (Finder compresses).
+
+static uint32_t VibeCRC32(NSData *data) {
+    static uint32_t table[256];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) {
+                c = (c & 1) ? 0xEDB88320 ^ (c >> 1) : c >> 1;
+            }
+            table[i] = c;
+        }
+    });
+    uint32_t crc = 0xFFFFFFFF;
+    const uint8_t *bytes = data.bytes;
+    for (NSUInteger i = 0; i < data.length; i++) {
+        crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >> 8);
+    }
+    return crc ^ 0xFFFFFFFF;
+}
+
+static void VibeAppendLE(NSMutableData *out, uint64_t value, int bytes) {
+    for (int i = 0; i < bytes; i++) {
+        uint8_t byte = (value >> (8 * i)) & 0xFF;
+        [out appendBytes:&byte length:1];
+    }
+}
+
+static NSData *VibeZipData(NSDictionary<NSString *, NSData *> *entries) {
+    NSMutableData *out = [NSMutableData data];
+    NSMutableData *central = [NSMutableData data];
+    NSUInteger count = 0;
+    for (NSString *name in [entries.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        NSData *data = entries[name];
+        NSData *nameData = [name dataUsingEncoding:NSUTF8StringEncoding];
+        uint32_t crc = VibeCRC32(data);
+        NSUInteger offset = out.length;
+        VibeAppendLE(out, 0x04034b50, 4);
+        VibeAppendLE(out, 20, 2);              // version needed
+        VibeAppendLE(out, 0, 2);               // flags
+        VibeAppendLE(out, 0, 2);               // method: stored
+        VibeAppendLE(out, 0, 4);               // dos time/date
+        VibeAppendLE(out, crc, 4);
+        VibeAppendLE(out, data.length, 4);     // compressed
+        VibeAppendLE(out, data.length, 4);     // uncompressed
+        VibeAppendLE(out, nameData.length, 2);
+        VibeAppendLE(out, 0, 2);               // extra
+        [out appendData:nameData];
+        [out appendData:data];
+
+        VibeAppendLE(central, 0x02014b50, 4);
+        VibeAppendLE(central, 20, 2);          // made by
+        VibeAppendLE(central, 20, 2);          // needed
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 4);
+        VibeAppendLE(central, crc, 4);
+        VibeAppendLE(central, data.length, 4);
+        VibeAppendLE(central, data.length, 4);
+        VibeAppendLE(central, nameData.length, 2);
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 2);
+        VibeAppendLE(central, 0, 4);
+        VibeAppendLE(central, offset, 4);
+        [central appendData:nameData];
+        count++;
+    }
+    NSUInteger centralOffset = out.length;
+    [out appendData:central];
+    VibeAppendLE(out, 0x06054b50, 4);
+    VibeAppendLE(out, 0, 2);
+    VibeAppendLE(out, 0, 2);
+    VibeAppendLE(out, count, 2);
+    VibeAppendLE(out, count, 2);
+    VibeAppendLE(out, central.length, 4);
+    VibeAppendLE(out, centralOffset, 4);
+    VibeAppendLE(out, 0, 2);
+    return out;
+}
+
+static uint32_t VibeReadLE(const uint8_t *bytes, int width) {
+    uint32_t value = 0;
+    for (int i = width - 1; i >= 0; i--) {
+        value = (value << 8) | bytes[i];
+    }
+    return value;
+}
+
+// nil when the data is not a zip this reader can walk. Entries it cannot
+// decode (an unsupported method) are skipped rather than fatal.
+static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
+    const uint8_t *bytes = zip.bytes;
+    NSUInteger length = zip.length;
+    if (length < 22) {
+        return nil;
+    }
+    // Find the end-of-central-directory record from the tail (comment ≤ 64KB).
+    NSInteger eocd = -1;
+    NSInteger floor = MAX(0, (NSInteger)length - 22 - 65535);
+    for (NSInteger i = (NSInteger)length - 22; i >= floor; i--) {
+        if (VibeReadLE(bytes + i, 4) == 0x06054b50) {
+            eocd = i;
+            break;
+        }
+    }
+    if (eocd < 0) {
+        return nil;
+    }
+    NSUInteger count = VibeReadLE(bytes + eocd + 10, 2);
+    NSUInteger offset = VibeReadLE(bytes + eocd + 16, 4);
+    NSMutableDictionary *entries = [NSMutableDictionary dictionary];
+    for (NSUInteger i = 0; i < count; i++) {
+        if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
+            return nil;
+        }
+        NSUInteger method = VibeReadLE(bytes + offset + 10, 2);
+        NSUInteger csize = VibeReadLE(bytes + offset + 20, 4);
+        NSUInteger usize = VibeReadLE(bytes + offset + 24, 4);
+        NSUInteger nameLength = VibeReadLE(bytes + offset + 28, 2);
+        NSUInteger extraLength = VibeReadLE(bytes + offset + 30, 2);
+        NSUInteger commentLength = VibeReadLE(bytes + offset + 32, 2);
+        NSUInteger local = VibeReadLE(bytes + offset + 42, 4);
+        NSString *name = [[NSString alloc] initWithBytes:bytes + offset + 46
+                length:nameLength encoding:NSUTF8StringEncoding];
+        offset += 46 + nameLength + extraLength + commentLength;
+        if (local + 30 > length || VibeReadLE(bytes + local, 4) != 0x04034b50) {
+            return nil;
+        }
+        NSUInteger localName = VibeReadLE(bytes + local + 26, 2);
+        NSUInteger localExtra = VibeReadLE(bytes + local + 28, 2);
+        NSUInteger dataStart = local + 30 + localName + localExtra;
+        if (dataStart + csize > length || !name || [name hasSuffix:@"/"]) {
+            continue;
+        }
+        NSData *raw = [zip subdataWithRange:NSMakeRange(dataStart, csize)];
+        if (method == 0) {
+            entries[name] = raw;
+        } else if (method == 8 && usize > 0 && usize < 64 * 1024 * 1024) {
+            NSMutableData *inflated = [NSMutableData dataWithLength:usize];
+            size_t written = compression_decode_buffer(inflated.mutableBytes, usize,
+                    raw.bytes, raw.length, NULL, COMPRESSION_ZLIB);
+            if (written == usize) {
+                entries[name] = inflated;
+            }
+        }
+    }
+    return entries;
+}
+
++ (NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
+                            name:(NSString *)name {
+    NSString *art = [[[AppTheme alloc] initWithRecord:record] defaultAlbumArt];
+    if (![art hasPrefix:@"custom:"]) {
+        return nil;
+    }
+    NSString *file = [art substringFromIndex:7];
+    NSData *image = [NSData dataWithContentsOfFile:
+            [VibeCustomAlbumArtDirectory() stringByAppendingPathComponent:file]];
+    if (!image) {
+        return nil;
+    }
+    return VibeZipData(@{
+        @"theme.json": [self JSONDataForRecord:record name:name],
+        file: image,
+    });
+}
+
++ (NSDictionary<NSString *, id> *)recordFromJSONOrArchiveData:(NSData *)data
+                                                         name:(NSString **)outName
+                                                        error:(NSError **)error {
+    const uint8_t *bytes = data.bytes;
+    BOOL isZip = data.length > 4 && bytes[0] == 'P' && bytes[1] == 'K';
+    if (!isZip) {
+        NSMutableDictionary *record =
+                [[self recordFromJSONData:data name:outName error:error] mutableCopy];
+        // JSON alone cannot carry the image: a custom reference that names
+        // nothing already stored here is dangling — drop it, keep the theme.
+        NSString *art = record[kFieldDefaultAlbumArt];
+        if ([art hasPrefix:@"custom:"]) {
+            NSString *path = [VibeCustomAlbumArtDirectory()
+                    stringByAppendingPathComponent:[art substringFromIndex:7]];
+            if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+                [record removeObjectForKey:kFieldDefaultAlbumArt];
+            }
+        }
+        return record;
+    }
+    NSDictionary<NSString *, NSData *> *entries = VibeUnzipData(data);
+    NSData *json = nil;
+    for (NSString *entry in entries) {
+        if ([entry.pathExtension isEqualToString:@"json"] && !json) {
+            json = entries[entry];
+        }
+    }
+    if (!json) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:5 userInfo:
+                    @{NSLocalizedDescriptionKey: @"the archive carries no theme JSON"}];
+        }
+        return nil;
+    }
+    NSMutableDictionary *record =
+            [[self recordFromJSONData:json name:outName error:error] mutableCopy];
+    if (!record) {
+        return nil;
+    }
+    NSString *art = record[kFieldDefaultAlbumArt];
+    if ([art hasPrefix:@"custom:"]) {
+        // The image ships beside the JSON under its reference name. It is
+        // re-validated and re-hashed here — the filename is not trusted —
+        // and the record rewritten to the stored copy.
+        NSData *image = entries[[art substringFromIndex:7]];
+        NSString *stored = image ? [self storeCustomAlbumArtData:image error:error] : nil;
+        if (stored) {
+            record[kFieldDefaultAlbumArt] = stored;
+        } else {
+            [record removeObjectForKey:kFieldDefaultAlbumArt];
+        }
+    }
+    return record;
 }
 
 #pragma mark Names and migration
@@ -564,6 +944,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (CGFloat)playlistDurationFontSize { return [self floatForKey:kFieldPlaylistDurationFontSize]; }
 - (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
+
+- (NSString *)defaultAlbumArt { return [self stringForKey:kFieldDefaultAlbumArt]; }
+- (void)setDefaultAlbumArt:(NSString *)v { [self storeSanitized:v forKey:kFieldDefaultAlbumArt]; }
 
 - (BOOL)showPlaylistArtwork { return [self boolForKey:kFieldShowPlaylistArtwork]; }
 - (void)setShowPlaylistArtwork:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistArtwork]; }

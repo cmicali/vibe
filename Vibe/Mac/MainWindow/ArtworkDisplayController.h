@@ -77,6 +77,11 @@ NS_ASSUME_NONNULL_BEGIN
 // does not accumulate for the playlist's lifetime.
 - (void)trackDidStartPlaying:(AudioTrack *)track;
 
+// Re-applies the theme's no-artwork placeholder while it is on screen — the
+// theme's defaultAlbumArt changed, and showDefaultArtwork's already-showing
+// guard would otherwise keep the old image up.
+- (void)refreshDefaultArtwork;
+
 @end
 
 NS_ASSUME_NONNULL_END

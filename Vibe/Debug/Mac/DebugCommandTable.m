@@ -247,7 +247,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         : [NSData dataWithContentsOfFile:tokens[1]];
                 NSString *name = nil;
                 NSError *error = nil;
-                NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
+                NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:data
+                                                                         name:&name
+                                                                        error:&error];
                 if (!record) {
                     return VibeErrorJSON(@"not a theme: %@", error.localizedDescription ?: @"unreadable");
                 }

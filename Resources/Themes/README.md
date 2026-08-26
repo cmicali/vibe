@@ -36,3 +36,14 @@ catalog language — `make check-translations` enforces completeness.
 
 `vibe.json` is special: it must stay field-free. The empty record IS the
 factory look, and a test pins it.
+
+## Album art
+
+`defaultAlbumArt` picks the placeholder drawn when a track has no artwork:
+a bundled name (a square JPEG or PNG dropped in `art/` here — the stem is the
+name), or `custom:<sha1>.<ext>` for an image the user picked in the app. A
+theme carrying a custom image exports as a **ZIP** of `theme.json` plus the
+image, and imports the same way (the image is re-validated and re-hashed on
+import). Built-in themes may only name bundled art — the validation test
+enforces that, and that every file in `art/` is square and within the pixel
+and byte caps.
