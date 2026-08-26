@@ -47,7 +47,7 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
         return VibeErrorJSON(redo ? @"nothing to redo" : @"nothing to undo");
     }
     NSString *actionName = redo ? undoManager.redoActionName : undoManager.undoActionName;
-    controller.conversionUndoRedoSettledHandler = ^(BOOL committed, NSString *reason) {
+    void (^settled)(BOOL, NSString *) = ^(BOOL committed, NSString *reason) {
         NSMutableDictionary *response = [@{
             @"ok": @YES,
             (redo ? @"redid" : @"undid"): actionName ?: @"",
@@ -60,6 +60,7 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
         }
         VibeWriteDebugResponse(commandId, VibeJSONString(response));
     };
+    controller.conversionUndoRedoSettledHandler = settled;
     if (redo) {
         [controller redo:nil];
     }
@@ -68,19 +69,13 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     }
     // The hook is one-shot and clears itself as it fires. Still installed with
     // no conversion transaction running means this undo never was a
-    // conversion's: it settled synchronously, so answer now.
+    // conversion's: it settled synchronously, so fire the same reply now.
     if (controller.conversionUndoRedoSettledHandler
             && !controller.isConversionUndoRedoInFlight) {
         controller.conversionUndoRedoSettledHandler = nil;
-        return VibeJSONString(@{
-            @"ok": @YES,
-            (redo ? @"redid" : @"undid"): actionName ?: @"",
-            @"committed": @YES,
-            @"canUndo": @(undoManager.canUndo),
-            @"canRedo": @(undoManager.canRedo),
-        });
+        settled(YES, nil);
     }
-    return nil; // response written by the settled hook
+    return nil; // response written by the settled block
 }
 
 // The command set. Dispatch, the unknown-command usage reply and the client's

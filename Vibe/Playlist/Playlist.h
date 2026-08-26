@@ -78,6 +78,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioTrack *)currentTrack;
 - (NSUInteger)count;
 
+// The rows at indexes, in row order; out-of-range members are skipped, so a
+// selection that outran the model resolves to what is really there.
+- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes;
+
 // Replaces the whole list and resets currentIndex to 0.
 - (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls;
 

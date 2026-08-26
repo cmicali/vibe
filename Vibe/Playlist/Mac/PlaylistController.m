@@ -230,29 +230,29 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
   draggingSession:(NSDraggingSession *)session
  willBeginAtPoint:(NSPoint)screenPoint
     forRowIndexes:(NSIndexSet *)rowIndexes {
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:rowIndexes.count];
-    [rowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
-        AudioTrack *track = [self->_model trackAtIndex:row];
-        if (track) {
-            [tracks addObject:track];
-        }
-    }];
-    _dragSessionTracks = tracks;
+    _dragSessionTracks = [_model tracksAtIndexes:rowIndexes];
 }
 
-// The dragged tracks still in the list, as a row set. Empty when the session
-// is dead or every dragged row departed — a replaced playlist resolves every
+// One drop qualification for the insertion line and the drop itself, so the
+// line can never promise a move the accept refuses: a pasteboard proving it
+// belongs to this table's live session, at least one dragged row surviving,
+// and a slot the rules seam converts to a landing. nil when no move should
+// happen; on success outSourceRows (optional) carries the surviving rows. The
+// survivors rule is rowsForTracks:'s — a replaced playlist resolves every
 // retained object to -1, which is what rejects a stale drag outright, while a
 // single converted-away row degrades to moving its surviving companions.
-- (NSIndexSet *)dragSessionSurvivorRows {
-    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
-    for (AudioTrack *track in _dragSessionTracks) {
-        NSInteger row = [_model getIndexForTrack:track];
-        if (row >= 0) {
-            [rows addIndex:(NSUInteger)row];
-        }
+- (NSIndexSet *)reorderDestinationForInfo:(id<NSDraggingInfo>)info
+                              proposedRow:(NSInteger)row
+                               sourceRows:(NSIndexSet **)outSourceRows {
+    if (![self draggingInfoIsLiveReorderSession:info]) {
+        return nil;
     }
-    return rows;
+    NSIndexSet *sourceRows = [self rowsForTracks:_dragSessionTracks];
+    NSIndexSet *destination = VibePlaylistDropDestinationForSlot(sourceRows, row, _model.count);
+    if (destination && outSourceRows) {
+        *outSourceRows = sourceRows;
+    }
+    return destination;
 }
 
 // YES only for a pasteboard proving it belongs to this table's live session:
@@ -272,15 +272,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
                 validateDrop:(id<NSDraggingInfo>)info
                  proposedRow:(NSInteger)row
        proposedDropOperation:(NSTableViewDropOperation)dropOperation {
-    if (![self draggingInfoIsLiveReorderSession:info]) {
-        return NSDragOperationNone;
-    }
-    NSIndexSet *sourceRows = [self dragSessionSurvivorRows];
-    NSUInteger destination;
-    if (VibePlaylistDropDecisionForSlot(sourceRows, row, _model.count, &destination)
-            != VibePlaylistDropMove) {
-        // A no-op slot — the block dropped beside itself — must not pretend a
-        // move would happen, so no insertion line is offered either.
+    // A refused slot — the block dropped beside itself included — must not
+    // pretend a move would happen, so no insertion line is offered either.
+    if (![self reorderDestinationForInfo:info proposedRow:row sourceRows:NULL]) {
         return NSDragOperationNone;
     }
     // Only the between-rows insertion line describes a reorder.
@@ -292,22 +286,15 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
        acceptDrop:(id<NSDraggingInfo>)info
               row:(NSInteger)row
     dropOperation:(NSTableViewDropOperation)dropOperation {
-    if (![self draggingInfoIsLiveReorderSession:info]) {
-        return NO;
-    }
-    // Resolved afresh at the drop: the playlist may have changed since the
-    // last validation, and the model revalidates once more besides.
-    NSIndexSet *sourceRows = [self dragSessionSurvivorRows];
-    NSUInteger destination;
-    if (VibePlaylistDropDecisionForSlot(sourceRows, row, _model.count, &destination)
-            != VibePlaylistDropMove) {
-        return NO;
-    }
-    // The observer applies the table update and fires the shell's
-    // order-changed follow-up before this returns.
-    return [_model moveTracksAtIndexes:sourceRows
-                             toIndexes:[NSIndexSet indexSetWithIndexesInRange:
-                                        NSMakeRange(destination, sourceRows.count)]];
+    // Qualified afresh at the drop: the playlist may have changed since the
+    // last validation, and the model revalidates once more besides. The
+    // observer applies the table update and fires the shell's order-changed
+    // follow-up before this returns.
+    NSIndexSet *sourceRows;
+    NSIndexSet *destination = [self reorderDestinationForInfo:info
+                                                  proposedRow:row
+                                                   sourceRows:&sourceRows];
+    return destination && [_model moveTracksAtIndexes:sourceRows toIndexes:destination];
 }
 
 // Always called, drop or cancel, so a finished session cannot be reused.
@@ -388,11 +375,19 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // for why there is no animation, why row views are re-stamped rather than
     // reloaded, and why the cursor handler is deliberately not raised.
     [tableView insertRowsAtIndexes:indexes withAnimation:NSTableViewAnimationEffectNone];
-    // Select and reveal the restored rows: an undo whose rows are off screen
-    // would otherwise read as a no-op. Presentation only, like removal's
-    // selection move — it must not start a play.
-    [tableView selectRowIndexes:indexes byExtendingSelection:NO];
-    [tableView scrollRowToVisible:(NSInteger)indexes.firstIndex];
+    [self selectRevealAndRestampRows:indexes];
+}
+
+// The landing tail the insert and move reconciliations share. Selecting and
+// revealing is presentation only, like removal's selection move — it must not
+// start a play — and exists because an undo whose rows are off screen would
+// otherwise read as a no-op; the re-stamp pair is removal's, run before
+// returning to the run loop so no frame shows two playing rows or a stale
+// number.
+- (void)selectRevealAndRestampRows:(NSIndexSet *)rows {
+    PlaylistTableView *tableView = self.tableView;
+    [tableView selectRowIndexes:rows byExtendingSelection:NO];
+    [tableView scrollRowToVisible:(NSInteger)rows.firstIndex];
     [self refreshRowViewPlayingStates];
     [self reconfigureVisibleNumberCells];
 }
@@ -412,17 +407,12 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
         [tableView moveRowAtIndex:(NSInteger)from toIndex:(NSInteger)to];
     });
     [tableView endUpdates];
-    // The landed rows, selected deterministically: AppKit carries selection
+    // The landed rows are selected deterministically: AppKit carries selection
     // with moved rows, but a drag begun outside the selection would otherwise
     // leave it wherever it was — and an undo's scattered restore reads as its
-    // own landing. Presentation only — it must not start a play.
-    [tableView selectRowIndexes:destinationIndexes byExtendingSelection:NO];
-    [tableView scrollRowToVisible:(NSInteger)destinationIndexes.firstIndex];
-    // Same two-step reconciliation as removal's, before returning to the run
-    // loop, so no frame shows two playing rows or a stale row number; the
-    // cursor handler is deliberately not raised for a structural edit.
-    [self refreshRowViewPlayingStates];
-    [self reconfigureVisibleNumberCells];
+    // own landing. The cursor handler is deliberately not raised for a
+    // structural edit.
+    [self selectRevealAndRestampRows:destinationIndexes];
     // The shell's one follow-up edge — undo registration, successor re-park,
     // metadata neighborhood, transport UI — fired here rather than at the
     // drop site so every move initiator, the undo stack included, gets it for
@@ -756,24 +746,43 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 // time, like the context menu's clicked row, because the playlist can be
 // replaced between the press and here.
 
+- (NSIndexSet *)selectedRows {
+    // Filtered against the model, not trusted raw: a playlist replacement can
+    // outrun the table's selection for a turn.
+    NSIndexSet *rows = _tableView.selectedRowIndexes;
+    NSUInteger count = _model.count;
+    if (rows.lastIndex == NSNotFound || rows.lastIndex < count) {
+        return rows;
+    }
+    NSMutableIndexSet *valid = [rows mutableCopy];
+    [valid removeIndexesInRange:NSMakeRange(count, rows.lastIndex - count + 1)];
+    return valid;
+}
+
 - (NSInteger)selectedRow {
     // The topmost selected row, deterministically: NSTableView's own
     // selectedRow reports the most recently CLICKED row of a multi-row
     // selection, which would make Return play whichever end the user happened
     // to extend from.
-    NSUInteger row = _tableView.selectedRowIndexes.firstIndex;
-    return (row != NSNotFound && row < _model.count) ? (NSInteger)row : -1;
+    NSUInteger row = [self selectedRows].firstIndex;
+    return row != NSNotFound ? (NSInteger)row : -1;
 }
 
 - (NSArray<AudioTrack *> *)selectedTracks {
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray array];
-    [_tableView.selectedRowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
-        AudioTrack *track = [self->_model trackAtIndex:row];
-        if (track) {
-            [tracks addObject:track];
+    return [_model tracksAtIndexes:[self selectedRows]];
+}
+
+// The live rows the exact objects occupy now, departed ones dropped — the
+// identity-resolution rule every group gesture rests on, stated once.
+- (NSIndexSet *)rowsForTracks:(NSArray<AudioTrack *> *)tracks {
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    for (AudioTrack *track in tracks) {
+        NSInteger row = [_model getIndexForTrack:track];
+        if (row >= 0) {
+            [rows addIndex:(NSUInteger)row];
         }
-    }];
-    return tracks;
+    }
+    return rows;
 }
 
 - (void)playSelectedTrack {
@@ -835,15 +844,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     _menuOpenTargetTracks = captured;
 }
 
-// The captured menu targets still in the list, in their captured order.
+// The captured menu targets still in the list, in row order.
 - (NSArray<AudioTrack *> *)menuOpenSurvivingTracks {
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray array];
-    for (AudioTrack *track in _menuOpenTargetTracks.allObjects) {
-        if ([_model getIndexForTrack:track] >= 0) {
-            [tracks addObject:track];
-        }
-    }
-    return tracks;
+    return [_model tracksAtIndexes:[self rowsForTracks:_menuOpenTargetTracks.allObjects]];
 }
 
 // The rows a click acts on: the whole selection when the click landed inside
@@ -859,8 +862,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     if ([_tableView.selectedRowIndexes containsIndex:(NSUInteger)row]) {
         return [self selectedTracks];
     }
-    AudioTrack *track = [_model trackAtIndex:(NSUInteger)row];
-    return track ? @[track] : @[];
+    return @[[_model trackAtIndex:(NSUInteger)row]];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {

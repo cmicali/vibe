@@ -7,8 +7,8 @@ The body below is the plan as written; where it and the code disagree, the code 
 directory `CLAUDE.md`s are the authority. The deliberate divergences:
 
 - **Every structural model op is batch-shaped, and the single-row APIs are gone.** The plan's
-  `moveTrackAtIndex:toIndex:` was never built; `moveTracksAtIndexes:toIndex:` is the one move op
-  and a single row is the one-index case. Row removal's `removeTrackAtIndex:` /
+  `moveTrackAtIndex:toIndex:` was never built; `moveTracksAtIndexes:toIndexes:` is the one move
+  op and a single row is the one-index case. Row removal's `removeTrackAtIndex:` /
   `insertTrack:atIndex:` and their observer events were likewise **replaced** by
   `removeTracksAtIndexes:` / `insertTracks:atIndexes:` (the undo pair generalized with them:
   `reinsertPlaylistTracks:atIndexes:generation:`), so one code path serves both arities.

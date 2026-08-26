@@ -65,11 +65,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) void (^playlistOrderDidChangeHandler)(NSIndexSet *sourceIndexes, NSIndexSet *destinationIndexes);
 
 // Staleness counter for work stamped against the current row set — the
-// shell's removal-undo registrations. It follows the model's own replace-all
-// announcement (playlistDidReplaceAllTracks:, which both replaceAllWithURLs:
-// and clear fire), so ANY path that replaces the list bumps it — there is no
-// call-site discipline to forget. Appends, swaps, removals and inserts leave
-// it alone: they never invalidate a stamped row number wholesale.
+// shell's removal-undo and reorder-undo registrations. It follows the model's
+// own replace-all announcement (playlistDidReplaceAllTracks:, which both
+// replaceAllWithURLs: and clear fire), so ANY path that replaces the list
+// bumps it — there is no call-site discipline to forget. Appends, swaps,
+// removals and inserts leave it alone: they never invalidate a stamped row
+// number wholesale, because a stamped registration only runs after every
+// undoable edit made since it has itself been unwound (NSUndoManager is
+// LIFO), which restores the coordinates it was stamped in.
 @property (nonatomic, readonly) NSUInteger structureGeneration;
 
 // A row-menu removal request. The shell resolves the exact objects to their
@@ -156,14 +159,23 @@ NS_ASSUME_NONNULL_BEGIN
 // it lands through the table's acceptDrop.
 - (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes toIndexes:(NSIndexSet *)destinationIndexes;
 
-// The topmost row of the keyboard selection, which is not the playing row:
-// the arrow keys move it, and it stays put while playback moves currentIndex.
-// -1 when nothing is selected or a playlist replacement has outrun the
-// selection, so >= 0 is also the one "is there a selection" predicate.
+// The keyboard selection, which is not the playing row: the arrow keys move
+// it, and it stays put while playback moves currentIndex. Empty when nothing
+// is selected or a playlist replacement has outrun the selection. The
+// selection primitive — selectedRow and selectedTracks derive from it.
+- (NSIndexSet *)selectedRows;
+
+// The topmost selected row, or -1 with no selection — so >= 0 is also the one
+// "is there a selection" predicate.
 - (NSInteger)selectedRow;
 
 // Every selected row's track, in row order. Empty when nothing is selected.
 - (NSArray<AudioTrack *> *)selectedTracks;
+
+// The live rows the exact objects occupy now, departed ones dropped: the
+// identity-resolution rule every group gesture rests on, in its one home. The
+// drag session and the shell's removal funnel both resolve through this.
+- (NSIndexSet *)rowsForTracks:(NSArray<AudioTrack *> *)tracks;
 
 // Plays the selected row, exactly as a double-click on it does. A no-op with
 // no selection.

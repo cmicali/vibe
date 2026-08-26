@@ -56,6 +56,19 @@
     return [_tracks copy];
 }
 
+- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes {
+    if (indexes.count == 0) {
+        return @[];
+    }
+    if (indexes.lastIndex < _tracks.count) {
+        return [_tracks objectsAtIndexes:indexes];
+    }
+    NSMutableIndexSet *valid = [indexes mutableCopy];
+    [valid removeIndexesInRange:NSMakeRange(_tracks.count,
+                                            indexes.lastIndex - _tracks.count + 1)];
+    return [_tracks objectsAtIndexes:valid];
+}
+
 - (AudioTrack *)trackAtIndex:(NSUInteger)index {
     return index < _tracks.count ? _tracks[index] : nil;
 }
@@ -230,7 +243,6 @@
     if (indexes.count == 0 || indexes.lastIndex >= _tracks.count) {
         return nil;
     }
-    NSUInteger previousCurrentIndex = _currentIndex;
     NSArray<AudioTrack *> *removed = [_tracks objectsAtIndexes:indexes];
     [_tracks removeObjectsAtIndexes:indexes];
     // Every survivor below a removed row has moved, so the indexes are rebuilt
@@ -246,8 +258,7 @@
     // ivar: one structural edit sends ONE event, and the property's setter
     // would fire currentIndexDidChangeFromIndex: as a second edge for the same
     // action.
-    _currentIndex = previousCurrentIndex
-            - [indexes countOfIndexesInRange:NSMakeRange(0, previousCurrentIndex)];
+    _currentIndex -= [indexes countOfIndexesInRange:NSMakeRange(0, _currentIndex)];
     // Unconditional, not chained to the shift above: every removal must leave
     // the cursor in range (or 0 in an emptied list), whatever state it arrived
     // in — a chained else-if would carry a corrupt cursor straight through.
@@ -263,20 +274,29 @@
         return;
     }
     AudioTrack *current = self.currentTrack;
-    // Each index clamped, not refused: the undo of a removal can land after
-    // later edits have moved the end of the list, and a past-the-end restore
-    // should come back as the last row rather than not at all. Ascending
-    // insertion order keeps each landed row from disturbing the ones already
-    // placed, and the landed set — not the requested one — is what the event
-    // carries, since clamping can shift a request.
-    NSMutableIndexSet *landed = [NSMutableIndexSet indexSet];
-    __block NSUInteger trackPosition = 0;
-    [indexes enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        NSUInteger insertIndex = MIN(index, self->_tracks.count);
-        [self->_tracks insertObject:tracks[trackPosition] atIndex:insertIndex];
-        [landed addIndex:insertIndex];
-        trackPosition += 1;
-    }];
+    // Past-the-end indexes are clamped, not refused: the undo of a removal can
+    // land after later edits have moved the end of the list, and a
+    // past-the-end restore should come back as the last row rather than not at
+    // all. The ordinary restore — every index in range — is one batch insert;
+    // only the clamped rescue pays the per-row loop, whose ascending order
+    // keeps each landed row from disturbing the ones already placed. The
+    // landed set — not the requested one — is what the event carries, since
+    // clamping can shift a request.
+    NSIndexSet *landed;
+    if (indexes.lastIndex < _tracks.count + tracks.count) {
+        [_tracks insertObjects:tracks atIndexes:indexes];
+        landed = indexes;
+    } else {
+        NSMutableIndexSet *clamped = [NSMutableIndexSet indexSet];
+        __block NSUInteger trackPosition = 0;
+        [indexes enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+            NSUInteger insertIndex = MIN(index, self->_tracks.count);
+            [self->_tracks insertObject:tracks[trackPosition] atIndex:insertIndex];
+            [clamped addIndex:insertIndex];
+            trackPosition += 1;
+        }];
+        landed = clamped;
+    }
     // The mirror of removal's rebuild: every row at or below an insert moved.
     [self rebuildIndexes];
     // The cursor follows its object: an insert never removes it, so resolving
@@ -313,15 +333,11 @@
     // The cursor follows its object, resolved against the rebuilt map: one
     // step covers the current row inside the moved block, a block crossing it
     // in either direction, and a move that never touches it. A move removes
-    // nothing, so the lookup can only fail for a cursor that arrived corrupt;
-    // removal's clamp keeps the defensive stance. Written straight to the
-    // ivar: one structural edit, one event.
+    // nothing, so the guard only skips a cursor that arrived corrupt. Written
+    // straight to the ivar: one structural edit, one event.
     NSInteger resolvedCurrent = [self getIndexForTrack:current];
     if (resolvedCurrent >= 0) {
         _currentIndex = (NSUInteger)resolvedCurrent;
-    }
-    if (_currentIndex >= _tracks.count) {
-        _currentIndex = _tracks.count == 0 ? 0 : _tracks.count - 1;
     }
     [self.observer playlist:self didMoveTracksFromIndexes:sourceIndexes
                   toIndexes:destinationIndexes];

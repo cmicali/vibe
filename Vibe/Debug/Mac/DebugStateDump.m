@@ -51,11 +51,13 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     // The keyboard selection, which is not the playing row: only this platform
     // has one, and it is what Remove from Playlist and Play Selected Track act
     // on. selectedRow is the topmost selected row or -1; selectedRows is every
-    // selected row, the group-gesture oracle.
+    // selected row, the group-gesture oracle — read from the controller's own
+    // selection primitive, not reconstructed.
     NSMutableArray<NSNumber *> *selectedRows = [NSMutableArray array];
-    for (AudioTrack *track in controller.playlistController.selectedTracks) {
-        [selectedRows addObject:@([controller.playlistController getIndexForTrack:track])];
-    }
+    [controller.playlistController.selectedRows
+            enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        [selectedRows addObject:@(row)];
+    }];
     [state[@"playlist"] addEntriesFromDictionary:@{
         @"selectedRow": @(controller.playlistController.selectedRow),
         @"selectedRows": selectedRows,

@@ -13,46 +13,37 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NS_ENUM(NSInteger, VibePlaylistDropDecision) {
-    // Malformed input — an empty or out-of-range source set, or a slot
-    // outside 0..count. No operation is offered.
-    VibePlaylistDropRejected,
-    // A legal slot that would leave the order unchanged: a contiguous block
-    // dropped onto or immediately beside itself, or every row dragged at
-    // once. Offering a move here would pretend to perform one.
-    VibePlaylistDropNoOp,
-    // Perform the move; *finalDestination is Playlist's input.
-    VibePlaylistDropMove,
-};
+static inline BOOL VibePlaylistIndexesAreContiguous(NSIndexSet *indexes) {
+    return indexes.lastIndex - indexes.firstIndex + 1 == indexes.count;
+}
 
 // Converts an AppKit insertion slot (0..count, from an NSTableViewDropAbove
-// validation) into the model's coordinate: the FINAL index of the first moved
-// row after the move. The downward off-by-one is solved here once — the
-// dragged rows vacate their positions above the slot, so the destination is
-// the slot minus however many sources precede it. sourceIndexes are the
+// validation) into the model's landing set: the contiguous FINAL positions the
+// dragged rows would occupy. The downward off-by-one is solved here once — the
+// dragged rows vacate their positions above the slot, so the landing starts at
+// the slot minus however many sources precede it. nil when no move should be
+// offered: malformed input (an empty or out-of-range source set, a slot
+// outside 0..count), or a slot that would leave the order unchanged — a
+// contiguous block dropped onto or immediately beside itself, or every row
+// dragged at once. A non-contiguous set is never a no-op: gathering it moves
+// the survivors between its members wherever it lands. sourceIndexes are the
 // dragged rows in current coordinates; count is the row count before the move.
-static inline VibePlaylistDropDecision
-VibePlaylistDropDecisionForSlot(NSIndexSet *_Nullable sourceIndexes,
-                                NSInteger proposedSlot,
-                                NSUInteger count,
-                                NSUInteger *finalDestination) {
+static inline NSIndexSet *_Nullable
+VibePlaylistDropDestinationForSlot(NSIndexSet *_Nullable sourceIndexes,
+                                   NSInteger proposedSlot,
+                                   NSUInteger count) {
     NSUInteger moving = sourceIndexes.count;
     if (moving == 0 || sourceIndexes.lastIndex >= count
             || proposedSlot < 0 || (NSUInteger)proposedSlot > count) {
-        return VibePlaylistDropRejected;
+        return nil;
     }
     NSUInteger slot = (NSUInteger)proposedSlot;
     NSUInteger destination = slot - [sourceIndexes countOfIndexesInRange:NSMakeRange(0, slot)];
-    // A contiguous block landing on its own first row changes nothing, and
-    // every slot from the block's first row through one past its last resolves
-    // to exactly that destination. A non-contiguous set never qualifies:
-    // gathering it moves the survivors between its members wherever it lands.
-    BOOL contiguous = sourceIndexes.lastIndex - sourceIndexes.firstIndex + 1 == moving;
-    if (contiguous && destination == sourceIndexes.firstIndex) {
-        return VibePlaylistDropNoOp;
+    if (VibePlaylistIndexesAreContiguous(sourceIndexes)
+            && destination == sourceIndexes.firstIndex) {
+        return nil;
     }
-    *finalDestination = destination;
-    return VibePlaylistDropMove;
+    return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(destination, moving)];
 }
 
 // The gather half of the sequence arithmetic: the single-row (from, to) moves
@@ -101,13 +92,13 @@ VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
 // a list so the rows at sourceIndexes occupy destinationIndexes — the model's
 // remove-at-A-insert-at-B semantics, realized as the moveRowAtIndex:toIndex:
 // calls a table applies so row views survive. Pairs are in EVOLVING
-// coordinates. A contiguous destination is the drag's gather; a contiguous
-// source scattering outward is its undo, derived as the inverse of the gather
-// that would collect the destinations back into the block — each moveRow's
-// inverse swaps its coordinates, so the inverse sequence is the gather's
-// pairs reversed and swapped. Neither side contiguous decomposes into a
-// gather to the front and a scatter out of it, at most 2k moves. Emits
-// nothing for inputs the model would refuse.
+// coordinates. One side is always contiguous, because every move is a gather
+// or a gather's undo: a contiguous destination is the drag collecting its
+// selection, and a contiguous source scattering outward is that move with its
+// sets swapped, derived as the inverse of the gather that would collect the
+// destinations back into the block — each moveRow's inverse swaps its
+// coordinates, so the inverse sequence is the gather's pairs reversed and
+// swapped. Emits nothing for inputs the model would refuse.
 static inline void
 VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
                                   NSIndexSet *_Nullable destinationIndexes,
@@ -116,25 +107,18 @@ VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
     if (moving == 0 || destinationIndexes.count != moving) {
         return;
     }
-    if (destinationIndexes.lastIndex - destinationIndexes.firstIndex + 1 == moving) {
+    if (VibePlaylistIndexesAreContiguous(destinationIndexes)) {
         VibePlaylistGatherSequenceEnumerate(sourceIndexes, destinationIndexes.firstIndex,
                                             enumerator);
         return;
     }
-    BOOL sourceContiguous = sourceIndexes.lastIndex - sourceIndexes.firstIndex + 1 == moving;
-    if (!sourceContiguous) {
-        VibePlaylistGatherSequenceEnumerate(sourceIndexes, 0, enumerator);
-    }
-    NSUInteger gatherOrigin = sourceContiguous ? sourceIndexes.firstIndex : 0;
-    NSMutableData *pairs = [NSMutableData data];
-    VibePlaylistGatherSequenceEnumerate(destinationIndexes, gatherOrigin,
+    NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray arrayWithCapacity:moving];
+    VibePlaylistGatherSequenceEnumerate(destinationIndexes, sourceIndexes.firstIndex,
                                         ^(NSUInteger from, NSUInteger to) {
-        NSUInteger pair[2] = {from, to};
-        [pairs appendBytes:pair length:sizeof(pair)];
+        [pairs addObject:@[@(from), @(to)]];
     });
-    const NSUInteger *flat = pairs.bytes;
-    for (NSUInteger i = pairs.length / (2 * sizeof(NSUInteger)); i > 0; i--) {
-        enumerator(flat[(i - 1) * 2 + 1], flat[(i - 1) * 2]);
+    for (NSArray<NSNumber *> *pair in pairs.reverseObjectEnumerator) {
+        enumerator(pair[1].unsignedIntegerValue, pair[0].unsignedIntegerValue);
     }
 }
 

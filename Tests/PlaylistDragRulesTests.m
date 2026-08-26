@@ -15,7 +15,7 @@
 
 @implementation PlaylistDragRulesTests
 
-static NSIndexSet *Rows(NSArray<NSNumber *> *rows) {
+static NSIndexSet *RowSetOf(NSArray<NSNumber *> *rows) {
     NSMutableIndexSet *indexes = [NSMutableIndexSet indexSet];
     for (NSNumber *row in rows) {
         [indexes addIndex:row.unsignedIntegerValue];
@@ -23,29 +23,15 @@ static NSIndexSet *Rows(NSArray<NSNumber *> *rows) {
     return indexes;
 }
 
-// The reference the sequence must reproduce: extract ascending, splice back
-// contiguously at the destination.
-static NSArray<NSString *> *ReferenceMove(NSArray<NSString *> *list,
-                                          NSIndexSet *sources,
-                                          NSUInteger destination) {
-    NSMutableArray<NSString *> *result = [list mutableCopy];
-    NSArray<NSString *> *moved = [result objectsAtIndexes:sources];
-    [result removeObjectsAtIndexes:sources];
-    [result insertObjects:moved
-                atIndexes:[NSIndexSet indexSetWithIndexesInRange:
-                           NSMakeRange(destination, moved.count)]];
-    return result;
-}
-
-static NSIndexSet *Range(NSUInteger location, NSUInteger length) {
+static NSIndexSet *RowRange(NSUInteger location, NSUInteger length) {
     return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(location, length)];
 }
 
-// The reference for the general set-to-set form: remove at the sources,
-// insert at the destinations.
-static NSArray<NSString *> *ReferenceMoveToSet(NSArray<NSString *> *list,
-                                               NSIndexSet *sources,
-                                               NSIndexSet *destinations) {
+// The reference the sequence must reproduce: the model's own remove-at-A,
+// insert-at-B semantics.
+static NSArray<NSString *> *ReferenceMove(NSArray<NSString *> *list,
+                                          NSIndexSet *sources,
+                                          NSIndexSet *destinations) {
     NSMutableArray<NSString *> *result = [list mutableCopy];
     NSArray<NSString *> *moved = [result objectsAtIndexes:sources];
     [result removeObjectsAtIndexes:sources];
@@ -73,112 +59,71 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
     return result;
 }
 
-#pragma mark - Drop decision
+#pragma mark - Drop destination
 
-- (void)testSingleRowDecisionAtEverySlot {
-    // Dragging row 1 of 4: slots 1 and 2 bracket the row itself and are
-    // no-ops; a slot past the source subtracts the vacated row.
-    NSIndexSet *source = Rows(@[@1u]);
-    NSUInteger destination;
-    struct { NSInteger slot; VibePlaylistDropDecision decision; NSUInteger final; } cases[] = {
-        {0, VibePlaylistDropMove, 0},
-        {1, VibePlaylistDropNoOp, 0},
-        {2, VibePlaylistDropNoOp, 0},
-        {3, VibePlaylistDropMove, 2},
-        {4, VibePlaylistDropMove, 3},
-    };
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        destination = NSNotFound;
-        VibePlaylistDropDecision decision =
-                VibePlaylistDropDecisionForSlot(source, cases[i].slot, 4, &destination);
-        XCTAssertEqual(decision, cases[i].decision, @"slot %ld", (long)cases[i].slot);
-        if (decision == VibePlaylistDropMove) {
-            XCTAssertEqual(destination, cases[i].final, @"slot %ld", (long)cases[i].slot);
-        }
-    }
+- (void)testSingleRowDestinationAtEverySlot {
+    // Dragging row 1 of 4: slots 1 and 2 bracket the row itself and offer
+    // nothing; a slot past the source subtracts the vacated row.
+    NSIndexSet *source = RowSetOf(@[@1u]);
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 0, 4), RowRange(0, 1));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 1, 4));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 2, 4));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 3, 4), RowRange(2, 1));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 4, 4), RowRange(3, 1));
 }
 
 - (void)testContiguousBlockNoOpSlotsSpanTheBlockAndBothEdges {
     // Dragging rows 1-2 of 5: every slot from the block's first row through
-    // one past its last leaves the order unchanged.
-    NSIndexSet *source = Rows(@[@1u, @2u]);
-    NSUInteger destination;
-    struct { NSInteger slot; VibePlaylistDropDecision decision; NSUInteger final; } cases[] = {
-        {0, VibePlaylistDropMove, 0},
-        {1, VibePlaylistDropNoOp, 0},
-        {2, VibePlaylistDropNoOp, 0},
-        {3, VibePlaylistDropNoOp, 0},
-        {4, VibePlaylistDropMove, 2},
-        {5, VibePlaylistDropMove, 3},
-    };
-    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        VibePlaylistDropDecision decision =
-                VibePlaylistDropDecisionForSlot(source, cases[i].slot, 5, &destination);
-        XCTAssertEqual(decision, cases[i].decision, @"slot %ld", (long)cases[i].slot);
-        if (decision == VibePlaylistDropMove) {
-            XCTAssertEqual(destination, cases[i].final, @"slot %ld", (long)cases[i].slot);
-        }
-    }
+    // one past its last leaves the order unchanged, so no move is offered.
+    NSIndexSet *source = RowSetOf(@[@1u, @2u]);
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 0, 5), RowRange(0, 2));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 1, 5));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 2, 5));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(source, 3, 5));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 4, 5), RowRange(2, 2));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(source, 5, 5), RowRange(3, 2));
 }
 
 - (void)testNonContiguousSetIsNeverANoOp {
     // Even landing at its own first row gathers the set, which moves the
     // survivor out from between its members.
-    NSUInteger destination;
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u, @2u]), 0, 3, &destination),
-                   VibePlaylistDropMove);
-    XCTAssertEqual(destination, 0u);
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u, @2u]), 0, 3),
+                          RowRange(0, 2));
     // And each slot inside the set subtracts only the sources above it.
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@1u, @3u]), 2, 5, &destination),
-                   VibePlaylistDropMove);
-    XCTAssertEqual(destination, 1u);
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@1u, @3u]), 5, 5, &destination),
-                   VibePlaylistDropMove);
-    XCTAssertEqual(destination, 3u);
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@1u, @3u]), 2, 5),
+                          RowRange(1, 2));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@1u, @3u]), 5, 5),
+                          RowRange(3, 2));
 }
 
-- (void)testDraggingEveryRowIsAlwaysANoOp {
-    NSIndexSet *all = Rows(@[@0u, @1u, @2u]);
-    NSUInteger destination;
+- (void)testDraggingEveryRowOffersNoMove {
+    NSIndexSet *all = RowSetOf(@[@0u, @1u, @2u]);
     for (NSInteger slot = 0; slot <= 3; slot++) {
-        XCTAssertEqual(VibePlaylistDropDecisionForSlot(all, slot, 3, &destination),
-                       VibePlaylistDropNoOp, @"slot %ld", (long)slot);
+        XCTAssertNil(VibePlaylistDropDestinationForSlot(all, slot, 3), @"slot %ld", (long)slot);
     }
 }
 
 - (void)testOneRowPlaylistOffersNoMove {
-    NSUInteger destination;
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u]), 0, 1, &destination),
-                   VibePlaylistDropNoOp);
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u]), 1, 1, &destination),
-                   VibePlaylistDropNoOp);
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u]), 0, 1));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u]), 1, 1));
 }
 
-- (void)testMalformedInputsAreRejectedNotGuessed {
-    NSUInteger destination;
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(nil, 0, 3, &destination),
-                   VibePlaylistDropRejected);
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot([NSIndexSet indexSet], 0, 3, &destination),
-                   VibePlaylistDropRejected);
+- (void)testMalformedInputsOfferNoMove {
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(nil, 0, 3));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot([NSIndexSet indexSet], 0, 3));
     // A member at count is out of range, not the legal edge slot.
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@3u]), 0, 3, &destination),
-                   VibePlaylistDropRejected);
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u]), -1, 3, &destination),
-                   VibePlaylistDropRejected);
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u]), 4, 3, &destination),
-                   VibePlaylistDropRejected);
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(RowSetOf(@[@3u]), 0, 3));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u]), -1, 3));
+    XCTAssertNil(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u]), 4, 3));
 }
 
 - (void)testAllButOneRowMovesInBothDirections {
-    NSUInteger destination;
-    // Dragging rows 1-3 of 4 to slot 0: the block lands first.
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@1u, @2u, @3u]), 0, 4, &destination),
-                   VibePlaylistDropMove);
-    XCTAssertEqual(destination, 0u);
-    // Dragging rows 0-2 of 4 to slot 4: the block lands after the survivor.
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@0u, @1u, @2u]), 4, 4, &destination),
-                   VibePlaylistDropMove);
-    XCTAssertEqual(destination, 1u);
+    // Dragging rows 1-3 of 4 to slot 0: the block lands first. Rows 0-2 to
+    // slot 4: the block lands after the survivor.
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@1u, @2u, @3u]), 0, 4),
+                          RowRange(0, 3));
+    XCTAssertEqualObjects(VibePlaylistDropDestinationForSlot(RowSetOf(@[@0u, @1u, @2u]), 4, 4),
+                          RowRange(1, 3));
 }
 
 #pragma mark - Move sequence
@@ -188,30 +133,34 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
 
     // {1,3} -> [0,2): two up-movers stack under the line.
     NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@1u, @3u]), Range(0, 2), ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(RowSetOf(@[@1u, @3u]), RowRange(0, 2),
+                                      ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@1u, @0u], @[@3u, @1u]]));
 
     // {0,4} -> [2,4): one down-mover to the line's underside, one up-mover.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @4u]), Range(2, 2), ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(RowSetOf(@[@0u, @4u]), RowRange(2, 2),
+                                      ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @2u], @[@4u, @3u]]));
 
     // {0,1} -> [3,5) downward: the second extraction's index has shifted up.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @1u]), Range(3, 2), ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(RowSetOf(@[@0u, @1u]), RowRange(3, 2),
+                                      ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @4u], @[@0u, @4u]]));
-    XCTAssertEqualObjects(ApplySequence(list, Rows(@[@0u, @1u]), Range(3, 2), NULL),
+    XCTAssertEqualObjects(ApplySequence(list, RowSetOf(@[@0u, @1u]), RowRange(3, 2), NULL),
                           (@[@"C", @"D", @"E", @"A", @"B"]));
 
     // {0,2,4} -> [1,4): the source already in place emits nothing.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @2u, @4u]), Range(1, 3), ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(RowSetOf(@[@0u, @2u, @4u]), RowRange(1, 3),
+                                      ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @1u], @[@4u, @3u]]));
@@ -221,27 +170,15 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
     // The undo shape: the gathered block [0,2) scatters back to {1,3} — the
     // gather's pairs (1,0),(3,1) reversed with from/to swapped.
     NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
-    VibePlaylistMoveSequenceEnumerate(Range(0, 2), Rows(@[@1u, @3u]), ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(RowRange(0, 2), RowSetOf(@[@1u, @3u]),
+                                      ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@1u, @3u], @[@0u, @1u]]));
     // Applied to the gathered list, it restores the original.
     XCTAssertEqualObjects(ApplySequence(@[@"B", @"D", @"A", @"C", @"E"],
-                                        Range(0, 2), Rows(@[@1u, @3u]), NULL),
+                                        RowRange(0, 2), RowSetOf(@[@1u, @3u]), NULL),
                           (@[@"A", @"B", @"C", @"D", @"E"]));
-}
-
-- (void)testGeneralSequenceHandlesBothSidesNonContiguous {
-    // {1,3} -> {0,2} of four: gather to the front, then scatter out — checked
-    // against the remove/insert reference, within the 2k move bound.
-    NSArray<NSString *> *list = @[@"A", @"B", @"C", @"D"];
-    NSIndexSet *sources = Rows(@[@1u, @3u]);
-    NSIndexSet *destinations = Rows(@[@0u, @2u]);
-    NSUInteger pairCount = 0;
-    NSArray<NSString *> *applied = ApplySequence(list, sources, destinations, &pairCount);
-    XCTAssertEqualObjects(applied, ReferenceMoveToSet(list, sources, destinations));
-    XCTAssertEqualObjects(applied, (@[@"B", @"A", @"D", @"C"]));
-    XCTAssertLessThanOrEqual(pairCount, 2 * sources.count);
 }
 
 - (void)testSequenceReproducesTheReferenceMoveForEveryAcceptedDrop {
@@ -254,17 +191,15 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
         @[@0u, @1u, @2u, @3u],
     ];
     for (NSArray<NSNumber *> *sourceCase in sourceCases) {
-        NSIndexSet *sources = Rows(sourceCase);
+        NSIndexSet *sources = RowSetOf(sourceCase);
         for (NSInteger slot = 0; slot <= (NSInteger)list.count; slot++) {
-            NSUInteger destination;
-            if (VibePlaylistDropDecisionForSlot(sources, slot, list.count, &destination)
-                    != VibePlaylistDropMove) {
+            NSIndexSet *landed = VibePlaylistDropDestinationForSlot(sources, slot, list.count);
+            if (!landed) {
                 continue;
             }
             NSUInteger pairCount = 0;
-            NSIndexSet *landed = Range(destination, sources.count);
             NSArray<NSString *> *applied = ApplySequence(list, sources, landed, &pairCount);
-            XCTAssertEqualObjects(applied, ReferenceMove(list, sources, destination),
+            XCTAssertEqualObjects(applied, ReferenceMove(list, sources, landed),
                                   @"sources %@ slot %ld", sources, (long)slot);
             XCTAssertLessThanOrEqual(pairCount, sources.count,
                                      @"sources %@ slot %ld", sources, (long)slot);
@@ -273,17 +208,6 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
                                   @"inverse of sources %@ slot %ld", sources, (long)slot);
         }
     }
-}
-
-- (void)testSingleRowSequenceIsOnePairMatchingTheDecision {
-    NSUInteger destination;
-    XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@3u]), 1, 5, &destination),
-                   VibePlaylistDropMove);
-    NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@3u]), Range(destination, 1), ^(NSUInteger from, NSUInteger to) {
-        [pairs addObject:@[@(from), @(to)]];
-    });
-    XCTAssertEqualObjects(pairs, (@[@[@3u, @1u]]));
 }
 
 @end
