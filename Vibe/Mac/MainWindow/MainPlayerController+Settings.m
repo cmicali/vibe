@@ -60,7 +60,14 @@
     }
     if (effects & VibeSettingsLiveEffectFonts) {
         [self applyStoredFonts];
+    }
+    // Once for either bit — both re-style the same labels — before the refit,
+    // which must shrink the freshly styled title font, and before TrackDisplay's
+    // updateUI repaints.
+    if (effects & (VibeSettingsLiveEffectFonts | VibeSettingsLiveEffectTrackDisplay)) {
         [self.playerContentView applyThemedTextStyle];
+    }
+    if (effects & VibeSettingsLiveEffectFonts) {
         [self.trackDisplay refitTitle];
     }
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
@@ -78,9 +85,8 @@
         [self refreshWindowTint];
     }
     if (effects & VibeSettingsLiveEffectTrackDisplay) {
-        // Label colors ride this effect too: re-style the fields, then drop
+        // Label colors ride this effect too (the shared re-style above); drop
         // the content guards so unchanged strings still repaint.
-        [self.playerContentView applyThemedTextStyle];
         [self.trackDisplay resetRenderGuards];
         [self updateUI];
     }

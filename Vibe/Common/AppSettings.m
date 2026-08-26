@@ -430,6 +430,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     }
 }
 
+- (NSDictionary *)storedUserThemeWithIdentifier:(NSString *)identifier {
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            return entry;
+        }
+    }
+    return nil;
+}
+
 - (NSString *)activeThemeIdentifier {
     return [self resolvedThemeIdentifier:
             [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ACTIVE_THEME]];
@@ -438,13 +447,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 // An identifier naming no built-in and no stored user theme — a deleted
 // theme, an external write — snaps to vibe.
 - (NSString *)resolvedThemeIdentifier:(NSString *)identifier {
-    if ([AppTheme isBuiltInIdentifier:identifier]) {
+    if ([AppTheme isBuiltInIdentifier:identifier] ||
+        (identifier && [self storedUserThemeWithIdentifier:identifier])) {
         return identifier;
-    }
-    for (NSDictionary *entry in [self storedUserThemes]) {
-        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
-            return identifier;
-        }
     }
     return kVibeThemeIdentifierVibe;
 }
@@ -464,21 +469,17 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
         return STR_THEME_NAME_INDUSTRIAL;
     }
-    for (NSDictionary *entry in [self storedUserThemes]) {
-        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
-            return entry[kVibeThemeRecordNameKey];
-        }
-    }
-    return nil;
+    return [self storedUserThemeWithIdentifier:identifier][kVibeThemeRecordNameKey];
 }
 
 - (NSArray<NSString *> *)allThemeDisplayNames {
     NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (NSString *identifier in [self orderedThemeIdentifiers]) {
-        NSString *name = [self displayNameForThemeIdentifier:identifier];
-        if (name) {
-            [names addObject:name];
-        }
+    for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
+        [names addObject:[self displayNameForThemeIdentifier:identifier]];
+    }
+    // One store fetch for every user name, not one per identifier.
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        [names addObject:entry[kVibeThemeRecordNameKey]];
     }
     return names;
 }
@@ -487,10 +488,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if ([AppTheme isBuiltInIdentifier:identifier]) {
         return [AppTheme builtInRecordForIdentifier:identifier];
     }
-    for (NSDictionary *entry in [self storedUserThemes]) {
-        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
-            return [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
-        }
+    NSDictionary *entry = [self storedUserThemeWithIdentifier:identifier];
+    if (entry) {
+        return [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
     }
     return [AppTheme builtInRecordForIdentifier:kVibeThemeIdentifierVibe];
 }
@@ -570,11 +570,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         return;
     }
     BOOL wasActive = [[self activeThemeIdentifier] isEqualToString:identifier];
-    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
-    [themes filterUsingPredicate:[NSPredicate predicateWithBlock:
-            ^BOOL(NSDictionary *entry, NSDictionary *bindings) {
-        return ![entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier];
-    }]];
+    NSMutableArray<NSDictionary *> *themes = [NSMutableArray array];
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if (![entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            [themes addObject:entry];
+        }
+    }
     [self persistUserThemes:themes];
     if (wasActive) {
         [self applyThemeWithIdentifier:kVibeThemeIdentifierVibe];

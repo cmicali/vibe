@@ -13,6 +13,11 @@ NS_ASSUME_NONNULL_BEGIN
 // complete playing-row treatment; there is no saturated row fill.
 @interface PlaylistRowView : NSTableRowView
 
+// The unthemed selected/playing wash — white in dark, black in light, at low
+// opacity — shared with the theme editor's wells, which display it as
+// "current".
++ (NSColor *)neutralRowFillColorForDark:(BOOL)dark;
+
 // YES on the playlist's current row, which is drawn with the neutral wash even
 // when it is not selected. PlaylistController sets it at row creation and
 // refreshes the visible rows on every track change.

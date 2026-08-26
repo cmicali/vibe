@@ -30,6 +30,17 @@ NS_ASSUME_NONNULL_BEGIN
 // cornerRadius clips its tint but not the blur region.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius;
 
+// The pre/post-26 backdrop dichotomy in one place: glass takes a layer
+// radius, frost a regenerated mask. Shared by both build paths and both live
+// re-applies (this view's instance applyCornerRadius: and the controller's
+// applyWindowChrome).
++ (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
+
+// The unthemed playlist wash — clear in dark, a white brightening lift in
+// light — shared with the theme editor's wells, which display it as
+// "current".
++ (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark;
+
 // Re-shapes the header glass panel and its tint layer to the themed radius;
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;

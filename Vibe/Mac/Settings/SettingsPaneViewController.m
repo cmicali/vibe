@@ -6,7 +6,6 @@
 #import "SettingsPaneViewController.h"
 #import "WindowAnimation.h"
 
-static const CGFloat kPanePadding = 20;
 
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;

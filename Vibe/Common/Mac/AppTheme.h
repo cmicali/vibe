@@ -38,6 +38,15 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
 // follow the live value.
 #define kVibeThemeCornerRadiusMax ((CGFloat)30)
 
+// The font slots' reference sizes — the base each slot's reference site
+// passes (the title, the info labels, the playlist rows). Macros for the same
+// reason as the radius max: compile-time constants shared by the theme
+// defaults, Fonts' offset math and the reference call sites, so the offset
+// arithmetic cannot skew against a copy.
+#define kVibeThemeMainFontBaseSize     ((CGFloat)23)
+#define kVibeThemeInfoFontBaseSize     ((CGFloat)13)
+#define kVibeThemePlaylistFontBaseSize ((CGFloat)14)
+
 // Keys a theme JSON carries beside the field overrides. The name travels on
 // export/import; the version marks the schema; a record's id never leaves the
 // store — export strips it, import mints a fresh one.
@@ -157,6 +166,16 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 + (VibeColor *)dynamicColorWithDark:(nullable VibeColor *)dark
                               light:(nullable VibeColor *)light
                            fallback:(VibeColor *)fallback;
+
+// The four label colors resolved over their semantic fallbacks — title over
+// labelColor, artist and time over secondaryLabelColor, info over
+// tertiaryLabelColor — spelled once, so the header, the playlist and the
+// corner readouts cannot disagree about a slot's fallback. Same capture
+// semantics as dynamicColorWithDark: above.
+- (VibeColor *)resolvedTitleColor;
+- (VibeColor *)resolvedArtistColor;
+- (VibeColor *)resolvedInfoColor;
+- (VibeColor *)resolvedTimeColor;
 
 @end
 

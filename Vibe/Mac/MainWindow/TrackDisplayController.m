@@ -103,11 +103,8 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
 // these strings are rebuilt only on content changes.
 static NSDictionary *cornerTextAttributes(void) {
     NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     attributes[NSForegroundColorAttributeName] =
-            [AppTheme dynamicColorWithDark:[theme infoColorForDark:YES]
-                                     light:[theme infoColorForDark:NO]
-                                  fallback:NSColor.tertiaryLabelColor];
+            AppSettings.sharedInstance.currentTheme.resolvedInfoColor;
     return attributes;
 }
 
@@ -191,7 +188,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // The fit itself, always measured at the base font size, so that re-running it
 // on a widened label restores the font a narrower fit shrank.
 - (void)fitTitleFontForText:(NSString *)text {
-    static const CGFloat kTitleBaseSize = 23;
+    static const CGFloat kTitleBaseSize = kVibeThemeMainFontBaseSize;
     // The shrink floor scales with the themed size: 15/23 of the base, the
     // pre-theme ratio.
     static const CGFloat kTitleMinRatio = 15.0 / 23.0;

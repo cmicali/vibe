@@ -4,6 +4,7 @@
 //
 
 #import "Fonts.h"
+#import "AppTheme.h" // the slots' reference base sizes
 
 @implementation Fonts {
 
@@ -75,7 +76,8 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
 // The slots' reference bases — the sizes their reference sites pass — and the
 // pushed configuration. All access is under @synchronized(Fonts.class): not
 // every caller is on the main thread, same as the caches above.
-static const CGFloat kSlotBase[3] = {23, 13, 14};
+static const CGFloat kSlotBase[3] = {kVibeThemeMainFontBaseSize, kVibeThemeInfoFontBaseSize,
+                                     kVibeThemePlaylistFontBaseSize};
 static NSString *slotFace[3];
 static CGFloat slotOffset[3];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
@@ -141,10 +143,6 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (NSFont *)mainFont:(CGFloat)baseSize {
     return [self fontForSlot:VibeFontSlotMain base:baseSize bold:NO];
-}
-
-+ (NSFont *)mainFont:(CGFloat)baseSize bold:(BOOL)bold {
-    return [self fontForSlot:VibeFontSlotMain base:baseSize bold:bold];
 }
 
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold {

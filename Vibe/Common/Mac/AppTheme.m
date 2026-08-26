@@ -125,11 +125,11 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
             kFieldKeyColorsEnabled:      @(NO),
             kFieldKeyNotation:           SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
             kFieldMainFontFace:          @"",
-            kFieldMainFontSize:          @(23),
+            kFieldMainFontSize:          @(kVibeThemeMainFontBaseSize),
             kFieldInfoFontFace:          @"",
-            kFieldInfoFontSize:          @(13),
+            kFieldInfoFontSize:          @(kVibeThemeInfoFontBaseSize),
             kFieldPlaylistFontFace:      @"",
-            kFieldPlaylistFontSize:      @(14),
+            kFieldPlaylistFontSize:      @(kVibeThemePlaylistFontBaseSize),
         };
     });
     return defaults;
@@ -232,6 +232,30 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
         BOOL isDark = [matched isEqualToString:NSAppearanceNameDarkAqua];
         return (isDark ? dark : light) ?: fallback;
     }];
+}
+
+- (VibeColor *)resolvedTitleColor {
+    return [AppTheme dynamicColorWithDark:[self titleColorForDark:YES]
+                                    light:[self titleColorForDark:NO]
+                                 fallback:NSColor.labelColor];
+}
+
+- (VibeColor *)resolvedArtistColor {
+    return [AppTheme dynamicColorWithDark:[self artistColorForDark:YES]
+                                    light:[self artistColorForDark:NO]
+                                 fallback:NSColor.secondaryLabelColor];
+}
+
+- (VibeColor *)resolvedInfoColor {
+    return [AppTheme dynamicColorWithDark:[self infoColorForDark:YES]
+                                    light:[self infoColorForDark:NO]
+                                 fallback:NSColor.tertiaryLabelColor];
+}
+
+- (VibeColor *)resolvedTimeColor {
+    return [AppTheme dynamicColorWithDark:[self timeColorForDark:YES]
+                                    light:[self timeColorForDark:NO]
+                                 fallback:NSColor.secondaryLabelColor];
 }
 
 #pragma mark Built-ins

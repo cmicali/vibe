@@ -78,6 +78,19 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     return nil; // response written by the settled block
 }
 
+// A theme by stable id or display name (case-insensitive); nil when it names
+// nothing. Shared by set_theme and dump_theme.
+static NSString *VibeThemeIdentifierMatching(NSString *query) {
+    for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
+        NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
+        if ([identifier isEqualToString:query] ||
+            [name caseInsensitiveCompare:query] == NSOrderedSame) {
+            return identifier;
+        }
+    }
+    return nil;
+}
+
 // The command set. Dispatch, the unknown-command usage reply and the client's
 // per-verb wait all derive from this table, so adding an entry here is the
 // entire app-side hookup. The usage docs live in the vibe-debug skill.
@@ -211,18 +224,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_theme <id-or-name>");
                 }
-                NSString *query = tokens[1];
-                NSString *match = nil;
-                for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
-                    NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
-                    if ([identifier isEqualToString:query] ||
-                        [name caseInsensitiveCompare:query] == NSOrderedSame) {
-                        match = identifier;
-                        break;
-                    }
-                }
+                NSString *match = VibeThemeIdentifierMatching(tokens[1]);
                 if (!match) {
-                    return VibeErrorJSON(@"unknown theme: %@", query);
+                    return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
                 }
                 [AppSettings.sharedInstance applyThemeWithIdentifier:match];
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
@@ -256,20 +260,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                             @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
                             @"theme": AppSettings.sharedInstance.currentTheme.dictionaryRepresentation});
                 }
-                NSString *query = tokens[1];
-                for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
-                    NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
-                    if ([identifier isEqualToString:query] ||
-                        [name caseInsensitiveCompare:query] == NSOrderedSame) {
-                        NSData *json = [AppTheme JSONDataForRecord:
-                                [AppSettings.sharedInstance recordForThemeIdentifier:identifier]
-                                                              name:name];
-                        NSDictionary *record = [NSJSONSerialization JSONObjectWithData:json
-                                                                               options:0 error:NULL];
-                        return VibeJSONString(@{@"ok": @YES, @"id": identifier, @"theme": record});
-                    }
+                NSString *match = VibeThemeIdentifierMatching(tokens[1]);
+                if (!match) {
+                    return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
                 }
-                return VibeErrorJSON(@"unknown theme: %@", query);
+                NSData *json = [AppTheme JSONDataForRecord:
+                        [AppSettings.sharedInstance recordForThemeIdentifier:match]
+                                                      name:[AppSettings.sharedInstance
+                                                            displayNameForThemeIdentifier:match]];
+                NSDictionary *record = [NSJSONSerialization JSONObjectWithData:json
+                                                                       options:0 error:NULL];
+                return VibeJSONString(@{@"ok": @YES, @"id": match, @"theme": record});
             }),
             // App-side, not a CLI-process prefs write: the key-label display
             // lives on the current theme, an in-memory object a cross-process

@@ -26,6 +26,10 @@ static const CGFloat kSettingsPaneWidth = 480;
 // size instead of hugging its panes' content.
 static const CGFloat kSettingsPaneMinHeight = 480;
 
+// The content inset every pane page uses — the base section stack and the
+// Appearance pane's editor page alike.
+static const CGFloat kPanePadding = 20;
+
 // The panes' host — the tab controller — owns the window's size. A pane's own
 // constraints sit below required, so the window edge wins over them while a
 // pane is on screen (see SettingsWindowController); this is how a size change

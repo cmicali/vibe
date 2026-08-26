@@ -127,12 +127,8 @@ static void ensureCellAttributes(void) {
         // is every title, artistColor every secondary line — here the artist
         // run and both numeric columns, which already share its fallback.
         AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-        NSColor *titleColor = [AppTheme dynamicColorWithDark:[theme titleColorForDark:YES]
-                                                       light:[theme titleColorForDark:NO]
-                                                    fallback:NSColor.labelColor];
-        NSColor *artistColor = [AppTheme dynamicColorWithDark:[theme artistColorForDark:YES]
-                                                        light:[theme artistColorForDark:NO]
-                                                     fallback:NSColor.secondaryLabelColor];
+        NSColor *titleColor = theme.resolvedTitleColor;
+        NSColor *artistColor = theme.resolvedArtistColor;
         numColumnAttributes = @{
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.5),
@@ -148,13 +144,13 @@ static void ensureCellAttributes(void) {
         titleAttributes = @{
                 NSForegroundColorAttributeName: titleColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts playlistFont:14],
+                NSFontAttributeName: [Fonts playlistFont:kVibeThemePlaylistFontBaseSize],
                 NSParagraphStyleAttributeName: left,
         };
         artistAttributes = @{
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts playlistFont:14],
+                NSFontAttributeName: [Fonts playlistFont:kVibeThemePlaylistFontBaseSize],
                 NSParagraphStyleAttributeName: left,
         };
     }

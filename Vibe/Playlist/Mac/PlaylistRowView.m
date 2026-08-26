@@ -14,23 +14,24 @@ static const CGFloat kRowFillAlpha = 0.09;
 
 @implementation PlaylistRowView
 
-- (NSColor *)neutralFillColor {
-    return [(self.isDark ? NSColor.whiteColor : NSColor.blackColor)
+// Shared with the theme editor's wells, which display it as "current".
++ (NSColor *)neutralRowFillColorForDark:(BOOL)dark {
+    return [(dark ? NSColor.whiteColor : NSColor.blackColor)
             colorWithAlphaComponent:kRowFillAlpha];
 }
 
 // The theme's overrides, alpha and all, over the neutral wash. Read per draw:
 // rows draw on state changes and scroll-in, and the record lookup is cheap.
 - (NSColor *)selectedFillColor {
-    return [AppSettings.sharedInstance.currentTheme
-                    playlistSelectedRowColorForDark:self.isDark]
-            ?: [self neutralFillColor];
+    BOOL dark = self.isDark;
+    return [AppSettings.sharedInstance.currentTheme playlistSelectedRowColorForDark:dark]
+            ?: [PlaylistRowView neutralRowFillColorForDark:dark];
 }
 
 - (NSColor *)playingFillColor {
-    return [AppSettings.sharedInstance.currentTheme
-                    playlistPlayingRowColorForDark:self.isDark]
-            ?: [self neutralFillColor];
+    BOOL dark = self.isDark;
+    return [AppSettings.sharedInstance.currentTheme playlistPlayingRowColorForDark:dark]
+            ?: [PlaylistRowView neutralRowFillColorForDark:dark];
 }
 
 - (void)setPlayingRow:(BOOL)playingRow {

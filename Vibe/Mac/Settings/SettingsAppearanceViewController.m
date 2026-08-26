@@ -19,6 +19,8 @@
 #import "SettingsAppearanceViewController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
+#import "MainPlayerContentView.h" // the playlist wash's unthemed default, shown by the wells
+#import "PlaylistRowView.h"       // the row fills' unthemed default, shown by the wells
 #import "Fonts.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
@@ -26,9 +28,6 @@
 
 static const CGFloat kAppearancePopUpWidth = 220;
 static const CGFloat kThemeListHeight = 150;
-// The base class's own content inset, restated for the editor page, which the
-// base did not lay out.
-static const CGFloat kEditorPadding = 20;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 
 // Popup tags for the appearance choices; the persisted value is the
@@ -198,31 +197,24 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     return well;
 }
 
-- (NSStackView *)captionedPair:(NSArray<NSView *> *)wellsAndCaptions {
-    NSStackView *pair = [NSStackView stackViewWithViews:wellsAndCaptions];
+// [well caption] [well caption] — one row per themed color pair, Dark/Light
+// or the waveform's Played/Unplayed.
+- (NSStackView *)wellPair:(NSColorWell *)first caption:(NSString *)firstCaption
+                     well:(NSColorWell *)second caption:(NSString *)secondCaption {
+    NSTextField *firstLabel = [NSTextField labelWithString:firstCaption];
+    NSTextField *secondLabel = [NSTextField labelWithString:secondCaption];
+    firstLabel.textColor = NSColor.secondaryLabelColor;
+    secondLabel.textColor = NSColor.secondaryLabelColor;
+    NSStackView *pair = [NSStackView stackViewWithViews:
+            @[first, firstLabel, second, secondLabel]];
     pair.spacing = 6;
+    [pair setCustomSpacing:16 afterView:firstLabel];
     return pair;
 }
 
-// [well Dark] [well Light] — one row per themed color.
 - (NSStackView *)darkLightPairWithDark:(NSColorWell *)dark light:(NSColorWell *)light {
-    NSTextField *darkCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_DARK];
-    NSTextField *lightCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_LIGHT];
-    darkCaption.textColor = NSColor.secondaryLabelColor;
-    lightCaption.textColor = NSColor.secondaryLabelColor;
-    NSStackView *pair = [self captionedPair:@[dark, darkCaption, light, lightCaption]];
-    [pair setCustomSpacing:16 afterView:darkCaption];
-    return pair;
-}
-
-- (NSStackView *)customColorPairWithPlayed:(NSColorWell *)played unplayed:(NSColorWell *)unplayed {
-    NSTextField *playedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED];
-    NSTextField *unplayedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
-    playedCaption.textColor = NSColor.secondaryLabelColor;
-    unplayedCaption.textColor = NSColor.secondaryLabelColor;
-    NSStackView *pair = [self captionedPair:@[played, playedCaption, unplayed, unplayedCaption]];
-    [pair setCustomSpacing:16 afterView:playedCaption];
-    return pair;
+    return [self wellPair:dark caption:STR_SETTINGS_THEME_DARK
+                     well:light caption:STR_SETTINGS_THEME_LIGHT];
 }
 
 // A font row's trailing cluster: the current choice, then Select…, which
@@ -234,7 +226,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                                           target:self action:@selector(selectFont:)];
     select.tag = slot;
     *outLabel = value;
-    NSStackView *cluster = [self captionedPair:@[value, select]];
+    NSStackView *cluster = [NSStackView stackViewWithViews:@[value, select]];
     cluster.spacing = 10;
     return cluster;
 }
@@ -326,9 +318,11 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _customLightPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customLightUnplayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
-            control:[self customColorPairWithPlayed:_customDarkPlayedWell unplayed:_customDarkUnplayedWell]];
+            control:[self wellPair:_customDarkPlayedWell caption:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED
+                              well:_customDarkUnplayedWell caption:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED]];
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
-            control:[self customColorPairWithPlayed:_customLightPlayedWell unplayed:_customLightUnplayedWell]];
+            control:[self wellPair:_customLightPlayedWell caption:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED
+                              well:_customLightUnplayedWell caption:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED]];
 
     _playlistBackgroundDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
     _playlistBackgroundLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
@@ -435,10 +429,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     NSLayoutGuide *safeArea = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [container.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:kEditorPadding],
-        [container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:kEditorPadding],
-        [container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kEditorPadding],
-        [container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-kEditorPadding],
+        [container.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:kPanePadding],
+        [container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:kPanePadding],
+        [container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kPanePadding],
+        [container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-kPanePadding],
         [header.topAnchor constraintEqualToAnchor:container.topAnchor],
         [header.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [header.trailingAnchor constraintLessThanOrEqualToAnchor:container.trailingAnchor],
@@ -499,15 +493,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     [self applyEditorVisibility];
 }
 
-static void SelectItemWithRepresentedObject(NSPopUpButton *popUp, NSString *value) {
-    for (NSMenuItem *item in popUp.itemArray) {
-        if ([item.representedObject isEqualToString:value]) {
-            [popUp selectItem:item];
-            return;
-        }
-    }
-}
-
 static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     for (NSView *subview in view.subviews) {
         if ([subview isKindOfClass:NSControl.class]) {
@@ -557,10 +542,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _nameField.stringValue = builtIn ? @"" : (_editorTitleLabel.stringValue ?: @"");
     _nameRow.hidden = builtIn;
 
-    SelectItemWithRepresentedObject(_backgroundPopUp, theme.windowBackgroundStyle);
+    [_backgroundPopUp selectItemAtIndex:
+            [_backgroundPopUp indexOfItemWithRepresentedObject:theme.windowBackgroundStyle]];
     _backgroundDarkWell.color = [theme windowBackgroundColorForDark:YES] ?: DefaultSolidBackgroundColor(YES);
     _backgroundLightWell.color = [theme windowBackgroundColorForDark:NO] ?: DefaultSolidBackgroundColor(NO);
-    SelectItemWithRepresentedObject(_windowTintPopUp, theme.windowTint);
+    [_windowTintPopUp selectItemAtIndex:
+            [_windowTintPopUp indexOfItemWithRepresentedObject:theme.windowTint]];
     _windowTintDarkWell.color = [theme windowTintColorForDark:YES] ?: DefaultWindowTintColor(YES);
     _windowTintLightWell.color = [theme windowTintColorForDark:NO] ?: DefaultWindowTintColor(NO);
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
@@ -572,7 +559,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _showBPMSwitch.state = theme.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
     BOOL showKey = theme.showKey;
     _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
-    SelectItemWithRepresentedObject(_keyNotationPopUp, theme.keyNotation);
+    [_keyNotationPopUp selectItemAtIndex:
+            [_keyNotationPopUp indexOfItemWithRepresentedObject:theme.keyNotation]];
     _keyColorsSwitch.state = theme.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
 
     _titleDarkWell.color = [theme titleColorForDark:YES] ?: NSColor.labelColor;
@@ -584,42 +572,33 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _timeDarkWell.color = [theme timeColorForDark:YES] ?: NSColor.secondaryLabelColor;
     _timeLightWell.color = [theme timeColorForDark:NO] ?: NSColor.secondaryLabelColor;
 
-    NSString *waveformStyle = theme.waveformStyle;
-    NSMenuItem *match = nil;
-    for (NSMenuItem *item in _waveformPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:waveformStyle]) {
-            match = item;
-            break;
-        }
+    // An unknown persisted style identifier renders as the default style —
+    // the waveform view's own fallback — so show that rather than misreport.
+    NSInteger styleIndex = [_waveformPopUp indexOfItemWithRepresentedObject:theme.waveformStyle];
+    if (styleIndex < 0) {
+        styleIndex = [_waveformPopUp
+                indexOfItemWithRepresentedObject:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
     }
-    if (!match) {
-        // An unknown persisted identifier renders as the default style — the
-        // waveform view's own fallback — so show that rather than misreport.
-        for (NSMenuItem *item in _waveformPopUp.itemArray) {
-            if ([item.representedObject isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT]) {
-                match = item;
-                break;
-            }
-        }
-    }
-    if (match) {
-        [_waveformPopUp selectItem:match];
-    }
-    SelectItemWithRepresentedObject(_waveformThemePopUp, theme.waveformTheme);
+    [_waveformPopUp selectItemAtIndex:styleIndex];
+    [_waveformThemePopUp selectItemAtIndex:
+            [_waveformThemePopUp indexOfItemWithRepresentedObject:theme.waveformTheme]];
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
     _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
     _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
     _customLightUnplayedWell.color = [theme waveformUnplayedColorForDark:NO] ?: DefaultCustomUnplayedColor(NO);
 
-    _playlistBackgroundDarkWell.color = [theme playlistBackgroundColorForDark:YES] ?: NSColor.clearColor;
+    _playlistBackgroundDarkWell.color = [theme playlistBackgroundColorForDark:YES]
+            ?: [MainPlayerContentView defaultPlaylistBackgroundColorForDark:YES];
     _playlistBackgroundLightWell.color = [theme playlistBackgroundColorForDark:NO]
-            ?: [NSColor colorWithWhite:1 alpha:0.35];
-    NSColor *neutralDark = [NSColor.whiteColor colorWithAlphaComponent:0.09];
-    NSColor *neutralLight = [NSColor.blackColor colorWithAlphaComponent:0.09];
-    _playingRowDarkWell.color = [theme playlistPlayingRowColorForDark:YES] ?: neutralDark;
-    _playingRowLightWell.color = [theme playlistPlayingRowColorForDark:NO] ?: neutralLight;
-    _selectedRowDarkWell.color = [theme playlistSelectedRowColorForDark:YES] ?: neutralDark;
-    _selectedRowLightWell.color = [theme playlistSelectedRowColorForDark:NO] ?: neutralLight;
+            ?: [MainPlayerContentView defaultPlaylistBackgroundColorForDark:NO];
+    _playingRowDarkWell.color = [theme playlistPlayingRowColorForDark:YES]
+            ?: [PlaylistRowView neutralRowFillColorForDark:YES];
+    _playingRowLightWell.color = [theme playlistPlayingRowColorForDark:NO]
+            ?: [PlaylistRowView neutralRowFillColorForDark:NO];
+    _selectedRowDarkWell.color = [theme playlistSelectedRowColorForDark:YES]
+            ?: [PlaylistRowView neutralRowFillColorForDark:YES];
+    _selectedRowLightWell.color = [theme playlistSelectedRowColorForDark:NO]
+            ?: [PlaylistRowView neutralRowFillColorForDark:NO];
 
     [self refreshFontValueLabels];
 
@@ -638,9 +617,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)refreshFontValueLabels {
-    NSFont *main = [Fonts mainFont:23];
-    NSFont *info = [Fonts infoFont:13 bold:NO];
-    NSFont *playlist = [Fonts playlistFont:14];
+    NSFont *main = [Fonts mainFont:kVibeThemeMainFontBaseSize];
+    NSFont *info = [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
+    NSFont *playlist = [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
     _mainFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
             main.displayName, (long)lround(main.pointSize)];
     _infoFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
@@ -702,17 +681,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     if (_refreshingThemeList) {
         return;
     }
-    NSInteger row = _themeTable.selectedRow;
-    if (row < 0 || row >= (NSInteger)_themeIdentifiers.count) {
+    NSString *identifier = [self selectedThemeIdentifier];
+    if (!identifier ||
+        [identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
         return;
     }
-    NSString *identifier = _themeIdentifiers[(NSUInteger)row];
-    if ([identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
-        return;
-    }
-    [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
-    [self refreshFromSettings];
+    [self activateThemeWithIdentifier:identifier];
 }
 
 - (nullable NSString *)selectedThemeIdentifier {
@@ -770,14 +744,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)editTheme:(id)sender {
+    // Opening a theme's page activates it first — selection already did on a
+    // click; this covers the double-click's row change landing late.
     NSString *selected = [self selectedThemeIdentifier];
-    if (selected) {
-        // Opening a theme's page activates it first — selection already did
-        // on a click; this covers the double-click's row change landing late.
-        if (![selected isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
-            [AppSettings.sharedInstance applyThemeWithIdentifier:selected];
-            [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
-        }
+    if (selected &&
+        ![selected isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
+        [self activateThemeWithIdentifier:selected];
     }
     [self showThemeEditorForActiveTheme];
 }
@@ -876,7 +848,7 @@ static NSColor *DefaultSolidBackgroundColor(BOOL isDark) {
     }
     theme.windowBackgroundStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
-    _backgroundColorsRow.hidden = !solid;
+    [self resolveLayoutStateFromSettings];
 }
 
 - (void)backgroundColorChanged:(NSColorWell *)sender {
@@ -908,8 +880,7 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
     }
     theme.windowTint = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
-    _windowTintDarkRow.hidden = !custom;
-    _windowTintLightRow.hidden = !custom;
+    [self resolveLayoutStateFromSettings];
 }
 
 - (void)windowTintColorChanged:(NSColorWell *)sender {
@@ -1017,8 +988,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     }
     theme.waveformTheme = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
-    _customDarkRow.hidden = !custom;
-    _customLightRow.hidden = !custom;
+    [self resolveLayoutStateFromSettings];
 }
 
 - (void)customColorChanged:(NSColorWell *)sender {
@@ -1071,9 +1041,9 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 
 - (NSFont *)currentFontForSlot:(VibeThemeFontSlot)slot {
     switch (slot) {
-        case VibeThemeFontSlotInfo:     return [Fonts infoFont:13 bold:NO];
-        case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:14];
-        default:                        return [Fonts mainFont:23];
+        case VibeThemeFontSlotInfo:     return [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
+        case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
+        default:                        return [Fonts mainFont:kVibeThemeMainFontBaseSize];
     }
 }
 

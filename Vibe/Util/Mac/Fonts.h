@@ -33,7 +33,6 @@
            playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize;
 
 + (NSFont *)mainFont:(CGFloat)baseSize;
-+ (NSFont *)mainFont:(CGFloat)baseSize bold:(BOOL)bold;
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold;
 + (NSFont *)playlistFont:(CGFloat)baseSize;
 

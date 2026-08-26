@@ -35,11 +35,9 @@
     // layer mask so the rim lighting follows the window shape. Before macOS
     // 26, where Liquid Glass does not exist, a frosted behind-window blur
     // stands in, shaped by maskImage — the blur region ignores a layer radius.
-    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     NSView *backdrop;
     if (@available(macOS 26.0, *)) {
         NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
-        glass.cornerRadius = cornerRadius;
         // Clear, rather than Regular, keeps the backdrop legible as glass
         // rather than a frosted wall: more of what is behind the window shows
         // through.
@@ -51,9 +49,10 @@
         frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         frost.state = NSVisualEffectStateActive; // key-state-independent, like the playlist frost
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
-        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:cornerRadius];
         backdrop = frost;
     }
+    [MainPlayerContentView applyCornerRadius:AppSettings.sharedInstance.currentTheme.windowCornerRadius
+                                  toBackdrop:backdrop];
     backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:backdrop];
     self.windowBackdropView = backdrop;
@@ -307,15 +306,7 @@
     CGFloat radius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     NSView *contentView = self.window.contentView;
     contentView.layer.cornerRadius = radius;
-    if (@available(macOS 26.0, *)) {
-        if ([self.windowBackdropView isKindOfClass:NSGlassEffectView.class]) {
-            ((NSGlassEffectView *)self.windowBackdropView).cornerRadius = radius;
-        }
-    }
-    else if ([self.windowBackdropView isKindOfClass:NSVisualEffectView.class]) {
-        ((NSVisualEffectView *)self.windowBackdropView).maskImage =
-                [MainPlayerContentView frostCornerMaskWithRadius:radius];
-    }
+    [MainPlayerContentView applyCornerRadius:radius toBackdrop:self.windowBackdropView];
     [self.playerContentView applyCornerRadius:radius];
     [self applyWindowBackground];
     self->_pitchPanel.needsDisplay = YES;
