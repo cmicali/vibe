@@ -19,7 +19,7 @@ Both families animate through a shared **`WaveformMorphEngine`**, which owns the
 
 ## The theme
 
-**`WaveformTheme` is the one home of the palette resolution rules** — the theme identifier (`AppSettings.waveformTheme`), the appearance, the artwork color, and the appearance's custom pair go in; `playedColor`/`unplayedColor`/`hoverColor` come out. The theme is the *palette* and the style stays the *geometry*.
+**`WaveformTheme` is the one home of the palette resolution rules** — the theme identifier (macOS reads it and the custom pair off `AppSettings.currentTheme`; iOS off the shared loose `AppSettings.waveformTheme` accessors), the appearance, the artwork color, and the appearance's custom pair go in; `playedColor`/`unplayedColor`/`hoverColor` come out. The theme is the *palette* and the style stays the *geometry*.
 
 **Each theme color carries its side's resting level in its alpha; renderers own only their ramp shapes**, scaling every stop relative to that level (`VibeColorAtRampFraction`, `AudioWaveformRenderer.h`). The Mono pair's alphas (0.75/0.375) are the Detailed family's old stop-times-layer alphas verbatim, which keeps the default look pixel-identical to the pre-theme output; Orange pairs the full-strength hue with the monochrome base at 0.89 — Sonic Cirrus's historical unplayed level — so every style draws the classic Sonic Cirrus pairing, and on Sonic Cirrus's own bars the Orange theme *is* the pre-theme output; Album art is that pairing reversed, the base played at full strength over the art's hue as the unplayed side. A custom well's alpha dials its side's whole intensity, persisted in the hex (`#RRGGBBAA`).
 

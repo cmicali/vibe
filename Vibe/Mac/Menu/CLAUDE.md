@@ -4,7 +4,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 Vended item constructors (`copyNameItemWithTarget:`, `copyFileItemWithTarget:`, `convertToFLACItemWithTarget:`) exist so an item that appears in more than one menu carries the same identifier, SF Symbol and action everywhere — the window-body and playlist context menus build theirs from these.
 
-**Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (backed by `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, and waveform Style to the player controller itself.
+**Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (backed by `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, and the View > Theme selector to the player controller itself.
 
 **TRAP: bare key equivalents must set `keyEquivalentModifierMask = 0` explicitly**, since `NSMenuItem` defaults to Command. Every item here goes through a helper that takes the mask as a parameter, so the bare-key items (Space, B, N, Return, Backspace, A/S/D, Z/X/C, Q/W/E/R/T) pass `0`.
 
@@ -46,7 +46,8 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
 ## View
 
-- **Show File Info** — a checkmarked preference flipping `AppSettings.showFileInfo` (default on), then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
+- **Theme** — the theme selector, delegate-built by `MainPlayerController.menuNeedsUpdate:` and **rebuilt whole on every open**: one checkmarked item per theme (title localized-or-user display name, `representedObject` the stable id, identifier `view_theme_<id>`), a separator, then the nil-targeted **Edit Themes…** (`menu_edit_themes` → `AppDelegate.showThemeSettings:`, the same ownership as Settings… — deliberately absent from `MenuValidationRules.h`). Selecting applies the theme and requests the composed `ThemeApply` effect.
+- **Show File Info** — a checkmarked preference flipping the current theme's `showFileInfo` (default on) through the store's persist funnel, then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
 - **Always on Top** — flips `AppSettings.alwaysOnTop`, then requests the shared `AlwaysOnTop` settings effect.
 - **Size** (Small, Default, Large) — snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
 
