@@ -55,8 +55,8 @@
     backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:backdrop];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
-    [content setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
     self.playerContentView = content;
+    [self applyTrafficLights];
     [contentView addSubview:content];
     // The window already carries the restored, autosaved frame. Setting the
     // body frame here runs the subview autoresizing pass at the real size,
@@ -259,6 +259,10 @@
     self.window.level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     // About and Settings follow the player's level, or it would bury them.
     [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
+}
+
+- (void)applyTrafficLights {
+    [self.playerContentView setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
 }
 
 - (IBAction)setAppearance:(id)sender {

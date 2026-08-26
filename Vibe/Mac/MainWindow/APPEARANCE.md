@@ -12,7 +12,7 @@ Programmatic layout: no nibs, absolute frames and autoresizing masks. **Every nu
 
 All corner rounding shares `kMainWindowCornerRadius` (`MainWindowLayout.h`, 20pt): the contentView layer mask, both glass views, the header tint layer and the pitch panel's right-edge path.
 
-The red close and yellow minimize traffic lights are custom `SymbolButton`s over the artwork, not AppKit standard window buttons — the window is borderless and has no green zoom button. They share the header controls' whole-window hover fade. `AppSettings.showTrafficLights` defaults on; its live effect calls `MainPlayerContentView.setTrafficLightsShown:`, which hides both views outright when off so neither hit testing nor accessibility can reach invisible controls, and restores their alpha from the current cursor position when turned back on.
+The red close and yellow minimize traffic lights are custom `SymbolButton`s over the artwork, not AppKit standard window buttons — the window is borderless and has no green zoom button. They share the header controls' whole-window hover fade. `AppSettings.showTrafficLights` defaults on and is read in one place, `MainPlayerController.applyTrafficLights`, which both the build and the live effect call. It reaches `MainPlayerContentView.setTrafficLightsShown:`, which records the setting and re-runs the fade funnel from the current cursor position. `setControlsShown:animated:` stays the one place button visibility is decided: it folds the setting into the traffic lights' alpha and hides both views outright when off, so neither hit testing nor accessibility can reach an invisible control and no hidden pair is left fading to full alpha behind its own hidden flag.
 
 ## Chrome: three layers
 
