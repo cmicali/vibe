@@ -71,27 +71,35 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
     VibeFontSlotMain = 0,
     VibeFontSlotInfo,
     VibeFontSlotPlaylist,
+    VibeFontSlotPlaylistDuration,
 };
 
 // The slots' reference bases — the sizes their reference sites pass — and the
 // pushed configuration. All access is under @synchronized(Fonts.class): not
 // every caller is on the main thread, same as the caches above.
-static const CGFloat kSlotBase[3] = {kVibeThemeMainFontBaseSize, kVibeThemeInfoFontBaseSize,
-                                     kVibeThemePlaylistFontBaseSize};
-static NSString *slotFace[3];
-static CGFloat slotOffset[3];
+static const CGFloat kSlotBase[4] = {kVibeThemeMainFontBaseSize, kVibeThemeInfoFontBaseSize,
+                                     kVibeThemePlaylistFontBaseSize,
+                                     kVibeThemePlaylistDurationFontBaseSize};
+static NSString *slotFace[4];
+static CGFloat slotOffset[4];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
                infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
-           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize {
+           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize
+   playlistDurationFace:(NSString *)playlistDurationFace
+   playlistDurationSize:(CGFloat)playlistDurationSize {
     @synchronized (self) {
         slotFace[VibeFontSlotMain] = mainFace.length ? mainFace : nil;
         slotFace[VibeFontSlotInfo] = infoFace.length ? infoFace : nil;
         slotFace[VibeFontSlotPlaylist] = playlistFace.length ? playlistFace : nil;
+        slotFace[VibeFontSlotPlaylistDuration] =
+                playlistDurationFace.length ? playlistDurationFace : nil;
         slotOffset[VibeFontSlotMain] = mainSize - kSlotBase[VibeFontSlotMain];
         slotOffset[VibeFontSlotInfo] = infoSize - kSlotBase[VibeFontSlotInfo];
         slotOffset[VibeFontSlotPlaylist] = playlistSize - kSlotBase[VibeFontSlotPlaylist];
+        slotOffset[VibeFontSlotPlaylistDuration] =
+                playlistDurationSize - kSlotBase[VibeFontSlotPlaylistDuration];
         [slotCache removeAllObjects];
     }
 }
@@ -117,7 +125,7 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
                                                                   toHaveTrait:NSBoldFontMask];
                 font = bolded ?: font;
             }
-            if (font && slot == VibeFontSlotInfo) {
+            if (font && (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)) {
                 // Times tick every second; a proportional-digit face would
                 // jitter them, so ask for the monospaced-digits feature. A
                 // face without it ignores the request.
@@ -131,7 +139,7 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
             }
         }
         if (!font) {
-            font = slot == VibeFontSlotInfo
+            font = (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)
                     ? [NSFont monospacedDigitSystemFontOfSize:size
                                                        weight:bold ? NSFontWeightBold : NSFontWeightRegular]
                     : [self font:size bold:bold];
@@ -151,6 +159,10 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (NSFont *)playlistFont:(CGFloat)baseSize {
     return [self fontForSlot:VibeFontSlotPlaylist base:baseSize bold:NO];
+}
+
++ (NSFont *)playlistDurationFont:(CGFloat)baseSize {
+    return [self fontForSlot:VibeFontSlotPlaylistDuration base:baseSize bold:NO];
 }
 
 @end

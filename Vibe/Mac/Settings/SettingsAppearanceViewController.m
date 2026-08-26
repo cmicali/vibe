@@ -39,6 +39,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     VibeThemeFontSlotMain,
     VibeThemeFontSlotInfo,
     VibeThemeFontSlotPlaylist,
+    VibeThemeFontSlotPlaylistDuration,
 };
 
 // The corner-radius slider, with a tick above and below the track at the
@@ -109,6 +110,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
     NSSwitch *_waveformGradientSwitch;
+    NSSwitch *_playlistArtworkSwitch;
+    NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
     NSColorWell *_titleDarkWell, *_titleLightWell;
@@ -127,6 +130,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
     NSTextField *_mainFontValue, *_infoFontValue, *_playlistFontValue;
+    NSTextField *_playlistDurationFontValue;
     VibeThemeFontSlot _fontEditingSlot;
     BOOL _editorShown;
     // Armed by a Back pop; the toolbar's forward half re-opens the editor.
@@ -377,6 +381,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
 
     _waveformGradientSwitch = [self switchWithAction:@selector(toggleWaveformGradient:)];
+    _playlistArtworkSwitch = [self switchWithAction:@selector(togglePlaylistArtwork:)];
+    _playlistDurationSwitch = [self switchWithAction:@selector(togglePlaylistDuration:)];
     _customDarkPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customDarkUnplayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
     _customLightPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
@@ -399,9 +405,14 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSStackView *mainFontCluster = [self fontClusterForSlot:VibeThemeFontSlotMain valueLabel:&mainFontValue];
     NSStackView *infoFontCluster = [self fontClusterForSlot:VibeThemeFontSlotInfo valueLabel:&infoFontValue];
     NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotPlaylist valueLabel:&playlistFontValue];
+    NSTextField *playlistDurationFontValue = nil;
+    NSStackView *playlistDurationFontCluster =
+            [self fontClusterForSlot:VibeThemeFontSlotPlaylistDuration
+                          valueLabel:&playlistDurationFontValue];
     _mainFontValue = mainFontValue;
     _infoFontValue = infoFontValue;
     _playlistFontValue = playlistFontValue;
+    _playlistDurationFontValue = playlistDurationFontValue;
 
     NSArray<NSView *> *sections = @[
         // The pair swaps visibility — exactly one shows — so the second row
@@ -421,6 +432,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
+                    control:playlistDurationFontCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE
@@ -454,6 +467,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                     control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
                     control:[self darkLightPairWithDark:_selectedRowDarkWell light:_selectedRowLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
+                    control:_playlistArtworkSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
+                    control:_playlistDurationSwitch],
         ]],
     ];
 
@@ -676,6 +693,10 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             [_waveformThemePopUp indexOfItemWithRepresentedObject:theme.waveformTheme]];
     _waveformGradientSwitch.state =
             theme.waveformGradient ? NSControlStateValueOn : NSControlStateValueOff;
+    _playlistArtworkSwitch.state =
+            theme.showPlaylistArtwork ? NSControlStateValueOn : NSControlStateValueOff;
+    _playlistDurationSwitch.state =
+            theme.showPlaylistDuration ? NSControlStateValueOn : NSControlStateValueOff;
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
     _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
     _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
@@ -724,12 +745,16 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     NSFont *main = [Fonts mainFont:kVibeThemeMainFontBaseSize];
     NSFont *info = [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
     NSFont *playlist = [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
+    NSFont *playlistDuration =
+            [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
     _mainFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
             main.displayName, (long)lround(main.pointSize)];
     _infoFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
             info.displayName, (long)lround(info.pointSize)];
     _playlistFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
             playlist.displayName, (long)lround(playlist.pointSize)];
+    _playlistDurationFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
+            playlistDuration.displayName, (long)lround(playlistDuration.pointSize)];
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
@@ -842,7 +867,21 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     if (!selected || [AppTheme isBuiltInIdentifier:selected]) {
         return;
     }
+    // Land on the neighbor, not the first row: the next theme takes the
+    // removed row's index, and removing the last row falls back to the row
+    // before it. Selection IS activation, so the neighbor is applied rather
+    // than merely selected — without this the store's own active-removal
+    // fallback snapped the list to Vibe.
+    NSUInteger index = [_themeIdentifiers indexOfObject:selected];
+    NSString *neighbor = nil;
+    if (index != NSNotFound) {
+        neighbor = index + 1 < _themeIdentifiers.count ? _themeIdentifiers[index + 1]
+                : (index > 0 ? _themeIdentifiers[index - 1] : nil);
+    }
     [AppSettings.sharedInstance removeUserThemeWithIdentifier:selected];
+    if (neighbor) {
+        [AppSettings.sharedInstance applyThemeWithIdentifier:neighbor];
+    }
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
@@ -1075,6 +1114,18 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
+- (void)togglePlaylistArtwork:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showPlaylistArtwork =
+            (_playlistArtworkSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+}
+
+- (void)togglePlaylistDuration:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showPlaylistDuration =
+            (_playlistDurationSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+}
+
 - (void)toggleWaveformGradient:(id)sender {
     AppSettings.sharedInstance.currentTheme.waveformGradient =
             (_waveformGradientSwitch.state == NSControlStateValueOn);
@@ -1184,6 +1235,8 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     switch (slot) {
         case VibeThemeFontSlotInfo:     return [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
         case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
+        case VibeThemeFontSlotPlaylistDuration:
+            return [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
         default:                        return [Fonts mainFont:kVibeThemeMainFontBaseSize];
     }
 }
@@ -1220,6 +1273,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         case VibeThemeFontSlotPlaylist:
             theme.playlistFontFace = font.fontName;
             theme.playlistFontSize = font.pointSize;
+            break;
+        case VibeThemeFontSlotPlaylistDuration:
+            theme.playlistDurationFontFace = font.fontName;
+            theme.playlistDurationFontSize = font.pointSize;
             break;
         default:
             theme.mainFontFace = font.fontName;

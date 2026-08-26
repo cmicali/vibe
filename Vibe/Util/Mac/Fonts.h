@@ -30,10 +30,13 @@
 // title/artist size hierarchy under any chosen size.
 + (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
                infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
-           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize;
+           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize
+   playlistDurationFace:(NSString *)playlistDurationFace
+   playlistDurationSize:(CGFloat)playlistDurationSize;
 
 + (NSFont *)mainFont:(CGFloat)baseSize;
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold;
 + (NSFont *)playlistFont:(CGFloat)baseSize;
++ (NSFont *)playlistDurationFont:(CGFloat)baseSize;
 
 @end

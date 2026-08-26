@@ -59,6 +59,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierAdolescentEngineering;
 #define kVibeThemeMainFontBaseSize     ((CGFloat)23)
 #define kVibeThemeInfoFontBaseSize     ((CGFloat)13)
 #define kVibeThemePlaylistFontBaseSize ((CGFloat)14)
+#define kVibeThemePlaylistDurationFontBaseSize ((CGFloat)12)
 
 // Keys a theme JSON carries beside the field overrides. The name travels on
 // export/import; the version marks the schema; a record's id never leaves the
@@ -133,6 +134,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;
+@property (nonatomic) BOOL showPlaylistArtwork;             // the playlist's art column
+@property (nonatomic) BOOL showPlaylistDuration;            // the playlist's length column
 @property (nonatomic) BOOL keyColorsEnabled;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 
@@ -148,6 +151,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) CGFloat infoFontSize;                 // clamped [10, 15]
 @property (nonatomic, copy) NSString *playlistFontFace;
 @property (nonatomic) CGFloat playlistFontSize;             // clamped [11, 16]
+@property (nonatomic, copy) NSString *playlistDurationFontFace;
+@property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
 
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's

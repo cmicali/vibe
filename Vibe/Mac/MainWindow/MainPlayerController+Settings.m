@@ -25,7 +25,9 @@
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [Fonts applyThemeFonts:theme.mainFontFace mainSize:theme.mainFontSize
                   infoFace:theme.infoFontFace infoSize:theme.infoFontSize
-              playlistFace:theme.playlistFontFace playlistSize:theme.playlistFontSize];
+              playlistFace:theme.playlistFontFace playlistSize:theme.playlistFontSize
+      playlistDurationFace:theme.playlistDurationFontFace
+      playlistDurationSize:theme.playlistDurationFontSize];
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
@@ -73,6 +75,7 @@
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
         [PlaylistTableView invalidateCellAttributes];
         [self.playerContentView applyPlaylistBackground];
+        [self.playlistTableView applyThemedColumnVisibility];
         [self.playlistTableView reloadData];
     }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {

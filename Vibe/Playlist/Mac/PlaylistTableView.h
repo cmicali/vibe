@@ -32,6 +32,10 @@ extern NSString *const kPlaylistColumnLength;
 // caller reloads the table.
 + (void)invalidateCellAttributes;
 
+// Applies the theme's two optional columns (artwork, duration). Runs at
+// construction and from the PlaylistAppearance effect.
+- (void)applyThemedColumnVisibility;
+
 // Builds the table inside its enclosing scroll view, where the table is the
 // documentView. MainPlayerContentView only places the frame.
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame;

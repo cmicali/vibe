@@ -75,8 +75,17 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
             column.resizingMask = NSTableColumnAutoresizingMask;
             [self addTableColumn:column];
         }
+        [self applyThemedColumnVisibility];
     }
     return self;
+}
+
+// The theme's two optional columns. The title column absorbs the freed width
+// through the sequential autoresizing the table already uses.
+- (void)applyThemedColumnVisibility {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtwork;
+    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDuration;
 }
 
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame {
@@ -138,7 +147,8 @@ static void ensureCellAttributes(void) {
         lengthColumnAttributes = @{
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.0),
-                NSFontAttributeName: [Fonts fontForNumbers:12],
+                NSFontAttributeName:
+                        [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize],
                 NSParagraphStyleAttributeName: right,
         };
         titleAttributes = @{

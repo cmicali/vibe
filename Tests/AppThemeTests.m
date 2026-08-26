@@ -27,6 +27,9 @@
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertTrue(theme.showPlaylistArtwork);
+    XCTAssertTrue(theme.showPlaylistDuration);
+    XCTAssertEqual(theme.playlistDurationFontSize, 12);
     XCTAssertEqualObjects(theme.mode, @"dual");
     XCTAssertFalse(theme.showRemainingTime);
     XCTAssertTrue(theme.showBPM);

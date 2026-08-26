@@ -41,6 +41,10 @@ static NSString *const kFieldInfoFontFace = @"infoFontFace";
 static NSString *const kFieldInfoFontSize = @"infoFontSize";
 static NSString *const kFieldPlaylistFontFace = @"playlistFontFace";
 static NSString *const kFieldPlaylistFontSize = @"playlistFontSize";
+static NSString *const kFieldPlaylistDurationFontFace = @"playlistDurationFontFace";
+static NSString *const kFieldPlaylistDurationFontSize = @"playlistDurationFontSize";
+static NSString *const kFieldShowPlaylistArtwork = @"showPlaylistArtwork";
+static NSString *const kFieldShowPlaylistDuration = @"showPlaylistDuration";
 
 // The color pairs' base names; Dark/Light is appended per appearance.
 static NSString *const kColorWaveformPlayed = @"waveformPlayedColor";
@@ -85,6 +89,7 @@ static NSSet<NSString *> *BoolFieldKeys(void) {
     dispatch_once(&once, ^{
         keys = [NSSet setWithArray:@[kFieldShowFileInfo, kFieldShowRemainingTime,
                                      kFieldShowBPM, kFieldShowKey, kFieldKeyColorsEnabled,
+                                     kFieldShowPlaylistArtwork, kFieldShowPlaylistDuration,
                                      kFieldWaveformGradient]];
     });
     return keys;
@@ -95,7 +100,8 @@ static NSSet<NSString *> *FaceFieldKeys(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         keys = [NSSet setWithArray:@[kFieldMainFontFace, kFieldInfoFontFace,
-                                     kFieldPlaylistFontFace]];
+                                     kFieldPlaylistFontFace,
+                                     kFieldPlaylistDurationFontFace]];
     });
     return keys;
 }
@@ -106,6 +112,7 @@ static BOOL FontSizeClamp(NSString *key, CGFloat *min, CGFloat *max) {
     if ([key isEqualToString:kFieldMainFontSize])     { *min = 20; *max = 26; return YES; }
     if ([key isEqualToString:kFieldInfoFontSize])     { *min = 10; *max = 15; return YES; }
     if ([key isEqualToString:kFieldPlaylistFontSize]) { *min = 11; *max = 16; return YES; }
+    if ([key isEqualToString:kFieldPlaylistDurationFontSize]) { *min = 10; *max = 14; return YES; }
     return NO;
 }
 
@@ -137,6 +144,10 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
             kFieldInfoFontSize:          @(kVibeThemeInfoFontBaseSize),
             kFieldPlaylistFontFace:      @"",
             kFieldPlaylistFontSize:      @(kVibeThemePlaylistFontBaseSize),
+            kFieldPlaylistDurationFontFace: @"",
+            kFieldPlaylistDurationFontSize: @(kVibeThemePlaylistDurationFontBaseSize),
+            kFieldShowPlaylistArtwork:   @(YES),
+            kFieldShowPlaylistDuration:  @(YES),
         };
     });
     return defaults;
@@ -523,6 +534,18 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (CGFloat)playlistFontSize { return [self floatForKey:kFieldPlaylistFontSize]; }
 - (void)setPlaylistFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistFontSize]; }
+
+- (NSString *)playlistDurationFontFace { return [self stringForKey:kFieldPlaylistDurationFontFace]; }
+- (void)setPlaylistDurationFontFace:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistDurationFontFace]; }
+
+- (CGFloat)playlistDurationFontSize { return [self floatForKey:kFieldPlaylistDurationFontSize]; }
+- (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
+
+- (BOOL)showPlaylistArtwork { return [self boolForKey:kFieldShowPlaylistArtwork]; }
+- (void)setShowPlaylistArtwork:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistArtwork]; }
+
+- (BOOL)showPlaylistDuration { return [self boolForKey:kFieldShowPlaylistDuration]; }
+- (void)setShowPlaylistDuration:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistDuration]; }
 
 #pragma mark Color pairs
 
