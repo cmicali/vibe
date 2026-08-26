@@ -30,6 +30,7 @@
 static const CGFloat kAppearancePopUpWidth = 220;
 static const CGFloat kThemeListHeight = 150;
 static NSString *const kThemeCellIdentifier = @"themeCell";
+static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 // The font panel's target slot, carried as the Select buttons' tags. None
 // while the panel is not editing a slot; changeFont: no-ops then, which is
