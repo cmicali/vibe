@@ -141,15 +141,19 @@
 }
 
 - (void)testColorsRoundTripThroughHexWithAlpha {
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    // A dual-mode theme keeps its halves apart; the empty record is pinned
+    // dark, so the mirroring cases live in the pinned-theme tests below.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"system"}];
     [theme setPlaylistPlayingRowColor:VibeColorFromHexString(@"#FF6600AA") forDark:YES];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation,
-                          @{@"playlistPlayingRowColorDark": @"#FF6600AA"});
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
+        @"appearance": @"system",
+        @"playlistPlayingRowColorDark": @"#FF6600AA",
+    }));
     XCTAssertEqualObjects(VibeHexStringFromColor([theme playlistPlayingRowColorForDark:YES]),
                           @"#FF6600AA");
     XCTAssertNil([theme playlistPlayingRowColorForDark:NO]);
     [theme setPlaylistPlayingRowColor:nil forDark:YES];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"system"});
 }
 
 - (void)testRecordRoundTrips {
@@ -283,6 +287,40 @@
                                        existingNames:existing], @"Fresh");
 }
 
+- (void)testPinnedThemeMirrorsItsColorPairs {
+    // Setting a color on a pinned theme writes both halves; the record is
+    // one color set, whichever side a caller names.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"light"}];
+    [theme setTitleColor:[VibeColor redColor] forDark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorDark"],
+                          theme.dictionaryRepresentation[@"titleColorLight"]);
+    // Flipping the base carries the colors instead of swapping to a hidden set.
+    theme.appearance = @"dark";
+    XCTAssertEqualObjects([theme titleColorForDark:YES], [theme titleColorForDark:NO]);
+    XCTAssertNotNil(theme.dictionaryRepresentation[@"titleColorDark"]);
+}
+
+- (void)testPinnedRecordIsMirroredAtTheGate {
+    // A JSON import or stored record with unequal halves lands mirrored to
+    // the pinned side — absence included: the single look is exactly what the
+    // pinned side showed.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"appearance": @"light",
+        @"titleColorDark": @"#111111",
+        @"titleColorLight": @"#EEEEEE",
+        @"artistColorDark": @"#222222",
+    }];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorDark"], @"#EEEEEE");
+    XCTAssertNil(theme.dictionaryRepresentation[@"artistColorDark"]);
+    // A dual-mode record keeps its halves apart.
+    AppTheme *dual = [[AppTheme alloc] initWithRecord:@{
+        @"appearance": @"system",
+        @"titleColorDark": @"#111111",
+        @"titleColorLight": @"#EEEEEE",
+    }];
+    XCTAssertEqualObjects(dual.dictionaryRepresentation[@"titleColorDark"], @"#111111");
+}
+
 - (void)testAppearanceSnapsToTheFactoryDark {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"solarized"}];
     XCTAssertEqualObjects(theme.appearance, @"dark");
@@ -312,12 +350,15 @@
         @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
     }];
+    // The migrated record lands pinned dark (the legacy default), so the
+    // custom color arrives mirrored: the pre-theme light half never drew.
     XCTAssertEqualObjects(record, (@{
         @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
         @"windowTint": @"mono",
         @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
+        @"waveformPlayedColorLight": @"#FF7300",
     }));
 }
 

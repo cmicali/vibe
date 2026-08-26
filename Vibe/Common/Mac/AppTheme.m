@@ -387,6 +387,31 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
     }
+    [self mirrorColorPairsIfPinned];
+}
+
+// A pinned theme is single-look: one color set, not the pinned half of two.
+// Mirroring the pairs here — and in setAppearance: and setColor:forBase:dark:
+// — is what makes that true at the one gate, so a JSON import, a stored
+// record and a UI edit all land mirrored, and flipping a single-look theme's
+// base between Always Light and Always Dark carries its colors instead of
+// swapping to a hidden second set. Absence mirrors too: the single look is
+// exactly what the pinned side showed.
+- (void)mirrorColorPairsIfPinned {
+    NSString *appearance = self.appearance;
+    if ([appearance isEqualToString:SETTINGS_VALUE_APPEARANCE_SYSTEM]) {
+        return;
+    }
+    BOOL pinnedDark = [appearance isEqualToString:SETTINGS_VALUE_APPEARANCE_DARK];
+    for (NSString *base in ColorFieldBases()) {
+        id pinned = _fields[ColorFieldKey(base, pinnedDark)];
+        NSString *other = ColorFieldKey(base, !pinnedDark);
+        if (pinned) {
+            _fields[other] = pinned;
+        } else {
+            [_fields removeObjectForKey:other];
+        }
+    }
 }
 
 - (NSDictionary<NSString *, id> *)dictionaryRepresentation {
@@ -422,7 +447,10 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (void)setWaveformStyle:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformStyle]; }
 
 - (NSString *)appearance { return [self stringForKey:kFieldAppearance]; }
-- (void)setAppearance:(NSString *)v { [self storeSanitized:v forKey:kFieldAppearance]; }
+- (void)setAppearance:(NSString *)v {
+    [self storeSanitized:v forKey:kFieldAppearance];
+    [self mirrorColorPairsIfPinned];
+}
 
 - (NSAppearance *)resolvedWindowAppearance {
     NSString *v = self.appearance;
@@ -494,7 +522,11 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 }
 
 - (void)setColor:(VibeColor *)color forBase:(NSString *)base dark:(BOOL)isDark {
-    [self storeSanitized:VibeHexStringFromColor(color) forKey:ColorFieldKey(base, isDark)];
+    NSString *hex = VibeHexStringFromColor(color);
+    [self storeSanitized:hex forKey:ColorFieldKey(base, isDark)];
+    if (![self.appearance isEqualToString:SETTINGS_VALUE_APPEARANCE_SYSTEM]) {
+        [self storeSanitized:hex forKey:ColorFieldKey(base, !isDark)];
+    }
 }
 
 - (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kColorWaveformPlayed dark:isDark]; }
