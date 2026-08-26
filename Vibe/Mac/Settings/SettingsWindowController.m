@@ -372,10 +372,15 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         NSView *content = split.view;
         _contentWidth = [content.widthAnchor constraintEqualToConstant:content.frame.size.width];
         _contentHeight = [content.heightAnchor constraintEqualToConstant:content.frame.size.height];
-        // Just below required, so the one pass where the frame moved ahead of
-        // the constants resolves by stretching instead of breaking loudly.
-        _contentWidth.priority = NSLayoutPriorityRequired - 1;
-        _contentHeight.priority = NSLayoutPriorityRequired - 1;
+        // TRAP: 509 exactly — the one value between two observed failures.
+        // A user's edge drag is evaluated at NSLayoutPriorityDragThatCanResizeWindow
+        // (510): at 999 these equalities beat it, the resizable range collapsed
+        // to a point, and AppKit showed no resize cursor at all — while
+        // settings_resize, which sets the frame directly, kept working. At
+        // WindowSizeStayPut (500) they lost the other fight: the fitting snap
+        // re-sized the window to a content-derived answer and ignored the floor.
+        _contentWidth.priority = NSLayoutPriorityDragThatCanResizeWindow - 1;
+        _contentHeight.priority = NSLayoutPriorityDragThatCanResizeWindow - 1;
         [NSLayoutConstraint activateConstraints:@[_contentWidth, _contentHeight]];
     }
     return self;
