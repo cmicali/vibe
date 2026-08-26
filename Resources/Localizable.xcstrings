@@ -24391,6 +24391,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.fonts_section": {
+      "comment": "Theme editor: heading above the three font rows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonts"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.key_colors": {
       "comment": "Settings, Appearance pane: checkbox — when on, the key readout is drawn bold and in the color that key occupies on the Camelot wheel. 'Camelot' is the name of that wheel, a proper noun, left untranslated.",
       "localizations": {
@@ -25135,6 +25147,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.playlist_section": {
+      "comment": "Theme editor: heading above the playlist color rows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.show_bpm": {
       "comment": "Settings, Appearance pane: switch showing or hiding the header's tempo readout. BPM is beats per minute. Off leaves detection and tags untouched.",
       "localizations": {
@@ -25688,6 +25712,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示視窗控制按鈕"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.add": {
+      "comment": "Settings, Appearance pane: pull-down button over the ways to add a theme — new, duplicate, import.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.add_new": {
+      "comment": "Add menu item: creates a theme from the current appearance. Also the created theme's default name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Theme"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.back": {
+      "comment": "Theme editor: button returning from the editor page to the theme list, like a System Settings sub-page's back control.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.background.glass": {
+      "comment": "Window background choice: the translucent glass look the app ships with.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glass"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.background.solid": {
+      "comment": "Window background choice: a picked color covers the glass; the color's opacity decides how much glass still shows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solid color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.background_colors": {
+      "comment": "Theme editor, Window group: row beside the solid background's two color wells, one per appearance.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background colors"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.background_label": {
+      "comment": "Theme editor, Window group: row beside the dropdown choosing the window background — the glass look, or a solid color.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.built_in_caption": {
+      "comment": "Theme editor: caption on a built-in theme's read-only page, shown beside a Duplicate button that makes an editable copy.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in themes can't be edited."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.color_artist": {
+      "comment": "Theme editor, Window group: row beside the secondary text's color wells — the artist lines and the playlist's number and length columns.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artist color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.color_info": {
+      "comment": "Theme editor, Window group: row beside the color wells for the header's codec and BPM/key readouts.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.color_times": {
+      "comment": "Theme editor, Window group: row beside the color wells for the two time labels.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.color_title": {
+      "comment": "Theme editor, Window group: row beside the title text's color wells. Governs the header title and the playlist titles.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title color"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.corner_radius": {
+      "comment": "Theme editor, Window group: row beside the slider rounding the window's corners.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corner radius"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.dark": {
+      "comment": "Theme editor: caption after a color well — the color used while the app is in dark mode.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.duplicate": {
+      "comment": "Add menu item, and the button on a built-in theme's read-only editor page: copies the selected theme into an editable one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.edit": {
+      "comment": "Settings, Appearance pane: button that opens the selected theme's editor page. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.export": {
+      "comment": "Settings, Appearance pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.font_info": {
+      "comment": "Theme editor, Fonts group: row for the font of the times and the codec and BPM/key readouts.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info font"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.font_main": {
+      "comment": "Theme editor, Fonts group: row for the title and artist font.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Main font"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.font_playlist": {
+      "comment": "Theme editor, Fonts group: row for the playlist rows' font.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist font"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.font_select": {
+      "comment": "Theme editor, Fonts group: button opening the system font panel for that row's font. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.font_value": {
+      "comment": "Theme editor, Fonts group: the current choice, e.g. 'Helvetica Neue 23 pt'. %1$@ is the font's name, %2$ld its size in points.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$ld pt"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.import": {
+      "comment": "Add menu item: opens a file chooser for a theme JSON file. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.import_failed": {
+      "comment": "Alert shown when an imported file could not be read as a theme JSON.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file isn't a Vibe theme."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.light": {
+      "comment": "Theme editor: caption after a color well — the color used while the app is in light mode.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.name_label": {
+      "comment": "Theme editor: row beside the theme's editable name field.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.playing_row": {
+      "comment": "Theme editor, Playlist group: row beside the color wells filling the playing track's row.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing row"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.playlist_background": {
+      "comment": "Theme editor, Playlist group: row beside the color wells washing the playlist area's background.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist background"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.remove": {
+      "comment": "Settings, Appearance pane: button that deletes the selected theme. Built-in themes cannot be removed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.selected_row": {
+      "comment": "Theme editor, Playlist group: row beside the color wells filling selected rows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected row"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.themes_section": {
+      "comment": "Settings, Appearance pane: heading above the theme list and its buttons.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Themes"
           }
         }
       },
@@ -42812,6 +43208,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Custom"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "theme.name.imported": {
+      "comment": "Default name for an imported theme whose file carried no name.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported Theme"
           }
         }
       },

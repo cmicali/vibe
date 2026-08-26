@@ -302,6 +302,9 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
             // The tab controller's own selection path, so the sidebar, the
             // title chain and refreshFromSettings all follow.
             _tabs.selectedTabViewItemIndex = [_tabs.tabViewItems indexOfObject:item];
+            // Edit Themes… states intent to edit, and the active theme is
+            // unambiguous — land on its page, with Back one click away.
+            [(SettingsAppearanceViewController *)item.viewController showThemeEditorForActiveTheme];
             break;
         }
     }

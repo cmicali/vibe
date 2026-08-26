@@ -2,14 +2,34 @@
 //  SettingsAppearanceViewController.m
 //  Vibe
 //
+// Two pages in one pane, System Settings style. The LIST page holds the
+// common settings — appearance and traffic lights, the two appearance choices
+// that live outside any theme — and the theme list, where selection IS
+// activation. The EDITOR page, a sibling of the pane's section stack that
+// swaps in over it, edits the active theme's every field; a built-in shows
+// read-only with Duplicate as the customization path.
+//
+// The editor deliberately never joins the shared pane-size settlement: it
+// scrolls inside whatever size the panes settled at, because its ~20 rows
+// would otherwise grow every pane of a window that cannot be resized. The
+// page swap is therefore size-neutral, and the editor's conditional rows
+// reflow only their own scrolled stack.
+//
 
 #import "SettingsAppearanceViewController.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
+#import "Fonts.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 
 static const CGFloat kAppearancePopUpWidth = 220;
+static const CGFloat kThemeListHeight = 150;
+// The base class's own content inset, restated for the editor page, which the
+// base did not lay out.
+static const CGFloat kEditorPadding = 20;
+static NSString *const kThemeCellIdentifier = @"themeCell";
 
 // Popup tags for the appearance choices; the persisted value is the
 // SETTINGS_VALUE_WINDOW_APPEARANCE_* string.
@@ -19,39 +39,88 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     VibeAppearanceTagDark,
 };
 
+// The font panel's target slot, carried as the Select buttons' tags. None
+// while the panel is not editing a slot; changeFont: no-ops then, which is
+// what keeps a stray panel from restyling anything.
+typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
+    VibeThemeFontSlotNone = 0,
+    VibeThemeFontSlotMain,
+    VibeThemeFontSlotInfo,
+    VibeThemeFontSlotPlaylist,
+};
+
+@interface SettingsAppearanceViewController ()
+        <NSTableViewDataSource, NSTableViewDelegate, NSFontChanging, NSTextFieldDelegate>
+@end
+
 @implementation SettingsAppearanceViewController {
+    // The list page.
     NSPopUpButton *_appearancePopUp;
     NSSwitch *_trafficLightsSwitch;
+    NSTableView *_themeTable;
+    NSPopUpButton *_addThemeButton;
+    NSButton *_removeThemeButton;
+    NSButton *_editThemeButton;
+    NSButton *_exportThemeButton;
+    // The table's rows, in store order: built-ins first, then user themes.
+    NSArray<NSString *> *_themeIdentifiers;
+    // The pane's own sections, kept so the editor swap can hide them — the
+    // stack itself is the base class's.
+    NSArray<NSView *> *_listSections;
+
+    // The editor page.
+    NSView *_detailContainer;
+    NSTextField *_editorTitleLabel;
+    NSTextField *_builtInCaption;
+    NSButton *_duplicateButton;
+    NSStackView *_editorStack;
+    NSTextField *_nameField;
+    SettingsRowView *_nameRow;
+    NSPopUpButton *_backgroundPopUp;
+    NSColorWell *_backgroundDarkWell, *_backgroundLightWell;
+    SettingsRowView *_backgroundColorsRow;
     NSPopUpButton *_windowTintPopUp;
-    NSColorWell *_windowTintDarkWell;
-    NSColorWell *_windowTintLightWell;
-    // The tint wells' rows, hidden unless the tint is custom — the same
-    // build-always-and-toggle shape as the waveform's custom rows below.
-    SettingsRowView *_windowTintDarkRow;
-    SettingsRowView *_windowTintLightRow;
+    NSColorWell *_windowTintDarkWell, *_windowTintLightWell;
+    SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
+    NSSlider *_cornerRadiusSlider;
+    NSSwitch *_fileInfoSwitch;
+    NSButton *_timeTotalRadio, *_timeRemainingRadio;
+    NSSwitch *_showBPMSwitch, *_showKeySwitch;
+    NSPopUpButton *_keyNotationPopUp;
+    NSSwitch *_keyColorsSwitch;
+    NSColorWell *_titleDarkWell, *_titleLightWell;
+    NSColorWell *_artistDarkWell, *_artistLightWell;
+    NSColorWell *_infoDarkWell, *_infoLightWell;
+    NSColorWell *_timeDarkWell, *_timeLightWell;
     NSPopUpButton *_waveformPopUp;
     NSPopUpButton *_waveformThemePopUp;
     // A played/unplayed pair per appearance — one pair cannot read on both
     // backdrops.
-    NSColorWell *_customDarkPlayedWell;
-    NSColorWell *_customDarkUnplayedWell;
-    NSColorWell *_customLightPlayedWell;
-    NSColorWell *_customLightUnplayedWell;
-    // The custom-color wells' rows, hidden unless the theme is custom. Built
-    // always and toggled, so the walker and the layout stay stable; the
-    // section stack closes the gap, separators included.
-    SettingsRowView *_customDarkRow;
-    SettingsRowView *_customLightRow;
-    NSSwitch *_fileInfoSwitch;
-    NSButton *_timeTotalRadio;
-    NSButton *_timeRemainingRadio;
-    NSSwitch *_showBPMSwitch;
-    NSSwitch *_showKeySwitch;
-    NSPopUpButton *_keyNotationPopUp;
-    NSSwitch *_keyColorsSwitch;
+    NSColorWell *_customDarkPlayedWell, *_customDarkUnplayedWell;
+    NSColorWell *_customLightPlayedWell, *_customLightUnplayedWell;
+    SettingsRowView *_customDarkRow, *_customLightRow;
+    NSColorWell *_playlistBackgroundDarkWell, *_playlistBackgroundLightWell;
+    NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
+    NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
+    NSTextField *_mainFontValue, *_infoFontValue, *_playlistFontValue;
+    VibeThemeFontSlot _fontEditingSlot;
+    BOOL _editorShown;
+    // Reentrancy guard: reloadData and the programmatic reselect both post
+    // selection-changed, and the delegate treating those as user activations
+    // recursed refreshFromSettings into a stack overflow. Observed, not
+    // hypothetical.
+    BOOL _refreshingThemeList;
 }
 
+#pragma mark - Construction
+
 - (void)loadView {
+    [self buildListControls];
+    [self loadPaneWithSections:_listSections];
+    [self buildEditorPage];
+}
+
+- (void)buildListControls {
     _appearancePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(appearanceChanged:)];
     [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_SYSTEM];
     _appearancePopUp.lastItem.tag = VibeAppearanceTagSystem;
@@ -62,127 +131,61 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
 
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
-    _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+    _themeTable = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    _themeTable.headerView = nil;
+    _themeTable.allowsMultipleSelection = NO;
+    _themeTable.allowsEmptySelection = NO;
+    _themeTable.dataSource = self;
+    _themeTable.delegate = self;
+    _themeTable.rowHeight = 22;
+    _themeTable.target = self;
+    _themeTable.doubleAction = @selector(editTheme:);
+    [_themeTable addTableColumn:[[NSTableColumn alloc] initWithIdentifier:kThemeCellIdentifier]];
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scrollView.documentView = _themeTable;
+    scrollView.hasVerticalScroller = YES;
+    scrollView.borderType = NSBezelBorder;
+    [scrollView.heightAnchor constraintEqualToConstant:kThemeListHeight].active = YES;
 
-    _windowTintDarkWell = [self customColorWellWithAction:@selector(windowTintColorChanged:)];
-    _windowTintLightWell = [self customColorWellWithAction:@selector(windowTintColorChanged:)];
+    _addThemeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
+    [_addThemeButton addItemWithTitle:STR_SETTINGS_THEME_ADD];
+    [_addThemeButton addItemWithTitle:STR_SETTINGS_THEME_ADD_NEW];
+    _addThemeButton.lastItem.target = self;
+    _addThemeButton.lastItem.action = @selector(addNewTheme:);
+    [_addThemeButton addItemWithTitle:STR_SETTINGS_THEME_DUPLICATE];
+    _addThemeButton.lastItem.target = self;
+    _addThemeButton.lastItem.action = @selector(duplicateTheme:);
+    [_addThemeButton addItemWithTitle:STR_SETTINGS_THEME_IMPORT];
+    _addThemeButton.lastItem.target = self;
+    _addThemeButton.lastItem.action = @selector(importTheme:);
+    _removeThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REMOVE
+                                            target:self action:@selector(removeTheme:)];
+    _editThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EDIT
+                                          target:self action:@selector(editTheme:)];
+    _exportThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EXPORT
+                                            target:self action:@selector(exportTheme:)];
+    NSStackView *buttons = [NSStackView stackViewWithViews:
+            @[_addThemeButton, _removeThemeButton, _editThemeButton, _exportThemeButton]];
+    buttons.spacing = 8;
 
-    // Identifiers travel in representedObject, localized names in the titles
-    // — the same split as the View > Waveform menu, and for the same reason:
-    // a display name must never reach NSUserDefaults.
-    _waveformPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformStyleChanged:)];
-    MainPlayerController *player = self.playerController;
-    NSArray<NSString *> *styles = [[player availableWaveformStyleIdentifiers]
-            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-                return [[player displayNameForWaveformStyle:a]
-                        localizedStandardCompare:[player displayNameForWaveformStyle:b]];
-            }];
-    for (NSString *identifier in styles) {
-        [_waveformPopUp addItemWithTitle:[player displayNameForWaveformStyle:identifier]];
-        _waveformPopUp.lastItem.representedObject = identifier;
-    }
-
-    // The theme is the palette laid over the style's geometry; identifiers in
-    // representedObject as above.
-    _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_MONO];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ORANGE];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ORANGE;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
-
-    _customDarkPlayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
-    _customDarkUnplayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
-    _customLightPlayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
-    _customLightUnplayedWell = [self customColorWellWithAction:@selector(customColorChanged:)];
-    NSStackView *customDarkColors = [self customColorPairWithPlayed:_customDarkPlayedWell
-                                                           unplayed:_customDarkUnplayedWell];
-    NSStackView *customLightColors = [self customColorPairWithPlayed:_customLightPlayedWell
-                                                            unplayed:_customLightUnplayedWell];
-
-    _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
-
-    _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
-                                              target:self action:@selector(timeDisplayChanged:)];
-    _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
-                                                  target:self action:@selector(timeDisplayChanged:)];
-    NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
-    timeRadios.spacing = 12;
-
-    _showBPMSwitch = [self switchWithAction:@selector(toggleShowBPM:)];
-    _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
-
-    // Identifiers in representedObject, localized names in the titles — the
-    // same split as the waveform styles above.
-    _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
-    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_CAMELOT];
-    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
-    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_MUSICAL];
-    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_MUSICAL;
-
-    _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
-
-    _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-                                               control:_windowTintDarkWell];
-    _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-                                                control:_windowTintLightWell];
-
-    _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
-                                           control:customDarkColors];
-    _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
-                                            control:customLightColors];
-
-    [self loadPaneWithSections:@[
+    _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
-            _windowTintDarkRow,
-            _windowTintLightRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
-            _customDarkRow,
-            _customLightRow,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
+            [SettingsRowView rowWithContentView:scrollView],
+            [SettingsRowView rowWithContentView:buttons],
         ]],
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
-        ]],
-    ]];
+    ];
 }
 
-- (NSStackView *)customColorPairWithPlayed:(NSColorWell *)played unplayed:(NSColorWell *)unplayed {
-    NSTextField *playedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED];
-    NSTextField *unplayedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
-    playedCaption.textColor = NSColor.secondaryLabelColor;
-    unplayedCaption.textColor = NSColor.secondaryLabelColor;
-    NSStackView *pair = [NSStackView stackViewWithViews:@[played, playedCaption, unplayed, unplayedCaption]];
-    pair.spacing = 6;
-    [pair setCustomSpacing:16 afterView:playedCaption];
-    return pair;
-}
-
-- (NSColorWell *)customColorWellWithAction:(SEL)action {
+// A well whose alpha is part of the choice: a fill's strength, the solid
+// background's opacity, a waveform side's resting level.
+- (NSColorWell *)themeColorWellWithAction:(SEL)action {
     NSColorWell *well = [[NSColorWell alloc] init];
     well.target = self;
     well.action = action;
-    // The alpha is part of the choice: a color's alpha is its side's resting
-    // level (WaveformTheme.h).
     if (@available(macOS 14.0, *)) {
         well.supportsAlpha = YES;
     } else {
@@ -195,20 +198,331 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     return well;
 }
 
+- (NSStackView *)captionedPair:(NSArray<NSView *> *)wellsAndCaptions {
+    NSStackView *pair = [NSStackView stackViewWithViews:wellsAndCaptions];
+    pair.spacing = 6;
+    return pair;
+}
+
+// [well Dark] [well Light] — one row per themed color.
+- (NSStackView *)darkLightPairWithDark:(NSColorWell *)dark light:(NSColorWell *)light {
+    NSTextField *darkCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_DARK];
+    NSTextField *lightCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_LIGHT];
+    darkCaption.textColor = NSColor.secondaryLabelColor;
+    lightCaption.textColor = NSColor.secondaryLabelColor;
+    NSStackView *pair = [self captionedPair:@[dark, darkCaption, light, lightCaption]];
+    [pair setCustomSpacing:16 afterView:darkCaption];
+    return pair;
+}
+
+- (NSStackView *)customColorPairWithPlayed:(NSColorWell *)played unplayed:(NSColorWell *)unplayed {
+    NSTextField *playedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED];
+    NSTextField *unplayedCaption = [NSTextField labelWithString:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
+    playedCaption.textColor = NSColor.secondaryLabelColor;
+    unplayedCaption.textColor = NSColor.secondaryLabelColor;
+    NSStackView *pair = [self captionedPair:@[played, playedCaption, unplayed, unplayedCaption]];
+    [pair setCustomSpacing:16 afterView:playedCaption];
+    return pair;
+}
+
+// A font row's trailing cluster: the current choice, then Select…, which
+// opens the font panel onto that slot.
+- (NSStackView *)fontClusterForSlot:(VibeThemeFontSlot)slot valueLabel:(NSTextField **)outLabel {
+    NSTextField *value = [NSTextField labelWithString:@""];
+    value.textColor = NSColor.secondaryLabelColor;
+    NSButton *select = [NSButton buttonWithTitle:STR_SETTINGS_THEME_FONT_SELECT
+                                          target:self action:@selector(selectFont:)];
+    select.tag = slot;
+    *outLabel = value;
+    NSStackView *cluster = [self captionedPair:@[value, select]];
+    cluster.spacing = 10;
+    return cluster;
+}
+
+- (void)buildEditorPage {
+    _nameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    _nameField.delegate = self;
+    [_nameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _nameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_NAME_LABEL control:_nameField];
+
+    _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
+    [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
+    _backgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+    [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_SOLID];
+    _backgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID;
+    _backgroundDarkWell = [self themeColorWellWithAction:@selector(backgroundColorChanged:)];
+    _backgroundLightWell = [self themeColorWellWithAction:@selector(backgroundColorChanged:)];
+    _backgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_COLORS
+            control:[self darkLightPairWithDark:_backgroundDarkWell light:_backgroundLightWell]];
+
+    _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
+    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+    _windowTintDarkWell = [self themeColorWellWithAction:@selector(windowTintColorChanged:)];
+    _windowTintLightWell = [self themeColorWellWithAction:@selector(windowTintColorChanged:)];
+    _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
+                                               control:_windowTintDarkWell];
+    _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
+                                                control:_windowTintLightWell];
+
+    _cornerRadiusSlider = [NSSlider sliderWithValue:20 minValue:0 maxValue:kVibeThemeCornerRadiusMax
+                                             target:self action:@selector(cornerRadiusChanged:)];
+    _cornerRadiusSlider.continuous = YES;
+    [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+
+    _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
+    _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
+                                              target:self action:@selector(timeDisplayChanged:)];
+    _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
+                                                  target:self action:@selector(timeDisplayChanged:)];
+    NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
+    timeRadios.spacing = 12;
+    _showBPMSwitch = [self switchWithAction:@selector(toggleShowBPM:)];
+    _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
+    _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
+    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_CAMELOT];
+    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
+    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_MUSICAL];
+    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_MUSICAL;
+    _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
+
+    _titleDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _titleLightWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _artistDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _artistLightWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _infoDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _infoLightWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _timeDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+    _timeLightWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
+
+    // Identifiers travel in representedObject, localized names in the titles
+    // — a display name must never reach the store.
+    _waveformPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformStyleChanged:)];
+    MainPlayerController *player = self.playerController;
+    NSArray<NSString *> *styles = [[player availableWaveformStyleIdentifiers]
+            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+                return [[player displayNameForWaveformStyle:a]
+                        localizedStandardCompare:[player displayNameForWaveformStyle:b]];
+            }];
+    for (NSString *identifier in styles) {
+        [_waveformPopUp addItemWithTitle:[player displayNameForWaveformStyle:identifier]];
+        _waveformPopUp.lastItem.representedObject = identifier;
+    }
+    _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
+    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_MONO];
+    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ORANGE];
+    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ORANGE;
+    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART];
+    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
+    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
+    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+    _customDarkPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
+    _customDarkUnplayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
+    _customLightPlayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
+    _customLightUnplayedWell = [self themeColorWellWithAction:@selector(customColorChanged:)];
+    _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
+            control:[self customColorPairWithPlayed:_customDarkPlayedWell unplayed:_customDarkUnplayedWell]];
+    _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
+            control:[self customColorPairWithPlayed:_customLightPlayedWell unplayed:_customLightUnplayedWell]];
+
+    _playlistBackgroundDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _playlistBackgroundLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _playingRowDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _playingRowLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _selectedRowDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+    _selectedRowLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
+
+    NSTextField *mainFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
+    NSStackView *mainFontCluster = [self fontClusterForSlot:VibeThemeFontSlotMain valueLabel:&mainFontValue];
+    NSStackView *infoFontCluster = [self fontClusterForSlot:VibeThemeFontSlotInfo valueLabel:&infoFontValue];
+    NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotPlaylist valueLabel:&playlistFontValue];
+    _mainFontValue = mainFontValue;
+    _infoFontValue = infoFontValue;
+    _playlistFontValue = playlistFontValue;
+
+    NSArray<NSView *> *sections = @[
+        [SettingsSectionView sectionWithRows:@[_nameRow]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
+            _backgroundColorsRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
+            _windowTintDarkRow,
+            _windowTintLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:_cornerRadiusSlider],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE
+                    control:[self darkLightPairWithDark:_titleDarkWell light:_titleLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST
+                    control:[self darkLightPairWithDark:_artistDarkWell light:_artistLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO
+                    control:[self darkLightPairWithDark:_infoDarkWell light:_infoLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES
+                    control:[self darkLightPairWithDark:_timeDarkWell light:_timeLightWell]],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
+            _customDarkRow,
+            _customLightRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
+                    control:[self darkLightPairWithDark:_playlistBackgroundDarkWell light:_playlistBackgroundLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
+                    control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
+                    control:[self darkLightPairWithDark:_selectedRowDarkWell light:_selectedRowLightWell]],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_FONTS_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
+        ]],
+    ];
+
+    _editorStack = [NSStackView stackViewWithViews:sections];
+    _editorStack.orientation = NSUserInterfaceLayoutOrientationVertical;
+    _editorStack.alignment = NSLayoutAttributeLeading;
+    _editorStack.spacing = 20;
+    _editorStack.translatesAutoresizingMaskIntoConstraints = NO;
+    _editorStack.wantsLayer = YES;
+    for (NSView *section in sections) {
+        [section.widthAnchor constraintEqualToAnchor:_editorStack.widthAnchor].active = YES;
+    }
+
+    NSButton *back = [NSButton buttonWithTitle:STR_SETTINGS_THEME_BACK
+                                        target:self action:@selector(popToThemeList:)];
+    back.image = [NSImage imageWithSystemSymbolName:@"chevron.backward"
+                           accessibilityDescription:STR_SETTINGS_THEME_BACK];
+    back.imagePosition = NSImageLeading;
+    back.bordered = NO;
+    _editorTitleLabel = [NSTextField labelWithString:@""];
+    _editorTitleLabel.font = [NSFont boldSystemFontOfSize:15];
+    _builtInCaption = [NSTextField labelWithString:STR_SETTINGS_THEME_BUILT_IN_CAPTION];
+    _builtInCaption.textColor = NSColor.secondaryLabelColor;
+    _builtInCaption.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+    _duplicateButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_DUPLICATE
+                                          target:self action:@selector(duplicateActiveTheme:)];
+    NSStackView *header = [NSStackView stackViewWithViews:
+            @[back, _editorTitleLabel, _builtInCaption, _duplicateButton]];
+    header.spacing = 10;
+    [header setCustomSpacing:16 afterView:back];
+
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    scroll.hasVerticalScroller = YES;
+    scroll.drawsBackground = NO;
+    scroll.documentView = _editorStack;
+
+    NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
+    container.translatesAutoresizingMaskIntoConstraints = NO;
+    container.hidden = YES;
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    [container addSubview:header];
+    [container addSubview:scroll];
+    [self.view addSubview:container];
+    _detailContainer = container;
+
+    NSLayoutGuide *safeArea = self.view.safeAreaLayoutGuide;
+    [NSLayoutConstraint activateConstraints:@[
+        [container.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:kEditorPadding],
+        [container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:kEditorPadding],
+        [container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kEditorPadding],
+        [container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-kEditorPadding],
+        [header.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [header.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [header.trailingAnchor constraintLessThanOrEqualToAnchor:container.trailingAnchor],
+        [scroll.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:12],
+        [scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        // Top-pinned in the clip view: an unflipped documentView otherwise
+        // gravity-anchors at the bottom.
+        [_editorStack.topAnchor constraintEqualToAnchor:scroll.contentView.topAnchor],
+        [_editorStack.leadingAnchor constraintEqualToAnchor:scroll.contentView.leadingAnchor],
+        [_editorStack.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor],
+    ]];
+}
+
+#pragma mark - Page swap
+
+// Size-neutral by design: the editor never joins the shared-size settlement
+// (naturalPaneSize measures only the base section stack), so no
+// animatePaneContentChange pass is needed — nothing about the window moves.
+- (void)applyEditorVisibility {
+    _detailContainer.hidden = !_editorShown;
+    for (NSView *section in _listSections) {
+        section.hidden = _editorShown;
+    }
+}
+
+- (void)showThemeEditorForActiveTheme {
+    _editorShown = YES;
+    [self refreshFromSettings];
+    [self applyEditorVisibility];
+}
+
+- (void)popToThemeList:(id)sender {
+    _editorShown = NO;
+    [self closeFontPanel];
+    [self applyEditorVisibility];
+    [self refreshFromSettings];
+}
+
+- (void)viewDidDisappear {
+    [super viewDidDisappear];
+    [self closeFontPanel];
+}
+
+#pragma mark - State
+
 - (void)resolveLayoutStateFromSettings {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    BOOL customTheme = [theme.waveformTheme
-            isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    BOOL customTheme = [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme;
-    BOOL customTint = [theme.windowTint
-            isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint;
+    _backgroundColorsRow.hidden = ![theme.windowBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    [self applyEditorVisibility];
+}
+
+static void SelectItemWithRepresentedObject(NSPopUpButton *popUp, NSString *value) {
+    for (NSMenuItem *item in popUp.itemArray) {
+        if ([item.representedObject isEqualToString:value]) {
+            [popUp selectItem:item];
+            return;
+        }
+    }
+}
+
+static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
+    for (NSView *subview in view.subviews) {
+        if ([subview isKindOfClass:NSControl.class]) {
+            ((NSControl *)subview).enabled = enabled;
+        }
+        SetDescendantControlsEnabled(subview, enabled);
+    }
 }
 
 - (void)refreshFromSettings {
-    NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
+
+    // The common card.
+    NSString *style = settings.windowAppearanceStyle;
     if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
         [_appearancePopUp selectItemWithTag:VibeAppearanceTagLight];
     }
@@ -218,22 +532,69 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     else {
         [_appearancePopUp selectItemWithTag:VibeAppearanceTagSystem];
     }
-    _trafficLightsSwitch.state = AppSettings.sharedInstance.showTrafficLights
+    _trafficLightsSwitch.state = settings.showTrafficLights
             ? NSControlStateValueOn : NSControlStateValueOff;
 
-    // An unknown persisted identifier renders as the default style — the
-    // waveform view's own fallback — so the popup shows that rather than
-    // leaving whatever was selected before standing, which would misreport
-    // what is on screen.
-    NSString *current = AppSettings.sharedInstance.currentTheme.waveformStyle;
+    // The theme list. Selection mirrors activation, so reselect the active
+    // row after every reload.
+    NSString *active = settings.activeThemeIdentifier;
+    _themeIdentifiers = settings.orderedThemeIdentifiers;
+    _refreshingThemeList = YES;
+    [_themeTable reloadData];
+    NSUInteger activeRow = [_themeIdentifiers indexOfObject:active];
+    if (activeRow != NSNotFound) {
+        [_themeTable selectRowIndexes:[NSIndexSet indexSetWithIndex:activeRow]
+                 byExtendingSelection:NO];
+    }
+    _refreshingThemeList = NO;
+    BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
+    _removeThemeButton.enabled = !builtIn;
+
+    // The editor, from the working theme.
+    _editorTitleLabel.stringValue = [settings displayNameForThemeIdentifier:active] ?: @"";
+    _builtInCaption.hidden = !builtIn;
+    _duplicateButton.hidden = !builtIn;
+    _nameField.stringValue = builtIn ? @"" : (_editorTitleLabel.stringValue ?: @"");
+    _nameRow.hidden = builtIn;
+
+    SelectItemWithRepresentedObject(_backgroundPopUp, theme.windowBackgroundStyle);
+    _backgroundDarkWell.color = [theme windowBackgroundColorForDark:YES] ?: DefaultSolidBackgroundColor(YES);
+    _backgroundLightWell.color = [theme windowBackgroundColorForDark:NO] ?: DefaultSolidBackgroundColor(NO);
+    SelectItemWithRepresentedObject(_windowTintPopUp, theme.windowTint);
+    _windowTintDarkWell.color = [theme windowTintColorForDark:YES] ?: DefaultWindowTintColor(YES);
+    _windowTintLightWell.color = [theme windowTintColorForDark:NO] ?: DefaultWindowTintColor(NO);
+    _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
+
+    _fileInfoSwitch.state = theme.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+    BOOL remaining = theme.showRemainingTime;
+    _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
+    _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
+    _showBPMSwitch.state = theme.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    BOOL showKey = theme.showKey;
+    _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
+    SelectItemWithRepresentedObject(_keyNotationPopUp, theme.keyNotation);
+    _keyColorsSwitch.state = theme.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+
+    _titleDarkWell.color = [theme titleColorForDark:YES] ?: NSColor.labelColor;
+    _titleLightWell.color = [theme titleColorForDark:NO] ?: NSColor.labelColor;
+    _artistDarkWell.color = [theme artistColorForDark:YES] ?: NSColor.secondaryLabelColor;
+    _artistLightWell.color = [theme artistColorForDark:NO] ?: NSColor.secondaryLabelColor;
+    _infoDarkWell.color = [theme infoColorForDark:YES] ?: NSColor.tertiaryLabelColor;
+    _infoLightWell.color = [theme infoColorForDark:NO] ?: NSColor.tertiaryLabelColor;
+    _timeDarkWell.color = [theme timeColorForDark:YES] ?: NSColor.secondaryLabelColor;
+    _timeLightWell.color = [theme timeColorForDark:NO] ?: NSColor.secondaryLabelColor;
+
+    NSString *waveformStyle = theme.waveformStyle;
     NSMenuItem *match = nil;
     for (NSMenuItem *item in _waveformPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:current]) {
+        if ([item.representedObject isEqualToString:waveformStyle]) {
             match = item;
             break;
         }
     }
     if (!match) {
+        // An unknown persisted identifier renders as the default style — the
+        // waveform view's own fallback — so show that rather than misreport.
         for (NSMenuItem *item in _waveformPopUp.itemArray) {
             if ([item.representedObject isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT]) {
                 match = item;
@@ -244,67 +605,48 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     if (match) {
         [_waveformPopUp selectItem:match];
     }
+    SelectItemWithRepresentedObject(_waveformThemePopUp, theme.waveformTheme);
+    _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
+    _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
+    _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
+    _customLightUnplayedWell.color = [theme waveformUnplayedColorForDark:NO] ?: DefaultCustomUnplayedColor(NO);
 
-    // The getter is normalized, so an unknown persisted identifier selects
-    // White — matching what the waveform actually draws.
-    NSString *waveformTheme = AppSettings.sharedInstance.currentTheme.waveformTheme;
-    for (NSMenuItem *item in _waveformThemePopUp.itemArray) {
-        if ([item.representedObject isEqualToString:waveformTheme]) {
-            [_waveformThemePopUp selectItem:item];
-            break;
-        }
+    _playlistBackgroundDarkWell.color = [theme playlistBackgroundColorForDark:YES] ?: NSColor.clearColor;
+    _playlistBackgroundLightWell.color = [theme playlistBackgroundColorForDark:NO]
+            ?: [NSColor colorWithWhite:1 alpha:0.35];
+    NSColor *neutralDark = [NSColor.whiteColor colorWithAlphaComponent:0.09];
+    NSColor *neutralLight = [NSColor.blackColor colorWithAlphaComponent:0.09];
+    _playingRowDarkWell.color = [theme playlistPlayingRowColorForDark:YES] ?: neutralDark;
+    _playingRowLightWell.color = [theme playlistPlayingRowColorForDark:NO] ?: neutralLight;
+    _selectedRowDarkWell.color = [theme playlistSelectedRowColorForDark:YES] ?: neutralDark;
+    _selectedRowLightWell.color = [theme playlistSelectedRowColorForDark:NO] ?: neutralLight;
+
+    [self refreshFontValueLabels];
+
+    // Read-only built-ins: every editor control disables, honestly reported
+    // by the debug walker; then the always-live sub-rules re-apply.
+    SetDescendantControlsEnabled(_editorStack, !builtIn);
+    if (!builtIn) {
+        _keyNotationPopUp.enabled = showKey;
+        _keyColorsSwitch.enabled = showKey;
     }
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES]
-            ?: DefaultCustomPlayedColor(YES);
-    _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES]
-            ?: DefaultCustomUnplayedColor(YES);
-    _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO]
-            ?: DefaultCustomPlayedColor(NO);
-    _customLightUnplayedWell.color = [theme waveformUnplayedColorForDark:NO]
-            ?: DefaultCustomUnplayedColor(NO);
-
-    // The getter is normalized, so an unknown persisted identifier selects
-    // Artwork color — matching the wash actually on the window.
-    NSString *tint = theme.windowTint;
-    for (NSMenuItem *item in _windowTintPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:tint]) {
-            [_windowTintPopUp selectItem:item];
-            break;
-        }
+    if (builtIn) {
+        [self closeFontPanel];
     }
-    _windowTintDarkWell.color = [theme windowTintColorForDark:YES]
-            ?: DefaultWindowTintColor(YES);
-    _windowTintLightWell.color = [theme windowTintColorForDark:NO]
-            ?: DefaultWindowTintColor(NO);
 
-    _fileInfoSwitch.state = theme.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
-
-    BOOL remaining = theme.showRemainingTime;
-    _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
-    _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
-
-    _showBPMSwitch.state = theme.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
-
-    // With Show key off the two rows below it have nothing to govern, so they
-    // dim rather than pretending a write would change anything on screen.
-    BOOL showKey = theme.showKey;
-    _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
-    _keyNotationPopUp.enabled = showKey;
-    _keyColorsSwitch.enabled = showKey;
-    NSString *notation = theme.keyNotation;
-    for (NSMenuItem *item in _keyNotationPopUp.itemArray) {
-        if ([item.representedObject isEqualToString:notation]) {
-            [_keyNotationPopUp selectItem:item];
-            break;
-        }
-    }
-    _keyColorsSwitch.state = theme.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    [self resolveLayoutStateFromSettings];
 }
 
-- (void)toggleShowBPM:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+- (void)refreshFontValueLabels {
+    NSFont *main = [Fonts mainFont:23];
+    NSFont *info = [Fonts infoFont:13 bold:NO];
+    NSFont *playlist = [Fonts playlistFont:14];
+    _mainFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
+            main.displayName, (long)lround(main.pointSize)];
+    _infoFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
+            info.displayName, (long)lround(info.pointSize)];
+    _playlistFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
+            playlist.displayName, (long)lround(playlist.pointSize)];
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
@@ -314,16 +656,184 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [self.playerController applySettingsLiveEffects:effect];
 }
 
+#pragma mark - Theme list
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+    return (NSInteger)_themeIdentifiers.count;
+}
+
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:kThemeCellIdentifier owner:self];
+    if (!cell) {
+        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+        cell.identifier = kThemeCellIdentifier;
+        NSImageView *check = [[NSImageView alloc] initWithFrame:NSZeroRect];
+        check.translatesAutoresizingMaskIntoConstraints = NO;
+        NSTextField *label = [NSTextField labelWithString:@""];
+        label.translatesAutoresizingMaskIntoConstraints = NO;
+        label.lineBreakMode = NSLineBreakByTruncatingTail;
+        [cell addSubview:check];
+        [cell addSubview:label];
+        cell.imageView = check;
+        cell.textField = label;
+        [NSLayoutConstraint activateConstraints:@[
+            [check.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
+            [check.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+            [check.widthAnchor constraintEqualToConstant:16],
+            [label.leadingAnchor constraintEqualToAnchor:check.trailingAnchor constant:6],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+        ]];
+    }
+    NSString *identifier = _themeIdentifiers[(NSUInteger)row];
+    BOOL isActive = [identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier];
+    cell.imageView.image = isActive
+            ? [NSImage imageWithSystemSymbolName:@"checkmark" accessibilityDescription:nil]
+            : nil;
+    cell.textField.stringValue =
+            [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    return cell;
+}
+
+// Selection IS activation: one concept instead of a selection-vs-checkbox
+// split, an instant whole-app preview, and the same semantics as the View >
+// Theme menu.
+- (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    if (_refreshingThemeList) {
+        return;
+    }
+    NSInteger row = _themeTable.selectedRow;
+    if (row < 0 || row >= (NSInteger)_themeIdentifiers.count) {
+        return;
+    }
+    NSString *identifier = _themeIdentifiers[(NSUInteger)row];
+    if ([identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
+        return;
+    }
+    [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (nullable NSString *)selectedThemeIdentifier {
+    NSInteger row = _themeTable.selectedRow;
+    if (row < 0 || row >= (NSInteger)_themeIdentifiers.count) {
+        return nil;
+    }
+    return _themeIdentifiers[(NSUInteger)row];
+}
+
+- (void)activateThemeWithIdentifier:(NSString *)identifier {
+    [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (void)addNewTheme:(id)sender {
+    NSString *identifier = [AppSettings.sharedInstance
+            addUserThemeWithRecord:AppSettings.sharedInstance.currentTheme.dictionaryRepresentation
+                              name:STR_SETTINGS_THEME_ADD_NEW];
+    [self activateThemeWithIdentifier:identifier];
+}
+
+- (void)duplicateTheme:(id)sender {
+    NSString *selected = [self selectedThemeIdentifier];
+    if (!selected) {
+        return;
+    }
+    NSString *identifier = [AppSettings.sharedInstance duplicateThemeWithIdentifier:selected];
+    if (identifier) {
+        [self activateThemeWithIdentifier:identifier];
+    }
+}
+
+// The read-only editor page's one action: copy, then edit the copy.
+- (void)duplicateActiveTheme:(id)sender {
+    NSString *identifier = [AppSettings.sharedInstance duplicateThemeWithIdentifier:
+            AppSettings.sharedInstance.activeThemeIdentifier];
+    if (identifier) {
+        [self activateThemeWithIdentifier:identifier];
+    }
+}
+
+// No confirmation, following the Files pane's Remove — and a sheet would
+// block settings_click. Removing the active theme falls back to Vibe inside
+// the store; the effect request repaints either way.
+- (void)removeTheme:(id)sender {
+    NSString *selected = [self selectedThemeIdentifier];
+    if (!selected || [AppTheme isBuiltInIdentifier:selected]) {
+        return;
+    }
+    [AppSettings.sharedInstance removeUserThemeWithIdentifier:selected];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (void)editTheme:(id)sender {
+    NSString *selected = [self selectedThemeIdentifier];
+    if (selected) {
+        // Opening a theme's page activates it first — selection already did
+        // on a click; this covers the double-click's row change landing late.
+        if (![selected isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]) {
+            [AppSettings.sharedInstance applyThemeWithIdentifier:selected];
+            [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+        }
+    }
+    [self showThemeEditorForActiveTheme];
+}
+
+- (void)importTheme:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseDirectories = NO;
+    panel.allowsMultipleSelection = NO;
+    panel.allowedContentTypes = @[UTTypeJSON];
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
+        if (result != NSModalResponseOK || !panel.URL) {
+            return;
+        }
+        NSString *name = nil;
+        NSError *error = nil;
+        NSDictionary *record = [AppTheme recordFromJSONData:[NSData dataWithContentsOfURL:panel.URL]
+                                                       name:&name
+                                                      error:&error];
+        if (!record) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = STR_SETTINGS_THEME_IMPORT_FAILED;
+            [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+            return;
+        }
+        NSString *identifier = [AppSettings.sharedInstance
+                addUserThemeWithRecord:record
+                                  name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
+        [self activateThemeWithIdentifier:identifier];
+    }];
+}
+
+- (void)exportTheme:(id)sender {
+    NSString *selected = [self selectedThemeIdentifier];
+    if (!selected) {
+        return;
+    }
+    NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    panel.allowedContentTypes = @[UTTypeJSON];
+    panel.nameFieldStringValue = [name stringByAppendingPathExtension:@"json"] ?: @"theme.json";
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        if (response != NSModalResponseOK || !panel.URL) {
+            return;
+        }
+        NSData *json = [AppTheme JSONDataForRecord:
+                [AppSettings.sharedInstance recordForThemeIdentifier:selected] name:name];
+        [json writeToURL:panel.URL atomically:YES];
+    }];
+}
+
+#pragma mark - Common settings
+
 - (void)toggleTrafficLights:(id)sender {
     AppSettings.sharedInstance.showTrafficLights =
             (_trafficLightsSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
-}
-
-- (void)toggleShowKey:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showKey = (_showKeySwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-    [self refreshFromSettings];
 }
 
 - (void)appearanceChanged:(id)sender {
@@ -341,14 +851,130 @@ typedef NS_ENUM(NSInteger, VibeAppearanceTag) {
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
 }
 
-- (void)waveformStyleChanged:(id)sender {
-    NSString *identifier = _waveformPopUp.selectedItem.representedObject;
-    if (!identifier) {
-        return;
-    }
-    AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
+#pragma mark - Editor: window
+
+// The solid background's seeds: near-opaque neutrals in each appearance's
+// register, a starting point to pick from.
+static NSColor *DefaultSolidBackgroundColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithWhite:0.11 alpha:0.95]
+                  : [NSColor colorWithWhite:0.93 alpha:0.95];
 }
+
+- (void)backgroundStyleChanged:(id)sender {
+    NSString *identifier = _backgroundPopUp.selectedItem.representedObject;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL solid = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    if (solid) {
+        // Choosing Solid seeds any unset color from the wells' displayed
+        // fallbacks, so the window immediately matches them.
+        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![theme windowBackgroundColorForDark:isDark]) {
+                [theme setWindowBackgroundColor:DefaultSolidBackgroundColor(isDark) forDark:isDark];
+            }
+        }
+    }
+    theme.windowBackgroundStyle = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+    _backgroundColorsRow.hidden = !solid;
+}
+
+- (void)backgroundColorChanged:(NSColorWell *)sender {
+    [AppSettings.sharedInstance.currentTheme setWindowBackgroundColor:sender.color
+            forDark:(sender == _backgroundDarkWell)];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+}
+
+// The custom wash's fallbacks, shared by the wells' display and the seed on
+// choosing Custom, so the window always matches what the wells show. Neutral
+// grays in the middle of each appearance's clamp band, at the same alpha the
+// artwork wash uses there — a starting point to pick a hue from.
+static NSColor *DefaultWindowTintColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
+                  : [NSColor colorWithWhite:0.88 alpha:0.55];
+}
+
+- (void)windowTintChanged:(id)sender {
+    NSString *identifier = _windowTintPopUp.selectedItem.representedObject;
+    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (custom) {
+        for (int darkPass = 0; darkPass <= 1; darkPass++) {
+            BOOL isDark = darkPass == 1;
+            if (![theme windowTintColorForDark:isDark]) {
+                [theme setWindowTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
+            }
+        }
+    }
+    theme.windowTint = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
+    _windowTintDarkRow.hidden = !custom;
+    _windowTintLightRow.hidden = !custom;
+}
+
+- (void)windowTintColorChanged:(NSColorWell *)sender {
+    [AppSettings.sharedInstance.currentTheme setWindowTintColor:sender.color
+                                                        forDark:(sender == _windowTintDarkWell)];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
+}
+
+- (void)cornerRadiusChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.windowCornerRadius = _cornerRadiusSlider.doubleValue;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+}
+
+#pragma mark - Editor: info display
+
+- (void)toggleFileInfo:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)timeDisplayChanged:(NSButton *)sender {
+    AppSettings.sharedInstance.currentTheme.showRemainingTime = (sender == _timeRemainingRadio);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)toggleShowBPM:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)toggleShowKey:(id)sender {
+    AppSettings.sharedInstance.currentTheme.showKey = (_showKeySwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+    // With Show key off the two rows below it have nothing to govern, so they
+    // dim rather than pretending a write would change anything on screen.
+    [self refreshFromSettings];
+}
+
+- (void)keyNotationChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)toggleKeyColors:(id)sender {
+    AppSettings.sharedInstance.currentTheme.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+}
+
+- (void)labelColorChanged:(NSColorWell *)sender {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (sender == _titleDarkWell || sender == _titleLightWell) {
+        [theme setTitleColor:sender.color forDark:(sender == _titleDarkWell)];
+    } else if (sender == _artistDarkWell || sender == _artistLightWell) {
+        [theme setArtistColor:sender.color forDark:(sender == _artistDarkWell)];
+    } else if (sender == _infoDarkWell || sender == _infoLightWell) {
+        [theme setInfoColor:sender.color forDark:(sender == _infoDarkWell)];
+    } else {
+        [theme setTimeColor:sender.color forDark:(sender == _timeDarkWell)];
+    }
+    // The label colors span the header and the playlist, so both repaint.
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
+            | VibeSettingsLiveEffectPlaylistAppearance];
+}
+
+#pragma mark - Editor: waveform
 
 // The custom pairs' fallbacks, shared by the wells' display and the seed on
 // choosing Custom, so the waveform always matches what the wells show. Their
@@ -361,6 +987,15 @@ static NSColor *DefaultCustomPlayedColor(BOOL isDark) {
 
 static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
+- (void)waveformStyleChanged:(id)sender {
+    NSString *identifier = _waveformPopUp.selectedItem.representedObject;
+    if (!identifier) {
+        return;
+    }
+    AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
 }
 
 - (void)waveformThemeChanged:(id)sender {
@@ -382,10 +1017,8 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     }
     theme.waveformTheme = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
-    [self animatePaneContentChange:^{
-        self->_customDarkRow.hidden = !custom;
-        self->_customLightRow.hidden = !custom;
-    }];
+    _customDarkRow.hidden = !custom;
+    _customLightRow.hidden = !custom;
 }
 
 - (void)customColorChanged:(NSColorWell *)sender {
@@ -402,61 +1035,97 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
 }
 
-// The custom wash's fallbacks, shared by the wells' display and the seed on
-// choosing Custom, so the window always matches what the wells show. Neutral
-// grays in the middle of each appearance's clamp band, at the same alpha the
-// artwork wash uses there — a starting point to pick a hue from.
-static NSColor *DefaultWindowTintColor(BOOL isDark) {
-    return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
-                  : [NSColor colorWithWhite:0.88 alpha:0.55];
-}
+#pragma mark - Editor: playlist
 
-- (void)windowTintChanged:(id)sender {
-    NSString *identifier = _windowTintPopUp.selectedItem.representedObject;
-    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+- (void)playlistColorChanged:(NSColorWell *)sender {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if (custom) {
-        // As with the waveform's custom theme: seed any unset color from the
-        // wells' displayed fallbacks, so the wash immediately matches them.
-        for (int darkPass = 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme windowTintColorForDark:isDark]) {
-                [theme setWindowTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
-            }
-        }
+    if (sender == _playlistBackgroundDarkWell || sender == _playlistBackgroundLightWell) {
+        [theme setPlaylistBackgroundColor:sender.color
+                                  forDark:(sender == _playlistBackgroundDarkWell)];
+    } else if (sender == _playingRowDarkWell || sender == _playingRowLightWell) {
+        [theme setPlaylistPlayingRowColor:sender.color forDark:(sender == _playingRowDarkWell)];
+    } else {
+        [theme setPlaylistSelectedRowColor:sender.color forDark:(sender == _selectedRowDarkWell)];
     }
-    theme.windowTint = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
-    [self animatePaneContentChange:^{
-        self->_windowTintDarkRow.hidden = !custom;
-        self->_windowTintLightRow.hidden = !custom;
-    }];
+    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
 }
 
-- (void)windowTintColorChanged:(NSColorWell *)sender {
-    [AppSettings.sharedInstance.currentTheme setWindowTintColor:sender.color
-                                                        forDark:(sender == _windowTintDarkWell)];
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
+#pragma mark - Editor: name
+
+- (void)controlTextDidEndEditing:(NSNotification *)notification {
+    if (notification.object != _nameField) {
+        return;
+    }
+    NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
+    if ([AppTheme isBuiltInIdentifier:active]) {
+        return;
+    }
+    [AppSettings.sharedInstance renameUserThemeWithIdentifier:active
+                                                       toName:_nameField.stringValue];
+    // The stored name may have been deduped or fallback-named; show what
+    // actually landed.
+    [self refreshFromSettings];
 }
 
-- (void)toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+#pragma mark - Editor: fonts
+
+- (NSFont *)currentFontForSlot:(VibeThemeFontSlot)slot {
+    switch (slot) {
+        case VibeThemeFontSlotInfo:     return [Fonts infoFont:13 bold:NO];
+        case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:14];
+        default:                        return [Fonts mainFont:23];
+    }
 }
 
-- (void)timeDisplayChanged:(NSButton *)sender {
-    AppSettings.sharedInstance.currentTheme.showRemainingTime = (sender == _timeRemainingRadio);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+- (void)selectFont:(NSButton *)sender {
+    _fontEditingSlot = (VibeThemeFontSlot)sender.tag;
+    // TRAP: a focused field editor is an NSTextView, which implements
+    // changeFont: and would eat the panel's sends to restyle the Name field —
+    // park first responder on the pane's own view before opening the panel.
+    [self.view.window makeFirstResponder:self.view];
+    NSFontManager *manager = NSFontManager.sharedFontManager;
+    [manager setSelectedFont:[self currentFontForSlot:_fontEditingSlot] isMultiple:NO];
+    [manager orderFrontFontPanel:self];
 }
 
-- (void)keyNotationChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+- (NSFontPanelModeMask)validModesForFontPanel:(NSFontPanel *)fontPanel {
+    return NSFontPanelModeMaskCollection | NSFontPanelModeMaskFace | NSFontPanelModeMaskSize;
 }
 
-- (void)toggleKeyColors:(id)sender {
-    AppSettings.sharedInstance.currentTheme.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+// Continuous browsing in the panel lands here per pick — a live preview for
+// free. The store clamps the size; face names resolve through Fonts'
+// never-nil fallback at draw time.
+- (void)changeFont:(NSFontManager *)sender {
+    if (_fontEditingSlot == VibeThemeFontSlotNone) {
+        return;
+    }
+    NSFont *font = [sender convertFont:[self currentFontForSlot:_fontEditingSlot]];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    switch (_fontEditingSlot) {
+        case VibeThemeFontSlotInfo:
+            theme.infoFontFace = font.fontName;
+            theme.infoFontSize = font.pointSize;
+            break;
+        case VibeThemeFontSlotPlaylist:
+            theme.playlistFontFace = font.fontName;
+            theme.playlistFontSize = font.pointSize;
+            break;
+        default:
+            theme.mainFontFace = font.fontName;
+            theme.mainFontSize = font.pointSize;
+            break;
+    }
+    [self themeFieldDidChange:VibeSettingsLiveEffectFonts
+            | VibeSettingsLiveEffectPlaylistAppearance
+            | VibeSettingsLiveEffectTrackDisplay];
+    [self refreshFontValueLabels];
+}
+
+- (void)closeFontPanel {
+    _fontEditingSlot = VibeThemeFontSlotNone;
+    if (NSFontPanel.sharedFontPanelExists) {
+        [NSFontPanel.sharedFontPanel orderOut:nil];
+    }
 }
 
 @end
