@@ -280,19 +280,18 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // defaults write cannot reach.
             VibeCmd(@"set_appearance <light|dark|system>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *values = @{
-                    @"light": SETTINGS_VALUE_APPEARANCE_LIGHT,
-                    @"dark": SETTINGS_VALUE_APPEARANCE_DARK,
-                    @"system": SETTINGS_VALUE_APPEARANCE_SYSTEM,
+                    @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
+                    @"dark": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
+                    @"system": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
                 };
+                // The empty string (system) is a present, non-nil value.
                 NSString *value = tokens.count == 2 ? values[tokens[1].lowercaseString] : nil;
                 if (!value) {
                     return VibeErrorJSON(@"usage: set_appearance <light|dark|system>");
                 }
-                AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-                theme.appearance = value;
-                [AppSettings.sharedInstance currentThemeDidChange];
+                AppSettings.sharedInstance.windowAppearanceStyle = value;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-                return VibeJSONString(@{@"ok": @YES, @"appearance": value});
+                return VibeJSONString(@{@"ok": @YES, @"windowAppearance": tokens[1]});
             }),
             VibeCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *notations = @{

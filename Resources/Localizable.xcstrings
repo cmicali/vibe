@@ -16928,558 +16928,558 @@
       "extractionState": "manual"
     },
     "menu.view.appearance.dark": {
-      "comment": "Appearance choice, View menu and theme editor: a single-look theme pinned to the dark appearance — one set of colors regardless of the system's mode.",
+      "comment": "Appearance choice, View menu and Settings: always use the dark appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Винаги тъмно"
+            "value": "Тъмен"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vždy tmavý"
+            "value": "Tmavý"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Altid mørk"
+            "value": "Mørk"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immer dunkel"
+            "value": "Dunkel"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Πάντα σκούρο"
+            "value": "Σκούρα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Always Dark"
+            "value": "Dark"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siempre oscuro"
+            "value": "Oscuro"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aina tumma"
+            "value": "Tumma"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toujours sombre"
+            "value": "Sombre"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uvijek tamno"
+            "value": "Tamni"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mindig sötét"
+            "value": "Sötét"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selalu Gelap"
+            "value": "Gelap"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre scuro"
+            "value": "Scuro"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "常にダーク"
+            "value": "ダーク"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "항상 다크"
+            "value": "다크"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alltid mørkt"
+            "value": "Mørk"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Altijd donker"
+            "value": "Donker"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zawsze ciemny"
+            "value": "Ciemny"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre escuro"
+            "value": "Escuro"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre escuro"
+            "value": "Escuro"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Întotdeauna întunecat"
+            "value": "Întunecat"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Всегда тёмное"
+            "value": "Темное"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vždy tmavý"
+            "value": "Tmavý"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alltid mörkt"
+            "value": "Mörkt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "มืดเสมอ"
+            "value": "มืด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her Zaman Koyu"
+            "value": "Koyu"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Завжди темне"
+            "value": "Темне"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luôn tối"
+            "value": "Tối"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "始终深色"
+            "value": "深色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "永遠深色"
+            "value": "深色"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.view.appearance.light": {
-      "comment": "Appearance choice, View menu and theme editor: a single-look theme pinned to the light appearance — one set of colors regardless of the system's mode.",
+      "comment": "Appearance choice, View menu and Settings: always use the light appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Винаги светло"
+            "value": "Светъл"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vždy světlý"
+            "value": "Světlý"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Altid lys"
+            "value": "Lys"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immer hell"
+            "value": "Hell"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Πάντα ανοιχτό"
+            "value": "Ανοιχτή"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Always Light"
+            "value": "Light"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siempre claro"
+            "value": "Claro"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aina vaalea"
+            "value": "Vaalea"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toujours clair"
+            "value": "Clair"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uvijek svijetlo"
+            "value": "Svijetli"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mindig világos"
+            "value": "Világos"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selalu Terang"
+            "value": "Terang"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre chiaro"
+            "value": "Chiaro"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "常にライト"
+            "value": "ライト"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "항상 라이트"
+            "value": "라이트"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alltid lyst"
+            "value": "Lys"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Altijd licht"
+            "value": "Licht"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zawsze jasny"
+            "value": "Jasny"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre claro"
+            "value": "Claro"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sempre claro"
+            "value": "Claro"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Întotdeauna luminos"
+            "value": "Luminos"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Всегда светлое"
+            "value": "Светлое"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vždy svetlý"
+            "value": "Svetlý"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alltid ljust"
+            "value": "Ljust"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สว่างเสมอ"
+            "value": "สว่าง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her Zaman Açık"
+            "value": "Açık"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Завжди світле"
+            "value": "Світле"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luôn sáng"
+            "value": "Sáng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "始终浅色"
+            "value": "浅色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "永遠淺色"
+            "value": "淺色"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.view.appearance.system": {
-      "comment": "Appearance choice, View menu and theme editor: the theme adapts — separate colors for the system's light and dark modes, following its setting.",
+      "comment": "Appearance choice, View menu and Settings: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Светло и тъмно"
+            "value": "Автоматично"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Světlý a tmavý"
+            "value": "Automaticky"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lys og mørk"
+            "value": "Automatisk"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hell & Dunkel"
+            "value": "Automatisch"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ανοιχτό και σκούρο"
+            "value": "Αυτόματα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Light & Dark"
+            "value": "Auto"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claro y oscuro"
+            "value": "Automático"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vaalea ja tumma"
+            "value": "Automaattinen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clair et sombre"
+            "value": "Auto"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Svijetlo i tamno"
+            "value": "Automatski"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Világos és sötét"
+            "value": "Automatikus"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terang & Gelap"
+            "value": "Otomatis"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chiaro e scuro"
+            "value": "Automatico"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライト＆ダーク"
+            "value": "自動"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "라이트 & 다크"
+            "value": "자동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lyst og mørkt"
+            "value": "Automatisk"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Licht en donker"
+            "value": "Automatisch"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jasny i ciemny"
+            "value": "Automatycznie"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claro e escuro"
+            "value": "Automático"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claro e escuro"
+            "value": "Automático"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Luminos și întunecat"
+            "value": "Automat"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Светлое и тёмное"
+            "value": "Авто"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Svetlý a tmavý"
+            "value": "Automaticky"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ljust och mörkt"
+            "value": "Automatiskt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สว่างและมืด"
+            "value": "อัตโนมัติ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Açık ve Koyu"
+            "value": "Otomatik"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Світле й темне"
+            "value": "Авто"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sáng và tối"
+            "value": "Tự động"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "浅色与深色"
+            "value": "自动"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "淺色與深色"
+            "value": "自動"
           }
         }
       },
@@ -24551,7 +24551,7 @@
           }
         }
       },
-      "extractionState": "stale"
+      "extractionState": "manual"
     },
     "settings.appearance.file_info": {
       "comment": "Settings, Appearance pane, and the iOS settings screen: checkbox showing the header's file-format readout (codec, bitrate, sample rate) and, on macOS, the BPM/key line. The same setting as the View menu's 'Show File Info' item, in sentence case per checkbox convention.",
@@ -26972,7 +26972,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.appearance": {
-      "comment": "Theme editor, Window group: row beside the dropdown choosing whether the theme follows the system's light/dark setting (Auto) or pins one appearance, making it a fixed single-look theme.",
+      "comment": "Theme editor, Window group: row beside the dropdown choosing whether the theme keeps one color set used in every appearance (single mode) or separate colors for light and dark.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31802,6 +31802,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "淺色"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.mode_dual": {
+      "comment": "Theme editor, Appearance dropdown: the theme keeps separate colors for the light and dark appearances and follows whichever the window has.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Светъл и тъмен режим"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Světlý a tmavý režim"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lys og mørk tilstand"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heller & dunkler Modus"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ανοιχτή και σκούρα λειτουργία"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light & Dark Modes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modos claro y oscuro"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaalea ja tumma tila"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modes clair et sombre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svijetli i tamni način"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Világos és sötét mód"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode Terang & Gelap"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modalità chiara e scura"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライト＆ダークモード"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "라이트 & 다크 모드"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lys og mørk modus"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lichte en donkere modus"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryb jasny i ciemny"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modos claro e escuro"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modos claro e escuro"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moduri luminos și întunecat"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Светлый и тёмный режимы"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svetlý a tmavý režim"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ljust och mörkt läge"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โหมดสว่างและมืด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Açık ve Koyu Modlar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Світлий і темний режими"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ sáng và tối"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅色与深色模式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "淺色與深色模式"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.mode_single": {
+      "comment": "Theme editor, Appearance dropdown: the theme keeps one color per field and always uses it, whatever the system or Vibe appearance setting says.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Единичен режим"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jednotný režim"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enkelt tilstand"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelmodus"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ενιαία λειτουργία"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Single Mode"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo único"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yksi tila"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode unique"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedinstveni način"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Egyetlen mód"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode Tunggal"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modalità singola"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シングルモード"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단일 모드"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enkeltmodus"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enkele modus"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tryb pojedynczy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo único"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo único"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mod unic"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Единый режим"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jednotný režim"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enkelt läge"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โหมดเดียว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek Mod"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Єдиний режим"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ đơn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "单一模式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "單一模式"
           }
         }
       },

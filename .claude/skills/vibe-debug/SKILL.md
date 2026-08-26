@@ -239,7 +239,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
 "$V" --debug-cmd scan_key - < file   # {ok, key, camelot, index} — the key-analyzer twin of scan_bpm, same contract; prefer scan-key.sh. Ignores tags: dump_state's currentTrack.key/.camelot show the app's tag-over-analysis resolution instead
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
-"$V" --debug-cmd set_appearance dark # {ok, appearance} — light|dark|system, edits the working theme live (light/dark = single-look pinned window; system = dual-mode, follows the OS)
+"$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, the window's own appearance setting, applied live (a theme's color MODE is its own field: AppTheme.mode, single|dual)
 "$V" --debug-cmd set_analysis bpm off # {ok, analyzeBPM, analyzeKey} — <bpm|key> <on|off>, CLI-process prefs write a running app sees immediately (the next waveform decode reads it — no relaunch), so this is how you A/B the analyzers' cost; dump_state.settings reports the live values
 "$V" --debug-cmd set_key_display musical colors # {ok, keyNotation, keyColors} — <camelot|musical> <colors|plain>. App-side, not a CLI prefs write: the key-label display lives on the current THEME, an in-memory object a cross-process defaults write cannot reach. Writes the theme, persists, requests TrackDisplay — repaints immediately
 "$V" --debug-cmd set_theme industrial # {ok, activeTheme} — applies a theme by stable id or display name (case-insensitive) and requests the composed ThemeApply effect; dump_state.settings.activeTheme/themeCount assert it
@@ -398,13 +398,13 @@ It prints the image size and the RGBA at each point. Coordinates are bitmap pixe
 
 ## Appearance (light and dark) testing
 
-The appearance is a **theme field** (`AppTheme.appearance`): `system` follows the OS, `light`/`dark` pin the main window. Toggle it live with:
+The window's appearance is `AppSettings.windowAppearanceStyle` (Auto follows the OS; light/dark pin the main window). Toggle it live with:
 
 ```bash
-"$V" --debug-cmd set_appearance light    # or: dark, system — app-side, edits the working theme and persists via the divergence blob
+"$V" --debug-cmd set_appearance light    # or: dark, system — app-side, applied to the window immediately
 ```
 
-Do not use `defaults write com.commonwealthrecordings.Vibe …`. The sandboxed app's prefs live in its container, so a shell `defaults` call can trip the "access data from other apps" TCC prompt.
+A theme's color *mode* is separate (`AppTheme.mode`): single-mode themes use one color per field in every appearance — drive it via `import_theme`/`set_theme`. Do not use `defaults write com.commonwealthrecordings.Vibe …`. The sandboxed app's prefs live in its container, so a shell `defaults` call can trip the "access data from other apps" TCC prompt.
 
 Equivalently toggle with `"$V" --debug-cmd click_menu view_appearance_light`, and likewise `view_appearance_dark` and `view_appearance_system_default`. Test both modes for any color or material change, and use real capture, path 2, to verify backgrounds. The app's window appearance is independent of the system's: a light window over a dark system is a supported, and once buggy, combination.
 

@@ -287,18 +287,14 @@
         return;
     }
     NSMenuItem *item = sender;
-    NSString *value = SETTINGS_VALUE_APPEARANCE_SYSTEM;
+    NSString *value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
     if ([item.identifier isEqualToString:@"view_appearance_light"]) {
-        value = SETTINGS_VALUE_APPEARANCE_LIGHT;
+        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
     }
     else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
-        value = SETTINGS_VALUE_APPEARANCE_DARK;
+        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
     }
-    // A casual theme edit, like View > Show File Info: over a built-in it
-    // diverges the working blob and survives relaunch without dirtying it.
-    AppSettings *settings = AppSettings.sharedInstance;
-    settings.currentTheme.appearance = value;
-    [settings currentThemeDidChange];
+    AppSettings.sharedInstance.windowAppearanceStyle = value;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
 }
 
@@ -330,7 +326,7 @@
 }
 
 - (void)applyStoredAppearance {
-    self.window.appearance = AppSettings.sharedInstance.currentTheme.resolvedWindowAppearance;
+    self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self.playlistController reloadCurrentTrack];
 }
 

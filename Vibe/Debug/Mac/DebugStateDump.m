@@ -93,7 +93,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playlistShown": @(AppSettings.sharedInstance.isPlaylistShown),
             @"pitchPanelShown": @(AppSettings.sharedInstance.isPitchPanelShown),
             @"waveformStyle": theme.waveformStyle,
-            @"windowAppearance": AppSettings.sharedInstance.currentTheme.appearance,
+            @"windowAppearance": AppSettings.sharedInstance.windowAppearanceStyle.length
+                    ? AppSettings.sharedInstance.windowAppearanceStyle : @"system",
             @"waveformTheme": theme.waveformTheme,
             @"waveformDragBehavior": AppSettings.sharedInstance.waveformDragBehavior,
             @"artworkDragAction": AppSettings.sharedInstance.artworkDragAction,

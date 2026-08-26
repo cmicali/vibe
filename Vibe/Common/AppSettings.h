@@ -56,6 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 // custom uses the picked color pair as picked. Only the wash follows this;
 // the art color still settles, so the dock icon and the album_art waveform
 // theme are the same under every choice.
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
+
 #define SETTINGS_VALUE_WINDOW_TINT_MONO                     @"mono"
 #define SETTINGS_VALUE_WINDOW_TINT_ARTWORK                  @"artwork"
 #define SETTINGS_VALUE_WINDOW_TINT_CUSTOM                   @"custom"
@@ -152,6 +156,16 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // YES, the default, shows the custom close and minimize traffic lights in the
 // main window. A writer requests VibeSettingsLiveEffectTrafficLights so the
 // already-built controls update immediately.
+// "" (Auto, the default) tracks the OS light/dark setting; light and dark pin
+// the main window. A common setting, deliberately outside the theme — a theme
+// decides its COLORS' mode (AppTheme.mode), never the window's appearance.
+- (NSString *)windowAppearanceStyle;
+- (void)setWindowAppearanceStyle:(NSString *)name;
+
+// nil is the system default: a nil window appearance tracks the OS
+// light/dark setting rather than pinning one.
+- (nullable NSAppearance *)windowAppearance;
+
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
 

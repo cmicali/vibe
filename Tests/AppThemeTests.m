@@ -27,7 +27,7 @@
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
-    XCTAssertEqualObjects(theme.appearance, @"dark");
+    XCTAssertEqualObjects(theme.mode, @"dual");
     XCTAssertFalse(theme.showRemainingTime);
     XCTAssertTrue(theme.showBPM);
     XCTAssertTrue(theme.showKey);
@@ -141,19 +141,15 @@
 }
 
 - (void)testColorsRoundTripThroughHexWithAlpha {
-    // A dual-mode theme keeps its halves apart; the empty record is pinned
-    // dark, so the mirroring cases live in the pinned-theme tests below.
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"system"}];
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     [theme setPlaylistPlayingRowColor:VibeColorFromHexString(@"#FF6600AA") forDark:YES];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
-        @"appearance": @"system",
-        @"playlistPlayingRowColorDark": @"#FF6600AA",
-    }));
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          @{@"playlistPlayingRowColorDark": @"#FF6600AA"});
     XCTAssertEqualObjects(VibeHexStringFromColor([theme playlistPlayingRowColorForDark:YES]),
                           @"#FF6600AA");
     XCTAssertNil([theme playlistPlayingRowColorForDark:NO]);
     [theme setPlaylistPlayingRowColor:nil forDark:YES];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"system"});
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
 - (void)testRecordRoundTrips {
@@ -253,7 +249,7 @@
 - (void)testIndustrialBuiltInIsExactlyItsFourOverrides {
     NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"industrial"];
     XCTAssertEqualObjects(record, (@{
-        @"appearance": @"light",
+        @"mode": @"single",
         @"waveformStyle": @"detailed",
         @"waveformTheme": @"orange",
         @"infoFontFace": @"Menlo-Regular",
@@ -287,48 +283,39 @@
                                        existingNames:existing], @"Fresh");
 }
 
-- (void)testPinnedThemeMirrorsItsColorPairs {
-    // Setting a color on a pinned theme writes both halves; the record is
-    // one color set, whichever side a caller names.
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"light"}];
-    [theme setTitleColor:[VibeColor redColor] forDark:NO];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorDark"],
-                          theme.dictionaryRepresentation[@"titleColorLight"]);
-    // Flipping the base carries the colors instead of swapping to a hidden set.
-    theme.appearance = @"dark";
-    XCTAssertEqualObjects([theme titleColorForDark:YES], [theme titleColorForDark:NO]);
-    XCTAssertNotNil(theme.dictionaryRepresentation[@"titleColorDark"]);
+- (void)testSingleModeUsesOneColorSlotFromEitherSide {
+    // Single mode has one color per field — the dark-keyed slot — read and
+    // written whichever side a caller names, whatever appearance is active.
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
+    [theme setTitleColor:VibeColorFromHexString(@"#FF2200") forDark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
+        @"mode": @"single",
+        @"titleColorDark": @"#FF2200",
+    }));
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:YES]), @"#FF2200");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#FF2200");
 }
 
-- (void)testPinnedRecordIsMirroredAtTheGate {
-    // A JSON import or stored record with unequal halves lands mirrored to
-    // the pinned side — absence included: the single look is exactly what the
-    // pinned side showed.
+- (void)testModeFlipsPreserveBothPalettes {
+    // The light-keyed halves lie dormant under single mode, so a theme
+    // flipped to single and back to dual keeps its second palette.
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
-        @"appearance": @"light",
-        @"titleColorDark": @"#111111",
-        @"titleColorLight": @"#EEEEEE",
-        @"artistColorDark": @"#222222",
-    }];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorDark"], @"#EEEEEE");
-    XCTAssertNil(theme.dictionaryRepresentation[@"artistColorDark"]);
-    // A dual-mode record keeps its halves apart.
-    AppTheme *dual = [[AppTheme alloc] initWithRecord:@{
-        @"appearance": @"system",
         @"titleColorDark": @"#111111",
         @"titleColorLight": @"#EEEEEE",
     }];
-    XCTAssertEqualObjects(dual.dictionaryRepresentation[@"titleColorDark"], @"#111111");
+    theme.mode = @"single";
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#111111");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorLight"], @"#EEEEEE");
+    theme.mode = @"dual";
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:NO]), @"#EEEEEE");
 }
 
-- (void)testAppearanceSnapsToTheFactoryDark {
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"appearance": @"solarized"}];
-    XCTAssertEqualObjects(theme.appearance, @"dark");
+- (void)testModeSnapsToDual {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"tri"}];
+    XCTAssertEqualObjects(theme.mode, @"dual");
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
-    theme.appearance = @"light";
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"light"});
-    theme.appearance = @"system";
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"appearance": @"system"});
+    theme.mode = @"single";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"mode": @"single"});
 }
 
 #pragma mark Migration
@@ -350,15 +337,12 @@
         @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
     }];
-    // The migrated record lands pinned dark (the legacy default), so the
-    // custom color arrives mirrored: the pre-theme light half never drew.
     XCTAssertEqualObjects(record, (@{
         @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
         @"windowTint": @"mono",
         @"showFileInfo": @NO,
         @"waveformPlayedColorDark": @"#FF7300",
-        @"waveformPlayedColorLight": @"#FF7300",
     }));
 }
 

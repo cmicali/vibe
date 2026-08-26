@@ -92,15 +92,15 @@
 }
 
 - (void)applyAppearanceStateToMenuItem:(NSMenuItem *)menuItem {
-    NSString *value = AppSettings.sharedInstance.currentTheme.appearance;
+    NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
     if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
-        menuItem.state = StateForString(value, SETTINGS_VALUE_APPEARANCE_SYSTEM);
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
-        menuItem.state = StateForString(value, SETTINGS_VALUE_APPEARANCE_LIGHT);
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
     }
     else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
-        menuItem.state = StateForString(value, SETTINGS_VALUE_APPEARANCE_DARK);
+        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
 }
 
