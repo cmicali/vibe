@@ -82,9 +82,9 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
                         BOOL down, BOOL up);
 NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens);
-NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens);
-NSString *VibeSyntheticDragEnd(MainPlayerController *controller);
-NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeSyntheticFileDragEnd(MainPlayerController *controller);
+NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderBegin(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);

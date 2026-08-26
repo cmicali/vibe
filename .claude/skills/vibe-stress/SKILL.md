@@ -57,7 +57,7 @@ On a failure it writes a `stress-<seed>-failure/` directory with the sample or c
 
 `retiredFades` is reported alongside `engineNodes` rather than folded into it because the two fail apart: a fade entry dropped with its nodes still attached and a fade entry stranded after its nodes were detached are different bugs that either number alone cannot distinguish. Both come from one `dispatch_sync` onto the player queue.
 
-**Two of these are unreachable from this driver as it stands.** `--debug-cmd open` calls `NSURLUtil expandAndFilterList:` and then `play:` directly — it does *not* go through the burst coalescer or the open-request coordinator — so `openBurstQueued` only moves under a real Launch Services open or the open panel, and `openResultsBuffered` only under `drag_drop`, which routes through `MainWindow`'s drop path. Do not read a run of zeroes there as evidence those paths are clean.
+**Two of these are unreachable from this driver as it stands.** `--debug-cmd open` calls `NSURLUtil expandAndFilterList:` and then `play:` directly — it does *not* go through the burst coalescer or the open-request coordinator — so `openBurstQueued` only moves under a real Launch Services open or the open panel, and `openResultsBuffered` only under `file_drag_drop`, which routes through `MainWindow`'s drop path. Do not read a run of zeroes there as evidence those paths are clean.
 
 The counters are also nearly impossible to observe live from outside the process: a parse of a local file is over in microseconds, so a poll almost never lands inside one. `MetadataParseCoordinatorTests.testDebugPendingCountsTrackHoldersAndWaiters` pins the holder/waiter accounting deterministically instead — a counter that silently always read zero would look exactly like a clean run.
 

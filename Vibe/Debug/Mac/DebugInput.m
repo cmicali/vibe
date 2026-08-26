@@ -366,7 +366,7 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
 
 #pragma mark Synthetic file drags
 
-// drag_hover, drag_drop and drag_end drive the same FileDropDelegate path a
+// file_drag_hover, file_drag_drop and file_drag_end drive the same FileDropDelegate path a
 // real external file drag takes through MainWindow. A genuine
 // NSDraggingSession cannot be synthesized, because only the window server can
 // start one, which is what makes the playlist drop zone untestable through the
@@ -382,7 +382,7 @@ static NSString *VibeWellName(PlaylistDropWellAction action) {
     }
 }
 
-// The shared coordinate parse and conversion for drag_hover and drag_drop. It
+// The shared coordinate parse and conversion for file_drag_hover and file_drag_drop. It
 // returns NO with *errorJSON set on a malformed pair.
 static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
                                   NSPoint *outLocation, double *outX, double *outY,
@@ -391,7 +391,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     double x = 0, y = 0;
     if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
         *errorJSON = VibeErrorJSON(@"usage: %@ <x> <y>%@", verb,
-                [verb isEqualToString:@"drag_drop"] ? @" <file-or-directory>" : @"");
+                [verb isEqualToString:@"file_drag_drop"] ? @" <file-or-directory>" : @"");
         return NO;
     }
     *outX = x;
@@ -400,7 +400,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     return YES;
 }
 
-NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     MainWindow *window = (MainWindow *)controller.window;
     NSPoint location;
     double x, y;
@@ -415,19 +415,19 @@ NSString *VibeSyntheticDragHover(MainPlayerController *controller, NSArray<NSStr
     // the assertable part of the reply.
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
-    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_hover",
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_hover",
                             @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});
 }
 
-NSString *VibeSyntheticDragEnd(MainPlayerController *controller) {
+NSString *VibeSyntheticFileDragEnd(MainPlayerController *controller) {
     MainWindow *window = (MainWindow *)controller.window;
     if ([window.dropDelegate respondsToSelector:@selector(mainWindowFileDraggingEnded:)]) {
         [window.dropDelegate mainWindowFileDraggingEnded:window];
     }
-    return VibeJSONString(@{@"ok": @YES, @"posted": @"drag_end"});
+    return VibeJSONString(@{@"ok": @YES, @"posted": @"file_drag_end"});
 }
 
-NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     MainWindow *window = (MainWindow *)controller.window;
     NSPoint location;
     double x, y;
@@ -436,7 +436,7 @@ NSString *VibeSyntheticDragDrop(MainPlayerController *controller, NSArray<NSStri
         return errorJSON;
     }
     if (tokens.count < 4) {
-        return VibeErrorJSON(@"usage: drag_drop <x> <y> <file-or-directory>");
+        return VibeErrorJSON(@"usage: file_drag_drop <x> <y> <file-or-directory>");
     }
     NSString *path = [[tokens subarrayWithRange:NSMakeRange(3, tokens.count - 3)]
             componentsJoinedByString:@" "].stringByExpandingTildeInPath;

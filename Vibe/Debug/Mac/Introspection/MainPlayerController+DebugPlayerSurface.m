@@ -52,7 +52,7 @@
 - (void)debugOpenPath:(NSString *)path {
     // Direct expand-and-play: a directory is walked and unsupported files are
     // dropped, but this bypasses AppDelegate's open funnel — no burst
-    // coalescing, no open supersession. Use drag_drop to exercise the funnel.
+    // coalescing, no open supersession. Use file_drag_drop to exercise the funnel.
     [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                           sortedBy:AppSettings.sharedInstance.folderOpenSort
                         completion:^(NSArray<NSURL *> *expanded, NSUInteger folderCount) {

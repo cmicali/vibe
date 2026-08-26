@@ -651,16 +651,16 @@ class OpGenerator:
         pts = [*self.point(), *self.point()]
         return [("drag", ["drag", *[str(p) for p in pts]], [])]
 
-    def op_drag_drop(self):
+    def op_file_drag_drop(self):
         if not self.files:
             return self.op_click()
         x, y = self.point()
-        ops = [("drag_hover", ["drag_hover", str(x), str(y)], [])]
+        ops = [("file_drag_hover", ["file_drag_hover", str(x), str(y)], [])]
         if self.rng.random() < 0.6:
-            ops.append(("drag_drop",
-                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
+            ops.append(("file_drag_drop",
+                        ["file_drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
         else:
-            ops.append(("drag_end", ["drag_end"], []))
+            ops.append(("file_drag_end", ["file_drag_end"], []))
         return ops
 
     def op_menu(self):
@@ -808,7 +808,7 @@ PROFILES = {
         "cache_churn": 2, "clear_caches": 1,
         "transport": 14, "seek": 8, "pitch": 5,
         "fx": 5, "held_fx": 4, "key": 4,
-        "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
+        "window": 3, "resize": 3, "click": 4, "drag": 2, "file_drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
@@ -820,7 +820,7 @@ PROFILES = {
         "cache_churn": 6, "clear_caches": 2,
         "transport": 10, "seek": 4, "pitch": 1,
         "fx": 1, "held_fx": 1, "key": 1,
-        "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
+        "window": 1, "resize": 1, "click": 1, "drag": 0, "file_drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "waveform_style": 2, "appearance": 2, "resize_storm": 2,
@@ -839,7 +839,7 @@ PROFILES = {
         "seek": 8, "pitch": 2,
         "fx": 2, "held_fx": 3, "key": 2,
         "window": 2, "resize": 2, "resize_storm": 8,
-        "click": 2, "drag": 1, "drag_drop": 3,
+        "click": 2, "drag": 1, "file_drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
         "waveform_style": 5, "appearance": 3,
@@ -854,7 +854,7 @@ PROFILES = {
         "cache_churn": 3, "clear_caches": 3,
         "transport": 12, "seek": 2, "pitch": 0,
         "fx": 0, "held_fx": 0, "key": 2,
-        "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
+        "window": 10, "resize": 4, "click": 3, "drag": 0, "file_drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "waveform_style": 3, "appearance": 6, "resize_storm": 3,
@@ -885,7 +885,7 @@ PROFILES = {
         "transport": 18, "seek": 6, "pitch": 0,
         "playlist_jump": 18, "burst": 12,
         "fx": 0, "held_fx": 0, "key": 1,
-        "window": 1, "resize": 1, "click": 2, "drag": 0, "drag_drop": 1,
+        "window": 1, "resize": 1, "click": 2, "drag": 0, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
         # Kept deliberately thin. This profile's weights are a measured balance
         # between opens and settles — every op kind added here is a settle not
@@ -901,7 +901,7 @@ PROFILES = {
         "cache_churn": 0, "clear_caches": 0,
         "transport": 10, "seek": 8, "pitch": 10,
         "fx": 10, "held_fx": 8, "key": 8,
-        "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
+        "window": 8, "resize": 8, "click": 12, "drag": 6, "file_drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "waveform_style": 8, "appearance": 6, "resize_storm": 10,
