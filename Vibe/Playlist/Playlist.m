@@ -292,25 +292,23 @@
 }
 
 - (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes
-                    toIndex:(NSUInteger)destinationIndex {
+                  toIndexes:(NSIndexSet *)destinationIndexes {
     NSUInteger moving = sourceIndexes.count;
-    if (moving == 0 || sourceIndexes.lastIndex >= _tracks.count
-            || destinationIndex > _tracks.count - moving) {
+    if (moving == 0 || destinationIndexes.count != moving
+            || sourceIndexes.lastIndex >= _tracks.count
+            || destinationIndexes.lastIndex >= _tracks.count) {
         return NO;
     }
-    // A contiguous block landing on its own first row changes nothing; a
-    // non-contiguous set never qualifies, because gathering it moves the
-    // survivors between its members whatever the destination.
-    BOOL contiguous = sourceIndexes.lastIndex - sourceIndexes.firstIndex + 1 == moving;
-    if (contiguous && destinationIndex == sourceIndexes.firstIndex) {
+    // Identical sets put every row back where it is; any other destination
+    // rearranges something, because the moved rows vacate exactly the source
+    // positions and reoccupy exactly the destination ones.
+    if ([sourceIndexes isEqualToIndexSet:destinationIndexes]) {
         return NO;
     }
     AudioTrack *current = self.currentTrack;
     NSArray<AudioTrack *> *moved = [_tracks objectsAtIndexes:sourceIndexes];
     [_tracks removeObjectsAtIndexes:sourceIndexes];
-    [_tracks insertObjects:moved
-                 atIndexes:[NSIndexSet indexSetWithIndexesInRange:
-                            NSMakeRange(destinationIndex, moving)]];
+    [_tracks insertObjects:moved atIndexes:destinationIndexes];
     [self rebuildIndexes];
     // The cursor follows its object, resolved against the rebuilt map: one
     // step covers the current row inside the moved block, a block crossing it
@@ -326,7 +324,7 @@
         _currentIndex = _tracks.count == 0 ? 0 : _tracks.count - 1;
     }
     [self.observer playlist:self didMoveTracksFromIndexes:sourceIndexes
-                    toIndex:destinationIndex];
+                  toIndexes:destinationIndexes];
     return YES;
 }
 

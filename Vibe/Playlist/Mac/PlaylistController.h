@@ -55,12 +55,14 @@ NS_ASSUME_NONNULL_BEGIN
 // repainting is NOT its business — that rides the observer directly.
 @property (nonatomic, copy, nullable) void (^currentIndexDidChangeHandler)(void);
 
-// Fires once after a completed row move, with the model, the table and the
-// cursor already final. The shell's one follow-up edge for a reorder: re-park
-// the gapless successor, re-rank the metadata neighborhood, refresh transport
-// UI. A move never enters a play funnel, so this is deliberately not
-// currentIndexDidChangeHandler — one structural edit, one edge.
-@property (nonatomic, copy, nullable) void (^playlistOrderDidChangeHandler)(void);
+// Fires once after every completed row move — drag, undo or redo — with the
+// model, the table and the cursor already final, carrying the move it
+// describes. The shell's one follow-up edge for a reorder: register the
+// inverse on the undo stack, re-park the gapless successor, re-rank the
+// metadata neighborhood, refresh transport UI. A move never enters a play
+// funnel, so this is deliberately not currentIndexDidChangeHandler — one
+// structural edit, one edge.
+@property (nonatomic, copy, nullable) void (^playlistOrderDidChangeHandler)(NSIndexSet *sourceIndexes, NSIndexSet *destinationIndexes);
 
 // Staleness counter for work stamped against the current row set — the
 // shell's removal-undo registrations. It follows the model's own replace-all
@@ -146,6 +148,13 @@ NS_ASSUME_NONNULL_BEGIN
 // nothing else, so call it ONLY from the shell's undo of a removal, which owns
 // what the player and the metadata sweep must do about the restored rows.
 - (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes;
+
+// A move's own inverse, for the shell's undo of a reorder: the model mutation
+// and nothing else — the observer reconciles the table and re-raises
+// playlistOrderDidChangeHandler, which is what re-registers the opposite
+// direction while the undo manager unwinds. The drag itself never calls this;
+// it lands through the table's acceptDrop.
+- (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes toIndexes:(NSIndexSet *)destinationIndexes;
 
 // The topmost row of the keyboard selection, which is not the playing row:
 // the arrow keys move it, and it stays put while playback moves currentIndex.

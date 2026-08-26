@@ -45,13 +45,13 @@ NS_ASSUME_NONNULL_BEGIN
 // removal it is the ONE event the edit sends.
 - (void)playlist:(Playlist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes;
 
-// The rows at sourceIndexes — their positions before the move — now sit
-// contiguously in their previous relative order, the first at
-// destinationIndex, and currentIndex is already at its final value. The ONE
-// event a move sends.
+// The rows at sourceIndexes — their positions before the move — now occupy
+// destinationIndexes, in their previous relative order (ascending source to
+// ascending destination), and currentIndex is already at its final value. The
+// ONE event a move sends.
 - (void)playlist:(Playlist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
-                         toIndex:(NSUInteger)destinationIndex;
+                       toIndexes:(NSIndexSet *)destinationIndexes;
 
 // currentIndex moved; the rows at previousIndex and currentIndex both render
 // playing state and are stale.
@@ -151,22 +151,26 @@ NS_ASSUME_NONNULL_BEGIN
 // a removed current row does not replay it.
 - (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes;
 
-// Moves the rows at sourceIndexes so they sit contiguously in their current
-// relative order with the first moved row landing at destinationIndex — a
-// FINAL row index in the post-move list, not an AppKit insertion slot; the
-// view boundary converts slots once, in PlaylistDragRules.h. The exact
-// AudioTrack objects and the current track's identity survive: the cursor
-// follows its object whether that object moved or was crossed. The third
-// mutation that MOVES rows, rebuilding both indexes.
+// Moves the rows at sourceIndexes so they occupy destinationIndexes instead —
+// ascending extraction to ascending landing, insertObjects:atIndexes:
+// semantics, so both sets are FINAL row positions, never AppKit insertion
+// slots; the view boundary converts slots once, in PlaylistDragRules.h. A
+// drag gathers a scattered selection into a contiguous destination range, and
+// its undo hands the two sets back swapped to scatter the block out again —
+// the operation is its own inverse, which is the whole reason it takes a set
+// on both sides. The exact AudioTrack objects and the current track's
+// identity survive: the cursor follows its object whether that object moved
+// or was crossed. The third mutation that MOVES rows, rebuilding both
+// indexes.
 //
 // Returns NO, mutating nothing and sending no event, for an invalid move
-// (empty set, a member out of range, a destination the block cannot occupy)
-// or a no-op (a contiguous block dropped onto its own position).
+// (empty or unequal-count sets, a member of either set out of range) or a
+// no-op (identical sets — rows put back exactly where they are).
 //
 // Touches no audio, and never enters a play funnel: a moved current row keeps
 // sounding exactly as it was.
 - (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes
-                    toIndex:(NSUInteger)destinationIndex;
+                  toIndexes:(NSIndexSet *)destinationIndexes;
 
 @end
 

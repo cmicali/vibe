@@ -305,7 +305,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
     // The observer applies the table update and fires the shell's
     // order-changed follow-up before this returns.
-    return [_model moveTracksAtIndexes:sourceRows toIndex:destination];
+    return [_model moveTracksAtIndexes:sourceRows
+                             toIndexes:[NSIndexSet indexSetWithIndexesInRange:
+                                        NSMakeRange(destination, sourceRows.count)]];
 }
 
 // Always called, drop or cancel, so a finished session cannot be reused.
@@ -397,7 +399,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (void)playlist:(Playlist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
-                         toIndex:(NSUInteger)destinationIndex {
+                       toIndexes:(NSIndexSet *)destinationIndexes {
     PlaylistTableView *tableView = self.tableView;
     // Precise row moves, never reloadData: the moved rows' cells already
     // describe the same AudioTrack objects, row views — the playing wash and
@@ -405,28 +407,28 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // preserved rather than reconstructed. The model is final, so the emitted
     // evolving-coordinate sequence lands every row exactly.
     [tableView beginUpdates];
-    VibePlaylistMoveSequenceEnumerate(sourceIndexes, destinationIndex,
+    VibePlaylistMoveSequenceEnumerate(sourceIndexes, destinationIndexes,
                                       ^(NSUInteger from, NSUInteger to) {
         [tableView moveRowAtIndex:(NSInteger)from toIndex:(NSInteger)to];
     });
     [tableView endUpdates];
-    // The landed block, selected deterministically: AppKit carries selection
+    // The landed rows, selected deterministically: AppKit carries selection
     // with moved rows, but a drag begun outside the selection would otherwise
-    // leave it wherever it was. Presentation only — it must not start a play.
-    [tableView selectRowIndexes:[NSIndexSet indexSetWithIndexesInRange:
-                                 NSMakeRange(destinationIndex, sourceIndexes.count)]
-           byExtendingSelection:NO];
-    [tableView scrollRowToVisible:(NSInteger)destinationIndex];
+    // leave it wherever it was — and an undo's scattered restore reads as its
+    // own landing. Presentation only — it must not start a play.
+    [tableView selectRowIndexes:destinationIndexes byExtendingSelection:NO];
+    [tableView scrollRowToVisible:(NSInteger)destinationIndexes.firstIndex];
     // Same two-step reconciliation as removal's, before returning to the run
     // loop, so no frame shows two playing rows or a stale row number; the
     // cursor handler is deliberately not raised for a structural edit.
     [self refreshRowViewPlayingStates];
     [self reconfigureVisibleNumberCells];
-    // The shell's one follow-up edge — successor re-park, metadata
-    // neighborhood, transport UI — fired here rather than at the drop site so
-    // any future move initiator gets it for free.
+    // The shell's one follow-up edge — undo registration, successor re-park,
+    // metadata neighborhood, transport UI — fired here rather than at the
+    // drop site so every move initiator, the undo stack included, gets it for
+    // free.
     if (self.playlistOrderDidChangeHandler) {
-        self.playlistOrderDidChangeHandler();
+        self.playlistOrderDidChangeHandler(sourceIndexes, destinationIndexes);
     }
 }
 
@@ -901,6 +903,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes {
     [_model insertTracks:tracks atIndexes:indexes];
+}
+
+- (BOOL)moveTracksAtIndexes:(NSIndexSet *)sourceIndexes toIndexes:(NSIndexSet *)destinationIndexes {
+    return [_model moveTracksAtIndexes:sourceIndexes toIndexes:destinationIndexes];
 }
 
 - (BOOL)isCurrentTrack:(AudioTrack *)track {

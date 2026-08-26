@@ -694,7 +694,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 // needs; no speculative PlaybackObserver event until then.
 - (void)playlist:(Playlist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
-                         toIndex:(NSUInteger)destinationIndex {
+                       toIndexes:(NSIndexSet *)destinationIndexes {
 }
 
 - (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {

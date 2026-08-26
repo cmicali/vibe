@@ -55,19 +55,18 @@ VibePlaylistDropDecisionForSlot(NSIndexSet *_Nullable sourceIndexes,
     return VibePlaylistDropMove;
 }
 
-// Emits, in application order, the single-row (from, to) moves that transform
-// a list so the rows at sourceIndexes land contiguously with the first at
-// finalDestination — the calls a table applies as moveRowAtIndex:toIndex: so
-// row views survive. Each pair is in EVOLVING coordinates: apply one before
+// The gather half of the sequence arithmetic: the single-row (from, to) moves
+// that land the rows at sourceIndexes contiguously with the first at
+// finalDestination. Each pair is in EVOLVING coordinates: apply one before
 // computing against the next. Rows above the insertion line move down to sit
 // just above it, each extraction shifting the sources still to come; rows
 // below keep their original position — everything extracted before them
-// re-landed above — and stack under the line in order. Emits nothing for
-// inputs the drop decision would not have accepted.
+// re-landed above — and stack under the line in order. Callers use
+// VibePlaylistMoveSequenceEnumerate below, which dispatches here.
 static inline void
-VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
-                                  NSUInteger finalDestination,
-                                  void (NS_NOESCAPE ^enumerator)(NSUInteger from, NSUInteger to)) {
+VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
+                                    NSUInteger finalDestination,
+                                    void (NS_NOESCAPE ^enumerator)(NSUInteger from, NSUInteger to)) {
     // Recover the insertion slot the destination was derived from: the unique
     // slot whose preceding-source count subtracts back to finalDestination.
     __block NSUInteger slot = finalDestination;
@@ -96,6 +95,47 @@ VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
             enumerator(from, to);
         }
     }];
+}
+
+// Emits, in application order, the single-row (from, to) moves that transform
+// a list so the rows at sourceIndexes occupy destinationIndexes — the model's
+// remove-at-A-insert-at-B semantics, realized as the moveRowAtIndex:toIndex:
+// calls a table applies so row views survive. Pairs are in EVOLVING
+// coordinates. A contiguous destination is the drag's gather; a contiguous
+// source scattering outward is its undo, derived as the inverse of the gather
+// that would collect the destinations back into the block — each moveRow's
+// inverse swaps its coordinates, so the inverse sequence is the gather's
+// pairs reversed and swapped. Neither side contiguous decomposes into a
+// gather to the front and a scatter out of it, at most 2k moves. Emits
+// nothing for inputs the model would refuse.
+static inline void
+VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
+                                  NSIndexSet *_Nullable destinationIndexes,
+                                  void (NS_NOESCAPE ^enumerator)(NSUInteger from, NSUInteger to)) {
+    NSUInteger moving = sourceIndexes.count;
+    if (moving == 0 || destinationIndexes.count != moving) {
+        return;
+    }
+    if (destinationIndexes.lastIndex - destinationIndexes.firstIndex + 1 == moving) {
+        VibePlaylistGatherSequenceEnumerate(sourceIndexes, destinationIndexes.firstIndex,
+                                            enumerator);
+        return;
+    }
+    BOOL sourceContiguous = sourceIndexes.lastIndex - sourceIndexes.firstIndex + 1 == moving;
+    if (!sourceContiguous) {
+        VibePlaylistGatherSequenceEnumerate(sourceIndexes, 0, enumerator);
+    }
+    NSUInteger gatherOrigin = sourceContiguous ? sourceIndexes.firstIndex : 0;
+    NSMutableData *pairs = [NSMutableData data];
+    VibePlaylistGatherSequenceEnumerate(destinationIndexes, gatherOrigin,
+                                        ^(NSUInteger from, NSUInteger to) {
+        NSUInteger pair[2] = {from, to};
+        [pairs appendBytes:pair length:sizeof(pair)];
+    });
+    const NSUInteger *flat = pairs.bytes;
+    for (NSUInteger i = pairs.length / (2 * sizeof(NSUInteger)); i > 0; i--) {
+        enumerator(flat[(i - 1) * 2 + 1], flat[(i - 1) * 2]);
+    }
 }
 
 NS_ASSUME_NONNULL_END

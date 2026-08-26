@@ -33,6 +33,12 @@ directory `CLAUDE.md`s are the authority. The deliberate divergences:
   outside → that row) with a weak-pointer-array capture; `TrackCommands` takes track arrays.
 - **The prefetch re-park in `playlistOrderDidChangeHandler` is gated on a not-Stopped player**,
   matching the gate removal grew after this plan was written.
+- **Moves are undoable**, reversing this plan's no-undo non-goal at the user's request. The
+  model op generalized to set-to-set (`moveTracksAtIndexes:toIndexes:`), making it its own
+  inverse with the sets swapped; `playlistOrderDidChangeHandler` carries the sets and is the
+  one undo-registration point, firing for drag, undo and redo alike, so `NSUndoManager`'s
+  unwind routing chains redo with no second bookkeeping path. The action name is the new
+  `menu.edit.reorder` string, translated into every catalog language.
 - Accessibility: the VoiceOver verification the plan requires has **not** been run, and the
   conditional Move Up/Move Down custom actions were not added — both remain open follow-ups.
 

@@ -94,7 +94,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_EDIT_COPY_FILE            NSLS(@"menu.edit.copy_file",            @"Copy File",            @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_COPY_NAME            NSLS(@"menu.edit.copy_name",            @"Copy Name",            @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_REMOVE_FROM_PLAYLIST NSLS(@"menu.edit.remove_from_playlist", @"Remove from Playlist", @"Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.")
-#define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the granted-folder list in Settings > Permissions. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Permissions. macOS uses this same name in every app.")
+#define STR_MENU_EDIT_REORDER              NSLS(@"menu.edit.reorder",              @"Reorder",              @"Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.")
 
 #pragma mark - Transport
 

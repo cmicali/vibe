@@ -37,15 +37,31 @@ static NSArray<NSString *> *ReferenceMove(NSArray<NSString *> *list,
     return result;
 }
 
+static NSIndexSet *Range(NSUInteger location, NSUInteger length) {
+    return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(location, length)];
+}
+
+// The reference for the general set-to-set form: remove at the sources,
+// insert at the destinations.
+static NSArray<NSString *> *ReferenceMoveToSet(NSArray<NSString *> *list,
+                                               NSIndexSet *sources,
+                                               NSIndexSet *destinations) {
+    NSMutableArray<NSString *> *result = [list mutableCopy];
+    NSArray<NSString *> *moved = [result objectsAtIndexes:sources];
+    [result removeObjectsAtIndexes:sources];
+    [result insertObjects:moved atIndexes:destinations];
+    return result;
+}
+
 // Applies the emitted pairs as NSMutableArray remove/insert — the same
 // semantics as NSTableView's moveRowAtIndex:toIndex:.
 static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
                                           NSIndexSet *sources,
-                                          NSUInteger destination,
+                                          NSIndexSet *destinations,
                                           NSUInteger *pairCount) {
     NSMutableArray<NSString *> *result = [list mutableCopy];
     __block NSUInteger pairs = 0;
-    VibePlaylistMoveSequenceEnumerate(sources, destination, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(sources, destinations, ^(NSUInteger from, NSUInteger to) {
         NSString *row = result[from];
         [result removeObjectAtIndex:from];
         [result insertObject:row atIndex:to];
@@ -170,35 +186,62 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
 - (void)testSequencePinsTheWorkedExamples {
     NSArray<NSString *> *list = @[@"A", @"B", @"C", @"D", @"E"];
 
-    // {1,3} -> 0: two up-movers stack under the line.
+    // {1,3} -> [0,2): two up-movers stack under the line.
     NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@1u, @3u]), 0, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(Rows(@[@1u, @3u]), Range(0, 2), ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@1u, @0u], @[@3u, @1u]]));
 
-    // {0,4} -> 2: one down-mover to the line's underside, one up-mover.
+    // {0,4} -> [2,4): one down-mover to the line's underside, one up-mover.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @4u]), 2, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @4u]), Range(2, 2), ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @2u], @[@4u, @3u]]));
 
-    // {0,1} -> 3 downward: the second extraction's index has shifted up.
+    // {0,1} -> [3,5) downward: the second extraction's index has shifted up.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @1u]), 3, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @1u]), Range(3, 2), ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @4u], @[@0u, @4u]]));
-    XCTAssertEqualObjects(ApplySequence(list, Rows(@[@0u, @1u]), 3, NULL),
+    XCTAssertEqualObjects(ApplySequence(list, Rows(@[@0u, @1u]), Range(3, 2), NULL),
                           (@[@"C", @"D", @"E", @"A", @"B"]));
 
-    // {0,2,4} -> 1: the source already in place emits nothing.
+    // {0,2,4} -> [1,4): the source already in place emits nothing.
     [pairs removeAllObjects];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @2u, @4u]), 1, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(Rows(@[@0u, @2u, @4u]), Range(1, 3), ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@0u, @1u], @[@4u, @3u]]));
+}
+
+- (void)testScatterSequenceIsTheGatherReversedAndSwapped {
+    // The undo shape: the gathered block [0,2) scatters back to {1,3} — the
+    // gather's pairs (1,0),(3,1) reversed with from/to swapped.
+    NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
+    VibePlaylistMoveSequenceEnumerate(Range(0, 2), Rows(@[@1u, @3u]), ^(NSUInteger from, NSUInteger to) {
+        [pairs addObject:@[@(from), @(to)]];
+    });
+    XCTAssertEqualObjects(pairs, (@[@[@1u, @3u], @[@0u, @1u]]));
+    // Applied to the gathered list, it restores the original.
+    XCTAssertEqualObjects(ApplySequence(@[@"B", @"D", @"A", @"C", @"E"],
+                                        Range(0, 2), Rows(@[@1u, @3u]), NULL),
+                          (@[@"A", @"B", @"C", @"D", @"E"]));
+}
+
+- (void)testGeneralSequenceHandlesBothSidesNonContiguous {
+    // {1,3} -> {0,2} of four: gather to the front, then scatter out — checked
+    // against the remove/insert reference, within the 2k move bound.
+    NSArray<NSString *> *list = @[@"A", @"B", @"C", @"D"];
+    NSIndexSet *sources = Rows(@[@1u, @3u]);
+    NSIndexSet *destinations = Rows(@[@0u, @2u]);
+    NSUInteger pairCount = 0;
+    NSArray<NSString *> *applied = ApplySequence(list, sources, destinations, &pairCount);
+    XCTAssertEqualObjects(applied, ReferenceMoveToSet(list, sources, destinations));
+    XCTAssertEqualObjects(applied, (@[@"B", @"A", @"D", @"C"]));
+    XCTAssertLessThanOrEqual(pairCount, 2 * sources.count);
 }
 
 - (void)testSequenceReproducesTheReferenceMoveForEveryAcceptedDrop {
@@ -219,11 +262,15 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
                 continue;
             }
             NSUInteger pairCount = 0;
-            NSArray<NSString *> *applied = ApplySequence(list, sources, destination, &pairCount);
+            NSIndexSet *landed = Range(destination, sources.count);
+            NSArray<NSString *> *applied = ApplySequence(list, sources, landed, &pairCount);
             XCTAssertEqualObjects(applied, ReferenceMove(list, sources, destination),
                                   @"sources %@ slot %ld", sources, (long)slot);
             XCTAssertLessThanOrEqual(pairCount, sources.count,
                                      @"sources %@ slot %ld", sources, (long)slot);
+            // And every gather's swapped-set scatter is its exact undo.
+            XCTAssertEqualObjects(ApplySequence(applied, landed, sources, NULL), list,
+                                  @"inverse of sources %@ slot %ld", sources, (long)slot);
         }
     }
 }
@@ -233,7 +280,7 @@ static NSArray<NSString *> *ApplySequence(NSArray<NSString *> *list,
     XCTAssertEqual(VibePlaylistDropDecisionForSlot(Rows(@[@3u]), 1, 5, &destination),
                    VibePlaylistDropMove);
     NSMutableArray<NSArray<NSNumber *> *> *pairs = [NSMutableArray array];
-    VibePlaylistMoveSequenceEnumerate(Rows(@[@3u]), destination, ^(NSUInteger from, NSUInteger to) {
+    VibePlaylistMoveSequenceEnumerate(Rows(@[@3u]), Range(destination, 1), ^(NSUInteger from, NSUInteger to) {
         [pairs addObject:@[@(from), @(to)]];
     });
     XCTAssertEqualObjects(pairs, (@[@[@3u, @1u]]));

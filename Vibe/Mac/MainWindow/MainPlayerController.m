@@ -242,11 +242,27 @@
     // edit — and the metadata neighborhood re-ranks around the cursor's new
     // surroundings once. No play funnel, ever: a Loading current row keeps its
     // exact pending play object, and a paused one stays paused where it was.
-    self.playlistController.playlistOrderDidChangeHandler = ^{
+    //
+    // A move is undoable as the list edit it is, and this handler is the ONE
+    // registration point: it fires for every completed move — drag, undo or
+    // redo alike — with the sets swapped, the move's own inverse, and
+    // NSUndoManager routes a registration made while it unwinds onto the
+    // opposite stack, so undo and redo chain with no second bookkeeping path.
+    // Stamped like removal's restore; a refused restore performs no move,
+    // fires no handler and so registers nothing, and its empty group pops
+    // harmlessly.
+    self.playlistController.playlistOrderDidChangeHandler =
+            ^(NSIndexSet *sourceIndexes, NSIndexSet *destinationIndexes) {
         MainPlayerController *controller = weakControllerForPlaylist;
         if (!controller) {
             return;
         }
+        NSUndoManager *undoManager = controller.window.undoManager;
+        [[undoManager prepareWithInvocationTarget:controller]
+                movePlaylistTracksFromIndexes:destinationIndexes
+                                    toIndexes:sourceIndexes
+                                   generation:controller.playlistController.structureGeneration];
+        [undoManager setActionName:STR_MENU_EDIT_REORDER];
         if (!controller.audioPlayer.isStopped) {
             [controller.audioPlayer prefetchTrack:controller.successorPrefetchTrack];
         }
@@ -879,6 +895,21 @@
         [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     }
     [self updateUI];
+}
+
+// A reorder's undo — and, because the handler above re-registers with the
+// sets swapped while the manager unwinds, its redo too. The stamped
+// generation dies quietly on a replaced playlist; indexes a later edit
+// invalidated are refused by the model's own validation. Either way nothing
+// moves, nothing registers, and the dead group pops harmlessly.
+- (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
+                            toIndexes:(NSIndexSet *)destinationIndexes
+                           generation:(NSUInteger)generation {
+    if (generation != self.playlistController.structureGeneration) {
+        return;
+    }
+    [self.playlistController moveTracksAtIndexes:sourceIndexes
+                                       toIndexes:destinationIndexes];
 }
 
 - (IBAction)closeApp:(id)sender {
