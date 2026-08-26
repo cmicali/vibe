@@ -24,8 +24,6 @@ NS_ASSUME_NONNULL_BEGIN
 // localized. User themes are identified by minted UUID strings instead, so
 // the two namespaces cannot collide.
 FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
-FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierIndustrial;
-FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierAdolescentEngineering;
 
 // The theme's color mode. dual — the factory default, and what the built-in
 // Vibe theme is — keeps a separate color set per appearance and follows
@@ -77,6 +75,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // Empty for an identifier that names no built-in — callers gate on
 // isBuiltInIdentifier:.
 + (NSDictionary<NSString *, id> *)builtInRecordForIdentifier:(NSString *)identifier;
+
+// The built-in's English display name, from its JSON's name key.
+// AppSettings overlays the ThemeNames catalog for the localized form.
++ (nullable NSString *)builtInNameForIdentifier:(NSString *)identifier;
 
 // A usable theme name: trimmed, length-capped, the fallback when empty, and
 // suffixed " 2", " 3", … past any name already in use.

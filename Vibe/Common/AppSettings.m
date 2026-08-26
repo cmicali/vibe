@@ -463,14 +463,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (NSString *)displayNameForThemeIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:kVibeThemeIdentifierVibe]) {
-        return VibeAppName();
-    }
-    if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
-        return STR_THEME_NAME_INDUSTRIAL;
-    }
-    if ([identifier isEqualToString:kVibeThemeIdentifierAdolescentEngineering]) {
-        return STR_THEME_NAME_ADOLESCENT_ENGINEERING;
+    // A built-in's English name travels in its bundled JSON; the hand-managed
+    // ThemeNames catalog (keyed by identifier) overlays a translation where
+    // one exists, so a theme added by pull request needs no code and no
+    // catalog entry to ship.
+    NSString *builtInName = [AppTheme builtInNameForIdentifier:identifier];
+    if (builtInName) {
+        return [NSBundle.mainBundle localizedStringForKey:identifier
+                                                    value:builtInName
+                                                    table:@"ThemeNames"];
     }
     return [self storedUserThemeWithIdentifier:identifier][kVibeThemeRecordNameKey];
 }

@@ -10,8 +10,6 @@
 #import "PlatformColor.h"
 
 NSString *const kVibeThemeIdentifierVibe = @"vibe";
-NSString *const kVibeThemeIdentifierIndustrial = @"industrial";
-NSString *const kVibeThemeIdentifierAdolescentEngineering = @"adolescent_engineering";
 
 static const CGFloat kCornerRadiusMin = 0;
 
@@ -288,9 +286,62 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 
 #pragma mark Built-ins
 
+// The built-ins ship as Resources/Themes/<identifier>.json — the filename
+// stem is the stable identifier, the name key the English display name, and
+// the fields go through the same recordFromJSONData: gate as an import, so a
+// bundled theme is held to the import's clamps. Adding a built-in is adding
+// a file; testBundledThemesAreValid is the gate a theme PR runs against.
+// Order: vibe pinned first, the rest alphabetical by identifier.
+static NSArray<NSString *> *builtInOrder;
+static NSDictionary<NSString *, NSDictionary *> *builtInRecords;
+static NSDictionary<NSString *, NSString *> *builtInNames;
+
+static void VibeLoadBuiltInThemes(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray *order = [NSMutableArray array];
+        NSMutableDictionary *records = [NSMutableDictionary dictionary];
+        NSMutableDictionary *names = [NSMutableDictionary dictionary];
+        NSBundle *bundle = [NSBundle bundleForClass:AppTheme.class];
+        NSArray<NSURL *> *urls = [bundle URLsForResourcesWithExtension:@"json"
+                                                          subdirectory:@"Themes"];
+        for (NSURL *url in [urls sortedArrayUsingComparator:^(NSURL *a, NSURL *b) {
+            return [a.lastPathComponent compare:b.lastPathComponent];
+        }]) {
+            NSString *identifier = url.lastPathComponent.stringByDeletingPathExtension;
+            NSString *name = nil;
+            NSError *error = nil;
+            NSDictionary *record = [AppTheme
+                    recordFromJSONData:[NSData dataWithContentsOfURL:url]
+                                  name:&name
+                                 error:&error];
+            if (!record || name.length == 0 || identifier.length == 0) {
+                LogError(@"Bundled theme %@ is unreadable: %@",
+                        url.lastPathComponent, error);
+                continue;
+            }
+            [order addObject:identifier];
+            records[identifier] = record;
+            names[identifier] = name;
+        }
+        // vibe is the store's snap-back anchor (unknown ids, deleted-active
+        // themes) and must never dangle, whatever happened to the bundle.
+        if (records[kVibeThemeIdentifierVibe]) {
+            [order removeObject:kVibeThemeIdentifierVibe];
+        } else {
+            records[kVibeThemeIdentifierVibe] = @{};
+            names[kVibeThemeIdentifierVibe] = @"Vibe";
+        }
+        [order insertObject:kVibeThemeIdentifierVibe atIndex:0];
+        builtInOrder = [order copy];
+        builtInRecords = [records copy];
+        builtInNames = [names copy];
+    });
+}
+
 + (NSArray<NSString *> *)builtInThemeIdentifiers {
-    return @[kVibeThemeIdentifierVibe, kVibeThemeIdentifierIndustrial,
-             kVibeThemeIdentifierAdolescentEngineering];
+    VibeLoadBuiltInThemes();
+    return builtInOrder;
 }
 
 + (BOOL)isBuiltInIdentifier:(NSString *)identifier {
@@ -298,62 +349,13 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 }
 
 + (NSDictionary<NSString *, id> *)builtInRecordForIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:kVibeThemeIdentifierIndustrial]) {
-        return @{
-            kFieldMode:          SETTINGS_VALUE_THEME_MODE_SINGLE,
-            kFieldWaveformStyle: @"detailed",
-            kFieldWaveformTheme: SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
-            kFieldInfoFontFace:  @"Menlo-Regular",
-        };
-    }
-    if ([identifier isEqualToString:kVibeThemeIdentifierAdolescentEngineering]) {
-        // A device panel rather than a floating card: square corners, a solid
-        // grey-plastic chassis with the playlist recessed a shade under it,
-        // and the colour budget spent on ONE element — the played waveform,
-        // orange on the grey unit and mint on the black one, echoed at a
-        // wash's strength on the playing row. Two type roles: Helvetica for
-        // anything a person wrote, a monospace for anything the machine
-        // measured, which is also why the remaining-time readout is on —
-        // elapsed / remaining / total is a three-part instrument readout.
-        return @{
-            kFieldWaveformStyle:           @"basic",
-            kFieldWaveformTheme:           SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM,
-            kFieldWaveformGradient:        @(NO),
-            kFieldWindowTint:              SETTINGS_VALUE_WINDOW_TINT_MONO,
-            kFieldWindowBackgroundStyle:   SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
-            kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
-            kFieldWindowCornerRadius:      @(0),
-            kFieldShowRemainingTime:       @(YES),
-            kFieldMainFontFace:            @"Helvetica",
-            kFieldInfoFontFace:            @"Monaco",
-            kFieldInfoFontSize:            @(11),
-            kFieldPlaylistFontFace:        @"Helvetica",
-            kFieldPlaylistDurationFontFace: @"Monaco",
+    VibeLoadBuiltInThemes();
+    return builtInRecords[identifier] ?: @{};
+}
 
-            ColorFieldKey(kColorWindowBackground, NO):     @"#C9C9C3",
-            ColorFieldKey(kColorPlaylistBackground, NO):   @"#BFBFB9",
-            ColorFieldKey(kColorWaveformPlayed, NO):       @"#E04A28",
-            ColorFieldKey(kColorWaveformUnplayed, NO):     @"#A9A9A3",
-            ColorFieldKey(kColorTitle, NO):                @"#141412",
-            ColorFieldKey(kColorArtist, NO):               @"#6E6E68",
-            ColorFieldKey(kColorInfo, NO):                 @"#6E6E68",
-            ColorFieldKey(kColorTime, NO):                 @"#3D3D39",
-            ColorFieldKey(kColorPlaylistPlayingRow, NO):   @"#E04A2826",
-            ColorFieldKey(kColorPlaylistSelectedRow, NO):  @"#0000001F",
-
-            ColorFieldKey(kColorWindowBackground, YES):    @"#0E0E0E",
-            ColorFieldKey(kColorPlaylistBackground, YES):  @"#171717",
-            ColorFieldKey(kColorWaveformPlayed, YES):      @"#8DE8B0",
-            ColorFieldKey(kColorWaveformUnplayed, YES):    @"#3C5A48",
-            ColorFieldKey(kColorTitle, YES):               @"#F0F0EE",
-            ColorFieldKey(kColorArtist, YES):              @"#9A9A94",
-            ColorFieldKey(kColorInfo, YES):                @"#8A8A84",
-            ColorFieldKey(kColorTime, YES):                @"#8DE8B0",
-            ColorFieldKey(kColorPlaylistPlayingRow, YES):  @"#8DE8B026",
-            ColorFieldKey(kColorPlaylistSelectedRow, YES): @"#FFFFFF1F",
-        };
-    }
-    return @{};
++ (NSString *)builtInNameForIdentifier:(NSString *)identifier {
+    VibeLoadBuiltInThemes();
+    return builtInNames[identifier];
 }
 
 #pragma mark Names and migration

@@ -191,8 +191,6 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Themes
 
-#define STR_THEME_NAME_INDUSTRIAL NSLS(@"theme.name.industrial", @"Industrial", @"Built-in theme name: the machine-room look — detailed orange waveform, monospaced info font. A style name; translate it the way a paint-color name would be.")
-#define STR_THEME_NAME_ADOLESCENT_ENGINEERING NSLS(@"theme.name.adolescent_engineering", @"Adolescent Engineering", @"Built-in theme name: the toy-synth look — square corners, a solid grey or black chassis, flat bar waveform in orange (light) or mint (dark), Helvetica and a monospace readout. An invented proper name in the studio-hardware register — kept as-is in every language, like Sonic Cirrus.")
 #define STR_THEME_NAME_CUSTOM     NSLS(@"theme.name.custom",     @"Custom",     @"Default name for the user theme created on upgrade: it carries the appearance settings the user had customized before themes existed.")
 
 #pragma mark - Header and readout labels

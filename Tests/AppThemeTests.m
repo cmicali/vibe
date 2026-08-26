@@ -241,7 +241,7 @@
     XCTAssertFalse([AppTheme isBuiltInIdentifier:NSUUID.UUID.UUIDString]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"adolescent_engineering"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"industrial", @"adolescent_engineering"]));
+                          (@[@"vibe", @"adolescent_engineering", @"industrial"]));
 }
 
 // The Vibe theme is the empty record BY CONSTRUCTION: it cannot drift from
@@ -359,6 +359,45 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
     theme.mode = @"single";
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"mode": @"single"});
+}
+
+- (void)testBundledThemesAreValid {
+    // The gate a theme pull request runs against. The import path is
+    // deliberately tolerant — a typo'd field key or malformed color is
+    // DROPPED, not rejected — so validity here means the raw file survives
+    // the sanitizer unchanged, which is what makes a silent degrade loud.
+    NSBundle *bundle = [NSBundle bundleForClass:self.class];
+    NSArray<NSURL *> *urls = [bundle URLsForResourcesWithExtension:@"json"
+                                                      subdirectory:@"Themes"];
+    XCTAssertGreaterThanOrEqual(urls.count, 3u, @"bundled themes missing from the test bundle");
+    NSMutableSet *seen = [NSMutableSet set];
+    NSRegularExpression *snake = [NSRegularExpression
+            regularExpressionWithPattern:@"^[a-z0-9]+(_[a-z0-9]+)*$" options:0 error:NULL];
+    for (NSURL *url in urls) {
+        NSString *file = url.lastPathComponent;
+        NSString *identifier = file.stringByDeletingPathExtension;
+        XCTAssertEqual([snake numberOfMatchesInString:identifier options:0
+                range:NSMakeRange(0, identifier.length)], 1,
+                @"%@: the filename stem is the identifier and must be lowercase snake_case", file);
+        XCTAssertFalse([seen containsObject:identifier], @"%@: duplicate identifier", file);
+        [seen addObject:identifier];
+
+        NSData *data = [NSData dataWithContentsOfURL:url];
+        NSDictionary *raw = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+        XCTAssertTrue([raw isKindOfClass:NSDictionary.class], @"%@: not a JSON object", file);
+        XCTAssertEqualObjects(raw[@"version"], @1, @"%@: version must be 1", file);
+        XCTAssertTrue([raw[@"name"] isKindOfClass:NSString.class]
+                && [raw[@"name"] length] > 0, @"%@: name missing", file);
+
+        // Every field key must survive sanitization unchanged.
+        NSMutableDictionary *fields = [raw mutableCopy];
+        [fields removeObjectsForKeys:@[@"version", @"name", @"description"]];
+        AppTheme *theme = [[AppTheme alloc] initWithRecord:fields];
+        XCTAssertEqualObjects(theme.dictionaryRepresentation, fields,
+                @"%@: a field key or value did not survive the sanitizer — typo, bad hex, "
+                @"or out-of-range value", file);
+    }
+    XCTAssertTrue([seen containsObject:@"vibe"], @"vibe.json must exist");
 }
 
 #pragma mark Migration
