@@ -7,16 +7,16 @@
 #import "WindowAnimation.h"
 
 
-// The System Settings inline dropdown: borderless at rest, the value beside
-// an always-visible chevron badge, the bezel appearing on hover. AppKit
-// draws the arrows only with the bezel, so the badge is drawn here while the
-// bezel is absent, in width the intrinsic size reserves for it.
+// The System Settings inline dropdown: borderless, the value beside an
+// always-visible chevron badge, no hover treatment — the reference has none;
+// the menu just pops on click. AppKit draws a popup's arrows only with a
+// bezel, so the badge is drawn here, in width the intrinsic size reserves
+// for it. (A bezel-on-hover variant fought the widened bounds and double
+// drew; owning the whole rendering is the stable form.)
 @interface VibeInlinePopUpButton : NSPopUpButton
 @end
 
-@implementation VibeInlinePopUpButton {
-    BOOL _hovered;
-}
+@implementation VibeInlinePopUpButton
 
 // The badge is the System Settings treatment, measured off its pixels: the
 // chevrons sit in a filled circle one lift-step above the card, label-colored
@@ -30,37 +30,8 @@ static const CGFloat kInlineBadgeGap = 8;
     return size;
 }
 
-- (void)updateTrackingAreas {
-    [super updateTrackingAreas];
-    for (NSTrackingArea *area in self.trackingAreas) {
-        if (area.owner == self) {
-            [self removeTrackingArea:area];
-        }
-    }
-    [self addTrackingArea:[[NSTrackingArea alloc]
-            initWithRect:self.bounds
-                 options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow
-                   owner:self
-                userInfo:nil]];
-}
-
-- (void)mouseEntered:(NSEvent *)event {
-    [super mouseEntered:event];
-    _hovered = YES;
-    self.needsDisplay = YES;
-}
-
-- (void)mouseExited:(NSEvent *)event {
-    [super mouseExited:event];
-    _hovered = NO;
-    self.needsDisplay = YES;
-}
-
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
-    if (_hovered) {
-        return; // the hover bezel brings AppKit's own arrows
-    }
     NSRect bounds = self.bounds;
     NSRect circle = NSMakeRect(NSMaxX(bounds) - kInlineBadgeDiameter - 2,
                                NSMidY(bounds) - kInlineBadgeDiameter / 2,
@@ -263,7 +234,10 @@ static const CGFloat kInlineBadgeGap = 8;
         popUp.target = self;
         popUp.action = action;
     }
-    popUp.showsBorderOnlyWhileMouseInside = YES;
+    popUp.bordered = NO;
+    // A borderless popup still draws its own small arrows where the badge
+    // sits; the badge is the only chevron treatment.
+    ((NSPopUpButtonCell *)popUp.cell).arrowPosition = NSPopUpNoArrow;
     [popUp setContentHuggingPriority:NSLayoutPriorityDefaultHigh
                       forOrientation:NSLayoutConstraintOrientationHorizontal];
     [popUp.widthAnchor constraintLessThanOrEqualToConstant:width].active = YES;
