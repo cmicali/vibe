@@ -133,7 +133,7 @@
         @"infoFontSize": @72,
         @"playlistFontSize": @(-3),
     }];
-    XCTAssertEqual(theme.windowCornerRadius, 30);
+    XCTAssertEqual(theme.windowCornerRadius, 36);
     XCTAssertEqual(theme.mainFontSize, 20);
     XCTAssertEqual(theme.infoFontSize, 15);
     XCTAssertEqual(theme.playlistFontSize, 11);
@@ -233,7 +233,7 @@
     NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertNil(name);  // a non-string name does not travel
-    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @30});
+    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @36});
 }
 
 - (void)testJSONImportRefusesJunk {

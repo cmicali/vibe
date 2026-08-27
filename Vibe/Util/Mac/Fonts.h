@@ -29,12 +29,14 @@
 // its own base gets base + (stored − reference), which preserves the
 // title/artist size hierarchy under any chosen size.
 + (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
+             artistFace:(NSString *)artistFace artistSize:(CGFloat)artistSize
                infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
            playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize
    playlistDurationFace:(NSString *)playlistDurationFace
    playlistDurationSize:(CGFloat)playlistDurationSize;
 
 + (NSFont *)mainFont:(CGFloat)baseSize;
++ (NSFont *)artistFont:(CGFloat)baseSize;
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold;
 + (NSFont *)playlistFont:(CGFloat)baseSize;
 + (NSFont *)playlistDurationFont:(CGFloat)baseSize;

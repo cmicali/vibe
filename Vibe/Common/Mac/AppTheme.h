@@ -45,7 +45,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // because the header panel's right bleed is a compile-time frame sized to it
 // — a static frame that must stay valid for every legal radius rather than
 // follow the live value.
-#define kVibeThemeCornerRadiusMax ((CGFloat)30)
+#define kVibeThemeCornerRadiusMax ((CGFloat)36)
 // The factory radius — the editor's slider detent snaps back to it.
 #define kVibeThemeCornerRadiusDefault ((CGFloat)20)
 
@@ -55,6 +55,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // defaults, Fonts' offset math and the reference call sites, so the offset
 // arithmetic cannot skew against a copy.
 #define kVibeThemeMainFontBaseSize     ((CGFloat)23)
+#define kVibeThemeArtistFontBaseSize   ((CGFloat)16)
 #define kVibeThemeInfoFontBaseSize     ((CGFloat)13)
 #define kVibeThemePlaylistFontBaseSize ((CGFloat)14)
 #define kVibeThemePlaylistDurationFontBaseSize ((CGFloat)12)
@@ -183,6 +184,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // narrow — the frames the labels sit in are fixed.
 @property (nonatomic, copy) NSString *mainFontFace;
 @property (nonatomic) CGFloat mainFontSize;                 // clamped [20, 26]
+@property (nonatomic, copy) NSString *artistFontFace;
+@property (nonatomic) CGFloat artistFontSize;      // clamped [12, 20]
 @property (nonatomic, copy) NSString *infoFontFace;
 @property (nonatomic) CGFloat infoFontSize;                 // clamped [10, 15]
 @property (nonatomic, copy) NSString *playlistFontFace;

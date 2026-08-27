@@ -24923,6 +24923,192 @@
           }
         }
       },
+      "extractionState": "stale"
+    },
+    "settings.appearance.info_section": {
+      "comment": "Theme editor: heading above the info-display rows — show file info and the tempo, key and time choices it governs.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Информация"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informace"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πληροφορίες"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Información"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiedot"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infos"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informacije"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infó"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情報"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정보"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informacje"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Информация"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informácie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ข้อมูล"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інформація"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông tin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資訊"
+          }
+        }
+      },
       "extractionState": "manual"
     },
     "settings.appearance.key_colors": {
@@ -25488,181 +25674,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Означение на тоналността:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zápis tóniny:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Toneartsnotation:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tonart-Notation:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Σημειογραφία τονικότητας:"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key notation:"
+            "value": "Key notation"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notación de tonalidad:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sävellajin merkintätapa:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notation des tonalités :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zapis tonaliteta:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hangnem jelölése:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notasi nada dasar:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notazione della tonalità:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "キーの表記:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "키 표기:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Toneartnotasjon:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Toonsoortnotatie:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zapis tonacji:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notação do tom:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notação da tonalidade:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Notația tonalității:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Обозначение тональности:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zápis tóniny:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tonartsnotation:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "รูปแบบคีย์:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ton gösterimi:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Позначення тональності:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ký hiệu tông:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "调性记法："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "調性記法："
           }
         }
@@ -25670,7 +25856,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.player_section": {
-      "comment": "Theme editor: heading above the player rows — the label colors and the info-display choices.",
+      "comment": "Theme editor: heading above the player rows — default artwork, the title and artist fonts and colors.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -26976,181 +27162,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Обложка на албума"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Obal alba"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumcover"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumcover"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Εξώφυλλο άλμπουμ"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Album art"
+            "value": "Default artwork"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Portada del álbum"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumin kansi"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Pochette d’album"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Omot albuma"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumborító"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sampul album"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Copertina album"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "アルバムアート"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "앨범 아트"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumomslag"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumhoes"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Okładka albumu"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Capa do álbum"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Capa do álbum"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coperta albumului"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Обложка альбома"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Obal albumu"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumomslag"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "ปกอัลบั้ม"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albüm Kapağı"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Обкладинка альбому"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Bìa album"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "专辑封面"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "專輯封面"
           }
         }
@@ -31063,6 +31249,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.theme.font_artist": {
+      "comment": "Theme editor, Player group: row for the header artist-line font.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шрифт на изпълнителя"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Písmo interpreta"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunstnerskrift"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interpret-Schrift"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Γραμματοσειρά καλλιτέχνη"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artist font"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fuente del artista"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artistin fontti"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Police artiste"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font izvođača"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Előadó betűtípusa"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font artis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font artista"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーティストのフォント"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아티스트 글꼴"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artistskrift"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artiestlettertype"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czcionka wykonawcy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonte do artista"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo de letra do artista"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font artist"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шрифт исполнителя"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Písmo interpreta"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artisttypsnitt"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ฟอนต์ศิลปิน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sanatçı yazı tipi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шрифт виконавця"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phông chữ nghệ sĩ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "艺术家字体"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "演出者字型"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.theme.font_info": {
       "comment": "Theme editor, Fonts group: row for the font of the times and the codec and BPM/key readouts.",
       "localizations": {
@@ -31250,185 +31622,185 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_main": {
-      "comment": "Theme editor, Fonts group: row for the title and artist font.",
+      "comment": "Theme editor, Player group: row for the header title font.",
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Основен шрифт"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hlavní písmo"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hovedskrift"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hauptschrift"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Κύρια γραμματοσειρά"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Main font"
+            "value": "Title font"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tipo de letra principal"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Pääfontti"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Police principale"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Glavni font"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fő betűtípus"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Font utama"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Font principale"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "メインフォント"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "메인 서체"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hovedskrift"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Primair lettertype"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Czcionka główna"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fonte principal"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tipo de letra principal"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Font principal"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Основной шрифт"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hlavné písmo"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Huvudtypsnitt"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "แบบอักษรหลัก"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ana yazı tipi"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Основний шрифт"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Phông chữ chính"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "主字体"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "主要字體"
           }
         }
@@ -31626,181 +31998,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Времетраене в плейлиста"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Délka v playlistu"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spilleliste-varighed"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Playlist-Dauer"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Διάρκεια λίστας"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist duration"
+            "value": "Playlist duration font"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Duración de la playlist"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Soittolistan kesto"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Durée de la playlist"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Trajanje u playlisti"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Playlist-időtartam"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Durasi playlist"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Durata playlist"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "プレイリストの長さ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "재생목록 길이"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spilleliste-varighet"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Playlistduur"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Czas trwania w playliście"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Duração da playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Duração da playlist"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Durata din playlist"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Длительность в плейлисте"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dĺžka v playliste"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spellistans längd"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "ความยาวในเพลย์ลิสต์"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Çalma listesi süresi"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Тривалість у плейлисті"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Thời lượng playlist"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表时长"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表時長"
           }
         }
@@ -33858,181 +34230,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Възпроизвеждан ред"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Přehrávaný řádek"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Række under afspilning"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zeile des laufenden Titels"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Σειρά σε αναπαραγωγή"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing row"
+            "value": "Playing row background"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fila en reproducción"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Soiva rivi"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rangée en cours de lecture"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Redak koji se reproducira"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Éppen játszott sor"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Baris yang diputar"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Riga in riproduzione"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "再生中の行"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "재생 중인 행"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rad som spilles av"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spelende rij"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Odtwarzany wiersz"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Linha em reprodução"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Linha em reprodução"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rândul în redare"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Воспроизводимая строка"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Prehrávaný riadok"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rad som spelas upp"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "แถวที่กำลังเล่น"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Çalınan satır"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Відтворюваний рядок"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hàng đang phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放中的行"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放中的列"
           }
         }
@@ -34044,181 +34416,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Колона с обложки"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sloupec s obalem"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumcover-kolonne"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Cover-Spalte"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Στήλη εξωφύλλου"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Artwork column"
+            "value": "Show artwork column"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Columna de portada"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kansikuvasarake"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Colonne pochette"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stupac omota"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Borító oszlop"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kolom Sampul"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Colonna copertina"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "アートワーク列"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "아트워크 열"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumomslag-kolonne"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Albumhoes-kolom"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kolumna okładki"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coluna de capa"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coluna de capa"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coloana copertei"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Столбец обложки"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stĺpec s obalom"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Omslagskolumn"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "คอลัมน์ปกอัลบั้ม"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kapak Sütunu"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Стовпець обкладинки"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Cột bìa album"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "封面列"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "封面列"
           }
         }
@@ -34230,181 +34602,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Фон на плейлиста"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Pozadí playlistu"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spillelistebaggrund"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hintergrund der Wiedergabeliste"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Φόντο λίστας αναπαραγωγής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist background"
+            "value": "Background"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fondo de la lista de reproducción"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Soittolistan tausta"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Arrière-plan de la liste de lecture"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Pozadina popisa pjesama"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Lejátszási lista háttere"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Latar belakang playlist"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sfondo della playlist"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "プレイリストの背景"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "재생목록 배경"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spillelistebakgrunn"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Achtergrond van afspeellijst"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tło playlisty"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fundo da playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fundo da lista de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fundalul playlistului"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Фон плейлиста"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Pozadie playlistu"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spellistebakgrund"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "พื้นหลังเพลย์ลิสต์"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Çalma listesi arka planı"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Тло плейлиста"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Nền danh sách phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表背景"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表背景"
           }
         }
@@ -34602,181 +34974,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Колона за времетраене"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sloupec délky"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Varighedskolonne"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Dauer-Spalte"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Στήλη διάρκειας"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duration column"
+            "value": "Show duration column"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Columna de duración"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kestosarake"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Colonne durée"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stupac trajanja"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Időtartam oszlop"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kolom Durasi"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Colonna durata"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "長さ列"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "길이 열"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Varighetskolonne"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Duurkolom"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kolumna czasu trwania"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coluna de duração"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coluna de duração"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Coloana duratei"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Столбец длительности"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Stĺpec dĺžky"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Längdkolumn"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "คอลัมน์ความยาว"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Süre Sütunu"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Стовпець тривалості"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Cột thời lượng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "时长列"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "時長列"
           }
         }
@@ -34788,181 +35160,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Оттенък на фона на плейлиста"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Odstín pozadí playlistu"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spillelistens baggrundsnuance"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hintergrundtönung der Wiedergabeliste"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Απόχρωση φόντου λίστας αναπαραγωγής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist background tint"
+            "value": "Background tint"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tinte de fondo de la lista de reproducción"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Soittolistan taustan sävy"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Teinte d’arrière-plan de la liste de lecture"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Nijansa pozadine popisa pjesama"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Lejátszási lista hátterének árnyalata"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rona latar belakang playlist"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tonalità dello sfondo della playlist"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "プレイリストの背景の色合い"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "재생목록 배경 색조"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spillelistens bakgrunnsnyanse"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Achtergrondtint van afspeellijst"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Odcień tła playlisty"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tonalidade do fundo da playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Matiz do fundo da lista de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tenta de fundal a playlistului"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Оттенок фона плейлиста"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Odtieň pozadia playlistu"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Spellistans bakgrundston"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "โทนสีพื้นหลังเพลย์ลิสต์"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Çalma listesi arka plan renk tonu"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Відтінок тла плейлиста"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Sắc thái màu nền danh sách phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表背景色调"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "播放列表背景色調"
           }
         }
@@ -35160,181 +35532,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Избран ред"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Vybraný řádek"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Valgt række"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ausgewählte Zeile"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Επιλεγμένη σειρά"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selected row"
+            "value": "Selected row background"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fila seleccionada"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Valittu rivi"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rangée sélectionnée"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Odabrani redak"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kijelölt sor"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Baris yang dipilih"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Riga selezionata"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "選択した行"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "선택된 행"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Markert rad"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Geselecteerde rij"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zaznaczony wiersz"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Linha selecionada"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Linha selecionada"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Rândul selectat"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Выбранная строка"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Vybraný riadok"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Markerad rad"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "แถวที่เลือก"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Seçili satır"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Вибраний рядок"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hàng đã chọn"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "选中的行"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "選取的列"
           }
         }
@@ -35718,181 +36090,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Показване на времето:"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zobrazení času:"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tidsvisning:"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zeitanzeige:"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ένδειξη χρόνου:"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time display:"
+            "value": "Time display"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Visualización del tiempo:"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Ajan näyttö:"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Affichage du temps :"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Prikaz vremena:"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Időkijelzés:"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tampilan waktu:"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Visualizzazione del tempo:"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "時間表示:"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "시간 표시:"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tidsvisning:"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tijdweergave:"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Wyświetlanie czasu:"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Exibição do tempo:"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Apresentação do tempo:"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Afișarea timpului:"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Отображение времени:"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Zobrazenie času:"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tidsvisning:"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "การแสดงเวลา:"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Süre gösterimi:"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Відображення часу:"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Hiển thị thời gian:"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "时间显示："
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "時間顯示："
           }
         }
@@ -39438,181 +39810,181 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Цветова тема"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Barevný motiv"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Farvetema"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Farbthema"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Χρωματικό θέμα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Color theme"
+            "value": "Color"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema de color"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Väriteema"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Thème de couleurs"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema boja"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Színtéma"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema warna"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema colore"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "カラーテーマ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "색상 테마"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Fargetema"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Kleurthema"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Motyw kolorów"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema de cores"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Tema de cores"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Temă de culori"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Цветовая тема"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Farebný motív"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Färgtema"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "ธีมสี"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Renk teması"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Кольорова тема"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "Chủ đề màu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "配色主题"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "配色主題"
           }
         }

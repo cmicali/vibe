@@ -26,6 +26,7 @@
 - (void)applyStoredFonts {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [Fonts applyThemeFonts:theme.mainFontFace mainSize:theme.mainFontSize
+                artistFace:theme.artistFontFace artistSize:theme.artistFontSize
                   infoFace:theme.infoFontFace infoSize:theme.infoFontSize
               playlistFace:theme.playlistFontFace playlistSize:theme.playlistFontSize
       playlistDurationFace:theme.playlistDurationFontFace

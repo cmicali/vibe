@@ -72,24 +72,29 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
     VibeFontSlotInfo,
     VibeFontSlotPlaylist,
     VibeFontSlotPlaylistDuration,
+    VibeFontSlotArtist,
 };
 
 // The slots' reference bases — the sizes their reference sites pass — and the
 // pushed configuration. All access is under @synchronized(Fonts.class): not
 // every caller is on the main thread, same as the caches above.
-static const CGFloat kSlotBase[4] = {kVibeThemeMainFontBaseSize, kVibeThemeInfoFontBaseSize,
+static const CGFloat kSlotBase[5] = {kVibeThemeMainFontBaseSize, kVibeThemeInfoFontBaseSize,
                                      kVibeThemePlaylistFontBaseSize,
-                                     kVibeThemePlaylistDurationFontBaseSize};
-static NSString *slotFace[4];
-static CGFloat slotOffset[4];
+                                     kVibeThemePlaylistDurationFontBaseSize,
+                                     kVibeThemeArtistFontBaseSize};
+static NSString *slotFace[5];
+static CGFloat slotOffset[5];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
+             artistFace:(NSString *)artistFace artistSize:(CGFloat)artistSize
                infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
            playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize
    playlistDurationFace:(NSString *)playlistDurationFace
    playlistDurationSize:(CGFloat)playlistDurationSize {
     @synchronized (self) {
+        slotFace[VibeFontSlotArtist] = artistFace.length ? artistFace : nil;
+        slotOffset[VibeFontSlotArtist] = artistSize - kSlotBase[VibeFontSlotArtist];
         slotFace[VibeFontSlotMain] = mainFace.length ? mainFace : nil;
         slotFace[VibeFontSlotInfo] = infoFace.length ? infoFace : nil;
         slotFace[VibeFontSlotPlaylist] = playlistFace.length ? playlistFace : nil;
@@ -151,6 +156,10 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (NSFont *)mainFont:(CGFloat)baseSize {
     return [self fontForSlot:VibeFontSlotMain base:baseSize bold:NO];
+}
+
++ (NSFont *)artistFont:(CGFloat)baseSize {
+    return [self fontForSlot:VibeFontSlotArtist base:baseSize bold:NO];
 }
 
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold {

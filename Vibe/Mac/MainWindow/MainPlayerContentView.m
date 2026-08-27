@@ -717,7 +717,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 - (void)applyThemedTextStyle {
-    _artistTextField.font = [Fonts mainFont:16];
+    _artistTextField.font = [Fonts artistFont:kVibeThemeArtistFontBaseSize];
     _titleTextField.font = [Fonts mainFont:kVibeThemeMainFontBaseSize];
     _totalTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];

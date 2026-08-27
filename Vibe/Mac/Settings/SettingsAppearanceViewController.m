@@ -41,6 +41,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     VibeThemeFontSlotNone = 0,
     VibeThemeFontSlotMain,
+    VibeThemeFontSlotArtist,
     VibeThemeFontSlotInfo,
     VibeThemeFontSlotPlaylist,
     VibeThemeFontSlotPlaylistDuration,
@@ -99,6 +100,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSButton *_duplicateButton;
     SettingsRowView *_builtInRow;
     NSStackView *_editorStack;
+    SettingsSectionView *_infoSection;
     NSTextField *_nameField;
     SettingsRowView *_nameRow;
     NSPopUpButton *_backgroundPopUp;
@@ -140,7 +142,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
     NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
-    NSTextField *_mainFontValue, *_infoFontValue, *_playlistFontValue;
+    NSTextField *_mainFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
     VibeThemeFontSlot _fontEditingSlot;
     BOOL _editorShown;
@@ -428,6 +430,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     NSTextField *mainFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
     NSStackView *mainFontCluster = [self fontClusterForSlot:VibeThemeFontSlotMain valueLabel:&mainFontValue];
+    NSTextField *artistFontValue = nil;
+    NSStackView *artistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotArtist valueLabel:&artistFontValue];
     NSStackView *infoFontCluster = [self fontClusterForSlot:VibeThemeFontSlotInfo valueLabel:&infoFontValue];
     NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotPlaylist valueLabel:&playlistFontValue];
     NSTextField *playlistDurationFontValue = nil;
@@ -435,14 +439,30 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             [self fontClusterForSlot:VibeThemeFontSlotPlaylistDuration
                           valueLabel:&playlistDurationFontValue];
     _mainFontValue = mainFontValue;
+    _artistFontValue = artistFontValue;
     _infoFontValue = infoFontValue;
     _playlistFontValue = playlistFontValue;
     _playlistDurationFontValue = playlistDurationFontValue;
 
+    // The Info section is captured so its rows can be disabled as a group
+    // when Show file info is off (see resolveLayoutStateFromSettings).
+    _infoSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO
+                control:[self darkLightPairWithDark:_infoDarkWell light:_infoLightWell]],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES
+                control:[self darkLightPairWithDark:_timeDarkWell light:_timeLightWell]],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+    ]];
+
     NSArray<NSView *> *sections = @[
         // The pair swaps visibility — exactly one shows — so the second row
-        // must not keep the between-rows hairline the section stamps on it:
-        // with the first row hidden it would sit stranded at the card's top.
+        // must not keep the between-rows hairline the section stamps on it.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
@@ -453,36 +473,22 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             _windowTintLightRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_FONTS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
-                    control:playlistDurationFontCluster],
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:_albumArtPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE
                     control:[self darkLightPairWithDark:_titleDarkWell light:_titleLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST
                     control:[self darkLightPairWithDark:_artistDarkWell light:_artistLightWell]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO
-                    control:[self darkLightPairWithDark:_infoDarkWell light:_infoLightWell]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES
-                    control:[self darkLightPairWithDark:_timeDarkWell light:_timeLightWell]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:_albumArtPopUp],
         ]],
+        _infoSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
             _customDarkRow,
             _customLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
@@ -492,14 +498,17 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                     control:_playlistTintPopUp],
             _playlistTintDarkRow,
             _playlistTintLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
-                    control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
-                    control:[self darkLightPairWithDark:_selectedRowDarkWell light:_selectedRowLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
+                    control:playlistDurationFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
                     control:_playlistArtworkSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
                     control:_playlistDurationSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
+                    control:[self darkLightPairWithDark:_playingRowDarkWell light:_playingRowLightWell]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
+                    control:[self darkLightPairWithDark:_selectedRowDarkWell light:_selectedRowLightWell]],
         ]],
     ];
 
@@ -787,8 +796,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     // never be duplicated from its own page. Observed, not hypothetical.
     _duplicateButton.enabled = YES;
     if (!builtIn) {
-        _keyNotationPopUp.enabled = showKey;
-        _keyColorsSwitch.enabled = showKey;
+        // Everything below Show file info dims when it is off — the header
+        // shows none of it, so nothing those rows govern is on screen.
+        BOOL info = AppSettings.sharedInstance.currentTheme.showFileInfo;
+        SetDescendantControlsEnabled(_infoSection, info);
+        _fileInfoSwitch.enabled = YES; // the toggle that governs them stays live
+        // Key notation and key colors additionally require Show key.
+        _keyNotationPopUp.enabled = info && showKey;
+        _keyColorsSwitch.enabled = info && showKey;
     }
     if (builtIn) {
         [self closeEditorPanels];
@@ -800,6 +815,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 - (void)refreshFontValueLabels {
     NSDictionary<NSNumber *, NSTextField *> *labels = @{
         @(VibeThemeFontSlotMain): _mainFontValue,
+        @(VibeThemeFontSlotArtist): _artistFontValue,
         @(VibeThemeFontSlotInfo): _infoFontValue,
         @(VibeThemeFontSlotPlaylist): _playlistFontValue,
         @(VibeThemeFontSlotPlaylistDuration): _playlistDurationFontValue,
@@ -1178,6 +1194,8 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 - (void)toggleFileInfo:(id)sender {
     AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
     [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
+    // The rows it governs enable/disable with it.
+    [self refreshFromSettings];
 }
 
 - (void)timeDisplayChanged:(NSButton *)sender {
@@ -1418,6 +1436,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
         case VibeThemeFontSlotPlaylistDuration:
             return [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
+        case VibeThemeFontSlotArtist:   return [Fonts artistFont:kVibeThemeArtistFontBaseSize];
         default:                        return [Fonts mainFont:kVibeThemeMainFontBaseSize];
     }
 }
@@ -1458,6 +1477,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         case VibeThemeFontSlotPlaylistDuration:
             theme.playlistDurationFontFace = font.fontName;
             theme.playlistDurationFontSize = font.pointSize;
+            break;
+        case VibeThemeFontSlotArtist:
+            theme.artistFontFace = font.fontName;
+            theme.artistFontSize = font.pointSize;
             break;
         default:
             theme.mainFontFace = font.fontName;

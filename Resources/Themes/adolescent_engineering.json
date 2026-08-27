@@ -1,6 +1,7 @@
 {
   "artistColorDark": "#9A9A94",
   "artistColorLight": "#6E6E68",
+  "artistFontFace": "Helvetica",
   "description": "A device panel rather than a floating card: square corners, a solid grey-plastic chassis with the playlist recessed a shade under it, and the colour budget spent on ONE element — the played waveform, orange on the grey unit and mint on the black one, echoed at a wash's strength on the playing row. Two type roles: Helvetica for anything a person wrote, a monospace for anything the machine measured, which is also why the remaining-time readout is on — elapsed / remaining / total is a three-part instrument readout.",
   "infoColorDark": "#8A8A84",
   "infoColorLight": "#6E6E68",
