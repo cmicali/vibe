@@ -60,6 +60,10 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
 // writes settings or window geometry.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects;
 
+// Redraws the visible playlist rows in place — PlaylistRowView reads its
+// themed fill per draw, so a row-fill color edit needs no cell rebuild.
+- (void)redrawPlaylistRowFills;
+
 @end
 
 NS_ASSUME_NONNULL_END

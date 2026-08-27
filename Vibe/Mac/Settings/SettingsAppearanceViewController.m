@@ -684,7 +684,11 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
     // The editor, from the working theme. (The name/built-in row swap lives
     // in resolveLayoutStateFromSettings with the other conditional rows.)
-    _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
+    // Skip while the field editor is open, or a refresh mid-type (a menu
+    // open/close, the window regaining key) would silently discard the edit.
+    if (_nameField.currentEditor == nil) {
+        _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
+    }
 
     [_modePopUp selectItemAtIndex:
             [_modePopUp indexOfItemWithRepresentedObject:theme.mode]];
@@ -1239,6 +1243,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
     panel.allowedContentTypes = @[UTTypeJPEG, UTTypePNG];
+    // The sheet blocks the window, not the menu bar — View > Theme can switch
+    // the active theme underneath it, so bind the write to the theme that was
+    // active when the panel opened (the async-delivery rule).
+    NSString *target = AppSettings.sharedInstance.activeThemeIdentifier;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result != NSModalResponseOK || !panel.URL) {
             [self refreshFromSettings]; // canceled: the popup snaps back
@@ -1253,6 +1261,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             alert.messageText = STR_SETTINGS_THEME_ALBUM_ART_INVALID;
             alert.informativeText = STR_SETTINGS_THEME_ALBUM_ART_REQUIREMENTS;
             [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+            return;
+        }
+        if (![AppSettings.sharedInstance.activeThemeIdentifier isEqualToString:target]) {
+            [self refreshFromSettings]; // theme changed under the sheet — drop it
             return;
         }
         AppSettings.sharedInstance.currentTheme.defaultAlbumArt = stored;
@@ -1365,7 +1377,14 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     } else {
         [theme setPlaylistSelectedRowColor:sender.color forDark:(sender == _selectedRowDarkWell)];
     }
-    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+    if (sender == _playlistBackgroundDarkWell || sender == _playlistBackgroundLightWell) {
+        [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+    } else {
+        // The playing/selected row fills are read per draw; a redraw is all
+        // they need, so skip the cell-rebuilding reload during the drag.
+        [AppSettings.sharedInstance currentThemeDidChange];
+        [self.playerController redrawPlaylistRowFills];
+    }
 }
 
 #pragma mark - Editor: name
@@ -1449,6 +1468,22 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     _fontEditingSlot = VibeThemeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];
+    }
+    // A well stays bound to the shared NSColorPanel until deactivated —
+    // disabling or hiding it does not, so a well left active on a departed or
+    // now read-only page would take the panel's next pick. Deactivate them
+    // all whenever the editor tears down (every caller is a page leave or a
+    // switch to a built-in).
+    [self deactivateColorWellsInView:self.view];
+}
+
+- (void)deactivateColorWellsInView:(NSView *)view {
+    for (NSView *subview in view.subviews) {
+        if ([subview isKindOfClass:NSColorWell.class]) {
+            [(NSColorWell *)subview deactivate];
+        } else {
+            [self deactivateColorWellsInView:subview];
+        }
     }
 }
 

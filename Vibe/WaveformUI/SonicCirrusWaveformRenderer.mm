@@ -146,8 +146,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     NSInteger barCount = (NSInteger)(_layers.count / 2);
     NSInteger index = -1;
     if (x >= 0 && width > 0 && barCount > 0) {
-        index = (NSInteger)(x / width * (CGFloat)barCount);
-        index = MIN(MAX(index, 0), barCount - 1);
+        index = VibeBlockIndexForX(x, width, barCount);
     }
     if (index == _hoverBarIndex) {
         return;
@@ -182,9 +181,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         return;
     }
     if (self.lastProgressBoundary > 0 && have > 0) {
-        NSInteger boundary = (NSInteger)llround(
-                (double)self.lastProgressBoundary * (double)count / (double)have);
-        self.lastProgressBoundary = MIN(MAX(boundary, 0), (NSInteger)count);
+        self.lastProgressBoundary = VibeBlockBoundaryForProgress(
+                (CGFloat)self.lastProgressBoundary / (CGFloat)have, (NSInteger)count);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -234,9 +232,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     NSInteger count = (NSInteger)(_layers.count / 2);
-    NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
-    if (newBoundary < 0) newBoundary = 0;
-    if (newBoundary > count) newBoundary = count;
+    NSInteger newBoundary = VibeBlockBoundaryForProgress(progress, count);
 
     NSInteger oldBoundary = self.lastProgressBoundary;
     NSInteger start, end;

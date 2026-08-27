@@ -22,6 +22,13 @@
 
 // The theme's font choice, pushed into Fonts — which may not read a setting
 // itself. Runs before label construction at launch and from the Fonts effect.
+- (void)redrawPlaylistRowFills {
+    [self.playlistTableView enumerateAvailableRowViewsUsingBlock:
+            ^(NSTableRowView *rowView, NSInteger row) {
+        rowView.needsDisplay = YES;
+    }];
+}
+
 - (void)applyStoredFonts {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [Fonts applyThemeFonts:theme.mainFontFace mainSize:theme.mainFontSize
@@ -70,7 +77,11 @@
     if (effects & (VibeSettingsLiveEffectFonts | VibeSettingsLiveEffectTrackDisplay)) {
         [self.playerContentView applyThemedTextStyle];
     }
-    if (effects & VibeSettingsLiveEffectFonts) {
+    if (effects & (VibeSettingsLiveEffectFonts | VibeSettingsLiveEffectTrackDisplay)) {
+        // applyThemedTextStyle above reset the title to base size for either
+        // bit, so the refit must follow for either — not Fonts alone, or a
+        // label-color or info-toggle edit leaves a shrink-fitted title
+        // stranded at full size and truncated.
         [self.trackDisplay refitTitle];
     }
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {

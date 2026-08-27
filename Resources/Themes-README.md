@@ -1,6 +1,6 @@
 # Built-in themes
 
-Every `<identifier>.json` in this directory ships in the app as a read-only
+Every `<identifier>.json` in `Resources/Themes/` ships in the app as a read-only
 built-in theme. **The filename stem is the theme's stable identifier**
 (lowercase snake_case, e.g. `adolescent_engineering.json`); the `name` key is
 its English display name. Adding a theme is adding one file here — no code

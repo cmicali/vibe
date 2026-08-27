@@ -62,10 +62,29 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 - (void)setFrame:(NSRect)frameRect display:(BOOL)flag {
     if (!NSEqualSizes(frameRect.size, self.frame.size) && self.isVisible
-            && !self.inLiveResize && !_resizeUnlocked) {
+            && !self.inLiveResize && !_resizeUnlocked
+            && ![self appKitIsRescuingOntoScreen:frameRect]) {
         return;
     }
     [super setFrame:frameRect display:flag];
+}
+
+// The fitting snap keeps the window on its current screen, so it never
+// escapes here. A display disconnect or resolution drop is the case this
+// admits: the window is currently off every screen and AppKit is pulling it
+// back onto one. (An AX window-manager resize is indistinguishable from the
+// snap at this funnel and stays refused — the documented limitation.)
+- (BOOL)appKitIsRescuingOntoScreen:(NSRect)proposed {
+    BOOL currentFits = NO, proposedFits = NO;
+    for (NSScreen *screen in NSScreen.screens) {
+        if (NSContainsRect(screen.visibleFrame, self.frame)) {
+            currentFits = YES;
+        }
+        if (NSContainsRect(screen.visibleFrame, proposed)) {
+            proposedFits = YES;
+        }
+    }
+    return !currentFits && proposedFits;
 }
 
 @end
@@ -404,6 +423,11 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                         backing:NSBackingStoreBuffered
                           defer:NO];
     window.contentViewController = split;
+    // No green-button fullscreen: a resizable non-panel window offers it
+    // implicitly, and the frame guard would refuse AppKit's grow-to-screen —
+    // stranding a mini-window in a dedicated space. System Settings is the
+    // same. Zoom is likewise a no-op through the guard, by design.
+    window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenNone;
     window.title = split.title ?: @"";
     [window setContentSize:seedRect.size];
     window.releasedWhenClosed = NO;
@@ -412,6 +436,9 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     self = [super initWithWindow:window];
     if (self) {
         _tabs = tabs;
+        // Under Auto, the preview toggle shows the side the system is on; an
+        // OS flip while the editor is idle must re-resolve it.
+        [NSApp addObserver:self forKeyPath:@"effectiveAppearance" options:0 context:NULL];
         // An item-less toolbar except for the sidebar tracking separator,
         // which AppKit vends for a split-view content controller: it gives the
         // titlebar its unified height and carries the sidebar divider through
@@ -539,6 +566,15 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     NSInteger index = _tabs.selectedTabViewItemIndex;
     return index >= 0 && index < (NSInteger)_tabs.tabViewItems.count
             && [_tabs.tabViewItems[(NSUInteger)index].identifier isEqualToString:@"appearance"];
+}
+
+- (void)dealloc {
+    [NSApp removeObserver:self forKeyPath:@"effectiveAppearance"];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                        change:(NSDictionary *)change context:(void *)context {
+    [self updateThemeNavigation];
 }
 
 - (void)updateThemeNavigation {

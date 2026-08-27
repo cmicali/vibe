@@ -38,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
+// The played-fill and hover presentation. Continuous here — the clip edge is
+// the playhead and the hover column a fixed-width slice — while Basic
+// overrides both to whole-block quantization, matching Sonic Cirrus's
+// discrete bars; the seek itself stays continuous in every style.
+- (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width;
+- (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale;
+
 // The iOS scrubber's settled fast path (see WaveformScrubberView): the whole
 // envelope rendered once into a bitmap — the settled bar geometry filled with
 // the played gradient, overall opacity included — so scrolling can translate

@@ -235,29 +235,37 @@ static const NSUInteger kDetailedMaxBars = 8192;
         [CATransaction commit];
         return;
     }
-    // Snap both edges to the device-pixel grid. A fractional origin or width
-    // leaves half-lit edge pixels, and the column is supposed to be the
-    // brightest thing in the waveform.
-    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
-    CGFloat width = MAX(round(kHoverHighlightWidth * scale), 1) / scale;
-    CGFloat left = floor((x - width / 2) * scale) / scale;
-    left = MIN(MAX(left, 0), MAX(0, b.size.width - width));
+    CGRect column = [self hoverColumnRectForX:x bounds:b
+                                        scale:VibeBackingScaleForLayer(self.parentLayer)];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _hoverColumn.bounds = CGRectMake(0, 0, width, b.size.height);
-    _hoverColumn.position = CGPointMake(left, 0);
+    _hoverColumn.bounds = CGRectMake(0, 0, column.size.width, column.size.height);
+    _hoverColumn.position = column.origin;
     _hoverColumn.hidden = NO;
     [CATransaction commit];
+}
+
+// Snap both edges to the device-pixel grid. A fractional origin or width
+// leaves half-lit edge pixels, and the column is supposed to be the brightest
+// thing in the waveform.
+- (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale {
+    CGFloat width = MAX(round(kHoverHighlightWidth * scale), 1) / scale;
+    CGFloat left = floor((x - width / 2) * scale) / scale;
+    left = MIN(MAX(left, 0), MAX(0, bounds.size.width - width));
+    return CGRectMake(left, 0, width, bounds.size.height);
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     if (!_playedClip || !self.parentLayer) return;
     CGRect b = self.parentLayer.bounds;
-    CGFloat w = b.size.width * progress;
-    if (w < 0) w = 0;
-    if (w > b.size.width) w = b.size.width;
-    _playedClip.bounds = CGRectMake(0, 0, w, b.size.height);
+    _playedClip.bounds = CGRectMake(0, 0, [self playedClipWidthForProgress:progress width:b.size.width],
+                                    b.size.height);
     _playedClip.position = CGPointZero;
+}
+
+- (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width {
+    CGFloat w = width * progress;
+    return MIN(MAX(w, 0), width);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {

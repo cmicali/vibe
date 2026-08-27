@@ -92,7 +92,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 //
 // TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
 // does NOT fire for a write from another process — and the debug channel's
-// prefs verbs (set_key_display, set_analysis, set_folder_art) are exactly
+// prefs verbs (set_analysis, set_folder_art) are exactly
 // that, writing from the CLI client while the app runs, as is a plain
 // `defaults write`. Caching on that notification left the app reporting
 // the old value for good; observed, not hypothetical.
@@ -113,8 +113,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #endif  // TARGET_OS_OSX
 
 @implementation AppSettings {
-    NSArray<NSDictionary *> *_storedUserThemesCache;
 #if TARGET_OS_OSX
+    NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
     BOOL        _hotCacheValid;
     NSInteger   _hotUIUpdateHzCap;
@@ -201,6 +201,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     }
 #if TARGET_OS_OSX
     [self invalidateHotCache];
+    _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
 #endif
 }

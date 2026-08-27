@@ -326,7 +326,11 @@
     [self applyAlwaysOnTop];
 
     self.waveformView.delegate = self;
-    self.waveformView.waveformStyle = AppSettings.sharedInstance.waveformStyle;
+    // The theme's style, not the loose Settings.waveformStyle key — migration
+    // consumes that key, so on macOS the loose getter only ever returns the
+    // registered default. This is the renderer's first creation, so the
+    // theme-reading fallback in prepareForWaveformLoad never gets to correct it.
+    self.waveformView.waveformStyle = AppSettings.sharedInstance.currentTheme.waveformStyle;
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;

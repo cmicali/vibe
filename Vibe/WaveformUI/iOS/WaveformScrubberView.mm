@@ -7,6 +7,7 @@
 #import "AudioWaveform.h"
 #import "AudioWaveformRenderer.h"
 #import "DetailedAudioWaveformRenderer.h"
+#import "BasicAudioWaveformRenderer.h"
 #import "WaveformRendererRegistry.h"
 #import "LoadingIndicator.h"
 // The zoom range and the bake's ceilings, which are one set of numbers.
@@ -709,7 +710,13 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
     _bakeGeneration++;
-    if (!self.waveform || ![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
+    // Basic is class-wise a Detailed subclass but must stay on the live tree
+    // like Sonic Cirrus: the bake paints Detailed's band-pinned gradient, not
+    // Basic's re-aimed fade, and crops the played side continuously where
+    // Basic's fill advances a whole block at a time. The kind-of test used to
+    // let it through, which baked both wrong.
+    if (!self.waveform || ![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class] ||
+        [_renderer isKindOfClass:BasicAudioWaveformRenderer.class]) {
         return;
     }
     NSUInteger generation = _bakeGeneration;

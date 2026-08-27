@@ -72,6 +72,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
             return;
         }
     }
+    if (_currentWaveformRenderer && [_currentWaveformRenderer class] == renderer) {
+        return; // unchanged style: keep the live layer tree and its state
+    }
     _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
     [self applyResolvedTheme];
     [self drawWaveform];

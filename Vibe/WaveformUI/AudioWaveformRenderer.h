@@ -36,6 +36,20 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
+// The block-quantization rules shared by the discrete-block styles — Sonic
+// Cirrus's bar layers and Basic's blocks: which block sits under a view x,
+// and how many whole blocks a progress fraction fills, each block flipping at
+// its midpoint. Presentation only — the seek a hover or click reports stays
+// continuous.
+static inline NSInteger VibeBlockIndexForX(CGFloat x, CGFloat width, NSInteger count) {
+    NSInteger index = (NSInteger)(x / width * (CGFloat)count);
+    return MIN(MAX(index, (NSInteger)0), count - 1);
+}
+static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger count) {
+    NSInteger boundary = (NSInteger)llround((double)count * progress);
+    return MIN(MAX(boundary, (NSInteger)0), count);
+}
+
 // A ramp stop: the color at `fraction` of its own alpha. The theme colors
 // carry each side's resting level in their alpha (WaveformTheme.h), so
 // renderers own only their ramp shapes and scale every stop relative to that

@@ -117,6 +117,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 
+// TRAP: on macOS these shared loose keys (waveformStyle, waveformTheme, the
+// custom color pairs) are CONSUMED by the theme migration and the store of
+// record is currentTheme — the getter returns only the registered default
+// after first launch. A macOS reader wanting the live value reads
+// currentTheme.<field>; these stay for iOS, which has no theme system.
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 

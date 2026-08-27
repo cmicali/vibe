@@ -8,12 +8,27 @@
 #import <XCTest/XCTest.h>
 
 #import "AppTheme.h"
+#import "AppSettings.h"
 #import "PlatformColor.h"
 
 @interface AppThemeTests : XCTestCase
 @end
 
-@implementation AppThemeTests
+@implementation AppThemeTests {
+    NSString *_artDir;
+}
+
+- (void)setUp {
+    _artDir = [NSTemporaryDirectory() stringByAppendingPathComponent:
+            [@"VibeThemeArtTest-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+    setenv("VIBE_THEME_ART_DIR", _artDir.UTF8String, 1);
+}
+
+- (void)tearDown {
+    [NSFileManager.defaultManager removeItemAtPath:_artDir error:NULL];
+    unsetenv("VIBE_THEME_ART_DIR");
+}
+
 
 #pragma mark Defaults and sparseness
 
@@ -536,5 +551,130 @@ static NSData *SquarePNG(NSInteger side) {
         @"windowTintColorDark": @"not-hex",
     }]));
 }
+
+
+#pragma mark Album-art caps and ZIP safety
+
+// A minimal stored (uncompressed) ZIP, so a test can shape entries the way a
+// Finder archive or a crafted file would — VibeZipData is file-static.
+static void PutLE(NSMutableData *d, uint64_t v, int n) {
+    for (int i = 0; i < n; i++) { uint8_t b = (v >> (8 * i)) & 0xFF; [d appendBytes:&b length:1]; }
+}
+static uint32_t ZipCRC(NSData *data) {
+    static uint32_t t[256]; static dispatch_once_t once;
+    dispatch_once(&once, ^{ for (uint32_t i = 0; i < 256; i++) { uint32_t c = i;
+        for (int k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320 ^ (c >> 1) : c >> 1; t[i] = c; } });
+    uint32_t c = 0xFFFFFFFF; const uint8_t *b = data.bytes;
+    for (NSUInteger i = 0; i < data.length; i++) c = t[(c ^ b[i]) & 0xFF] ^ (c >> 8);
+    return c ^ 0xFFFFFFFF;
+}
+static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData], ... ]
+    NSMutableData *out = [NSMutableData data], *central = [NSMutableData data];
+    for (NSArray *e in entries) {
+        NSData *nameData = [e[0] dataUsingEncoding:NSUTF8StringEncoding], *data = e[1];
+        uint32_t crc = ZipCRC(data); NSUInteger off = out.length;
+        PutLE(out, 0x04034b50, 4); PutLE(out, 20, 2); PutLE(out, 0, 2); PutLE(out, 0, 2);
+        PutLE(out, 0, 4); PutLE(out, crc, 4); PutLE(out, data.length, 4); PutLE(out, data.length, 4);
+        PutLE(out, nameData.length, 2); PutLE(out, 0, 2); [out appendData:nameData]; [out appendData:data];
+        PutLE(central, 0x02014b50, 4); PutLE(central, 20, 2); PutLE(central, 20, 2); PutLE(central, 0, 2);
+        PutLE(central, 0, 2); PutLE(central, 0, 4); PutLE(central, crc, 4); PutLE(central, data.length, 4);
+        PutLE(central, data.length, 4); PutLE(central, nameData.length, 2); PutLE(central, 0, 2);
+        PutLE(central, 0, 2); PutLE(central, 0, 2); PutLE(central, 0, 2); PutLE(central, 0, 4);
+        PutLE(central, off, 4); [central appendData:nameData];
+    }
+    NSUInteger cOff = out.length; [out appendData:central];
+    PutLE(out, 0x06054b50, 4); PutLE(out, 0, 2); PutLE(out, 0, 2);
+    PutLE(out, entries.count, 2); PutLE(out, entries.count, 2);
+    PutLE(out, central.length, 4); PutLE(out, cOff, 4); PutLE(out, 0, 2);
+    return out;
+}
+
+- (void)testAlbumArtValidationCaps {
+    // Byte cap: the size check precedes any parse, so a JPEG-magic blob over
+    // 8 MB is rejected without decoding.
+    NSMutableData *huge = [NSMutableData dataWithLength:8 * 1024 * 1024 + 1];
+    uint8_t jpeg[3] = {0xFF, 0xD8, 0xFF}; [huge replaceBytesInRange:NSMakeRange(0, 3) withBytes:jpeg];
+    XCTAssertNil([AppTheme storeCustomAlbumArtData:huge error:NULL]);
+    // Floor already covered (32 px) — the 4096 ceiling is the same expression.
+    XCTAssertNotNil([AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL]);
+}
+
+- (void)testArchiveReaderIsSafeOnTruncatedAndGarbageInput {
+    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL];
+    NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultAlbumArt": stored} name:@"Z"];
+    XCTAssertNotNil(zip);
+    // Every truncation point must return safely, never read past the buffer.
+    for (NSUInteger cut = 0; cut < zip.length; cut++) {
+        NSData *piece = [zip subdataWithRange:NSMakeRange(0, cut)];
+        XCTAssertNoThrow([AppTheme recordFromJSONOrArchiveData:piece name:NULL error:NULL]);
+    }
+    // A PK-prefixed non-zip is rejected, not crashed.
+    NSData *garbage = [@"PK\x03\x04 not a real zip at all" dataUsingEncoding:NSUTF8StringEncoding];
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:garbage name:NULL error:NULL]);
+}
+
+- (void)testArchiveReaderHandlesFinderShapedArchives {
+    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL];
+    NSString *file = [stored substringFromIndex:7]; // <sha1>.png
+    NSData *image = [NSData dataWithContentsOfFile:
+            [_artDir stringByAppendingPathComponent:file]];
+    NSData *themeJSON = [AppTheme JSONDataForRecord:@{@"defaultAlbumArt": stored} name:@"Finder"];
+
+    // AppleDouble sidecar (.json extension, not JSON) must be skipped, and the
+    // real theme.json chosen; a folder-prefixed image must still be matched.
+    NSData *zip = MakeStoredZip(@[
+        @[@"__MACOSX/._theme.json", [@"garbage" dataUsingEncoding:NSUTF8StringEncoding]],
+        @[@"My Theme/theme.json", themeJSON],
+        @[[@"My Theme/" stringByAppendingString:file], image],
+    ]);
+    NSString *name = nil;
+    NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
+    XCTAssertEqualObjects(name, @"Finder");
+    XCTAssertEqualObjects(record[@"defaultAlbumArt"], stored); // art survived, re-hashed
+}
+
+#pragma mark Store CRUD (AppSettings)
+
+- (void)testResetToDefaultsClearsTheUserThemesCache {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *identifier = [settings addUserThemeWithRecord:@{@"waveformTheme": @"orange"}
+                                                       name:@"CacheProbe"];
+    (void)[settings orderedThemeIdentifiers];          // populate the memo
+    [settings resetToDefaults];
+    XCTAssertFalse([[settings orderedThemeIdentifiers] containsObject:identifier],
+            @"reset must not leave the deleted theme resurrectable");
+}
+
+- (void)testDivergenceBlobAndDeletedActiveFallback {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings resetToDefaults];
+    // A casual edit over a built-in diverges the working record, not the built-in.
+    [settings applyThemeWithIdentifier:@"vibe"];
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
+
+    // Deleting the active user theme falls back to vibe.
+    NSString *identifier = [settings addUserThemeWithRecord:@{} name:@"Doomed"];
+    [settings applyThemeWithIdentifier:identifier];
+    [settings removeUserThemeWithIdentifier:identifier];
+    XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
+    [settings resetToDefaults];
+}
+
+- (void)testStoredUserThemesDropsJunkAndBuiltInSpoofs {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings resetToDefaults];
+    NSString *real = [settings addUserThemeWithRecord:@{} name:@"Real"];
+    // An entry spoofing a built-in id, and a nameless one, must not appear.
+    NSArray *ids = [settings orderedThemeIdentifiers];
+    XCTAssertTrue([ids containsObject:real]);
+    NSUInteger occurrences = [ids filteredArrayUsingPredicate:
+            [NSPredicate predicateWithFormat:@"SELF == %@", real]].count;
+    XCTAssertEqual(occurrences, 1u);
+    [settings resetToDefaults];
+}
+
 
 @end

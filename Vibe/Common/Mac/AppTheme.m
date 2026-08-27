@@ -413,6 +413,13 @@ static BOOL VibeIsValidDefaultAlbumArtValue(NSString *_Nullable value) {
 }
 
 static NSString *VibeCustomAlbumArtDirectory(void) {
+    // A test seam: the host-less suite is unsandboxed, so without a redirect
+    // it would write into the developer's real ~/Library. Shipping reads no
+    // such variable.
+    const char *override = getenv("VIBE_THEME_ART_DIR");
+    if (override) {
+        return [NSString stringWithUTF8String:override];
+    }
     NSString *support = NSSearchPathForDirectoriesInDomains(
             NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
     return [support stringByAppendingPathComponent:@"ThemeArt"];
@@ -659,6 +666,10 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     }
     NSUInteger count = VibeReadLE(bytes + eocd + 10, 2);
     NSUInteger offset = VibeReadLE(bytes + eocd + 16, 4);
+    // A total budget across all entries, so deflate's ~1000:1 ratio cannot
+    // aim thousands of central-directory entries at one small stream and
+    // exhaust memory. One JSON plus one image is all the caller needs.
+    NSUInteger budget = 2 * kAlbumArtByteCap + kThemeJSONByteCap;
     NSMutableDictionary *entries = [NSMutableDictionary dictionary];
     for (NSUInteger i = 0; i < count; i++) {
         if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
@@ -671,6 +682,13 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         NSUInteger extraLength = VibeReadLE(bytes + offset + 30, 2);
         NSUInteger commentLength = VibeReadLE(bytes + offset + 32, 2);
         NSUInteger local = VibeReadLE(bytes + offset + 42, 4);
+        // TRAP: the fixed 46-byte header is bounds-checked above, but the
+        // variable-length name that follows is NOT — a crafted nameLength
+        // (≤65535) would read past the buffer. Guard the name AND the offset
+        // advance before touching either.
+        if (offset + 46 + nameLength + extraLength + commentLength > length) {
+            return nil;
+        }
         NSString *name = [[NSString alloc] initWithBytes:bytes + offset + 46
                 length:nameLength encoding:NSUTF8StringEncoding];
         offset += 46 + nameLength + extraLength + commentLength;
@@ -684,13 +702,15 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
             continue;
         }
         NSData *raw = [zip subdataWithRange:NSMakeRange(dataStart, csize)];
-        if (method == 0) {
+        if (method == 0 && raw.length <= budget) {
+            budget -= raw.length;
             entries[name] = raw;
-        } else if (method == 8 && usize > 0 && usize < 64 * 1024 * 1024) {
+        } else if (method == 8 && usize > 0 && usize <= budget) {
             NSMutableData *inflated = [NSMutableData dataWithLength:usize];
             size_t written = compression_decode_buffer(inflated.mutableBytes, usize,
                     raw.bytes, raw.length, NULL, COMPRESSION_ZLIB);
             if (written == usize) {
+                budget -= usize;
                 entries[name] = inflated;
             }
         }
@@ -736,10 +756,24 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         }
         return record;
     }
+    if (data.length > 2 * kAlbumArtByteCap + kThemeJSONByteCap) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"AppTheme" code:1 userInfo:nil];
+        }
+        return nil;
+    }
     NSDictionary<NSString *, NSData *> *entries = VibeUnzipData(data);
+    // Skip a Finder zip's AppleDouble sidecars — __MACOSX/._theme.json has a
+    // .json extension but is not JSON, and would nondeterministically win.
     NSData *json = nil;
+    NSMutableDictionary<NSString *, NSData *> *byBaseName = [NSMutableDictionary dictionary];
     for (NSString *entry in entries) {
-        if ([entry.pathExtension isEqualToString:@"json"] && !json) {
+        NSString *base = entry.lastPathComponent;
+        if ([entry hasPrefix:@"__MACOSX/"] || [base hasPrefix:@"._"]) {
+            continue;
+        }
+        byBaseName[base] = entries[entry];
+        if ([base.pathExtension isEqualToString:@"json"] && !json) {
             json = entries[entry];
         }
     }
@@ -760,7 +794,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         // The image ships beside the JSON under its reference name. It is
         // re-validated and re-hashed here — the filename is not trusted —
         // and the record rewritten to the stored copy.
-        NSData *image = entries[[art substringFromIndex:7]];
+        NSData *image = byBaseName[[art substringFromIndex:7]];
         NSString *stored = image ? [self storeCustomAlbumArtData:image error:error] : nil;
         if (stored) {
             record[kFieldDefaultAlbumArt] = stored;
