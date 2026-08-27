@@ -207,6 +207,10 @@ NS_ASSUME_NONNULL_BEGIN
 // visible.
 - (void)scrollCurrentTrackToVisible;
 
+// Marks the visible rows for redraw — PlaylistRowView reads its themed fill
+// per draw, so a row-fill color change needs only this, not a cell rebuild.
+- (void)redrawVisibleRowFills;
+
 @end
 
 NS_ASSUME_NONNULL_END

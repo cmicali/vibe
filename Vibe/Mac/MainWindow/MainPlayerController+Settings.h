@@ -34,6 +34,10 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // redraw, and the background under the rows re-resolves (glass lift or
     // solid cover — the tint wash above it rides WindowTint).
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
+    // Just the playlist row fills, redrawn in place — PlaylistRowView reads
+    // its themed fill per draw, so a playing/selected-row color edit needs no
+    // cell rebuild. The lighter sibling of PlaylistAppearance for live drags.
+    VibeSettingsLiveEffectPlaylistRowFills = 1UL << 17,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the
@@ -59,10 +63,6 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
 // Applies the running-app half of settings that were already stored. Never
 // writes settings or window geometry.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects;
-
-// Redraws the visible playlist rows in place — PlaylistRowView reads its
-// themed fill per draw, so a row-fill color edit needs no cell rebuild.
-- (void)redrawPlaylistRowFills;
 
 @end
 

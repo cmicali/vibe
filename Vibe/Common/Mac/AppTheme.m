@@ -669,7 +669,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     // A total budget across all entries, so deflate's ~1000:1 ratio cannot
     // aim thousands of central-directory entries at one small stream and
     // exhaust memory. One JSON plus one image is all the caller needs.
-    NSUInteger budget = 2 * kAlbumArtByteCap + kThemeJSONByteCap;
+    NSUInteger budget = kThemeArchiveByteCap;
     NSMutableDictionary *entries = [NSMutableDictionary dictionary];
     for (NSUInteger i = 0; i < count; i++) {
         if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
@@ -756,7 +756,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         }
         return record;
     }
-    if (data.length > 2 * kAlbumArtByteCap + kThemeJSONByteCap) {
+    if (data.length > kThemeArchiveByteCap) {
         if (error) {
             *error = [NSError errorWithDomain:@"AppTheme" code:1 userInfo:nil];
         }
@@ -836,6 +836,9 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 // Far above any real theme, low enough that a mispicked video file fails
 // before the parser sees it.
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
+// The whole theme archive's ceiling — one JSON plus one image, with slack.
+// Both the pre-parse input gate and the unzip's running inflate budget use it.
+static const NSUInteger kThemeArchiveByteCap = 2 * 8 * 1024 * 1024 + 64 * 1024;
 
 + (NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
                                                 name:(NSString **)outName

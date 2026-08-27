@@ -601,13 +601,13 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 - (void)popToThemeList:(id)sender {
     _editorShown = NO;
     _editorForwardAvailable = YES;
-    [self closeFontPanel];
+    [self closeEditorPanels];
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
 - (void)viewDidDisappear {
     [super viewDidDisappear];
-    [self closeFontPanel];
+    [self closeEditorPanels];
 }
 
 #pragma mark - State
@@ -644,13 +644,21 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     [self applyEditorVisibility];
 }
 
-static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
+// One depth-first descendant walk; the leaf actions (enable, deactivate)
+// ride it rather than re-rolling the recursion each time.
+static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     for (NSView *subview in view.subviews) {
+        block(subview);
+        ForEachDescendantView(subview, block);
+    }
+}
+
+static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
+    ForEachDescendantView(view, ^(NSView *subview) {
         if ([subview isKindOfClass:NSControl.class]) {
             ((NSControl *)subview).enabled = enabled;
         }
-        SetDescendantControlsEnabled(subview, enabled);
-    }
+    });
 }
 
 - (void)refreshFromSettings {
@@ -783,7 +791,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         _keyColorsSwitch.enabled = showKey;
     }
     if (builtIn) {
-        [self closeFontPanel];
+        [self closeEditorPanels];
     }
 
     [self resolveLayoutStateFromSettings];
@@ -1377,14 +1385,12 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     } else {
         [theme setPlaylistSelectedRowColor:sender.color forDark:(sender == _selectedRowDarkWell)];
     }
-    if (sender == _playlistBackgroundDarkWell || sender == _playlistBackgroundLightWell) {
-        [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-    } else {
-        // The playing/selected row fills are read per draw; a redraw is all
-        // they need, so skip the cell-rebuilding reload during the drag.
-        [AppSettings.sharedInstance currentThemeDidChange];
-        [self.playerController redrawPlaylistRowFills];
-    }
+    // Background wells rebuild the playlist background; the playing/selected
+    // row fills are read per draw and only need a redraw (the lighter bit).
+    BOOL background = sender == _playlistBackgroundDarkWell
+            || sender == _playlistBackgroundLightWell;
+    [self themeFieldDidChange:background ? VibeSettingsLiveEffectPlaylistAppearance
+                                         : VibeSettingsLiveEffectPlaylistRowFills];
 }
 
 #pragma mark - Editor: name
@@ -1464,27 +1470,21 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     [self refreshFontValueLabels];
 }
 
-- (void)closeFontPanel {
+// Editor teardown: close the font panel and deactivate every color well.
+// A well stays bound to the shared NSColorPanel until deactivated — disabling
+// or hiding it does not — so a well left active on a departed or now read-only
+// page would take the panel's next pick. Every caller is a page leave or a
+// switch to a built-in.
+- (void)closeEditorPanels {
     _fontEditingSlot = VibeThemeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];
     }
-    // A well stays bound to the shared NSColorPanel until deactivated —
-    // disabling or hiding it does not, so a well left active on a departed or
-    // now read-only page would take the panel's next pick. Deactivate them
-    // all whenever the editor tears down (every caller is a page leave or a
-    // switch to a built-in).
-    [self deactivateColorWellsInView:self.view];
-}
-
-- (void)deactivateColorWellsInView:(NSView *)view {
-    for (NSView *subview in view.subviews) {
+    ForEachDescendantView(self.view, ^(NSView *subview) {
         if ([subview isKindOfClass:NSColorWell.class]) {
             [(NSColorWell *)subview deactivate];
-        } else {
-            [self deactivateColorWellsInView:subview];
         }
-    }
+    });
 }
 
 @end

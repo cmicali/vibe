@@ -438,6 +438,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         _tabs = tabs;
         // Under Auto, the preview toggle shows the side the system is on; an
         // OS flip while the editor is idle must re-resolve it.
+        // viewDidChangeEffectiveAppearance is an NSView hook, not available on
+        // this controller, so the app-level appearance is observed by KVO.
         [NSApp addObserver:self forKeyPath:@"effectiveAppearance" options:0 context:NULL];
         // An item-less toolbar except for the sidebar tracking separator,
         // which AppKit vends for a split-view content controller: it gives the
@@ -512,9 +514,10 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     if ([itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier]) {
         // The editor page's fast light/dark preview, trailing in the titlebar:
         // a dual-mode theme keeps a palette per appearance, and flipping the
-        // window's appearance setting is how you see the other one. Disabled
-        // off the editor page and under single-mode themes, whose one look
-        // ignores the setting entirely.
+        // window's appearance setting is how you see the other one. Never
+        // disabled: under a single-mode theme the write still lands, it is
+        // only outranked by the pinned dark appearance until the mode flips
+        // back, and the item is present only on the editor page anyway.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"sun.max"
                           accessibilityDescription:STR_MENU_APPEARANCE_LIGHT],
@@ -522,7 +525,6 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
                           accessibilityDescription:STR_MENU_APPEARANCE_DARK]]
                 trackingMode:NSSegmentSwitchTrackingSelectOne
                       target:self action:@selector(toggleAppearancePreview:)];
-        control.enabled = NO;
         _appearanceToggle = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
@@ -600,7 +602,6 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     } else if (!editorShown && index != NSNotFound) {
         [toolbar removeItemAtIndex:(NSInteger)index];
     }
-    _appearanceToggle.enabled = editorShown && !settings.currentTheme.isSingleMode;
     NSString *style = settings.windowAppearanceStyle;
     BOOL dark;
     if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {

@@ -560,19 +560,13 @@ static NSData *SquarePNG(NSInteger side) {
 static void PutLE(NSMutableData *d, uint64_t v, int n) {
     for (int i = 0; i < n; i++) { uint8_t b = (v >> (8 * i)) & 0xFF; [d appendBytes:&b length:1]; }
 }
-static uint32_t ZipCRC(NSData *data) {
-    static uint32_t t[256]; static dispatch_once_t once;
-    dispatch_once(&once, ^{ for (uint32_t i = 0; i < 256; i++) { uint32_t c = i;
-        for (int k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320 ^ (c >> 1) : c >> 1; t[i] = c; } });
-    uint32_t c = 0xFFFFFFFF; const uint8_t *b = data.bytes;
-    for (NSUInteger i = 0; i < data.length; i++) c = t[(c ^ b[i]) & 0xFF] ^ (c >> 8);
-    return c ^ 0xFFFFFFFF;
-}
+// VibeUnzipData reads no CRC field (and storeCustomAlbumArtData re-hashes the
+// image by content), so the entries carry a zero CRC — nothing validates it.
 static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData], ... ]
     NSMutableData *out = [NSMutableData data], *central = [NSMutableData data];
     for (NSArray *e in entries) {
         NSData *nameData = [e[0] dataUsingEncoding:NSUTF8StringEncoding], *data = e[1];
-        uint32_t crc = ZipCRC(data); NSUInteger off = out.length;
+        uint32_t crc = 0; NSUInteger off = out.length;
         PutLE(out, 0x04034b50, 4); PutLE(out, 20, 2); PutLE(out, 0, 2); PutLE(out, 0, 2);
         PutLE(out, 0, 4); PutLE(out, crc, 4); PutLE(out, data.length, 4); PutLE(out, data.length, 4);
         PutLE(out, nameData.length, 2); PutLE(out, 0, 2); [out appendData:nameData]; [out appendData:data];
