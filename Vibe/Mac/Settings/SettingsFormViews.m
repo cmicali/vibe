@@ -4,6 +4,7 @@
 //
 
 #import "SettingsFormViews.h"
+#import "NSView+DarkMode.h"
 #import "NSString+FormLabel.h"
 
 static const CGFloat kRowPaddingH = 16;
@@ -68,9 +69,7 @@ static const CGFloat kHeaderCardGap = 6;
 
 - (void)updateLayer {
     self.layer.cornerRadius = kCardCornerRadius;
-    BOOL dark = [[self.effectiveAppearance
-            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
-            isEqualToString:NSAppearanceNameDarkAqua];
+    BOOL dark = self.isDark;
     // One lift-step off the pane background in each direction, borderless —
     // the System Settings pairing, measured off its pixels: dark cards sit
     // ~7/255 above the background, light cards ~8/255 below the white one

@@ -322,8 +322,7 @@
     // applicationShouldTerminateAfterLastWindowClosed never fires.
     self.window.delegate = self;
 
-    self.window.appearance = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance
-            ?: AppSettings.sharedInstance.windowAppearance;
+    [self applyStoredAppearance]; // the one home of the pin rule
     [self applyAlwaysOnTop];
 
     self.waveformView.delegate = self;

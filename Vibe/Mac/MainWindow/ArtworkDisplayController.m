@@ -481,7 +481,12 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 }
 
 - (void)refreshDefaultArtwork {
-    if (_showingDefaultArt) {
+    // The lifetime cache returns pointer-identical images, so an unchanged
+    // placeholder is one comparison — TrackDisplay fires for every
+    // info-display toggle, and re-installing would reset the dock tile and
+    // re-derive the tint washes for nothing.
+    if (_showingDefaultArt && _artworkView.image !=
+            AppSettings.sharedInstance.currentTheme.resolvedDefaultAlbumArtImage) {
         _showingDefaultArt = NO;
         [self showDefaultArtworkInvalidatingRender:NO];
     }
@@ -496,8 +501,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     if (_showingDefaultArt && _initialized) {
         return;
     }
-    _artworkView.image = [AppTheme imageForDefaultAlbumArt:
-            AppSettings.sharedInstance.currentTheme.defaultAlbumArt];
+    _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultAlbumArtImage;
     _dominantArtColor = nil;
     if (self.dominantColorDidChangeHandler) {
         self.dominantColorDidChangeHandler();

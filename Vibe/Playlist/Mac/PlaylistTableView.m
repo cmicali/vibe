@@ -120,6 +120,7 @@ static NSDictionary *artistAttributes;
 // colors, so the PlaylistAppearance effect invalidates and the next cell
 // rebuilds — the invalidate-on-effect idiom, in place of cached-forever.
 static BOOL cellAttributesBuilt;
+static NSImage *defaultArtImage;
 
 static void ensureCellAttributes(void) {
     if (!cellAttributesBuilt) {
@@ -136,6 +137,7 @@ static void ensureCellAttributes(void) {
         // is every title, artistColor every secondary line — here the artist
         // run and both numeric columns, which already share its fallback.
         AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+        defaultArtImage = theme.resolvedDefaultAlbumArtImage;
         NSColor *titleColor = theme.resolvedTitleColor;
         NSColor *artistColor = theme.resolvedArtistColor;
         numColumnAttributes = @{
@@ -331,8 +333,11 @@ static NSTextField *makeCellTextField(NSRect frame) {
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {
-    return thumbnail ?: [AppTheme imageForDefaultAlbumArt:
-            AppSettings.sharedInstance.currentTheme.defaultAlbumArt];
+    // The placeholder rides the invalidate-on-effect attribute cache: the
+    // per-cell cost on the scroll path is one pointer read, not a theme
+    // field lookup and cache probe per artless row.
+    ensureCellAttributes();
+    return thumbnail ?: defaultArtImage;
 }
 
 @end

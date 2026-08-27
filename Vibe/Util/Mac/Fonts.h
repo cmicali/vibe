@@ -16,7 +16,7 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-// The three themed slots. Util may not read a setting, so the theme's choice
+// The four themed slots. Util may not read a setting, so the theme's choice
 // is PUSHED here (applyThemeFonts, which also drops the slot cache) and the
 // slot accessors resolve against it. An empty face is the slot's built-in
 // font — font:/font:bold: for main and playlist, the monospaced-digit system
@@ -25,7 +25,7 @@
 // monospaced-digits feature, keeping times jitter-free.
 //
 // Sizes are offsets in disguise: the stored size is absolute at the slot's
-// reference site (title 23, info 13, playlist 14), and a call site passing
+// reference site (title 23, info 13, playlist 14, playlist duration 12), and a call site passing
 // its own base gets base + (stored − reference), which preserves the
 // title/artist size hierarchy under any chosen size.
 + (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize

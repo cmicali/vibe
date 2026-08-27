@@ -297,17 +297,11 @@ static const CGFloat kSettingsSidebarWidth = 200;
         [window setFrame:targetFrame display:NO];
         return;
     }
-    // Synchronous, not animated: the guard's unlock is scoped to the block,
-    // and an animator's later frames would arrive locked out. The pane's
-    // arranged views still animate inside their own transaction; the window
-    // edge lands at once.
-    if ([window isKindOfClass:SettingsWindow.class]) {
-        [(SettingsWindow *)window resizeUnlocked:^{
-            [window setFrame:targetFrame display:YES];
-        }];
-    } else {
-        [window setFrame:targetFrame display:YES];
-    }
+    // Through the one blessed funnel (applyWindowFrame:): synchronous, not
+    // animated — the guard's unlock is scoped to the call, and an animator's
+    // later frames would arrive locked out. The pane's arranged views still
+    // animate inside their own transaction; the window edge lands at once.
+    [(SettingsWindowController *)window.windowController applyWindowFrame:targetFrame];
 }
 
 @end
@@ -454,17 +448,21 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 }
 
 - (void)showThemeEditor {
+    SettingsAppearanceViewController *pane = [self appearancePane];
+    if (!pane) {
+        return;
+    }
+    // The tab controller's own selection path, so the sidebar, the title
+    // chain and refreshFromSettings all follow; then land on the active
+    // theme's page — Edit Themes… states intent to edit, and the active
+    // theme is unambiguous — with Back one click away.
     for (NSTabViewItem *item in _tabs.tabViewItems) {
-        if ([item.identifier isEqualToString:@"appearance"]) {
-            // The tab controller's own selection path, so the sidebar, the
-            // title chain and refreshFromSettings all follow.
+        if (item.viewController == pane) {
             _tabs.selectedTabViewItemIndex = [_tabs.tabViewItems indexOfObject:item];
-            // Edit Themes… states intent to edit, and the active theme is
-            // unambiguous — land on its page, with Back one click away.
-            [(SettingsAppearanceViewController *)item.viewController showThemeEditorForActiveTheme];
             break;
         }
     }
+    [pane showThemeEditorForActiveTheme];
 }
 
 static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_navigation";

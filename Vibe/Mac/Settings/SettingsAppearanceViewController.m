@@ -80,7 +80,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 @implementation SettingsAppearanceViewController {
     // The list page.
     NSPopUpButton *_appearancePopUp;
-    NSPopUpButton *_modePopUp;
     NSSwitch *_trafficLightsSwitch;
     NSTableView *_themeTable;
     NSPopUpButton *_addThemeButton;
@@ -117,6 +116,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSSwitch *_keyColorsSwitch;
     NSSwitch *_waveformGradientSwitch;
     NSSwitch *_playlistArtworkSwitch;
+    NSPopUpButton *_modePopUp;
     NSPopUpButton *_albumArtPopUp;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
@@ -164,12 +164,9 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 - (void)buildListControls {
     _appearancePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                            action:@selector(appearanceChanged:)];
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_SYSTEM];
-    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_LIGHT];
-    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-    [_appearancePopUp addItemWithTitle:STR_MENU_APPEARANCE_DARK];
-    _appearancePopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+    [self addItem:STR_MENU_APPEARANCE_SYSTEM value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT to:_appearancePopUp];
+    [self addItem:STR_MENU_APPEARANCE_LIGHT value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT to:_appearancePopUp];
+    [self addItem:STR_MENU_APPEARANCE_DARK value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK to:_appearancePopUp];
 
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
@@ -295,15 +292,12 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     _modePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                      action:@selector(themeModeChanged:)];
-    [_modePopUp addItemWithTitle:STR_SETTINGS_THEME_MODE_DUAL];
-    _modePopUp.lastItem.representedObject = SETTINGS_VALUE_THEME_MODE_DUAL;
-    [_modePopUp addItemWithTitle:STR_SETTINGS_THEME_MODE_SINGLE];
-    _modePopUp.lastItem.representedObject = SETTINGS_VALUE_THEME_MODE_SINGLE;
+    [self addItem:STR_SETTINGS_THEME_MODE_DUAL value:SETTINGS_VALUE_THEME_MODE_DUAL to:_modePopUp];
+    [self addItem:STR_SETTINGS_THEME_MODE_SINGLE value:SETTINGS_VALUE_THEME_MODE_SINGLE to:_modePopUp];
 
     _albumArtPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                          action:@selector(albumArtChanged:)];
-    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_THEME_ALBUM_ART_DEFAULT];
-    _albumArtPopUp.lastItem.representedObject = @"";
+    [self addItem:STR_SETTINGS_THEME_ALBUM_ART_DEFAULT value:@"" to:_albumArtPopUp];
     for (NSString *name in [AppTheme bundledAlbumArtNames]) {
         // Bundled art names are data, like theme identifiers — the title is
         // the prettified stem.
@@ -311,26 +305,20 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                 stringByReplacingOccurrencesOfString:@"_" withString:@" "] capitalizedString])];
         _albumArtPopUp.lastItem.representedObject = name;
     }
-    [_albumArtPopUp addItemWithTitle:STR_SETTINGS_THEME_ALBUM_ART_CUSTOM];
-    _albumArtPopUp.lastItem.representedObject = @"custom";
+    [self addItem:STR_SETTINGS_THEME_ALBUM_ART_CUSTOM value:@"custom" to:_albumArtPopUp];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
-    [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
-    _backgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
-    [_backgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_SOLID];
-    _backgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID;
+    [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
+    [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_backgroundPopUp];
     _backgroundDarkWell = [self themeColorWellWithAction:@selector(backgroundColorChanged:)];
     _backgroundLightWell = [self themeColorWellWithAction:@selector(backgroundColorChanged:)];
     _backgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_COLORS
             control:[self darkLightPairWithDark:_backgroundDarkWell light:_backgroundLightWell]];
 
     _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
-    [_windowTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
-    _windowTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+    [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_windowTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_windowTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_windowTintPopUp];
     _windowTintDarkWell = [self themeColorWellWithAction:@selector(windowTintColorChanged:)];
     _windowTintLightWell = [self themeColorWellWithAction:@selector(windowTintColorChanged:)];
     _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
@@ -356,10 +344,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
     _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                    action:@selector(playlistBackgroundStyleChanged:)];
-    [_playlistBackgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_GLASS];
-    _playlistBackgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
-    [_playlistBackgroundPopUp addItemWithTitle:STR_SETTINGS_THEME_BACKGROUND_SOLID];
-    _playlistBackgroundPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID;
+    [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_playlistBackgroundPopUp];
+    [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
 
     _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
@@ -371,10 +357,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _showBPMSwitch = [self switchWithAction:@selector(toggleShowBPM:)];
     _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
     _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
-    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_CAMELOT];
-    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
-    [_keyNotationPopUp addItemWithTitle:STR_SETTINGS_KEY_NOTATION_MUSICAL];
-    _keyNotationPopUp.lastItem.representedObject = SETTINGS_VALUE_KEY_NOTATION_MUSICAL;
+    [self addItem:STR_SETTINGS_KEY_NOTATION_CAMELOT value:SETTINGS_VALUE_KEY_NOTATION_CAMELOT to:_keyNotationPopUp];
+    [self addItem:STR_SETTINGS_KEY_NOTATION_MUSICAL value:SETTINGS_VALUE_KEY_NOTATION_MUSICAL to:_keyNotationPopUp];
     _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
 
     _titleDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
@@ -396,18 +380,13 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
                         localizedStandardCompare:[player displayNameForWaveformStyle:b]];
             }];
     for (NSString *identifier in styles) {
-        [_waveformPopUp addItemWithTitle:[player displayNameForWaveformStyle:identifier]];
-        _waveformPopUp.lastItem.representedObject = identifier;
+        [self addItem:[player displayNameForWaveformStyle:identifier] value:identifier to:_waveformPopUp];
     }
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_MONO];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ORANGE];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ORANGE;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
-    [_waveformThemePopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
-    _waveformThemePopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+    [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART value:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART to:_waveformThemePopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_THEME_CUSTOM value:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM to:_waveformThemePopUp];
 
     _waveformGradientSwitch = [self switchWithAction:@selector(toggleWaveformGradient:)];
     _playlistArtworkSwitch = [self switchWithAction:@selector(togglePlaylistArtwork:)];
@@ -432,12 +411,9 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     // same custom-color rows shown only under Custom.
     _playlistTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                              action:@selector(playlistTintChanged:)];
-    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_NONE];
-    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_MONO;
-    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_ARTWORK];
-    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
-    [_playlistTintPopUp addItemWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM];
-    _playlistTintPopUp.lastItem.representedObject = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+    [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_playlistTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_playlistTintPopUp];
+    [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_playlistTintPopUp];
     _playlistTintDarkWell = [self themeColorWellWithAction:@selector(playlistTintColorChanged:)];
     _playlistTintLightWell = [self themeColorWellWithAction:@selector(playlistTintColorChanged:)];
     _playlistTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
@@ -626,8 +602,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _editorShown = NO;
     _editorForwardAvailable = YES;
     [self closeFontPanel];
-    [self applyEditorVisibility];
-    [self refreshFromSettings];
+    [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
 - (void)viewDidDisappear {
@@ -639,6 +614,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
 - (void)resolveLayoutStateFromSettings {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL builtIn = [AppTheme isBuiltInIdentifier:
+            AppSettings.sharedInstance.activeThemeIdentifier];
+    _nameRow.hidden = builtIn;
+    _builtInRow.hidden = !builtIn;
     // A single-mode theme has one color per field, so every Dark/Light pair
     // collapses to one well — the dark-keyed well, the single slot's home —
     // with the captions hidden, and the per-side rows keep only that one.
@@ -703,10 +682,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
     _removeThemeButton.enabled = !builtIn;
 
-    // The editor, from the working theme.
+    // The editor, from the working theme. (The name/built-in row swap lives
+    // in resolveLayoutStateFromSettings with the other conditional rows.)
     _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
-    _nameRow.hidden = builtIn;
-    _builtInRow.hidden = !builtIn;
 
     [_modePopUp selectItemAtIndex:
             [_modePopUp indexOfItemWithRepresentedObject:theme.mode]];
@@ -808,19 +786,17 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)refreshFontValueLabels {
-    NSFont *main = [Fonts mainFont:kVibeThemeMainFontBaseSize];
-    NSFont *info = [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
-    NSFont *playlist = [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
-    NSFont *playlistDuration =
-            [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
-    _mainFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
-            main.displayName, (long)lround(main.pointSize)];
-    _infoFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
-            info.displayName, (long)lround(info.pointSize)];
-    _playlistFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
-            playlist.displayName, (long)lround(playlist.pointSize)];
-    _playlistDurationFontValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
-            playlistDuration.displayName, (long)lround(playlistDuration.pointSize)];
+    NSDictionary<NSNumber *, NSTextField *> *labels = @{
+        @(VibeThemeFontSlotMain): _mainFontValue,
+        @(VibeThemeFontSlotInfo): _infoFontValue,
+        @(VibeThemeFontSlotPlaylist): _playlistFontValue,
+        @(VibeThemeFontSlotPlaylistDuration): _playlistDurationFontValue,
+    };
+    for (NSNumber *slot in labels) {
+        NSFont *font = [self currentFontForSlot:slot.integerValue];
+        labels[slot].stringValue = [NSString stringWithFormat:STR_SETTINGS_THEME_FONT_VALUE,
+                font.displayName, (long)lround(font.pointSize)];
+    }
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
@@ -1097,8 +1073,23 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     AppSettings.sharedInstance.currentTheme.mode =
             _modePopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
-    [self resolveLayoutStateFromSettings];
-    [self refreshFromSettings];
+    [self refreshFromSettings]; // ends in resolveLayoutStateFromSettings
+}
+
+// Seeds each unset side of a color pair from its displayed fallback, so the
+// surface immediately matches what the wells show when a popup reveals them.
+// Dark side FIRST: under single mode both reads and writes canonicalize to
+// the dark-keyed slot, so the dark pass seeds it and the light pass finds it
+// set and skips — the one slot takes the dark default with no special case.
+- (void)seedUnsetColors:(VibeColor *_Nullable (^)(BOOL isDark))current
+               fallback:(VibeColor *(^)(BOOL isDark))fallback
+                 setter:(void (^)(VibeColor *color, BOOL isDark))setter {
+    for (int darkPass = 1; darkPass >= 0; darkPass--) {
+        BOOL isDark = darkPass == 1;
+        if (!current(isDark)) {
+            setter(fallback(isDark), isDark);
+        }
+    }
 }
 
 #pragma mark - Editor: window
@@ -1108,18 +1099,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL solid = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
     if (solid) {
-        // Choosing Solid seeds any unset color from the wells' displayed
-        // fallbacks, so the window immediately matches them. Single mode has
-        // one slot, seeded once from the dark default — without the guard the
-        // light pass would land the light default in it.
-        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme windowBackgroundColorForDark:isDark]) {
-                [theme setWindowBackgroundColor:
-                        [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]
-                                        forDark:isDark];
-            }
-        }
+        [self seedUnsetColors:^(BOOL isDark) { return [theme windowBackgroundColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]; }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setWindowBackgroundColor:color forDark:isDark]; }];
     }
     theme.windowBackgroundStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
@@ -1146,12 +1128,9 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
-        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme windowTintColorForDark:isDark]) {
-                [theme setWindowTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
-            }
-        }
+        [self seedUnsetColors:^(BOOL isDark) { return [theme windowTintColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return DefaultWindowTintColor(isDark); }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setWindowTintColor:color forDark:isDark]; }];
     }
     theme.windowTint = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
@@ -1315,17 +1294,12 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
-        // Choosing Custom seeds any unset color from the wells' displayed
-        // fallbacks, so the waveform immediately matches what the wells show.
-        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme waveformPlayedColorForDark:isDark]) {
-                [theme setWaveformPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
-            }
-            if (![theme waveformUnplayedColorForDark:isDark]) {
-                [theme setWaveformUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
-            }
-        }
+        [self seedUnsetColors:^(BOOL isDark) { return [theme waveformPlayedColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return DefaultCustomPlayedColor(isDark); }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setWaveformPlayedColor:color forDark:isDark]; }];
+        [self seedUnsetColors:^(BOOL isDark) { return [theme waveformUnplayedColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return DefaultCustomUnplayedColor(isDark); }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setWaveformUnplayedColor:color forDark:isDark]; }];
     }
     theme.waveformTheme = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
@@ -1352,18 +1326,9 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     NSString *identifier = _playlistBackgroundPopUp.selectedItem.representedObject;
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
-        // Choosing Solid seeds any unset color from the wells' displayed
-        // fallbacks, so the playlist immediately matches them. Single mode has
-        // one slot, seeded once from the dark default — without the guard the
-        // light pass would land the light default in it.
-        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme playlistBackgroundColorForDark:isDark]) {
-                [theme setPlaylistBackgroundColor:
-                        [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]
-                                          forDark:isDark];
-            }
-        }
+        [self seedUnsetColors:^(BOOL isDark) { return [theme playlistBackgroundColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return [MainPlayerContentView defaultSolidBackgroundColorForDark:isDark]; }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setPlaylistBackgroundColor:color forDark:isDark]; }];
     }
     theme.playlistBackgroundStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
@@ -1375,12 +1340,9 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (custom) {
-        for (int darkPass = theme.isSingleMode ? 1 : 0; darkPass <= 1; darkPass++) {
-            BOOL isDark = darkPass == 1;
-            if (![theme playlistTintColorForDark:isDark]) {
-                [theme setPlaylistTintColor:DefaultWindowTintColor(isDark) forDark:isDark];
-            }
-        }
+        [self seedUnsetColors:^(BOOL isDark) { return [theme playlistTintColorForDark:isDark]; }
+                     fallback:^(BOOL isDark) { return DefaultWindowTintColor(isDark); }
+                       setter:^(VibeColor *color, BOOL isDark) { [theme setPlaylistTintColor:color forDark:isDark]; }];
     }
     theme.playlistTint = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];

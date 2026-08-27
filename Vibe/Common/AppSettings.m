@@ -113,6 +113,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #endif  // TARGET_OS_OSX
 
 @implementation AppSettings {
+    NSArray<NSDictionary *> *_storedUserThemesCache;
 #if TARGET_OS_OSX
     AppTheme   *_currentTheme;
     BOOL        _hotCacheValid;
@@ -400,8 +401,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 // Sanitized on read: an entry without a usable id and name is dropped, and
 // every entry's fields go back through AppTheme's gate, so an external
-// defaults write cannot smuggle in what an import would refuse.
+// defaults write cannot smuggle in what an import would refuse. Memoized —
+// the sanitize pass costs a full record walk per theme and every identity
+// query funnels here — and dropped by persistUserThemes:, the one writer
+// (no CLI-side verb writes this key, so the cross-process prefs trap in
+// Common/CLAUDE.md does not reach it).
 - (NSArray<NSDictionary *> *)storedUserThemes {
+    if (_storedUserThemesCache) {
+        return _storedUserThemesCache;
+    }
     NSArray *stored = [[NSUserDefaults standardUserDefaults] arrayForKey:SETTING_USER_THEMES];
     NSMutableArray<NSDictionary *> *themes = [NSMutableArray array];
     for (id entry in stored) {
@@ -418,10 +426,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         NSDictionary *record = [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
         [themes addObject:UserThemeEntry(record, identifier, name)];
     }
-    return themes;
+    _storedUserThemesCache = [themes copy];
+    return _storedUserThemesCache;
 }
 
 - (void)persistUserThemes:(NSArray<NSDictionary *> *)themes {
+    _storedUserThemesCache = nil;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     if (themes.count) {
         [defaults setObject:themes forKey:SETTING_USER_THEMES];

@@ -50,15 +50,17 @@ NS_ASSUME_NONNULL_BEGIN
 @class NSAppearance;
 
 
+// The window's appearance setting: "" follows the OS, light and dark pin it.
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
+#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
+
 // The window header's color wash. Stable identifiers, never display names:
 // mono leaves the glass unwashed, artwork — the default — washes it with the
 // playing track's dominant art color clamped into the appearance's band, and
 // custom uses the picked color pair as picked. Only the wash follows this;
 // the art color still settles, so the dock icon and the album_art waveform
 // theme are the same under every choice.
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
-#define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
 
 #define SETTINGS_VALUE_WINDOW_TINT_MONO                     @"mono"
 #define SETTINGS_VALUE_WINDOW_TINT_ARTWORK                  @"artwork"
@@ -153,9 +155,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
 
-// YES, the default, shows the custom close and minimize traffic lights in the
-// main window. A writer requests VibeSettingsLiveEffectTrafficLights so the
-// already-built controls update immediately.
 // "" (Auto, the default) tracks the OS light/dark setting; light and dark pin
 // the main window. A common setting, deliberately outside the theme — a theme
 // decides its COLORS' mode (AppTheme.mode), never the window's appearance.
@@ -166,6 +165,9 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // light/dark setting rather than pinning one.
 - (nullable NSAppearance *)windowAppearance;
 
+// YES, the default, shows the custom close and minimize traffic lights in the
+// main window. A writer requests VibeSettingsLiveEffectTrafficLights so the
+// already-built controls update immediately.
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
 

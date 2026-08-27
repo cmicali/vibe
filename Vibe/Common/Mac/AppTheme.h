@@ -175,10 +175,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) BOOL keyColorsEnabled;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 
-// The three font slots. An empty face means the built-in font — Fonts owns
+// The four font slots. An empty face means the built-in font — Fonts owns
 // what that resolves to, and resolves an uninstalled face with its never-nil
 // fallback, so faces are not validated here. Sizes are absolute at each
-// slot's reference site (title 23, info 13, playlist 14); call sites derive
+// slot's reference site (title 23, info 13, playlist 14, playlist duration 12); call sites derive
 // their own size as an offset from that base, which is why the clamps are
 // narrow — the frames the labels sit in are fixed.
 @property (nonatomic, copy) NSString *mainFontFace;
@@ -195,6 +195,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // names an image the user picked, copied into the app container. Resolution
 // and its lifetime cache are imageForDefaultAlbumArt: below.
 @property (nonatomic, copy) NSString *defaultAlbumArt;
+// This theme's resolved placeholder — imageForDefaultAlbumArt: over the field.
+@property (readonly, nonatomic) NSImage *resolvedDefaultAlbumArtImage;
 
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's
@@ -233,11 +235,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
                               light:(nullable VibeColor *)light
                            fallback:(VibeColor *)fallback;
 
-// The four label colors resolved over their semantic fallbacks — title over
-// labelColor, artist and time over secondaryLabelColor, info over
-// tertiaryLabelColor — spelled once, so the header, the playlist and the
-// corner readouts cannot disagree about a slot's fallback. Same capture
-// semantics as dynamicColorWithDark: above.
 // The appearance a single-mode theme demands, or nil when the appearance
 // setting should rule. Single mode is one constant look with no consideration
 // of light or dark at all: the window pins to the dark appearance — the app's
@@ -247,6 +244,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // labels too; single mode never second-guesses the palette.
 - (nullable NSAppearance *)requiredWindowAppearance;
 
+// The four label colors resolved over their semantic fallbacks — title over
+// labelColor, artist and time over secondaryLabelColor, info over
+// tertiaryLabelColor — spelled once, so the header, the playlist and the
+// corner readouts cannot disagree about a slot's fallback. Same capture
+// semantics as dynamicColorWithDark: above.
 - (VibeColor *)resolvedTitleColor;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;

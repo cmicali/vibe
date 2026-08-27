@@ -40,12 +40,7 @@ static NSTabViewController *VibeSettingsTabs(NSString **errorJSON) {
     // controller that owns pane selection is its content child. Driving IT is
     // what keeps this channel honest — didSelectTabViewItem syncs the sidebar
     // row back, so a programmatic selection looks exactly like a click.
-    // The settings window installs the split view as a plain content view
-    // (no contentViewController), so reach its controller through the
-    // responder chain, where every view controller inserts itself.
-    NSResponder *next = window.contentView.nextResponder;
-    NSViewController *root = window.contentViewController
-            ?: ([next isKindOfClass:NSViewController.class] ? (NSViewController *)next : nil);
+    NSViewController *root = window.contentViewController;
     if ([root isKindOfClass:NSSplitViewController.class]) {
         for (NSViewController *child in root.childViewControllers) {
             if ([child isKindOfClass:NSTabViewController.class]) {
@@ -469,6 +464,22 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
             return matches.firstObject;
         }
         if (matches.count > 1) {
+            // A hidden page's controls stay in the dump for honesty, but a
+            // NAME should resolve against what is on screen: the two-page
+            // Appearance pane has an "Appearance" popup on each page, and
+            // without this tie-break neither is ever reachable by name.
+            NSMutableArray<VibeSettingsElement *> *visible = [NSMutableArray array];
+            for (VibeSettingsElement *match in matches) {
+                if (!match.view.isHiddenOrHasHiddenAncestor) {
+                    [visible addObject:match];
+                }
+            }
+            if (visible.count == 1) {
+                return visible.firstObject;
+            }
+            if (visible.count) {
+                matches = visible;
+            }
             // A readout beside a control legitimately shares its row's label
             // (the corner-radius slider's px value), and a readout cannot be
             // clicked — so the unclickable kinds only make a name ambiguous

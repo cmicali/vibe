@@ -4,6 +4,7 @@
 //
 
 #import "SettingsPaneViewController.h"
+#import "NSView+DarkMode.h"
 #import "WindowAnimation.h"
 
 
@@ -93,10 +94,8 @@ static const CGFloat kInlineBadgeGap = 8;
 }
 
 - (void)updateLayer {
-    BOOL dark = [[self.effectiveAppearance
-            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
-            isEqualToString:NSAppearanceNameDarkAqua];
-    self.layer.backgroundColor = dark ? NSColor.clearColor.CGColor : NSColor.whiteColor.CGColor;
+    self.layer.backgroundColor =
+            self.isDark ? NSColor.clearColor.CGColor : NSColor.whiteColor.CGColor;
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -287,6 +286,11 @@ static const CGFloat kInlineBadgeGap = 8;
                       forOrientation:NSLayoutConstraintOrientationHorizontal];
     [popUp.widthAnchor constraintLessThanOrEqualToConstant:width].active = YES;
     return popUp;
+}
+
+- (void)addItem:(NSString *)title value:(id)value to:(NSPopUpButton *)popUp {
+    [popUp addItemWithTitle:title];
+    popUp.lastItem.representedObject = value;
 }
 
 - (NSSwitch *)switchWithAction:(SEL)action {

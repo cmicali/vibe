@@ -61,6 +61,11 @@ static const CGFloat kPanePadding = 20;
 // NULL for a popup whose items carry their own targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
 
+// One popup item: title shown, stable identifier on representedObject — the
+// pairing every settings popup uses, so a mis-paired title/value cannot
+// happen one line at a time.
+- (void)addItem:(NSString *)title value:(nullable id)value to:(NSPopUpButton *)popUp;
+
 // The iOS-style toggle every boolean row uses; reads and writes exactly like
 // the checkbox it replaced (NSControlStateValueOn/Off).
 - (NSSwitch *)switchWithAction:(SEL)action;

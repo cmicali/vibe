@@ -8,6 +8,7 @@
 #import <compression.h>
 #import <CommonCrypto/CommonDigest.h>
 #import <ImageIO/ImageIO.h>
+#import "PlatformImage.h"
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
@@ -272,6 +273,10 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
 @implementation AppTheme {
     // Only sanitized values differing from the defaults — the sparse record.
     NSMutableDictionary<NSString *, id> *_fields;
+    // Parsed colors keyed by their hex VALUE, so the cache can never go
+    // stale and needs no invalidation hook — an edited field is a new hex.
+    // Rows read their fills per draw; without this every draw re-parses.
+    NSMutableDictionary<NSString *, VibeColor *> *_parsedColors;
 }
 
 + (VibeColor *)dynamicColorWithDark:(VibeColor *)dark
@@ -503,21 +508,31 @@ static NSString *VibeValidatedAlbumArtExtension(NSData *data, NSString **outReas
         if (cached) {
             return cached;
         }
-        NSImage *image = nil;
+        // The bounded decode (Common/PlatformImage.h): the draw sites are the
+        // header panel and thumbnail cells, and a 4096px original must never
+        // be materialized into a lifetime-cached full bitmap.
+        NSData *data = nil;
         if ([key hasPrefix:@"custom:"]) {
-            NSString *path = [VibeCustomAlbumArtDirectory()
-                    stringByAppendingPathComponent:[key substringFromIndex:7]];
-            image = [[NSImage alloc] initWithContentsOfFile:path];
+            data = [NSData dataWithContentsOfFile:[VibeCustomAlbumArtDirectory()
+                    stringByAppendingPathComponent:[key substringFromIndex:7]]];
+            // One custom image is live at a time; auditioned predecessors
+            // would otherwise stay pinned by their content-hash keys.
+            for (NSString *stale in [cache.allKeys copy]) {
+                if ([stale hasPrefix:@"custom:"]) {
+                    [cache removeObjectForKey:stale];
+                }
+            }
         } else if (key.length) {
             for (NSString *ext in @[@"png", @"jpg"]) {
                 NSURL *url = [[NSBundle bundleForClass:self] URLForResource:key
                         withExtension:ext subdirectory:@"Themes/art"];
                 if (url) {
-                    image = [[NSImage alloc] initWithContentsOfURL:url];
+                    data = [NSData dataWithContentsOfURL:url];
                     break;
                 }
             }
         }
+        NSImage *image = data ? VibeDecodedImageWithData(data, kVibeDisplayArtDimension) : nil;
         // The factory record image; the blank square is for the host-less
         // test bundle, which carries no asset catalog.
         image = image ?: [NSImage imageNamed:@"record-bg"]
@@ -946,6 +961,7 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
 
 - (NSString *)defaultAlbumArt { return [self stringForKey:kFieldDefaultAlbumArt]; }
+- (NSImage *)resolvedDefaultAlbumArtImage { return [AppTheme imageForDefaultAlbumArt:self.defaultAlbumArt]; }
 - (void)setDefaultAlbumArt:(NSString *)v { [self storeSanitized:v forKey:kFieldDefaultAlbumArt]; }
 
 - (BOOL)showPlaylistArtwork { return [self boolForKey:kFieldShowPlaylistArtwork]; }
@@ -957,8 +973,19 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 #pragma mark Color pairs
 
 - (VibeColor *)colorForBase:(NSString *)base dark:(BOOL)isDark {
-    return VibeColorFromHexString(
-            _fields[ColorFieldKey(base, self.isSingleMode ? YES : isDark)]);
+    NSString *hex = _fields[ColorFieldKey(base, self.isSingleMode ? YES : isDark)];
+    if (!hex) {
+        return nil;
+    }
+    VibeColor *color = _parsedColors[hex];
+    if (!color) {
+        color = VibeColorFromHexString(hex);
+        if (!_parsedColors) {
+            _parsedColors = [NSMutableDictionary dictionary];
+        }
+        _parsedColors[hex] = color;
+    }
+    return color;
 }
 
 // Single mode has ONE color per field, used whatever the appearance is. The

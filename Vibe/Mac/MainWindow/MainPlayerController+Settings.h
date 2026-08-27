@@ -27,7 +27,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The themed window shape and background: the corner radius at its five
     // consumers, and the solid-background cover over the glass.
     VibeSettingsLiveEffectWindowChrome     = 1UL << 14,
-    // The three themed font slots: push the theme's choice into Fonts, then
+    // The four themed font slots: push the theme's choice into Fonts, then
     // re-resolve every label that holds a slot font.
     VibeSettingsLiveEffectFonts            = 1UL << 15,
     // The playlist's themed colors and font: cell attributes rebuild, rows
@@ -35,8 +35,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // solid cover — the tint wash above it rides WindowTint).
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
     // Everything applying a whole theme moves at once. WindowAppearance is
-    // included because a single-mode theme's solid background can demand a
-    // pinned appearance (AppTheme.requiredWindowAppearance) even though the
+    // included because a single-mode theme demands the pinned dark
+    // appearance (AppTheme.requiredWindowAppearance) even though the
     // appearance SETTING stays a common one; TrafficLights stays outside.
     VibeSettingsLiveEffectThemeApply       = VibeSettingsLiveEffectWindowAppearance
                                            | VibeSettingsLiveEffectWaveformStyle
