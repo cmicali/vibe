@@ -45,22 +45,21 @@ Both are free functions rather than categories because there is no single foreig
 
 **`DocumentTypes`** — the `CFBundleDocumentTypes` declarations from `Info.plist`, read back as `UTType`s; stateless, all class methods. `declaredTypes` is everything including the folder declaration, `declaredFileTypes` the files alone. `Info.plist` is the single source of truth, so the `⌘O` panel's filter and what the app is registered for cannot drift. The Launch Services side is `DefaultAppRegistration` (`Mac/Settings/`), which keeps this class AppKit-free.
 
-## The platform split is one `#if TARGET_OS_OSX` block
+## The platform split is one `#if TARGET_OS_OSX` block plus one `#if !TARGET_OS_OSX` block
 
-Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the block:
+Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the macOS block:
 
-- the settings themselves: `waveformStyle`, `waveformTheme` with its custom colors (a played *and* an unplayed accessor, each taking the appearance, so four colors in all), and `folderOpenSort`;
+- the iOS-only loose appearance keys, in their own `#if !TARGET_OS_OSX`: `waveformStyle`, `waveformTheme` with its custom colors (a played *and* an unplayed accessor, each taking the appearance, so four colors in all). On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
+- `folderOpenSort`, genuinely shared;
 - the store-wide entry points, which belong to no one setting: `sharedInstance`, `applicationDidFinishLaunching`, `allSettingsAtDefaults` and `resetToDefaults`.
 
 "Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
 
-## The hot-path cache lives for one turn of the main run loop
+## There is no settings cache
 
-One setting is left in it: `uiUpdateHzCap`, read on every live-resize frame. It is a macOS setting, which is why the cache is inside the `#if`; main thread only. The display flags the cache used to carry moved into `AppTheme`, whose fields are in-memory and need no cache.
+Reads go straight to `NSUserDefaults` — a CFPreferences lookup apiece, cheap enough even for `uiUpdateHzCap`'s read on every live-resize frame. The display flags that once justified a per-turn hot cache moved into `AppTheme`, whose fields are in-memory; the cache mechanism went with them.
 
-**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's CLI-side prefs verbs (`set_analysis`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. Invalidating on that notification left the app reporting the old value for good. So the cache's lifetime is a run-loop turn instead: a `CFRunLoopObserver` drops it before the loop sleeps, and the setters drop it immediately (`invalidateHotCache`). A value is therefore never more than one turn stale, and no writer has to remember anything.
-
-The analysis flags are deliberately **not** cached — the waveform loader is handed their values once per decode through its analysis provider, which is not a hot path.
+**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process**, and the debug channel's CLI-side prefs verbs (`set_analysis`) are exactly that — the CLI client writing while the app runs, as is a plain `defaults write`. A cache invalidated on that notification reports the old value for good; observed, not hypothetical. Any future cache over a stored key must invalidate some other way (the old hot cache used a per-run-loop-turn lifetime).
 
 `FolderArtResolver` caches its own setting for the same hot-path reason, but its cache must be dropped **by hand**: a write to `AppSettings.useFolderArt` that skips `VibeSettingsLiveEffectFolderArt` is not observed at all. See `Audio/Metadata/CLAUDE.md`.
 

@@ -317,9 +317,15 @@
 - (void)applyWindowBackground {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSView *overlay = self.windowBackgroundOverlayView;
+    // Solid with an unset pair (a hand-edited import — the gate has no
+    // cross-field rules) draws the default cover, the same fallback the
+    // playlist cover and the editor's wells resolve, so the window always
+    // matches what the wells show.
     NSColor *color = [theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? [theme windowBackgroundColorForDark:overlay.isDark] : nil;
+            ? ([theme windowBackgroundColorForDark:overlay.isDark]
+                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:overlay.isDark])
+            : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
     overlay.layer.cornerRadius = theme.windowCornerRadius;

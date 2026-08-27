@@ -14,6 +14,7 @@
 #import "Fonts.h"
 #import "MusicalKey.h"
 #import "VibeStrings.h"
+#import "NSView+DarkMode.h"
 
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
@@ -131,10 +132,7 @@ static NSColor *camelotColor(NSInteger key) {
         for (NSInteger i = 1; i <= 12; i++) {
             CGFloat hue = fmod(kCamelotHueOfNumberOne + (CGFloat)(i - 1) / 12.0, 1.0);
             palette[i] = [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
-                NSAppearanceName matched = [appearance bestMatchFromAppearancesWithNames:@[
-                    NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
-                ]];
-                BOOL dark = [matched isEqualToString:NSAppearanceNameDarkAqua];
+                BOOL dark = appearance.isDark;
                 return [NSColor colorWithHue:hue
                                   saturation:dark ? 0.62 : 0.90
                                   brightness:dark ? 0.82 : 0.60
@@ -188,11 +186,11 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // The fit itself, always measured at the base font size, so that re-running it
 // on a widened label restores the font a narrower fit shrank.
 - (void)fitTitleFontForText:(NSString *)text {
-    static const CGFloat kTitleBaseSize = kVibeThemeMainFontBaseSize;
+    static const CGFloat kTitleBaseSize = kVibeThemeTitleFontBaseSize;
     // The shrink floor scales with the themed size: 15/23 of the base, the
     // pre-theme ratio.
     static const CGFloat kTitleMinRatio = 15.0 / 23.0;
-    NSFont *font = [Fonts mainFont:kTitleBaseSize];
+    NSFont *font = [Fonts titleFont:kTitleBaseSize];
     CGFloat baseSize = font.pointSize;
     CGFloat maxWidth = self.titleTextField.frame.size.width;
     _titleFittedWidth = maxWidth;

@@ -1,8 +1,14 @@
 {
-  "infoFontFace": "Menlo-Regular",
-  "mode": "single",
-  "name": "Industrial",
-  "version": 1,
-  "waveformStyle": "detailed",
-  "waveformTheme": "orange"
+  "version" : 1,
+  "name" : "Industrial",
+  "window" : {
+    "mode" : "single"
+  },
+  "info" : {
+    "fontFace" : "Menlo-Regular"
+  },
+  "waveform" : {
+    "style" : "detailed",
+    "theme" : "orange"
+  }
 }

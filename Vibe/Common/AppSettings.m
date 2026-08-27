@@ -2,9 +2,9 @@
 //  AppSettings.m
 //  Vibe
 //
-// Laid out like the header: what both targets compile, then one macOS-only
-// block holding everything else — the hot-path cache included, since every
-// cached setting is a macOS one.
+// Laid out like the header: what both targets compile, an iOS-only block for
+// the loose appearance keys the mac theme migration consumed, then one
+// macOS-only block holding everything else.
 //
 
 #import "AppSettings.h"
@@ -82,42 +82,12 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     return best;
 }
 
-// ---- The hot-path cache, which lives for ONE turn of the main run loop.
-//
-// One setting is left in it: uiUpdateHzCap, read on every live-resize frame.
-// Every other accessor here is a CFPreferences lookup apiece, which is what
-// FolderArtResolver caches its own setting to avoid. The display flags the
-// cache used to carry moved into AppTheme, whose fields are in-memory and
-// need no cache.
-//
-// TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
-// does NOT fire for a write from another process — and the debug channel's
-// prefs verbs (set_analysis, set_folder_art) are exactly
-// that, writing from the CLI client while the app runs, as is a plain
-// `defaults write`. Caching on that notification left the app reporting
-// the old value for good; observed, not hypothetical.
-//
-// So the lifetime is a run-loop turn instead: an observer drops the cache
-// before the loop sleeps, and the setters drop it immediately. Every read
-// inside one updateUI pass or one tick is then served from the cache — all
-// of the cost, since that is where the repetition is — while a value can
-// never be more than one turn stale, which is the same freshness an
-// uncached read gave. No writer has to remember anything, which is the
-// difference from the resolver's cache and its one call to forget.
-//
-// Main thread only, which every reader of them is: the header labels, the
-// updateUI funnel, the Settings panes and the debug channel.
-// The analysis flags are deliberately NOT cached — the waveform loader is
-// handed their values once per decode, which is not a hot path.
-//
 #endif  // TARGET_OS_OSX
 
 @implementation AppSettings {
 #if TARGET_OS_OSX
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
-    BOOL        _hotCacheValid;
-    NSInteger   _hotUIUpdateHzCap;
 #endif
 }
 
@@ -144,9 +114,6 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
         [self migrateLooseAppearanceSettingsToTheme];
 #endif
         [self registerDefaults];
-#if TARGET_OS_OSX
-        [self installHotCacheInvalidator];
-#endif
     }
     return self;
 }
@@ -200,7 +167,6 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
         [defaults removeObjectForKey:key];
     }
 #if TARGET_OS_OSX
-    [self invalidateHotCache];
     _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
 #endif
@@ -242,6 +208,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     }
 }
 
+#if !TARGET_OS_OSX
 - (NSString *)waveformStyle {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_STYLE];
 }
@@ -249,6 +216,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setWaveformStyle:(NSString *)identifier {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
+#endif
 
 // The style/theme split left existing Sonic Cirrus users' orange to this
 // one-time write; after it a theme key always exists. Runs before
@@ -262,6 +230,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     }
 }
 
+#if !TARGET_OS_OSX
 - (NSString *)waveformTheme {
     return VibeNormalizedWaveformTheme([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_THEME]);
 }
@@ -289,6 +258,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [self setHexColor:color forKey:
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
 }
+#endif  // !TARGET_OS_OSX
 
 
 - (VibeFolderOpenSort)folderOpenSort {
@@ -301,6 +271,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
                                               forKey:SETTING_FOLDER_OPEN_SORT];
 }
 
+#if !TARGET_OS_OSX
 - (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
     NSString *hex = VibeHexStringFromColor(color);
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -310,6 +281,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
         [defaults removeObjectForKey:key];
     }
 }
+#endif
 
 #if TARGET_OS_OSX
 
@@ -404,7 +376,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 // every entry's fields go back through AppTheme's gate, so an external
 // defaults write cannot smuggle in what an import would refuse. Memoized —
 // the sanitize pass costs a full record walk per theme and every identity
-// query funnels here — and dropped by persistUserThemes:, the one writer
+// query funnels here. persistUserThemes:, the one writer, installs what it
+// wrote rather than dropping it — every caller hands it entries built from
+// this list and AppTheme's own output, so they are already through the gate
 // (no CLI-side verb writes this key, so the cross-process prefs trap in
 // Common/CLAUDE.md does not reach it).
 - (NSArray<NSDictionary *> *)storedUserThemes {
@@ -432,7 +406,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (void)persistUserThemes:(NSArray<NSDictionary *> *)themes {
-    _storedUserThemesCache = nil;
+    _storedUserThemesCache = [themes copy];
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     if (themes.count) {
         [defaults setObject:themes forKey:SETTING_USER_THEMES];
@@ -505,7 +479,11 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     }
     NSDictionary *entry = [self storedUserThemeWithIdentifier:identifier];
     if (entry) {
-        return [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
+        // Already through the gate in storedUserThemes; strip the entry keys.
+        NSMutableDictionary *record = [entry mutableCopy];
+        [record removeObjectsForKeys:@[kVibeThemeRecordIdentifierKey,
+                                       kVibeThemeRecordNameKey]];
+        return [record copy];
     }
     return [AppTheme builtInRecordForIdentifier:kVibeThemeIdentifierVibe];
 }
@@ -617,42 +595,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         return;
     }
-}
-
-#pragma mark The hot-path cache
-
-- (void)primeHotCache {
-    NSAssert(NSThread.isMainThread, @"AppSettings' hot-path cache is main-thread only");
-    if (_hotCacheValid) {
-        return;
-    }
-    _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
-    _hotCacheValid = YES;
-}
-
-- (void)invalidateHotCache {
-    _hotCacheValid = NO;
-}
-
-// Drops the cache before the main run loop sleeps, and on the exit of any
-// nested loop (menu tracking, a live resize), which is what bounds a cached
-// value to the turn that read it. Common modes, so tracking loops are covered.
-// The singleton lives for the process, so the observer is never removed.
-- (void)installHotCacheInvalidator {
-    if (!NSThread.isMainThread) {
-        // The singleton can, in principle, be created by an off-main first
-        // touch. The invalidator belongs to the main loop either way.
-        run_on_main_thread({ [self installHotCacheInvalidator]; });
-        return;
-    }
-    __weak AppSettings *weakSelf = self;
-    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
-            kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 0,
-            ^(CFRunLoopObserverRef o, CFRunLoopActivity activity) {
-                [weakSelf invalidateHotCache];
-            });
-    CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
-    CFRelease(observer);
 }
 
 #pragma mark Output device
@@ -791,20 +733,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
 }
 
-- (NSInteger)storedUIUpdateHzCap {
+// Read on every live-resize frame through syncUITimerRate; a CFPreferences
+// lookup is cheap enough uncached.
+- (NSInteger)uiUpdateHzCap {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
     return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets, kVibeUIUpdateHzCapPresetCount);
 }
 
-// Cached; read on every live-resize frame through syncUITimerRate.
-- (NSInteger)uiUpdateHzCap {
-    [self primeHotCache];
-    return _hotUIUpdateHzCap;
-}
-
 - (void)setUiUpdateHzCap:(NSInteger)hz {
     [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
-    [self invalidateHotCache];
 }
 
 - (BOOL)audioFXEnabled {

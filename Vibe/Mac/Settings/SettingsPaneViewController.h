@@ -42,6 +42,14 @@ static const CGFloat kPanePadding = 20;
 
 @property (weak, readonly, nullable) MainPlayerController *playerController;
 
+// The one size every pane presents — the largest pane's, applied by
+// settleSharedSizeForPanes:. TRAP: deliberately NOT preferredContentSize.
+// macOS 26.5 turns a nonzero preferredContentSize into active equality
+// constraints on the pane's view at priority 501 — one above
+// NSLayoutPriorityWindowSizeStayPut — which fully determines the window's
+// size: no resize cursor at all, and every programmatic resize snapped back.
+@property (readonly, nonatomic) NSSize sharedPaneSize;
+
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
 // Builds the pane's root view: the sections stacked top-down, at least the
@@ -81,16 +89,12 @@ static const CGFloat kPanePadding = 20;
 
 // Remeasures every pane against the rows it is actually showing and re-sizes
 // them all to the largest, which is what the settings window sizes itself to.
-// The base selected-pane refresh path runs it after refreshing; a pane that
-// hides or shows a row at any other moment must call it, or the window keeps
-// the size it was last measured at.
+// The remeasurement, the stack layout and the window frame land in one
+// animated transaction while the window is visible, so the rows cannot jump
+// ahead of the window. The base selected-pane refresh path runs it after
+// refreshing; a pane that hides or shows a row at any other moment must call
+// it, or the window keeps the size it was last measured at.
 - (void)paneContentDidChange;
-
-// Applies a visible-row change, remeasures every pane, and animates the
-// resulting stack layout and window frame in one transaction. A direct UI
-// action that hides or reveals rows uses this instead of changing them before
-// paneContentDidChange, which would make the rows jump ahead of the window.
-- (void)animatePaneContentChange:(void (^)(void))change;
 
 @end
 

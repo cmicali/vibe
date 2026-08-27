@@ -19,11 +19,14 @@ changes, no project edits.
 ## File format
 
 `version` (always 1), `name`, an optional `description` (design rationale —
-ignored by the app), and then only the fields the theme changes from the
-factory look: a missing field means "the default". The field keys are the
-`AppTheme` accessor names (`Vibe/Common/Mac/AppTheme.h`); colors are
+ignored by the app), and then one object per Settings editor section —
+`window`, `player`, `info`, `waveform`, `playlist`, in that order — holding
+only the fields the theme changes from the factory look: a missing field (or
+a whole missing section) means "the default". Keys are section-local
+(`window.cornerRadius`, `waveform.style`, `playlist.showArtworkColumn`); the
+full set is `ThemeJSONGroups()` in `Vibe/Common/Mac/AppTheme.m`. Colors are
 `#RRGGBB[AA]` with a `…Light`/`…Dark` suffix per appearance. A theme with
-`"mode": "single"` uses only the `…Dark`-keyed color slots.
+`"window": {"mode": "single"}` uses only the `…Dark`-keyed slots.
 
 The validation test (`Tests/AppThemeTests.m`, `testBundledThemesAreValid`)
 fails a file whose keys or values would not survive the app's sanitizer
@@ -37,13 +40,14 @@ catalog language — `make check-translations` enforces completeness.
 `vibe.json` is special: it must stay field-free. The empty record IS the
 factory look, and a test pins it.
 
-## Album art
+## Default artwork
 
-`defaultAlbumArt` picks the placeholder drawn when a track has no artwork:
-a bundled name (a square JPEG or PNG dropped in `art/` here — the stem is the
+`player.defaultArtworkDark`/`defaultArtworkLight` pick the placeholder drawn
+when a track has no artwork, one per appearance like every color pair: a
+bundled name (a square JPEG or PNG dropped in `art/` here — the stem is the
 name), or `custom:<sha1>.<ext>` for an image the user picked in the app. A
 theme carrying a custom image exports as a **ZIP** of `theme.json` plus the
-image, and imports the same way (the image is re-validated and re-hashed on
-import). Built-in themes may only name bundled art — the validation test
+image(s), and imports the same way (each image is re-validated and re-hashed
+on import). Built-in themes may only name bundled art — the validation test
 enforces that, and that every file in `art/` is square and within the pixel
 and byte caps.

@@ -6,6 +6,20 @@
 #import "NSURL+Hash.h"
 #include <CommonCrypto/CommonDigest.h>
 
+@implementation NSData (Hash)
+
+- (NSString *)sha1Hex {
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1(self.bytes, (CC_LONG)self.length, digest);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        [hex appendFormat:@"%02x", digest[i]];
+    }
+    return [hex copy];
+}
+
+@end
+
 @implementation NSURL (Hash)
 
 - (nullable NSString *)cacheKey {
@@ -29,14 +43,8 @@
     // surfaces sub-second mtime via getattrlist anyway.
     long long mtimeUs = (long long)llround([(NSDate *)attrs[NSFileModificationDate] timeIntervalSince1970] * 1e6);
 
-    const char *pathCStr = [path UTF8String];
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(pathCStr, (CC_LONG)strlen(pathCStr), digest);
-    char hex[2 * CC_SHA1_DIGEST_LENGTH + 1];
-    for (size_t i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        snprintf(hex + 2 * i, 3, "%02x", digest[i]);
-    }
-    return [NSString stringWithFormat:@"%llu-%lld-%s", size, mtimeUs, hex];
+    NSString *hex = [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex];
+    return [NSString stringWithFormat:@"%llu-%lld-%@", size, mtimeUs, hex];
 }
 
 @end

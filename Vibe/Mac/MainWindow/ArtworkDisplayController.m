@@ -197,9 +197,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 - (BOOL)isDarkAppearance {
     NSAppearance *appearance = _headerTintView.window.effectiveAppearance
             ?: _headerTintView.effectiveAppearance;
-    return [NSAppearanceNameDarkAqua isEqualToString:
-            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua,
-                                                            NSAppearanceNameDarkAqua ]]];
+    return appearance.isDark;
 }
 
 - (NSColor *)dominantArtColor {
@@ -486,7 +484,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     // info-display toggle, and re-installing would reset the dock tile and
     // re-derive the tint washes for nothing.
     if (_showingDefaultArt && _artworkView.image !=
-            AppSettings.sharedInstance.currentTheme.resolvedDefaultAlbumArtImage) {
+            AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage) {
         _showingDefaultArt = NO;
         [self showDefaultArtworkInvalidatingRender:NO];
     }
@@ -501,7 +499,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     if (_showingDefaultArt && _initialized) {
         return;
     }
-    _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultAlbumArtImage;
+    _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
     _dominantArtColor = nil;
     if (self.dominantColorDidChangeHandler) {
         self.dominantColorDidChangeHandler();

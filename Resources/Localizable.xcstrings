@@ -19159,192 +19159,6 @@
       },
       "extractionState": "manual"
     },
-    "menu.view.waveform": {
-      "comment": "View menu: submenu choosing the waveform drawing style.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вълнова форма"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tvar vlny"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeform"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wellenform"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Κυματομορφή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waveform"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de onda"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aaltomuoto"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forme d’onde"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Valni oblik"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hullámforma"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bentuk Gelombang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma d’onda"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파형"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeform"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Golfvorm"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kształt fali"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de Onda"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de onda"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Formă de undă"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Волновая форма"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vlnový priebeh"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vågform"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รูปคลื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalga Biçimi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Хвильова форма"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dạng sóng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        }
-      },
-      "extractionState": "stale"
-    },
     "playlist.grant.button": {
       "comment": "Confirm button of the folder-picker panel that grants access to a playlist file's folder.",
       "localizations": {
@@ -24739,192 +24553,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.fonts_section": {
-      "comment": "Theme editor: heading above the three font rows.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Шрифтове"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Písma"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skrifter"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schriften"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Γραμματοσειρές"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fonts"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tipos de letra"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fontit"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Polices"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fontovi"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Betűtípusok"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Font"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Font"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォント"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서체"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skrifter"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lettertypen"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Czcionki"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fontes"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tipos de letra"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fonturi"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Шрифты"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Písma"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Typsnitt"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แบบอักษร"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yazı tipleri"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Шрифти"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phông chữ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "字体"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "字體"
-          }
-        }
-      },
-      "extractionState": "stale"
-    },
     "settings.appearance.info_section": {
       "comment": "Theme editor: heading above the info-display rows — show file info and the tempo, key and time choices it governs.",
       "localizations": {
@@ -25705,7 +25333,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key notation"
+            "value": "Key notation:"
           }
         },
         "es": {
@@ -27158,7 +26786,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.album_art": {
-      "comment": "Theme editor, Player group: row beside the dropdown choosing the placeholder image shown when a track has no artwork.",
+      "comment": "Theme editor, Player group: row beside the artwork preview pair (one per appearance under Light & Dark Modes, one under Single Mode) showing the placeholder image used when a track has no artwork; clicking a preview opens a file panel to pick a square JPEG or PNG.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -27343,373 +26971,187 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.album_art_custom": {
-      "comment": "Theme editor, Album art dropdown: pick a square JPEG or PNG of your own; opens a file panel.",
+    "settings.appearance.theme.album_art_clear": {
+      "comment": "Theme editor, accessibility label of the small ✕ badge revealed when hovering an artwork preview: removes that preview's picked custom image and returns to the factory record image.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Персонализирана…"
+            "value": "Премахване на персонализираната обложка"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vlastní…"
+            "value": "Odstranit vlastní obal"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilpasset…"
+            "value": "Fjern tilpasset albumcover"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eigenes…"
+            "value": "Eigenes Albumcover entfernen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Προσαρμοσμένο…"
+            "value": "Αφαίρεση προσαρμοσμένου εξωφύλλου"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Custom…"
+            "value": "Clear custom artwork"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personalizada…"
+            "value": "Eliminar la portada personalizada"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muokattu…"
+            "value": "Poista mukautettu kansikuva"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personnalisée…"
+            "value": "Supprimer la pochette personnalisée"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prilagođeno…"
+            "value": "Ukloni prilagođeni omot"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Egyéni…"
+            "value": "Egyéni borító eltávolítása"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kustom…"
+            "value": "Hapus sampul khusus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personalizzata…"
+            "value": "Rimuovi copertina personalizzata"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "カスタム…"
+            "value": "カスタムアルバムアートを削除"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "사용자화…"
+            "value": "사용자 설정 앨범 아트 제거"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilpasset…"
+            "value": "Fjern tilpasset albumomslag"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aangepast…"
+            "value": "Aangepaste albumhoes verwijderen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Niestandardowa…"
+            "value": "Usuń własną okładkę"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personalizada…"
+            "value": "Remover capa personalizada"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personalizada…"
+            "value": "Remover capa personalizada"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personalizată…"
+            "value": "Eliminați coperta personalizată"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Своя…"
+            "value": "Удалить пользовательскую обложку"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vlastný…"
+            "value": "Odstrániť vlastný obal"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anpassad…"
+            "value": "Ta bort anpassat albumomslag"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กำหนดเอง…"
+            "value": "เอาปกแบบกำหนดเองออก"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Özel…"
+            "value": "Özel kapağı kaldır"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Власна…"
+            "value": "Видалити власну обкладинку"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tùy chỉnh…"
+            "value": "Xóa bìa tùy chỉnh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "自定…"
+            "value": "移除自定专辑封面"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "自訂…"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.theme.album_art_default": {
-      "comment": "Theme editor, Album art dropdown: the factory record image.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стандартна"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Výchozí"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standard"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standard"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προεπιλογή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Default"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Por omisión"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oletus"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Par défaut"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zadano"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alapértelmezett"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bawaan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Predefinita"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "デフォルト"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "기본"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standard"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standaard"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Domyślna"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Padrão"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Predefinição"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Implicită"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стандартная"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Predvolený"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Standard"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ค่าเริ่มต้น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Varsayılan"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Стандартна"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mặc định"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "默认"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "預設"
+            "value": "移除自訂專輯封面"
           }
         }
       },
@@ -36121,7 +35563,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Time display"
+            "value": "Time display:"
           }
         },
         "es": {

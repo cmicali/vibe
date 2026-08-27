@@ -54,17 +54,17 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // reason as the radius max: compile-time constants shared by the theme
 // defaults, Fonts' offset math and the reference call sites, so the offset
 // arithmetic cannot skew against a copy.
-#define kVibeThemeMainFontBaseSize     ((CGFloat)23)
+#define kVibeThemeTitleFontBaseSize     ((CGFloat)23)
 #define kVibeThemeArtistFontBaseSize   ((CGFloat)16)
 #define kVibeThemeInfoFontBaseSize     ((CGFloat)13)
 #define kVibeThemePlaylistFontBaseSize ((CGFloat)14)
 #define kVibeThemePlaylistDurationFontBaseSize ((CGFloat)12)
 
 // Keys a theme JSON carries beside the field overrides. The name travels on
-// export/import; the version marks the schema; a record's id never leaves the
-// store — export strips it, import mints a fresh one.
+// export/import; a record's id never leaves the store — export strips it,
+// import mints a fresh one. (The JSON's version key is the writer's literal;
+// the reader takes any record the gate accepts.)
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordNameKey;
-FOUNDATION_EXPORT NSString *const kVibeThemeRecordVersionKey;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 @interface AppTheme : NSObject
@@ -81,21 +81,22 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // AppSettings overlays the ThemeNames catalog for the localized form.
 + (nullable NSString *)builtInNameForIdentifier:(NSString *)identifier;
 
-#pragma mark Default album art
+#pragma mark Default artwork
 
-// Never nil: the resolved placeholder for a theme's defaultAlbumArt value —
+// Never nil: the resolved placeholder for one side's stored value —
 // the bundled or container image it names, or the factory record image for
 // "", an unknown name, or a missing file. Cached for the app's lifetime;
 // custom references are content-hashed, so a changed image is a new key.
-+ (NSImage *)imageForDefaultAlbumArt:(nullable NSString *)value;
++ (NSImage *)imageForDefaultArtwork:(nullable NSString *)value;
+
 
 // The bundled choices: the filename stems under Resources/Themes/art.
-+ (NSArray<NSString *> *)bundledAlbumArtNames;
++ (NSArray<NSString *> *)bundledDefaultArtworkNames;
 
 // Validates (JPEG or PNG, square, within pixel and byte caps), copies into
 // the app container, and returns the record value ("custom:<sha1>.<ext>"),
 // or nil with the reason. The bytes are stored as-is, never re-encoded.
-+ (nullable NSString *)storeCustomAlbumArtData:(NSData *)data
++ (nullable NSString *)storeCustomArtworkData:(NSData *)data
                                          error:(NSError *_Nullable *_Nullable)error;
 
 #pragma mark Theme archives (JSON + image)
@@ -127,12 +128,15 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 + (nullable NSDictionary<NSString *, id> *)migratedRecordFromLegacyValues:
         (NSDictionary<NSString *, id> *)legacyValues;
 
-// A theme JSON, both ways. recordFromJSONData caps the input size, requires a
-// JSON object, reports the name it carried (nil when absent), and returns the
-// sanitized sparse record — an empty record is a valid theme that looks like
-// the defaults. JSONDataForRecord composes record + version + name, sorted
-// and pretty-printed. The id key never travels: export strips it, import
-// mints a fresh one.
+// A theme JSON, both ways. The file form is nested: version first, then
+// name, then one object per editor section — window, player, info, waveform,
+// playlist — holding that section's fields under section-local keys.
+// recordFromJSONData caps the input size, requires a JSON object, reports the
+// name it carried (nil when absent), and returns the sanitized sparse FLAT
+// record — an empty record is a valid theme that looks like the defaults.
+// JSONDataForRecord composes version + name + the grouped fields, pretty-
+// printed with sorted keys inside each group. The id key never travels:
+// export strips it, import mints a fresh one.
 + (nullable NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
                                                          name:(NSString *_Nullable *_Nullable)outName
                                                         error:(NSError **)error;
@@ -171,19 +175,19 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;
-@property (nonatomic) BOOL showPlaylistArtwork;             // the playlist's art column
-@property (nonatomic) BOOL showPlaylistDuration;            // the playlist's length column
+@property (nonatomic) BOOL showPlaylistArtworkColumn;             // the playlist's art column
+@property (nonatomic) BOOL showPlaylistDurationColumn;            // the playlist's length column
 @property (nonatomic) BOOL keyColorsEnabled;
 @property (nonatomic, copy) NSString *keyNotation;          // camelot/musical
 
-// The four font slots. An empty face means the built-in font — Fonts owns
+// The five font slots. An empty face means the built-in font — Fonts owns
 // what that resolves to, and resolves an uninstalled face with its never-nil
 // fallback, so faces are not validated here. Sizes are absolute at each
 // slot's reference site (title 23, info 13, playlist 14, playlist duration 12); call sites derive
 // their own size as an offset from that base, which is why the clamps are
 // narrow — the frames the labels sit in are fixed.
-@property (nonatomic, copy) NSString *mainFontFace;
-@property (nonatomic) CGFloat mainFontSize;                 // clamped [20, 26]
+@property (nonatomic, copy) NSString *titleFontFace;
+@property (nonatomic) CGFloat titleFontSize;                 // clamped [20, 26]
 @property (nonatomic, copy) NSString *artistFontFace;
 @property (nonatomic) CGFloat artistFontSize;      // clamped [12, 20]
 @property (nonatomic, copy) NSString *infoFontFace;
@@ -193,13 +197,19 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic, copy) NSString *playlistDurationFontFace;
 @property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
 
-// The no-artwork placeholder: "" (the default) is the factory record image; a
-// bundled name picks Resources/Themes/art/<name>.png|jpg; "custom:<sha1>.<ext>"
-// names an image the user picked, copied into the app container. Resolution
-// and its lifetime cache are imageForDefaultAlbumArt: below.
-@property (nonatomic, copy) NSString *defaultAlbumArt;
-// This theme's resolved placeholder — imageForDefaultAlbumArt: over the field.
-@property (readonly, nonatomic) NSImage *resolvedDefaultAlbumArtImage;
+// The no-artwork placeholder, one per appearance like every color pair: ""
+// (the default) is the factory record image; a bundled name picks
+// Resources/Themes/art/<name>.png|jpg; "custom:<sha1>.<ext>" names an image
+// the user picked, copied into the app container. Single mode reads and
+// writes the dark slot from either side — the color pairs' rule — while the
+// light half lies dormant, so a mode flip round-trips.
+- (NSString *)defaultArtworkForDark:(BOOL)isDark;
+- (void)setDefaultArtwork:(NSString *)value forDark:(BOOL)isDark;
+// This theme's resolved placeholder as ONE image: when the sides differ, a
+// cached dynamic wrapper drawing whichever the current drawing appearance
+// asks for — the dynamic-color pattern for pixels — so consumers need no
+// dark flag and an appearance flip re-resolves by itself.
+@property (readonly, nonatomic) NSImage *resolvedDefaultArtworkImage;
 
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's
@@ -230,13 +240,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 - (nullable VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark;
 - (void)setPlaylistSelectedRowColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 
-// A per-appearance override pair over a semantic fallback, as one dynamic
-// color: a nil override resolves to the fallback in that appearance. The
-// pair is captured at call time, so a theme change means rebuilding whatever
-// holds the color — an appearance flip re-resolves by itself.
-+ (VibeColor *)dynamicColorWithDark:(nullable VibeColor *)dark
-                              light:(nullable VibeColor *)light
-                           fallback:(VibeColor *)fallback;
 
 // The appearance a single-mode theme demands, or nil when the appearance
 // setting should rule. Single mode is one constant look with no consideration
@@ -249,13 +252,25 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 // The four label colors resolved over their semantic fallbacks — title over
 // labelColor, artist and time over secondaryLabelColor, info over
-// tertiaryLabelColor — spelled once, so the header, the playlist and the
-// corner readouts cannot disagree about a slot's fallback. Same capture
-// semantics as dynamicColorWithDark: above.
+// tertiaryLabelColor — spelled once, so the header, the playlist, the corner
+// readouts and the editor's wells cannot disagree about a slot's fallback.
+// Each is one dynamic color: a nil override resolves to the fallback in the
+// drawing appearance. The pair is captured at call time, so a theme change
+// means rebuilding whatever holds the color — an appearance flip re-resolves
+// by itself.
 - (VibeColor *)resolvedTitleColor;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;
 - (VibeColor *)resolvedTimeColor;
+
+// The same slots pinned to one side, for the editor's per-side wells: the
+// override, or the slot's semantic fallback resolved under that side's
+// appearance. (The dynamic fallback would resolve under the pane's own
+// appearance and show the wrong side's color in the other side's well.)
+- (VibeColor *)displayTitleColorForDark:(BOOL)isDark;
+- (VibeColor *)displayArtistColorForDark:(BOOL)isDark;
+- (VibeColor *)displayInfoColorForDark:(BOOL)isDark;
+- (VibeColor *)displayTimeColorForDark:(BOOL)isDark;
 
 @end
 

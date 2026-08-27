@@ -43,8 +43,8 @@
     XCTAssertEqual(theme.windowCornerRadius, 20);
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
-    XCTAssertTrue(theme.showPlaylistArtwork);
-    XCTAssertTrue(theme.showPlaylistDuration);
+    XCTAssertTrue(theme.showPlaylistArtworkColumn);
+    XCTAssertTrue(theme.showPlaylistDurationColumn);
     XCTAssertEqual(theme.playlistDurationFontSize, 12);
     XCTAssertEqualObjects(theme.mode, @"dual");
     XCTAssertFalse(theme.showRemainingTime);
@@ -52,8 +52,8 @@
     XCTAssertTrue(theme.showKey);
     XCTAssertFalse(theme.keyColorsEnabled);
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
-    XCTAssertEqualObjects(theme.mainFontFace, @"");
-    XCTAssertEqual(theme.mainFontSize, 23);
+    XCTAssertEqualObjects(theme.titleFontFace, @"");
+    XCTAssertEqual(theme.titleFontSize, 23);
     XCTAssertEqual(theme.infoFontSize, 13);
     XCTAssertEqual(theme.playlistFontSize, 14);
     XCTAssertNil([theme titleColorForDark:YES]);
@@ -65,7 +65,7 @@
         @"waveformTheme": @"mono",
         @"windowCornerRadius": @20,
         @"showFileInfo": @YES,
-        @"mainFontFace": @"",
+        @"titleFontFace": @"",
     }];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
@@ -129,12 +129,12 @@
 - (void)testNumbersClampBothEnds {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"windowCornerRadius": @500,
-        @"mainFontSize": @5,
+        @"titleFontSize": @5,
         @"infoFontSize": @72,
         @"playlistFontSize": @(-3),
     }];
     XCTAssertEqual(theme.windowCornerRadius, 36);
-    XCTAssertEqual(theme.mainFontSize, 20);
+    XCTAssertEqual(theme.titleFontSize, 20);
     XCTAssertEqual(theme.infoFontSize, 15);
     XCTAssertEqual(theme.playlistFontSize, 11);
     theme.windowCornerRadius = -10;
@@ -144,7 +144,7 @@
 - (void)testMalformedValuesAreDropped {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"windowCornerRadius": @"big",
-        @"mainFontSize": @(NAN),
+        @"titleFontSize": @(NAN),
         @"showBPM": @"true",
         @"titleColorDark": @"#GGHHII",
         @"artistColorDark": @123,
@@ -168,10 +168,10 @@
     NSString *longFace = [@"" stringByPaddingToLength:200 withString:@"F" startingAtIndex:0];
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"infoFontFace": @"  Menlo-Regular  ",
-        @"mainFontFace": longFace,
+        @"titleFontFace": longFace,
     }];
     XCTAssertEqualObjects(theme.infoFontFace, @"Menlo-Regular");
-    XCTAssertEqual(theme.mainFontFace.length, 64u);
+    XCTAssertEqual(theme.titleFontFace.length, 64u);
 }
 
 - (void)testColorsRoundTripThroughHexWithAlpha {
@@ -217,6 +217,20 @@
     XCTAssertEqualObjects(json[@"version"], @1);
     XCTAssertEqualObjects(json[@"name"], @"Exported");
     XCTAssertNil(json[@"id"]);
+    // The fields travel nested under their editor sections, never flat, and
+    // an untouched section is omitted rather than written empty.
+    XCTAssertEqualObjects(json[@"waveform"], @{@"theme": @"orange"});
+    XCTAssertEqualObjects(json[@"window"], @{@"cornerRadius": @6});
+    XCTAssertNil(json[@"waveformTheme"]);
+    XCTAssertNil(json[@"playlist"]);
+    // version, then name, then the sections, in the file's own byte order.
+    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    XCTAssertLessThan([text rangeOfString:@"\"version\""].location,
+                      [text rangeOfString:@"\"name\""].location);
+    XCTAssertLessThan([text rangeOfString:@"\"name\""].location,
+                      [text rangeOfString:@"\"window\""].location);
+    XCTAssertLessThan([text rangeOfString:@"\"window\""].location,
+                      [text rangeOfString:@"\"waveform\""].location);
     NSString *name = nil;
     NSError *error = nil;
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
@@ -226,7 +240,10 @@
 }
 
 - (void)testJSONImportSanitizesFields {
-    NSData *data = [@"{\"name\": 42, \"windowCornerRadius\": 900, \"future\": [1,2]}"
+    // A flat pre-group key and an unknown group drop like any unknown field.
+    NSData *data = [@"{\"name\": 42, \"windowCornerRadius\": 9,"
+                     " \"window\": {\"cornerRadius\": 900, \"future\": [1,2]},"
+                     " \"future\": {\"cornerRadius\": 1}}"
             dataUsingEncoding:NSUTF8StringEncoding];
     NSString *name = @"sentinel";
     NSError *error = nil;
@@ -392,21 +409,30 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"mode": @"single"});
 }
 
-- (void)testDefaultAlbumArtSanitizesByShape {
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"defaultAlbumArt": @"vinyl_red"}];
-    XCTAssertEqualObjects(theme.defaultAlbumArt, @"vinyl_red");
-    theme.defaultAlbumArt =
-            @"custom:0123456789abcdef0123456789abcdef01234567.png";
-    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultAlbumArt"],
+- (void)testDefaultArtworkSanitizesByShape {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:
+            @{@"defaultArtworkDark": @"vinyl_red"}];
+    XCTAssertEqualObjects([theme defaultArtworkForDark:YES], @"vinyl_red");
+    [theme setDefaultArtwork:@"custom:0123456789abcdef0123456789abcdef01234567.png"
+                      forDark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
     // Wrong shapes drop to the default.
     for (NSString *bad in @[@"Vinyl", @"../etc/passwd", @"custom:short.png",
                             @"custom:0123456789abcdef0123456789abcdef01234567.gif"]) {
-        theme.defaultAlbumArt = bad;
-        XCTAssertNil(theme.dictionaryRepresentation[@"defaultAlbumArt"], @"%@", bad);
+        [theme setDefaultArtwork:bad forDark:YES];
+        XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"%@", bad);
     }
-    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:nil]);
-    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:@"never_shipped"]);
+    XCTAssertNotNil([AppTheme imageForDefaultArtwork:nil]);
+    XCTAssertNotNil([AppTheme imageForDefaultArtwork:@"never_shipped"]);
+    // Single mode reads and writes the dark slot from either side; the light
+    // half lies dormant, so a mode flip round-trips.
+    theme.mode = @"single";
+    [theme setDefaultArtwork:@"vinyl_red" forDark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"vinyl_red");
+    XCTAssertEqualObjects([theme defaultArtworkForDark:NO], @"vinyl_red");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
+            @"custom:0123456789abcdef0123456789abcdef01234567.png");
 }
 
 static NSData *SquarePNG(NSInteger side) {
@@ -417,27 +443,27 @@ static NSData *SquarePNG(NSInteger side) {
     return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
 }
 
-- (void)testCustomAlbumArtStoreValidatesAndRoundTripsThroughTheArchive {
+- (void)testCustomArtworkStoreValidatesAndRoundTripsThroughTheArchive {
     NSError *error = nil;
     // Not square: rejected.
     NSBitmapImageRep *wide = [[NSBitmapImageRep alloc]
             initWithBitmapDataPlanes:NULL pixelsWide:128 pixelsHigh:64
             bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
             colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
-    XCTAssertNil([AppTheme storeCustomAlbumArtData:
+    XCTAssertNil([AppTheme storeCustomArtworkData:
             [wide representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
             error:&error]);
     // Too small: rejected. Garbage: rejected.
-    XCTAssertNil([AppTheme storeCustomAlbumArtData:SquarePNG(32) error:NULL]);
-    XCTAssertNil([AppTheme storeCustomAlbumArtData:
+    XCTAssertNil([AppTheme storeCustomArtworkData:SquarePNG(32) error:NULL]);
+    XCTAssertNil([AppTheme storeCustomArtworkData:
             [@"not an image" dataUsingEncoding:NSUTF8StringEncoding] error:NULL]);
 
     // A valid square stores, resolves, and survives the ZIP round trip.
-    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(256) error:&error];
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(256) error:&error];
     XCTAssertTrue([stored hasPrefix:@"custom:"], @"%@", error);
-    XCTAssertNotNil([AppTheme imageForDefaultAlbumArt:stored]);
+    XCTAssertNotNil([AppTheme imageForDefaultArtwork:stored]);
 
-    NSDictionary *record = @{@"defaultAlbumArt": stored, @"waveformTheme": @"orange"};
+    NSDictionary *record = @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"};
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Art Theme"];
     XCTAssertNotNil(zip);
     NSString *name = nil;
@@ -445,14 +471,23 @@ static NSData *SquarePNG(NSInteger side) {
     XCTAssertEqualObjects(name, @"Art Theme");
     XCTAssertEqualObjects(back, record); // same bytes re-hash to the same reference
 
+    // A dual pair with two distinct custom images carries both.
+    NSString *light = [AppTheme storeCustomArtworkData:SquarePNG(128) error:&error];
+    XCTAssertTrue([light hasPrefix:@"custom:"], @"%@", error);
+    NSDictionary *pair = @{@"defaultArtworkDark": stored, @"defaultArtworkLight": light};
+    NSDictionary *pairBack = [AppTheme recordFromJSONOrArchiveData:
+            [AppTheme archiveDataForRecord:pair name:@"Pair"] name:NULL error:&error];
+    XCTAssertEqualObjects(pairBack, pair);
+
     // A record without a custom image has no archive form.
     XCTAssertNil([AppTheme archiveDataForRecord:@{@"waveformTheme": @"orange"}
                                            name:@"Plain"]);
     // JSON-only import with a dangling custom reference drops the field.
     NSDictionary *dangling = [AppTheme recordFromJSONOrArchiveData:
             [NSJSONSerialization dataWithJSONObject:@{@"version": @1, @"name": @"D",
-                    @"defaultAlbumArt": @"custom:ffffffffffffffffffffffffffffffffffffffff.png",
-                    @"waveformTheme": @"orange"} options:0 error:NULL]
+                    @"player": @{@"defaultArtworkDark":
+                            @"custom:ffffffffffffffffffffffffffffffffffffffff.png"},
+                    @"waveform": @{@"theme": @"orange"}} options:0 error:NULL]
             name:NULL error:NULL];
     XCTAssertEqualObjects(dangling, @{@"waveformTheme": @"orange"});
 }
@@ -485,32 +520,41 @@ static NSData *SquarePNG(NSInteger side) {
         XCTAssertTrue([raw[@"name"] isKindOfClass:NSString.class]
                 && [raw[@"name"] length] > 0, @"%@: name missing", file);
 
-        // Every field key must survive sanitization unchanged.
-        NSMutableDictionary *fields = [raw mutableCopy];
-        [fields removeObjectsForKeys:@[@"version", @"name", @"description"]];
-        AppTheme *theme = [[AppTheme alloc] initWithRecord:fields];
-        XCTAssertEqualObjects(theme.dictionaryRepresentation, fields,
-                @"%@: a field key or value did not survive the sanitizer — typo, bad hex, "
-                @"or out-of-range value", file);
+        // Import, re-export, compare parsed: every group, key and value in
+        // the file must survive the sanitizer and travel back out unchanged.
+        // A typo'd group or key is dropped on import, a bad value clamped,
+        // and either shows up as the difference.
+        NSString *name = nil;
+        NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:NULL];
+        XCTAssertNotNil(record, @"%@: unreadable", file);
+        NSDictionary *reexported = [NSJSONSerialization JSONObjectWithData:
+                [AppTheme JSONDataForRecord:record name:name] options:0 error:NULL];
+        NSMutableDictionary *expected = [raw mutableCopy];
+        [expected removeObjectForKey:@"description"];
+        XCTAssertEqualObjects(expected, reexported,
+                @"%@: a group, field key or value did not survive the sanitizer — typo, "
+                @"bad hex, or out-of-range value", file);
     }
     XCTAssertTrue([seen containsObject:@"vibe"], @"vibe.json must exist");
 
     // A built-in cannot reference a container image nobody has, and any
     // bundled art must itself pass the custom-art validation.
     for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
-        NSString *art = [AppTheme builtInRecordForIdentifier:identifier][@"defaultAlbumArt"];
-        XCTAssertFalse([art hasPrefix:@"custom:"],
-                @"%@: a built-in must name bundled art, not a custom image", identifier);
-        if (art.length) {
-            XCTAssertTrue([[AppTheme bundledAlbumArtNames] containsObject:art],
-                    @"%@: names art the bundle does not carry (%@)", identifier, art);
+        for (NSString *key in @[@"defaultArtworkDark", @"defaultArtworkLight"]) {
+            NSString *art = [AppTheme builtInRecordForIdentifier:identifier][key];
+            XCTAssertFalse([art hasPrefix:@"custom:"],
+                    @"%@: a built-in must name bundled art, not a custom image", identifier);
+            if (art.length) {
+                XCTAssertTrue([[AppTheme bundledDefaultArtworkNames] containsObject:art],
+                        @"%@: names art the bundle does not carry (%@)", identifier, art);
+            }
         }
     }
     for (NSString *ext in @[@"png", @"jpg"]) {
         for (NSURL *url in [bundle URLsForResourcesWithExtension:ext
                 subdirectory:@"Themes/art"]) {
             NSError *artError = nil;
-            XCTAssertNotNil([AppTheme storeCustomAlbumArtData:
+            XCTAssertNotNil([AppTheme storeCustomArtworkData:
                     [NSData dataWithContentsOfURL:url] error:&artError],
                     @"%@: %@", url.lastPathComponent, artError);
         }
@@ -560,7 +604,7 @@ static NSData *SquarePNG(NSInteger side) {
 static void PutLE(NSMutableData *d, uint64_t v, int n) {
     for (int i = 0; i < n; i++) { uint8_t b = (v >> (8 * i)) & 0xFF; [d appendBytes:&b length:1]; }
 }
-// VibeUnzipData reads no CRC field (and storeCustomAlbumArtData re-hashes the
+// VibeUnzipData reads no CRC field (and storeCustomArtworkData re-hashes the
 // image by content), so the entries carry a zero CRC — nothing validates it.
 static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData], ... ]
     NSMutableData *out = [NSMutableData data], *central = [NSMutableData data];
@@ -588,14 +632,14 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     // 8 MB is rejected without decoding.
     NSMutableData *huge = [NSMutableData dataWithLength:8 * 1024 * 1024 + 1];
     uint8_t jpeg[3] = {0xFF, 0xD8, 0xFF}; [huge replaceBytesInRange:NSMakeRange(0, 3) withBytes:jpeg];
-    XCTAssertNil([AppTheme storeCustomAlbumArtData:huge error:NULL]);
+    XCTAssertNil([AppTheme storeCustomArtworkData:huge error:NULL]);
     // Floor already covered (32 px) — the 4096 ceiling is the same expression.
-    XCTAssertNotNil([AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL]);
+    XCTAssertNotNil([AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL]);
 }
 
 - (void)testArchiveReaderIsSafeOnTruncatedAndGarbageInput {
-    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL];
-    NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultAlbumArt": stored} name:@"Z"];
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL];
+    NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultArtworkDark": stored} name:@"Z"];
     XCTAssertNotNil(zip);
     // Every truncation point must return safely, never read past the buffer.
     for (NSUInteger cut = 0; cut < zip.length; cut++) {
@@ -608,11 +652,12 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 }
 
 - (void)testArchiveReaderHandlesFinderShapedArchives {
-    NSString *stored = [AppTheme storeCustomAlbumArtData:SquarePNG(64) error:NULL];
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL];
     NSString *file = [stored substringFromIndex:7]; // <sha1>.png
     NSData *image = [NSData dataWithContentsOfFile:
             [_artDir stringByAppendingPathComponent:file]];
-    NSData *themeJSON = [AppTheme JSONDataForRecord:@{@"defaultAlbumArt": stored} name:@"Finder"];
+    NSData *themeJSON = [AppTheme JSONDataForRecord:@{@"defaultArtworkDark": stored}
+                                                name:@"Finder"];
 
     // AppleDouble sidecar (.json extension, not JSON) must be skipped, and the
     // real theme.json chosen; a folder-prefixed image must still be matched.
@@ -624,7 +669,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSString *name = nil;
     NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
     XCTAssertEqualObjects(name, @"Finder");
-    XCTAssertEqualObjects(record[@"defaultAlbumArt"], stored); // art survived, re-hashed
+    XCTAssertEqualObjects(record[@"defaultArtworkDark"], stored); // art survived, re-hashed
 }
 
 #pragma mark Store CRUD (AppSettings)

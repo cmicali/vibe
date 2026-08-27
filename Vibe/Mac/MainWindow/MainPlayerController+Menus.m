@@ -30,10 +30,11 @@
             return YES;
         case VibeMenuValidationDomainAppearance:
             [self applyAppearanceStateToMenuItem:menuItem];
-            // A single-mode theme pins the window dark and ignores this
+            // A theme that pins the window's appearance ignores this
             // setting; disable it there so the checkmark can't assert a state
-            // the window contradicts.
-            return !AppSettings.sharedInstance.currentTheme.isSingleMode;
+            // the window contradicts. requiredWindowAppearance is the pin's
+            // one home — the same accessor applyStoredAppearance obeys.
+            return AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
             // TRAP: hiding a parent does not disable its descendants. The menu

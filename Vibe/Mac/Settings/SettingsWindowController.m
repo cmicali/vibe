@@ -14,6 +14,7 @@
 #import "SettingsGeneralViewController.h"
 #import "SettingsPaneViewController.h"
 #import "SettingsPlaybackViewController.h"
+#import "NSView+DarkMode.h"
 #import "VibeStrings.h"
 
 static const CGFloat kSettingsSidebarWidth = 200;
@@ -286,7 +287,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 - (void)resizeWindowToPaneSize:(NSViewController *)pane {
     NSWindow *window = self.view.window;
-    if (!pane || !window) {
+    if (![pane isKindOfClass:SettingsPaneViewController.class] || !window) {
         return;
     }
     // The panes' shared size is the window's FLOOR, not its size: the window
@@ -295,7 +296,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
     // The floor is computed from the engine's own numbers: this view's
     // leading edge in the window is the sidebar plus divider, and the content
     // rect past contentLayoutRect is the titlebar overlaying the content.
-    NSSize paneSize = pane.preferredContentSize;
+    NSSize paneSize = ((SettingsPaneViewController *)pane).sharedPaneSize;
     CGFloat leading = NSMinX([self.view convertRect:self.view.bounds toView:nil]);
     NSRect content = [window contentRectForFrameRect:window.frame];
     CGFloat titlebar = NSHeight(content) - NSHeight(window.contentLayoutRect);
@@ -398,7 +399,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     // The seed is the settled shared size; the height is short of the
     // titlebar here — the tab controller's grow-to-floor pass on first
     // appearance corrects it, and an autosaved frame overrides it anyway.
-    NSSize seedSize = tabs.tabViewItems.firstObject.viewController.preferredContentSize;
+    NSSize seedSize = ((SettingsPaneViewController *)
+            tabs.tabViewItems.firstObject.viewController).sharedPaneSize;
     NSRect seedRect = NSMakeRect(0, 0, kSettingsSidebarWidth + 1 + seedSize.width,
                                  seedSize.height);
     // The guarded subclass is what makes contentViewController livable: the
@@ -485,11 +487,12 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     // chain and refreshFromSettings all follow; then land on the active
     // theme's page — Edit Themes… states intent to edit, and the active
     // theme is unambiguous — with Back one click away.
-    for (NSTabViewItem *item in _tabs.tabViewItems) {
-        if (item.viewController == pane) {
-            _tabs.selectedTabViewItemIndex = [_tabs.tabViewItems indexOfObject:item];
-            break;
-        }
+    NSUInteger index = [_tabs.tabViewItems indexOfObjectPassingTest:
+            ^BOOL(NSTabViewItem *item, NSUInteger i, BOOL *stop) {
+        return item.viewController == pane;
+    }];
+    if (index != NSNotFound) {
+        _tabs.selectedTabViewItemIndex = (NSInteger)index;
     }
     [pane showThemeEditorForActiveTheme];
 }
@@ -582,6 +585,14 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 - (void)updateThemeNavigation {
     SettingsAppearanceViewController *pane = [self appearancePane];
     BOOL selected = [self appearancePaneIsSelected];
+    // A pane can retitle itself mid-view (the editor's page swap); re-push
+    // the pane-title chain the tab controller drives on selection, so no
+    // pane has to know how deep the container nesting is.
+    NSInteger selectedIndex = _tabs.selectedTabViewItemIndex;
+    if (selectedIndex >= 0) {
+        _tabs.parentViewController.title =
+                _tabs.tabViewItems[(NSUInteger)selectedIndex].viewController.title;
+    }
     [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
     [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
     // canGoBack doubles as "the editor page is showing". The toggle exists
@@ -602,19 +613,10 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     } else if (!editorShown && index != NSNotFound) {
         [toolbar removeItemAtIndex:(NSInteger)index];
     }
-    NSString *style = settings.windowAppearanceStyle;
-    BOOL dark;
-    if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
-        dark = YES;
-    } else if ([style isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
-        dark = NO;
-    } else {
-        // Auto: show the side the system is on right now.
-        dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:
-                @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
-                isEqualToString:NSAppearanceNameDarkAqua];
-    }
-    _appearanceToggle.selectedSegment = dark ? 1 : 0;
+    // windowAppearance owns the style-to-appearance ladder; its nil (Auto)
+    // shows the side the system is on right now.
+    NSAppearance *appearance = settings.windowAppearance ?: NSApp.effectiveAppearance;
+    _appearanceToggle.selectedSegment = appearance.isDark ? 1 : 0;
 }
 
 // The same write as View > Appearance's Light and Dark items — the common

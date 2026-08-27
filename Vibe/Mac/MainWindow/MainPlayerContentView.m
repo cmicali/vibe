@@ -403,7 +403,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // The one spelling of the themed fonts and label colors; without this the
     // labels would launch semantic-colored and re-style only when a live
     // effect first fired.
-    [self applyThemedTextStyle];
+    [self applyThemedLabelFonts];
+    [self applyThemedLabelColors];
 }
 
 // The glass panel behind the waveform and header, the art-color tint over
@@ -450,7 +451,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 - (void)buildAlbumArt {
     _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
-    _albumArtImageView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultAlbumArtImage;
+    _albumArtImageView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
     _albumArtImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
     _albumArtImageView.refusesFirstResponder = YES;
     _albumArtImageView.focusRingType = NSFocusRingTypeNone;
@@ -716,13 +717,16 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     return button;
 }
 
-- (void)applyThemedTextStyle {
+- (void)applyThemedLabelFonts {
     _artistTextField.font = [Fonts artistFont:kVibeThemeArtistFontBaseSize];
-    _titleTextField.font = [Fonts mainFont:kVibeThemeMainFontBaseSize];
+    _titleTextField.font = [Fonts titleFont:kVibeThemeTitleFontBaseSize];
     _totalTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
     _fileMetadataTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
     _bpmTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
+}
+
+- (void)applyThemedLabelColors {
     // The corner readouts' color rides their attributed strings
     // (cornerTextAttributes); the drop hint stays unthemed with the rest of
     // the empty state.

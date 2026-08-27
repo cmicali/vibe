@@ -117,11 +117,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 
-// TRAP: on macOS these shared loose keys (waveformStyle, waveformTheme, the
-// custom color pairs) are CONSUMED by the theme migration and the store of
-// record is currentTheme — the getter returns only the registered default
-// after first launch. A macOS reader wanting the live value reads
-// currentTheme.<field>; these stay for iOS, which has no theme system.
+// iOS's loose appearance keys. On macOS the theme migration consumed them and
+// currentTheme.<field> is the store of record, so they are compiled out there:
+// a macOS caller fails to build instead of silently reading the registered
+// default forever.
+#if !TARGET_OS_OSX
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 
@@ -138,6 +138,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+#endif  // !TARGET_OS_OSX
 
 // The order a folder's tracks land in the playlist — see FolderOpenSort.h.
 // Normalized on read: an identifier no picker can produce reads as Name.

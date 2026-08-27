@@ -84,8 +84,8 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
 // through the sequential autoresizing the table already uses.
 - (void)applyThemedColumnVisibility {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtwork;
-    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDuration;
+    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtworkColumn;
+    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDurationColumn;
 }
 
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame {
@@ -137,12 +137,15 @@ static void ensureCellAttributes(void) {
         // is every title, artistColor every secondary line — here the artist
         // run and both numeric columns, which already share its fallback.
         AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-        defaultArtImage = theme.resolvedDefaultAlbumArtImage;
+        defaultArtImage = theme.resolvedDefaultArtworkImage;
         NSColor *titleColor = theme.resolvedTitleColor;
         NSColor *artistColor = theme.resolvedArtistColor;
         numColumnAttributes = @{
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.5),
+                // Deliberately not the duration slot: the # column is row
+                // chrome, like the drop hint, so it keeps the built-in
+                // numbers font whatever face the theme picks for track text.
                 NSFontAttributeName: [Fonts fontForNumbers:12],
                 NSParagraphStyleAttributeName: right,
         };

@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+@class AppTheme;
+
 // The app's typography in one place: all text goes through font:/font:bold:
 // (Helvetica Neue), except digit displays (times, bitrate, pitch readout)
 // which use fontForNumbers: (monospaced-digit system font) so values don't
@@ -16,10 +18,10 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-// The four themed slots. Util may not read a setting, so the theme's choice
+// The five themed slots. Util may not read a setting, so the theme's choice
 // is PUSHED here (applyThemeFonts, which also drops the slot cache) and the
 // slot accessors resolve against it. An empty face is the slot's built-in
-// font — font:/font:bold: for main and playlist, the monospaced-digit system
+// font — font:/font:bold: for title and playlist, the monospaced-digit system
 // font for info. A face that is not installed falls back the same way, so a
 // slot accessor never returns nil. A named info face gains the
 // monospaced-digits feature, keeping times jitter-free.
@@ -28,14 +30,9 @@
 // reference site (title 23, info 13, playlist 14, playlist duration 12), and a call site passing
 // its own base gets base + (stored − reference), which preserves the
 // title/artist size hierarchy under any chosen size.
-+ (void)applyThemeFonts:(NSString *)mainFace mainSize:(CGFloat)mainSize
-             artistFace:(NSString *)artistFace artistSize:(CGFloat)artistSize
-               infoFace:(NSString *)infoFace infoSize:(CGFloat)infoSize
-           playlistFace:(NSString *)playlistFace playlistSize:(CGFloat)playlistSize
-   playlistDurationFace:(NSString *)playlistDurationFace
-   playlistDurationSize:(CGFloat)playlistDurationSize;
++ (void)applyThemeFonts:(AppTheme *)theme;
 
-+ (NSFont *)mainFont:(CGFloat)baseSize;
++ (NSFont *)titleFont:(CGFloat)baseSize;
 + (NSFont *)artistFont:(CGFloat)baseSize;
 + (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold;
 + (NSFont *)playlistFont:(CGFloat)baseSize;

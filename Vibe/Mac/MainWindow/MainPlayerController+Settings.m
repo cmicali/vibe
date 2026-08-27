@@ -24,13 +24,7 @@
 // The theme's font choice, pushed into Fonts — which may not read a setting
 // itself. Runs before label construction at launch and from the Fonts effect.
 - (void)applyStoredFonts {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    [Fonts applyThemeFonts:theme.mainFontFace mainSize:theme.mainFontSize
-                artistFace:theme.artistFontFace artistSize:theme.artistFontSize
-                  infoFace:theme.infoFontFace infoSize:theme.infoFontSize
-              playlistFace:theme.playlistFontFace playlistSize:theme.playlistFontSize
-      playlistDurationFace:theme.playlistDurationFontFace
-      playlistDurationSize:theme.playlistDurationFontSize];
+    [Fonts applyThemeFonts:AppSettings.sharedInstance.currentTheme];
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
@@ -65,18 +59,10 @@
     }
     if (effects & VibeSettingsLiveEffectFonts) {
         [self applyStoredFonts];
-    }
-    // Once for either bit — both re-style the same labels — before the refit,
-    // which must shrink the freshly styled title font, and before TrackDisplay's
-    // updateUI repaints.
-    if (effects & (VibeSettingsLiveEffectFonts | VibeSettingsLiveEffectTrackDisplay)) {
-        [self.playerContentView applyThemedTextStyle];
-    }
-    if (effects & (VibeSettingsLiveEffectFonts | VibeSettingsLiveEffectTrackDisplay)) {
-        // applyThemedTextStyle above reset the title to base size for either
-        // bit, so the refit must follow for either — not Fonts alone, or a
-        // label-color or info-toggle edit leaves a shrink-fitted title
-        // stranded at full size and truncated.
+        // The re-style resets the title to base size, so the refit must
+        // follow in the same branch, or a shrink-fitted title strands at
+        // full size and truncated.
+        [self.playerContentView applyThemedLabelFonts];
         [self.trackDisplay refitTitle];
     }
     if (effects & VibeSettingsLiveEffectPlaylistRowFills) {
@@ -98,9 +84,11 @@
         [self refreshWindowTint];
     }
     if (effects & VibeSettingsLiveEffectTrackDisplay) {
-        // Label colors ride this effect too (the shared re-style above); drop
-        // the content guards so unchanged strings still repaint. The themed
-        // no-artwork placeholder re-applies here for the same reason.
+        // Colors only — fonts are the Fonts effect's, so a color drag never
+        // re-measures the title. Drop the content guards so unchanged strings
+        // still repaint; the themed no-artwork placeholder re-applies here
+        // for the same reason.
+        [self.playerContentView applyThemedLabelColors];
         [self->_artworkController refreshDefaultArtwork];
         [self.trackDisplay resetRenderGuards];
         [self updateUI];

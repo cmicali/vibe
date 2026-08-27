@@ -78,7 +78,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)trackDidStartPlaying:(AudioTrack *)track;
 
 // Re-applies the theme's no-artwork placeholder while it is on screen — the
-// theme's defaultAlbumArt changed, and showDefaultArtwork's already-showing
+// theme's default artwork changed, and showDefaultArtwork's already-showing
 // guard would otherwise keep the old image up.
 - (void)refreshDefaultArtwork;
 

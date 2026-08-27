@@ -147,11 +147,13 @@ static const CGFloat kInlineBadgeGap = 8;
     // constraint engine re-sizes a contentViewController window to its
     // content's fitting size after every layout pass, so a user's drag
     // snapped straight back to the constrained answer (observed with both
-    // forms). The panes' shared size lives in preferredContentSize alone; the
-    // tab controller turns it into the window's contentMinSize and grows an
-    // undersized window, and AppKit's own resize clamp holds the floor under
-    // a user drag.
-    self.preferredContentSize = paneSize;
+    // forms). That includes preferredContentSize itself: macOS 26.5 turns a
+    // nonzero one into equality constraints on this view at priority 501,
+    // which pinned the window (sharedPaneSize in the header). The shared size
+    // lives in that plain property alone; the tab controller turns it into
+    // the window's contentMinSize and grows an undersized window, and
+    // AppKit's own resize clamp holds the floor under a user drag.
+    _sharedPaneSize = paneSize;
 
     [view addSubview:stack];
     // The safe-area top, not the view's: the settings window's titlebar
@@ -180,11 +182,11 @@ static const CGFloat kInlineBadgeGap = 8;
     if (!self.isViewLoaded) {
         return NO;
     }
-    if (fabs(self.preferredContentSize.width - size.width) < 0.5
-            && fabs(self.preferredContentSize.height - size.height) < 0.5) {
+    if (fabs(_sharedPaneSize.width - size.width) < 0.5
+            && fabs(_sharedPaneSize.height - size.height) < 0.5) {
         return NO;
     }
-    self.preferredContentSize = size;
+    _sharedPaneSize = size;
     return YES;
 }
 
@@ -242,12 +244,7 @@ static const CGFloat kInlineBadgeGap = 8;
 // pass resolves that layout state before taking its maximum, and the panes are
 // remeasured after each selected-pane refresh or direct row toggle.
 - (void)paneContentDidChange {
-    [self animatePaneContentChange:^{}];
-}
-
-- (void)animatePaneContentChange:(void (^)(void))change {
     if (!_sectionStack) {
-        change();
         return;
     }
     // Capture the old arranged-view frames before hidden changes replace the
@@ -255,7 +252,6 @@ static const CGFloat kInlineBadgeGap = 8;
     // section headers and cards with the frame instead of jumping ahead of it.
     [self.view layoutSubtreeIfNeeded];
     void (^updates)(void) = ^{
-        change();
         [self remeasurePanes];
         [self.view layoutSubtreeIfNeeded];
     };

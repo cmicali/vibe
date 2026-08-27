@@ -28,6 +28,7 @@
 #import "VibeStrings.h"
 
 static const CGFloat kAppearancePopUpWidth = 220;
+static const CGFloat kAlbumArtPreviewSize = 64;
 static const CGFloat kThemeListRowHeight = 22;
 // Ten rows: the two group headers, the built-ins, and room for a handful of
 // the user's own before it scrolls.
@@ -40,7 +41,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 // what keeps a stray panel from restyling anything.
 typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     VibeThemeFontSlotNone = 0,
-    VibeThemeFontSlotMain,
+    VibeThemeFontSlotTitle,
     VibeThemeFontSlotArtist,
     VibeThemeFontSlotInfo,
     VibeThemeFontSlotPlaylist,
@@ -53,7 +54,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 // here; the knob geometry mirrors AppKit's linear layout (half the knob
 // inset at each end).
 @interface VibeDetentSlider : NSSlider
-@property (nonatomic) double detentValue;
 @end
 
 @implementation VibeDetentSlider
@@ -64,7 +64,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
         return;
     }
     CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
-    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
+    CGFloat fraction = (kVibeThemeCornerRadiusDefault - self.minValue)
+            / (self.maxValue - self.minValue);
     CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
     CGFloat midY = NSMidY(self.bounds);
     [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
@@ -119,7 +120,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSSwitch *_waveformGradientSwitch;
     NSSwitch *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
-    NSPopUpButton *_albumArtPopUp;
+    NSButton *_artDarkPreviewButton;
+    NSButton *_artDarkClearButton;
+    NSButton *_artLightPreviewButton;
+    NSButton *_artLightClearButton;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
@@ -142,7 +146,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
     NSColorWell *_playingRowDarkWell, *_playingRowLightWell;
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
-    NSTextField *_mainFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
+    NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
     VibeThemeFontSlot _fontEditingSlot;
     BOOL _editorShown;
@@ -245,8 +249,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
 // [well caption] [well caption] — one row per themed color pair, Dark/Light
 // or the waveform's Played/Unplayed.
-- (NSStackView *)wellPair:(NSColorWell *)first caption:(NSString *)firstCaption
-                     well:(NSColorWell *)second caption:(NSString *)secondCaption {
+- (NSStackView *)wellPair:(NSView *)first caption:(NSString *)firstCaption
+                     well:(NSView *)second caption:(NSString *)secondCaption {
     NSTextField *firstLabel = [NSTextField labelWithString:firstCaption];
     NSTextField *secondLabel = [NSTextField labelWithString:secondCaption];
     firstLabel.textColor = NSColor.secondaryLabelColor;
@@ -258,7 +262,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     return pair;
 }
 
-- (NSStackView *)darkLightPairWithDark:(NSColorWell *)dark light:(NSColorWell *)light {
+- (NSStackView *)darkLightPairWithDark:(NSView *)dark light:(NSView *)light {
     NSStackView *pair = [self wellPair:dark caption:STR_SETTINGS_THEME_DARK
                                   well:light caption:STR_SETTINGS_THEME_LIGHT];
     if (!_darkLightPairs) {
@@ -282,6 +286,71 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     return cluster;
 }
 
+// One side of the Default artwork pair: a preview of that side's resolved
+// placeholder as the click target (click picks a custom image), with a
+// hover-revealed clear badge over its corner while a custom image is set.
+// The badge is a real button so the walker can address it by its undrawn
+// title. System Settings appearance-picker shape.
+- (NSView *)albumArtClusterForDark:(BOOL)isDark {
+    NSButton *preview = [NSButton buttonWithImage:[AppTheme imageForDefaultArtwork:@""]
+                                           target:self action:@selector(chooseAlbumArt:)];
+    preview.bordered = NO;
+    preview.title = @""; // the factory's "Button" would name it in the walker
+    preview.wantsLayer = YES;
+    preview.layer.cornerRadius = 6;
+    preview.layer.masksToBounds = YES;
+    ((NSButtonCell *)preview.cell).imageScaling = NSImageScaleProportionallyUpOrDown;
+    NSButton *clear = [NSButton buttonWithImage:[[NSImage
+            imageWithSystemSymbolName:@"xmark.circle.fill"
+              accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_CLEAR]
+            imageWithSymbolConfiguration:[NSImageSymbolConfiguration
+                    configurationWithPaletteColors:@[NSColor.whiteColor,
+                            [NSColor colorWithWhite:0 alpha:0.6]]]]
+                                         target:self action:@selector(clearCustomArtwork:)];
+    clear.bordered = NO;
+    clear.title = STR_SETTINGS_THEME_ALBUM_ART_CLEAR; // image-only: named, never drawn
+    clear.imagePosition = NSImageOnly;
+    clear.hidden = YES;
+    NSView *cluster = [[NSView alloc] initWithFrame:NSZeroRect];
+    cluster.translatesAutoresizingMaskIntoConstraints = NO;
+    preview.translatesAutoresizingMaskIntoConstraints = NO;
+    clear.translatesAutoresizingMaskIntoConstraints = NO;
+    [cluster addSubview:preview];
+    [cluster addSubview:clear];
+    [NSLayoutConstraint activateConstraints:@[
+        [cluster.widthAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
+        [cluster.heightAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
+        [preview.leadingAnchor constraintEqualToAnchor:cluster.leadingAnchor],
+        [preview.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor],
+        [preview.topAnchor constraintEqualToAnchor:cluster.topAnchor],
+        [preview.bottomAnchor constraintEqualToAnchor:cluster.bottomAnchor],
+        // Pinned to the glyph's size: the undrawn title still feeds the
+        // button's intrinsic width, which stretched it across the preview.
+        [clear.widthAnchor constraintEqualToConstant:18],
+        [clear.heightAnchor constraintEqualToConstant:18],
+        [clear.topAnchor constraintEqualToAnchor:cluster.topAnchor constant:3],
+        [clear.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor constant:-3],
+    ]];
+    // The controller owns the hover tracking; userInfo names the side, since
+    // both clusters share one owner. ActiveInActiveApp, not ActiveInKeyWindow:
+    // the font or color panel is often key while this page is edited, and the
+    // badge must still appear. Posted debug events cannot fire it — the window
+    // server drives tracking areas — so a scripted clear needs a real hover
+    // (input.swift).
+    [cluster addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
+            options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp
+                    | NSTrackingInVisibleRect
+            owner:self userInfo:@{@"artClearForDark": @(isDark)}]];
+    if (isDark) {
+        _artDarkPreviewButton = preview;
+        _artDarkClearButton = clear;
+    } else {
+        _artLightPreviewButton = preview;
+        _artLightClearButton = clear;
+    }
+    return cluster;
+}
+
 - (void)buildEditorPage {
     _nameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
     _nameField.delegate = self;
@@ -297,17 +366,11 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     [self addItem:STR_SETTINGS_THEME_MODE_DUAL value:SETTINGS_VALUE_THEME_MODE_DUAL to:_modePopUp];
     [self addItem:STR_SETTINGS_THEME_MODE_SINGLE value:SETTINGS_VALUE_THEME_MODE_SINGLE to:_modePopUp];
 
-    _albumArtPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
-                                         action:@selector(albumArtChanged:)];
-    [self addItem:STR_SETTINGS_THEME_ALBUM_ART_DEFAULT value:@"" to:_albumArtPopUp];
-    for (NSString *name in [AppTheme bundledAlbumArtNames]) {
-        // Bundled art names are data, like theme identifiers — the title is
-        // the prettified stem.
-        [_albumArtPopUp addItemWithTitle:VibeNotLocalized([[name
-                stringByReplacingOccurrencesOfString:@"_" withString:@" "] capitalizedString])];
-        _albumArtPopUp.lastItem.representedObject = name;
-    }
-    [self addItem:STR_SETTINGS_THEME_ALBUM_ART_CUSTOM value:@"custom" to:_albumArtPopUp];
+    // Default artwork follows the color pairs: one preview per appearance
+    // under Light & Dark Modes, collapsing to the dark-keyed one — the single
+    // slot's home — under Single Mode.
+    NSStackView *artPair = [self darkLightPairWithDark:[self albumArtClusterForDark:YES]
+                                                 light:[self albumArtClusterForDark:NO]];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
@@ -331,7 +394,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _cornerRadiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
                                                    minValue:0 maxValue:kVibeThemeCornerRadiusMax
                                                      target:self action:@selector(cornerRadiusChanged:)];
-    _cornerRadiusSlider.detentValue = kVibeThemeCornerRadiusDefault;
     _cornerRadiusSlider.continuous = YES;
     [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _cornerRadiusValue = [NSTextField labelWithString:@""];
@@ -428,8 +490,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _selectedRowDarkWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
     _selectedRowLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
 
-    NSTextField *mainFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
-    NSStackView *mainFontCluster = [self fontClusterForSlot:VibeThemeFontSlotMain valueLabel:&mainFontValue];
+    NSTextField *titleFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
+    NSStackView *titleFontCluster = [self fontClusterForSlot:VibeThemeFontSlotTitle valueLabel:&titleFontValue];
     NSTextField *artistFontValue = nil;
     NSStackView *artistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotArtist valueLabel:&artistFontValue];
     NSStackView *infoFontCluster = [self fontClusterForSlot:VibeThemeFontSlotInfo valueLabel:&infoFontValue];
@@ -438,7 +500,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSStackView *playlistDurationFontCluster =
             [self fontClusterForSlot:VibeThemeFontSlotPlaylistDuration
                           valueLabel:&playlistDurationFontValue];
-    _mainFontValue = mainFontValue;
+    _titleFontValue = titleFontValue;
     _artistFontValue = artistFontValue;
     _infoFontValue = infoFontValue;
     _playlistFontValue = playlistFontValue;
@@ -474,8 +536,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:_albumArtPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:mainFontCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:titleFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE
                     control:[self darkLightPairWithDark:_titleDarkWell light:_titleLightWell]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
@@ -563,22 +625,21 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
 // Size-neutral by design: the editor never joins the shared-size settlement
 // (naturalPaneSize measures only the base section stack), so no
-// animatePaneContentChange pass is needed — nothing about the window moves.
+// paneContentDidChange pass is needed — nothing about the window moves.
 - (void)applyEditorVisibility {
     _detailContainer.hidden = !_editorShown;
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
     }
-    // The editor page retitles the window the way a pane switch would — the
-    // title rides the pane-title chain (pane → tab controller → split, whose
-    // title the window binds), and the sidebar label reads the tab ITEM, so
-    // it keeps saying Appearance.
+    // The editor page retitles the window the way a pane switch would: the
+    // pane sets only its own title, and updateThemeNavigation below re-pushes
+    // the pane-title chain (the host owns the container nesting). The sidebar
+    // label reads the tab ITEM, so it keeps saying Appearance.
     NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
     self.title = _editorShown
             ? ([AppSettings.sharedInstance displayNameForThemeIdentifier:active]
                     ?: STR_MENU_VIEW_APPEARANCE)
             : STR_MENU_VIEW_APPEARANCE;
-    self.parentViewController.parentViewController.title = self.title;
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
@@ -591,7 +652,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 }
 
 - (void)navigateBack {
-    [self popToThemeList:nil];
+    _editorShown = NO;
+    _editorForwardAvailable = YES;
+    [self closeEditorPanels];
+    [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
 - (void)navigateForward {
@@ -603,14 +667,6 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 - (void)showThemeEditorForActiveTheme {
     _editorShown = YES;
     _editorForwardAvailable = NO;
-    [self refreshFromSettings];
-    [self applyEditorVisibility];
-}
-
-- (void)popToThemeList:(id)sender {
-    _editorShown = NO;
-    _editorForwardAvailable = YES;
-    [self closeEditorPanels];
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
@@ -677,8 +733,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     // The common card.
     [_appearancePopUp selectItemAtIndex:
             [_appearancePopUp indexOfItemWithRepresentedObject:settings.windowAppearanceStyle]];
-    _trafficLightsSwitch.state = settings.showTrafficLights
-            ? NSControlStateValueOn : NSControlStateValueOff;
+    _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
 
     // The theme list. Selection mirrors activation, so reselect the active
     // row after every reload.
@@ -722,25 +777,25 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
     [self refreshCornerRadiusValue];
 
-    _fileInfoSwitch.state = theme.showFileInfo ? NSControlStateValueOn : NSControlStateValueOff;
+    _fileInfoSwitch.state = StateForBOOL(theme.showFileInfo);
     BOOL remaining = theme.showRemainingTime;
-    _timeTotalRadio.state = remaining ? NSControlStateValueOff : NSControlStateValueOn;
-    _timeRemainingRadio.state = remaining ? NSControlStateValueOn : NSControlStateValueOff;
-    _showBPMSwitch.state = theme.showBPM ? NSControlStateValueOn : NSControlStateValueOff;
+    _timeTotalRadio.state = StateForBOOL(!remaining);
+    _timeRemainingRadio.state = StateForBOOL(remaining);
+    _showBPMSwitch.state = StateForBOOL(theme.showBPM);
     BOOL showKey = theme.showKey;
-    _showKeySwitch.state = showKey ? NSControlStateValueOn : NSControlStateValueOff;
+    _showKeySwitch.state = StateForBOOL(showKey);
     [_keyNotationPopUp selectItemAtIndex:
             [_keyNotationPopUp indexOfItemWithRepresentedObject:theme.keyNotation]];
-    _keyColorsSwitch.state = theme.keyColorsEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    _keyColorsSwitch.state = StateForBOOL(theme.keyColorsEnabled);
 
-    _titleDarkWell.color = [theme titleColorForDark:YES] ?: NSColor.labelColor;
-    _titleLightWell.color = [theme titleColorForDark:NO] ?: NSColor.labelColor;
-    _artistDarkWell.color = [theme artistColorForDark:YES] ?: NSColor.secondaryLabelColor;
-    _artistLightWell.color = [theme artistColorForDark:NO] ?: NSColor.secondaryLabelColor;
-    _infoDarkWell.color = [theme infoColorForDark:YES] ?: NSColor.tertiaryLabelColor;
-    _infoLightWell.color = [theme infoColorForDark:NO] ?: NSColor.tertiaryLabelColor;
-    _timeDarkWell.color = [theme timeColorForDark:YES] ?: NSColor.secondaryLabelColor;
-    _timeLightWell.color = [theme timeColorForDark:NO] ?: NSColor.secondaryLabelColor;
+    _titleDarkWell.color = [theme displayTitleColorForDark:YES];
+    _titleLightWell.color = [theme displayTitleColorForDark:NO];
+    _artistDarkWell.color = [theme displayArtistColorForDark:YES];
+    _artistLightWell.color = [theme displayArtistColorForDark:NO];
+    _infoDarkWell.color = [theme displayInfoColorForDark:YES];
+    _infoLightWell.color = [theme displayInfoColorForDark:NO];
+    _timeDarkWell.color = [theme displayTimeColorForDark:YES];
+    _timeLightWell.color = [theme displayTimeColorForDark:NO];
 
     // An unknown persisted style identifier renders as the default style —
     // the waveform view's own fallback — so show that rather than misreport.
@@ -752,16 +807,15 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [_waveformPopUp selectItemAtIndex:styleIndex];
     [_waveformThemePopUp selectItemAtIndex:
             [_waveformThemePopUp indexOfItemWithRepresentedObject:theme.waveformTheme]];
-    _waveformGradientSwitch.state =
-            theme.waveformGradient ? NSControlStateValueOn : NSControlStateValueOff;
-    _playlistArtworkSwitch.state =
-            theme.showPlaylistArtwork ? NSControlStateValueOn : NSControlStateValueOff;
-    NSString *art = theme.defaultAlbumArt;
-    NSInteger artIndex = [_albumArtPopUp indexOfItemWithRepresentedObject:
-            [art hasPrefix:@"custom:"] ? @"custom" : art];
-    [_albumArtPopUp selectItemAtIndex:artIndex >= 0 ? artIndex : 0];
-    _playlistDurationSwitch.state =
-            theme.showPlaylistDuration ? NSControlStateValueOn : NSControlStateValueOff;
+    _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
+    _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
+    _artDarkPreviewButton.image =
+            [AppTheme imageForDefaultArtwork:[theme defaultArtworkForDark:YES]];
+    _artLightPreviewButton.image =
+            [AppTheme imageForDefaultArtwork:[theme defaultArtworkForDark:NO]];
+    _artDarkClearButton.hidden = YES;
+    _artLightClearButton.hidden = YES;
+    _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
     _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
     _customLightPlayedWell.color = [theme waveformPlayedColorForDark:NO] ?: DefaultCustomPlayedColor(NO);
@@ -814,7 +868,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 - (void)refreshFontValueLabels {
     NSDictionary<NSNumber *, NSTextField *> *labels = @{
-        @(VibeThemeFontSlotMain): _mainFontValue,
+        @(VibeThemeFontSlotTitle): _titleFontValue,
         @(VibeThemeFontSlotArtist): _artistFontValue,
         @(VibeThemeFontSlotInfo): _infoFontValue,
         @(VibeThemeFontSlotPlaylist): _playlistFontValue,
@@ -1228,18 +1282,21 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 
 - (void)labelColorChanged:(NSColorWell *)sender {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    // Title and artist paint the playlist rows too; info and time appear only
+    // in the header, so their drags skip the table reload.
+    VibeSettingsLiveEffect effect = VibeSettingsLiveEffectTrackDisplay;
     if (sender == _titleDarkWell || sender == _titleLightWell) {
         [theme setTitleColor:sender.color forDark:(sender == _titleDarkWell)];
+        effect |= VibeSettingsLiveEffectPlaylistAppearance;
     } else if (sender == _artistDarkWell || sender == _artistLightWell) {
         [theme setArtistColor:sender.color forDark:(sender == _artistDarkWell)];
+        effect |= VibeSettingsLiveEffectPlaylistAppearance;
     } else if (sender == _infoDarkWell || sender == _infoLightWell) {
         [theme setInfoColor:sender.color forDark:(sender == _infoDarkWell)];
     } else {
         [theme setTimeColor:sender.color forDark:(sender == _timeDarkWell)];
     }
-    // The label colors span the header and the playlist, so both repaint.
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
-            | VibeSettingsLiveEffectPlaylistAppearance];
+    [self themeFieldDidChange:effect];
 }
 
 #pragma mark - Editor: waveform
@@ -1257,14 +1314,38 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
-- (void)albumArtChanged:(id)sender {
-    NSString *value = _albumArtPopUp.selectedItem.representedObject;
-    if (![value isEqualToString:@"custom"]) {
-        AppSettings.sharedInstance.currentTheme.defaultAlbumArt = value;
-        [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
-                | VibeSettingsLiveEffectPlaylistAppearance];
+// The clear badge shows only while there is something to clear: a non-empty
+// value in the hovered side's slot, on an editable page. Read live — the
+// value, the page and the enable state can all have changed since the last
+// hover.
+- (void)mouseEntered:(NSEvent *)event {
+    NSNumber *side = event.trackingArea.userInfo[@"artClearForDark"];
+    if (side == nil) {
         return;
     }
+    NSButton *preview = side.boolValue ? _artDarkPreviewButton : _artLightPreviewButton;
+    NSButton *clear = side.boolValue ? _artDarkClearButton : _artLightClearButton;
+    clear.hidden = !preview.enabled || [AppSettings.sharedInstance.currentTheme
+            defaultArtworkForDark:side.boolValue].length == 0;
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    NSNumber *side = event.trackingArea.userInfo[@"artClearForDark"];
+    if (side != nil) {
+        (side.boolValue ? _artDarkClearButton : _artLightClearButton).hidden = YES;
+    }
+}
+
+- (void)clearCustomArtwork:(id)sender {
+    [AppSettings.sharedInstance.currentTheme setDefaultArtwork:@""
+            forDark:sender == _artDarkClearButton];
+    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
+            | VibeSettingsLiveEffectPlaylistAppearance];
+    [self refreshFromSettings]; // also hides the badge — the cursor is still over it
+}
+
+- (void)chooseAlbumArt:(id)sender {
+    BOOL isDark = sender == _artDarkPreviewButton;
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
@@ -1275,11 +1356,10 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     NSString *target = AppSettings.sharedInstance.activeThemeIdentifier;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result != NSModalResponseOK || !panel.URL) {
-            [self refreshFromSettings]; // canceled: the popup snaps back
             return;
         }
         NSError *error = nil;
-        NSString *stored = [AppTheme storeCustomAlbumArtData:
+        NSString *stored = [AppTheme storeCustomArtworkData:
                 [NSData dataWithContentsOfURL:panel.URL] error:&error];
         if (!stored) {
             [self refreshFromSettings];
@@ -1293,7 +1373,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             [self refreshFromSettings]; // theme changed under the sheet — drop it
             return;
         }
-        AppSettings.sharedInstance.currentTheme.defaultAlbumArt = stored;
+        [AppSettings.sharedInstance.currentTheme setDefaultArtwork:stored forDark:isDark];
         [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
                 | VibeSettingsLiveEffectPlaylistAppearance];
         [self refreshFromSettings];
@@ -1301,13 +1381,13 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 - (void)togglePlaylistArtwork:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showPlaylistArtwork =
+    AppSettings.sharedInstance.currentTheme.showPlaylistArtworkColumn =
             (_playlistArtworkSwitch.state == NSControlStateValueOn);
     [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
 }
 
 - (void)togglePlaylistDuration:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showPlaylistDuration =
+    AppSettings.sharedInstance.currentTheme.showPlaylistDurationColumn =
             (_playlistDurationSwitch.state == NSControlStateValueOn);
     [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
 }
@@ -1437,7 +1517,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
         case VibeThemeFontSlotPlaylistDuration:
             return [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
         case VibeThemeFontSlotArtist:   return [Fonts artistFont:kVibeThemeArtistFontBaseSize];
-        default:                        return [Fonts mainFont:kVibeThemeMainFontBaseSize];
+        default:                        return [Fonts titleFont:kVibeThemeTitleFontBaseSize];
     }
 }
 
@@ -1483,8 +1563,8 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             theme.artistFontSize = font.pointSize;
             break;
         default:
-            theme.mainFontFace = font.fontName;
-            theme.mainFontSize = font.pointSize;
+            theme.titleFontFace = font.fontName;
+            theme.titleFontSize = font.pointSize;
             break;
     }
     [self themeFieldDidChange:VibeSettingsLiveEffectFonts
