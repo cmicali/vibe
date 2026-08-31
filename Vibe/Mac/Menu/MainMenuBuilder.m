@@ -321,6 +321,11 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, @"menu_show_file_info");
     AddSeparator(viewMenu);
 
+    NSMenu *themeMenu = Submenu(viewMenu, STR_MENU_VIEW_THEME).submenu;
+    themeMenu.identifier = @"view_theme";
+    themeMenu.autoenablesItems = NO;
+    themeMenu.delegate = player; // fills in the themes and the Edit tail
+
     // The width presets: the drag minimum, the design width, and 1.75 times
     // the design width; see setWindowSize:. The height is deliberately
     // untouched, since it belongs to Show Playlist and the resize handle.
@@ -336,10 +341,6 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, @"view_appearance_light");
     AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, @"view_appearance_dark");
-    NSMenu *themeMenu = Submenu(viewMenu, STR_MENU_VIEW_THEME).submenu;
-    themeMenu.identifier = @"view_theme";
-    themeMenu.autoenablesItems = NO;
-    themeMenu.delegate = player; // fills in the themes and the Edit tail
 
     AddSeparator(viewMenu);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, @"menu_always_on_top");

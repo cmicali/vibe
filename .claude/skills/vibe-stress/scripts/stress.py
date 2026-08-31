@@ -291,20 +291,28 @@ def user_settings_snapshot(channel) -> dict:
     # `in`, not truthiness: the system-default appearance IS the empty string
     # (SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT), so a truthiness test
     # would silently decline to restore exactly the users who never chose one.
-    return {key: settings[key] for key in ("windowAppearance", "waveformStyle")
+    return {key: settings[key] for key in ("windowAppearance", "activeTheme")
             if key in settings}
 
 
 def user_settings_restore(channel, snapshot: dict):
+    # The theme first, and the two below it second, because applying a theme
+    # repopulates the style and can pin the appearance: a single-mode theme
+    # outranks windowAppearance outright. Restoring in the other order would
+    # put both back and then have the theme apply overwrite them.
+    theme = snapshot.get("activeTheme")
+    if theme:
+        channel.run(["set_theme", theme])
     appearance = snapshot.get("windowAppearance")
     if appearance is not None:
         # The live menu path, not the CLI prefs write, so the running app ends
         # the run drawn the way it started rather than only on its next launch.
         suffix = appearance or "system_default"
         channel.run(["click_menu", f"view_appearance_{suffix}"])
-    style = snapshot.get("waveformStyle")
-    if style:
-        channel.run(["click_menu", f"waveform_style_{style}"])
+    # The waveform style is NOT restored separately, and must not be: it is a
+    # field of the theme now rather than its own View submenu, so the set_theme
+    # above has already put it back. Restoring it here would need a menu item
+    # that no longer exists — which is what this used to do, silently.
 
 
 def launch(corpus: Path, app: Path):
@@ -394,20 +402,17 @@ PATH_REFUSALS = [
     "could not", "failed",
 ]
 
+# An empty stack is the app's correct answer, and a fuzzer walks off both ends
+# of it constantly. `still in progress` is the conversion undo declining to
+# race the Trash, which is equally correct.
+UNDO_REFUSALS = ["nothing to undo", "nothing to redo", "still in progress"]
+
 FX_ON_OFF = [
     "low_kill_boost", "reverb_send", "delay_send", "short_delay_send",
 ]
 TRANSPORT_KEYS = ["space", "p", "left", "right", "up", "down"]
 HELD_FX_KEYS = ["w", "e", "r", "t"]
 
-# Built by the submenu's delegate, so they are fixed here rather than read out
-# of dump_menu: a run whose first dump_menu happened before something populated
-# that submenu would silently never pick one.
-WAVEFORM_STYLE_MENU_IDS = [
-    "waveform_style_basic", "waveform_style_detailed", "waveform_style_sonic_cirrus",
-    "waveform_style_oversampling_detailed_x2", "waveform_style_oversampling_detailed_x4",
-    "waveform_style_oversampling_detailed_x8",
-]
 APPEARANCE_MENU_IDS = [
     "view_appearance_light", "view_appearance_dark", "view_appearance_system_default",
 ]
@@ -426,16 +431,76 @@ AUDIO_LOADING_KEYS = {
     "prefetch-depth": lambda rng: rng.choice([0, 1]),
 }
 
+# The theme record's own shape, group by group, as AppTheme serializes it. Used
+# to MUTATE a real dumped record rather than to synthesize one: a record built
+# from scratch is refused at the parse, which tests the JSON reader and stops
+# short of the sanitizer — and the sanitizer is the single gate every import,
+# stored record and UI edit is held to, so it is the thing worth hammering.
+THEME_GROUPS = {
+    "window": ["backgroundColorDark", "backgroundColorLight", "backgroundStyle",
+               "cornerRadius", "tint", "mode"],
+    "player": ["artistColorDark", "artistColorLight", "artistFontFace",
+               "titleColorDark", "titleColorLight", "titleFontFace",
+               "titleFontSize", "artistFontSize"],
+    "info": ["colorDark", "colorLight", "fontFace", "fontSize",
+             "timeColorDark", "timeColorLight"],
+    "playlist": ["backgroundColorDark", "backgroundColorLight", "backgroundStyle",
+                 "durationFontFace", "fontFace", "fontSize", "durationFontSize",
+                 "playingRowColorDark", "playingRowColorLight",
+                 "selectedRowColorDark", "selectedRowColorLight",
+                 "showArtworkColumn", "showDurationColumn", "tint"],
+    "waveform": ["gradient", "playedColorDark", "playedColorLight", "style",
+                 "theme", "unplayedColorDark", "unplayedColorLight"],
+}
+
+# Values a field must survive. Each one is a clamp or a rejection the sanitizer
+# owns, and a value that reaches a renderer unclamped is the finding — a corner
+# radius of 1e308 laid on a CALayer, a font size of -500 handed to NSFont, a
+# colour string that is not one. The nonexistent font face matters most: it
+# sanitizes CLEAN (a face name is not checkable against installed fonts without
+# asking for it), so it is the one hostile value that reaches the text system.
+def THEME_HOSTILE(rng):
+    return rng.choice([
+        1e308, -1e308, 0, -1, 99999, 1e18, -0.0,
+        "", " ", "#", "#ZZZZZZ", "#12345678901234", "not-a-color",
+        "NoSuchFont-Regular-Xyzzy", "\x00", "\ufffd" * 40, "x" * 4096,
+        True, False, None, [], {}, [1, 2, 3], {"nested": {"deeper": 1}},
+        "single", "dual", "glass", "solid", "mono", "album_art", "orange",
+        "basic", "detailed", "sonic_cirrus", "custom",
+    ])
+
+
+# Where a playlist edit gets its selection from. Arrow keys carry no modifier
+# into TransportKeyMonitor's bare-key handling only when unmodified — Shift and
+# Command fall through to the table, which is what makes an extension possible
+# at all — so these are the table's own selection verbs reached the way a user
+# reaches them.
+PLAYLIST_SELECT_KEYS = ["down", "up"]
+
+# Import is bounded because every accepted record is a persisted user theme:
+# an 8-hour run at any real weight would leave tens of thousands in the store
+# and the restore would be the only thing that ever removed them. The cap is
+# high enough that the store's own dedupe and ordering are under real pressure.
+MAX_THEME_IMPORTS = 80
+
 
 class OpGenerator:
     def __init__(self, rng, corpus_files, corpus_playlists, corpus_dirs, menu_ids,
-                 profile, exclusions=()):
+                 profile, exclusions=(), themes=(), theme_base=None,
+                 playlist_band=None):
         self.rng = rng
         self.files = corpus_files
         self.playlists = corpus_playlists
         self.dirs = corpus_dirs
         self.menu_ids = menu_ids
         self.exclusions = list(exclusions)
+        self.themes = list(themes)
+        self.theme_base = theme_base
+        self.theme_imports = 0
+        # None when the playlist pane was closed at discovery: every op that
+        # needs a row falls back rather than clicking into the header.
+        self.playlist_band = playlist_band
+        self.keep_playlist = profile in ("theme", "playlist")
         self.window = (900.0, 400.0)
         self.weights = dict(PROFILES["base"])
         self.weights.update(PROFILES.get(profile, {}))
@@ -623,6 +688,15 @@ class OpGenerator:
 
     def op_window(self):
         verb = self.rng.choice(["toggle_size", "toggle_pitch_panel"])
+        if verb == "toggle_size" and self.keep_playlist:
+            # Show Playlist, and the pane is where every row op finds a row. A
+            # uniform toggle parks it CLOSED for half the run, and with it
+            # closed the playlist keys are dead and the clicks land in the
+            # header — the profile reports a clean pass over code it never
+            # entered. Closed and straight back open buys both teardown and
+            # rebuild edges and leaves the pane where the ops need it, which is
+            # the same shape and the same reason as folder_art's pair.
+            return [("window", [verb], []), ("window", [verb], [])]
         return [("window", [verb], [])]
 
     def op_resize(self):
@@ -759,17 +833,15 @@ class OpGenerator:
         return [("equalizer_mode",
                  ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)], [])]
 
-    def op_waveform_style(self):
-        """Swap the renderer strategy under a picture that is still morphing.
-
-        Each style owns its own bar count, mask paths and layer geometry, and
-        the morph engine carries displayed samples across the swap. Doing it
-        mid-hydration, mid-decode, or between a resize and its rebuild is where
-        a stale count or a dropped layer set would show.
-        """
-        return [("waveform_style",
-                 ["click_menu", self.rng.choice(WAVEFORM_STYLE_MENU_IDS)],
-                 ["disabled", "no menu item"])]
+    # There is no op_waveform_style, and its absence is deliberate. The style
+    # used to be its own View submenu and is now a THEME FIELD, so no menu path
+    # to it exists: every `click_menu waveform_style_*` this op used to send now
+    # answers "no menu item", which the tolerated-error list swallowed — so it
+    # scored as a clean run over an op that had stopped doing anything at all.
+    # Swapping the renderer strategy under a morphing picture is still worth
+    # driving, and op_theme is what drives it now: the built-ins carry three
+    # different styles between them, and the import fuzzer sets waveform.style
+    # directly. Its weight went to `theme` in every profile.
 
     def op_appearance(self):
         """Flip light/dark live, which re-resolves every waveform theme rule.
@@ -783,6 +855,175 @@ class OpGenerator:
         return [("appearance",
                  ["click_menu", self.rng.choice(APPEARANCE_MENU_IDS)],
                  ["disabled", "no menu item"])]
+
+    # -- themes -------------------------------------------------------------
+
+    def op_theme(self):
+        """Apply a whole theme while decodes and artwork installs are in flight.
+
+        A theme apply is the widest single settings edit the app has: it
+        repopulates every themed field at once and requests ThemeApply, which
+        re-resolves the window chrome, all four font slots, the playlist's
+        colours and the waveform's palette in one turn. The artwork colour is
+        one of the waveform palette's inputs and rides the generation-matched
+        install path, so an apply landing between an artwork delivery and its
+        install is what the colour-ownership guarantee is written for.
+
+        Paired with an appearance flip half the time, because every theme rule
+        branches on dark and a single-mode theme outranks the window's own
+        appearance setting — the two settings only disagree when both move.
+        """
+        if not self.themes:
+            return self.op_appearance()
+        ops = [("theme", ["set_theme", self.rng.choice(self.themes)], ["unknown theme"])]
+        if self.rng.random() < 0.5:
+            ops.append(("appearance",
+                        ["set_appearance", self.rng.choice(["light", "dark", "system"])], []))
+        return ops
+
+    def op_theme_import(self):
+        """Import a MUTATED real record, then usually apply it.
+
+        The sanitizer is one gate over four callers — a JSON import, a stored
+        record, a UI edit and the shipped built-ins — so a value that escapes
+        it escapes for all four. Mutating a real record rather than building
+        one keeps the mutation past the JSON reader, where the clamps live.
+
+        An applied hostile record is the half that matters: a value the
+        sanitizer let through has done nothing until a renderer is handed it.
+        """
+        if not self.theme_base or self.theme_imports >= MAX_THEME_IMPORTS:
+            return self.op_theme()
+        record = json.loads(json.dumps(self.theme_base))
+        record["name"] = f"fuzz-{self.theme_imports}"
+        for _ in range(self.rng.randint(1, 4)):
+            group = self.rng.choice(sorted(THEME_GROUPS))
+            field = self.rng.choice(THEME_GROUPS[group])
+            record.setdefault(group, {})
+            if isinstance(record[group], dict):
+                record[group][field] = THEME_HOSTILE(self.rng)
+        if self.rng.random() < 0.15:
+            # The envelope itself, not a field: a version the reader must
+            # refuse and a name that is not a string.
+            record[self.rng.choice(["version", "name"])] = THEME_HOSTILE(self.rng)
+        self.theme_imports += 1
+        blob = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
+        ops = [("theme_import", ["import_theme", blob], ["not a theme"])]
+        if self.rng.random() < 0.7:
+            # The record's name goes into the JSON body, where json.dumps
+            # escapes anything; as an ARGV it is raw, and execve cannot carry a
+            # NUL — Python raises ValueError from _fork_exec and the harness,
+            # not the app, is what dies. A mutated envelope can put any hostile
+            # value in `name`, so an argv only ever gets a clean one.
+            name = record.get("name")
+            safe = (isinstance(name, str) and name and "\x00" not in name
+                    and len(name) < 256)
+            ops.append(("theme", ["set_theme", name if safe else "vibe"],
+                        ["unknown theme"]))
+        return ops
+
+    # -- playlist structure -------------------------------------------------
+
+    def playlist_point(self):
+        """A point inside the playlist's viewport, or None when it is closed."""
+        if not self.playlist_band:
+            return None
+        top, bottom = self.playlist_band
+        width = self.window[0]
+        return (round(self.rng.uniform(8, max(9, width - 8)), 1),
+                round(self.rng.uniform(top + 2, bottom - 2), 1))
+
+    def op_playlist_select(self):
+        """Land a multi-row selection the way the keyboard makes one.
+
+        Click to give the table focus and an anchor, then extend with
+        Shift-arrows: unmodified arrows are TransportKeyMonitor's, and anything
+        carrying a modifier falls through to the table, which is the only
+        reason an extension is reachable from the channel at all. Select-All is
+        the other shape, and it is the one that puts EVERY row in the set —
+        including the playing one.
+        """
+        point = self.playlist_point()
+        if not point:
+            return self.op_transport()
+        if self.rng.random() < 0.2:
+            return [("playlist_select_all", ["click_menu", "menu_edit_select_all"],
+                     ["disabled", "no menu item"])]
+        ops = [("playlist_click", ["click", str(point[0]), str(point[1])], [])]
+        for _ in range(self.rng.randint(0, 6)):
+            ops.append(("playlist_extend",
+                        ["key", self.rng.choice(PLAYLIST_SELECT_KEYS), "shift"], []))
+        return ops
+
+    def op_playlist_remove(self):
+        """Remove the selection, sometimes the playing row, sometimes all of it.
+
+        The model half cannot make the transport decision: removing the CURRENT
+        row through the playlist alone would leave the player sounding an object
+        the list no longer holds, so every gesture funnels through the shell,
+        which owns the unload, the successor re-prefetch and the replacement
+        play. Doing it while a track is genuinely playing is the only way to
+        reach that funnel's interesting branch.
+
+        The three ways in are deliberately all used: Backspace and Forward
+        Delete are physical-key twins that only the key monitor knows apart,
+        and the Edit item is the menu path with its own validation.
+        """
+        ops = self.op_playlist_select()
+        if ops and ops[0][0] == "transport":
+            return ops
+        gesture = self.rng.choice([
+            ["key", "delete"], ["key", "forward_delete"],
+            ["click_menu", "menu_edit_remove_from_playlist"],
+        ])
+        ops.append(("playlist_remove", gesture, ["disabled", "no menu item"]))
+        # Undo right behind the edit, while the replacement play it triggered is
+        # still settling: the restore is generation-stamped and must die quietly
+        # once the playlist it edited has been replaced, rather than reinserting
+        # into a list it no longer describes.
+        if self.rng.random() < 0.6:
+            ops.append(("undo", ["undo"], UNDO_REFUSALS))
+            if self.rng.random() < 0.5:
+                ops.append(("redo", ["redo"], UNDO_REFUSALS))
+        return ops
+
+    def op_playlist_move(self):
+        """Drag rows to a new slot, which is the table's own internal drag.
+
+        A move is transport-safe at the model boundary — the current object
+        survives it — so what this exercises is the slot arithmetic, the
+        token fence that must let a stale drag die rather than move strangers,
+        and the shell follow-up that re-parks the successor and registers the
+        inverse. The inverse is registered on EVERY move, which is what lets
+        undo and redo chain, so the undo behind it is part of the op.
+
+        The drag needs a key window and enough steps to clear AppKit's
+        threshold; a drop within a row of the source is a documented no-op
+        rather than a failure, and is left in the mix on purpose.
+        """
+        start, end = self.playlist_point(), self.playlist_point()
+        if not start or not end:
+            return self.op_transport()
+        ops = [("playlist_drag",
+                ["drag", str(start[0]), str(start[1]), str(end[0]), str(end[1]),
+                 str(self.rng.choice([60, 100, 140]))], [])]
+        if self.rng.random() < 0.5:
+            ops.append(("undo", ["undo"], UNDO_REFUSALS))
+            if self.rng.random() < 0.4:
+                ops.append(("redo", ["redo"], UNDO_REFUSALS))
+        return ops
+
+    def op_undo_storm(self):
+        """Walk the undo stack hard in both directions.
+
+        One structural edit sends one observer event and the mac reconciles it
+        with precise row operations rather than reloadData, so an off-by-one in
+        the reconciliation only shows after several edits have stacked. Walking
+        the stack down and back up is what stacks them.
+        """
+        verbs = [self.rng.choice(["undo", "undo", "redo"])
+                 for _ in range(self.rng.randint(2, 8))]
+        return [(v, [v], UNDO_REFUSALS) for v in verbs]
 
     def op_resize_storm(self):
         """Several width changes with nothing between them.
@@ -812,7 +1053,10 @@ PROFILES = {
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
-        "waveform_style": 2, "appearance": 2, "resize_storm": 2,
+        "appearance": 2, "resize_storm": 2,
+        "theme": 4, "theme_import": 1,
+        "playlist_select": 2, "playlist_remove": 2, "playlist_move": 2,
+        "undo_storm": 1,
     },
     # Everything pointed at the open path and the async deliveries that race it.
     "loading": {
@@ -823,8 +1067,10 @@ PROFILES = {
         "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
-        "waveform_style": 2, "appearance": 2, "resize_storm": 2,
+        "appearance": 2, "resize_storm": 2,
     },
+        "theme": 2,
+    
     # Everything `loading` does, with the throttles off. `burst` moves the
     # track-change loop inside the app, where a jump lands every main-queue
     # turn — the channel cannot reach that rate from outside — and settle drops
@@ -842,7 +1088,13 @@ PROFILES = {
         "click": 2, "drag": 1, "drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
-        "waveform_style": 5, "appearance": 3,
+        "appearance": 3,
+        # Structural edits belong in the hammer, not only in their own profile:
+        # a removal whose replacement play is still settling when the next open
+        # lands on top of it is the shape neither profile reaches alone.
+        "theme": 9, "theme_import": 2,
+        "playlist_select": 5, "playlist_remove": 6, "playlist_move": 5,
+        "undo_storm": 3,
     },
     # The folder-artwork fallback: opens through all three resolve strategies
     # (a folder, a burst of files, a lone file), the playlist visible far more
@@ -857,8 +1109,10 @@ PROFILES = {
         "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
-        "waveform_style": 3, "appearance": 6, "resize_storm": 3,
+        "appearance": 6, "resize_storm": 3,
     },
+        "theme": 3,
+    
     # The cloud path: files that are placeholders and take real time to arrive,
     # so the scan's serial cloud lane, the foreground-download hold, the
     # neighborhood re-ranking and the abandoned play and prefetch opens are all
@@ -893,7 +1147,13 @@ PROFILES = {
         # anyway: holding main across a transfer's completion callback is
         # exactly the ordering the foreground hold is written for.
         "block_main": 6, "audio_loading": 3, "equalizer_mode": 0,
-        "waveform_style": 0, "appearance": 0, "resize_storm": 0,
+        "appearance": 0, "resize_storm": 0,
+        # Zero deliberately, and not by oversight: every weight above is a
+        # measured balance between opens and settles, and each op added here is
+        # a settle not taken. The sweep needs those seconds.
+        "theme": 0, "theme_import": 0,
+        "playlist_select": 0, "playlist_remove": 0, "playlist_move": 0,
+        "undo_storm": 0,
     },
     # No file loading at all: pure UI monkey against whatever is loaded.
     "ui": {
@@ -904,7 +1164,66 @@ PROFILES = {
         "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
-        "waveform_style": 8, "appearance": 6, "resize_storm": 10,
+        "appearance": 6, "resize_storm": 10,
+    },
+        "theme": 8,
+    
+    # The theme record end to end: the store, the sanitizer and the apply.
+    #
+    # A theme apply is the app's widest settings edit — every themed field
+    # repopulated at once, then ThemeApply re-resolving window chrome, four
+    # font slots, the playlist's colours and the waveform's palette in one
+    # turn. So the pressure that matters is not the number of applies but WHAT
+    # is in flight underneath them: opens stay heavy, because the artwork
+    # colour feeding the waveform palette rides the generation-matched install
+    # path and an apply landing between a delivery and its install is the case
+    # the colour-ownership guarantee is written for.
+    #
+    # Appearance is heavy for the same reason: every theme rule branches on
+    # dark, and a single-mode theme outranks the window's own appearance
+    # setting outright, so the two only disagree when both move. The waveform
+    # STYLE rides along inside the theme rather than being driven separately —
+    # the built-ins carry three different ones and the import fuzzer sets the
+    # field directly.
+    "theme": {
+        "open_file": 14, "open_dir": 6, "open_burst": 10, "open_playlist": 2,
+        "cache_churn": 3, "clear_caches": 4,
+        "transport": 10, "playlist_jump": 6, "seek": 3, "pitch": 0,
+        "fx": 0, "held_fx": 0, "key": 1,
+        "window": 4, "resize": 4, "click": 3, "drag": 1, "drag_drop": 2,
+        "menu": 2, "undo": 0, "settle": 6, "folder_art": 3,
+        "block_main": 5, "audio_loading": 1, "equalizer_mode": 1,
+        "theme": 32, "theme_import": 10,
+        "appearance": 12, "resize_storm": 4,
+        "playlist_select": 3, "playlist_remove": 2, "playlist_move": 2,
+        "undo_storm": 1,
+    },
+    # Structural edits to the playlist, under enough transport to make them
+    # dangerous. The model half deliberately cannot make the transport
+    # decision — removing the CURRENT row through the playlist alone would
+    # leave the player sounding an object the list no longer holds — so what
+    # this profile is really driving is the shell funnel that owns the unload,
+    # the successor re-prefetch, the replacement play and the undo
+    # registration, all of which only have an interesting branch while
+    # something is actually playing.
+    #
+    # Opens stay in the mix rather than being zeroed: a replacement playlist is
+    # what makes a registered undo stale, and its restore must then die quietly
+    # instead of reinserting into a list it no longer describes. That is
+    # reachable only by editing, then opening, then undoing.
+    "playlist": {
+        "open_file": 8, "open_dir": 8, "open_burst": 6, "open_playlist": 4,
+        "cache_churn": 2, "clear_caches": 2,
+        "transport": 16, "playlist_jump": 14, "burst": 4,
+        "seek": 4, "pitch": 0,
+        "fx": 0, "held_fx": 0, "key": 2,
+        "window": 1, "resize": 3, "click": 2, "drag": 0, "drag_drop": 3,
+        "menu": 2, "undo": 2, "settle": 5, "folder_art": 1,
+        "block_main": 6, "audio_loading": 2, "equalizer_mode": 1,
+        "appearance": 2, "resize_storm": 2,
+        "theme": 3, "theme_import": 1,
+        "playlist_select": 16, "playlist_remove": 20, "playlist_move": 16,
+        "undo_storm": 10,
     },
 }
 
@@ -1316,6 +1635,97 @@ def chrome_exclusion_rects(channel):
     return rects
 
 
+def discover_playlist_band(channel, require: bool):
+    """The playlist viewport's top and bottom in window points, or None.
+
+    Only the drag op needs real geometry, but selection needs the table to have
+    keyboard focus and the only way to give it that is a click inside the
+    pane — so every row op depends on this. The band is a y-range rather than a
+    rect because the pane spans the window's full width, and width is the one
+    dimension the resize ops move; x comes from the tracked window frame the
+    same way op_click's does.
+
+    PlaylistDropZoneView is the marker rather than PlaylistTableView: the table
+    is the scroll view's document view, so its frame is the whole scrollable
+    content — 532 points tall inside a 250-point pane, and mostly off-screen.
+    The drop zone is the viewport, which is what a click has to land in.
+    """
+    if require:
+        # The pane persists in NSUserDefaults, so a run inherits whatever the
+        # last one left it as, and a closed pane makes every row op a no-op
+        # against the header. Ask, then open it if it is shut.
+        code, state, _ = channel.run(["dump_state"], timeout=20)
+        shown = bool(((state or {}).get("window") or {}).get("playlistShown"))
+        if code == 0 and not shown:
+            channel.run(["toggle_size"])
+
+    code, tree, _ = channel.run(["dump_view_tree"], timeout=20)
+    if code != 0 or not tree:
+        return None
+
+    def parse(frame):
+        nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame or "")]
+        return nums if len(nums) == 4 else None
+
+    found = []
+
+    def walk(node, height, oy):
+        box = parse(node.get("frame"))
+        y = oy + (box[1] if box else 0.0)
+        if box and node.get("class") == "PlaylistDropZoneView":
+            top = height - y - box[3]
+            found.append((top, top + box[3]))
+        for child in node.get("subviews", []):
+            walk(child, height, y)
+
+    for window in tree.get("windows", []):
+        box = parse(window.get("frame"))
+        if box and window.get("contentView"):
+            walk(window["contentView"], box[3], 0.0)
+    # The tallest, in case a collapsed twin is also in the tree.
+    return max(found, key=lambda b: b[1] - b[0]) if found else None
+
+
+def collect_themes(channel):
+    """Every applicable theme id, and one real record to mutate from.
+
+    The ids come from the View > Theme submenu, which its delegate fills in, so
+    they cover the user's own themes as well as the three built-ins.
+
+    Order matters in the base record's fallback chain, and it is not
+    alphabetical: a theme is a SPARSE record over the factory defaults, so the
+    built-ins differ enormously in how much they actually carry. Adolescent
+    Engineering sets every group; Industrial sets four fields; the Vibe theme
+    is the empty record, and mutating that one would fuzz a single group per
+    import. Take the fullest that answers.
+    """
+    ids, base = [], None
+    code, payload, _ = channel.run(["dump_menu"], timeout=20)
+    if code == 0 and payload:
+
+        def walk(items):
+            for item in items:
+                identifier = item.get("id") or ""
+                if identifier.startswith("view_theme_"):
+                    ids.append(identifier[len("view_theme_"):])
+                if item.get("items"):
+                    walk(item["items"])
+
+        walk(payload.get("menu", []))
+    # The menu ids are the display path; the built-ins are named ones the
+    # set_theme matcher resolves either way, so a run whose dump_menu happened
+    # before the delegate filled the submenu still has something to apply.
+    for built_in in ("vibe", "industrial", "adolescent_engineering"):
+        if built_in not in ids:
+            ids.append(built_in)
+    for candidate in ("adolescent_engineering", "industrial", "vibe"):
+        code, payload, _ = channel.run(["dump_theme", candidate], timeout=20)
+        if code == 0 and isinstance((payload or {}).get("theme"), dict):
+            base = payload["theme"]
+            break
+    return ids, base
+
+
 def collect_menu_ids(channel):
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
     if code != 0 or not payload:
@@ -1471,9 +1881,29 @@ def run(args):
     launch(corpus, app)
     menu_ids = collect_menu_ids(channel)
     exclusions = chrome_exclusion_rects(channel)
+    # Settings is RESTORABLE, and the app opts into NSQuitAlwaysKeepsWindows —
+    # so once it has been open at quit, AppKit reopens it on every launch
+    # afterwards, and no op in the run is responsible. Left alone it either
+    # lands ~600 views in the baseline (measuring a different app all run) or
+    # arrives after it (failing the run on a window rather than on a leak).
+    # Closing it before the baseline is what makes every leg start from the
+    # same UI, whatever the previous leg left behind.
+    channel.run(["settings_close"], timeout=20)
+    needs_rows = args.profile in ("theme", "playlist")
+    band = discover_playlist_band(channel, needs_rows)
+    themes, theme_base = collect_themes(channel)
     print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
     print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
     print(f"settings: {describe_feature_settings(channel)}")
+    print(f"themes: {len(themes)} applicable, "
+          f"base record {'from ' + str(theme_base.get('name')) if theme_base else 'UNAVAILABLE'}")
+    if band:
+        print(f"rows:   playlist viewport y {band[0]:.0f}..{band[1]:.0f}")
+    elif needs_rows:
+        # Not fatal, but the profile is now driving something else entirely and
+        # a clean pass would mean nothing — say so where it will be read.
+        print("rows:   NO PLAYLIST VIEWPORT FOUND — row ops will fall back to "
+              "transport, and this run does not score playlist editing")
     if IGNORED_METRICS:
         print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
               f"— this run cannot report those")
@@ -1507,7 +1937,9 @@ def run(args):
         print(f"cloud:  fake provider armed, {payload['percent']}% of files cloudy, "
               f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
 
-    generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile, exclusions)
+    generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile,
+                            exclusions, themes=themes, theme_base=theme_base,
+                            playlist_band=band)
     journal_path = (Path(args.journal) if args.journal
                     else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
     # Everything else in the run — health series, stall samples, the failure
@@ -1557,6 +1989,39 @@ def run(args):
                 code, health, _ = channel.run(["dump_health"], timeout=20)
                 if code == 0 and health:
                     health["_ops"] = executed
+                    # An auxiliary window left OPEN parks its whole subtree in
+                    # the view count for as long as it stays up: Settings is
+                    # ~600 views, which clears the growth limit on its own and
+                    # fails the run on a window rather than on a leak.
+                    #
+                    # Gate on the VIEWS, not on the window count. An in-flight
+                    # drag puts AppKit's own drag-image window on screen, and a
+                    # count-only test tripped 91 times in 2,200 ops with the
+                    # view total sitting flat at baseline throughout — so a
+                    # chrome-less window comes and goes unremarked and only a
+                    # window carrying a subtree is worth acting on.
+                    #
+                    # Nothing in the op set opens Settings on purpose and the
+                    # menu item that would is denied, so WHAT opens it is still
+                    # unknown. The note names the ops from the batch it showed
+                    # up in, which is what will localize it.
+                    aux_views = (health.get("ui") or {}).get("views", 0)
+                    if ((health.get("ui") or {}).get("visibleWindows", 1) > 1
+                            and baseline is not None
+                            and aux_views > baseline.get("ui", {}).get("views", 0) + 200):
+                        journal.write(json.dumps({
+                            "note": "auxiliary window open — closing",
+                            "afterOp": executed,
+                            "visibleWindows": health["ui"]["visibleWindows"],
+                            "views": health["ui"].get("views"),
+                            "recentOps": [o[0] for o in batch[-12:]],
+                        }) + "\n")
+                        journal.flush()
+                        channel.run(["settings_close"], timeout=20)
+                        code2, health2, _ = channel.run(["dump_health"], timeout=20)
+                        if code2 == 0 and health2:
+                            health = health2
+                            health["_ops"] = executed
                     health_samples.append(health)
                     if baseline is None:
                         if len(health_samples) >= BASELINE_SAMPLES:

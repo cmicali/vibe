@@ -137,9 +137,10 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 #pragma mark - Drag and Drop
 
 // External file drags only. A draggingSource means one of our own views is the
-// source, namely the album art's drag-out. The delegate is kept abreast of the
-// drag's position, so that the playlist's empty-state wells can track the
-// cursor.
+// source — the album art's drag-out, or a playlist row dragged as its file,
+// both of which carry a file URL a drop here would otherwise re-open. The
+// delegate is kept abreast of the drag's position, so that the playlist's
+// empty-state wells can track the cursor.
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
     if (sender.draggingSource) {
         return NSDragOperationNone;

@@ -20,12 +20,12 @@
 // identifiers, so the row view needs one of its own.
 static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 
-// The internal reorder drag's private pasteboard type. Deliberately NOT a
-// file URL: MainWindow's external drop path reads file URLs as Add/Replace
-// opens, and though it already refuses any drag with an in-app source, a
-// private type keeps a row drag meaningless to every other destination too.
-// The payload is only the live session's token — the authoritative row
-// payload is the retained track array beside it.
+// The internal reorder drag's private pasteboard type, written beside the
+// row's file URL. It is what makes a drop a REORDER: the file URL alone would
+// also be produced by an external file drag, so the private type — plus the
+// live session's token as its payload — is the whole proof that a drop came
+// from this table. The authoritative row payload is the retained track array
+// beside it.
 static NSPasteboardType const kPlaylistReorderPasteboardType =
         @"com.commonwealthrecordings.vibe.playlist-reorder";
 
@@ -60,6 +60,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // validation resolves the objects afresh through the identity map.
     NSArray<AudioTrack *> *_dragSessionTracks;
     NSString *_dragSessionToken;
+    // The exact URL instances startAccessingSecurityScopedResource answered
+    // YES for, held open for the drag-out's receiver; see willBeginAtPoint:.
+    NSArray<NSURL *> *_dragSessionScopedURLs;
 }
 
 - (void)dealloc {
@@ -142,14 +145,15 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     menu.delegate = self;
     _tableView.menu = menu;
 
-    // Rows reorder by dragging within this table only: the private type is
-    // all it accepts, so external file drags keep falling through to the
-    // window's Add/Replace wells, and the Move-only local mask plus
-    // MainWindow's own draggingSource rejection keep a row drag from reading
-    // as a file open anywhere else.
+    // Rows reorder inside this table and copy out as their files anywhere
+    // else, which is exactly the two masks below. The private type stays the
+    // only type this table accepts, so an external file drag keeps falling
+    // through to the window's Add/Replace wells, and MainWindow's own
+    // draggingSource rejection keeps a row dragged around inside the window
+    // from reading as a file open.
     [_tableView registerForDraggedTypes:@[kPlaylistReorderPasteboardType]];
     [_tableView setDraggingSourceOperationMask:NSDragOperationMove forLocal:YES];
-    [_tableView setDraggingSourceOperationMask:NSDragOperationNone forLocal:NO];
+    [_tableView setDraggingSourceOperationMask:NSDragOperationCopy forLocal:NO];
 
     NSClipView *clipView = tableView.enclosingScrollView.contentView;
     if (!clipView) {
@@ -205,11 +209,14 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return (NSInteger)_model.count;
 }
 
-#pragma mark - Row reordering (internal drag)
+#pragma mark - Row dragging (reorder inside, files outside)
 
-// Vends the private-type payload for a dragged row. AppKit asks once per
-// dragged row before the session begins, so the first ask mints the session
-// token and the rest of the selection shares it.
+// Vends both halves of a dragged row's payload: the private type carrying the
+// session token, which is what a reorder drop is qualified by, and the row's
+// file URL, which is what a drop outside the app copies — the same file the
+// artwork's drag-out offers, for one row or the whole selection. AppKit asks
+// once per dragged row before the session begins, so the first ask mints the
+// session token and the rest of the selection shares it.
 - (id<NSPasteboardWriting>)tableView:(NSTableView *)tableView
               pasteboardWriterForRow:(NSInteger)row {
     if (row < 0 || row >= (NSInteger)_model.count) {
@@ -220,6 +227,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
     NSPasteboardItem *item = [NSPasteboardItem new];
     [item setString:_dragSessionToken forType:kPlaylistReorderPasteboardType];
+    NSURL *url = [_model trackAtIndex:(NSUInteger)row].url;
+    if (url.isFileURL) {
+        [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
+    }
     return item;
 }
 
@@ -231,6 +242,19 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
  willBeginAtPoint:(NSPoint)screenPoint
     forRowIndexes:(NSIndexSet *)rowIndexes {
     _dragSessionTracks = [_model tracksAtIndexes:rowIndexes];
+    // A receiver outside the app reads the dropped files long after this
+    // returns, so the scope has to outlive the drag; endedAtPoint: balances
+    // it. Only a URL whose start took is recorded, since an unbalanced stop
+    // over-releases the sandbox extension — a URL covered by a folder grant
+    // rather than scoped itself answers NO here and drags fine anyway.
+    NSMutableArray<NSURL *> *scoped = [NSMutableArray array];
+    for (AudioTrack *track in _dragSessionTracks) {
+        NSURL *url = track.url;
+        if ([url startAccessingSecurityScopedResource]) {
+            [scoped addObject:url];
+        }
+    }
+    _dragSessionScopedURLs = scoped;
 }
 
 // One drop qualification for the insertion line and the drop itself, so the
@@ -297,11 +321,16 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return destination && [_model moveTracksAtIndexes:sourceRows toIndexes:destination];
 }
 
-// Always called, drop or cancel, so a finished session cannot be reused.
+// Always called, drop or cancel, so a finished session cannot be reused and
+// the drag-out's security scopes cannot leak.
 - (void)tableView:(NSTableView *)tableView
   draggingSession:(NSDraggingSession *)session
      endedAtPoint:(NSPoint)screenPoint
         operation:(NSDragOperation)operation {
+    for (NSURL *url in _dragSessionScopedURLs) {
+        [url stopAccessingSecurityScopedResource];
+    }
+    _dragSessionScopedURLs = nil;
     _dragSessionTracks = nil;
     _dragSessionToken = nil;
 }
