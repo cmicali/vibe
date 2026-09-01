@@ -10,6 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
+#import "VibeStrings.h"
 
 #if DEBUG
 
@@ -280,8 +281,10 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (!record) {
                     return VibeErrorJSON(@"not a theme: %@", error.localizedDescription ?: @"unreadable");
                 }
+                // The same default the Settings pane's import gives a file
+                // that carried no name of its own.
                 NSString *identifier = [AppSettings.sharedInstance addUserThemeWithRecord:record
-                                                                                     name:name];
+                        name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
                 return VibeJSONString(@{@"ok": @YES, @"imported": identifier,
                         @"name": [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier],
                         @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});

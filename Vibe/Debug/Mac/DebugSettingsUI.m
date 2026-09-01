@@ -209,53 +209,13 @@ static NSString *VibeElementName(NSView *view, NSString *kind, NSString *rowLabe
 }
 
 static void VibeCollectElements(NSView *view, NSString *rowLabel,
-                                NSMutableArray<VibeSettingsElement *> *out);
-
-// A form row's column 0 is the label FOR the row, not a thing of its own, so it
-// names the controls beside it instead of being listed separately. A
-// single-column grid — the Permissions pane — has no such head cell and every
-// cell is content.
-static void VibeCollectGridElements(NSGridView *grid, NSString *inheritedLabel,
-                                    NSMutableArray<VibeSettingsElement *> *out) {
-    for (NSInteger row = 0; row < grid.numberOfRows; row++) {
-        NSString *rowLabel = inheritedLabel;
-        NSInteger firstContentColumn = 0;
-        if (grid.numberOfColumns > 1) {
-            NSView *head = [grid cellAtColumnIndex:0 rowIndex:row].contentView;
-            BOOL headIsLabel = [head isKindOfClass:NSTextField.class] && ![(NSTextField *)head isEditable];
-            BOOL hasContentBeside = NO;
-            for (NSInteger column = 1; column < grid.numberOfColumns; column++) {
-                NSView *content = [grid cellAtColumnIndex:column rowIndex:row].contentView;
-                if (content && content != NSGridCell.emptyContentView) {
-                    hasContentBeside = YES;
-                    break;
-                }
-            }
-            if (headIsLabel && hasContentBeside) {
-                rowLabel = ((NSTextField *)head).stringValue;
-                firstContentColumn = 1;
-            }
-        }
-        for (NSInteger column = firstContentColumn; column < grid.numberOfColumns; column++) {
-            NSView *content = [grid cellAtColumnIndex:column rowIndex:row].contentView;
-            if (content && content != NSGridCell.emptyContentView) {
-                VibeCollectElements(content, rowLabel, out);
-            }
-        }
-    }
-}
-
-static void VibeCollectElements(NSView *view, NSString *rowLabel,
                                 NSMutableArray<VibeSettingsElement *> *out) {
     // A scroll view's scrollers are NSControls, and nothing a caller would ever
     // aim at; the document view inside it still gets collected.
     if ([view isKindOfClass:NSScroller.class]) {
         return;
     }
-    if ([view isKindOfClass:NSGridView.class]) {
-        VibeCollectGridElements((NSGridView *)view, rowLabel, out);
-        return;
-    }
+
     // A grouped-form row: its title is the addressing label for the controls
     // beside it, and the title and caption are structure, not elements. A
     // section passes its header down the same way, which is how the Files

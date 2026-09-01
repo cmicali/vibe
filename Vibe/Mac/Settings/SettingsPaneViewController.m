@@ -199,8 +199,8 @@ static const CGFloat kInlineBadgeGap = 8;
             changed |= [(SettingsPaneViewController *)pane applyPaneSize:shared];
         }
     }
-    // The visible pane's constraints cannot move the window on their own —
-    // they sit below required — so the host applies the matching frame.
+    // A pane carries no size constraints, so the new shared size cannot reach
+    // the window by itself — the host applies the matching frame.
     id host = panes.firstObject.parentViewController;
     if (changed && [host conformsToProtocol:@protocol(SettingsPaneSizeHost)]) {
         [(id<SettingsPaneSizeHost>)host settingsPaneSizeDidChange];

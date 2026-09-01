@@ -139,8 +139,6 @@ static const CGFloat kTransportSymbolSize = 31;
 // the real macOS controls.
 static const CFTimeInterval kControlFadeDur = 0.2;
 
-// The shared point size for the small numeric labels: the time readouts, the
-// codec line and the BPM line.
 
 // One shadow recipe for every header label. The opacity itself is driven by
 // the appearance, in updateMaterialForAppearance: dark text on the light glass
@@ -283,8 +281,33 @@ API_AVAILABLE(macos(26.0))
 //
 // Both inputs move: the geometry on every resize, hooked below, and the text on
 // every codec and FX change, hooked by TrackDisplayController.
+// TRAP: measure with the field's own font. The corner lines' attributed
+// strings carry color and kern but no font (TrackDisplayController's
+// cornerTextAttributes), so -size lays the metadata run out in the system
+// default 12pt instead of the themed info font — which under a 15pt or
+// monospaced face under-measures by tens of points, and the artist line then
+// runs under the codec text. The FX symbol runs carry a font of their own and
+// keep it.
+- (CGFloat)renderedCodecTextWidth {
+    NSAttributedString *text = _fileMetadataTextField.attributedStringValue;
+    NSFont *font = _fileMetadataTextField.font;
+    if (text.length == 0 || !font) {
+        return ceil(text.size.width);
+    }
+    NSMutableAttributedString *measured = [text mutableCopy];
+    [measured enumerateAttribute:NSFontAttributeName
+                         inRange:NSMakeRange(0, measured.length)
+                         options:0
+                      usingBlock:^(NSFont *run, NSRange range, BOOL *stop) {
+        if (!run) {
+            [measured addAttribute:NSFontAttributeName value:font range:range];
+        }
+    }];
+    return ceil(measured.size.width);
+}
+
 - (void)layoutArtistLineClearOfCodecLine {
-    CGFloat codecTextWidth = ceil(_fileMetadataTextField.attributedStringValue.size.width);
+    CGFloat codecTextWidth = [self renderedCodecTextWidth];
     CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - codecTextWidth - kCodecColumnGutter;
     NSRect frame = _artistTextField.frame;
     frame.size.width = MAX(0, clearX - NSMinX(frame));

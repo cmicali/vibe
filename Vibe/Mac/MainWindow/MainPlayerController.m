@@ -322,7 +322,7 @@
     // applicationShouldTerminateAfterLastWindowClosed never fires.
     self.window.delegate = self;
 
-    [self applyStoredAppearance]; // the one home of the pin rule
+    [self applyStoredAppearance];
     [self applyAlwaysOnTop];
 
     self.waveformView.delegate = self;

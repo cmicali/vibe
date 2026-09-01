@@ -54,8 +54,7 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
                                             VibeEnergyColumn *column,
                                             float *outMin, float *outMax) {
     AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-    NSUInteger columnIndex = count > kVibeWaveformEnergyColumns
-            ? i * kVibeWaveformEnergyColumns / count : i;
+    NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
     if (column->index != columnIndex) {
         AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
                 ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;

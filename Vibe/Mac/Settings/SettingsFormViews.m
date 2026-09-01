@@ -54,6 +54,10 @@ static const CGFloat kHeaderCardGap = 6;
     return [self rowWithTitle:title caption:nil controls:@[control]];
 }
 
+- (void)setRowTitle:(NSString *)title {
+    _titleLabel.stringValue = title.vibeFormLabel;
+}
+
 + (instancetype)rowWithTitle:(NSString *)title caption:(NSString *)caption control:(NSView *)control {
     return [self rowWithTitle:title caption:caption controls:@[control]];
 }

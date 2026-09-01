@@ -30,10 +30,10 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // Appearance pane's editor page alike.
 static const CGFloat kPanePadding = 20;
 
-// The panes' host — the tab controller — owns the window's size. A pane's own
-// constraints sit below required, so the window edge wins over them while a
-// pane is on screen (see SettingsWindowController); this is how a size change
-// made while the window is open reaches the frame.
+// The panes' host — the tab controller — owns the window's size. A pane carries
+// no size constraints at all (loadPaneWithSections: says why), so nothing on
+// the pane side can move the window; this is how a size change made while the
+// window is open reaches the frame.
 @protocol SettingsPaneSizeHost <NSObject>
 - (void)settingsPaneSizeDidChange;
 @end

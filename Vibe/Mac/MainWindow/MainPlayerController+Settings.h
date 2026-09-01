@@ -24,10 +24,10 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectConvertMenu      = 1UL << 11,
     VibeSettingsLiveEffectFXControls       = 1UL << 12,
     VibeSettingsLiveEffectTrafficLights    = 1UL << 13,
-    // The themed window shape and background: the corner radius at its five
-    // consumers, and the solid-background cover over the glass.
+    // The themed window shape and background: the corner radius at every
+    // consumer, and the solid-background cover over the glass.
     VibeSettingsLiveEffectWindowChrome     = 1UL << 14,
-    // The four themed font slots: push the theme's choice into Fonts, then
+    // The five themed font slots: push the theme's choice into Fonts, then
     // re-resolve every label that holds a slot font.
     VibeSettingsLiveEffectFonts            = 1UL << 15,
     // The playlist's themed colors and font: cell attributes rebuild, rows

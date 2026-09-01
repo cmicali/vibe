@@ -3,8 +3,10 @@
 Every `<identifier>.json` in `Resources/Themes/` ships in the app as a read-only
 built-in theme. **The filename stem is the theme's stable identifier**
 (lowercase snake_case, e.g. `sonic_cirrus.json`); the `name` key is
-its English display name. Adding a theme is adding one file here — no code
-changes, no project edits.
+its English display name. Adding a theme is adding one file here — no project
+edits, and the only code it touches is the expected identifier list in
+`testBuiltInIdentifiers` (`Tests/AppThemeTests.m`), which is what keeps a
+dropped or renamed theme file loud.
 
 ## Making one
 
@@ -14,7 +16,9 @@ changes, no project edits.
    `Vibe --debug-cmd dump_theme <your-theme-name>`).
 3. Rename the file to its identifier (`my_theme.json`) and drop it in this
    directory. Set `name` to the display name you want.
-4. Open a pull request. CI's `make test` validates every file here.
+4. Add the identifier to `testBuiltInIdentifiers` (`Tests/AppThemeTests.m`) —
+   `vibe` first, the rest alphabetical.
+5. Open a pull request. CI's `make test` validates every file here.
 
 ## File format
 

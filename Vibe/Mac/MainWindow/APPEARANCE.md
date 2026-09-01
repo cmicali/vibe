@@ -40,9 +40,9 @@ Tint changes fade over `kVibeArtCrossfadeDuration`, shared with `CrossfadingImag
 
 The codec line doubles as the FX indicator: the SF Symbols of latched effects draw inline at the head of the same right-aligned run, glued to the codec text. Low kill shows the filled dial while its boost is on (the boost modifies that filter rather than being an effect of its own); reverb one symbol; each active delay one, matching the FX menu's.
 
-`AppSettings.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but **the FX symbols are deck state, not file info, and keep composing.**
+`currentTheme.showFileInfo` off empties the codec text and the BPM/key line at render time (`TrackDisplayController` reads it in `renderState:` and `renderBPM:`), but **the FX symbols are deck state, not file info, and keep composing.**
 
-`AppSettings.showBPM` and `.showKey` each blank their own half of that line, upstream of the render: `effectiveTempoDidChange` passes 0 for a hidden tempo and -1 for a hidden key, so the separator disappears with either half and the line empties when both are off. Neither touches detection, tags, or the delay's BPM-synced taps — the fx write is unconditional, since a hidden readout must not change the audio.
+`currentTheme.showBPM` and `.showKey` each blank their own half of that line, upstream of the render: `effectiveTempoDidChange` passes 0 for a hidden tempo and -1 for a hidden key, so the separator disappears with either half and the line empties when both are off. Neither touches detection, tags, or the delay's BPM-synced taps — the fx write is unconditional, since a hidden readout must not change the audio.
 
 The line has **two independent inputs** — codec text and FX state — and `TrackDisplayController` composes it from the last of each, because FX are deck state that outlives any track: they persist across track changes and into the empty state.
 

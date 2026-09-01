@@ -84,7 +84,7 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
 // bump invalidates by rename as well as by mismatch. The key rode in without
 // a bump: it is encoded as an object, so a pre-key entry decodes nil — never
 // a fabricated C major — and everyone's cached waveforms and BPMs survive.
-const int kCodableAudioWaveformVersion = 5; // 5: per-chunk energy joined the min/max peaks
+const int kCodableAudioWaveformVersion = 5;
 
 @implementation CodableAudioWaveform
 

@@ -42,6 +42,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nullable) NSTextField *titleLabel;
 @property (readonly, nullable) NSTextField *captionLabel;
 
+// Retitle in place, through the same form-label trim the constructor applies.
+// The theme editor's per-side color rows lose their side under a single-mode
+// theme, and the title is what the debug walker addresses the row by.
+- (void)setRowTitle:(NSString *)title;
+
 // Set by the section on every row but its first, so a hidden row takes its
 // separator with it.
 @property (nonatomic) BOOL showsTopSeparator;

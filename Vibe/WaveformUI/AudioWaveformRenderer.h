@@ -71,6 +71,15 @@ static inline float VibeWaveformBarLevel(float meanSquare) {
 // Only the level is floored; the min/max shape keeps per-bar resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
+// Which energy column bar i of count belongs to. Split from the accessor
+// below because a renderer caching per column keys on the index and must not
+// re-derive it: the two spellings would drift, and a bar scaled by its
+// neighbour's level looks like nothing in particular.
+static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
+    return count > kVibeWaveformEnergyColumns
+            ? i * kVibeWaveformEnergyColumns / count : i;
+}
+
 // The energy column bar i of count draws its level from. Every bar-level
 // consumer maps through this rather than reading its own chunk's energy, so
 // a renderer with bars finer than the column cannot re-peg to sub-beat RMS —
@@ -79,7 +88,7 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
                                                                      NSUInteger i,
                                                                      NSUInteger count) {
     return count > kVibeWaveformEnergyColumns
-            ? waveform->getChunkAtIndex(i * kVibeWaveformEnergyColumns / count,
+            ? waveform->getChunkAtIndex(VibeWaveformEnergyColumnIndexForBar(i, count),
                                         kVibeWaveformEnergyColumns)
             : waveform->getChunkAtIndex(i, count);
 }

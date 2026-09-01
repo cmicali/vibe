@@ -15,8 +15,8 @@
 // nothing for a caller to aim at but coordinates that move with every
 // localization and every pane resize.
 //
-// So this addresses controls the way the pane presents them: by the form
-// grid's row label or the control's own title. dump_settings_ui lists what the
+// So this addresses controls the way the pane presents them: by the row's
+// title or the control's own. dump_settings_ui lists what the
 // selected pane holds and settings_click activates one of those by name,
 // through the control's real action path.
 //

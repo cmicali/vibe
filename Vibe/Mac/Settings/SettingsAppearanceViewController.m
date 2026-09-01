@@ -20,6 +20,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
 #import "Fonts.h"
+#import "NSImage+Util.h"
 #import "WaveformRendererRegistry.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
@@ -41,16 +42,6 @@ static const CGFloat kAlbumArtBadgePointSize = 16.25; // NSFont.systemFontSize *
 // click target.
 static const CGFloat kAlbumArtBadgeInset = 1.5;
 
-// Palette colors at the badge point size. Applying the palette to the sized
-// configuration rather than passing either alone is what keeps both: the
-// symbol image takes ONE configuration, so a second withSymbolConfiguration:
-// would replace the first rather than add to it.
-static NSImageSymbolConfiguration *AlbumArtBadgeSymbolConfig(NSArray<NSColor *> *colors) {
-    return [[NSImageSymbolConfiguration configurationWithPointSize:kAlbumArtBadgePointSize
-                                                            weight:NSFontWeightRegular]
-            configurationByApplyingConfiguration:
-                    [NSImageSymbolConfiguration configurationWithPaletteColors:colors]];
-}
 static const CGFloat kThemeListRowHeight = 22;
 // Ten rows: the two group headers, the built-ins, and room for a handful of
 // the user's own before it scrolls.
@@ -352,11 +343,10 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     preview.layer.cornerRadius = 6;
     preview.layer.masksToBounds = YES;
     ((NSButtonCell *)preview.cell).imageScaling = NSImageScaleProportionallyUpOrDown;
-    NSButton *clear = [NSButton buttonWithImage:[[NSImage
-            imageWithSystemSymbolName:@"xmark.circle.fill"
-              accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_CLEAR]
-            imageWithSymbolConfiguration:AlbumArtBadgeSymbolConfig(
-                    @[NSColor.whiteColor, [NSColor colorWithWhite:0 alpha:0.6]])]
+    NSButton *clear = [NSButton buttonWithImage:[NSImage symbolNamed:@"xmark.circle.fill"
+            pointSize:kAlbumArtBadgePointSize weight:NSFontWeightRegular
+              palette:@[NSColor.whiteColor, [NSColor colorWithWhite:0 alpha:0.6]]
+            accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_CLEAR]
                                          target:self action:@selector(clearCustomArtwork:)];
     clear.bordered = NO;
     clear.title = STR_SETTINGS_THEME_ALBUM_ART_CLEAR; // image-only: named, never drawn
@@ -367,11 +357,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     // and a warning nobody can see without hovering the thing it warns about
     // is no warning. An image view, not a button — there is nothing to press,
     // and a button would promise one to VoiceOver.
-    NSImageView *missing = [NSImageView imageViewWithImage:[[NSImage
-            imageWithSystemSymbolName:@"exclamationmark.circle.fill"
-             accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_MISSING]
-            imageWithSymbolConfiguration:AlbumArtBadgeSymbolConfig(
-                    @[NSColor.whiteColor, NSColor.systemRedColor])]];
+    NSImageView *missing = [NSImageView imageViewWithImage:[NSImage
+            symbolNamed:@"exclamationmark.circle.fill"
+              pointSize:kAlbumArtBadgePointSize weight:NSFontWeightRegular
+                palette:@[NSColor.whiteColor, NSColor.systemRedColor]
+            accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_MISSING]];
     missing.toolTip = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
     missing.accessibilityLabel = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
     missing.hidden = YES;
@@ -784,6 +774,15 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     // collapses to one well — the dark-keyed well, the single slot's home —
     // with the captions hidden, and the per-side rows keep only that one.
     BOOL single = theme.isSingleMode;
+    // The per-side rows lose their side with it: one color, so "Dark color"
+    // names a half the theme does not have — and that title is what the
+    // debug walker addresses the row by.
+    [_windowTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
+                                           : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
+    [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
+                                             : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
+    [_customDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLORS_LABEL
+                                       : STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL];
     for (NSStackView *pair in _darkLightPairs) {
         NSArray<NSView *> *views = pair.arrangedSubviews; // well, caption, well, caption
         views[1].hidden = single;
@@ -1253,20 +1252,43 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
     NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
     // A default-artwork image travels beside the JSON, so those themes export
-    // as a ZIP; everything else stays a plain JSON file.
+    // as a ZIP; everything else stays a plain JSON file. WHICH it is comes from
+    // the record's own references, because the images themselves are read only
+    // once the user has confirmed the save — a theme's artwork runs to
+    // megabytes, and a cancelled panel must not have paid for it.
     NSDictionary *record = [AppSettings.sharedInstance recordForThemeIdentifier:selected];
-    NSData *archive = [AppTheme archiveDataForRecord:record name:name];
-    NSString *extension = archive ? @"zip" : @"json";
+    AppTheme *exported = [[AppTheme alloc] initWithRecord:record];
+    BOOL carriesArtwork = NO;
+    for (NSNumber *dark in @[@YES, @NO]) {
+        NSString *art = [exported defaultArtworkForDark:dark.boolValue];
+        carriesArtwork = carriesArtwork ||
+                (art.length > 0 && ![AppTheme defaultArtworkIsMissing:art]);
+    }
+    NSString *extension = carriesArtwork ? @"zip" : @"json";
     NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.allowedContentTypes = @[archive ? UTTypeZIP : UTTypeJSON];
-    panel.nameFieldStringValue =
-            [name stringByAppendingPathExtension:extension] ?: @"theme.json";
+    panel.allowedContentTypes = @[carriesArtwork ? UTTypeZIP : UTTypeJSON];
+    panel.nameFieldStringValue = [name stringByAppendingPathExtension:extension]
+            ?: [@"theme" stringByAppendingPathExtension:extension];
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
         if (response != NSModalResponseOK || !panel.URL) {
             return;
         }
-        NSData *payload = archive ?: [AppTheme JSONDataForRecord:record name:name];
-        [payload writeToURL:panel.URL atomically:YES];
+        // The archive can still come back nil — an image deleted while the
+        // panel was up — and the theme is worth more than its artwork, so the
+        // JSON goes out rather than nothing.
+        NSData *payload = carriesArtwork ? [AppTheme archiveDataForRecord:record name:name] : nil;
+        payload = payload ?: [AppTheme JSONDataForRecord:record name:name];
+        NSError *error = nil;
+        if (payload && [payload writeToURL:panel.URL options:NSDataWritingAtomic error:&error]) {
+            return;
+        }
+        // A failed write has to say so: a panel that just closes is
+        // indistinguishable from a saved file. The system's own message names
+        // the reason — a full disk, a read-only volume — better than ours.
+        [[NSAlert alertWithError:error ?: [NSError errorWithDomain:NSCocoaErrorDomain
+                                                              code:NSFileWriteUnknownError
+                                                          userInfo:nil]]
+                beginSheetModalForWindow:self.view.window completionHandler:nil];
     }];
 }
 
@@ -1470,8 +1492,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             return;
         }
         NSError *error = nil;
+        // Read mapped, as the theme import is: the byte cap inside AppTheme
+        // rejects an oversized image, but only once the bytes exist, and a
+        // mistakenly picked huge file must not be pulled into memory to be
+        // told it is too big.
         NSString *stored = [AppTheme storeCustomArtworkData:
-                [NSData dataWithContentsOfURL:panel.URL] error:&error];
+                [NSData dataWithContentsOfURL:panel.URL
+                                      options:NSDataReadingMappedIfSafe
+                                        error:NULL] error:&error];
         if (!stored) {
             [self refreshFromSettings];
             NSAlert *alert = [[NSAlert alloc] init];
@@ -1573,6 +1601,20 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 #pragma mark - Editor: name
+
+// TRAP: the Name field's editor is an NSTextView, which implements changeFont:
+// and would eat the font panel's sends to restyle the name. selectFont: parks
+// first responder to open the panel clear of it; this is the same trap reached
+// from the other side, once the panel is already up.
+- (void)controlTextDidBeginEditing:(NSNotification *)notification {
+    if (notification.object != _nameField) {
+        return;
+    }
+    _fontEditingSlot = VibeFontSlotNone;
+    if (NSFontPanel.sharedFontPanelExists) {
+        [NSFontPanel.sharedFontPanel orderOut:nil];
+    }
+}
 
 - (void)controlTextDidEndEditing:(NSNotification *)notification {
     if (notification.object != _nameField) {

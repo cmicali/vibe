@@ -6,7 +6,6 @@
 #import "AppTheme.h"
 #import <AppKit/AppKit.h>
 #import <compression.h>
-#import <CommonCrypto/CommonDigest.h>
 #import "PlatformImage.h"
 #import "AppSettings.h"
 #import "SettingsRules.h"
@@ -558,7 +557,13 @@ static NSString *VibeCustomArtworkDirectory(void) {
 #endif
     NSString *support = NSSearchPathForDirectoriesInDomains(
             NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
-    return [support stringByAppendingPathComponent:@"ThemeArt"];
+    // Under the app's own identifier, the Application Support convention.
+    // Sandboxed that sits inside the container either way, but an unsandboxed
+    // run — the host-less suite — would otherwise drop a bare "ThemeArt"
+    // beside every other app's folder in the real ~/Library.
+    return [[support stringByAppendingPathComponent:
+            NSBundle.mainBundle.bundleIdentifier ?: @"Vibe"]
+            stringByAppendingPathComponent:@"ThemeArt"];
 }
 
 // The Resources/Themes URL a bundled: value names, or nil for any other value
@@ -722,6 +727,14 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
     // draws at most ~525px, so the 1024px cross-platform bound would pin a
     // bitmap 2.5x larger than anything on screen for the app's lifetime.
     NSImage *image = data ? VibeDecodedImageWithData(data, kVibeArchivedDisplayArtDimension) : nil;
+    if (!image && key.length) {
+        // TRAP: the named image is gone, or will not decode — fall back, but
+        // never cache the fallback under ITS key. Container files are
+        // content-hash-named, so re-storing the same image later reuses the
+        // name that is now poisoned, and the theme would keep drawing the
+        // factory record until the next launch.
+        return [self imageForDefaultArtwork:@""];
+    }
     // The factory record image; the blank square is for the host-less
     // test bundle, which carries no asset catalog.
     image = image ?: [NSImage imageNamed:@"record-bg"]
@@ -913,6 +926,10 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 // The whole theme archive's ceiling — one JSON plus one image, with slack.
 // Both the pre-parse input gate and the unzip's running inflate budget use it.
 static const NSUInteger kThemeArchiveByteCap = 2 * 8 * 1024 * 1024 + 64 * 1024;
+// A theme archive is one JSON plus at most two images; a Finder zip adds its
+// __MACOSX sidecars. The count is a 16-bit field, and walking 65,535 headers
+// to reject them one by one is itself the attack.
+static const NSUInteger kThemeArchiveEntryCap = 64;
 
 // nil when the data is not a zip this reader can walk. Entries it cannot
 // decode (an unsupported method) are skipped rather than fatal.
@@ -936,52 +953,66 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     }
     NSUInteger count = VibeReadLE(bytes + eocd + 10, 2);
     NSUInteger offset = VibeReadLE(bytes + eocd + 16, 4);
+    if (count > kThemeArchiveEntryCap) {
+        return nil;
+    }
     // A total budget across all entries, so deflate's ~1000:1 ratio cannot
     // aim thousands of central-directory entries at one small stream and
     // exhaust memory. One JSON plus one image is all the caller needs.
     NSUInteger budget = kThemeArchiveByteCap;
     NSMutableDictionary *entries = [NSMutableDictionary dictionary];
     for (NSUInteger i = 0; i < count; i++) {
-        if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
-            return nil;
-        }
-        NSUInteger method = VibeReadLE(bytes + offset + 10, 2);
-        NSUInteger csize = VibeReadLE(bytes + offset + 20, 4);
-        NSUInteger usize = VibeReadLE(bytes + offset + 24, 4);
-        NSUInteger nameLength = VibeReadLE(bytes + offset + 28, 2);
-        NSUInteger extraLength = VibeReadLE(bytes + offset + 30, 2);
-        NSUInteger commentLength = VibeReadLE(bytes + offset + 32, 2);
-        NSUInteger local = VibeReadLE(bytes + offset + 42, 4);
-        // TRAP: the fixed 46-byte header is bounds-checked above, but the
-        // variable-length name that follows is NOT — a crafted nameLength
-        // (≤65535) would read past the buffer. Guard the name AND the offset
-        // advance before touching either.
-        if (offset + 46 + nameLength + extraLength + commentLength > length) {
-            return nil;
-        }
-        NSString *name = [[NSString alloc] initWithBytes:bytes + offset + 46
-                length:nameLength encoding:NSUTF8StringEncoding];
-        offset += 46 + nameLength + extraLength + commentLength;
-        if (local + 30 > length || VibeReadLE(bytes + local, 4) != 0x04034b50) {
-            return nil;
-        }
-        NSUInteger localName = VibeReadLE(bytes + local + 26, 2);
-        NSUInteger localExtra = VibeReadLE(bytes + local + 28, 2);
-        NSUInteger dataStart = local + 30 + localName + localExtra;
-        if (dataStart + csize > length || !name || [name hasSuffix:@"/"]) {
-            continue;
-        }
-        NSData *raw = [zip subdataWithRange:NSMakeRange(dataStart, csize)];
-        if (method == 0 && raw.length <= budget) {
-            budget -= raw.length;
-            entries[name] = raw;
-        } else if (method == 8 && usize > 0 && usize <= budget) {
-            NSMutableData *inflated = [NSMutableData dataWithLength:usize];
-            size_t written = compression_decode_buffer(inflated.mutableBytes, usize,
-                    raw.bytes, raw.length, NULL, COMPRESSION_ZLIB);
-            if (written == usize) {
-                budget -= usize;
-                entries[name] = inflated;
+        // Per entry, because everything below it is transient but the name and
+        // the accepted payload: a rejected entry must not hold its bytes until
+        // the whole walk returns.
+        @autoreleasepool {
+            if (offset + 46 > length || VibeReadLE(bytes + offset, 4) != 0x02014b50) {
+                return nil;
+            }
+            NSUInteger method = VibeReadLE(bytes + offset + 10, 2);
+            NSUInteger csize = VibeReadLE(bytes + offset + 20, 4);
+            NSUInteger usize = VibeReadLE(bytes + offset + 24, 4);
+            NSUInteger nameLength = VibeReadLE(bytes + offset + 28, 2);
+            NSUInteger extraLength = VibeReadLE(bytes + offset + 30, 2);
+            NSUInteger commentLength = VibeReadLE(bytes + offset + 32, 2);
+            NSUInteger local = VibeReadLE(bytes + offset + 42, 4);
+            // TRAP: the fixed 46-byte header is bounds-checked above, but the
+            // variable-length name that follows is NOT — a crafted nameLength
+            // (≤65535) would read past the buffer. Guard the name AND the offset
+            // advance before touching either.
+            if (offset + 46 + nameLength + extraLength + commentLength > length) {
+                return nil;
+            }
+            NSString *name = [[NSString alloc] initWithBytes:bytes + offset + 46
+                    length:nameLength encoding:NSUTF8StringEncoding];
+            offset += 46 + nameLength + extraLength + commentLength;
+            if (local + 30 > length || VibeReadLE(bytes + local, 4) != 0x04034b50) {
+                return nil;
+            }
+            NSUInteger localName = VibeReadLE(bytes + local + 26, 2);
+            NSUInteger localExtra = VibeReadLE(bytes + local + 28, 2);
+            NSUInteger dataStart = local + 30 + localName + localExtra;
+            if (dataStart + csize > length || !name || [name hasSuffix:@"/"]) {
+                continue;
+            }
+            // TRAP: charge the budget from the HEADER's sizes, BEFORE any bytes
+            // are materialized. Copying first and charging after is what the
+            // budget cannot save you from: every header in a small archive can
+            // point at the same large stream, so the copies exhaust memory
+            // while each one still measures under the remaining budget.
+            if (method == 0 && csize <= budget) {
+                budget -= csize;
+                entries[name] = [zip subdataWithRange:NSMakeRange(dataStart, csize)];
+            } else if (method == 8 && usize > 0 && usize <= budget) {
+                NSMutableData *inflated = [NSMutableData dataWithLength:usize];
+                // Inflated straight out of the caller's buffer: the compressed
+                // bytes need no copy of their own to be read.
+                size_t written = compression_decode_buffer(inflated.mutableBytes, usize,
+                        bytes + dataStart, csize, NULL, COMPRESSION_ZLIB);
+                if (written == usize) {
+                    budget -= usize;
+                    entries[name] = inflated;
+                }
             }
         }
     }
@@ -1059,16 +1090,24 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     NSDictionary<NSString *, NSData *> *entries = VibeUnzipData(data);
     // Skip a Finder zip's AppleDouble sidecars — __MACOSX/._theme.json has a
     // .json extension but is not JSON, and would nondeterministically win.
-    NSData *json = nil;
     NSMutableDictionary<NSString *, NSData *> *byBaseName = [NSMutableDictionary dictionary];
-    for (NSString *entry in entries) {
+    // Walked sorted, first name winning, so an archive holding two entries
+    // that share a base name resolves the same way every time — NSDictionary
+    // enumeration order is arbitrary.
+    for (NSString *entry in [entries.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         NSString *base = entry.lastPathComponent;
-        if ([entry hasPrefix:@"__MACOSX/"] || [base hasPrefix:@"._"]) {
+        if ([entry hasPrefix:@"__MACOSX/"] || [base hasPrefix:@"._"] || byBaseName[base]) {
             continue;
         }
         byBaseName[base] = entries[entry];
-        if ([base.pathExtension isEqualToString:@"json"] && !json) {
-            json = entries[entry];
+    }
+    // theme.json is the name every export writes, so it wins outright; a
+    // hand-assembled archive naming its theme something else takes the first
+    // JSON in that same sorted order.
+    NSData *json = byBaseName[@"theme.json"];
+    for (NSString *base in [byBaseName.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        if (!json && [base.pathExtension isEqualToString:@"json"]) {
+            json = byBaseName[base];
         }
     }
     if (!json) {
