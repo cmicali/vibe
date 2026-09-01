@@ -90,6 +90,14 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // so a changed image is a new key, and a bundled image is immutable per build.
 + (NSImage *)imageForDefaultArtwork:(nullable NSString *)value;
 
+// YES when the value names an image that is not there: a container file that
+// has gone, or a bundled name this build does not ship. "" is the factory
+// image and is never missing, nor is a malformed value, which the sanitizer
+// has already dropped. imageForDefaultArtwork: falls back for every one of
+// these, so this is the only way to tell "deliberately the default" apart
+// from "the chosen image is gone".
++ (BOOL)defaultArtworkIsMissing:(nullable NSString *)value;
+
 // Validates (JPEG or PNG, square, within pixel and byte caps), copies into
 // the app container, and returns the record value ("custom:<sha1>.<ext>"),
 // or nil with the reason. The bytes are stored as-is, never re-encoded.
@@ -106,17 +114,26 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 #pragma mark Theme archives (JSON + image)
 
-// A theme whose record carries a custom image exports as a ZIP of theme.json
-// and the image file; one without exports as plain JSON (JSONDataForRecord:).
-// Returns nil when the record has no resolvable custom image.
+// A theme whose record names a default-artwork image — a custom: one the user
+// picked or the bundled: one a built-in ships — exports as a ZIP of theme.json
+// and the image files; one naming none exports as plain JSON
+// (JSONDataForRecord:). A built-in's image travels even though this build
+// ships it, because the build that opens the archive may not be this one.
+// Entries are named by SLOT — artwork_default_front/back.<ext>, the theme
+// JSON referencing them bare — since a content hash or one build's resource
+// filename reads as nothing to a person opening the ZIP; both sides naming
+// one image share its entry. Returns nil when the record names no resolvable
+// image.
 + (nullable NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
                                      name:(NSString *)name;
 
-// Imports either form: raw JSON, or a ZIP holding one .json plus images. A
-// custom-art reference is re-validated and re-hashed from the shipped image
+// Imports either form: raw JSON, or a ZIP holding one .json plus images. An
+// archived art reference is re-validated and re-hashed from the shipped image
 // (the filename is not trusted) and the returned record points at the stored
-// copy; a JSON-only import with a dangling custom reference drops the field.
-+ (nullable NSDictionary<NSString *, id> *)recordFromJSONOrArchiveData:(NSData *)data
+// custom:<sha1> copy — every archived image lands there, a built-in's
+// included. A JSON-only import with a dangling custom reference drops the
+// field.
++ (nullable NSDictionary<NSString *, id> *)recordFromJSONOrArchiveData:(nullable NSData *)data
                                                                   name:(NSString *_Nullable *_Nullable)outName
                                                                  error:(NSError *_Nullable *_Nullable)error;
 

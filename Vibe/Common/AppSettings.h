@@ -168,8 +168,19 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
 // nil is the system default: a nil window appearance tracks the OS
-// light/dark setting rather than pinning one.
+// light/dark setting rather than pinning one. It answers the preview below
+// over the stored style while one is held.
 - (nullable NSAppearance *)windowAppearance;
+
+// The Settings window's Appearance page holds a temporary light/dark preview
+// while it is on screen, so a theme's other palette can be looked at without
+// the visit changing what the app looks like afterwards. Nothing persists it,
+// windowAppearanceStyle keeps reporting the stored choice, and writing that
+// style clears the preview — an explicit choice can never land under a stale
+// one. A writer requests VibeSettingsLiveEffectWindowAppearance, as for any
+// other appearance write.
+- (nullable NSString *)windowAppearancePreviewStyle;
+- (void)setWindowAppearancePreviewStyle:(nullable NSString *)name;
 
 // YES, the default, shows the custom close and minimize traffic lights in the
 // main window. A writer requests VibeSettingsLiveEffectTrafficLights so the

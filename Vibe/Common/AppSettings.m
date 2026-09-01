@@ -88,6 +88,9 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #if TARGET_OS_OSX
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
+    // The Settings window's temporary appearance preview: transient by
+    // design, so a window left open on the Appearance page at quit reverts.
+    NSString   *_windowAppearancePreviewStyle;
 #endif
 }
 
@@ -648,11 +651,22 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (void)setWindowAppearanceStyle:(NSString *)name {
+    // An explicit choice ends any preview, so it cannot land under one and
+    // read as ignored.
+    _windowAppearancePreviewStyle = nil;
     [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
+- (NSString *)windowAppearancePreviewStyle {
+    return _windowAppearancePreviewStyle;
+}
+
+- (void)setWindowAppearancePreviewStyle:(NSString *)name {
+    _windowAppearancePreviewStyle = [name copy];
+}
+
 - (NSAppearance *)windowAppearance {
-    NSString *value = self.windowAppearanceStyle;
+    NSString *value = _windowAppearancePreviewStyle ?: self.windowAppearanceStyle;
     if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
     }

@@ -512,7 +512,8 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
     // The appearance toggle is deliberately absent: it exists only while the
-    // theme editor page is up, inserted and removed by updateThemeNavigation.
+    // Appearance pane is selected, inserted and removed by
+    // updateThemeNavigation.
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
              NSToolbarFlexibleSpaceItemIdentifier];
 }
@@ -520,12 +521,13 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
     if ([itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier]) {
-        // The editor page's fast light/dark preview, trailing in the titlebar:
-        // a dual-mode theme keeps a palette per appearance, and flipping the
-        // window's appearance setting is how you see the other one. Never
-        // disabled: under a single-mode theme the write still lands, it is
-        // only outranked by the pinned dark appearance until the mode flips
-        // back, and the item is present only on the editor page anyway.
+        // The Appearance pane's fast light/dark preview, trailing in the
+        // titlebar: a dual-mode theme keeps a palette per appearance, and
+        // flipping the main window's is how you see the other one — on the
+        // theme list, where it previews the theme being picked, as much as
+        // inside the editor. Never disabled: under a single-mode theme the
+        // preview still lands, it is only outranked by the pinned dark
+        // appearance until the mode flips back.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"sun.max"
                           accessibilityDescription:STR_MENU_APPEARANCE_LIGHT],
@@ -600,40 +602,34 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     }
     [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
     [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
-    // canGoBack doubles as "the editor page is showing". The toggle exists
-    // only there: inserted and removed rather than hidden, which reaches
-    // every macOS the app runs on — and the delegate vends non-inserted
-    // copies during allowed-item enumeration, so a stored item reference is
-    // not reliably the one on screen.
-    AppSettings *settings = AppSettings.sharedInstance;
-    BOOL editorShown = selected && pane.canGoBack;
+    // The toggle exists only on this pane — both its pages — and is inserted
+    // and removed rather than hidden, which reaches every macOS the app runs
+    // on; NSToolbarItem.hidden needs macOS 15. The delegate also vends
+    // non-inserted copies during allowed-item enumeration, so a stored item
+    // reference is not reliably the one on screen.
     NSToolbar *toolbar = self.window.toolbar;
     NSUInteger index = [toolbar.items indexOfObjectPassingTest:
             ^BOOL(NSToolbarItem *item, NSUInteger i, BOOL *stop) {
         return [item.itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier];
     }];
-    if (editorShown && index == NSNotFound) {
+    if (selected && index == NSNotFound) {
         [toolbar insertItemWithItemIdentifier:kAppearanceToggleItemIdentifier
                                       atIndex:(NSInteger)toolbar.items.count];
-    } else if (!editorShown && index != NSNotFound) {
+    } else if (!selected && index != NSNotFound) {
         [toolbar removeItemAtIndex:(NSInteger)index];
     }
-    // windowAppearance owns the style-to-appearance ladder; its nil (Auto)
-    // shows the side the system is on right now.
-    NSAppearance *appearance = settings.windowAppearance ?: NSApp.effectiveAppearance;
+    // windowAppearance owns the style-to-appearance ladder, preview folded
+    // in; its nil (Auto) shows the side the system is on right now.
+    NSAppearance *appearance =
+            AppSettings.sharedInstance.windowAppearance ?: NSApp.effectiveAppearance;
     _appearanceToggle.selectedSegment = appearance.isDark ? 1 : 0;
 }
 
-// The same write as View > Appearance's Light and Dark items — the common
-// setting, not a theme field — so the preview persists like any other choice.
+// A PREVIEW, not a choice — the pane owns it, as it owns the pages the
+// navigation pill drives, so the debug channel reaches it by the same route
+// the toolbar does.
 - (void)toggleAppearancePreview:(id)sender {
-    AppSettings.sharedInstance.windowAppearanceStyle =
-            _appearanceToggle.selectedSegment == 1
-            ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
-            : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-    [[self appearancePane].playerController
-            applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-    [self updateThemeNavigation];
+    [[self appearancePane] previewAppearanceDark:(_appearanceToggle.selectedSegment == 1)];
 }
 
 - (void)navigateThemeEditor:(NSSegmentedControl *)sender {

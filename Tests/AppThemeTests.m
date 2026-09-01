@@ -16,9 +16,14 @@
 
 @implementation AppThemeTests {
     NSString *_artDir;
+    NSString *_suiteArtDir;
 }
 
+// A directory per test, so one test's stored images cannot be found by the
+// next. The suite-wide redirect (TestFilesystemGuard.m) is already in force;
+// this narrows it rather than establishing it.
 - (void)setUp {
+    _suiteArtDir = @(getenv("VIBE_THEME_ART_DIR") ?: "");
     _artDir = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [@"VibeThemeArtTest-" stringByAppendingString:NSUUID.UUID.UUIDString]];
     setenv("VIBE_THEME_ART_DIR", _artDir.UTF8String, 1);
@@ -26,7 +31,11 @@
 
 - (void)tearDown {
     [NSFileManager.defaultManager removeItemAtPath:_artDir error:NULL];
-    unsetenv("VIBE_THEME_ART_DIR");
+    // TRAP: restore, never unsetenv. The suite is unsandboxed, so an unset
+    // path resolves to the developer's real ~/Library — and the file lands
+    // under whichever test class runs next, not this one. That is how
+    // ~/Library/Application Support/ThemeArt got created.
+    setenv("VIBE_THEME_ART_DIR", _suiteArtDir.UTF8String, 1);
 }
 
 
@@ -487,6 +496,14 @@ static NSData *SquarePNG(NSInteger side) {
     NSDictionary *record = @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"};
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Art Theme"];
     XCTAssertNotNil(zip);
+    // The local header's DOS date word: a zeroed field is legal but extracts
+    // as 1979-11-29, so entries carry a real date. A loose floor plus valid
+    // month and day, not the exact clock: it is the field packing that breaks.
+    const uint8_t *raw = zip.bytes;
+    NSUInteger dosDate = raw[12] | (raw[13] << 8);
+    XCTAssertGreaterThanOrEqual(1980 + (dosDate >> 9), 2020u, @"year");
+    XCTAssertTrue((dosDate >> 5 & 0xF) >= 1 && (dosDate >> 5 & 0xF) <= 12, @"month");
+    XCTAssertTrue((dosDate & 0x1F) >= 1 && (dosDate & 0x1F) <= 31, @"day");
     NSString *name = nil;
     NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:&error];
     XCTAssertEqualObjects(name, @"Art Theme");
@@ -500,7 +517,7 @@ static NSData *SquarePNG(NSInteger side) {
             [AppTheme archiveDataForRecord:pair name:@"Pair"] name:NULL error:&error];
     XCTAssertEqualObjects(pairBack, pair);
 
-    // A record without a custom image has no archive form.
+    // A record naming no image at all has no archive form.
     XCTAssertNil([AppTheme archiveDataForRecord:@{@"waveformTheme": @"orange"}
                                            name:@"Plain"]);
     // JSON-only import with a dangling custom reference drops the field.
@@ -511,6 +528,221 @@ static NSData *SquarePNG(NSInteger side) {
                     @"waveform": @{@"theme": @"orange"}} options:0 error:NULL]
             name:NULL error:NULL];
     XCTAssertEqualObjects(dangling, @{@"waveformTheme": @"orange"});
+}
+
+// Renames every occurrence of an ASCII string inside a zip, SAME LENGTH so the
+// stored name-length fields stay valid. The reader does not verify CRCs, which
+// is what makes this a fixture rather than a second zip writer.
+static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
+    NSData *f = [from dataUsingEncoding:NSASCIIStringEncoding];
+    NSData *t = [to dataUsingEncoding:NSASCIIStringEncoding];
+    NSCAssert(f.length == t.length, @"same-length replacement only");
+    NSMutableData *out = [zip mutableCopy];
+    NSRange search = NSMakeRange(0, out.length);
+    NSRange hit;
+    while ((hit = [out rangeOfData:f options:0 range:search]).location != NSNotFound) {
+        [out replaceBytesInRange:hit withBytes:t.bytes length:t.length];
+        NSUInteger next = hit.location + t.length;
+        search = NSMakeRange(next, out.length - next);
+    }
+    return out;
+}
+
+// Import is the app's one path for a file a person picked, so every way that
+// file can be wrong has to end in "not a theme" rather than a crash or a
+// half-applied record. Nothing here may raise.
+- (void)testMalformedInputIsRefusedRatherThanCrashing {
+    NSError *error = nil;
+    NSString *name = @"untouched";
+    // Nothing at all.
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:nil name:&name error:&error]);
+    XCTAssertNil(name, @"the out-name is cleared even when the parse fails");
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:NSData.data name:NULL error:NULL]);
+
+    // Bytes that are not JSON, and JSON that is not an object.
+    for (NSString *bad in @[@"", @"\x00\x01\x02", @"{", @"{\"version\" : ", @"not json at all",
+                            @"[1,2,3]", @"\"a string\"", @"42", @"null", @"true"]) {
+        NSData *data = [bad dataUsingEncoding:NSUTF8StringEncoding];
+        XCTAssertNil([AppTheme recordFromJSONOrArchiveData:data name:NULL error:NULL],
+                @"must refuse: %@", bad);
+    }
+
+    // A JSON object is a theme even when it carries nothing we know — that is
+    // the tolerance an older or newer build's file relies on.
+    NSDictionary *empty = [AppTheme recordFromJSONOrArchiveData:
+            [@"{}" dataUsingEncoding:NSUTF8StringEncoding] name:NULL error:NULL];
+    XCTAssertEqualObjects(empty, @{}, @"an unknown-but-valid object imports as the defaults");
+
+    // Over the JSON cap: refused without parsing.
+    NSMutableString *huge = [NSMutableString stringWithString:@"{\"name\":\""];
+    while (huge.length < 80 * 1024) {
+        [huge appendString:@"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"];
+    }
+    [huge appendString:@"\"}"];
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:
+            [huge dataUsingEncoding:NSUTF8StringEncoding] name:NULL error:NULL],
+            @"an over-cap JSON must be refused");
+
+    // Over the archive cap: refused on size alone, before any unzip.
+    NSMutableData *bigZip = [NSMutableData dataWithLength:17 * 1024 * 1024];
+    [bigZip replaceBytesInRange:NSMakeRange(0, 4) withBytes:"PK\x03\x04" length:4];
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:bigZip name:NULL error:&error],
+            @"an over-cap archive must be refused");
+
+    // Things that look like a zip but are not walkable.
+    for (NSNumber *length in @[@2, @21, @64, @4096]) {
+        NSMutableData *stub = [NSMutableData dataWithLength:length.unsignedIntegerValue];
+        NSUInteger head = MIN((NSUInteger)4, stub.length);
+        [stub replaceBytesInRange:NSMakeRange(0, head) withBytes:"PK\x03\x04" length:head];
+        XCTAssertNil([AppTheme recordFromJSONOrArchiveData:stub name:NULL error:NULL],
+                @"a %@-byte zip stub must be refused", length);
+    }
+    // A real zip, truncated at every quarter.
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultArtworkDark": stored} name:@"Whole"];
+    for (NSUInteger cut = 1; cut < 4; cut++) {
+        NSData *piece = [zip subdataWithRange:NSMakeRange(0, zip.length * cut / 4)];
+        XCTAssertNil([AppTheme recordFromJSONOrArchiveData:piece name:NULL error:NULL],
+                @"a zip truncated to %lu/4 must be refused", (unsigned long)cut);
+    }
+}
+
+// The three ways a well-formed ZIP can still be wrong, each landing somewhere
+// different: no theme at all is a refusal, a broken theme is a refusal, and a
+// missing image is NOT — the theme imports and falls back to the factory art.
+- (void)testWellFormedArchiveWithBadContentsDegradesPerCase {
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    NSData *zip = [AppTheme archiveDataForRecord:
+            @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"} name:@"Art"];
+
+    // A zip carrying no theme JSON at all — an images-only archive.
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:
+            ZipWithBytesReplaced(zip, @"theme.json", @"theme.jsom") name:NULL error:NULL],
+            @"an archive with no theme JSON must be refused");
+
+    // A zip whose theme JSON is corrupt. ("version" : 1 -> "version" : X)
+    XCTAssertNil([AppTheme recordFromJSONOrArchiveData:
+            ZipWithBytesReplaced(zip, @"\"version\" : 1", @"\"version\" : X")
+                                                  name:NULL error:NULL],
+            @"an archive carrying corrupt JSON must be refused");
+
+    // A zip whose JSON names an image the archive does not carry. Only the
+    // JSON changes: the `: "` prefix appears nowhere in an entry name.
+    NSString *missing = nil;
+    NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:
+            ZipWithBytesReplaced(zip, @": \"artwork_default_front.png\"",
+                                      @": \"artwork_default_zzzzz.png\"")
+                                                            name:&missing error:NULL];
+    XCTAssertNotNil(record, @"a missing image must not sink the whole theme");
+    XCTAssertEqualObjects(missing, @"Art", @"and the rest of the file still applies");
+    XCTAssertEqualObjects(record[@"waveformTheme"], @"orange");
+    XCTAssertNil(record[@"defaultArtworkDark"], @"the dangling reference is dropped");
+}
+
+// A built-in's art ships in Resources/Themes rather than the container, but it
+// is still art the theme draws, so it travels in the archive too — otherwise a
+// built-in exports as bare JSON and lands on the factory record on any build
+// that does not ship that image.
+- (void)testBuiltInArtworkTravelsInTheArchiveUnderSlotNames {
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"signal_workshop"];
+    XCTAssertEqualObjects(record[@"defaultArtworkDark"],
+            @"bundled:signal_workshop_dark.png", @"the fixture this test rests on");
+
+    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Signal Workshop"];
+    XCTAssertNotNil(zip, @"a built-in with bundled art must export as an archive");
+    XCTAssertGreaterThan(zip.length, 1000000u, @"the images themselves, not just their names");
+
+    // Entries are named by SLOT: where the bytes came from is not the reader's
+    // business, and a hash or a build's filename reads as nothing to a person
+    // opening the ZIP.
+    NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
+    XCTAssertTrue([bytes containsString:@"artwork_default_front.png"]);
+    XCTAssertTrue([bytes containsString:@"artwork_default_back.png"]);
+    XCTAssertFalse([bytes containsString:@"bundled:"], @"no prefix survives into the archive");
+    XCTAssertFalse([bytes containsString:@"signal_workshop_dark.png"],
+            @"nor the name this build happens to keep the image under");
+
+    // Re-importing lands both sides in the container under their content
+    // hashes — the archive is the portable form, so nothing about it depends
+    // on this build shipping the image.
+    NSString *name = nil;
+    NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
+    XCTAssertEqualObjects(name, @"Signal Workshop");
+    XCTAssertTrue([back[@"defaultArtworkDark"] hasPrefix:@"custom:"], @"%@", back);
+    XCTAssertTrue([back[@"defaultArtworkLight"] hasPrefix:@"custom:"], @"%@", back);
+    XCTAssertNotEqualObjects(back[@"defaultArtworkDark"], back[@"defaultArtworkLight"],
+            @"the two sides are different images and must not collapse");
+    // And the images survived: each resolves to something other than the
+    // factory placeholder every missing reference falls back to.
+    XCTAssertNotEqual([AppTheme imageForDefaultArtwork:back[@"defaultArtworkDark"]],
+            [AppTheme imageForDefaultArtwork:@""]);
+    // Every non-artwork field still round-trips untouched.
+    XCTAssertEqualObjects(back[@"waveformTheme"], record[@"waveformTheme"]);
+    XCTAssertEqualObjects(back[@"mode"], record[@"mode"]);
+}
+
+// Both sides naming ONE image ship its bytes once: the single-mode and
+// both-sides-alike cases, which would otherwise double a 1MB archive.
+- (void)testOneImageOnBothSidesShipsOneEntry {
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(256) error:NULL];
+    NSData *zip = [AppTheme archiveDataForRecord:
+            @{@"defaultArtworkDark": stored, @"defaultArtworkLight": stored} name:@"One"];
+    NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
+    XCTAssertTrue([bytes containsString:@"artwork_default_front.png"]);
+    XCTAssertFalse([bytes containsString:@"artwork_default_back.png"],
+            @"the second slot reuses the first slot's entry");
+    NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:NULL error:NULL];
+    XCTAssertEqualObjects(back[@"defaultArtworkDark"], stored, @"same bytes, same hash");
+    XCTAssertEqualObjects(back[@"defaultArtworkLight"], stored);
+}
+
+// imageForDefaultArtwork: falls back to the factory image for a value it
+// cannot resolve, which is right for drawing and useless for telling the two
+// apart. The editor's warning badge needs that difference.
+- (void)testMissingArtworkIsToldApartFromTheDefault {
+    // The factory image and a malformed value are not "missing" — one is the
+    // deliberate default, the other the sanitizer's problem and already gone.
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:nil]);
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@""]);
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"nonsense"]);
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"custom:short.png"]);
+
+    // A stored image is present; the same reference is missing once its file
+    // goes, which is the case the badge exists for.
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:stored]);
+    [NSFileManager.defaultManager removeItemAtPath:
+            [@(getenv("VIBE_THEME_ART_DIR")) stringByAppendingPathComponent:
+                    [stored substringFromIndex:7]] error:NULL];
+    XCTAssertTrue([AppTheme defaultArtworkIsMissing:stored]);
+    // And it still draws — falling back is what makes the badge necessary.
+    XCTAssertNotNil([AppTheme imageForDefaultArtwork:stored]);
+
+    // A bundled name this build ships, against one it does not.
+    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"bundled:signal_workshop_dark.png"]);
+    XCTAssertTrue([AppTheme defaultArtworkIsMissing:@"bundled:not_in_any_build.png"]);
+}
+
+// The suite is unsandboxed, so nothing here may reach a standard user
+// directory. Asserted rather than left to the guard's own correctness: this
+// fails loudly if the load-time redirect is removed, or if a future artwork
+// path stops going through the seam.
+- (void)testStoredArtworkStaysInTempAndNeverTouchesTheRealLibrary {
+    const char *redirect = getenv("VIBE_THEME_ART_DIR");
+    XCTAssertTrue(redirect != NULL, @"the load-time guard must redirect every test");
+    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    XCTAssertTrue([stored hasPrefix:@"custom:"]);
+
+    NSString *file = [stored substringFromIndex:7];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:
+            [@(redirect) stringByAppendingPathComponent:file]],
+            @"the image must be written under the redirect");
+    NSString *real = [NSSearchPathForDirectoriesInDomains(
+            NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject
+            stringByAppendingPathComponent:@"ThemeArt"];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:
+            [real stringByAppendingPathComponent:file]],
+            @"nothing may be written to the real Application Support");
 }
 
 - (void)testBundledThemesAreValid {

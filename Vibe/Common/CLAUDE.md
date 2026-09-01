@@ -7,7 +7,12 @@ What every other directory is written in terms of, and nothing else. **If you ca
 ## What is here
 
 **`AppSettings`** — every persisted preference, as properties over
-`NSUserDefaults`. Every reader imports `AppSettings.h` explicitly and uses
+`NSUserDefaults`. The one exception is `windowAppearancePreviewStyle`, an
+in-memory override of the window appearance that `windowAppearance` answers
+and `setWindowAppearanceStyle:` clears: the Settings window's Appearance page
+holds it while it is open (`Mac/Settings/CLAUDE.md`), and it lives here rather
+than on the window because that accessor is where the style-to-appearance
+ladder already is, so every consumer of the answer gets the preview for free. Every reader imports `AppSettings.h` explicitly and uses
 `AppSettings.sharedInstance`, so a file's import list exposes the dependency.
 The preset ladders are exported once from the implementation rather than copied
 from the header into every translation unit. Its pure decision logic — the

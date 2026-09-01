@@ -21,4 +21,11 @@
 - (void)navigateBack;
 - (void)navigateForward;
 
+// The titlebar toggle's model, and outside the pane for the same reason the
+// two above are: a TEMPORARY light/dark preview of the main window, written to
+// the transient preview style rather than to the stored setting, so a visit
+// leaves the app looking the way it found it. viewDidDisappear drops it, which
+// makes leaving the pane and closing the window one revert.
+- (void)previewAppearanceDark:(BOOL)dark;
+
 @end

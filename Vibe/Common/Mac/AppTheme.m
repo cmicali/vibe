@@ -283,6 +283,17 @@ static NSArray<NSString *> *KnownFieldKeys(void) {
     return keys;
 }
 
+@interface AppTheme ()
+// The archive writer's form of JSONDataForRecord:name:. Inside a ZIP an image
+// reference is the bare name of the entry beside the JSON, so artworkNames
+// maps an artwork field to the entry the archive wrote for it. The rewrite
+// cannot happen in the record the caller hands over: the sanitizer this runs
+// first admits only the prefixed shapes and would drop a bare name entirely.
++ (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
+                          name:(NSString *)name
+                  artworkNames:(nullable NSDictionary<NSString *, NSString *> *)artworkNames;
+@end
+
 @implementation AppTheme {
     // Only sanitized values differing from the defaults — the sparse record.
     NSMutableDictionary<NSString *, id> *_fields;
@@ -466,6 +477,20 @@ static NSString *VibeCustomArtworkDirectory(void) {
     return [support stringByAppendingPathComponent:@"ThemeArt"];
 }
 
+// The Resources/Themes URL a bundled: value names, or nil for any other value
+// and for a name THIS build ships no image for — which is what lets an
+// archive's own copy stand in. Callers pass a sanitized value: the shape gate
+// is what keeps a crafted name out of the bundle lookup.
+static NSURL *_Nullable VibeBundledArtworkURL(NSString *_Nullable value) {
+    if (![value hasPrefix:@"bundled:"]) {
+        return nil;
+    }
+    NSString *file = [value substringFromIndex:8];
+    return [[NSBundle bundleForClass:AppTheme.class]
+            URLForResource:file.stringByDeletingPathExtension
+             withExtension:file.pathExtension subdirectory:@"Themes"];
+}
+
 // JPEG or PNG by magic, square by pixel counts, bounded in bytes and pixels.
 // Returns the extension, or nil with the failed expectation in outReason.
 static const NSUInteger kArtworkByteCap = 8 * 1024 * 1024;
@@ -501,6 +526,18 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
         return nil;
     }
     return ext;
+}
+
++ (BOOL)defaultArtworkIsMissing:(NSString *)value {
+    if (!VibeIsValidDefaultArtworkValue(value)) {
+        return NO;
+    }
+    if ([value hasPrefix:@"bundled:"]) {
+        return VibeBundledArtworkURL(value) == nil;
+    }
+    return ![NSFileManager.defaultManager fileExistsAtPath:
+            [VibeCustomArtworkDirectory()
+                    stringByAppendingPathComponent:[value substringFromIndex:7]]];
 }
 
 + (NSString *)storeCustomArtworkData:(NSData *)data error:(NSError **)error {
@@ -575,10 +612,7 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
     // NOW, and the lifetime cache makes it a one-time price.
     NSData *data = nil;
     if ([key hasPrefix:@"bundled:"]) {
-        NSString *file = [key substringFromIndex:8];
-        NSURL *url = [[NSBundle bundleForClass:self]
-                URLForResource:file.stringByDeletingPathExtension
-                 withExtension:file.pathExtension subdirectory:@"Themes"];
+        NSURL *url = VibeBundledArtworkURL(key);
         data = url ? [NSData dataWithContentsOfURL:url] : nil;
     } else if ([key hasPrefix:@"custom:"]) {
         data = [NSData dataWithContentsOfFile:[VibeCustomArtworkDirectory()
@@ -680,6 +714,24 @@ static uint32_t VibeCRC32(NSData *data) {
     return crc ^ 0xFFFFFFFF;
 }
 
+// The ZIP's DOS date/time as one packed word, date in the high half: seconds/2,
+// minute and hour below; day, month and year-1980 above. Zero is a legal field
+// but extracts as 1979-11-29, so entries carry the export's own wall time. The
+// 7-bit year cannot hold a clock outside 1980-2107, so a bogus one clamps
+// rather than wrapping into a stranger date than it started with.
+static uint32_t VibeDOSTimestampNow(void) {
+    NSDateComponents *now = [NSCalendar.currentCalendar
+            components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
+                       NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond
+              fromDate:NSDate.date];
+    NSInteger year = MIN(MAX(now.year, 1980), 2107);
+    uint32_t time = (uint32_t)(now.second / 2) |
+                    ((uint32_t)now.minute << 5) | ((uint32_t)now.hour << 11);
+    uint32_t date = (uint32_t)now.day |
+                    ((uint32_t)now.month << 5) | ((uint32_t)(year - 1980) << 9);
+    return (date << 16) | time;
+}
+
 static void VibeAppendLE(NSMutableData *out, uint64_t value, int bytes) {
     for (int i = 0; i < bytes; i++) {
         uint8_t byte = (value >> (8 * i)) & 0xFF;
@@ -690,6 +742,9 @@ static void VibeAppendLE(NSMutableData *out, uint64_t value, int bytes) {
 static NSData *VibeZipData(NSDictionary<NSString *, NSData *> *entries) {
     NSMutableData *out = [NSMutableData data];
     NSMutableData *central = [NSMutableData data];
+    // One stamp for every entry: the archive is written in a single pass, so a
+    // per-entry read would only differ when the write straddles a second.
+    uint32_t stamp = VibeDOSTimestampNow();
     NSUInteger count = 0;
     for (NSString *name in [entries.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         NSData *data = entries[name];
@@ -700,7 +755,7 @@ static NSData *VibeZipData(NSDictionary<NSString *, NSData *> *entries) {
         VibeAppendLE(out, 20, 2);              // version needed
         VibeAppendLE(out, 0, 2);               // flags
         VibeAppendLE(out, 0, 2);               // method: stored
-        VibeAppendLE(out, 0, 4);               // dos time/date
+        VibeAppendLE(out, stamp, 4);           // dos time/date
         VibeAppendLE(out, crc, 4);
         VibeAppendLE(out, data.length, 4);     // compressed
         VibeAppendLE(out, data.length, 4);     // uncompressed
@@ -714,7 +769,7 @@ static NSData *VibeZipData(NSDictionary<NSString *, NSData *> *entries) {
         VibeAppendLE(central, 20, 2);          // needed
         VibeAppendLE(central, 0, 2);
         VibeAppendLE(central, 0, 2);
-        VibeAppendLE(central, 0, 4);
+        VibeAppendLE(central, stamp, 4);       // must match the local header's
         VibeAppendLE(central, crc, 4);
         VibeAppendLE(central, data.length, 4);
         VibeAppendLE(central, data.length, 4);
@@ -832,26 +887,52 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 
 + (NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
                             name:(NSString *)name {
-    // Both sides ride along — the dormant light half of a single-mode theme
-    // included, so a mode flip after re-import still round-trips. Identical
-    // references collapse to one entry by filename.
+    // Entries are named by SLOT, not by where the image came from: a built-in
+    // names its image by a bundled filename and a user theme by a content
+    // hash, and neither reads as anything to a person opening the ZIP. Both
+    // sides ride along — the dormant light half of a single-mode theme
+    // included, so a mode flip after re-import still round-trips.
+    NSDictionary<NSString *, NSString *> *slotNames = @{
+        kFieldDefaultArtworkDark:  @"artwork_default_front",
+        kFieldDefaultArtworkLight: @"artwork_default_back",
+    };
     NSMutableDictionary<NSString *, NSData *> *entries = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *names = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *nameForValue = [NSMutableDictionary dictionary];
     for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
         NSString *art = SanitizedFieldValue(key, record[key]);
-        if (![art hasPrefix:@"custom:"]) {
+        // Both sides naming ONE image share its entry rather than shipping the
+        // bytes twice — the common single-mode and both-sides-alike cases.
+        if (nameForValue[art]) {
+            names[key] = nameForValue[art];
             continue;
         }
-        NSString *file = [art substringFromIndex:7];
-        NSData *image = [NSData dataWithContentsOfFile:
-                [VibeCustomArtworkDirectory() stringByAppendingPathComponent:file]];
-        if (image) {
-            entries[file] = image;
+        NSString *file = nil;
+        NSData *image = nil;
+        if ([art hasPrefix:@"custom:"]) {
+            file = [art substringFromIndex:7];
+            image = [NSData dataWithContentsOfFile:
+                    [VibeCustomArtworkDirectory() stringByAppendingPathComponent:file]];
+        } else if ([art hasPrefix:@"bundled:"]) {
+            // A built-in's art ships in THIS build, so the export could name
+            // it and stop. It travels anyway: the archive is the portable
+            // form, and the build that opens it may not be this one.
+            file = [art substringFromIndex:8];
+            NSURL *url = VibeBundledArtworkURL(art);
+            image = url ? [NSData dataWithContentsOfURL:url] : nil;
         }
+        if (!image) {
+            continue;
+        }
+        NSString *entry = [slotNames[key] stringByAppendingPathExtension:file.pathExtension];
+        entries[entry] = image;
+        names[key] = entry;
+        nameForValue[art] = entry;
     }
     if (!entries.count) {
         return nil;
     }
-    entries[@"theme.json"] = [self JSONDataForRecord:record name:name];
+    entries[@"theme.json"] = [self JSONDataForRecord:record name:name artworkNames:names];
     return VibeZipData(entries);
 }
 
@@ -910,25 +991,31 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     if (!record) {
         return nil;
     }
-    // Inside an archive the reference to a shipped image is just a name: a
-    // raw entry basename, with the custom: prefix optional (bundled: still
-    // means the app bundle, and "" the factory image). The ZIP is
-    // self-contained, so the entry travels with the JSON and the image is
-    // re-validated and re-hashed regardless; the record is rewritten to the
-    // stored custom:<sha1> copy, the only shape the sanitizer admits. Which
-    // is also why the lookup reads the RAW JSON value: a human-named
-    // reference has already been dropped from the sanitized record.
+    // Inside an archive an image reference is the bare name of the entry
+    // beside the JSON ("" is still the factory image). A custom: or bundled:
+    // prefix is tolerated — a hand-edited file — and means nothing extra
+    // here, since the entry is what the reference resolves against either
+    // way. Read from the RAW JSON, because the sanitizer admits only the two
+    // prefixed shapes and has already dropped a bare name from the record.
     NSDictionary *rawRoot = [NSJSONSerialization JSONObjectWithData:json options:0 error:NULL];
     for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
         NSArray<NSString *> *location = ThemeJSONFieldLocations()[key];
         id group = [rawRoot isKindOfClass:NSDictionary.class] ? rawRoot[location[0]] : nil;
         NSString *art = TrimmedCappedString(
                 [group isKindOfClass:NSDictionary.class] ? group[location[1]] : nil);
-        if (art.length == 0 || [art hasPrefix:@"bundled:"]) {
+        if (art.length == 0) {
             continue;
         }
-        NSData *image = byBaseName[
-                [art hasPrefix:@"custom:"] ? [art substringFromIndex:7] : art];
+        NSString *entry = art;
+        for (NSString *prefix in @[@"custom:", @"bundled:"]) {
+            entry = [entry hasPrefix:prefix] ? [entry substringFromIndex:prefix.length] : entry;
+        }
+        // Re-validated and re-hashed from the bytes, never trusting the name:
+        // the stored custom:<sha1> form is the only shape the sanitizer admits
+        // for a container image, and it is where EVERY archived image lands —
+        // a built-in's included, since a slot-named entry says nothing about
+        // which build's Resources the bytes started in.
+        NSData *image = byBaseName[entry];
         NSString *stored = image ? [self storeCustomArtworkData:image error:error] : nil;
         if (stored) {
             record[key] = stored;
@@ -1121,7 +1208,20 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 }
 
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record name:(NSString *)name {
+    return [self JSONDataForRecord:record name:name artworkNames:nil];
+}
+
++ (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
+                          name:(NSString *)name
+                  artworkNames:(NSDictionary<NSString *, NSString *> *)artworkNames {
     NSDictionary *fields = [[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation];
+    if (artworkNames.count) {
+        NSMutableDictionary *renamed = [fields mutableCopy];
+        [artworkNames enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *entry, BOOL *stop) {
+            renamed[key] = entry;
+        }];
+        fields = renamed;
+    }
     NSMutableDictionary<NSString *, NSMutableDictionary *> *grouped = [NSMutableDictionary dictionary];
     NSDictionary<NSString *, NSArray<NSString *> *> *locations = ThemeJSONFieldLocations();
     for (NSString *fieldKey in fields) {

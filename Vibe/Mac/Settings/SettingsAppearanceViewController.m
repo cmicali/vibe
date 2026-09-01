@@ -29,6 +29,29 @@
 
 static const CGFloat kAppearancePopUpWidth = 220;
 static const CGFloat kAlbumArtPreviewSize = 64;
+// The two corner badges over an artwork preview — the clear ✕ and the
+// missing-image (!) — sized as one pair. The box carries a little more than
+// the glyph, which is the inset they sit at; scaling both by the same factor
+// keeps that. SF Symbols quantize a point size to whole points, so the glyph
+// lands near, not exactly on, the box's own ratio.
+static const CGFloat kAlbumArtBadgeSize = 22.5;       // 18 * 1.25
+static const CGFloat kAlbumArtBadgePointSize = 16.25; // NSFont.systemFontSize * 1.25
+// Both badges sit fully INSIDE the preview, at this inset from its corners.
+// They stay inside deliberately: a subview hanging past its superview's bounds
+// is not hit-tested, which would cost the (!) its tooltip and the ✕ most of its
+// click target.
+static const CGFloat kAlbumArtBadgeInset = 1.5;
+
+// Palette colors at the badge point size. Applying the palette to the sized
+// configuration rather than passing either alone is what keeps both: the
+// symbol image takes ONE configuration, so a second withSymbolConfiguration:
+// would replace the first rather than add to it.
+static NSImageSymbolConfiguration *AlbumArtBadgeSymbolConfig(NSArray<NSColor *> *colors) {
+    return [[NSImageSymbolConfiguration configurationWithPointSize:kAlbumArtBadgePointSize
+                                                            weight:NSFontWeightRegular]
+            configurationByApplyingConfiguration:
+                    [NSImageSymbolConfiguration configurationWithPaletteColors:colors]];
+}
 static const CGFloat kThemeListRowHeight = 22;
 // Ten rows: the two group headers, the built-ins, and room for a handful of
 // the user's own before it scrolls.
@@ -117,8 +140,10 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSPopUpButton *_modePopUp;
     NSButton *_artDarkPreviewButton;
     NSButton *_artDarkClearButton;
+    NSImageView *_artDarkMissingBadge;
     NSButton *_artLightPreviewButton;
     NSButton *_artLightClearButton;
+    NSImageView *_artLightMissingBadge;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
@@ -311,20 +336,34 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSButton *clear = [NSButton buttonWithImage:[[NSImage
             imageWithSystemSymbolName:@"xmark.circle.fill"
               accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_CLEAR]
-            imageWithSymbolConfiguration:[NSImageSymbolConfiguration
-                    configurationWithPaletteColors:@[NSColor.whiteColor,
-                            [NSColor colorWithWhite:0 alpha:0.6]]]]
+            imageWithSymbolConfiguration:AlbumArtBadgeSymbolConfig(
+                    @[NSColor.whiteColor, [NSColor colorWithWhite:0 alpha:0.6]])]
                                          target:self action:@selector(clearCustomArtwork:)];
     clear.bordered = NO;
     clear.title = STR_SETTINGS_THEME_ALBUM_ART_CLEAR; // image-only: named, never drawn
     clear.imagePosition = NSImageOnly;
     clear.hidden = YES;
+    // The missing-image badge mirrors that clear badge across the preview, and
+    // is NOT hover-gated: it reports a state rather than offering an action,
+    // and a warning nobody can see without hovering the thing it warns about
+    // is no warning. An image view, not a button — there is nothing to press,
+    // and a button would promise one to VoiceOver.
+    NSImageView *missing = [NSImageView imageViewWithImage:[[NSImage
+            imageWithSystemSymbolName:@"exclamationmark.circle.fill"
+             accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_MISSING]
+            imageWithSymbolConfiguration:AlbumArtBadgeSymbolConfig(
+                    @[NSColor.whiteColor, NSColor.systemRedColor])]];
+    missing.toolTip = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
+    missing.accessibilityLabel = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
+    missing.hidden = YES;
     NSView *cluster = [[NSView alloc] initWithFrame:NSZeroRect];
     cluster.translatesAutoresizingMaskIntoConstraints = NO;
     preview.translatesAutoresizingMaskIntoConstraints = NO;
     clear.translatesAutoresizingMaskIntoConstraints = NO;
+    missing.translatesAutoresizingMaskIntoConstraints = NO;
     [cluster addSubview:preview];
     [cluster addSubview:clear];
+    [cluster addSubview:missing];
     [NSLayoutConstraint activateConstraints:@[
         [cluster.widthAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
         [cluster.heightAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
@@ -334,10 +373,18 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
         [preview.bottomAnchor constraintEqualToAnchor:cluster.bottomAnchor],
         // Pinned to the glyph's size: the undrawn title still feeds the
         // button's intrinsic width, which stretched it across the preview.
-        [clear.widthAnchor constraintEqualToConstant:18],
-        [clear.heightAnchor constraintEqualToConstant:18],
-        [clear.topAnchor constraintEqualToAnchor:cluster.topAnchor constant:3],
-        [clear.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor constant:-3],
+        [clear.widthAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+        [clear.heightAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+        [clear.topAnchor constraintEqualToAnchor:cluster.topAnchor
+                                        constant:kAlbumArtBadgeInset],
+        [clear.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor
+                                             constant:-kAlbumArtBadgeInset],
+        [missing.widthAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+        [missing.heightAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+        [missing.topAnchor constraintEqualToAnchor:cluster.topAnchor
+                                          constant:kAlbumArtBadgeInset],
+        [missing.leadingAnchor constraintEqualToAnchor:cluster.leadingAnchor
+                                              constant:kAlbumArtBadgeInset],
     ]];
     // The controller owns the hover tracking; userInfo names the side, since
     // both clusters share one owner. ActiveInActiveApp, not ActiveInKeyWindow:
@@ -352,9 +399,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     if (isDark) {
         _artDarkPreviewButton = preview;
         _artDarkClearButton = clear;
+        _artDarkMissingBadge = missing;
     } else {
         _artLightPreviewButton = preview;
         _artLightClearButton = clear;
+        _artLightMissingBadge = missing;
     }
     return cluster;
 }
@@ -667,9 +716,26 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
+- (void)previewAppearanceDark:(BOOL)dark {
+    AppSettings.sharedInstance.windowAppearancePreviewStyle =
+            dark ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
+                 : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    // Re-reads the toggle from what the window ended up at, so a caller that
+    // is not the toggle itself — the debug channel — leaves it honest too.
+    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+}
+
+// The preview is the page's, not a setting, so it ends with the page: leaving
+// the pane and closing the window are one event here, which is the only reason
+// there is one place to drop it.
 - (void)viewDidDisappear {
     [super viewDidDisappear];
     [self closeEditorPanels];
+    if (AppSettings.sharedInstance.windowAppearancePreviewStyle) {
+        AppSettings.sharedInstance.windowAppearancePreviewStyle = nil;
+        [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    }
 }
 
 #pragma mark - State
@@ -824,6 +890,10 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
             [AppTheme imageForDefaultArtwork:[theme defaultArtworkForDark:NO]];
     _artDarkClearButton.hidden = YES;
     _artLightClearButton.hidden = YES;
+    _artDarkMissingBadge.hidden =
+            ![AppTheme defaultArtworkIsMissing:[theme defaultArtworkForDark:YES]];
+    _artLightMissingBadge.hidden =
+            ![AppTheme defaultArtworkIsMissing:[theme defaultArtworkForDark:NO]];
     _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
     _customDarkPlayedWell.color = [theme waveformPlayedColorForDark:YES] ?: DefaultCustomPlayedColor(YES);
     _customDarkUnplayedWell.color = [theme waveformUnplayedColorForDark:YES] ?: DefaultCustomUnplayedColor(YES);
@@ -1053,21 +1123,9 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
        acceptDrop:(id<NSDraggingInfo>)info
               row:(NSInteger)row
     dropOperation:(NSTableViewDropOperation)operation {
-    NSArray<NSURL *> *urls = [info.draggingPasteboard
+    return [self importThemesFromURLs:[info.draggingPasteboard
             readObjectsForClasses:@[NSURL.class]
-                          options:self.class.themeFileReadingOptions];
-    BOOL imported = NO, failed = NO;
-    for (NSURL *url in urls) {
-        if ([self importThemeFromURL:url]) {
-            imported = YES;
-        } else {
-            failed = YES;
-        }
-    }
-    if (failed) {
-        [self presentThemeImportFailedAlert];
-    }
-    return imported;
+                          options:self.class.themeFileReadingOptions]];
 }
 
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
@@ -1138,39 +1196,62 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
 - (void)importTheme:(id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
-    panel.allowsMultipleSelection = NO;
+    panel.allowsMultipleSelection = YES;
     panel.allowedContentTypes = @[UTTypeJSON, UTTypeZIP];
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
-        if (result != NSModalResponseOK || !panel.URL) {
-            return;
-        }
-        if (![self importThemeFromURL:panel.URL]) {
-            [self presentThemeImportFailedAlert];
+        if (result == NSModalResponseOK) {
+            [self importThemesFromURLs:panel.URLs];
         }
     }];
 }
 
-// One import funnel for the Import… panel and the theme list's drop: the same
-// sanitize-and-store gate either way, activating what it added.
-- (BOOL)importThemeFromURL:(NSURL *)url {
-    NSString *name = nil;
-    NSDictionary *record = [AppTheme
-            recordFromJSONOrArchiveData:[NSData dataWithContentsOfURL:url]
-                                   name:&name
-                                  error:NULL];
-    if (!record) {
-        return NO;
+// One import funnel for the Import… panel and the theme list's drop, both of
+// which hand over a LIST: the same sanitize-and-store gate either way.
+//
+// Activation happens once, after the whole list. Activating per file would
+// re-apply every live effect N times to land on the last one regardless, and
+// a file that fails in the middle would leave the previous file's theme
+// active — the same place a clean run ends, so the failure would not show.
+//
+// Read mapped: the size gate inside AppTheme rejects an over-cap archive, but
+// only after the bytes exist, and a mistakenly picked multi-gigabyte file
+// must not be pulled into memory to be told it is too big.
+- (BOOL)importThemesFromURLs:(NSArray<NSURL *> *)urls {
+    NSString *lastImported = nil;
+    NSMutableArray<NSString *> *failed = [NSMutableArray array];
+    for (NSURL *url in urls) {
+        NSString *name = nil;
+        NSData *data = [NSData dataWithContentsOfURL:url
+                                             options:NSDataReadingMappedIfSafe
+                                               error:NULL];
+        NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:data
+                                                                name:&name
+                                                               error:NULL];
+        if (!record) {
+            [failed addObject:url.lastPathComponent];
+            continue;
+        }
+        lastImported = [AppSettings.sharedInstance
+                addUserThemeWithRecord:record
+                                  name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
     }
-    NSString *identifier = [AppSettings.sharedInstance
-            addUserThemeWithRecord:record
-                              name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
-    [self activateThemeWithIdentifier:identifier];
-    return YES;
+    if (lastImported) {
+        [self activateThemeWithIdentifier:lastImported];
+    }
+    if (failed.count) {
+        [self presentThemeImportFailedAlertForFiles:failed];
+    }
+    return lastImported != nil;
 }
 
-- (void)presentThemeImportFailedAlert {
+// The names are data, not copy, so they carry the detail and the localized
+// line above them carries none — which is also why the plural form states no
+// count: no language then needs plural agreement for it.
+- (void)presentThemeImportFailedAlertForFiles:(NSArray<NSString *> *)files {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = STR_SETTINGS_THEME_IMPORT_FAILED;
+    alert.messageText = files.count > 1 ? STR_SETTINGS_THEME_IMPORT_FAILED_SOME
+                                        : STR_SETTINGS_THEME_IMPORT_FAILED;
+    alert.informativeText = [files componentsJoinedByString:VibeNotLocalized(@"\n")];
     [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
 }
 
@@ -1180,8 +1261,8 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
         return;
     }
     NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
-    // A custom image travels beside the JSON, so those themes export as a
-    // ZIP; everything else stays a plain JSON file.
+    // A default-artwork image travels beside the JSON, so those themes export
+    // as a ZIP; everything else stays a plain JSON file.
     NSDictionary *record = [AppSettings.sharedInstance recordForThemeIdentifier:selected];
     NSData *archive = [AppTheme archiveDataForRecord:record name:name];
     NSString *extension = archive ? @"zip" : @"json";
@@ -1206,10 +1287,13 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
 }
 
+// The stored choice, which also ends any titlebar preview (the store drops it
+// on the write) — so the toggle is re-read from what the window ended up at.
 - (void)appearanceChanged:(id)sender {
     AppSettings.sharedInstance.windowAppearanceStyle =
             _appearancePopUp.selectedItem.representedObject;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
 // Which color slot every consumer reads moves with the mode, so the whole

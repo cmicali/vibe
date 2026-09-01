@@ -10,6 +10,7 @@
 
 #import <AppKit/AppKit.h>
 #import "AppDelegate.h"
+#import "AppSettings.h"
 #import "DebugWireFormat.h"
 #import "PlatformColor.h"
 #import "SettingsFormViews.h"
@@ -822,11 +823,16 @@ NSString *VibeDebugSettingsDump(void) {
 }
 
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
-    // The toolbar's navigation pill sits outside the pane, beyond the
-    // walker's reach; Back and Forward route to it by name so scripts keep
-    // one addressing scheme.
-    if (tokens.count == 2 && ([tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame
-            || [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame)) {
+    // The toolbar sits outside the pane, beyond the walker's reach; its
+    // navigation pill and its light/dark preview toggle route by name so
+    // scripts keep one addressing scheme. Both are the Appearance pane's own
+    // model, so both are driven through it rather than through the control.
+    BOOL back = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
+    BOOL forward = tokens.count == 2
+            && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
+    BOOL preview = tokens.count == 3
+            && [tokens[1] caseInsensitiveCompare:@"preview"] == NSOrderedSame;
+    if (back || forward || preview) {
         NSString *tabsError = nil;
         NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
         if (!tabs) {
@@ -838,7 +844,19 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             }
             SettingsAppearanceViewController *pane =
                     (SettingsAppearanceViewController *)item.viewController;
-            BOOL back = [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
+            if (preview) {
+                BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;
+                if (!dark && [tokens[2] caseInsensitiveCompare:@"light"] != NSOrderedSame) {
+                    return VibeErrorJSON(@"usage: settings_click preview <light|dark>");
+                }
+                [pane previewAppearanceDark:dark];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"preview",
+                                        @"action": @"previewed",
+                                        @"windowAppearancePreview": tokens[2].lowercaseString,
+                                        @"windowAppearance":
+                                                AppSettings.sharedInstance.windowAppearanceStyle
+                                                        ?: @""});
+            }
             if (back ? pane.canGoBack : pane.canGoForward) {
                 back ? [pane navigateBack] : [pane navigateForward];
                 return VibeJSONString(@{@"ok": @YES, @"control": tokens[1].lowercaseString,
