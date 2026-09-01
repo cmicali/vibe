@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "AppTheme+Archive.h"
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"

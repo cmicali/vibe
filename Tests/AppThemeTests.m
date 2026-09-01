@@ -8,6 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AppTheme.h"
+#import "AppTheme+Archive.h"
 #import "AppSettings.h"
 #import "PlatformColor.h"
 
@@ -858,7 +859,8 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 #pragma mark Album-art caps and ZIP safety
 
 // A minimal stored (uncompressed) ZIP, so a test can shape entries the way a
-// Finder archive or a crafted file would — VibeZipData is file-static.
+// Finder archive or a crafted file would — VibeZipData is file-static to
+// AppTheme+Archive.m.
 static void PutLE(NSMutableData *d, uint64_t v, int n) {
     for (int i = 0; i < n; i++) { uint8_t b = (v >> (8 * i)) & 0xFF; [d appendBytes:&b length:1]; }
 }

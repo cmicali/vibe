@@ -124,30 +124,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // included, since records carry both artwork keys whatever the mode.
 + (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
 
-#pragma mark Theme archives (JSON + image)
-
-// A theme whose record names a default-artwork image — a custom: one the user
-// picked or the bundled: one a built-in ships — exports as a ZIP of theme.json
-// and the image files; one naming none exports as plain JSON
-// (JSONDataForRecord:). A built-in's image travels even though this build
-// ships it, because the build that opens the archive may not be this one.
-// Entries are named by SLOT — artwork_default_front/back.<ext>, the theme
-// JSON referencing them bare — since a content hash or one build's resource
-// filename reads as nothing to a person opening the ZIP; both sides naming
-// one image share its entry. Returns nil when the record names no resolvable
-// image.
-+ (nullable NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
-                                     name:(NSString *)name;
-
-// Imports either form: raw JSON, or a ZIP holding one .json plus images. An
-// archived art reference is re-validated and re-hashed from the shipped image
-// (the filename is not trusted) and the returned record points at the stored
-// custom:<sha1> copy — every archived image lands there, a built-in's
-// included. A JSON-only import with a dangling custom reference drops the
-// field.
-+ (nullable NSDictionary<NSString *, id> *)recordFromJSONOrArchiveData:(nullable NSData *)data
-                                                                  name:(NSString *_Nullable *_Nullable)outName
-                                                                 error:(NSError *_Nullable *_Nullable)error;
+#pragma mark Names, migration and JSON
 
 // A usable theme name: trimmed, length-capped, the fallback when empty, and
 // suffixed " 2", " 3", … past any name already in use.
