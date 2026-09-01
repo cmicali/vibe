@@ -107,9 +107,10 @@ static const CGFloat kSeekBandHeight = 28;
     if (x < 0 || _bounds.size.width <= 0) {
         _hoverColumn.hidden = YES;
     } else {
-        CGFloat clamped = MAX(0.0, MIN(x - CGRectGetMinX(_bounds), _bounds.size.width));
-        _hoverColumn.frame = CGRectMake(clamped - kHoverColumnWidth / 2, 0,
-                                        kHoverColumnWidth, _track.bounds.size.height);
+        _hoverColumn.frame = VibeSnappedColumnRect(x - CGRectGetMinX(_bounds),
+                                                   kHoverColumnWidth, _bounds.size.width,
+                                                   _track.bounds.size.height,
+                                                   VibeBackingScaleForLayer(self.parentLayer));
         _hoverColumn.hidden = NO;
     }
     [CATransaction commit];

@@ -71,6 +71,32 @@ static inline float VibeWaveformBarLevel(float meanSquare) {
 // Only the level is floored; the min/max shape keeps per-bar resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
+// The energy column bar i of count draws its level from. Every bar-level
+// consumer maps through this rather than reading its own chunk's energy, so
+// a renderer with bars finer than the column cannot re-peg to sub-beat RMS —
+// nothing at a call site otherwise hints at the floor.
+static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
+                                                                     NSUInteger i,
+                                                                     NSUInteger count) {
+    return count > kVibeWaveformEnergyColumns
+            ? waveform->getChunkAtIndex(i * kVibeWaveformEnergyColumns / count,
+                                        kVibeWaveformEnergyColumns)
+            : waveform->getChunkAtIndex(i, count);
+}
+
+// Snap a hover/seek column to the device-pixel grid. A fractional origin or
+// width leaves half-lit edge pixels, and the column is supposed to be the
+// crispest thing in the waveform. x and the returned rect are in the caller's
+// local (bounds-relative) space; x may overshoot either edge — the clamp
+// keeps the column inside.
+static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
+                                           CGFloat boundsWidth, CGFloat height, CGFloat scale) {
+    CGFloat width = MAX(round(columnWidth * scale), 1) / scale;
+    CGFloat left = floor((x - width / 2) * scale) / scale;
+    left = MIN(MAX(left, 0), MAX(0, boundsWidth - width));
+    return CGRectMake(left, 0, width, height);
+}
+
 // A ramp stop: the color at `fraction` of its own alpha. The theme colors
 // carry each side's resting level in their alpha (WaveformTheme.h), so
 // renderers own only their ramp shapes and scale every stop relative to that

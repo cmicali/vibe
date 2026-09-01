@@ -105,6 +105,18 @@ static NSString *VibePaneNameList(NSTabViewController *tabs) {
     return [names componentsJoinedByString:@", "];
 }
 
+void VibeDebugSettingsRefreshSelectedPane(void) {
+    NSString *unusedError = nil;
+    NSTabViewController *tabs = VibeSettingsTabs(&unusedError);
+    if (!tabs) {
+        return;
+    }
+    NSViewController *pane = VibeSelectedPane(tabs).viewController;
+    if ([pane isKindOfClass:SettingsPaneViewController.class]) {
+        [(SettingsPaneViewController *)pane refreshSettingsAndPaneSize];
+    }
+}
+
 #pragma mark - Control inventory
 
 // One addressable thing in a pane. `name` is what settings_click matches on

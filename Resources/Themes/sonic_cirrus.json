@@ -5,11 +5,7 @@
     "tint" : "mono"
   },
   "waveform" : {
-    "playedColorDark" : "#FFFFFFBF",
-    "playedColorLight" : "#000000BF",
     "style" : "sonic_cirrus",
-    "theme" : "orange",
-    "unplayedColorDark" : "#808080BF",
-    "unplayedColorLight" : "#808080BF"
+    "theme" : "orange"
   }
 }

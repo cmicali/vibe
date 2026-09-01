@@ -34,7 +34,15 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
     NSDictionary *common = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb);
     if (common) {
         VibeDebugSurfaceHandler handler = common[@"handler"];
-        return handler(tokens, commandId, controller);
+        NSString *response = handler(tokens, commandId, controller);
+        // A verb marked VibeDebugWritesSettings changed what a visible pane
+        // shows, and none of the pane's own refresh triggers (appearance, key
+        // regain, menu tracking) fire for a scripted write — refresh here,
+        // once, so no verb has to remember to.
+        if (VibeDebugSpecWritesSettings(common)) {
+            VibeDebugSettingsRefreshSelectedPane();
+        }
+        return response;
     }
     NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommandTable(), verb);
     if (!spec) {
@@ -52,7 +60,11 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
                   @"script <file | ->"]);
     }
     VibeDebugCommandHandler handler = spec[@"handler"];
-    return handler(tokens, commandId, controller);
+    NSString *response = handler(tokens, commandId, controller);
+    if (VibeDebugSpecWritesSettings(spec)) {
+        VibeDebugSettingsRefreshSelectedPane();
+    }
+    return response;
 }
 
 void VibeInstallDebugCommandHook(void) {

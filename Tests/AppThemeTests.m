@@ -300,16 +300,15 @@
     XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
 }
 
+// The minimal sparse diff: custom waveform colors are read only under the
+// custom theme, so a record carrying them beside "theme": "orange" would ship
+// four inert fields — and this test would cement the accident.
 - (void)testSonicCirrusBuiltInIsExactlyItsOverrides {
     NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"sonic_cirrus"];
     XCTAssertEqualObjects(record, (@{
         @"windowTint": @"mono",
         @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
-        @"waveformPlayedColorDark": @"#FFFFFFBF",
-        @"waveformPlayedColorLight": @"#000000BF",
-        @"waveformUnplayedColorDark": @"#808080BF",
-        @"waveformUnplayedColorLight": @"#808080BF",
     }));
     // And it survives its own sanitizer unchanged.
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];

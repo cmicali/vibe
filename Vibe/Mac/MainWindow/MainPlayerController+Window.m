@@ -317,14 +317,18 @@
 - (void)applyWindowBackground {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSView *overlay = self.windowBackgroundOverlayView;
+    // Light/dark comes from the WINDOW, not the overlay: one caller is the
+    // appearance funnel, where a sibling view can still report the outgoing
+    // appearance mid-flip (the refreshTintWashes trap, APPEARANCE.md).
+    BOOL dark = self.window.effectiveAppearance.isDark;
     // Solid with an unset pair (a hand-edited import — the gate has no
     // cross-field rules) draws the default cover, the same fallback the
     // playlist cover and the editor's wells resolve, so the window always
     // matches what the wells show.
     NSColor *color = [theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? ([theme windowBackgroundColorForDark:overlay.isDark]
-                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:overlay.isDark])
+            ? ([theme windowBackgroundColorForDark:dark]
+                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:dark])
             : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;

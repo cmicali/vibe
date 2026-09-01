@@ -91,6 +91,13 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSStackView *_editorStack;
     SettingsSectionView *_infoSection;
     NSTextField *_nameField;
+    // The theme the name field's text was populated for. The rename commit
+    // reads the ACTIVE identifier, and the active theme can change while the
+    // field editor is open (View > Theme works while this window is key), so
+    // without this capture a commit would rename whatever theme is now active
+    // to the old one's half-typed text — the album-art sheet's stale-target
+    // drop, for the field editor.
+    NSString *_nameFieldThemeIdentifier;
     SettingsRowView *_nameRow;
     NSPopUpButton *_backgroundPopUp;
     NSColorWell *_backgroundDarkWell, *_backgroundLightWell;
@@ -758,9 +765,17 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
     // The editor, from the working theme. (The name/built-in row swap lives
     // in resolveLayoutStateFromSettings with the other conditional rows.)
     // Skip while the field editor is open, or a refresh mid-type (a menu
-    // open/close, the window regaining key) would silently discard the edit.
+    // open/close, the window regaining key) would silently discard the edit —
+    // unless the active theme changed under it: then the edit belongs to a
+    // theme this page no longer shows, and keeping it would commit onto the
+    // wrong one, so it is dropped instead.
+    if (_nameField.currentEditor != nil &&
+        ![active isEqualToString:_nameFieldThemeIdentifier]) {
+        [_nameField abortEditing];
+    }
     if (_nameField.currentEditor == nil) {
         _nameField.stringValue = builtIn ? @"" : ([settings displayNameForThemeIdentifier:active] ?: @"");
+        _nameFieldThemeIdentifier = active;
     }
 
     [_modePopUp selectItemAtIndex:
@@ -1104,6 +1119,12 @@ static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
 }
 
 - (void)editTheme:(id)sender {
+    // A double-click on a group header or the empty area below the rows names
+    // no theme, and opening the active theme's editor from there would be an
+    // activation the click never made.
+    if (sender == _themeTable && [self identifierForRow:_themeTable.clickedRow] == nil) {
+        return;
+    }
     // Opening a theme's page activates it first — selection already did on a
     // click; this covers the double-click's row change landing late.
     NSString *selected = [self selectedThemeIdentifier];
@@ -1269,13 +1290,14 @@ static NSColor *DefaultWindowTintColor(BOOL isDark) {
 
 - (void)cornerRadiusChanged:(id)sender {
     // A magnetic detent at the factory radius — the reset, without a button:
-    // dragging near the default snaps onto it.
+    // dragging near the default snaps onto it. The sanitize gate rounds to
+    // whole points; the knob re-syncs to what actually landed.
     double radius = _cornerRadiusSlider.doubleValue;
     if (fabs(radius - kVibeThemeCornerRadiusDefault) < 1.5) {
         radius = kVibeThemeCornerRadiusDefault;
-        _cornerRadiusSlider.doubleValue = radius;
     }
     AppSettings.sharedInstance.currentTheme.windowCornerRadius = radius;
+    _cornerRadiusSlider.doubleValue = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     [self refreshCornerRadiusValue];
     [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
 }
@@ -1383,6 +1405,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             forDark:sender == _artDarkClearButton];
     [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
             | VibeSettingsLiveEffectPlaylistAppearance];
+    [AppSettings.sharedInstance sweepUnreferencedThemeArtwork];
     [self refreshFromSettings]; // also hides the badge — the cursor is still over it
 }
 
@@ -1412,12 +1435,16 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
             return;
         }
         if (![AppSettings.sharedInstance.activeThemeIdentifier isEqualToString:target]) {
-            [self refreshFromSettings]; // theme changed under the sheet — drop it
+            // Theme changed under the sheet — drop it. The image was already
+            // stored, and nothing references it now.
+            [AppSettings.sharedInstance sweepUnreferencedThemeArtwork];
+            [self refreshFromSettings];
             return;
         }
         [AppSettings.sharedInstance.currentTheme setDefaultArtwork:stored forDark:isDark];
         [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
                 | VibeSettingsLiveEffectPlaylistAppearance];
+        [AppSettings.sharedInstance sweepUnreferencedThemeArtwork];
         [self refreshFromSettings];
     }];
 }
@@ -1563,6 +1590,12 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     }
     NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
     if ([AppTheme isBuiltInIdentifier:active]) {
+        return;
+    }
+    // An edit that outlived a theme switch is dropped, never committed onto
+    // the theme that is now active (see _nameFieldThemeIdentifier).
+    if (![active isEqualToString:_nameFieldThemeIdentifier]) {
+        [self refreshFromSettings];
         return;
     }
     [AppSettings.sharedInstance renameUserThemeWithIdentifier:active

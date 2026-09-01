@@ -280,7 +280,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
-            target[i] = VibeWaveformBarLevel(waveform->getChunkAtIndex(i, count).getMeanSquare());
+            target[i] = VibeWaveformBarLevel(
+                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare());
         }
     }];
 }

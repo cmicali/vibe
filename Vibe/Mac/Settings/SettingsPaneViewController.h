@@ -64,7 +64,8 @@ static const CGFloat kPanePadding = 20;
 // switch resizes nothing. Full refreshes remain selected-pane work.
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
-// The System Settings inline dropdown — borderless at rest, bezel on hover,
+// The System Settings inline dropdown — borderless, the value beside an
+// always-drawn chevron badge, no hover treatment (the reference has none),
 // value hugging the row's trailing edge; width caps a runaway title. Pass
 // NULL for a popup whose items carry their own targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
@@ -95,6 +96,12 @@ static const CGFloat kPanePadding = 20;
 // refreshing; a pane that hides or shows a row at any other moment must call
 // it, or the window keeps the size it was last measured at.
 - (void)paneContentDidChange;
+
+// The three steps above as one refresh — what every selected-pane trigger
+// (appearance, window-key regain, menu-tracking end) runs. The debug
+// channel's store-writing verbs run it too, so a scripted write is followed
+// by the same refresh a user gesture gets.
+- (void)refreshSettingsAndPaneSize;
 
 @end
 

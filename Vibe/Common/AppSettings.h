@@ -231,6 +231,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)removeUserThemeWithIdentifier:(NSString *)identifier;
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
 
+// Deletes every stored custom placeholder image no record names any more.
+// The files are content-hash-named and shared by reference
+// (AppTheme.storeCustomArtworkData:), so replacing or clearing a theme's
+// artwork, removing a theme, applying a theme (it drops the divergence
+// record), and a factory reset each strand a file unless they call this
+// after their store write.
+- (void)sweepUnreferencedThemeArtwork;
+
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;
 

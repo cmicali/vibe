@@ -226,7 +226,11 @@ static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
         if (![raw isKindOfClass:NSNumber.class] || !isfinite([raw doubleValue])) {
             return nil;
         }
-        return @(MIN(MAX([raw doubleValue], kCornerRadiusMin), kVibeThemeCornerRadiusMax));
+        // Whole points: the editor's px readout is integral, so a stored
+        // fraction would draw a radius no surface can display. Rounding in
+        // the gate heals imports and pre-round stored records alike; the
+        // slider merely re-syncs to what landed.
+        return @(round(MIN(MAX([raw doubleValue], kCornerRadiusMin), kVibeThemeCornerRadiusMax)));
     }
     CGFloat sizeMin, sizeMax;
     if (FontSizeClamp(key, &sizeMin, &sizeMax)) {
@@ -447,13 +451,16 @@ static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value) {
 }
 
 static NSString *VibeCustomArtworkDirectory(void) {
+#if DEBUG
     // A test seam: the host-less suite is unsandboxed, so without a redirect
-    // it would write into the developer's real ~/Library. Shipping reads no
-    // such variable.
+    // it would write into the developer's real ~/Library. make test always
+    // builds Debug; Release compiles the seam out with the rest of the debug
+    // surface.
     const char *override = getenv("VIBE_THEME_ART_DIR");
     if (override) {
         return [NSString stringWithUTF8String:override];
     }
+#endif
     NSString *support = NSSearchPathForDirectoriesInDomains(
             NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
     return [support stringByAppendingPathComponent:@"ThemeArt"];
@@ -523,6 +530,26 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     return [@"custom:" stringByAppendingString:file];
 }
 
++ (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records {
+    NSMutableSet<NSString *> *referenced = [NSMutableSet set];
+    for (NSDictionary *record in records) {
+        for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
+            NSString *value = [record[key] isKindOfClass:NSString.class] ? record[key] : nil;
+            if ([value hasPrefix:@"custom:"]) {
+                [referenced addObject:[value substringFromIndex:7]];
+            }
+        }
+    }
+    NSFileManager *manager = NSFileManager.defaultManager;
+    NSString *directory = VibeCustomArtworkDirectory();
+    for (NSString *file in [manager contentsOfDirectoryAtPath:directory error:NULL]) {
+        if (![referenced containsObject:file]) {
+            [manager removeItemAtPath:[directory stringByAppendingPathComponent:file]
+                                error:NULL];
+        }
+    }
+}
+
 static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
     static NSMutableDictionary<NSString *, NSImage *> *cache;
     static dispatch_once_t once;
@@ -538,19 +565,39 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
         if (cached) {
             return cached;
         }
-        // The bounded decode (Common/PlatformImage.h): the draw sites are the
-        // header panel and thumbnail cells, and a 4096px original must never
-        // be materialized into a lifetime-cached full bitmap.
-        NSData *data = nil;
-        if ([key hasPrefix:@"bundled:"]) {
-            NSString *file = [key substringFromIndex:8];
-            NSURL *url = [[NSBundle bundleForClass:self]
-                    URLForResource:file.stringByDeletingPathExtension
-                     withExtension:file.pathExtension subdirectory:@"Themes"];
-            data = url ? [NSData dataWithContentsOfURL:url] : nil;
-        } else if ([key hasPrefix:@"custom:"]) {
-            data = [NSData dataWithContentsOfFile:[VibeCustomArtworkDirectory()
-                    stringByAppendingPathComponent:[key substringFromIndex:7]]];
+    }
+    // The read and the bounded decode (Common/PlatformImage.h — 10-100ms) run
+    // OUTSIDE the lock, so a first decode never stalls every other consumer
+    // of the cache behind it. The draw sites are the header panel and the
+    // editor's previews, and a 4096px original must never be materialized
+    // into a lifetime-cached full bitmap. The synchronous once-per-key cost
+    // on the calling thread is deliberate: the sites need an image to draw
+    // NOW, and the lifetime cache makes it a one-time price.
+    NSData *data = nil;
+    if ([key hasPrefix:@"bundled:"]) {
+        NSString *file = [key substringFromIndex:8];
+        NSURL *url = [[NSBundle bundleForClass:self]
+                URLForResource:file.stringByDeletingPathExtension
+                 withExtension:file.pathExtension subdirectory:@"Themes"];
+        data = url ? [NSData dataWithContentsOfURL:url] : nil;
+    } else if ([key hasPrefix:@"custom:"]) {
+        data = [NSData dataWithContentsOfFile:[VibeCustomArtworkDirectory()
+                stringByAppendingPathComponent:[key substringFromIndex:7]]];
+    }
+    NSImage *image = data ? VibeDecodedImageWithData(data, kVibeDisplayArtDimension) : nil;
+    // The factory record image; the blank square is for the host-less
+    // test bundle, which carries no asset catalog.
+    image = image ?: [NSImage imageNamed:@"record-bg"]
+            ?: [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+    @synchronized (cache) {
+        // Double-checked: a concurrent first decode of the same key must not
+        // mint a second instance — consumers compare pointer identity to skip
+        // reinstalling an unchanged placeholder.
+        NSImage *raced = cache[key];
+        if (raced) {
+            return raced;
+        }
+        if ([key hasPrefix:@"custom:"]) {
             // A theme's live set is at most two custom images (dark +
             // light); auditioned predecessors would otherwise stay pinned by
             // their content-hash keys. A custom-referencing composite goes
@@ -568,11 +615,6 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
                 }
             }
         }
-        NSImage *image = data ? VibeDecodedImageWithData(data, kVibeDisplayArtDimension) : nil;
-        // The factory record image; the blank square is for the host-less
-        // test bundle, which carries no asset catalog.
-        image = image ?: [NSImage imageNamed:@"record-bg"]
-                ?: [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
         cache[key] = image;
         return image;
     }
@@ -706,6 +748,13 @@ static uint32_t VibeReadLE(const uint8_t *bytes, int width) {
     }
     return value;
 }
+
+// Far above any real theme, low enough that a mispicked video file fails
+// before the parser sees it.
+static const NSUInteger kThemeJSONByteCap = 64 * 1024;
+// The whole theme archive's ceiling — one JSON plus one image, with slack.
+// Both the pre-parse input gate and the unzip's running inflate budget use it.
+static const NSUInteger kThemeArchiveByteCap = 2 * 8 * 1024 * 1024 + 64 * 1024;
 
 // nil when the data is not a zip this reader can walk. Entries it cannot
 // decode (an unsupported method) are skipped rather than fatal.
@@ -1025,13 +1074,6 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
     });
     return locations;
 }
-
-// Far above any real theme, low enough that a mispicked video file fails
-// before the parser sees it.
-static const NSUInteger kThemeJSONByteCap = 64 * 1024;
-// The whole theme archive's ceiling — one JSON plus one image, with slack.
-// Both the pre-parse input gate and the unzip's running inflate budget use it.
-static const NSUInteger kThemeArchiveByteCap = 2 * 8 * 1024 * 1024 + 64 * 1024;
 
 + (NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
                                                 name:(NSString **)outName

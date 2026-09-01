@@ -288,15 +288,25 @@ def user_settings_snapshot(channel) -> dict:
     if code != 0 or not isinstance(state, dict):
         return {}
     settings = state.get("settings") or {}
-    # `in`, not truthiness: the system-default appearance IS the empty string
-    # (SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT), so a truthiness test
-    # would silently decline to restore exactly the users who never chose one.
+    # dump_state reports the system-default appearance as "system" rather than
+    # the stored empty string, so the three values here are exactly the
+    # set_appearance verb's own vocabulary and the restore hands them back
+    # verbatim.
     return {key: settings[key] for key in ("windowAppearance", "activeTheme")
             if key in settings}
 
 
-def user_settings_restore(channel, snapshot: dict):
-    # The theme first, and the two below it second, because applying a theme
+def user_settings_restore(channel, snapshot: dict, imported_themes=()):
+    # Imported fuzz themes first, so the set_theme below lands on a clean
+    # list: every accepted import is a persisted user theme, visible in
+    # View > Theme and in the NEXT run's collect_themes — which would make the
+    # printed "replay with --seed N" promise false, since a different theme
+    # list draws a different op sequence from the same seed. remove_theme
+    # refuses built-ins and falls back to vibe when the removed theme is the
+    # active one, so removing whatever the run left applied is safe.
+    for identifier in imported_themes:
+        channel.run(["remove_theme", str(identifier)])
+    # The theme next, and the appearance after it, because applying a theme
     # repopulates the style and can pin the appearance: a single-mode theme
     # outranks windowAppearance outright. Restoring in the other order would
     # put both back and then have the theme apply overwrite them.
@@ -304,11 +314,16 @@ def user_settings_restore(channel, snapshot: dict):
     if theme:
         channel.run(["set_theme", theme])
     appearance = snapshot.get("windowAppearance")
-    if appearance is not None:
-        # The live menu path, not the CLI prefs write, so the running app ends
-        # the run drawn the way it started rather than only on its next launch.
-        suffix = appearance or "system_default"
-        channel.run(["click_menu", f"view_appearance_{suffix}"])
+    if appearance:
+        # The set_appearance verb, not a menu click: it takes exactly the
+        # values dump_state reports, where the menu path needed a per-value
+        # item id — and the guessed view_appearance_system did not exist (the
+        # real item is view_appearance_system_default), so every run ended on
+        # whatever the last random flip chose.
+        code, payload, _ = channel.run(["set_appearance", appearance])
+        if code != 0 or not (payload or {}).get("ok"):
+            print(f"  warning: could not restore appearance {appearance!r}",
+                  file=sys.stderr)
     # The waveform style is NOT restored separately, and must not be: it is a
     # field of the theme now rather than its own View submenu, so the set_theme
     # above has already put it back. Restoring it here would need a menu item
@@ -477,10 +492,10 @@ def THEME_HOSTILE(rng):
 # reaches them.
 PLAYLIST_SELECT_KEYS = ["down", "up"]
 
-# Import is bounded because every accepted record is a persisted user theme:
-# an 8-hour run at any real weight would leave tens of thousands in the store
-# and the restore would be the only thing that ever removed them. The cap is
-# high enough that the store's own dedupe and ordering are under real pressure.
+# Import is bounded because every accepted record is a persisted user theme
+# until the end-of-run cleanup removes it: an 8-hour run at any real weight
+# would put tens of thousands in the store mid-run. The cap is high enough
+# that the store's own dedupe and ordering are under real pressure.
 MAX_THEME_IMPORTS = 80
 
 
@@ -502,8 +517,7 @@ class OpGenerator:
         self.playlist_band = playlist_band
         self.keep_playlist = profile in ("theme", "playlist")
         self.window = (900.0, 400.0)
-        self.weights = dict(PROFILES["base"])
-        self.weights.update(PROFILES.get(profile, {}))
+        self.weights = effective_weights(profile)
         self.kinds = [k for k, w in self.weights.items() if w > 0]
         self.kind_weights = [self.weights[k] for k in self.kinds]
 
@@ -1068,9 +1082,8 @@ PROFILES = {
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,
-    },
         "theme": 2,
-    
+    },
     # Everything `loading` does, with the throttles off. `burst` moves the
     # track-change loop inside the app, where a jump lands every main-queue
     # turn — the channel cannot reach that rate from outside — and settle drops
@@ -1110,9 +1123,8 @@ PROFILES = {
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "appearance": 6, "resize_storm": 3,
-    },
         "theme": 3,
-    
+    },
     # The cloud path: files that are placeholders and take real time to arrive,
     # so the scan's serial cloud lane, the foreground-download hold, the
     # neighborhood re-ranking and the abandoned play and prefetch opens are all
@@ -1165,9 +1177,8 @@ PROFILES = {
         "menu": 6, "undo": 1, "settle": 4,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "appearance": 6, "resize_storm": 10,
-    },
         "theme": 8,
-    
+    },
     # The theme record end to end: the store, the sanitizer and the apply.
     #
     # A theme apply is the app's widest settings edit — every themed field
@@ -1226,6 +1237,17 @@ PROFILES = {
         "undo_storm": 10,
     },
 }
+
+
+def effective_weights(profile):
+    """The op weights a profile actually runs: base overlaid by the profile.
+
+    The one spelling of the merge, shared by OpGenerator and run()'s
+    needs-rows derivation, so a change to the overlay rule cannot leave the
+    two disagreeing about what a profile draws."""
+    weights = dict(PROFILES["base"])
+    weights.update(PROFILES.get(profile, {}))
+    return weights
 
 
 # --------------------------------------------------------------------------
@@ -1690,14 +1712,14 @@ def collect_themes(channel):
     """Every applicable theme id, and one real record to mutate from.
 
     The ids come from the View > Theme submenu, which its delegate fills in, so
-    they cover the user's own themes as well as the three built-ins.
+    they cover the user's own themes as well as the built-ins.
 
     Order matters in the base record's fallback chain, and it is not
     alphabetical: a theme is a SPARSE record over the factory defaults, so the
-    built-ins differ enormously in how much they actually carry. Adolescent
-    Engineering sets every group; Industrial sets four fields; the Vibe theme
-    is the empty record, and mutating that one would fuzz a single group per
-    import. Take the fullest that answers.
+    built-ins differ enormously in how much they actually carry. Signal
+    Workshop sets every group and the most fields; Technical sets every group;
+    the Vibe theme is the empty record, and mutating that one would fuzz a
+    single group per import. Take the fullest that answers.
     """
     ids, base = [], None
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
@@ -1715,10 +1737,11 @@ def collect_themes(channel):
     # The menu ids are the display path; the built-ins are named ones the
     # set_theme matcher resolves either way, so a run whose dump_menu happened
     # before the delegate filled the submenu still has something to apply.
-    for built_in in ("vibe", "industrial", "adolescent_engineering"):
+    for built_in in ("vibe", "cupertino", "field", "signal_workshop",
+                     "sonic_cirrus", "technical", "technical_bars"):
         if built_in not in ids:
             ids.append(built_in)
-    for candidate in ("adolescent_engineering", "industrial", "vibe"):
+    for candidate in ("signal_workshop", "technical", "vibe"):
         code, payload, _ = channel.run(["dump_theme", candidate], timeout=20)
         if code == 0 and isinstance((payload or {}).get("theme"), dict):
             base = payload["theme"]
@@ -1752,12 +1775,19 @@ def collect_menu_ids(channel):
     return ids
 
 
-def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, stalls=None):
+def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, stalls=None,
+               imported_themes=None):
     """Run a list of (name, argv, tolerated) and return the failure, or None.
 
     stalls, when given, is {"dir", "count", "samples", "max"}: recoverable
     main-thread stalls are sampled and counted there rather than failing the
     run outright.
+
+    imported_themes, when given, collects the identifier from every accepted
+    import_theme reply, so the end-of-run cleanup can remove exactly what the
+    run persisted. The reply is the authority — the record's own name is not,
+    since the store may rename on dedupe and a mutated envelope may not carry
+    a usable one.
     """
     # One client process for the whole batch. Anything the batch could not
     # deliver — a hang, an unquotable argument — falls through to the per-op
@@ -1777,6 +1807,10 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
         else:
             code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
         entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
+        if (imported_themes is not None and argv[0] == "import_theme" and code == 0
+                and isinstance(payload, dict) and payload.get("imported")
+                and payload["imported"] not in imported_themes):
+            imported_themes.append(payload["imported"])
         if tolerated:
             # Journaled so replay and shrink apply the SAME rules. Without it,
             # `undo` on an empty stack is a pass when generated and a failure
@@ -1889,7 +1923,14 @@ def run(args):
     # Closing it before the baseline is what makes every leg start from the
     # same UI, whatever the previous leg left behind.
     channel.run(["settings_close"], timeout=20)
-    needs_rows = args.profile in ("theme", "playlist")
+    # Derived from the weights, not a profile list, so it cannot go stale when
+    # profiles change: hammer carried the row ops at real weight while a
+    # hardcoded list here named only theme/playlist, so a hammer run that
+    # inherited a closed pane silently turned every row op into transport for
+    # its whole length, warning-free.
+    row_weights = effective_weights(args.profile)
+    needs_rows = any(row_weights.get(op, 0) > 0 for op in
+                     ("playlist_select", "playlist_remove", "playlist_move"))
     band = discover_playlist_band(channel, needs_rows)
     themes, theme_base = collect_themes(channel)
     print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
@@ -1947,6 +1988,9 @@ def run(args):
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     stalls = {"dir": journal_path.parent / f"stress-{seed}-stalls", "count": 0,
               "samples": 0, "max": args.max_stalls}
+    # Every identifier the run's import_theme ops persist, filled from the
+    # replies by replay_ops and removed again in user_settings_restore.
+    imported_themes = []
     health_samples = []
     growth_streaks = {}
     baseline = None
@@ -1972,7 +2016,8 @@ def run(args):
                 while len(batch) < args.batch and executed + len(batch) < args.iterations:
                     batch.extend(generator.next_ops())
 
-                failure = replay_ops(channel, batch, journal=journal, stalls=stalls)
+                failure = replay_ops(channel, batch, journal=journal, stalls=stalls,
+                                     imported_themes=imported_themes)
                 executed += len(batch)
                 if failure:
                     break
@@ -2059,7 +2104,7 @@ def run(args):
         except KeyboardInterrupt:
             print("\ninterrupted", file=sys.stderr)
 
-    user_settings_restore(channel, restore)
+    user_settings_restore(channel, restore, imported_themes)
 
     if health_samples or resting_samples:
         samples_path = journal_path.with_suffix(".health.ndjson")

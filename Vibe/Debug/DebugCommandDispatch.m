@@ -16,6 +16,18 @@ NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
     return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
 }
 
+static NSString *const kVibeDebugWritesSettingsKey = @"writesSettings";
+
+NSDictionary *VibeDebugWritesSettings(NSDictionary *spec) {
+    NSMutableDictionary *marked = [spec mutableCopy];
+    marked[kVibeDebugWritesSettingsKey] = @YES;
+    return marked;
+}
+
+BOOL VibeDebugSpecWritesSettings(NSDictionary *spec) {
+    return [spec[kVibeDebugWritesSettingsKey] boolValue];
+}
+
 NSString *VibeDebugVerbFromUsage(NSString *usage) {
     NSRange space = [usage rangeOfString:@" "];
     return space.location == NSNotFound ? usage : [usage substringToIndex:space.location];

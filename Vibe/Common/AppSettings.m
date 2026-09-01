@@ -169,6 +169,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 #if TARGET_OS_OSX
     _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
+    [self sweepUnreferencedThemeArtwork];
 #endif
 }
 
@@ -376,11 +377,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 // every entry's fields go back through AppTheme's gate, so an external
 // defaults write cannot smuggle in what an import would refuse. Memoized —
 // the sanitize pass costs a full record walk per theme and every identity
-// query funnels here. persistUserThemes:, the one writer, installs what it
-// wrote rather than dropping it — every caller hands it entries built from
-// this list and AppTheme's own output, so they are already through the gate
-// (no CLI-side verb writes this key, so the cross-process prefs trap in
-// Common/CLAUDE.md does not reach it).
+// query funnels here. persistUserThemes: — the one RUNTIME writer; the
+// one-time migration above writes the key directly, before this memo can
+// have populated — installs what it wrote rather than dropping it: every
+// caller hands it entries built from this list and AppTheme's own output, so
+// they are already through the gate (no CLI-side verb writes this key, so
+// the cross-process prefs trap in Common/CLAUDE.md does not reach it).
 - (NSArray<NSDictionary *> *)storedUserThemes {
     if (_storedUserThemesCache) {
         return _storedUserThemesCache;
@@ -505,6 +507,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    // Dropping the divergence record can drop the last reference to a custom
+    // image picked while a built-in was active.
+    [self sweepUnreferencedThemeArtwork];
 }
 
 - (void)currentThemeDidChange {
@@ -573,6 +578,24 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if (wasActive) {
         [self applyThemeWithIdentifier:kVibeThemeIdentifierVibe];
     }
+    [self sweepUnreferencedThemeArtwork];
+}
+
+- (void)sweepUnreferencedThemeArtwork {
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
+    for (NSString *identifier in [self orderedThemeIdentifiers]) {
+        [records addObject:[self recordForThemeIdentifier:identifier]];
+    }
+    // The persisted divergence record can name an image no theme's own record
+    // holds. The in-memory working record needs no read of its own: every
+    // caller sweeps after its store write (the header's contract), by which
+    // point that record has landed in a theme entry or the divergence key.
+    NSDictionary *diverged =
+            [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
+    if (diverged) {
+        [records addObject:diverged];
+    }
+    [AppTheme removeCustomArtworkFilesUnreferencedByRecords:records];
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {

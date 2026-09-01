@@ -96,6 +96,14 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 + (nullable NSString *)storeCustomArtworkData:(NSData *)data
                                          error:(NSError *_Nullable *_Nullable)error;
 
+// The store's reverse: content-hash naming shares one file between every
+// record referencing the same image, so deletion is a reference sweep rather
+// than something paired with any one edit. Deletes every container image no
+// record in `records` names — the caller (AppSettings.sweepUnreferencedThemeArtwork)
+// passes every record that can hold a reference, dormant light halves
+// included, since records carry both artwork keys whatever the mode.
++ (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
+
 #pragma mark Theme archives (JSON + image)
 
 // A theme whose record carries a custom image exports as a ZIP of theme.json

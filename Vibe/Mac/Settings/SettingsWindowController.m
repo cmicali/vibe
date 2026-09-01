@@ -19,7 +19,7 @@
 
 static const CGFloat kSettingsSidebarWidth = 200;
 
-@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate, NSWindowDelegate> {
+@interface SettingsWindowController () <NSMenuItemValidation, NSToolbarDelegate> {
     // The pane host; SettingsTabViewController is defined further down, and
     // everything reached through this ivar is NSTabViewController API.
     NSTabViewController *_tabs;
@@ -62,7 +62,11 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 
 - (void)setFrame:(NSRect)frameRect display:(BOOL)flag {
-    if (!NSEqualSizes(frameRect.size, self.frame.size) && self.isVisible
+    // isVisible is NO while miniaturized, but that is not the pre-visible
+    // setup window this admits — a layout flush can still fire the snap in
+    // the Dock, deminiaturizing the user's frame at the fitting size.
+    if (!NSEqualSizes(frameRect.size, self.frame.size)
+            && (self.isVisible || self.isMiniaturized)
             && !self.inLiveResize && !_resizeUnlocked
             && ![self appKitIsRescuingOntoScreen:frameRect]) {
         return;
@@ -76,16 +80,19 @@ static const CGFloat kSettingsSidebarWidth = 200;
 // back onto one. (An AX window-manager resize is indistinguishable from the
 // snap at this funnel and stays refused — the documented limitation.)
 - (BOOL)appKitIsRescuingOntoScreen:(NSRect)proposed {
-    BOOL currentFits = NO, proposedFits = NO;
+    BOOL currentOnScreen = NO, proposedFits = NO;
     for (NSScreen *screen in NSScreen.screens) {
-        if (NSContainsRect(screen.visibleFrame, self.frame)) {
-            currentFits = YES;
+        // Intersection, not containment: a window straddling two displays is
+        // contained by neither visibleFrame, but it is exactly where the user
+        // put it — only a window with no visible part left needs the rescue.
+        if (NSIntersectsRect(screen.visibleFrame, self.frame)) {
+            currentOnScreen = YES;
         }
         if (NSContainsRect(screen.visibleFrame, proposed)) {
             proposedFits = YES;
         }
     }
-    return !currentFits && proposedFits;
+    return !currentOnScreen && proposedFits;
 }
 
 @end
@@ -463,8 +470,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         // panes' floor on first appearance and never shrinks an enlarged one.
         self.windowFrameAutosaveName = @"SettingsWindow";
         [sidebar.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
-
-        window.delegate = self;
     }
     return self;
 }
