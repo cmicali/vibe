@@ -6,6 +6,7 @@
     "backgroundColorDark" : "#282828",
     "backgroundColorLight" : "#F5F5F7",
     "backgroundStyle" : "solid",
+    "cornerRadius" : 26,
     "tint" : "mono"
   },
   "player" : {

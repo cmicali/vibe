@@ -50,6 +50,27 @@ static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger
     return MIN(MAX(boundary, (NSInteger)0), count);
 }
 
+// The drawn level for a bar, from its chunk's energy rather than its peaks.
+// Peak min/max pegs on limited dance masters — at Basic's pitch every bar
+// covers seconds of audio, so each one contains a full-scale transient and
+// the whole strip reads as a solid block — while RMS still varies through
+// drops and breakdowns. Full height is kVibeWaveformFullScaleRMS (-9 dBFS
+// RMS — a loud club master's sustained level fills the band); anything
+// hotter clamps.
+static const float kVibeWaveformFullScaleRMS = 0.35f;
+static inline float VibeWaveformBarLevel(float meanSquare) {
+    return fminf(sqrtf(fmaxf(meanSquare, 0.0f)) / kVibeWaveformFullScaleRMS, 1.0f);
+}
+
+// The level's energy is averaged over a column no finer than 1/1024 of the
+// track — 8 source chunks, ~0.4s of a typical track, the momentary-loudness
+// scale — however fine the bars. RMS over a window shorter than a beat
+// converges back to peak, which re-pegged the fixed-count oversampling
+// styles: their bars cover as little as one ~50ms chunk, so every kick read
+// as a full-height bar and the upper envelope was the old solid block again.
+// Only the level is floored; the min/max shape keeps per-bar resolution.
+static const NSUInteger kVibeWaveformEnergyColumns = 1024;
+
 // A ramp stop: the color at `fraction` of its own alpha. The theme colors
 // carry each side's resting level in their alpha (WaveformTheme.h), so
 // renderers own only their ramp shapes and scale every stop relative to that

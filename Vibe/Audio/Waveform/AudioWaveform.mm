@@ -67,14 +67,16 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
         }
         return result;
     }
-    // chunks[] holds float[2] pairs: min0, max0, min1, max1 and so on. Use
-    // stride-2 vDSP to find the minimum of all the minima and the maximum of
-    // all the maxima.
+    // chunks[] holds float[4] groups: min, max, sum of squares, frame count.
+    // Stride-4 vDSP: the minimum of the minima, the maximum of the maxima, and
+    // plain sums of the two energy fields.
     float *base = reinterpret_cast<float*>(&chunks[startIndex]);
-    float minVal, maxVal;
-    vDSP_minv(base,     2, &minVal, numChunksToCombine);  // stride 2, starting at values[0]
-    vDSP_maxv(base + 1, 2, &maxVal, numChunksToCombine);  // stride 2, starting at values[1]
-    result.set(minVal, maxVal);
+    float minVal, maxVal, sumSquares, frameCount;
+    vDSP_minv(base,     4, &minVal, numChunksToCombine);
+    vDSP_maxv(base + 1, 4, &maxVal, numChunksToCombine);
+    vDSP_sve(base + 2,  4, &sumSquares, numChunksToCombine);
+    vDSP_sve(base + 3,  4, &frameCount, numChunksToCombine);
+    result.set(minVal, maxVal, sumSquares, frameCount);
     return result;
 }
 
@@ -82,7 +84,7 @@ AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInte
 // bump invalidates by rename as well as by mismatch. The key rode in without
 // a bump: it is encoded as an object, so a pre-key entry decodes nil — never
 // a fabricated C major — and everyone's cached waveforms and BPMs survive.
-const int kCodableAudioWaveformVersion = 4;
+const int kCodableAudioWaveformVersion = 5; // 5: per-chunk energy joined the min/max peaks
 
 @implementation CodableAudioWaveform
 

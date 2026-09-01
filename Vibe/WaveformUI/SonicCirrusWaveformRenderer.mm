@@ -271,7 +271,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // width and restores the previous bar's resting color.
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    // Build the morph target: each bar's normalized peak-to-peak height, or
+    // Build the morph target: each bar's RMS-derived level, or
     // all-zero when there is no waveform, so that a track change collapses the
     // old bars toward the baseline until the new waveform retargets them. The
     // engine owns the fast, collapsed and commit scaffold and skips this fill
@@ -280,8 +280,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
-            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-            target[i] = fabsf(m.getMax() - m.getMin()) / 2;
+            target[i] = VibeWaveformBarLevel(waveform->getChunkAtIndex(i, count).getMeanSquare());
         }
     }];
 }

@@ -91,7 +91,7 @@ static NSData *ValidChunkBytes(void) {
     CodableAudioWaveform *original =
             [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
     AudioWaveformCacheChunk marker;
-    marker.set(-0.75f, 0.5f);
+    marker.set(-0.75f, 0.5f, 1.2f, 3.0f);
     original.waveform->setChunkAtIndex(marker, 7);
     original.bpm = 174.0f;
     original.key = 21; // Am
@@ -114,6 +114,8 @@ static NSData *ValidChunkBytes(void) {
     XCTAssertEqual(count, original.waveform->getNumChunks());
     XCTAssertEqual(decoded.waveform->getChunkAtIndex(7, count).getMin(), -0.75f);
     XCTAssertEqual(decoded.waveform->getChunkAtIndex(7, count).getMax(), 0.5f);
+    XCTAssertEqualWithAccuracy(decoded.waveform->getChunkAtIndex(7, count).getMeanSquare(),
+                               1.2f / 3.0f, 1e-6);
 }
 
 #pragma mark - Rejection branches

@@ -11,7 +11,7 @@
 // growth is what says "this is the control" — the column below only says
 // where the seek would land.
 static const CGFloat kPillHeight = 9;
-static const CGFloat kPillHoverHeight = 12;
+static const CGFloat kPillHoverHeight = 16;
 static const CGFloat kPillHoverGrowDuration = 0.18;
 
 // The tracked-seek column inside the pill, matching Detailed's affordance in
@@ -107,7 +107,7 @@ static const CGFloat kSeekBandHeight = 28;
     if (x < 0 || _bounds.size.width <= 0) {
         _hoverColumn.hidden = YES;
     } else {
-        CGFloat clamped = MAX(CGFloat(0), MIN(x - CGRectGetMinX(_bounds), _bounds.size.width));
+        CGFloat clamped = MAX(0.0, MIN(x - CGRectGetMinX(_bounds), _bounds.size.width));
         _hoverColumn.frame = CGRectMake(clamped - kHoverColumnWidth / 2, 0,
                                         kHoverColumnWidth, _track.bounds.size.height);
         _hoverColumn.hidden = NO;
@@ -137,20 +137,23 @@ static const CGFloat kSeekBandHeight = 28;
                       bounds.size.width, height);
 }
 
-// The samples are deliberately unread: with or without a waveform the pill is
-// the same picture, so loading, empty-handed and delivered tracks all draw
-// alike and there is nothing for a late delivery to change.
+// The samples are never read — the pill is the same picture for every track —
+// but their ABSENCE is the empty and loading states, where the bar styles
+// collapse to the midline and a full-width track would instead read as a
+// loaded file at 0:00 and frame the loading shimmer. Hidden is this style's
+// collapse; a late delivery simply unhides it.
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     _bounds = bounds;
-    _progress = MAX(CGFloat(0), MIN(progress, CGFloat(1)));
+    _progress = MAX(0.0, MIN(1.0, progress));
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    _track.hidden = (waveform == nullptr);
     [self layoutPill];
     [CATransaction commit];
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
-    _progress = MAX(CGFloat(0), MIN(progress, CGFloat(1)));
+    _progress = MAX(0.0, MIN(1.0, progress));
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _fill.frame = CGRectMake(0, 0, _progress * _bounds.size.width, _track.bounds.size.height);

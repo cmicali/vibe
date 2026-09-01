@@ -30,6 +30,33 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
+// One sampling for the live target fill and the envelope bake, which must
+// stay pixel-identical: the bar's peak envelope rescaled so the energy
+// decides the size and the min/max keep the shape (and its asymmetry on
+// DC-offset material). Both the energy and the scale's reference extent come
+// from the kVibeWaveformEnergyColumns-floored COLUMN, not the bar: the
+// column's loudest bar lands exactly on the energy envelope and finer bars
+// keep their relative peak texture below it — the dips between transients
+// that distinguish the oversampling styles. Normalizing each bar's own
+// extent to the level instead flattened every bar in a column to the same
+// height, which drew x4 and x8 as plain Detailed with extra rects.
+static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger i, NSUInteger count,
+                                            float *outMin, float *outMax) {
+    AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+    AudioWaveformCacheChunk column = count > kVibeWaveformEnergyColumns
+            ? waveform->getChunkAtIndex(i * kVibeWaveformEnergyColumns / count,
+                                        kVibeWaveformEnergyColumns)
+            : m;
+    // A count that is not a multiple of the column count lets a bar straddle
+    // two columns and carry a peak its mapped column lacks; the wider extent
+    // keeps that bar on the envelope rather than past it.
+    float extent = fmaxf(fmaxf(fabsf(column.getMin()), fabsf(column.getMax())),
+                         fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
+    float scale = extent > 0 ? VibeWaveformBarLevel(column.getMeanSquare()) / extent : 0;
+    *outMin = m.getMin() * scale;
+    *outMax = m.getMax() * scale;
+}
+
 // This family's resting levels live in the theme colors' own alpha
 // (WaveformTheme.h) — the White pair carries what used to be this file's
 // kWaveformOpacity — so the renderer owns only the ramp SHAPE below, scaled
@@ -56,8 +83,8 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     // than a line drawn over it.
     CALayer *_hoverColumn;
 
-    // The samples are a normalized, interleaved min and max per bar, and
-    // rebuildMaskPaths is the rebuild callback.
+    // The samples are a normalized, interleaved energy-scaled [min, max]
+    // envelope per bar, and rebuildMaskPaths is the rebuild callback.
     WaveformMorphEngine *_morph;
 }
 
@@ -291,8 +318,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
     // variants. Do not clamp to the pixel count.
     NSUInteger count = [self numBarsForWidth:bounds.size.width];
 
-    // The target the bars ease toward: the waveform's per-bar min and max, or
-    // all-zero, collapsed to the midline, when there is no waveform. A track
+    // The target the bars ease toward: the waveform's per-bar energy-scaled
+    // envelope, or all-zero, collapsed to the midline, when there is no waveform. A track
     // change therefore morphs the old bars toward zero until the new track's
     // waveform arrives and retargets them to its shape. The engine owns the
     // fast, collapsed and commit scaffold and skips this fill on a live-resize
@@ -301,9 +328,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
                            fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
-            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-            target[i * 2] = m.getMin();
-            target[i * 2 + 1] = m.getMax();
+            VibeEnergyScaledEnvelope(waveform, i, count, &target[i * 2], &target[i * 2 + 1]);
         }
     }];
 }
@@ -376,9 +401,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     NSMutableData *data = [NSMutableData dataWithLength:count * 2 * sizeof(float)];
     float *out = (float *)data.mutableBytes;
     for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        out[i * 2] = m.getMin();
-        out[i * 2 + 1] = m.getMax();
+        VibeEnergyScaledEnvelope(waveform, i, count, &out[i * 2], &out[i * 2 + 1]);
     }
     return data;
 }

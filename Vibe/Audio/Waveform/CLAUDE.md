@@ -2,7 +2,7 @@
 
 This directory owns the waveform *data*: generation, chunking and persistence. Rendering is `Vibe/WaveformUI/`; the BPM and key analyzers that ride this decode pass are `Vibe/Audio/Analysis/`.
 
-`AudioWaveform` is a C++ structure storing one min/max float pair per chunk. `AVFAudioWaveformLoader`, backed by `AVAudioFile`, generates the data asynchronously and hands immutable snapshots to the main thread for progressive rendering. `AudioWaveformCache` owns the loader lifecycle and persists through PINCache.
+`AudioWaveform` is a C++ structure storing, per chunk, the peak min/max and the energy — a sum of squared samples plus a frame count, so merging partial buffers into a chunk and chunks into a drawn column stays exact in any order. `AVFAudioWaveformLoader`, backed by `AVAudioFile`, generates the data asynchronously and hands immutable snapshots to the main thread for progressive rendering. `AudioWaveformCache` owns the loader lifecycle and persists through PINCache.
 
 ## Whether the analyzers ride at all is an input, not a setting this layer reads
 
