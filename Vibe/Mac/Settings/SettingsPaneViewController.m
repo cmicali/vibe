@@ -4,6 +4,7 @@
 //
 
 #import "SettingsPaneViewController.h"
+#import "NSImage+Util.h"
 #import "NSView+DarkMode.h"
 #import "WindowAnimation.h"
 
@@ -59,13 +60,10 @@ static const CGFloat kInlineBadgeGap = 8;
     [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
     // Built per draw so the palette color resolves against the appearance the
     // draw runs under — a template drawInRect: renders black, not tinted.
-    NSImageSymbolConfiguration *config = [[NSImageSymbolConfiguration
-            configurationWithPointSize:9 weight:NSFontWeightBold]
-            configurationByApplyingConfiguration:[NSImageSymbolConfiguration
-                    configurationWithPaletteColors:@[NSColor.labelColor]]];
-    NSImage *chevrons = [[NSImage imageWithSystemSymbolName:@"chevron.up.chevron.down"
-                                   accessibilityDescription:nil]
-            imageWithSymbolConfiguration:config];
+    NSImage *chevrons = [NSImage symbolNamed:@"chevron.up.chevron.down"
+                                   pointSize:9 weight:NSFontWeightBold
+                                     palette:@[NSColor.labelColor]
+                    accessibilityDescription:nil];
     NSSize size = chevrons.size;
     NSRect target = NSMakeRect(NSMidX(circle) - size.width / 2,
                                NSMidY(circle) - size.height / 2,
@@ -76,31 +74,6 @@ static const CGFloat kInlineBadgeGap = 8;
                 fraction:1.0
           respectFlipped:YES
                    hints:nil];
-}
-
-@end
-
-
-// The pane's own backdrop: white in light mode — System Settings' light
-// content area is white, not the window gray, with the cards a step DARKER —
-// and nothing in dark, where the window background already matches.
-@interface SettingsPaneBackgroundView : NSView
-@end
-
-@implementation SettingsPaneBackgroundView
-
-- (BOOL)wantsUpdateLayer {
-    return YES;
-}
-
-- (void)updateLayer {
-    self.layer.backgroundColor =
-            self.isDark ? NSColor.clearColor.CGColor : NSColor.whiteColor.CGColor;
-}
-
-- (void)viewDidChangeEffectiveAppearance {
-    [super viewDidChangeEffectiveAppearance];
-    self.needsDisplay = YES;
 }
 
 @end
@@ -138,9 +111,14 @@ static const CGFloat kInlineBadgeGap = 8;
     // edges (Greek was the first to overflow the original fixed width).
     NSSize paneSize = [self naturalPaneSize];
 
-    SettingsPaneBackgroundView *view = [[SettingsPaneBackgroundView alloc]
+    // The pane's own backdrop: white in light mode — System Settings' light
+    // content area is white, not the window gray, with the cards a step
+    // DARKER — and nothing in dark, where the window background already
+    // matches.
+    SettingsFillView *view = [[SettingsFillView alloc]
             initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
-    view.wantsLayer = YES;
+    view.darkColor = NSColor.clearColor;
+    view.lightColor = NSColor.whiteColor;
     // TRAP: the pane carries NO size constraints of its own — the view just
     // tracks the window through the tab view's edge pins. Any pane-side size
     // constraint, equality or minimum, re-enters the fitting-size snap: the

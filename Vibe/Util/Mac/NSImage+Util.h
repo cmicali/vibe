@@ -6,7 +6,21 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface NSImage (Util)
+
+// An SF Symbol at a point size and weight, drawn in palette colors. The
+// palette is applied OVER the sized configuration rather than passed beside
+// it: a symbol image takes one configuration, and a second
+// imageWithSymbolConfiguration: replaces the first instead of adding to it.
+// A palette color resolves against the appearance the image is later drawn
+// under, so a dynamic color stays dynamic.
++ (NSImage *)symbolNamed:(NSString *)name
+               pointSize:(CGFloat)pointSize
+                  weight:(NSFontWeight)weight
+                 palette:(NSArray<NSColor *> *)palette
+accessibilityDescription:(nullable NSString *)description;
 
 // Runs draw inside a fresh explicit-sRGB RGBA8 bitmap context of `size`
 // pixels (one point per pixel) and returns the image wrapping that bitmap,
@@ -37,3 +51,5 @@
 // category because that is how a mac call site asks an NSImage for it.
 - (nullable NSColor *)dominantColor;
 @end
+
+NS_ASSUME_NONNULL_END

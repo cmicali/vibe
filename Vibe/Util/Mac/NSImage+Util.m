@@ -9,6 +9,19 @@
 
 @implementation NSImage (Util)
 
++ (NSImage *)symbolNamed:(NSString *)name
+               pointSize:(CGFloat)pointSize
+                  weight:(NSFontWeight)weight
+                 palette:(NSArray<NSColor *> *)palette
+accessibilityDescription:(NSString *)description {
+    NSImageSymbolConfiguration *config =
+            [[NSImageSymbolConfiguration configurationWithPointSize:pointSize weight:weight]
+                    configurationByApplyingConfiguration:
+                            [NSImageSymbolConfiguration configurationWithPaletteColors:palette]];
+    return [[NSImage imageWithSystemSymbolName:name accessibilityDescription:description]
+            imageWithSymbolConfiguration:config];
+}
+
 + (NSImage *)imageWithSize:(NSSize)size drawnBy:(void (NS_NOESCAPE ^)(void))draw {
     // A zero dimension produces a nil bitmap rep, which crashes downstream.
     size.width = MAX(1.0, size.width);
