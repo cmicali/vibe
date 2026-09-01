@@ -7,31 +7,19 @@
 #import "AppSettings.h"
 #import "NSView+DarkMode.h"
 
-// White in dark mode and black in light, at low opacity, which reads as a
-// quiet lift over the playlist frost in both appearances. It is independent of
-// key state, like the rest of the window chrome.
-static const CGFloat kRowFillAlpha = 0.09;
-
 @implementation PlaylistRowView
 
-// Shared with the theme editor's wells, which display it as "current".
-+ (NSColor *)neutralRowFillColorForDark:(BOOL)dark {
-    return [(dark ? NSColor.whiteColor : NSColor.blackColor)
-            colorWithAlphaComponent:kRowFillAlpha];
-}
-
-// The theme's overrides, alpha and all, over the neutral wash. Read per draw:
-// rows draw on state changes and scroll-in, and the record lookup is cheap.
+// The theme's overrides, alpha and all, over the neutral wash the display
+// accessor defaults to. Read per draw: rows draw on state changes and
+// scroll-in, and the record lookup is cheap.
 - (NSColor *)selectedFillColor {
-    BOOL dark = self.isDark;
-    return [AppSettings.sharedInstance.currentTheme playlistSelectedRowColorForDark:dark]
-            ?: [PlaylistRowView neutralRowFillColorForDark:dark];
+    return [AppSettings.sharedInstance.currentTheme
+            displayPlaylistSelectedRowColorForDark:self.isDark];
 }
 
 - (NSColor *)playingFillColor {
-    BOOL dark = self.isDark;
-    return [AppSettings.sharedInstance.currentTheme playlistPlayingRowColorForDark:dark]
-            ?: [PlaylistRowView neutralRowFillColorForDark:dark];
+    return [AppSettings.sharedInstance.currentTheme
+            displayPlaylistPlayingRowColorForDark:self.isDark];
 }
 
 - (void)setPlayingRow:(BOOL)playingRow {

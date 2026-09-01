@@ -403,8 +403,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
             ![name isKindOfClass:NSString.class] || name.length == 0) {
             continue;
         }
-        NSDictionary *record = [[[AppTheme alloc] initWithRecord:entry] dictionaryRepresentation];
-        [themes addObject:UserThemeEntry(record, identifier, name)];
+        [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:entry], identifier, name)];
     }
     _storedUserThemesCache = [themes copy];
     return _storedUserThemesCache;
@@ -522,7 +521,14 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSDictionary *record = _currentTheme.dictionaryRepresentation;
     NSString *active = self.activeThemeIdentifier;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // What this write replaces: the divergence record or the entry. Its
+    // artwork references against the new record's decide the sweep below,
+    // so a replaced or cleared placeholder image cannot strand its file —
+    // and a color drag, which changes no reference, never lists the
+    // container.
+    NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
     if ([AppTheme isBuiltInIdentifier:active]) {
+        previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
         // A built-in stays pristine; the working record carries the
         // divergence, and only while there is one.
         if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
@@ -530,19 +536,24 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         } else {
             [defaults setObject:record forKey:SETTING_CURRENT_THEME];
         }
-        return;
-    }
-    // A user theme IS its working state: the record lands in the entry, from
-    // the same dictionary, so the two cannot drift.
-    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
-    for (NSUInteger i = 0; i < themes.count; i++) {
-        if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
-            themes[i] = UserThemeEntry(record, active, themes[i][kVibeThemeRecordNameKey]);
-            break;
+    } else {
+        // A user theme IS its working state: the record lands in the entry,
+        // from the same dictionary, so the two cannot drift.
+        NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+        for (NSUInteger i = 0; i < themes.count; i++) {
+            if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
+                previous = previous ?: themes[i];
+                themes[i] = UserThemeEntry(record, active, themes[i][kVibeThemeRecordNameKey]);
+                break;
+            }
         }
+        [self persistUserThemes:themes];
+        [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     }
-    [self persistUserThemes:themes];
-    [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    if (![[AppTheme customArtworkFilesInRecord:previous]
+            isEqualToSet:[AppTheme customArtworkFilesInRecord:record]]) {
+        [self sweepUnreferencedThemeArtwork];
+    }
 }
 
 - (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
@@ -550,10 +561,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSString *deduped = [AppTheme dedupedThemeName:name
                                           fallback:STR_THEME_NAME_CUSTOM
                                      existingNames:[self allThemeDisplayNames]];
-    NSDictionary *sanitized = [[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation];
     NSString *identifier = NSUUID.UUID.UUIDString;
     NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
-    [themes addObject:UserThemeEntry(sanitized, identifier, deduped)];
+    [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:record], identifier, deduped)];
     [self persistUserThemes:themes];
     return identifier;
 }
@@ -566,7 +576,8 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     return [self addUserThemeWithRecord:[self recordForThemeIdentifier:identifier] name:name];
 }
 
-- (void)removeUserThemeWithIdentifier:(NSString *)identifier {
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier
+                        fallingBackTo:(NSString *)successor {
     if ([AppTheme isBuiltInIdentifier:identifier]) {
         return;
     }
@@ -579,11 +590,20 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     }
     [self persistUserThemes:themes];
     if (wasActive) {
-        [self applyThemeWithIdentifier:kVibeThemeIdentifierVibe];
+        // The apply sweeps; the successor resolves to vibe when it names
+        // nothing, the removed theme itself included.
+        [self applyThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
+    } else {
+        [self sweepUnreferencedThemeArtwork];
     }
-    [self sweepUnreferencedThemeArtwork];
 }
 
+// Deletes every stored custom placeholder image no record names any more.
+// The files are content-hash-named and shared by reference
+// (AppTheme.storeCustomArtworkData:), so each store write that can drop the
+// last reference — the field funnel when its artwork keys move, a theme
+// removal, a theme apply (it drops the divergence record), a factory reset —
+// runs this after its write.
 - (void)sweepUnreferencedThemeArtwork {
     NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
     for (NSString *identifier in [self orderedThemeIdentifiers]) {
@@ -591,8 +611,8 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     }
     // The persisted divergence record can name an image no theme's own record
     // holds. The in-memory working record needs no read of its own: every
-    // caller sweeps after its store write (the header's contract), by which
-    // point that record has landed in a theme entry or the divergence key.
+    // caller sweeps after its store write, by which point that record has
+    // landed in a theme entry or the divergence key.
     NSDictionary *diverged =
             [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
     if (diverged) {
@@ -666,6 +686,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (NSAppearance *)windowAppearance {
+    // A single-mode theme's one look outranks both the stored style and the
+    // preview; folded in here so every reader of the answer gets the pin.
+    NSAppearance *required = self.currentTheme.requiredWindowAppearance;
+    if (required) {
+        return required;
+    }
     NSString *value = _windowAppearancePreviewStyle ?: self.windowAppearanceStyle;
     if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameAqua];

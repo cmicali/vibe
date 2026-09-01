@@ -753,13 +753,10 @@ NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens) {
         return VibeErrorJSON(@"settings window is not open (run settings_open)");
     }
     NSSize minSize = window.contentMinSize;
-    NSRect content = [window contentRectForFrameRect:window.frame];
-    content.origin.y += content.size.height - MAX(height, minSize.height);
-    content.size = NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height));
     // The window refuses engine-driven size changes, so the resize must go
     // through the controller's blessed funnel.
-    [(SettingsWindowController *)window.windowController
-            applyWindowFrame:[window frameRectForContentRect:content]];
+    [(SettingsWindowController *)window.windowController applyContentSize:
+            NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height))];
     // Flush layout so any constraint-driven snap-back would happen before the
     // reply reads the frame — its absence is what this verb verifies.
     [window layoutIfNeeded];
@@ -838,12 +835,9 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
         if (!tabs) {
             return tabsError;
         }
-        for (NSTabViewItem *item in tabs.tabViewItems) {
-            if (![item.identifier isEqualToString:@"appearance"]) {
-                continue;
-            }
-            SettingsAppearanceViewController *pane =
-                    (SettingsAppearanceViewController *)item.viewController;
+        SettingsAppearanceViewController *pane =
+                [(SettingsWindowController *)VibeSettingsWindow().windowController appearancePane];
+        if (pane) {
             if (preview) {
                 BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;
                 if (!dark && [tokens[2] caseInsensitiveCompare:@"light"] != NSOrderedSame) {

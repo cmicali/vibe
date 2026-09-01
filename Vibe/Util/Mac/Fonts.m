@@ -4,7 +4,7 @@
 //
 
 #import "Fonts.h"
-#import "AppTheme.h" // the slots' reference base sizes
+#import "AppTheme.h"
 
 @implementation Fonts {
 
@@ -67,57 +67,43 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
 
 #pragma mark Themed slots
 
-// The slots' reference bases — the sizes their reference sites pass — and the
-// pushed configuration, indexed by VibeFontSlot (Fonts.h; entry None unused).
-// All access is under @synchronized(Fonts.class): not every caller is on the
-// main thread, same as the caches above.
-static const CGFloat kSlotBase[kVibeFontSlotCount] = {
-    [VibeFontSlotTitle]            = kVibeThemeTitleFontBaseSize,
-    [VibeFontSlotArtist]           = kVibeThemeArtistFontBaseSize,
-    [VibeFontSlotInfo]             = kVibeThemeInfoFontBaseSize,
-    [VibeFontSlotPlaylist]         = kVibeThemePlaylistFontBaseSize,
-    [VibeFontSlotPlaylistDuration] = kVibeThemePlaylistDurationFontBaseSize,
-};
+// The pushed configuration, indexed by VibeFontSlot (AppTheme.h; entry None
+// unused). All access is under @synchronized(Fonts.class): not every caller
+// is on the main thread, same as the caches above.
 static NSString *slotFace[kVibeFontSlotCount];
-static CGFloat slotOffset[kVibeFontSlotCount];
+static CGFloat slotSize[kVibeFontSlotCount];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
+// The factory look until the shell pushes the stored theme, so a slot
+// resolved before that push is the Vibe theme's font rather than size 0.
++ (void)initialize {
+    if (self == Fonts.class) {
+        [self applyThemeFonts:[[AppTheme alloc] init]];
+    }
+}
+
 + (void)applyThemeFonts:(AppTheme *)theme {
-    NSString *faces[kVibeFontSlotCount] = {
-        [VibeFontSlotTitle]            = theme.titleFontFace,
-        [VibeFontSlotArtist]           = theme.artistFontFace,
-        [VibeFontSlotInfo]             = theme.infoFontFace,
-        [VibeFontSlotPlaylist]         = theme.playlistFontFace,
-        [VibeFontSlotPlaylistDuration] = theme.playlistDurationFontFace,
-    };
-    CGFloat sizes[kVibeFontSlotCount] = {
-        [VibeFontSlotTitle]            = theme.titleFontSize,
-        [VibeFontSlotArtist]           = theme.artistFontSize,
-        [VibeFontSlotInfo]             = theme.infoFontSize,
-        [VibeFontSlotPlaylist]         = theme.playlistFontSize,
-        [VibeFontSlotPlaylistDuration] = theme.playlistDurationFontSize,
-    };
     @synchronized (self) {
         for (NSInteger slot = VibeFontSlotNone + 1; slot < kVibeFontSlotCount; slot++) {
-            slotFace[slot] = faces[slot].length ? faces[slot] : nil;
-            slotOffset[slot] = sizes[slot] - kSlotBase[slot];
+            NSString *face = [theme fontFaceForSlot:(VibeFontSlot)slot];
+            slotFace[slot] = face.length ? face : nil;
+            slotSize[slot] = [theme fontSizeForSlot:(VibeFontSlot)slot];
         }
         [slotCache removeAllObjects];
     }
 }
 
-+ (NSFont *)fontForSlot:(VibeFontSlot)slot base:(CGFloat)base bold:(BOOL)bold {
++ (NSFont *)fontForSlot:(VibeFontSlot)slot bold:(BOOL)bold {
     @synchronized (self) {
         if (!slotCache) {
             slotCache = [NSMutableDictionary new];
         }
-        NSString *key = [NSString stringWithFormat:@"%ld-%@",
-                (long)slot, fontCacheKey(base, bold)];
+        NSString *key = [NSString stringWithFormat:@"%ld%@", (long)slot, bold ? @"-bold" : @""];
         NSFont *cached = slotCache[key];
         if (cached) {
             return cached;
         }
-        CGFloat size = base + slotOffset[slot];
+        CGFloat size = slotSize[slot];
         NSFont *font = nil;
         NSString *face = slotFace[slot];
         if (face) {
@@ -151,24 +137,24 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
     }
 }
 
-+ (NSFont *)titleFont:(CGFloat)baseSize {
-    return [self fontForSlot:VibeFontSlotTitle base:baseSize bold:NO];
++ (NSFont *)titleFont {
+    return [self fontForSlot:VibeFontSlotTitle bold:NO];
 }
 
-+ (NSFont *)artistFont:(CGFloat)baseSize {
-    return [self fontForSlot:VibeFontSlotArtist base:baseSize bold:NO];
++ (NSFont *)artistFont {
+    return [self fontForSlot:VibeFontSlotArtist bold:NO];
 }
 
-+ (NSFont *)infoFont:(CGFloat)baseSize bold:(BOOL)bold {
-    return [self fontForSlot:VibeFontSlotInfo base:baseSize bold:bold];
++ (NSFont *)infoFontBold:(BOOL)bold {
+    return [self fontForSlot:VibeFontSlotInfo bold:bold];
 }
 
-+ (NSFont *)playlistFont:(CGFloat)baseSize {
-    return [self fontForSlot:VibeFontSlotPlaylist base:baseSize bold:NO];
++ (NSFont *)playlistFont {
+    return [self fontForSlot:VibeFontSlotPlaylist bold:NO];
 }
 
-+ (NSFont *)playlistDurationFont:(CGFloat)baseSize {
-    return [self fontForSlot:VibeFontSlotPlaylistDuration base:baseSize bold:NO];
++ (NSFont *)playlistDurationFont {
+    return [self fontForSlot:VibeFontSlotPlaylistDuration bold:NO];
 }
 
 @end

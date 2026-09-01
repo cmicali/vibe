@@ -322,24 +322,18 @@
     // appearance mid-flip (the refreshTintWashes trap, APPEARANCE.md).
     BOOL dark = self.window.effectiveAppearance.isDark;
     // Solid with an unset pair (a hand-edited import — the gate has no
-    // cross-field rules) draws the default cover, the same fallback the
-    // playlist cover and the editor's wells resolve, so the window always
-    // matches what the wells show.
+    // cross-field rules) draws the display accessor's default cover, the
+    // same one the editor's wells show.
     NSColor *color = [theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? ([theme windowBackgroundColorForDark:dark]
-                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:dark])
-            : nil;
+            ? [theme displayWindowBackgroundColorForDark:dark] : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
     overlay.layer.cornerRadius = theme.windowCornerRadius;
 }
 
 - (void)applyStoredAppearance {
-    // A single-mode theme demands the dark appearance — its one look — and
-    // the stored setting rules otherwise.
-    self.window.appearance = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance
-            ?: AppSettings.sharedInstance.windowAppearance;
+    self.window.appearance = AppSettings.sharedInstance.windowAppearance;
     [self.playlistController reloadCurrentTrack];
 }
 

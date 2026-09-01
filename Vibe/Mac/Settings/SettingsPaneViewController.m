@@ -289,6 +289,10 @@ static const CGFloat kInlineBadgeGap = 8;
     popUp.lastItem.representedObject = value;
 }
 
+- (void)selectValue:(id)value in:(NSPopUpButton *)popUp {
+    [popUp selectItemAtIndex:[popUp indexOfItemWithRepresentedObject:value]];
+}
+
 - (NSSwitch *)switchWithAction:(SEL)action {
     NSSwitch *toggle = [[NSSwitch alloc] init];
     toggle.target = self;

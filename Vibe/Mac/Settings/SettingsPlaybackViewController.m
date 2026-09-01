@@ -102,7 +102,7 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)refreshFromSettings {
     NSString *onEnd = AppSettings.sharedInstance.pauseAtTrackEnd ? kOnEndPause : kOnEndPlayNext;
-    [_onEndPopUp selectItemAtIndex:[_onEndPopUp indexOfItemWithRepresentedObject:onEnd]];
+    [self selectValue:onEnd in:_onEndPopUp];
     NSInteger range = AppSettings.sharedInstance.pitchRange;
     _pitchRange8.state = range != 16 ? NSControlStateValueOn : NSControlStateValueOff;
     _pitchRange16.state = range == 16 ? NSControlStateValueOn : NSControlStateValueOff;

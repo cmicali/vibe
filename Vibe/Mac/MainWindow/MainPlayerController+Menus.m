@@ -31,9 +31,9 @@
         case VibeMenuValidationDomainAppearance:
             [self applyAppearanceStateToMenuItem:menuItem];
             // A theme that pins the window's appearance ignores this
-            // setting; disable it there so the checkmark can't assert a state
-            // the window contradicts. requiredWindowAppearance is the pin's
-            // one home — the same accessor applyStoredAppearance obeys.
+            // setting (AppSettings.windowAppearance folds the pin in);
+            // disable it there so the checkmark can't assert a state the
+            // window contradicts.
             return AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
@@ -284,14 +284,6 @@
             [self applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
         }
     }
-}
-
-- (NSArray<NSString *> *)availableWaveformStyleIdentifiers {
-    return self.waveformView.availableWaveformStyles;
-}
-
-- (NSString *)displayNameForWaveformStyle:(NSString *)identifier {
-    return [self.waveformView displayNameForStyle:identifier];
 }
 
 - (void)refreshWaveformTheme {

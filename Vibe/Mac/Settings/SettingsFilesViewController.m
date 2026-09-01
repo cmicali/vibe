@@ -166,9 +166,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
     [self refreshCommonFolderMenu];
     NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
-    [_albumArtPopUp selectItemAtIndex:[_albumArtPopUp indexOfItemWithRepresentedObject:albumArtSource]];
-    [_folderSortPopUp selectItemAtIndex:[_folderSortPopUp indexOfItemWithRepresentedObject:
-            @(AppSettings.sharedInstance.folderOpenSort)]];
+    [self selectValue:albumArtSource in:_albumArtPopUp];
+    [self selectValue:@(AppSettings.sharedInstance.folderOpenSort) in:_folderSortPopUp];
 }
 
 // Draws the menu from what is known now, then re-probes the candidate paths

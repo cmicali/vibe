@@ -998,7 +998,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     // Deleting the active user theme falls back to vibe.
     NSString *identifier = [settings addUserThemeWithRecord:@{} name:@"Doomed"];
     [settings applyThemeWithIdentifier:identifier];
-    [settings removeUserThemeWithIdentifier:identifier];
+    [settings removeUserThemeWithIdentifier:identifier fallingBackTo:nil];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
     [settings resetToDefaults];
 }

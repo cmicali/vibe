@@ -32,19 +32,7 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
     // The cross-platform verbs first: they are written once, against
     // VibeDebugPlayerSurface, which this controller adopts.
     NSDictionary *common = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb);
-    if (common) {
-        VibeDebugSurfaceHandler handler = common[@"handler"];
-        NSString *response = handler(tokens, commandId, controller);
-        // A verb marked VibeDebugWritesSettings changed what a visible pane
-        // shows, and none of the pane's own refresh triggers (appearance, key
-        // regain, menu tracking) fire for a scripted write — refresh here,
-        // once, so no verb has to remember to.
-        if (VibeDebugSpecWritesSettings(common)) {
-            VibeDebugSettingsRefreshSelectedPane();
-        }
-        return response;
-    }
-    NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommandTable(), verb);
+    NSDictionary *spec = common ?: VibeDebugSpecForVerb(VibeDebugCommandTable(), verb);
     if (!spec) {
         // The unknown-command reply is the channel's authoritative command
         // list, and CLAUDE.md points here, so it must also advertise the verbs
@@ -53,17 +41,18 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
         return VibeDebugUnknownCommandReply(verb,
                 @[VibeDebugCommonCommandTable(), VibeDebugCommandTable()],
                 @[@"clear_disk_caches",
-                  @"set_appearance <light|dark|system>",
                   @"set_analysis <bpm|key> <on|off>",
-                  @"set_key_display <camelot|musical> <colors|plain>",
                   @"sleep <seconds>",
                   @"script <file | ->"]);
     }
-    VibeDebugCommandHandler handler = spec[@"handler"];
-    NSString *response = handler(tokens, commandId, controller);
-    if (VibeDebugSpecWritesSettings(spec)) {
-        VibeDebugSettingsRefreshSelectedPane();
-    }
+    NSString *response = common
+            ? ((VibeDebugSurfaceHandler)common[@"handler"])(tokens, commandId, controller)
+            : ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
+    // A verb that wrote the store changed what a visible pane shows, and none
+    // of the pane's own refresh triggers (appearance, key regain, menu
+    // tracking) fire for a scripted write — refresh after every verb, so no
+    // verb has to say it writes. A no-op while Settings is closed.
+    VibeDebugSettingsRefreshSelectedPane();
     return response;
 }
 

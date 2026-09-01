@@ -40,6 +40,11 @@ FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 // can take 10-100ms, so it belongs off the main thread.
 FOUNDATION_EXPORT VibeImage *_Nullable VibeDecodedImageWithData(NSData *_Nullable data, CGFloat maxPixelSize);
 
+// The pixel size of encoded image bytes from the container header alone — no
+// pixel decode. CGSizeZero for nil data, or data that is not a decodable
+// image.
+FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
+
 // The image's dominant color, for tinting a surface to match album art: the
 // average of the most-populated hue band, weighted by saturation times
 // brightness, so a colorful accent beats a large muted background. An

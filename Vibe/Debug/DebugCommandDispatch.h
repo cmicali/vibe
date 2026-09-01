@@ -29,14 +29,6 @@ typedef NSString *_Nullable (^VibeDebugSurfaceHandler)(NSArray<NSString *> *toke
 NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
                            VibeDebugSurfaceHandler handler);
 
-// Marks a spec whose verb writes AppSettings, and the query the platform
-// funnels read back. Declarative so a new store-writing verb cannot forget
-// its platform's post-write follow-up: the mac funnel refreshes the visible
-// settings pane after the handler, so a dump_settings_ui right after reads
-// what the verb wrote; iOS has no settings walker and ignores the flag.
-NSDictionary *VibeDebugWritesSettings(NSDictionary *spec);
-BOOL VibeDebugSpecWritesSettings(NSDictionary *spec);
-
 // The first word of a usage string, which is the verb itself.
 NSString *VibeDebugVerbFromUsage(NSString *usage);
 

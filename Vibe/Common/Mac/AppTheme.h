@@ -49,16 +49,28 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // The factory radius — the editor's slider detent snaps back to it.
 #define kVibeThemeCornerRadiusDefault ((CGFloat)20)
 
-// The font slots' reference sizes — the base each slot's reference site
-// passes (the title, the info labels, the playlist rows). Macros for the same
-// reason as the radius max: compile-time constants shared by the theme
-// defaults, Fonts' offset math and the reference call sites, so the offset
-// arithmetic cannot skew against a copy.
+// The font slots' factory sizes — the point size each slot draws at under
+// the Vibe theme, the defaults the field rows carry.
 #define kVibeThemeTitleFontBaseSize     ((CGFloat)23)
 #define kVibeThemeArtistFontBaseSize   ((CGFloat)16)
 #define kVibeThemeInfoFontBaseSize     ((CGFloat)13)
 #define kVibeThemePlaylistFontBaseSize ((CGFloat)14)
 #define kVibeThemePlaylistDurationFontBaseSize ((CGFloat)12)
+
+// The five themed font slots, one spelling shared by the theme's per-slot
+// accessors, Fonts' slot storage and the editor's font panel. None is
+// deliberately zero, so a zero-filled ivar or an unset control tag reads as
+// no slot, never as the title.
+typedef NS_ENUM(NSInteger, VibeFontSlot) {
+    VibeFontSlotNone = 0,
+    VibeFontSlotTitle,
+    VibeFontSlotArtist,
+    VibeFontSlotInfo,
+    VibeFontSlotPlaylist,
+    VibeFontSlotPlaylistDuration,
+};
+// Array bound for per-slot storage indexed by VibeFontSlot (entry 0 unused).
+#define kVibeFontSlotCount 6
 
 // Keys a theme JSON carries beside the field overrides. The name travels on
 // export/import; a record's id never leaves the store — export strips it,
@@ -170,6 +182,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // numbers clamp. nil builds the defaults — the Vibe look.
 - (instancetype)initWithRecord:(nullable NSDictionary<NSString *, id> *)record;
 
+// The gate as a function: the sparse record initWithRecord: would hold for
+// this input. What the store and the JSON paths run a raw record through.
++ (NSDictionary<NSString *, id> *)sanitizedRecord:(nullable NSDictionary<NSString *, id> *)record;
+
 // Repopulates every field from the record — applying a theme in place, so
 // holders of the object see the switch.
 - (void)replaceWithRecord:(nullable NSDictionary<NSString *, id> *)record;
@@ -204,10 +220,13 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 // The five font slots. An empty face means the built-in font — Fonts owns
 // what that resolves to, and resolves an uninstalled face with its never-nil
-// fallback, so faces are not validated here. Sizes are absolute at each
-// slot's reference site (title 23, info 13, playlist 14, playlist duration 12); call sites derive
-// their own size as an offset from that base, which is why the clamps are
-// narrow — the frames the labels sit in are fixed.
+// fallback, so faces are not validated here. The size is the point size the
+// slot draws at; the clamps are narrow because the frames the labels sit in
+// are fixed. The slot-indexed accessors are the same fields by VibeFontSlot,
+// for callers that walk the slots rather than name them.
+- (NSString *)fontFaceForSlot:(VibeFontSlot)slot;
+- (CGFloat)fontSizeForSlot:(VibeFontSlot)slot;
+- (void)setFontFace:(NSString *)face size:(CGFloat)size forSlot:(VibeFontSlot)slot;
 @property (nonatomic, copy) NSString *titleFontFace;
 @property (nonatomic) CGFloat titleFontSize;                 // clamped [20, 26]
 @property (nonatomic, copy) NSString *artistFontFace;
@@ -293,6 +312,25 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 - (VibeColor *)displayArtistColorForDark:(BOOL)isDark;
 - (VibeColor *)displayInfoColorForDark:(BOOL)isDark;
 - (VibeColor *)displayTimeColorForDark:(BOOL)isDark;
+
+// Every other pair the same way: the override, or the constant an unset slot
+// draws as — the solid cover, the neutral tint wash, the neutral row fill,
+// Mono's resting levels. One home, so the surface an unset pair paints, the
+// well that displays it and the seed a popup writes when it reveals the
+// wells cannot disagree. A style or tint choice that does not consume the
+// pair (glass, artwork) never reads these.
+- (VibeColor *)displayWindowBackgroundColorForDark:(BOOL)isDark;
+- (VibeColor *)displayPlaylistBackgroundColorForDark:(BOOL)isDark;
+- (VibeColor *)displayWindowTintColorForDark:(BOOL)isDark;
+- (VibeColor *)displayPlaylistTintColorForDark:(BOOL)isDark;
+- (VibeColor *)displayPlaylistPlayingRowColorForDark:(BOOL)isDark;
+- (VibeColor *)displayPlaylistSelectedRowColorForDark:(BOOL)isDark;
+- (VibeColor *)displayWaveformPlayedColorForDark:(BOOL)isDark;
+- (VibeColor *)displayWaveformUnplayedColorForDark:(BOOL)isDark;
+
+// Whether the record names any image the app container holds — the
+// custom:<sha1> files the artwork sweep is keyed on.
++ (NSSet<NSString *> *)customArtworkFilesInRecord:(nullable NSDictionary<NSString *, id> *)record;
 
 @end
 

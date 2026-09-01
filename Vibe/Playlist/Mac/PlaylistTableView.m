@@ -153,19 +153,19 @@ static void ensureCellAttributes(void) {
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.0),
                 NSFontAttributeName:
-                        [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize],
+                        [Fonts playlistDurationFont],
                 NSParagraphStyleAttributeName: right,
         };
         titleAttributes = @{
                 NSForegroundColorAttributeName: titleColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts playlistFont:kVibeThemePlaylistFontBaseSize],
+                NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
         artistAttributes = @{
                 NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts playlistFont:kVibeThemePlaylistFontBaseSize],
+                NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
     }

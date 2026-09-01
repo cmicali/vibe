@@ -75,6 +75,10 @@ static const CGFloat kPanePadding = 20;
 // happen one line at a time.
 - (void)addItem:(NSString *)title value:(nullable id)value to:(NSPopUpButton *)popUp;
 
+// The read half: selects the item carrying value on representedObject, or
+// none when no item does.
+- (void)selectValue:(nullable id)value in:(NSPopUpButton *)popUp;
+
 // The iOS-style toggle every boolean row uses; reads and writes exactly like
 // the checkbox it replaced (NSControlStateValueOn/Off).
 - (NSSwitch *)switchWithAction:(SEL)action;

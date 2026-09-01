@@ -24,6 +24,18 @@ const CGFloat kVibeArchivedDisplayArtDimension = 640.0;
 const CGFloat kVibeArchivedDisplayArtDimension = 1024.0;
 #endif
 
+CGSize VibeEncodedImagePixelSize(NSData *data) {
+    CGImageSourceRef source = data ? CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL) : NULL;
+    if (!source) {
+        return CGSizeZero;
+    }
+    NSDictionary *properties = CFBridgingRelease(
+            CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
+    CFRelease(source);
+    return CGSizeMake([properties[(id)kCGImagePropertyPixelWidth] doubleValue],
+                      [properties[(id)kCGImagePropertyPixelHeight] doubleValue]);
+}
+
 VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
     if (!data) {
         return nil;

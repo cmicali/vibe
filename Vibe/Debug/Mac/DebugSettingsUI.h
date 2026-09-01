@@ -45,9 +45,9 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens);
 // what makes a constraint snap-back observable from a test.
 NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens);
 
-// Run by the dispatch funnel after any verb marked VibeDebugWritesSettings:
-// re-runs the selected pane's refresh so a dump_settings_ui right after reads
-// the new state. The pane's own refresh triggers are all user gestures —
+// Run by the dispatch funnel after every verb: re-runs the selected pane's
+// refresh so a dump_settings_ui right after a store write reads the new
+// state. The pane's own refresh triggers are all user gestures —
 // appearance, window-key regain, menu-tracking end — none of which a verb
 // fires. No-op while the window is closed; an unappeared pane refreshes on
 // its next viewWillAppear anyway.

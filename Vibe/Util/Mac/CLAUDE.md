@@ -2,7 +2,7 @@
 
 The AppKit half of `Vibe/Util/`. Same admission test as the parent: **no feature**. The iOS mirror is `Util/iOS/`, and neither target names the other's directory.
 
-- **`Fonts`** — the app's typography. The five themed slots (title, artist, info, playlist, playlist duration) resolve against configuration **pushed** by `MainPlayerController.applyStoredFonts` — Util may not read a setting — with sizes as offsets from each slot's reference base, so a call site's own base survives any chosen size. An empty face is the slot's built-in font; an uninstalled one falls back the same way, so a slot accessor never returns nil.
+- **`Fonts`** — the app's typography. The five themed slots (`VibeFontSlot`, declared with the theme) resolve against configuration **pushed** by `MainPlayerController.applyStoredFonts` — Util may not read a setting — at the theme's size for the slot, and against the factory look until the first push. An empty face is the slot's built-in font; an uninstalled one falls back the same way, so a slot accessor never returns nil.
 - **`WindowAnimation.h`** — `kWindowResizeAnimationDuration` (0.12s), the one window-chrome timing every window the app resizes shares. It is here rather than in a feature directory only because *two* windows share it (the player and Settings) and no single feature owns it. All programmatic resizes use it through `animationResizeTime:` rather than AppKit's distance-scaled default, which drags on big jumps.
 - **`TrackCommands`** — the single-track commands: reveal in Finder, and write the pasteboard.
 - **`NSColor+OKLCH`** — perceptual lightness/chroma clamping for the artwork-derived header wash, because HSB brightness is hue-blind. See `Mac/MainWindow/APPEARANCE.md`.

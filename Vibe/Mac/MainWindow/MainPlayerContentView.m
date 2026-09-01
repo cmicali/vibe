@@ -141,7 +141,6 @@ static const CFTimeInterval kControlFadeDur = 0.2;
 
 // The shared point size for the small numeric labels: the time readouts, the
 // codec line and the BPM line.
-static const CGFloat kNumericLabelFontSize = kVibeThemeInfoFontBaseSize;
 
 // One shadow recipe for every header label. The opacity itself is driven by
 // the appearance, in updateMaterialForAppearance: dark text on the light glass
@@ -728,12 +727,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 - (void)applyThemedLabelFonts {
-    _artistTextField.font = [Fonts artistFont:kVibeThemeArtistFontBaseSize];
-    _titleTextField.font = [Fonts titleFont:kVibeThemeTitleFontBaseSize];
-    _totalTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
-    _currentTimeTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:YES];
-    _fileMetadataTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
-    _bpmTextField.font = [Fonts infoFont:kNumericLabelFontSize bold:NO];
+    _artistTextField.font = [Fonts artistFont];
+    _titleTextField.font = [Fonts titleFont];
+    _totalTimeTextField.font = [Fonts infoFontBold:YES];
+    _currentTimeTextField.font = [Fonts infoFontBold:YES];
+    _fileMetadataTextField.font = [Fonts infoFontBold:NO];
+    _bpmTextField.font = [Fonts infoFontBold:NO];
 }
 
 - (void)applyThemedLabelColors {
@@ -754,11 +753,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     return dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35];
 }
 
-+ (NSColor *)defaultSolidBackgroundColorForDark:(BOOL)dark {
-    return dark ? [NSColor colorWithWhite:0.11 alpha:0.95]
-                : [NSColor colorWithWhite:0.93 alpha:0.95];
-}
-
 - (void)applyPlaylistBackground {
     BOOL dark = self.isDark;
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
@@ -771,8 +765,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // playlist tint wash layered above (ArtworkDisplayController).
     _playlistFrostView.hidden = solid;
     NSColor *background = solid
-            ? ([theme playlistBackgroundColorForDark:dark]
-                    ?: [MainPlayerContentView defaultSolidBackgroundColorForDark:dark])
+            ? [theme displayPlaylistBackgroundColorForDark:dark]
             : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
     _playlistDimView.layer.backgroundColor = background.CGColor;
 }

@@ -169,7 +169,10 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // nil is the system default: a nil window appearance tracks the OS
 // light/dark setting rather than pinning one. It answers the preview below
-// over the stored style while one is held.
+// over the stored style while one is held, and a single-mode theme's pin
+// (AppTheme.requiredWindowAppearance) over both — the one place the window's
+// appearance is decided, so the window, the menu and the Settings toolbar's
+// preview toggle cannot disagree.
 - (nullable NSAppearance *)windowAppearance;
 
 // The Settings window's Appearance page holds a temporary light/dark preview
@@ -234,21 +237,16 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // deduped against every display name. addUserThemeWithRecord returns the
 // minted id; duplicateThemeWithIdentifier resolves built-ins and user themes
 // alike and returns the copy's id, nil for an unknown source. Removing the
-// active theme falls back to applying vibe — the caller requests
-// VibeSettingsLiveEffectThemeApply as it would for any apply.
+// active theme applies the successor — nil, or one that names nothing, is
+// vibe — and the caller requests VibeSettingsLiveEffectThemeApply as it
+// would for any apply. Every path that can drop the last reference to a
+// custom placeholder image sweeps the container's files itself.
 - (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
                                 name:(nullable NSString *)name;
 - (nullable NSString *)duplicateThemeWithIdentifier:(NSString *)identifier;
-- (void)removeUserThemeWithIdentifier:(NSString *)identifier;
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier
+                        fallingBackTo:(nullable NSString *)successor;
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
-
-// Deletes every stored custom placeholder image no record names any more.
-// The files are content-hash-named and shared by reference
-// (AppTheme.storeCustomArtworkData:), so replacing or clearing a theme's
-// artwork, removing a theme, applying a theme (it drops the divergence
-// record), and a factory reset each strand a file unless they call this
-// after their store write.
-- (void)sweepUnreferencedThemeArtwork;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;

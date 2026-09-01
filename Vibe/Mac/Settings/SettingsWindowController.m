@@ -309,26 +309,9 @@ static const CGFloat kSettingsSidebarWidth = 200;
     CGFloat titlebar = NSHeight(content) - NSHeight(window.contentLayoutRect);
     NSSize minContent = NSMakeSize(leading + paneSize.width, paneSize.height + titlebar);
     window.contentMinSize = minContent;
-    NSSize target = NSMakeSize(MAX(minContent.width, content.size.width),
-                               MAX(minContent.height, content.size.height));
-    content.origin.y += content.size.height - target.height;
-    content.size = target;
-    NSRect targetFrame = [window frameRectForContentRect:content];
-    if (fabs(NSMinX(window.frame) - NSMinX(targetFrame)) < 0.5
-            && fabs(NSMinY(window.frame) - NSMinY(targetFrame)) < 0.5
-            && fabs(NSWidth(window.frame) - NSWidth(targetFrame)) < 0.5
-            && fabs(NSHeight(window.frame) - NSHeight(targetFrame)) < 0.5) {
-        return;
-    }
-    if (!window.isVisible) {
-        [window setFrame:targetFrame display:NO];
-        return;
-    }
-    // Through the one blessed funnel (applyWindowFrame:): synchronous, not
-    // animated — the guard's unlock is scoped to the call, and an animator's
-    // later frames would arrive locked out. The pane's arranged views still
-    // animate inside their own transaction; the window edge lands at once.
-    [(SettingsWindowController *)window.windowController applyWindowFrame:targetFrame];
+    [(SettingsWindowController *)window.windowController applyContentSize:
+            NSMakeSize(MAX(minContent.width, content.size.width),
+                       MAX(minContent.height, content.size.height))];
 }
 
 @end
@@ -484,22 +467,39 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 }
 
 - (void)showThemeEditor {
-    SettingsAppearanceViewController *pane = [self appearancePane];
-    if (!pane) {
+    NSTabViewItem *item = [self appearanceTabItem];
+    if (!item) {
         return;
     }
     // The tab controller's own selection path, so the sidebar, the title
     // chain and refreshFromSettings all follow; then land on the active
     // theme's page — Edit Themes… states intent to edit, and the active
     // theme is unambiguous — with Back one click away.
-    NSUInteger index = [_tabs.tabViewItems indexOfObjectPassingTest:
-            ^BOOL(NSTabViewItem *item, NSUInteger i, BOOL *stop) {
-        return item.viewController == pane;
-    }];
-    if (index != NSNotFound) {
-        _tabs.selectedTabViewItemIndex = (NSInteger)index;
+    _tabs.selectedTabViewItemIndex = (NSInteger)[_tabs.tabViewItems indexOfObject:item];
+    [(SettingsAppearanceViewController *)item.viewController showThemeEditorForActiveTheme];
+}
+
+- (void)applyContentSize:(NSSize)size {
+    NSWindow *window = self.window;
+    NSRect content = [window contentRectForFrameRect:window.frame];
+    content.origin.y += content.size.height - size.height;
+    content.size = size;
+    NSRect frame = [window frameRectForContentRect:content];
+    if (fabs(NSMinX(window.frame) - NSMinX(frame)) < 0.5
+            && fabs(NSMinY(window.frame) - NSMinY(frame)) < 0.5
+            && fabs(NSWidth(window.frame) - NSWidth(frame)) < 0.5
+            && fabs(NSHeight(window.frame) - NSHeight(frame)) < 0.5) {
+        return;
     }
-    [pane showThemeEditorForActiveTheme];
+    if (!window.isVisible) {
+        [window setFrame:frame display:NO];
+        return;
+    }
+    // Synchronous, not animated — the guard's unlock is scoped to the call,
+    // and an animator's later frames would arrive locked out. The pane's
+    // arranged views still animate inside their own transaction; the window
+    // edge lands at once.
+    [self applyWindowFrame:frame];
 }
 
 static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_navigation";
@@ -565,19 +565,23 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     return nil;
 }
 
-- (SettingsAppearanceViewController *)appearancePane {
+- (NSTabViewItem *)appearanceTabItem {
     for (NSTabViewItem *item in _tabs.tabViewItems) {
         if ([item.identifier isEqualToString:@"appearance"]) {
-            return (SettingsAppearanceViewController *)item.viewController;
+            return item;
         }
     }
     return nil;
 }
 
+- (SettingsAppearanceViewController *)appearancePane {
+    return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
+}
+
 - (BOOL)appearancePaneIsSelected {
-    NSInteger index = _tabs.selectedTabViewItemIndex;
-    return index >= 0 && index < (NSInteger)_tabs.tabViewItems.count
-            && [_tabs.tabViewItems[(NSUInteger)index].identifier isEqualToString:@"appearance"];
+    NSTabViewItem *item = [self appearanceTabItem];
+    return item != nil
+            && _tabs.selectedTabViewItemIndex == (NSInteger)[_tabs.tabViewItems indexOfObject:item];
 }
 
 - (void)dealloc {
@@ -618,8 +622,9 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     } else if (!selected && index != NSNotFound) {
         [toolbar removeItemAtIndex:(NSInteger)index];
     }
-    // windowAppearance owns the style-to-appearance ladder, preview folded
-    // in; its nil (Auto) shows the side the system is on right now.
+    // windowAppearance owns the style-to-appearance ladder, preview and a
+    // single-mode theme's pin folded in; its nil (Auto) shows the side the
+    // system is on right now.
     NSAppearance *appearance =
             AppSettings.sharedInstance.windowAppearance ?: NSApp.effectiveAppearance;
     _appearanceToggle.selectedSegment = appearance.isDark ? 1 : 0;

@@ -58,10 +58,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _didClickInside = NO;
 }
 
-- (NSString *)currentWaveformStyle {
-    return [_currentWaveformRenderer.class styleIdentifier];
-}
-
 - (void)setWaveformStyle:(NSString*)identifier {
     Class renderer = [WaveformRendererRegistry rendererClassForIdentifier:identifier];
     if (!renderer) {
@@ -108,10 +104,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self updateRendererProgress];
 }
 
-- (NSString *)displayNameForStyle:(NSString *)identifier {
-    return [WaveformRendererRegistry displayNameForIdentifier:identifier];
-}
-
 - (void)drawWaveform {
     [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
 }
@@ -121,10 +113,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
-}
-
-- (NSArray<NSString*>*)availableWaveformStyles {
-    return [WaveformRendererRegistry availableIdentifiers];
 }
 
 - (void)mouseDown:(NSEvent *)event {

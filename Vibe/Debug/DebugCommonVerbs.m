@@ -759,7 +759,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // The order a folder open lands its tracks in. Shared, and neither
             // shell live-applies it — it governs the NEXT open — so a test
             // sets it and then opens something.
-            VibeDebugWritesSettings(VibeDebugCmd(@"set_folder_sort <name|newest_first|as_received>", 0,
+            VibeDebugCmd(@"set_folder_sort <name|newest_first|as_received>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
@@ -769,7 +769,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 AppSettings.sharedInstance.folderOpenSort = sort;
                 return VibeJSONString(@{@"ok": @YES, @"folderOpenSort": arg});
-            })),
+            }),
             // The real-provider lane-routing measurement; see NSURLUtil+Debug.h.
             VibeDebugCmd(@"set_dataless_diag <on|off>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

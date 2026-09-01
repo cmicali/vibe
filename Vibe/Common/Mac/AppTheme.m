@@ -7,7 +7,6 @@
 #import <AppKit/AppKit.h>
 #import <compression.h>
 #import <CommonCrypto/CommonDigest.h>
-#import <ImageIO/ImageIO.h>
 #import "PlatformImage.h"
 #import "AppSettings.h"
 #import "SettingsRules.h"
@@ -73,133 +72,6 @@ static NSString *const kColorPlaylistBackground = @"playlistBackgroundColor";
 static NSString *const kColorPlaylistPlayingRow = @"playlistPlayingRowColor";
 static NSString *const kColorPlaylistSelectedRow = @"playlistSelectedRowColor";
 
-static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
-    return [base stringByAppendingString:isDark ? @"Dark" : @"Light"];
-}
-
-static NSSet<NSString *> *ColorFieldKeys(void) {
-    static NSSet<NSString *> *keys;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSMutableSet *set = [NSMutableSet set];
-        for (NSString *base in @[kColorWaveformPlayed, kColorWaveformUnplayed,
-                                 kColorWindowTint, kColorPlaylistTint,
-                                 kColorWindowBackground, kColorTitle, kColorArtist,
-                                 kColorInfo, kColorTime, kColorPlaylistBackground,
-                                 kColorPlaylistPlayingRow, kColorPlaylistSelectedRow]) {
-            [set addObject:ColorFieldKey(base, YES)];
-            [set addObject:ColorFieldKey(base, NO)];
-        }
-        keys = set;
-    });
-    return keys;
-}
-
-static NSSet<NSString *> *BoolFieldKeys(void) {
-    static NSSet<NSString *> *keys;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        keys = [NSSet setWithArray:@[kFieldShowFileInfo, kFieldShowRemainingTime,
-                                     kFieldShowBPM, kFieldShowKey, kFieldKeyColorsEnabled,
-                                     kFieldShowPlaylistArtworkColumn, kFieldShowPlaylistDurationColumn,
-                                     kFieldWaveformGradient]];
-    });
-    return keys;
-}
-
-static NSSet<NSString *> *FaceFieldKeys(void) {
-    static NSSet<NSString *> *keys;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        keys = [NSSet setWithArray:@[kFieldTitleFontFace, kFieldArtistFontFace, kFieldInfoFontFace,
-                                     kFieldPlaylistFontFace,
-                                     kFieldPlaylistDurationFontFace]];
-    });
-    return keys;
-}
-
-// A font slot's clamp is narrow on purpose: the labels sit in fixed frames,
-// and call sites derive their own size as an offset from the slot's base.
-static BOOL FontSizeClamp(NSString *key, CGFloat *min, CGFloat *max) {
-    if ([key isEqualToString:kFieldTitleFontSize])     { *min = 20; *max = 26; return YES; }
-    if ([key isEqualToString:kFieldArtistFontSize])   { *min = 12; *max = 20; return YES; }
-    if ([key isEqualToString:kFieldInfoFontSize])     { *min = 10; *max = 15; return YES; }
-    if ([key isEqualToString:kFieldPlaylistFontSize]) { *min = 11; *max = 16; return YES; }
-    if ([key isEqualToString:kFieldPlaylistDurationFontSize]) { *min = 10; *max = 14; return YES; }
-    return NO;
-}
-
-// The defaults are today's hardcoded look, which is what keeps the empty
-// record — the built-in Vibe theme — pixel-identical to the app before
-// themes existed. Color pairs default by absence.
-static NSDictionary<NSString *, id> *FieldDefaults(void) {
-    static NSDictionary<NSString *, id> *defaults;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        defaults = @{
-            kFieldMode:                  SETTINGS_VALUE_THEME_MODE_DUAL,
-            kFieldWaveformStyle:         SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
-            kFieldWaveformTheme:         SETTINGS_VALUE_WAVEFORM_THEME_MONO,
-            kFieldWaveformGradient:      @(YES),
-            kFieldWindowTint:            SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
-            kFieldPlaylistTint:          SETTINGS_VALUE_WINDOW_TINT_MONO,
-            kFieldWindowBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-            kFieldPlaylistBackgroundStyle: SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-            kFieldWindowCornerRadius:    @(kVibeThemeCornerRadiusDefault),
-            kFieldShowFileInfo:          @(YES),
-            kFieldShowRemainingTime:     @(NO),
-            kFieldShowBPM:               @(YES),
-            kFieldShowKey:               @(YES),
-            kFieldKeyColorsEnabled:      @(NO),
-            kFieldKeyNotation:           SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-            kFieldTitleFontFace:          @"",
-            kFieldTitleFontSize:          @(kVibeThemeTitleFontBaseSize),
-            kFieldArtistFontFace:        @"",
-            kFieldArtistFontSize:        @(kVibeThemeArtistFontBaseSize),
-            kFieldInfoFontFace:          @"",
-            kFieldInfoFontSize:          @(kVibeThemeInfoFontBaseSize),
-            kFieldPlaylistFontFace:      @"",
-            kFieldPlaylistFontSize:      @(kVibeThemePlaylistFontBaseSize),
-            kFieldPlaylistDurationFontFace: @"",
-            kFieldPlaylistDurationFontSize: @(kVibeThemePlaylistDurationFontBaseSize),
-            kFieldDefaultArtworkDark:   @"",
-            kFieldDefaultArtworkLight:  @"",
-            kFieldShowPlaylistArtworkColumn:   @(YES),
-            kFieldShowPlaylistDurationColumn:  @(YES),
-        };
-    });
-    return defaults;
-}
-
-static NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]
-            ? SETTINGS_VALUE_THEME_MODE_SINGLE
-            : SETTINGS_VALUE_THEME_MODE_DUAL;
-}
-
-static NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
-            : SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
-}
-
-// The window tint's ladder with the playlist's own default: the factory
-// playlist takes no artwork wash, so unknowns snap to mono rather than the
-// window's artwork.
-static NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifier) {
-    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] ||
-        [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
-        return identifier;
-    }
-    return SETTINGS_VALUE_WINDOW_TINT_MONO;
-}
-
-static NSString *VibeNormalizedKeyNotation(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
-            ? SETTINGS_VALUE_KEY_NOTATION_MUSICAL
-            : SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
-}
-
 static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     if (![raw isKindOfClass:NSString.class]) {
         return nil;
@@ -209,78 +81,223 @@ static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     return trimmed.length > 64 ? [trimmed substringToIndex:64] : trimmed;
 }
 
-// The one gate. A raw record value comes out normalized, clamped and typed,
-// or nil — dropped, so the default takes over. Bools are numbers only, never
-// strings; numbers must be finite; colors must round-trip as hex.
-static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
-    if ([ColorFieldKeys() containsObject:key]) {
-        if (![raw isKindOfClass:NSString.class]) {
-            return nil;
-        }
-        return VibeHexStringFromColor(VibeColorFromHexString(raw));
-    }
-    if ([BoolFieldKeys() containsObject:key]) {
+// One row per field: the record key (the accessor name), its JSON home — the
+// editor section and the section-local key — the default, and the sanitizer
+// for its kind. Every other table here derives from the rows, so a field is
+// added in one place and cannot lack a JSON home or a clamp. The defaults are
+// today's hardcoded look, which is what keeps the empty record — the built-in
+// Vibe theme — pixel-identical to the app before themes existed; color pairs
+// default by absence.
+typedef id _Nullable (^FieldSanitizer)(id _Nullable raw);
+
+static NSString *const kSpecKey = @"key";
+static NSString *const kSpecGroup = @"group";
+static NSString *const kSpecJSONKey = @"json";
+static NSString *const kSpecDefault = @"default";
+static NSString *const kSpecColorBase = @"colorBase";
+static NSString *const kSpecSanitize = @"sanitize";
+
+// The kinds — the one gate's rules. A raw value comes out normalized, clamped
+// and typed, or nil: dropped, so the default takes over. Bools are numbers
+// only, never strings; numbers must be finite; colors must round-trip as
+// hex; identifiers snap to their ladders.
+static FieldSanitizer BoolField(void) {
+    return ^id(id raw) {
         return [raw isKindOfClass:NSNumber.class] ? @([raw boolValue]) : nil;
-    }
-    if ([key isEqualToString:kFieldWindowCornerRadius]) {
+    };
+}
+
+static FieldSanitizer NumberField(double min, double max, BOOL wholePoints) {
+    return ^id(id raw) {
         if (![raw isKindOfClass:NSNumber.class] || !isfinite([raw doubleValue])) {
             return nil;
         }
+        double clamped = MIN(MAX([raw doubleValue], min), max);
+        return @(wholePoints ? round(clamped) : clamped);
+    };
+}
+
+static FieldSanitizer TextField(void) {
+    return ^id(id raw) { return TrimmedCappedString(raw); };
+}
+
+static FieldSanitizer LadderField(NSString *(*normalize)(NSString *_Nullable)) {
+    return ^id(id raw) {
+        return [raw isKindOfClass:NSString.class] ? normalize(raw) : nil;
+    };
+}
+
+static FieldSanitizer ColorField(void) {
+    return ^id(id raw) {
+        return [raw isKindOfClass:NSString.class]
+                ? VibeHexStringFromColor(VibeColorFromHexString(raw)) : nil;
+    };
+}
+
+static FieldSanitizer ArtworkField(void) {
+    return ^id(id raw) {
+        NSString *value = TrimmedCappedString(raw);
+        return VibeIsValidDefaultArtworkValue(value) ? value : nil;
+    };
+}
+
+static NSMutableDictionary *Field(NSString *key, NSString *group, NSString *jsonKey,
+                                  id _Nullable defaultValue, FieldSanitizer sanitize) {
+    NSMutableDictionary *spec = [NSMutableDictionary dictionaryWithDictionary:@{
+        kSpecKey: key, kSpecGroup: group, kSpecJSONKey: jsonKey, kSpecSanitize: [sanitize copy],
+    }];
+    spec[kSpecDefault] = defaultValue;
+    return spec;
+}
+
+// A color pair is two rows — Dark, then Light — under one JSON base.
+static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, NSString *jsonBase) {
+    for (NSString *side in @[@"Dark", @"Light"]) {
+        NSMutableDictionary *spec = Field([base stringByAppendingString:side], group,
+                                          [jsonBase stringByAppendingString:side], nil,
+                                          ColorField());
+        spec[kSpecColorBase] = base;
+        [rows addObject:spec];
+    }
+}
+
+static NSArray<NSDictionary *> *FieldSpecs(void) {
+    static NSArray<NSDictionary *> *specs;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray *rows = [NSMutableArray array];
+        NSString *window = @"window", *player = @"player", *info = @"info",
+                 *waveform = @"waveform", *playlist = @"playlist";
+
+        [rows addObject:Field(kFieldMode, window, @"mode", SETTINGS_VALUE_THEME_MODE_DUAL,
+                              LadderField(VibeNormalizedThemeMode))];
+        [rows addObject:Field(kFieldWindowBackgroundStyle, window, @"backgroundStyle",
+                              SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
+                              LadderField(VibeNormalizedWindowBackgroundStyle))];
+        AddColorPair(rows, kColorWindowBackground, window, @"backgroundColor");
+        [rows addObject:Field(kFieldWindowTint, window, @"tint", SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
+                              LadderField(VibeNormalizedWindowTint))];
+        AddColorPair(rows, kColorWindowTint, window, @"tintColor");
         // Whole points: the editor's px readout is integral, so a stored
         // fraction would draw a radius no surface can display. Rounding in
         // the gate heals imports and pre-round stored records alike; the
         // slider merely re-syncs to what landed.
-        return @(round(MIN(MAX([raw doubleValue], kCornerRadiusMin), kVibeThemeCornerRadiusMax)));
-    }
-    CGFloat sizeMin, sizeMax;
-    if (FontSizeClamp(key, &sizeMin, &sizeMax)) {
-        if (![raw isKindOfClass:NSNumber.class] || !isfinite([raw doubleValue])) {
-            return nil;
+        [rows addObject:Field(kFieldWindowCornerRadius, window, @"cornerRadius",
+                              @(kVibeThemeCornerRadiusDefault),
+                              NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
+
+        [rows addObject:Field(kFieldDefaultArtworkDark, player, @"defaultArtworkDark", @"", ArtworkField())];
+        [rows addObject:Field(kFieldDefaultArtworkLight, player, @"defaultArtworkLight", @"", ArtworkField())];
+        // The font clamps are narrow on purpose: the labels sit in fixed frames.
+        [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
+        [rows addObject:Field(kFieldTitleFontSize, player, @"titleFontSize",
+                              @(kVibeThemeTitleFontBaseSize), NumberField(20, 26, NO))];
+        AddColorPair(rows, kColorTitle, player, @"titleColor");
+        [rows addObject:Field(kFieldArtistFontFace, player, @"artistFontFace", @"", TextField())];
+        [rows addObject:Field(kFieldArtistFontSize, player, @"artistFontSize",
+                              @(kVibeThemeArtistFontBaseSize), NumberField(12, 20, NO))];
+        AddColorPair(rows, kColorArtist, player, @"artistColor");
+
+        [rows addObject:Field(kFieldShowFileInfo, info, @"showFileInfo", @YES, BoolField())];
+        [rows addObject:Field(kFieldInfoFontFace, info, @"fontFace", @"", TextField())];
+        [rows addObject:Field(kFieldInfoFontSize, info, @"fontSize",
+                              @(kVibeThemeInfoFontBaseSize), NumberField(10, 15, NO))];
+        AddColorPair(rows, kColorInfo, info, @"color");
+        AddColorPair(rows, kColorTime, info, @"timeColor");
+        [rows addObject:Field(kFieldShowRemainingTime, info, @"showRemainingTime", @NO, BoolField())];
+        [rows addObject:Field(kFieldShowBPM, info, @"showBPM", @YES, BoolField())];
+        [rows addObject:Field(kFieldShowKey, info, @"showKey", @YES, BoolField())];
+        [rows addObject:Field(kFieldKeyNotation, info, @"keyNotation", SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+                              LadderField(VibeNormalizedKeyNotation))];
+        [rows addObject:Field(kFieldKeyColorsEnabled, info, @"keyColorsEnabled", @NO, BoolField())];
+
+        [rows addObject:Field(kFieldWaveformStyle, waveform, @"style",
+                              SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT, TextField())];
+        [rows addObject:Field(kFieldWaveformTheme, waveform, @"theme", SETTINGS_VALUE_WAVEFORM_THEME_MONO,
+                              LadderField(VibeNormalizedWaveformTheme))];
+        [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
+        AddColorPair(rows, kColorWaveformPlayed, waveform, @"playedColor");
+        AddColorPair(rows, kColorWaveformUnplayed, waveform, @"unplayedColor");
+
+        [rows addObject:Field(kFieldPlaylistBackgroundStyle, playlist, @"backgroundStyle",
+                              SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
+                              LadderField(VibeNormalizedWindowBackgroundStyle))];
+        AddColorPair(rows, kColorPlaylistBackground, playlist, @"backgroundColor");
+        [rows addObject:Field(kFieldPlaylistTint, playlist, @"tint", SETTINGS_VALUE_WINDOW_TINT_MONO,
+                              LadderField(VibeNormalizedPlaylistTint))];
+        AddColorPair(rows, kColorPlaylistTint, playlist, @"tintColor");
+        [rows addObject:Field(kFieldPlaylistFontFace, playlist, @"fontFace", @"", TextField())];
+        [rows addObject:Field(kFieldPlaylistFontSize, playlist, @"fontSize",
+                              @(kVibeThemePlaylistFontBaseSize), NumberField(11, 16, NO))];
+        [rows addObject:Field(kFieldPlaylistDurationFontFace, playlist, @"durationFontFace", @"", TextField())];
+        [rows addObject:Field(kFieldPlaylistDurationFontSize, playlist, @"durationFontSize",
+                              @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
+        [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
+        [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
+        AddColorPair(rows, kColorPlaylistPlayingRow, playlist, @"playingRowColor");
+        AddColorPair(rows, kColorPlaylistSelectedRow, playlist, @"selectedRowColor");
+        specs = [rows copy];
+    });
+    return specs;
+}
+
+static NSDictionary<NSString *, NSDictionary *> *FieldSpecsByKey(void) {
+    static NSDictionary<NSString *, NSDictionary *> *byKey;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *map = [NSMutableDictionary dictionary];
+        for (NSDictionary *spec in FieldSpecs()) {
+            NSCAssert(!map[spec[kSpecKey]], @"field %@ listed twice", spec[kSpecKey]);
+            map[spec[kSpecKey]] = spec;
         }
-        return @(MIN(MAX([raw doubleValue], sizeMin), sizeMax));
-    }
-    if ([FaceFieldKeys() containsObject:key] || [key isEqualToString:kFieldWaveformStyle]) {
-        return TrimmedCappedString(raw);
-    }
-    if (![raw isKindOfClass:NSString.class]) {
-        return nil;
-    }
-    if ([key isEqualToString:kFieldMode]) {
-        return VibeNormalizedThemeMode(raw);
-    }
-    if ([key isEqualToString:kFieldWaveformTheme]) {
-        return VibeNormalizedWaveformTheme(raw);
-    }
-    if ([key isEqualToString:kFieldWindowTint]) {
-        return VibeNormalizedWindowTint(raw);
-    }
-    if ([key isEqualToString:kFieldPlaylistTint]) {
-        return VibeNormalizedPlaylistTint(raw);
-    }
-    if ([key isEqualToString:kFieldWindowBackgroundStyle] ||
-        [key isEqualToString:kFieldPlaylistBackgroundStyle]) {
-        return VibeNormalizedWindowBackgroundStyle(raw);
-    }
-    if ([key isEqualToString:kFieldKeyNotation]) {
-        return VibeNormalizedKeyNotation(raw);
-    }
-    if ([key isEqualToString:kFieldDefaultArtworkDark] ||
-        [key isEqualToString:kFieldDefaultArtworkLight]) {
-        NSString *value = TrimmedCappedString(raw);
-        return VibeIsValidDefaultArtworkValue(value) ? value : nil;
-    }
-    return nil;
+        byKey = [map copy];
+    });
+    return byKey;
+}
+
+static NSDictionary<NSString *, id> *FieldDefaults(void) {
+    static NSDictionary<NSString *, id> *defaults;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *map = [NSMutableDictionary dictionary];
+        for (NSDictionary *spec in FieldSpecs()) {
+            map[spec[kSpecKey]] = spec[kSpecDefault];
+        }
+        defaults = [map copy];
+    });
+    return defaults;
 }
 
 static NSArray<NSString *> *KnownFieldKeys(void) {
-    static NSArray<NSString *> *keys;
+    return [FieldSpecs() valueForKey:kSpecKey];
+}
+
+static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
+    FieldSanitizer sanitize = FieldSpecsByKey()[key][kSpecSanitize];
+    return sanitize ? sanitize(raw) : nil;
+}
+
+// base → [darkKey, lightKey], built once: every color read — each row draw,
+// each corner-line recomposition — goes through a key, and none should
+// allocate one.
+static NSDictionary<NSString *, NSArray<NSString *> *> *ColorFieldKeysByBase(void) {
+    static NSDictionary<NSString *, NSArray<NSString *> *> *keys;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        NSMutableArray *all = [FieldDefaults().allKeys mutableCopy];
-        [all addObjectsFromArray:ColorFieldKeys().allObjects];
-        keys = all;
+        NSMutableDictionary<NSString *, NSMutableArray *> *map = [NSMutableDictionary dictionary];
+        for (NSDictionary *spec in FieldSpecs()) {
+            NSString *base = spec[kSpecColorBase];
+            if (base) {
+                [(map[base] ?: (map[base] = [NSMutableArray array])) addObject:spec[kSpecKey]];
+            }
+        }
+        keys = [map copy];
     });
     return keys;
+}
+
+static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
+    return ColorFieldKeysByBase()[base][isDark ? 0 : 1];
 }
 
 @interface AppTheme ()
@@ -364,6 +381,73 @@ static VibeColor *ResolvedForDark(VibeColor *color, BOOL isDark) {
 
 - (VibeColor *)displayTimeColorForDark:(BOOL)isDark {
     return [self timeColorForDark:isDark] ?: ResolvedForDark(NSColor.secondaryLabelColor, isDark);
+}
+
+// The remaining pairs' constants for an unset slot, each beside its pair
+// rather than at the surface that draws it.
+
+// The solid covers: a near-opaque neutral in each appearance's register.
+static VibeColor *DefaultSolidBackgroundColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithWhite:0.11 alpha:0.95]
+                  : [NSColor colorWithWhite:0.93 alpha:0.95];
+}
+
+// The custom washes: neutral grays in the middle of each appearance's clamp
+// band, at the alpha the artwork wash uses there — a starting point to pick
+// a hue from.
+static VibeColor *DefaultTintColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
+                  : [NSColor colorWithWhite:0.88 alpha:0.55];
+}
+
+// The row fills: white in dark and black in light at low opacity, a quiet
+// lift over the playlist frost in both appearances, independent of key state
+// like the rest of the window chrome.
+static VibeColor *DefaultRowFillColor(BOOL isDark) {
+    return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
+}
+
+// The custom waveform pair: Mono's resting levels, the played hue the
+// appearance's own base.
+static VibeColor *DefaultWaveformPlayedColor(BOOL isDark) {
+    return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
+                  : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
+}
+
+static VibeColor *DefaultWaveformUnplayedColor(void) {
+    return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
+}
+
+- (VibeColor *)displayWindowBackgroundColorForDark:(BOOL)isDark {
+    return [self windowBackgroundColorForDark:isDark] ?: DefaultSolidBackgroundColor(isDark);
+}
+
+- (VibeColor *)displayPlaylistBackgroundColorForDark:(BOOL)isDark {
+    return [self playlistBackgroundColorForDark:isDark] ?: DefaultSolidBackgroundColor(isDark);
+}
+
+- (VibeColor *)displayWindowTintColorForDark:(BOOL)isDark {
+    return [self windowTintColorForDark:isDark] ?: DefaultTintColor(isDark);
+}
+
+- (VibeColor *)displayPlaylistTintColorForDark:(BOOL)isDark {
+    return [self playlistTintColorForDark:isDark] ?: DefaultTintColor(isDark);
+}
+
+- (VibeColor *)displayPlaylistPlayingRowColorForDark:(BOOL)isDark {
+    return [self playlistPlayingRowColorForDark:isDark] ?: DefaultRowFillColor(isDark);
+}
+
+- (VibeColor *)displayPlaylistSelectedRowColorForDark:(BOOL)isDark {
+    return [self playlistSelectedRowColorForDark:isDark] ?: DefaultRowFillColor(isDark);
+}
+
+- (VibeColor *)displayWaveformPlayedColorForDark:(BOOL)isDark {
+    return [self waveformPlayedColorForDark:isDark] ?: DefaultWaveformPlayedColor(isDark);
+}
+
+- (VibeColor *)displayWaveformUnplayedColorForDark:(BOOL)isDark {
+    return [self waveformUnplayedColorForDark:isDark] ?: DefaultWaveformUnplayedColor();
 }
 
 #pragma mark Built-ins
@@ -481,11 +565,30 @@ static NSString *VibeCustomArtworkDirectory(void) {
 // and for a name THIS build ships no image for — which is what lets an
 // archive's own copy stand in. Callers pass a sanitized value: the shape gate
 // is what keeps a crafted name out of the bundle lookup.
+// The file name after either prefix — the archive entry's base name, the
+// container file, the bundled resource — or nil for "" and anything else.
+static NSString *_Nullable VibeArtworkFileName(NSString *_Nullable value) {
+    for (NSString *prefix in @[@"custom:", @"bundled:"]) {
+        if ([value hasPrefix:prefix]) {
+            return [value substringFromIndex:prefix.length];
+        }
+    }
+    return nil;
+}
+
+// The container path a custom: value names, or nil for any other value.
+static NSString *_Nullable VibeCustomArtworkPath(NSString *_Nullable value) {
+    if (![value hasPrefix:@"custom:"]) {
+        return nil;
+    }
+    return [VibeCustomArtworkDirectory() stringByAppendingPathComponent:VibeArtworkFileName(value)];
+}
+
 static NSURL *_Nullable VibeBundledArtworkURL(NSString *_Nullable value) {
     if (![value hasPrefix:@"bundled:"]) {
         return nil;
     }
-    NSString *file = [value substringFromIndex:8];
+    NSString *file = VibeArtworkFileName(value);
     return [[NSBundle bundleForClass:AppTheme.class]
             URLForResource:file.stringByDeletingPathExtension
              withExtension:file.pathExtension subdirectory:@"Themes"];
@@ -513,15 +616,9 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
         *outReason = @"the image must be a JPEG or PNG";
         return nil;
     }
-    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
-    NSDictionary *props = source ? CFBridgingRelease(
-            CGImageSourceCopyPropertiesAtIndex(source, 0, NULL)) : nil;
-    if (source) {
-        CFRelease(source);
-    }
-    NSInteger width = [props[(__bridge NSString *)kCGImagePropertyPixelWidth] integerValue];
-    NSInteger height = [props[(__bridge NSString *)kCGImagePropertyPixelHeight] integerValue];
-    if (width < kArtworkPixelFloor || width > kArtworkPixelCap || width != height) {
+    CGSize pixels = VibeEncodedImagePixelSize(data);
+    NSInteger width = (NSInteger)pixels.width;
+    if (width < kArtworkPixelFloor || width > kArtworkPixelCap || pixels.width != pixels.height) {
         *outReason = @"the image must be square, between 64 and 4096 pixels";
         return nil;
     }
@@ -535,9 +632,7 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     if ([value hasPrefix:@"bundled:"]) {
         return VibeBundledArtworkURL(value) == nil;
     }
-    return ![NSFileManager.defaultManager fileExistsAtPath:
-            [VibeCustomArtworkDirectory()
-                    stringByAppendingPathComponent:[value substringFromIndex:7]]];
+    return ![NSFileManager.defaultManager fileExistsAtPath:VibeCustomArtworkPath(value)];
 }
 
 + (NSString *)storeCustomArtworkData:(NSData *)data error:(NSError **)error {
@@ -567,15 +662,21 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     return [@"custom:" stringByAppendingString:file];
 }
 
++ (NSSet<NSString *> *)customArtworkFilesInRecord:(NSDictionary<NSString *, id> *)record {
+    NSMutableSet<NSString *> *files = [NSMutableSet set];
+    for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
+        NSString *value = [record[key] isKindOfClass:NSString.class] ? record[key] : nil;
+        if ([value hasPrefix:@"custom:"]) {
+            [files addObject:VibeArtworkFileName(value)];
+        }
+    }
+    return files;
+}
+
 + (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records {
     NSMutableSet<NSString *> *referenced = [NSMutableSet set];
     for (NSDictionary *record in records) {
-        for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
-            NSString *value = [record[key] isKindOfClass:NSString.class] ? record[key] : nil;
-            if ([value hasPrefix:@"custom:"]) {
-                [referenced addObject:[value substringFromIndex:7]];
-            }
-        }
+        [referenced unionSet:[self customArtworkFilesInRecord:record]];
     }
     NSFileManager *manager = NSFileManager.defaultManager;
     NSString *directory = VibeCustomArtworkDirectory();
@@ -615,10 +716,12 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
         NSURL *url = VibeBundledArtworkURL(key);
         data = url ? [NSData dataWithContentsOfURL:url] : nil;
     } else if ([key hasPrefix:@"custom:"]) {
-        data = [NSData dataWithContentsOfFile:[VibeCustomArtworkDirectory()
-                stringByAppendingPathComponent:[key substringFromIndex:7]]];
+        data = [NSData dataWithContentsOfFile:VibeCustomArtworkPath(key)];
     }
-    NSImage *image = data ? VibeDecodedImageWithData(data, kVibeDisplayArtDimension) : nil;
+    // The mac's display-art bound (Common/PlatformImage.h): the header
+    // draws at most ~525px, so the 1024px cross-platform bound would pin a
+    // bitmap 2.5x larger than anything on screen for the app's lifetime.
+    NSImage *image = data ? VibeDecodedImageWithData(data, kVibeArchivedDisplayArtDimension) : nil;
     // The factory record image; the blank square is for the host-less
     // test bundle, which carries no asset catalog.
     image = image ?: [NSImage imageNamed:@"record-bg"]
@@ -907,24 +1010,17 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
             names[key] = nameForValue[art];
             continue;
         }
-        NSString *file = nil;
-        NSData *image = nil;
-        if ([art hasPrefix:@"custom:"]) {
-            file = [art substringFromIndex:7];
-            image = [NSData dataWithContentsOfFile:
-                    [VibeCustomArtworkDirectory() stringByAppendingPathComponent:file]];
-        } else if ([art hasPrefix:@"bundled:"]) {
-            // A built-in's art ships in THIS build, so the export could name
-            // it and stop. It travels anyway: the archive is the portable
-            // form, and the build that opens it may not be this one.
-            file = [art substringFromIndex:8];
-            NSURL *url = VibeBundledArtworkURL(art);
-            image = url ? [NSData dataWithContentsOfURL:url] : nil;
-        }
+        // A built-in's art ships in THIS build, so the export could name it
+        // and stop. It travels anyway: the archive is the portable form, and
+        // the build that opens it may not be this one.
+        NSURL *bundled = VibeBundledArtworkURL(art);
+        NSData *image = bundled ? [NSData dataWithContentsOfURL:bundled]
+                : [NSData dataWithContentsOfFile:VibeCustomArtworkPath(art)];
         if (!image) {
             continue;
         }
-        NSString *entry = [slotNames[key] stringByAppendingPathExtension:file.pathExtension];
+        NSString *entry = [slotNames[key] stringByAppendingPathExtension:
+                VibeArtworkFileName(art).pathExtension];
         entries[entry] = image;
         names[key] = entry;
         nameForValue[art] = entry;
@@ -948,12 +1044,8 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         // nothing already stored here is dangling — drop it, keep the theme.
         for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
             NSString *art = record[key];
-            if ([art hasPrefix:@"custom:"]) {
-                NSString *path = [VibeCustomArtworkDirectory()
-                        stringByAppendingPathComponent:[art substringFromIndex:7]];
-                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
-                    [record removeObjectForKey:key];
-                }
+            if ([art hasPrefix:@"custom:"] && [self defaultArtworkIsMissing:art]) {
+                [record removeObjectForKey:key];
             }
         }
         return record;
@@ -1006,10 +1098,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         if (art.length == 0) {
             continue;
         }
-        NSString *entry = art;
-        for (NSString *prefix in @[@"custom:", @"bundled:"]) {
-            entry = [entry hasPrefix:prefix] ? [entry substringFromIndex:prefix.length] : entry;
-        }
+        NSString *entry = VibeArtworkFileName(art) ?: art;
         // Re-validated and re-hashed from the bytes, never trusting the name:
         // the stored custom:<sha1> form is the only shape the sanitizer admits
         // for a container image, and it is where EVERY archived image lands —
@@ -1047,8 +1136,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 
 + (NSDictionary<NSString *, id> *)migratedRecordFromLegacyValues:
         (NSDictionary<NSString *, id> *)legacyValues {
-    NSDictionary *record =
-            [[[AppTheme alloc] initWithRecord:legacyValues] dictionaryRepresentation];
+    NSDictionary *record = [self sanitizedRecord:legacyValues];
     return record.count ? record : nil;
 }
 
@@ -1059,76 +1147,21 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 // with the section's scope dropped from each key, so windowCornerRadius
 // travels as window.cornerRadius and showPlaylistArtworkColumn as
 // playlist.showArtworkColumn. The flat field keys stay the stored record's
-// form; this table is the whole mapping, both directions.
+// form; each field row names its JSON home, and both directions derive
+// from that.
 static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *ThemeJSONGroups(void) {
     static NSDictionary *groups;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        groups = @{
-            @"window": @{
-                @"mode": kFieldMode,
-                @"backgroundStyle": kFieldWindowBackgroundStyle,
-                @"backgroundColorDark": ColorFieldKey(kColorWindowBackground, YES),
-                @"backgroundColorLight": ColorFieldKey(kColorWindowBackground, NO),
-                @"tint": kFieldWindowTint,
-                @"tintColorDark": ColorFieldKey(kColorWindowTint, YES),
-                @"tintColorLight": ColorFieldKey(kColorWindowTint, NO),
-                @"cornerRadius": kFieldWindowCornerRadius,
-            },
-            @"player": @{
-                @"defaultArtworkDark": kFieldDefaultArtworkDark,
-                @"defaultArtworkLight": kFieldDefaultArtworkLight,
-                @"titleFontFace": kFieldTitleFontFace,
-                @"titleFontSize": kFieldTitleFontSize,
-                @"titleColorDark": ColorFieldKey(kColorTitle, YES),
-                @"titleColorLight": ColorFieldKey(kColorTitle, NO),
-                @"artistFontFace": kFieldArtistFontFace,
-                @"artistFontSize": kFieldArtistFontSize,
-                @"artistColorDark": ColorFieldKey(kColorArtist, YES),
-                @"artistColorLight": ColorFieldKey(kColorArtist, NO),
-            },
-            @"info": @{
-                @"showFileInfo": kFieldShowFileInfo,
-                @"fontFace": kFieldInfoFontFace,
-                @"fontSize": kFieldInfoFontSize,
-                @"colorDark": ColorFieldKey(kColorInfo, YES),
-                @"colorLight": ColorFieldKey(kColorInfo, NO),
-                @"timeColorDark": ColorFieldKey(kColorTime, YES),
-                @"timeColorLight": ColorFieldKey(kColorTime, NO),
-                @"showRemainingTime": kFieldShowRemainingTime,
-                @"showBPM": kFieldShowBPM,
-                @"showKey": kFieldShowKey,
-                @"keyNotation": kFieldKeyNotation,
-                @"keyColorsEnabled": kFieldKeyColorsEnabled,
-            },
-            @"waveform": @{
-                @"style": kFieldWaveformStyle,
-                @"theme": kFieldWaveformTheme,
-                @"gradient": kFieldWaveformGradient,
-                @"playedColorDark": ColorFieldKey(kColorWaveformPlayed, YES),
-                @"playedColorLight": ColorFieldKey(kColorWaveformPlayed, NO),
-                @"unplayedColorDark": ColorFieldKey(kColorWaveformUnplayed, YES),
-                @"unplayedColorLight": ColorFieldKey(kColorWaveformUnplayed, NO),
-            },
-            @"playlist": @{
-                @"backgroundStyle": kFieldPlaylistBackgroundStyle,
-                @"backgroundColorDark": ColorFieldKey(kColorPlaylistBackground, YES),
-                @"backgroundColorLight": ColorFieldKey(kColorPlaylistBackground, NO),
-                @"tint": kFieldPlaylistTint,
-                @"tintColorDark": ColorFieldKey(kColorPlaylistTint, YES),
-                @"tintColorLight": ColorFieldKey(kColorPlaylistTint, NO),
-                @"fontFace": kFieldPlaylistFontFace,
-                @"fontSize": kFieldPlaylistFontSize,
-                @"durationFontFace": kFieldPlaylistDurationFontFace,
-                @"durationFontSize": kFieldPlaylistDurationFontSize,
-                @"showArtworkColumn": kFieldShowPlaylistArtworkColumn,
-                @"showDurationColumn": kFieldShowPlaylistDurationColumn,
-                @"playingRowColorDark": ColorFieldKey(kColorPlaylistPlayingRow, YES),
-                @"playingRowColorLight": ColorFieldKey(kColorPlaylistPlayingRow, NO),
-                @"selectedRowColorDark": ColorFieldKey(kColorPlaylistSelectedRow, YES),
-                @"selectedRowColorLight": ColorFieldKey(kColorPlaylistSelectedRow, NO),
-            },
-        };
+        NSMutableDictionary<NSString *, NSMutableDictionary *> *map = [NSMutableDictionary dictionary];
+        for (NSDictionary *spec in FieldSpecs()) {
+            NSMutableDictionary *group = map[spec[kSpecGroup]]
+                    ?: (map[spec[kSpecGroup]] = [NSMutableDictionary dictionary]);
+            NSCAssert(!group[spec[kSpecJSONKey]], @"%@.%@ mapped twice",
+                      spec[kSpecGroup], spec[kSpecJSONKey]);
+            group[spec[kSpecJSONKey]] = spec[kSpecKey];
+        }
+        groups = [map copy];
     });
     return groups;
 }
@@ -1138,25 +1171,15 @@ static NSArray<NSString *> *ThemeJSONGroupOrder(void) {
     return @[@"window", @"player", @"info", @"waveform", @"playlist"];
 }
 
-// field key → [group, json key], the export side of the table above. The
-// asserts are the coverage gate: a field added without a JSON home, or
-// mapped twice, fails the first export any Debug run makes.
+// field key → [group, json key], the export side.
 static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(void) {
     static NSDictionary *locations;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSMutableDictionary *map = [NSMutableDictionary dictionary];
-        NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *groups = ThemeJSONGroups();
-        for (NSString *group in groups) {
-            [groups[group] enumerateKeysAndObjectsUsingBlock:
-                    ^(NSString *jsonKey, NSString *fieldKey, BOOL *stop) {
-                NSCAssert(!map[fieldKey], @"field %@ mapped twice", fieldKey);
-                map[fieldKey] = @[group, jsonKey];
-            }];
+        for (NSDictionary *spec in FieldSpecs()) {
+            map[spec[kSpecKey]] = @[spec[kSpecGroup], spec[kSpecJSONKey]];
         }
-        NSCAssert([[NSSet setWithArray:map.allKeys]
-                isEqualToSet:[NSSet setWithArray:KnownFieldKeys()]],
-                @"ThemeJSONGroups must cover every field exactly once");
         locations = [map copy];
     });
     return locations;
@@ -1204,7 +1227,7 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
             }
         }];
     }
-    return [[[AppTheme alloc] initWithRecord:flat] dictionaryRepresentation];
+    return [self sanitizedRecord:flat];
 }
 
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record name:(NSString *)name {
@@ -1214,7 +1237,7 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
                           name:(NSString *)name
                   artworkNames:(NSDictionary<NSString *, NSString *> *)artworkNames {
-    NSDictionary *fields = [[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation];
+    NSDictionary *fields = [self sanitizedRecord:record];
     if (artworkNames.count) {
         NSMutableDictionary *renamed = [fields mutableCopy];
         [artworkNames enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *entry, BOOL *stop) {
@@ -1272,6 +1295,10 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
     }
+}
+
++ (NSDictionary<NSString *, id> *)sanitizedRecord:(NSDictionary<NSString *, id> *)record {
+    return [[[AppTheme alloc] initWithRecord:record] dictionaryRepresentation];
 }
 
 - (NSDictionary<NSString *, id> *)dictionaryRepresentation {
@@ -1377,6 +1404,44 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 
 - (CGFloat)playlistDurationFontSize { return [self floatForKey:kFieldPlaylistDurationFontSize]; }
 - (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
+
+// Exhaustive, no default: a new slot unhandled here must fail the build, not
+// silently edit the title. None never arrives from a caller that guards it
+// and falls through to the title's keys otherwise.
+static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeKey) {
+    switch (slot) {
+        case VibeFontSlotArtist:
+            *faceKey = kFieldArtistFontFace; *sizeKey = kFieldArtistFontSize; return;
+        case VibeFontSlotInfo:
+            *faceKey = kFieldInfoFontFace; *sizeKey = kFieldInfoFontSize; return;
+        case VibeFontSlotPlaylist:
+            *faceKey = kFieldPlaylistFontFace; *sizeKey = kFieldPlaylistFontSize; return;
+        case VibeFontSlotPlaylistDuration:
+            *faceKey = kFieldPlaylistDurationFontFace; *sizeKey = kFieldPlaylistDurationFontSize; return;
+        case VibeFontSlotNone:
+        case VibeFontSlotTitle:
+            *faceKey = kFieldTitleFontFace; *sizeKey = kFieldTitleFontSize; return;
+    }
+}
+
+- (NSString *)fontFaceForSlot:(VibeFontSlot)slot {
+    NSString *faceKey, *sizeKey;
+    FontSlotKeys(slot, &faceKey, &sizeKey);
+    return [self stringForKey:faceKey];
+}
+
+- (CGFloat)fontSizeForSlot:(VibeFontSlot)slot {
+    NSString *faceKey, *sizeKey;
+    FontSlotKeys(slot, &faceKey, &sizeKey);
+    return [self floatForKey:sizeKey];
+}
+
+- (void)setFontFace:(NSString *)face size:(CGFloat)size forSlot:(VibeFontSlot)slot {
+    NSString *faceKey, *sizeKey;
+    FontSlotKeys(slot, &faceKey, &sizeKey);
+    [self storeSanitized:face forKey:faceKey];
+    [self storeSanitized:@(size) forKey:sizeKey];
+}
 
 - (NSString *)defaultArtworkForDark:(BOOL)isDark {
     return [self stringForKey:(self.isSingleMode || isDark)
