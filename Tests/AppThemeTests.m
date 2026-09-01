@@ -2,7 +2,7 @@
 // AppTheme's record contract: the same sanitization gates a JSON import, a
 // stored record and a UI edit, records stay sparse against the defaults, and
 // the built-ins are exactly what they claim — vibe the empty record,
-// industrial its four overrides.
+// sonic_cirrus its waveform overrides.
 //
 
 #import <XCTest/XCTest.h>
@@ -283,13 +283,15 @@
 
 - (void)testBuiltInIdentifiers {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"vibe"]);
-    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"industrial"]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"technical"]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:@"Vibe"]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:nil]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:NSUUID.UUID.UUIDString]);
-    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"adolescent_engineering"]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"signal_workshop"]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"adolescent_engineering", @"industrial"]));
+                          (@[@"vibe", @"cupertino", @"field", @"signal_workshop",
+                              @"sonic_cirrus", @"technical", @"technical_bars"]));
 }
 
 // The Vibe theme is the empty record BY CONSTRUCTION: it cannot drift from
@@ -298,43 +300,59 @@
     XCTAssertEqualObjects([AppTheme builtInRecordForIdentifier:@"vibe"], @{});
 }
 
-- (void)testIndustrialBuiltInIsExactlyItsFourOverrides {
-    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"industrial"];
+- (void)testSonicCirrusBuiltInIsExactlyItsOverrides {
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"sonic_cirrus"];
     XCTAssertEqualObjects(record, (@{
-        @"mode": @"single",
-        @"waveformStyle": @"detailed",
+        @"windowTint": @"mono",
+        @"waveformStyle": @"sonic_cirrus",
         @"waveformTheme": @"orange",
-        @"infoFontFace": @"Menlo-Regular",
+        @"waveformPlayedColorDark": @"#FFFFFFBF",
+        @"waveformPlayedColorLight": @"#000000BF",
+        @"waveformUnplayedColorDark": @"#808080BF",
+        @"waveformUnplayedColorLight": @"#808080BF",
     }));
     // And it survives its own sanitizer unchanged.
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
 }
 
-// The dual-mode built-in: what a light/dark theme has to spell out for BOTH
-// sides, and the one that would silently degrade if a color were dropped —
+// The dual-mode built-ins: what a light/dark theme has to spell out for BOTH
+// sides, and the ones that would silently degrade if a color were dropped —
 // the custom waveform theme falls back to mono unless the pair is complete.
-- (void)testAdolescentEngineeringBuiltInIsDualAndComplete {
-    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"adolescent_engineering"];
-    AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
-    XCTAssertFalse(theme.isSingleMode);
+// The artwork-carrying themes must also name their own bundled pair, one
+// image per side.
+- (void)testDualModeBuiltInsAreCompleteAndOwnTheirArtwork {
+    NSArray *artworked = @[@"field", @"signal_workshop"];
+    for (NSString *identifier in @[@"field", @"signal_workshop",
+                                   @"technical", @"technical_bars"]) {
+        NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
+        AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
+        XCTAssertEqualObjects(theme.dictionaryRepresentation, record, @"%@", identifier);
+        XCTAssertFalse(theme.isSingleMode, @"%@", identifier);
 
-    for (NSNumber *dark in @[@NO, @YES]) {
-        BOOL isDark = dark.boolValue;
-        XCTAssertNotNil([theme waveformPlayedColorForDark:isDark]);
-        XCTAssertNotNil([theme waveformUnplayedColorForDark:isDark]);
-        XCTAssertNotNil([theme windowBackgroundColorForDark:isDark]);
-        XCTAssertNotNil([theme playlistBackgroundColorForDark:isDark]);
-        XCTAssertNotNil([theme titleColorForDark:isDark]);
-        XCTAssertNotNil([theme artistColorForDark:isDark]);
-        XCTAssertNotNil([theme infoColorForDark:isDark]);
-        XCTAssertNotNil([theme timeColorForDark:isDark]);
-        XCTAssertNotNil([theme playlistPlayingRowColorForDark:isDark]);
-        XCTAssertNotNil([theme playlistSelectedRowColorForDark:isDark]);
+        for (NSNumber *dark in @[@NO, @YES]) {
+            BOOL isDark = dark.boolValue;
+            XCTAssertNotNil([theme waveformPlayedColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme waveformUnplayedColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme windowBackgroundColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme playlistBackgroundColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme titleColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme artistColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme infoColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme timeColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme playlistPlayingRowColorForDark:isDark], @"%@", identifier);
+            XCTAssertNotNil([theme playlistSelectedRowColorForDark:isDark], @"%@", identifier);
+        }
+        // Dual, so a solid background never outranks the appearance setting.
+        XCTAssertNil(theme.requiredWindowAppearance, @"%@", identifier);
+
+        if ([artworked containsObject:identifier]) {
+            XCTAssertEqualObjects([theme defaultArtworkForDark:YES],
+                    ([NSString stringWithFormat:@"bundled:%@_dark.png", identifier]));
+            XCTAssertEqualObjects([theme defaultArtworkForDark:NO],
+                    ([NSString stringWithFormat:@"bundled:%@_light.png", identifier]));
+        }
     }
-    // Dual, so a solid background never outranks the appearance setting.
-    XCTAssertNil(theme.requiredWindowAppearance);
 }
 
 #pragma mark Names
@@ -411,14 +429,16 @@
 
 - (void)testDefaultArtworkSanitizesByShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:
-            @{@"defaultArtworkDark": @"vinyl_red"}];
-    XCTAssertEqualObjects([theme defaultArtworkForDark:YES], @"vinyl_red");
+            @{@"defaultArtworkDark": @"bundled:signal_workshop_dark.png"}];
+    XCTAssertEqualObjects([theme defaultArtworkForDark:YES],
+            @"bundled:signal_workshop_dark.png");
     [theme setDefaultArtwork:@"custom:0123456789abcdef0123456789abcdef01234567.png"
                       forDark:NO];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
     // Wrong shapes drop to the default.
-    for (NSString *bad in @[@"Vinyl", @"../etc/passwd", @"custom:short.png",
+    for (NSString *bad in @[@"vinyl_red", @"bundled:Vinyl.png", @"bundled:../etc.png",
+                            @"bundled:signal_workshop.webp", @"custom:short.png",
                             @"custom:0123456789abcdef0123456789abcdef01234567.gif"]) {
         [theme setDefaultArtwork:bad forDark:YES];
         XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"%@", bad);
@@ -428,9 +448,11 @@
     // Single mode reads and writes the dark slot from either side; the light
     // half lies dormant, so a mode flip round-trips.
     theme.mode = @"single";
-    [theme setDefaultArtwork:@"vinyl_red" forDark:NO];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"vinyl_red");
-    XCTAssertEqualObjects([theme defaultArtworkForDark:NO], @"vinyl_red");
+    [theme setDefaultArtwork:@"bundled:signal_workshop_light.png" forDark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"],
+            @"bundled:signal_workshop_light.png");
+    XCTAssertEqualObjects([theme defaultArtworkForDark:NO],
+            @"bundled:signal_workshop_light.png");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
 }
@@ -537,26 +559,31 @@ static NSData *SquarePNG(NSInteger side) {
     }
     XCTAssertTrue([seen containsObject:@"vibe"], @"vibe.json must exist");
 
-    // A built-in cannot reference a container image nobody has, and any
-    // bundled art must itself pass the custom-art validation.
+    // Every bundled image must pass the same validation as a picked image,
+    // and every built-in bundled: reference must resolve to one of them.
+    NSMutableSet<NSString *> *bundledArt = [NSMutableSet set];
+    for (NSString *ext in @[@"png", @"jpg"]) {
+        for (NSURL *url in [bundle URLsForResourcesWithExtension:ext
+                subdirectory:@"Themes"]) {
+            NSString *reference = [@"bundled:"
+                    stringByAppendingString:url.lastPathComponent];
+            [bundledArt addObject:reference];
+            NSError *artError = nil;
+            XCTAssertNotNil([AppTheme storeCustomArtworkData:
+                    [NSData dataWithContentsOfURL:url] error:&artError],
+                    @"%@: %@", url.lastPathComponent, artError);
+        }
+    }
+    XCTAssertGreaterThanOrEqual(bundledArt.count, 2u, @"bundled theme artwork missing");
     for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
         for (NSString *key in @[@"defaultArtworkDark", @"defaultArtworkLight"]) {
             NSString *art = [AppTheme builtInRecordForIdentifier:identifier][key];
             XCTAssertFalse([art hasPrefix:@"custom:"],
                     @"%@: a built-in must name bundled art, not a custom image", identifier);
             if (art.length) {
-                XCTAssertTrue([[AppTheme bundledDefaultArtworkNames] containsObject:art],
+                XCTAssertTrue([bundledArt containsObject:art],
                         @"%@: names art the bundle does not carry (%@)", identifier, art);
             }
-        }
-    }
-    for (NSString *ext in @[@"png", @"jpg"]) {
-        for (NSURL *url in [bundle URLsForResourcesWithExtension:ext
-                subdirectory:@"Themes/art"]) {
-            NSError *artError = nil;
-            XCTAssertNotNil([AppTheme storeCustomArtworkData:
-                    [NSData dataWithContentsOfURL:url] error:&artError],
-                    @"%@: %@", url.lastPathComponent, artError);
         }
     }
 }
@@ -670,6 +697,49 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
     XCTAssertEqualObjects(name, @"Finder");
     XCTAssertEqualObjects(record[@"defaultArtworkDark"], stored); // art survived, re-hashed
+}
+
+// A hand-made archive references its images by name: a raw entry basename,
+// the custom: prefix optional. Both resolve against the archive's entries
+// and are normalized to the stored custom:<sha1> form on import. Outside an
+// archive the loose shapes stay refused — there is nothing to resolve
+// against — and a name matching no entry drops without taking the theme.
+- (void)testArchiveImportAcceptsHumanNamedCustomReferences {
+    NSData *dark = SquarePNG(64), *light = SquarePNG(128);
+    NSString *expectedDark = [AppTheme storeCustomArtworkData:dark error:NULL];
+    NSString *expectedLight = [AppTheme storeCustomArtworkData:light error:NULL];
+    NSData *themeJSON = [NSJSONSerialization dataWithJSONObject:@{
+        @"version": @1, @"name": @"Named",
+        @"player": @{@"defaultArtworkDark": @"cover_dark.png",
+                     @"defaultArtworkLight": @"custom:cover_light.png"},
+        @"waveform": @{@"theme": @"orange"},
+    } options:0 error:NULL];
+    NSData *zip = MakeStoredZip(@[
+        @[@"theme.json", themeJSON],
+        @[@"cover_dark.png", dark],
+        @[@"cover_light.png", light],
+    ]);
+    NSString *name = nil;
+    NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
+    XCTAssertEqualObjects(name, @"Named");
+    XCTAssertEqualObjects(record[@"defaultArtworkDark"], expectedDark);
+    XCTAssertEqualObjects(record[@"defaultArtworkLight"], expectedLight);
+    XCTAssertEqualObjects(record[@"waveformTheme"], @"orange");
+
+    NSData *danglingJSON = [NSJSONSerialization dataWithJSONObject:@{
+        @"version": @1, @"name": @"Dangling",
+        @"player": @{@"defaultArtworkDark": @"missing.png"},
+        @"waveform": @{@"theme": @"orange"},
+    } options:0 error:NULL];
+    NSDictionary *dangling = [AppTheme recordFromJSONOrArchiveData:
+            MakeStoredZip(@[@[@"theme.json", danglingJSON]]) name:NULL error:NULL];
+    XCTAssertNil(dangling[@"defaultArtworkDark"]);
+    XCTAssertEqualObjects(dangling[@"waveformTheme"], @"orange");
+
+    NSDictionary *jsonOnly = [AppTheme recordFromJSONOrArchiveData:themeJSON
+                                                              name:NULL error:NULL];
+    XCTAssertNil(jsonOnly[@"defaultArtworkDark"]);
+    XCTAssertNil(jsonOnly[@"defaultArtworkLight"]);
 }
 
 #pragma mark Store CRUD (AppSettings)

@@ -60,6 +60,14 @@ static const CGFloat kHeaderContentWidth =
         kMainWindowContentWidth - kHeaderContentX - kHeaderContentRightMargin;
 static const CGFloat kHeaderContentMaxX = kMainWindowContentWidth - kHeaderContentRightMargin;
 
+// An NSTextField draws its text ~2pt inside its frame (the cell's own
+// horizontal padding), while the waveform draws to its exact frame edges. So
+// every header text frame is pushed outward by this on its text-anchored side,
+// aligning the ink — not the frame — with the waveform's edges.
+static const CGFloat kLabelInkInset = 2;
+static const CGFloat kHeaderTextX = kHeaderContentX - kLabelInkInset;
+static const CGFloat kHeaderTextMaxX = kHeaderContentMaxX + kLabelInkInset;
+
 static const CGFloat kWaveformY = 215;
 static const CGFloat kWaveformHeight = 86;
 
@@ -67,7 +75,7 @@ static const CGFloat kWaveformHeight = 86;
 // right-aligned. They are declared before the title and artist lines, which
 // size themselves to stay clear of this corner.
 static const CGFloat kCodecLabelWidth = 240;
-static const CGFloat kCodecLabelX = kHeaderContentMaxX - kCodecLabelWidth;
+static const CGFloat kCodecLabelX = kHeaderTextMaxX - kCodecLabelWidth;
 static const CGFloat kCodecLabelY = 325;
 static const CGFloat kBPMLabelY = 307;
 
@@ -86,10 +94,12 @@ static const CGFloat kBPMLabelY = 307;
 // the autoresizing pass starts from.
 static const CGFloat kCodecColumnGutter = 12;
 static const CGFloat kArtistY = 293;
-static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderContentX;
+static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderTextX;
 static const CGFloat kArtistHeight = 48;
 static const CGFloat kTitleY = 292;
-static const CGFloat kTitleWidth = 415;
+// The width grows by the ink inset the x moved left by, so the right cap —
+// clearance against the BPM line's ink — stays where it was tuned.
+static const CGFloat kTitleWidth = 415 + kLabelInkInset;
 static const CGFloat kTitleHeight = 30;
 
 // The time row: elapsed on the left, total on the right, and the empty-state
@@ -97,7 +107,7 @@ static const CGFloat kTitleHeight = 30;
 static const CGFloat kSmallLabelHeight = 16;
 static const CGFloat kTimeRowY = 207;
 static const CGFloat kTimeLabelWidth = 59;
-static const CGFloat kTotalTimeX = kHeaderContentMaxX - kTimeLabelWidth;
+static const CGFloat kTotalTimeX = kHeaderTextMaxX - kTimeLabelWidth;
 static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
 static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 
@@ -559,7 +569,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
     _artistTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kArtistY, kArtistWidth, kArtistHeight)];
+            NSMakeRect(kHeaderTextX, kArtistY, kArtistWidth, kArtistHeight)];
     // Truncating, not the shared clipping default: this line takes whatever a
     // file's artist tag holds, and long ones are common. Clipping cut a glyph
     // mid-stroke at the label's edge and gave no sign the string went on.
@@ -569,7 +579,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_artistTextField];
 
     _titleTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kTitleY, kTitleWidth, kTitleHeight)];
+            NSMakeRect(kHeaderTextX, kTitleY, kTitleWidth, kTitleHeight)];
     _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_titleTextField, YES);
@@ -583,7 +593,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_totalTimeTextField];
 
     _currentTimeTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
+            NSMakeRect(kHeaderTextX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
 
     // Left-anchored, unlike the right-aligned total time it pairs with.
     _currentTimeTextField.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
@@ -789,7 +799,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 }
 
 // A stretchable rounded-rect alpha mask, cap-inset so the corners never
-// scale. See the header comment for why maskImage rather than a layer radius.
+// scale. An NSVisualEffectView shapes its blur through maskImage — a layer
+// cornerRadius clips its tint but not the blur region.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius {
     NSSize size = NSMakeSize(radius * 2 + 1, radius * 2 + 1);
     NSImage *mask = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {

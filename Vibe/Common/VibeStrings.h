@@ -183,6 +183,7 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Waveform styles
 
 #define STR_WAVEFORM_STYLE_BASIC           NSLS(@"waveform.style.basic",           @"Basic",                    @"Waveform style name: the simplest bar rendering.")
+#define STR_WAVEFORM_STYLE_CUPERTINO       NSLS(@"waveform.style.cupertino",       @"Cupertino",                @"Waveform style name: a rounded progress pill in the Apple Music style. The city's name — transliterate rather than translate it.")
 #define STR_WAVEFORM_STYLE_DETAILED        NSLS(@"waveform.style.detailed",        @"Detailed",                 @"Waveform style name: a higher-resolution bar rendering.")
 #define STR_WAVEFORM_STYLE_SONIC_CIRRUS    NSLS(@"waveform.style.sonic_cirrus",    @"Sonic Cirrus",             @"Waveform style name: a cloud-like rendering. An invented proper name — transliterate rather than translate it literally.")
 #define STR_WAVEFORM_STYLE_OVERSAMPLING_X2 NSLS(@"waveform.style.oversampling_x2", @"Oversampling Detailed x2", @"Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.")

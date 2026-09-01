@@ -55,6 +55,7 @@ static NSString *const kFieldDefaultArtworkDark  = @"defaultArtworkDark";
 static NSString *const kFieldDefaultArtworkLight = @"defaultArtworkLight";
 
 static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value);
+static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(void);
 static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkColumn";
 static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
 
@@ -426,9 +427,10 @@ static void VibeLoadBuiltInThemes(void) {
 
 #pragma mark Default artwork
 
-// A bundled stem (lowercase snake, matching the theme identifiers' shape) or
-// a container reference whose name is the content hash — which is also what
-// makes the lifetime image cache below safe: a changed image is a new key.
+// custom: is a container reference whose name is the content hash — which is
+// also what makes the lifetime image cache below safe: a changed image is a
+// new key. bundled: names an image shipped beside the built-in theme JSONs in
+// Resources/Themes/, immutable for a build, so the same cache holds it.
 static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value) {
     if (value.length == 0) {
         return NO;
@@ -437,7 +439,7 @@ static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         shape = [NSRegularExpression regularExpressionWithPattern:
-                @"^([a-z0-9]+(_[a-z0-9]+)*|custom:[0-9a-f]{40}\\.(png|jpg))$"
+                @"^(custom:[0-9a-f]{40}|bundled:[a-z0-9_]+)\\.(png|jpg)$"
                 options:0 error:NULL];
     });
     return [shape numberOfMatchesInString:value options:0
@@ -521,17 +523,6 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     return [@"custom:" stringByAppendingString:file];
 }
 
-+ (NSArray<NSString *> *)bundledDefaultArtworkNames {
-    NSMutableArray *names = [NSMutableArray array];
-    for (NSString *ext in @[@"png", @"jpg"]) {
-        for (NSURL *url in [[NSBundle bundleForClass:self]
-                URLsForResourcesWithExtension:ext subdirectory:@"Themes/art"]) {
-            [names addObject:url.lastPathComponent.stringByDeletingPathExtension];
-        }
-    }
-    return [names sortedArrayUsingSelector:@selector(compare:)];
-}
-
 static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
     static NSMutableDictionary<NSString *, NSImage *> *cache;
     static dispatch_once_t once;
@@ -551,7 +542,13 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
         // header panel and thumbnail cells, and a 4096px original must never
         // be materialized into a lifetime-cached full bitmap.
         NSData *data = nil;
-        if ([key hasPrefix:@"custom:"]) {
+        if ([key hasPrefix:@"bundled:"]) {
+            NSString *file = [key substringFromIndex:8];
+            NSURL *url = [[NSBundle bundleForClass:self]
+                    URLForResource:file.stringByDeletingPathExtension
+                     withExtension:file.pathExtension subdirectory:@"Themes"];
+            data = url ? [NSData dataWithContentsOfURL:url] : nil;
+        } else if ([key hasPrefix:@"custom:"]) {
             data = [NSData dataWithContentsOfFile:[VibeCustomArtworkDirectory()
                     stringByAppendingPathComponent:[key substringFromIndex:7]]];
             // A theme's live set is at most two custom images (dark +
@@ -568,15 +565,6 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
                             && [stale containsString:@"custom:"])) {
                         [cache removeObjectForKey:stale];
                     }
-                }
-            }
-        } else if (key.length) {
-            for (NSString *ext in @[@"png", @"jpg"]) {
-                NSURL *url = [[NSBundle bundleForClass:self] URLForResource:key
-                        withExtension:ext subdirectory:@"Themes/art"];
-                if (url) {
-                    data = [NSData dataWithContentsOfURL:url];
-                    break;
                 }
             }
         }
@@ -873,15 +861,25 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     if (!record) {
         return nil;
     }
+    // Inside an archive the reference to a shipped image is just a name: a
+    // raw entry basename, with the custom: prefix optional (bundled: still
+    // means the app bundle, and "" the factory image). The ZIP is
+    // self-contained, so the entry travels with the JSON and the image is
+    // re-validated and re-hashed regardless; the record is rewritten to the
+    // stored custom:<sha1> copy, the only shape the sanitizer admits. Which
+    // is also why the lookup reads the RAW JSON value: a human-named
+    // reference has already been dropped from the sanitized record.
+    NSDictionary *rawRoot = [NSJSONSerialization JSONObjectWithData:json options:0 error:NULL];
     for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
-        NSString *art = record[key];
-        if (![art hasPrefix:@"custom:"]) {
+        NSArray<NSString *> *location = ThemeJSONFieldLocations()[key];
+        id group = [rawRoot isKindOfClass:NSDictionary.class] ? rawRoot[location[0]] : nil;
+        NSString *art = TrimmedCappedString(
+                [group isKindOfClass:NSDictionary.class] ? group[location[1]] : nil);
+        if (art.length == 0 || [art hasPrefix:@"bundled:"]) {
             continue;
         }
-        // Each image ships beside the JSON under its reference name. It is
-        // re-validated and re-hashed here — the filename is not trusted —
-        // and the record rewritten to the stored copy.
-        NSData *image = byBaseName[[art substringFromIndex:7]];
+        NSData *image = byBaseName[
+                [art hasPrefix:@"custom:"] ? [art substringFromIndex:7] : art];
         NSString *stored = image ? [self storeCustomArtworkData:image error:error] : nil;
         if (stored) {
             record[key] = stored;

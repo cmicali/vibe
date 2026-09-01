@@ -83,15 +83,12 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
 #pragma mark Default artwork
 
-// Never nil: the resolved placeholder for one side's stored value —
-// the bundled or container image it names, or the factory record image for
-// "", an unknown name, or a missing file. Cached for the app's lifetime;
-// custom references are content-hashed, so a changed image is a new key.
+// Never nil: the resolved placeholder for one side's stored value — the
+// container image a custom: names, the Resources/Themes image a bundled:
+// names, or the factory record image for "", an unknown name, or a missing
+// file. Cached for the app's lifetime; custom references are content-hashed,
+// so a changed image is a new key, and a bundled image is immutable per build.
 + (NSImage *)imageForDefaultArtwork:(nullable NSString *)value;
-
-
-// The bundled choices: the filename stems under Resources/Themes/art.
-+ (NSArray<NSString *> *)bundledDefaultArtworkNames;
 
 // Validates (JPEG or PNG, square, within pixel and byte caps), copies into
 // the app container, and returns the record value ("custom:<sha1>.<ext>"),
@@ -198,11 +195,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 @property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
 
 // The no-artwork placeholder, one per appearance like every color pair: ""
-// (the default) is the factory record image; a bundled name picks
-// Resources/Themes/art/<name>.png|jpg; "custom:<sha1>.<ext>" names an image
-// the user picked, copied into the app container. Single mode reads and
-// writes the dark slot from either side — the color pairs' rule — while the
-// light half lies dormant, so a mode flip round-trips.
+// (the default) is the factory record image; "custom:<sha1>.<ext>" names an
+// image the user picked, copied into the app container; "bundled:<name>.<ext>"
+// names an image a built-in theme ships in Resources/Themes/. Single mode
+// reads and writes the dark slot from either side — the color pairs' rule —
+// while the light half lies dormant, so a mode flip round-trips.
 - (NSString *)defaultArtworkForDark:(BOOL)isDark;
 - (void)setDefaultArtwork:(NSString *)value forDark:(BOOL)isDark;
 // This theme's resolved placeholder as ONE image: when the sides differ, a

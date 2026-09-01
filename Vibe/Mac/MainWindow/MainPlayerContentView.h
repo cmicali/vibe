@@ -25,11 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTarget:(id)target;
 
-// The rounded-rect mask for the pre-26 frosted stand-ins for Liquid Glass:
-// an NSVisualEffectView shapes its blur through maskImage — a layer
-// cornerRadius clips its tint but not the blur region.
-+ (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius;
-
 // The pre/post-26 backdrop dichotomy in one place: glass takes a layer
 // radius, frost a regenerated mask. Shared by both build paths and both live
 // re-applies (this view's instance applyCornerRadius: and the controller's

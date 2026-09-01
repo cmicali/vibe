@@ -1,0 +1,160 @@
+//
+//  CupertinoWaveformRenderer.mm
+//  Vibe
+//
+
+#import "CupertinoWaveformRenderer.h"
+#import "VibeStrings.h"
+
+// Apple Music's scrubber is about 7pt; this one is deliberately a little
+// taller. Hovering grows the pill, Apple Music's own affordance, and the
+// growth is what says "this is the control" — the column below only says
+// where the seek would land.
+static const CGFloat kPillHeight = 9;
+static const CGFloat kPillHoverHeight = 12;
+static const CGFloat kPillHoverGrowDuration = 0.18;
+
+// The tracked-seek column inside the pill, matching Detailed's affordance in
+// weight; the capsule mask rounds it away at the ends for free.
+static const CGFloat kHoverColumnWidth = 1.5;
+
+// The pill alone is a small target in the waveform's strip, so the seek band
+// is the hovered pill plus slider-like slop either side; outside it a drag
+// stays the window's, as with every style.
+static const CGFloat kSeekBandHeight = 28;
+
+@implementation CupertinoWaveformRenderer {
+    CALayer *_track;       // the capsule: unplayed color, masks the two below
+    CALayer *_fill;        // played color over [0, progress]; its leading cap
+                           // is the track's mask, its playhead edge is square
+    CALayer *_hoverColumn;
+    CGRect _bounds;
+    CGFloat _progress;
+}
+
++ (NSString *)styleIdentifier {
+    return @"cupertino";
+}
+
++ (NSString *)displayName {
+    return STR_WAVEFORM_STYLE_CUPERTINO;
+}
+
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
+    self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
+    if (self) {
+        _bounds = bounds;
+        CGFloat scale = parentLayer.contentsScale;
+        _track = [CALayer layer];
+        _track.masksToBounds = YES;
+        _track.contentsScale = scale;
+        _fill = [CALayer layer];
+        _fill.anchorPoint = CGPointZero;
+        _fill.contentsScale = scale;
+        _hoverColumn = [CALayer layer];
+        _hoverColumn.anchorPoint = CGPointZero;
+        _hoverColumn.contentsScale = scale;
+        _hoverColumn.hidden = YES;
+        [_track addSublayer:_fill];
+        [_track addSublayer:_hoverColumn];
+        [parentLayer addSublayer:_track];
+        [self updateColors:isDark];
+        [self updateWaveform:bounds progress:0 waveform:nil];
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [_track removeFromSuperlayer];
+}
+
+- (void)updateColors:(BOOL)isDark {
+    [super updateColors:isDark];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _track.backgroundColor = self.theme.unplayedColor.CGColor;
+    _fill.backgroundColor = self.theme.playedColor.CGColor;
+    _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
+    [CATransaction commit];
+}
+
+- (CGFloat)pillHeight {
+    CGFloat height = self.hoverHighlightX >= 0 ? kPillHoverHeight : kPillHeight;
+    return MIN(height, _bounds.size.height);
+}
+
+// Places all three layers for the current bounds, hover state and progress.
+// Callers own the transaction: layout passes disable actions, the hover flip
+// leaves them on so the growth animates.
+- (void)layoutPill {
+    if (_bounds.size.width <= 0 || _bounds.size.height <= 0) {
+        return;
+    }
+    CGFloat height = [self pillHeight];
+    // Whole points, so the pill's edges sit on device pixels at any backing
+    // scale — which is also why backingScaleDidChange needs no rebuild here.
+    CGFloat y = round(CGRectGetMidY(_bounds) - height / 2);
+    _track.frame = CGRectMake(CGRectGetMinX(_bounds), y, _bounds.size.width, height);
+    _track.cornerRadius = height / 2;
+    _fill.frame = CGRectMake(0, 0, _progress * _bounds.size.width, height);
+    [self layoutHoverColumn];
+}
+
+- (void)layoutHoverColumn {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    CGFloat x = self.hoverHighlightX;
+    if (x < 0 || _bounds.size.width <= 0) {
+        _hoverColumn.hidden = YES;
+    } else {
+        CGFloat clamped = MAX(CGFloat(0), MIN(x - CGRectGetMinX(_bounds), _bounds.size.width));
+        _hoverColumn.frame = CGRectMake(clamped - kHoverColumnWidth / 2, 0,
+                                        kHoverColumnWidth, _track.bounds.size.height);
+        _hoverColumn.hidden = NO;
+    }
+    [CATransaction commit];
+}
+
+- (void)setHoverHighlightX:(CGFloat)x {
+    BOOL wasHovering = self.hoverHighlightX >= 0;
+    [super setHoverHighlightX:x];
+    if ((x >= 0) != wasHovering) {
+        // The hover flip grows or settles the pill; the frame and radius
+        // animate through the transaction's implicit actions.
+        [CATransaction begin];
+        [CATransaction setAnimationDuration:kPillHoverGrowDuration];
+        [self layoutPill];
+        [CATransaction commit];
+    } else {
+        // Same hover state, new x: only the column moves, action-free.
+        [self layoutHoverColumn];
+    }
+}
+
+- (CGRect)seekHitBandForBounds:(CGRect)bounds {
+    CGFloat height = MIN(kSeekBandHeight, bounds.size.height);
+    return CGRectMake(bounds.origin.x, CGRectGetMidY(bounds) - height / 2,
+                      bounds.size.width, height);
+}
+
+// The samples are deliberately unread: with or without a waveform the pill is
+// the same picture, so loading, empty-handed and delivered tracks all draw
+// alike and there is nothing for a late delivery to change.
+- (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+    _bounds = bounds;
+    _progress = MAX(CGFloat(0), MIN(progress, CGFloat(1)));
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [self layoutPill];
+    [CATransaction commit];
+}
+
+- (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
+    _progress = MAX(CGFloat(0), MIN(progress, CGFloat(1)));
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _fill.frame = CGRectMake(0, 0, _progress * _bounds.size.width, _track.bounds.size.height);
+    [CATransaction commit];
+}
+
+@end

@@ -17,6 +17,7 @@ A fast, minimal player for your music files on the Mac. No third-party engine, n
 - **Keyboard transport** — `Space` plays and pauses, `B` and `N` change track, `A`–`D` and `Z`–`C` skip by bars
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
 - **Pitch adjust** — an optional SL-1200-style pitch fader
+- **Themes** — restyle the whole player; build your own in Settings and share it as a file
 
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 
@@ -50,6 +51,15 @@ Drag the artwork out to copy the playing file somewhere else.
 | `T` | Delay, 1/16-note taps |
 
 Tap an FX key to latch the effect; hold it for momentary.
+
+### Themes
+
+Vibe ships with several built-in themes, and you can make your own in
+**Settings > Appearance**: start from the current look (or duplicate a
+built-in), then edit the window, fonts, colors, waveform, playlist, and even
+the no-artwork placeholder — changes apply live. Themes export as a single
+file (including any custom artwork) that anyone can import, so they're easy
+to share. See [docs/themes.md](docs/themes.md) for the full guide.
 
 ![Vibe screenshot](Assets/screenshot-pitch.png)
 

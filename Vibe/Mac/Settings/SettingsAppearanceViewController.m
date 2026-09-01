@@ -36,18 +36,6 @@ static const CGFloat kThemeListHeight = 10 * kThemeListRowHeight;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
-// The font panel's target slot, carried as the Select buttons' tags. None
-// while the panel is not editing a slot; changeFont: no-ops then, which is
-// what keeps a stray panel from restyling anything.
-typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
-    VibeThemeFontSlotNone = 0,
-    VibeThemeFontSlotTitle,
-    VibeThemeFontSlotArtist,
-    VibeThemeFontSlotInfo,
-    VibeThemeFontSlotPlaylist,
-    VibeThemeFontSlotPlaylistDuration,
-};
-
 // The corner-radius slider, with a tick above and below the track at the
 // factory default — the visual for the action's magnetic detent. NSSlider's
 // own tick marks are evenly spaced and single-sided, so the pair is drawn
@@ -132,6 +120,8 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSColorWell *_infoDarkWell, *_infoLightWell;
     NSColorWell *_timeDarkWell, *_timeLightWell;
     NSPopUpButton *_waveformPopUp;
+    // The list page's shortcut to the same theme field as _waveformPopUp.
+    NSPopUpButton *_listWaveformPopUp;
     NSPopUpButton *_waveformThemePopUp;
     // A played/unplayed pair per appearance — one pair cannot read on both
     // backdrops.
@@ -148,7 +138,10 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     NSColorWell *_selectedRowDarkWell, *_selectedRowLightWell;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
-    VibeThemeFontSlot _fontEditingSlot;
+    // The font panel's target slot, carried as the Select buttons' tags. None
+    // while the panel is not editing a slot; changeFont: no-ops then, which is
+    // what keeps a stray panel from restyling anything.
+    VibeFontSlot _fontEditingSlot;
     BOOL _editorShown;
     // Armed by a Back pop; the toolbar's forward half re-opens the editor.
     BOOL _editorForwardAvailable;
@@ -186,6 +179,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _themeTable.target = self;
     _themeTable.doubleAction = @selector(editTheme:);
     [_themeTable addTableColumn:[[NSTableColumn alloc] initWithIdentifier:kThemeCellIdentifier]];
+    [_themeTable registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scrollView.documentView = _themeTable;
     scrollView.hasVerticalScroller = YES;
@@ -214,10 +208,17 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
+    // The waveform style is a THEME field surfaced on the list page: it
+    // follows every theme switch, and editing it here goes through the same
+    // working-record funnel as the editor's row — over a built-in it lands
+    // in the divergence key rather than dirtying the theme.
+    _listWaveformPopUp = [self waveformStylePopUpButton];
+
     _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SECTION control:_listWaveformPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             [SettingsRowView rowWithContentView:scrollView],
@@ -274,7 +275,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
 
 // A font row's trailing cluster: the current choice, then Select…, which
 // opens the font panel onto that slot.
-- (NSStackView *)fontClusterForSlot:(VibeThemeFontSlot)slot valueLabel:(NSTextField **)outLabel {
+- (NSStackView *)fontClusterForSlot:(VibeFontSlot)slot valueLabel:(NSTextField **)outLabel {
     NSTextField *value = [NSTextField labelWithString:@""];
     value.textColor = NSColor.secondaryLabelColor;
     NSButton *select = [NSButton buttonWithTitle:STR_SETTINGS_THEME_FONT_SELECT
@@ -357,7 +358,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     [_nameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _nameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_NAME_LABEL control:_nameField];
     _duplicateButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_DUPLICATE
-                                          target:self action:@selector(duplicateActiveTheme:)];
+                                          target:self action:@selector(duplicateTheme:)];
     _builtInRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUILT_IN_CAPTION
                                         control:_duplicateButton];
 
@@ -434,18 +435,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _timeDarkWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
     _timeLightWell = [self themeColorWellWithAction:@selector(labelColorChanged:)];
 
-    // Identifiers travel in representedObject, localized names in the titles
-    // — a display name must never reach the store.
-    _waveformPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformStyleChanged:)];
-    MainPlayerController *player = self.playerController;
-    NSArray<NSString *> *styles = [[player availableWaveformStyleIdentifiers]
-            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-                return [[player displayNameForWaveformStyle:a]
-                        localizedStandardCompare:[player displayNameForWaveformStyle:b]];
-            }];
-    for (NSString *identifier in styles) {
-        [self addItem:[player displayNameForWaveformStyle:identifier] value:identifier to:_waveformPopUp];
-    }
+    _waveformPopUp = [self waveformStylePopUpButton];
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
@@ -491,14 +481,14 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     _selectedRowLightWell = [self themeColorWellWithAction:@selector(playlistColorChanged:)];
 
     NSTextField *titleFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
-    NSStackView *titleFontCluster = [self fontClusterForSlot:VibeThemeFontSlotTitle valueLabel:&titleFontValue];
+    NSStackView *titleFontCluster = [self fontClusterForSlot:VibeFontSlotTitle valueLabel:&titleFontValue];
     NSTextField *artistFontValue = nil;
-    NSStackView *artistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotArtist valueLabel:&artistFontValue];
-    NSStackView *infoFontCluster = [self fontClusterForSlot:VibeThemeFontSlotInfo valueLabel:&infoFontValue];
-    NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeThemeFontSlotPlaylist valueLabel:&playlistFontValue];
+    NSStackView *artistFontCluster = [self fontClusterForSlot:VibeFontSlotArtist valueLabel:&artistFontValue];
+    NSStackView *infoFontCluster = [self fontClusterForSlot:VibeFontSlotInfo valueLabel:&infoFontValue];
+    NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeFontSlotPlaylist valueLabel:&playlistFontValue];
     NSTextField *playlistDurationFontValue = nil;
     NSStackView *playlistDurationFontCluster =
-            [self fontClusterForSlot:VibeThemeFontSlotPlaylistDuration
+            [self fontClusterForSlot:VibeFontSlotPlaylistDuration
                           valueLabel:&playlistDurationFontValue];
     _titleFontValue = titleFontValue;
     _artistFontValue = artistFontValue;
@@ -686,7 +676,7 @@ typedef NS_ENUM(NSInteger, VibeThemeFontSlot) {
     // A single-mode theme has one color per field, so every Dark/Light pair
     // collapses to one well — the dark-keyed well, the single slot's home —
     // with the captions hidden, and the per-side rows keep only that one.
-    BOOL single = [theme.mode isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE];
+    BOOL single = theme.isSingleMode;
     for (NSStackView *pair in _darkLightPairs) {
         NSArray<NSView *> *views = pair.arrangedSubviews; // well, caption, well, caption
         views[1].hidden = single;
@@ -726,14 +716,25 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     });
 }
 
+// An unknown persisted style identifier renders as the default style — the
+// waveform view's own fallback — so show that rather than misreport.
+static void SelectWaveformStyle(NSPopUpButton *popUp, NSString *identifier) {
+    NSInteger index = [popUp indexOfItemWithRepresentedObject:identifier];
+    if (index < 0) {
+        index = [popUp indexOfItemWithRepresentedObject:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
+    }
+    [popUp selectItemAtIndex:index];
+}
+
 - (void)refreshFromSettings {
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
 
-    // The common card.
+    // The common card, plus the list page's waveform shortcut.
     [_appearancePopUp selectItemAtIndex:
             [_appearancePopUp indexOfItemWithRepresentedObject:settings.windowAppearanceStyle]];
     _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
+    SelectWaveformStyle(_listWaveformPopUp, theme.waveformStyle);
 
     // The theme list. Selection mirrors activation, so reselect the active
     // row after every reload.
@@ -797,14 +798,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _timeDarkWell.color = [theme displayTimeColorForDark:YES];
     _timeLightWell.color = [theme displayTimeColorForDark:NO];
 
-    // An unknown persisted style identifier renders as the default style —
-    // the waveform view's own fallback — so show that rather than misreport.
-    NSInteger styleIndex = [_waveformPopUp indexOfItemWithRepresentedObject:theme.waveformStyle];
-    if (styleIndex < 0) {
-        styleIndex = [_waveformPopUp
-                indexOfItemWithRepresentedObject:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
-    }
-    [_waveformPopUp selectItemAtIndex:styleIndex];
+    SelectWaveformStyle(_waveformPopUp, theme.waveformStyle);
     [_waveformThemePopUp selectItemAtIndex:
             [_waveformThemePopUp indexOfItemWithRepresentedObject:theme.waveformTheme]];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
@@ -868,11 +862,11 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 - (void)refreshFontValueLabels {
     NSDictionary<NSNumber *, NSTextField *> *labels = @{
-        @(VibeThemeFontSlotTitle): _titleFontValue,
-        @(VibeThemeFontSlotArtist): _artistFontValue,
-        @(VibeThemeFontSlotInfo): _infoFontValue,
-        @(VibeThemeFontSlotPlaylist): _playlistFontValue,
-        @(VibeThemeFontSlotPlaylistDuration): _playlistDurationFontValue,
+        @(VibeFontSlotTitle): _titleFontValue,
+        @(VibeFontSlotArtist): _artistFontValue,
+        @(VibeFontSlotInfo): _infoFontValue,
+        @(VibeFontSlotPlaylist): _playlistFontValue,
+        @(VibeFontSlotPlaylistDuration): _playlistDurationFontValue,
     };
     for (NSNumber *slot in labels) {
         NSFont *font = [self currentFontForSlot:slot.integerValue];
@@ -1012,6 +1006,55 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     return [self identifierForRow:_themeTable.selectedRow];
 }
 
+#pragma mark - Dropping theme files in
+
+// Theme files only — the Import… panel's two types — asked of the pasteboard
+// rather than the file system, for the Files pane's reasons: validation runs
+// per mouse move, and a stat can block on an unreachable mount.
++ (NSDictionary<NSPasteboardReadingOptionKey, id> *)themeFileReadingOptions {
+    return @{
+        NSPasteboardURLReadingFileURLsOnlyKey: @YES,
+        NSPasteboardURLReadingContentsConformToTypesKey:
+                @[UTTypeJSON.identifier, UTTypeZIP.identifier],
+    };
+}
+
+// Retargeted onto the list as a whole: an import lands in the user group
+// wherever the drop points, so an insertion point would promise a position
+// the store cannot honor.
+- (NSDragOperation)tableView:(NSTableView *)tableView
+                validateDrop:(id<NSDraggingInfo>)info
+                 proposedRow:(NSInteger)row
+       proposedDropOperation:(NSTableViewDropOperation)operation {
+    if (![info.draggingPasteboard canReadObjectForClasses:@[NSURL.class]
+                                                  options:self.class.themeFileReadingOptions]) {
+        return NSDragOperationNone;
+    }
+    [tableView setDropRow:-1 dropOperation:NSTableViewDropOn];
+    return NSDragOperationCopy;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView
+       acceptDrop:(id<NSDraggingInfo>)info
+              row:(NSInteger)row
+    dropOperation:(NSTableViewDropOperation)operation {
+    NSArray<NSURL *> *urls = [info.draggingPasteboard
+            readObjectsForClasses:@[NSURL.class]
+                          options:self.class.themeFileReadingOptions];
+    BOOL imported = NO, failed = NO;
+    for (NSURL *url in urls) {
+        if ([self importThemeFromURL:url]) {
+            imported = YES;
+        } else {
+            failed = YES;
+        }
+    }
+    if (failed) {
+        [self presentThemeImportFailedAlert];
+    }
+    return imported;
+}
+
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
     [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
@@ -1025,19 +1068,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self activateThemeWithIdentifier:identifier];
 }
 
+// Copy the active theme and edit the copy. Selection IS activation, so the
+// Add pulldown's Duplicate and the read-only editor page's both mean this.
 - (void)duplicateTheme:(id)sender {
-    NSString *selected = [self selectedThemeIdentifier];
-    if (!selected) {
-        return;
-    }
-    NSString *identifier = [AppSettings.sharedInstance duplicateThemeWithIdentifier:selected];
-    if (identifier) {
-        [self activateThemeWithIdentifier:identifier];
-    }
-}
-
-// The read-only editor page's one action: copy, then edit the copy.
-- (void)duplicateActiveTheme:(id)sender {
     NSString *identifier = [AppSettings.sharedInstance duplicateThemeWithIdentifier:
             AppSettings.sharedInstance.activeThemeIdentifier];
     if (identifier) {
@@ -1046,8 +1079,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 // No confirmation, following the Files pane's Remove — and a sheet would
-// block settings_click. Removing the active theme falls back to Vibe inside
-// the store; the effect request repaints either way.
+// block settings_click.
 - (void)removeTheme:(id)sender {
     NSString *selected = [self selectedThemeIdentifier];
     if (!selected || [AppTheme isBuiltInIdentifier:selected]) {
@@ -1055,19 +1087,18 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
     // Land on the neighbor, not the first row: the next theme takes the
     // removed row's index, and removing the last row falls back to the row
-    // before it. Selection IS activation, so the neighbor is applied rather
-    // than merely selected — without this the store's own active-removal
-    // fallback snapped the list to Vibe.
+    // before it. Selection IS activation, so the neighbor is applied — BEFORE
+    // the remove, or the store's own active-removal fallback snaps to Vibe
+    // first and every removal pays two whole-theme applies.
     NSUInteger index = [_themeIdentifiers indexOfObject:selected];
-    NSString *neighbor = nil;
     if (index != NSNotFound) {
-        neighbor = index + 1 < _themeIdentifiers.count ? _themeIdentifiers[index + 1]
+        NSString *neighbor = index + 1 < _themeIdentifiers.count ? _themeIdentifiers[index + 1]
                 : (index > 0 ? _themeIdentifiers[index - 1] : nil);
+        if (neighbor) {
+            [AppSettings.sharedInstance applyThemeWithIdentifier:neighbor];
+        }
     }
     [AppSettings.sharedInstance removeUserThemeWithIdentifier:selected];
-    if (neighbor) {
-        [AppSettings.sharedInstance applyThemeWithIdentifier:neighbor];
-    }
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
@@ -1092,23 +1123,34 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         if (result != NSModalResponseOK || !panel.URL) {
             return;
         }
-        NSString *name = nil;
-        NSError *error = nil;
-        NSDictionary *record = [AppTheme
-                recordFromJSONOrArchiveData:[NSData dataWithContentsOfURL:panel.URL]
-                                       name:&name
-                                      error:&error];
-        if (!record) {
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = STR_SETTINGS_THEME_IMPORT_FAILED;
-            [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
-            return;
+        if (![self importThemeFromURL:panel.URL]) {
+            [self presentThemeImportFailedAlert];
         }
-        NSString *identifier = [AppSettings.sharedInstance
-                addUserThemeWithRecord:record
-                                  name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
-        [self activateThemeWithIdentifier:identifier];
     }];
+}
+
+// One import funnel for the Import… panel and the theme list's drop: the same
+// sanitize-and-store gate either way, activating what it added.
+- (BOOL)importThemeFromURL:(NSURL *)url {
+    NSString *name = nil;
+    NSDictionary *record = [AppTheme
+            recordFromJSONOrArchiveData:[NSData dataWithContentsOfURL:url]
+                                   name:&name
+                                  error:NULL];
+    if (!record) {
+        return NO;
+    }
+    NSString *identifier = [AppSettings.sharedInstance
+            addUserThemeWithRecord:record
+                              name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
+    [self activateThemeWithIdentifier:identifier];
+    return YES;
+}
+
+- (void)presentThemeImportFailedAlert {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = STR_SETTINGS_THEME_IMPORT_FAILED;
+    [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
 }
 
 - (void)exportTheme:(id)sender {
@@ -1398,13 +1440,34 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
 }
 
-- (void)waveformStyleChanged:(id)sender {
-    NSString *identifier = _waveformPopUp.selectedItem.representedObject;
+// The style popup, built once per surface — the editor's row and the list
+// page's shortcut. Identifiers travel in representedObject, localized names
+// in the titles — a display name must never reach the store.
+- (NSPopUpButton *)waveformStylePopUpButton {
+    NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                               action:@selector(waveformStyleChanged:)];
+    MainPlayerController *player = self.playerController;
+    NSArray<NSString *> *styles = [[player availableWaveformStyleIdentifiers]
+            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+                return [[player displayNameForWaveformStyle:a]
+                        localizedStandardCompare:[player displayNameForWaveformStyle:b]];
+            }];
+    for (NSString *identifier in styles) {
+        [self addItem:[player displayNameForWaveformStyle:identifier] value:identifier to:popUp];
+    }
+    return popUp;
+}
+
+- (void)waveformStyleChanged:(NSPopUpButton *)sender {
+    NSString *identifier = sender.selectedItem.representedObject;
     if (!identifier) {
         return;
     }
     AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
+    // Keep the twin surface agreeing without a whole-pane refresh.
+    NSPopUpButton *twin = sender == _waveformPopUp ? _listWaveformPopUp : _waveformPopUp;
+    [twin selectItemAtIndex:[twin indexOfItemWithRepresentedObject:identifier]];
 }
 
 - (void)waveformThemeChanged:(id)sender {
@@ -1483,11 +1546,12 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
     } else {
         [theme setPlaylistSelectedRowColor:sender.color forDark:(sender == _selectedRowDarkWell)];
     }
-    // Background wells rebuild the playlist background; the playing/selected
-    // row fills are read per draw and only need a redraw (the lighter bit).
+    // Both take a lighter bit than the full PlaylistAppearance rebuild: the
+    // background is one layer color the cells never read, and the
+    // playing/selected row fills are read per draw and only need a redraw.
     BOOL background = sender == _playlistBackgroundDarkWell
             || sender == _playlistBackgroundLightWell;
-    [self themeFieldDidChange:background ? VibeSettingsLiveEffectPlaylistAppearance
+    [self themeFieldDidChange:background ? VibeSettingsLiveEffectPlaylistBackground
                                          : VibeSettingsLiveEffectPlaylistRowFills];
 }
 
@@ -1510,19 +1574,23 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 
 #pragma mark - Editor: fonts
 
-- (NSFont *)currentFontForSlot:(VibeThemeFontSlot)slot {
+// Exhaustive, no default: a new slot unhandled here must fail the build, not
+// silently edit the title. None never arrives — both callers guard it — and
+// falls through to the title's answer.
+- (NSFont *)currentFontForSlot:(VibeFontSlot)slot {
     switch (slot) {
-        case VibeThemeFontSlotInfo:     return [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
-        case VibeThemeFontSlotPlaylist: return [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
-        case VibeThemeFontSlotPlaylistDuration:
+        case VibeFontSlotInfo:     return [Fonts infoFont:kVibeThemeInfoFontBaseSize bold:NO];
+        case VibeFontSlotPlaylist: return [Fonts playlistFont:kVibeThemePlaylistFontBaseSize];
+        case VibeFontSlotPlaylistDuration:
             return [Fonts playlistDurationFont:kVibeThemePlaylistDurationFontBaseSize];
-        case VibeThemeFontSlotArtist:   return [Fonts artistFont:kVibeThemeArtistFontBaseSize];
-        default:                        return [Fonts titleFont:kVibeThemeTitleFontBaseSize];
+        case VibeFontSlotArtist:   return [Fonts artistFont:kVibeThemeArtistFontBaseSize];
+        case VibeFontSlotNone:
+        case VibeFontSlotTitle:    return [Fonts titleFont:kVibeThemeTitleFontBaseSize];
     }
 }
 
 - (void)selectFont:(NSButton *)sender {
-    _fontEditingSlot = (VibeThemeFontSlot)sender.tag;
+    _fontEditingSlot = (VibeFontSlot)sender.tag;
     // TRAP: a focused field editor is an NSTextView, which implements
     // changeFont: and would eat the panel's sends to restyle the Name field —
     // park first responder on the pane's own view before opening the panel.
@@ -1540,29 +1608,32 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 // free. The store clamps the size; face names resolve through Fonts'
 // never-nil fallback at draw time.
 - (void)changeFont:(NSFontManager *)sender {
-    if (_fontEditingSlot == VibeThemeFontSlotNone) {
+    if (_fontEditingSlot == VibeFontSlotNone) {
         return;
     }
     NSFont *font = [sender convertFont:[self currentFontForSlot:_fontEditingSlot]];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    // Exhaustive, no default — same rule as currentFontForSlot:. None was
+    // guarded above.
     switch (_fontEditingSlot) {
-        case VibeThemeFontSlotInfo:
+        case VibeFontSlotInfo:
             theme.infoFontFace = font.fontName;
             theme.infoFontSize = font.pointSize;
             break;
-        case VibeThemeFontSlotPlaylist:
+        case VibeFontSlotPlaylist:
             theme.playlistFontFace = font.fontName;
             theme.playlistFontSize = font.pointSize;
             break;
-        case VibeThemeFontSlotPlaylistDuration:
+        case VibeFontSlotPlaylistDuration:
             theme.playlistDurationFontFace = font.fontName;
             theme.playlistDurationFontSize = font.pointSize;
             break;
-        case VibeThemeFontSlotArtist:
+        case VibeFontSlotArtist:
             theme.artistFontFace = font.fontName;
             theme.artistFontSize = font.pointSize;
             break;
-        default:
+        case VibeFontSlotNone:
+        case VibeFontSlotTitle:
             theme.titleFontFace = font.fontName;
             theme.titleFontSize = font.pointSize;
             break;
@@ -1579,7 +1650,7 @@ static NSColor *DefaultCustomUnplayedColor(BOOL isDark) {
 // page would take the panel's next pick. Every caller is a page leave or a
 // switch to a built-in.
 - (void)closeEditorPanels {
-    _fontEditingSlot = VibeThemeFontSlotNone;
+    _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];
     }

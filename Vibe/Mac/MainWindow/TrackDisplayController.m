@@ -410,11 +410,11 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         // The key sits at the tail, after the separator when both are shown.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
         [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
-        // Bold is derived from the field's own themed font rather than asked
-        // of a slot with the field's size, which would double the size offset.
+        // The slot's reference base IS this field's size, so this is the
+        // field's exact bold sibling — asking with the field's own themed
+        // font size would double the slot's size offset.
         [line addAttribute:NSFontAttributeName
-                     value:[NSFontManager.sharedFontManager convertFont:_bpmTextField.font
-                                                            toHaveTrait:NSBoldFontMask]
+                     value:[Fonts infoFont:kVibeThemeInfoFontBaseSize bold:YES]
                      range:range];
     }
     _bpmTextField.attributedStringValue = line;

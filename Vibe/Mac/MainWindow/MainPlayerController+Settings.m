@@ -66,7 +66,14 @@
         [self.trackDisplay refitTitle];
     }
     if (effects & VibeSettingsLiveEffectPlaylistRowFills) {
-        [self.playlistController redrawVisibleRowFills];
+        // PlaylistRowView reads its themed fill per draw, so a row-fill color
+        // change needs only a repaint, never a cell rebuild.
+        [self.playlistTableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
+            rowView.needsDisplay = YES;
+        }];
+    }
+    if (effects & VibeSettingsLiveEffectPlaylistBackground) {
+        [self.playerContentView applyPlaylistBackground];
     }
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
         [PlaylistTableView invalidateCellAttributes];

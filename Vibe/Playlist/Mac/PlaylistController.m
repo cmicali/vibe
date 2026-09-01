@@ -503,12 +503,6 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }];
 }
 
-- (void)redrawVisibleRowFills {
-    [self.tableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
-        rowView.needsDisplay = YES;
-    }];
-}
-
 #pragma mark - Cell population
 
 - (BOOL)isCurrentEqualizerRowVisible {

@@ -457,4 +457,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
     return playedTop > 0 ? CGColorGetAlpha(self.theme.unplayedColor.CGColor) / playedTop : 1;
 }
 
+- (BOOL)supportsEnvelopeBake {
+    return YES;
+}
+
 @end

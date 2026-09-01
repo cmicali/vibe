@@ -7,6 +7,20 @@
 
 @class AppTheme;
 
+// The five themed slots, one spelling shared by the slot storage here and the
+// theme editor's font panel. None is deliberately zero, so a zero-filled ivar
+// or an unset control tag reads as no slot, never as the title.
+typedef NS_ENUM(NSInteger, VibeFontSlot) {
+    VibeFontSlotNone = 0,
+    VibeFontSlotTitle,
+    VibeFontSlotArtist,
+    VibeFontSlotInfo,
+    VibeFontSlotPlaylist,
+    VibeFontSlotPlaylistDuration,
+};
+// Array bound for per-slot storage indexed by VibeFontSlot (entry 0 unused).
+#define kVibeFontSlotCount 6
+
 // The app's typography in one place: all text goes through font:/font:bold:
 // (Helvetica Neue), except digit displays (times, bitrate, pitch readout)
 // which use fontForNumbers: (monospaced-digit system font) so values don't

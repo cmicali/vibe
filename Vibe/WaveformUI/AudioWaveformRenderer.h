@@ -139,6 +139,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 - (void)setHoverHighlightX:(CGFloat)x;
 @property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
 
+// Whether the settled envelope can be baked into a bitmap pixel-identical to
+// this renderer's live tree (the Detailed family's envelope-image API, used by
+// the iOS scrubber's fast path). The base answers NO; a subclass that changes
+// its gradient aim or played-fill quantization must answer for its own bake —
+// which is why Basic overrides this back to NO despite subclassing Detailed.
+@property (readonly) BOOL supportsEnvelopeBake;
+
 @end
 
 NS_ASSUME_NONNULL_END

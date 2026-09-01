@@ -26,6 +26,15 @@ static const NSUInteger kBasicMaxBars = 1024;
     return STR_WAVEFORM_STYLE_BASIC;
 }
 
+// Class-wise a Detailed subclass, but the bake paints Detailed's band-pinned
+// gradient, not this style's re-aimed fade, and crops the played side
+// continuously where this style's fill advances a whole block at a time. The
+// scrubber's gate used to test isKindOfClass:Detailed, which let this style
+// through and baked both wrong.
+- (BOOL)supportsEnvelopeBake {
+    return NO;
+}
+
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBasicBarPitch);
     return MIN(MAX(count, (NSUInteger)2), kBasicMaxBars);

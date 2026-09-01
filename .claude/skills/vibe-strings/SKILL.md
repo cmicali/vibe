@@ -56,7 +56,7 @@ Extraction is deliberately NOT a build phase: Xcode has **no build-time String C
 
 ## ThemeNames.xcstrings
 
-`Resources/ThemeNames.xcstrings` (table `ThemeNames`) is the third catalog and, like `InfoPlist.xcstrings`, is **hand-managed** — extraction never touches it, and no `STR_*` macro is involved. Keys are built-in theme *identifiers* (`industrial`); the value overlays the theme JSON's English `name` per language via `localizedStringForKey:value:table:` in `AppSettings.displayNameForThemeIdentifier:`. A theme with no entry ships its JSON name everywhere — a theme added by pull request needs no catalog work. Adding a translation means adding the key with **every** catalog language; `make check-translations` covers this catalog on the same terms as the other two.
+`Resources/ThemeNames.xcstrings` (table `ThemeNames`) is the third catalog and, like `InfoPlist.xcstrings`, is **hand-managed** — extraction never touches it, and no `STR_*` macro is involved. Keys are built-in theme *identifiers* (`technical`); the value overlays the theme JSON's English `name` per language via `localizedStringForKey:value:table:` in `AppSettings.displayNameForThemeIdentifier:`. A theme with no entry ships its JSON name everywhere — a theme added by pull request needs no catalog work. Adding a translation means adding the key with **every** catalog language; `make check-translations` covers this catalog on the same terms as the other two.
 
 ## InfoPlist.xcstrings
 

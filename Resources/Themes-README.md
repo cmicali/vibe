@@ -2,7 +2,7 @@
 
 Every `<identifier>.json` in `Resources/Themes/` ships in the app as a read-only
 built-in theme. **The filename stem is the theme's stable identifier**
-(lowercase snake_case, e.g. `adolescent_engineering.json`); the `name` key is
+(lowercase snake_case, e.g. `sonic_cirrus.json`); the `name` key is
 its English display name. Adding a theme is adding one file here — no code
 changes, no project edits.
 
@@ -43,11 +43,14 @@ factory look, and a test pins it.
 ## Default artwork
 
 `player.defaultArtworkDark`/`defaultArtworkLight` pick the placeholder drawn
-when a track has no artwork, one per appearance like every color pair: a
-bundled name (a square JPEG or PNG dropped in `art/` here — the stem is the
-name), or `custom:<sha1>.<ext>` for an image the user picked in the app. A
-theme carrying a custom image exports as a **ZIP** of `theme.json` plus the
-image(s), and imports the same way (each image is re-validated and re-hashed
-on import). Built-in themes may only name bundled art — the validation test
-enforces that, and that every file in `art/` is square and within the pixel
-and byte caps.
+when a track has no artwork, one per appearance like every color pair:
+`bundled:<name>.<ext>` for a square JPEG or PNG beside the built-in JSON,
+`custom:<sha1>.<ext>` for an image the user picked in the app, or `""` for the
+factory record image. A theme carrying a custom image exports as a **ZIP** of
+`theme.json` plus the image(s), and imports the same way (each image is
+re-validated and re-hashed on import). In a hand-made ZIP an image reference
+may simply be the basename of an entry in the archive — `cover_dark.png`,
+with the `custom:` prefix optional — and is normalized to the stored
+`custom:<sha1>.<ext>` form on import. Built-in themes may only use bundled
+references; the validation test enforces that each file resolves, is square,
+and stays within the pixel and byte caps.

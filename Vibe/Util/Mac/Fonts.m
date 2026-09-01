@@ -67,34 +67,30 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
 
 #pragma mark Themed slots
 
-typedef NS_ENUM(NSInteger, VibeFontSlot) {
-    VibeFontSlotTitle = 0,
-    VibeFontSlotInfo,
-    VibeFontSlotPlaylist,
-    VibeFontSlotPlaylistDuration,
-    VibeFontSlotArtist,
-};
-
 // The slots' reference bases — the sizes their reference sites pass — and the
-// pushed configuration. All access is under @synchronized(Fonts.class): not
-// every caller is on the main thread, same as the caches above.
-static const CGFloat kSlotBase[5] = {kVibeThemeTitleFontBaseSize, kVibeThemeInfoFontBaseSize,
-                                     kVibeThemePlaylistFontBaseSize,
-                                     kVibeThemePlaylistDurationFontBaseSize,
-                                     kVibeThemeArtistFontBaseSize};
-static NSString *slotFace[5];
-static CGFloat slotOffset[5];
+// pushed configuration, indexed by VibeFontSlot (Fonts.h; entry None unused).
+// All access is under @synchronized(Fonts.class): not every caller is on the
+// main thread, same as the caches above.
+static const CGFloat kSlotBase[kVibeFontSlotCount] = {
+    [VibeFontSlotTitle]            = kVibeThemeTitleFontBaseSize,
+    [VibeFontSlotArtist]           = kVibeThemeArtistFontBaseSize,
+    [VibeFontSlotInfo]             = kVibeThemeInfoFontBaseSize,
+    [VibeFontSlotPlaylist]         = kVibeThemePlaylistFontBaseSize,
+    [VibeFontSlotPlaylistDuration] = kVibeThemePlaylistDurationFontBaseSize,
+};
+static NSString *slotFace[kVibeFontSlotCount];
+static CGFloat slotOffset[kVibeFontSlotCount];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
 + (void)applyThemeFonts:(AppTheme *)theme {
-    NSString *faces[5] = {
+    NSString *faces[kVibeFontSlotCount] = {
         [VibeFontSlotTitle]            = theme.titleFontFace,
         [VibeFontSlotArtist]           = theme.artistFontFace,
         [VibeFontSlotInfo]             = theme.infoFontFace,
         [VibeFontSlotPlaylist]         = theme.playlistFontFace,
         [VibeFontSlotPlaylistDuration] = theme.playlistDurationFontFace,
     };
-    CGFloat sizes[5] = {
+    CGFloat sizes[kVibeFontSlotCount] = {
         [VibeFontSlotTitle]            = theme.titleFontSize,
         [VibeFontSlotArtist]           = theme.artistFontSize,
         [VibeFontSlotInfo]             = theme.infoFontSize,
@@ -102,7 +98,7 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
         [VibeFontSlotPlaylistDuration] = theme.playlistDurationFontSize,
     };
     @synchronized (self) {
-        for (NSUInteger slot = 0; slot < 5; slot++) {
+        for (NSInteger slot = VibeFontSlotNone + 1; slot < kVibeFontSlotCount; slot++) {
             slotFace[slot] = faces[slot].length ? faces[slot] : nil;
             slotOffset[slot] = sizes[slot] - kSlotBase[slot];
         }

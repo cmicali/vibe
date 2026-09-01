@@ -1,0 +1,50 @@
+{
+  "version" : 1,
+  "name" : "Field",
+  "description" : "Portable-instrument minimalism: warm gray plastic and charcoal grounds, one orange accent for everything that moves, flat waveform, mono readouts. The bundled record placeholder is drawn on the same grounds so a track with no artwork still looks like part of the device.",
+  "window" : {
+    "backgroundColorDark" : "#1B1B1A",
+    "backgroundColorLight" : "#E3E2DD",
+    "backgroundStyle" : "solid",
+    "cornerRadius" : 10,
+    "tint" : "mono"
+  },
+  "player" : {
+    "artistColorDark" : "#8F8E88",
+    "artistColorLight" : "#6E6D68",
+    "defaultArtworkDark" : "bundled:field_dark.png",
+    "defaultArtworkLight" : "bundled:field_light.png",
+    "titleColorDark" : "#EAE9E4",
+    "titleColorLight" : "#1A1A18",
+    "titleFontFace" : "Helvetica-Bold",
+    "titleFontSize" : 22
+  },
+  "info" : {
+    "colorDark" : "#74736E",
+    "colorLight" : "#82817C",
+    "fontFace" : "Menlo-Regular",
+    "fontSize" : 12,
+    "timeColorDark" : "#FF5A1E",
+    "timeColorLight" : "#C93E0D"
+  },
+  "waveform" : {
+    "gradient" : false,
+    "playedColorDark" : "#FF5A1E",
+    "playedColorLight" : "#E8490F",
+    "style" : "detailed",
+    "theme" : "custom",
+    "unplayedColorDark" : "#3E3D3A",
+    "unplayedColorLight" : "#B6B5AF"
+  },
+  "playlist" : {
+    "backgroundColorDark" : "#141413",
+    "backgroundColorLight" : "#D9D8D2",
+    "backgroundStyle" : "solid",
+    "durationFontFace" : "Menlo-Regular",
+    "durationFontSize" : 11,
+    "playingRowColorDark" : "#FF5A1E30",
+    "playingRowColorLight" : "#E8490F26",
+    "selectedRowColorDark" : "#FFFFFF1F",
+    "selectedRowColorLight" : "#0000001A"
+  }
+}
