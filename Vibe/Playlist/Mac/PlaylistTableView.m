@@ -198,11 +198,20 @@ static NSTextField *makeCellTextField(NSRect frame) {
 // the item enables exactly while the table can honor it — it could not when
 // the table was single-selection, and an enabled item that does nothing when
 // clicked is worse than a disabled one.
+//
+// TRAP: there is no super to call. validateMenuItem: is a protocol method,
+// not an inherited one, and NSTableView, NSView and NSResponder all lack an
+// implementation — so [super validateMenuItem:] throws the moment any
+// nil-targeted item other than Select All reaches here, which is every other
+// action the table answers to (print:, deselectAll:). NSTableView does
+// implement validateUserInterfaceItem:, and an NSMenuItem is an
+// NSValidatedUserInterfaceItem, so the rest goes there: AppKit's own answer
+// for its own actions rather than a blanket YES.
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if (menuItem.action == @selector(selectAll:)) {
         return self.allowsMultipleSelection;
     }
-    return [super validateMenuItem:menuItem];
+    return [super validateUserInterfaceItem:menuItem];
 }
 
 // Builds the table's cell prototypes in code. makeViewWithIdentifier returns
