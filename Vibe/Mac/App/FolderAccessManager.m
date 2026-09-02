@@ -314,19 +314,26 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
 
 // Background thread. Resolves and starts the scope; the main-thread caller
 // merges the result and only then marks this remembered path settled.
+// TRAP: WithoutMounting and WithoutUI are load-bearing. Nobody asked for this
+// resolve, so a grant on a server that is not mounted must fail here and now:
+// without them the resolver tries the mount itself, which can raise a connect
+// dialog at every launch and pin this lane for the automounter timeout.
 - (NSDictionary *)resolveStoredEntry:(NSDictionary *)stored {
     NSData *bookmark = stored[kEntryBookmarkKey];
     BOOL stale = NO;
     NSError *error;
+    NSURLBookmarkResolutionOptions options = NSURLBookmarkResolutionWithSecurityScope
+            | NSURLBookmarkResolutionWithoutMounting
+            | NSURLBookmarkResolutionWithoutUI;
     NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
-                                           options:NSURLBookmarkResolutionWithSecurityScope
+                                           options:options
                                      relativeToURL:nil
                                bookmarkDataIsStale:&stale
                                              error:&error];
     if (!url) {
         // The folder may be gone or its volume unmounted. Keep the entry: it
         // stays in the pane as VibeGrantedFolderStateUnavailable, where it can
-        // be removed, and resolves again by itself if the volume comes back.
+        // be removed, and resolves again at the next launch if the volume is back.
         LogWarn(@"Granted folder failed to resolve (%@): %@", stored[kEntryPathKey], error);
         return nil;
     }

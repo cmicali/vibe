@@ -27,6 +27,8 @@ The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unrea
 
 **A row's state costs no I/O to know.** `grantedFolders` answers `VibeGrantedFolderState` per row — `Active`, `Restoring` or `Unavailable` — from the resolve the manager already did. **Never stat a row to decide that**: `viewForTableColumn:` runs on the main thread for every reload, and a dead path's mount can block a stat for an automounter timeout.
 
+**TRAP: launch resolution never mounts a volume or shows UI** (`NSURLBookmarkResolutionWithoutMounting | WithoutUI`). Nobody asked for it, so a grant on a server that is not mounted fails at once and sits Unavailable until a launch finds the volume mounted; without the flags the resolver tries the mount itself, which can raise a connect dialog at every launch and pin a utility lane for the automounter timeout.
+
 **TRAP: an unresolved stored bookmark is not authority.** A stored row is visible immediately but authorizes nothing until restoration has started its security scope. Folder art never probes a directory the app holds no *active* grant for — unasked-for background work must never raise a permission panel. `FolderAccessManagerDidChangeNotification` is what says a scope has settled.
 
 **TRAP: inside the sandbox, both `NSHomeDirectory` and `NSHomeDirectoryForUser` answer with the container**, which silently turns the ~/Music rule into a test against a path no music sits under. `+realHomeDirectory` uses `getpwuid`, the documented way to the on-disk home.
