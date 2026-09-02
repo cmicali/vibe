@@ -33,6 +33,26 @@ static NSString *const kWellSet = @"set";
 static NSString *const kWellEffect = @"effect";
 static NSString *const kWellDark = @"dark";
 
+// TRAP: the editor page's document view must be FLIPPED. An unflipped one
+// puts the document's top at its maxY — a moving target — while the clip view
+// keeps its bounds origin across geometry changes, so every relayout stranded
+// the content further off the top edge: the first card's top slid from its
+// correct 86 points to 72, then to 28 on a pane switch away and back, then to
+// -132 after a window resize, each time hiding more of the page under the
+// toolbar with no scroll gesture involved. Auto layout is flip-agnostic, so
+// the stack lays out identically either way; only the clip's idea of where
+// the top is changes.
+@interface SettingsEditorStackView : NSStackView
+@end
+
+@implementation SettingsEditorStackView
+
+- (BOOL)isFlipped {
+    return YES;
+}
+
+@end
+
 // The corner-radius slider, with a tick above and below the track at the
 // factory default — the visual for the action's magnetic detent. NSSlider's
 // own tick marks are evenly spaced and single-sided, so the pair is drawn
@@ -457,7 +477,12 @@ static NSString *const kWellDark = @"dark";
     ];
 
     _nameRow.showsTopSeparator = NO;
-    _editorStack = [NSStackView stackViewWithViews:sections];
+    SettingsEditorStackView *editorStack =
+            [[SettingsEditorStackView alloc] initWithFrame:NSZeroRect];
+    for (NSView *section in sections) {
+        [editorStack addArrangedSubview:section];
+    }
+    _editorStack = editorStack;
     _editorStack.orientation = NSUserInterfaceLayoutOrientationVertical;
     _editorStack.alignment = NSLayoutAttributeLeading;
     _editorStack.spacing = 20;
@@ -495,8 +520,9 @@ static NSString *const kWellDark = @"dark";
         [scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
-        // Top-pinned in the clip view: an unflipped documentView otherwise
-        // gravity-anchors at the bottom.
+        // The standard vertical-scroll pinning — top, leading and width, the
+        // height left to the content. What keeps the resting position at the
+        // top through a relayout is the document view being flipped, above.
         [_editorStack.topAnchor constraintEqualToAnchor:scroll.contentView.topAnchor],
         [_editorStack.leadingAnchor constraintEqualToAnchor:scroll.contentView.leadingAnchor],
         [_editorStack.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor],

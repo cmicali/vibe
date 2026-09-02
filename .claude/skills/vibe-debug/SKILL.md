@@ -205,7 +205,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — LIVE enabled/checkmark
 "$V" --debug-cmd click_menu menu_show_pitch   # {ok, clicked, action} — by identifier (preferred) or exact title
-"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, key} — opens the Settings window, creating it, and selects a pane by identifier (general|playback|appearance|convert|permissions|advanced), index or displayed title; bare `settings_open` just opens it. See The settings window below
+"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key} — opens the Settings window, creating it, and selects a pane by identifier (general|playback|appearance|convert|permissions|advanced), index or displayed title; bare `settings_open` just opens it. See The settings window below
 "$V" --debug-cmd dump_settings_ui             # {pane, paneTitle, panes, controls: [{index, kind, name, label, enabled, rect, + the live value}], window, sheet} — every control of the SELECTED pane
 "$V" --debug-cmd settings_click "Detect key" on  # {ok, control, kind, action, + the live value} — activates one control of the selected pane BY NAME, no coordinates
 "$V" --debug-cmd settings_close               # {ok, open, endedSheet} — ends an attached sheet first, then closes

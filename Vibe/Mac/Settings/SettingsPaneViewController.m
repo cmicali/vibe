@@ -119,18 +119,28 @@ static const CGFloat kInlineBadgeGap = 8;
             initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
     view.darkColor = NSColor.clearColor;
     view.lightColor = NSColor.whiteColor;
-    // TRAP: the pane carries NO size constraints of its own — the view just
-    // tracks the window through the tab view's edge pins. Any pane-side size
-    // constraint, equality or minimum, re-enters the fitting-size snap: the
-    // constraint engine re-sizes a contentViewController window to its
-    // content's fitting size after every layout pass, so a user's drag
-    // snapped straight back to the constrained answer (observed with both
-    // forms). That includes preferredContentSize itself: macOS 26.5 turns a
-    // nonzero one into equality constraints on this view at priority 501,
-    // which pinned the window (sharedPaneSize in the header). The shared size
-    // lives in that plain property alone; the tab controller turns it into
-    // the window's contentMinSize and grows an undersized window, and
-    // AppKit's own resize clamp holds the floor under a user drag.
+    // TRAP: the pane carries NO size constraints of its own — the view
+    // follows the tab view by autoresizing mask, the frame NSTabView hands
+    // every selected item view. It cannot lean on the host's constraints:
+    // the tab controller pins only the item selected before the window
+    // existed, and every later selection runs its transition path, which
+    // sets a frame and adds nothing — so a pane that opted out of the mask
+    // collapsed to its fitting size the moment it was selected second (zero
+    // height, the rows drawn hanging below it): no click landed inside it,
+    // and the theme editor, pinned to the pane's bottom, had no height. Any
+    // pane-side size constraint, equality or minimum, re-enters the
+    // fitting-size snap: the constraint engine re-sizes a
+    // contentViewController window to its content's fitting size after
+    // every layout pass, so a user's drag snapped straight back to the
+    // constrained answer (observed with both forms). That includes
+    // preferredContentSize itself: macOS 26.5 turns a nonzero one into
+    // equality constraints on this view at priority 501, which pinned the
+    // window (sharedPaneSize in the header). The shared size lives in that
+    // plain property alone; the tab controller turns it into the window's
+    // contentMinSize and grows an undersized window, and AppKit's own resize
+    // clamp holds the floor under a user drag.
+    view.translatesAutoresizingMaskIntoConstraints = YES;
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     _sharedPaneSize = paneSize;
 
     [view addSubview:stack];

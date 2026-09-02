@@ -692,12 +692,21 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
     if (!selected) {
         return VibeErrorJSON(@"no pane is selected");
     }
+    // After a layout flush: whether the pane's view fills the tab view is
+    // the one thing dump_settings_ui cannot show — a pane collapsed to its
+    // fitting size (loadPaneWithSections:'s autoresizing trap) still drew
+    // every control and reported a plausible rect while no click could land.
+    [window.contentView layoutSubtreeIfNeeded];
+    NSView *paneView = selected.viewController.view;
     return VibeJSONString(@{
         @"ok": @YES,
         @"pane": VibePaneIdentifier(selected),
         @"paneTitle": selected.label ?: @"",
         @"panes": VibePaneList(tabs),
         @"frame": NSStringFromRect(window.frame),
+        @"paneFrame": NSStringFromRect(paneView.frame),
+        @"paneFillsTabView": @(paneView.superview != nil
+                && NSEqualRects(paneView.frame, paneView.superview.bounds)),
         @"key": @(window.isKeyWindow),
     });
 }
