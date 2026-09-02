@@ -30,7 +30,7 @@
 
 // The single way to preempt the generation-tagged ramps. Clearing
 // _pausePending belongs with the bump: the preempted pause fade's completion
-// also clears it, but up to one fade step (~2.5ms) later, and a playPause
+// also clears it, but up to one fade step (1 ms) later, and a playPause
 // inside that window would take the "cancel pending pause" path and ramp the
 // preemptor's node to full instead of pausing it.
 - (uint64_t)preemptRampsOnQueue {

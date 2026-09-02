@@ -60,8 +60,6 @@ NS_ASSUME_NONNULL_BEGIN
 // What the strip shows when there is no waveform — the loading indicator and
 // the empty-state line — is AudioWaveformView+Loading.h, declared where it is
 // implemented.
-
-- (void)updateAppearance;
 @end
 
 @protocol AudioWaveformViewDelegate <NSObject>

@@ -16,8 +16,6 @@
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #import "AudioDeviceManager.h"
-#import "AudioDevice.h"
-#import "CoreAudioUtil.h"
 #endif
 #import "AudioFileOpenTimeoutMath.h"
 #import "PlaybackDeliveryRules.h"
@@ -223,31 +221,22 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return self;
 }
 
-- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
-    NSParameterAssert(loadingConfiguration);
-    dispatch_block_t apply = ^{
-        self->_loadingConfiguration = [loadingConfiguration copy];
-    };
+// The one home for the same-queue guard every synchronous accessor needs:
+// the queue key is set on _queue at init, so a caller already there runs the
+// block inline rather than deadlocking on itself.
+- (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block {
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        apply();
+        block();
+        return;
     }
-    else {
-        dispatch_sync(_queue, apply);
-    }
+    dispatch_sync(_queue, block);
 }
 
-- (AudioLoadingConfiguration *)loadingConfiguration {
-    __block AudioLoadingConfiguration *configuration;
-    dispatch_block_t read = ^{
-        configuration = self->_loadingConfiguration;
-    };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        read();
-    }
-    else {
-        dispatch_sync(_queue, read);
-    }
-    return configuration;
+- (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+    NSParameterAssert(loadingConfiguration);
+    [self runSyncOnQueue:^{
+        self->_loadingConfiguration = [loadingConfiguration copy];
+    }];
 }
 
 // Runs on _queue. Creates the engine and wires the master bus, applying the
@@ -1116,7 +1105,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 - (BOOL)playingIntentAfterPendingCommands {
     __block BOOL playing = NO;
-    dispatch_block_t read = ^{
+    [self runSyncOnQueue:^{
         if (self->_state == VibePlayerStateLoading) {
             // The mirror the public predicates answer from, not the pending
             // request: one fact, so this and isPlaying/isPaused cannot
@@ -1125,13 +1114,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             return;
         }
         playing = self->_state == VibePlayerStatePlaying && !self->_pausePending;
-    };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        read();
-    }
-    else {
-        dispatch_sync(_queue, read);
-    }
+    }];
     return playing;
 }
 
@@ -1275,6 +1258,19 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 #pragma mark - Debug introspection
 
 #if DEBUG
+
+// Debug-only: dump_audio_loading compares the three consumers' snapshots —
+// the materialization coordinator's, the metadata cache's and this one — and
+// nothing in the app reads the player's back. The read runs on _queue beside
+// applyLoadingConfiguration:'s write.
+- (AudioLoadingConfiguration *)loadingConfiguration {
+    __block AudioLoadingConfiguration *configuration;
+    [self runSyncOnQueue:^{
+        configuration = self->_loadingConfiguration;
+    }];
+    return configuration;
+}
+
 - (BOOL)manualRenderingActive {
     return _manualPump != nil;
 }
@@ -1282,20 +1278,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts {
     // Reading these off the queue would race every attach, detach and fade
     // retirement, which is exactly the code these numbers are meant to audit.
-    // The same-queue guard mirrors dealloc's: a caller already on _queue would
-    // deadlock.
-    NSDictionary *(^counts)(void) = ^NSDictionary *{
-        return @{@"attachedNodes": @(self->_engine.attachedNodes.count),
-                 @"retiredFades": @(self->_retiredFades.count)};
-    };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        return counts();
-    }
-    __block NSDictionary *result = nil;
-    dispatch_sync(_queue, ^{
-        result = counts();
-    });
-    return result;
+    __block NSDictionary *counts = nil;
+    [self runSyncOnQueue:^{
+        counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
+                   @"retiredFades": @(self->_retiredFades.count)};
+    }];
+    return counts;
 }
 
 static NSString *VibeAudioLevelNormalizationModeName(
@@ -1317,7 +1305,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
             && normalizationMode != VibeAudioLevelNormalizationModeBalancedSpectrum) {
         return;
     }
-    void (^applyMode)(void) = ^{
+    [self runSyncOnQueue:^{
         if (self->_levelNormalizationMode == normalizationMode) {
             return;
         }
@@ -1329,34 +1317,23 @@ static NSString *VibeAudioLevelNormalizationModeName(
         if (self->_levelsWanted) {
             [self applyLevelTapOnQueue];
         }
-    };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        applyMode();
-        return;
-    }
-    dispatch_sync(_queue, applyMode);
+    }];
 }
 
 - (NSDictionary<NSString *, id> *)debugEqualizerState {
-    NSDictionary *(^snapshot)(void) = ^NSDictionary *{
-        NSMutableDictionary<NSString *, id> *state =
+    __block NSDictionary *state = nil;
+    [self runSyncOnQueue:^{
+        NSMutableDictionary<NSString *, id> *snapshot =
                 [[self->_levelPublisher debugState] mutableCopy];
-        state[@"requested"] = @(self->_levelsWanted);
-        state[@"tapObject"] = @(self->_levelTap != nil);
-        state[@"retiredOutputCount"] = @(self->_activeRetiredOutputCount);
-        state[@"outputAudioActive"] = @(self.outputAudioActive);
-        state[@"normalizationMode"] =
+        snapshot[@"requested"] = @(self->_levelsWanted);
+        snapshot[@"tapObject"] = @(self->_levelTap != nil);
+        snapshot[@"retiredOutputCount"] = @(self->_activeRetiredOutputCount);
+        snapshot[@"outputAudioActive"] = @(self.outputAudioActive);
+        snapshot[@"normalizationMode"] =
                 VibeAudioLevelNormalizationModeName(self->_levelNormalizationMode);
-        return state;
-    };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        return snapshot();
-    }
-    __block NSDictionary *result = nil;
-    dispatch_sync(_queue, ^{
-        result = snapshot();
-    });
-    return result;
+        state = snapshot;
+    }];
+    return state;
 }
 #endif
 

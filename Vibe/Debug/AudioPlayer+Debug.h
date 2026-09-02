@@ -14,6 +14,24 @@
 
 @interface AudioPlayer (Debug)
 
+// The player's own copy of the loading configuration, for dump_audio_loading's
+// three-way comparison against the materialization coordinator's and the
+// metadata cache's. Nothing in the app reads it back — the player is told its
+// configuration, it is never asked.
+- (AudioLoadingConfiguration *)loadingConfiguration;
+
+// The current file's channel count, for dump_state. Nothing in the app asks
+// the player for one.
+- (NSUInteger)numChannels;
+
+#if TARGET_OS_OSX
+// The HAL device the output unit is actually bound to, for dump_state's
+// outputDeviceId; implemented in AudioPlayer+Devices.m with the rest of that
+// macOS-only layer. Reads the engine on _queue, where every other engine touch
+// in the app runs — the command channel calls this from main.
+- (NSInteger)currentlyActiveAudioDeviceId;
+#endif
+
 // Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone
 // does not prove it: enableManualRenderingMode can fail, and the engine then
 // opens the output device exactly as usual. Written once during the async init;

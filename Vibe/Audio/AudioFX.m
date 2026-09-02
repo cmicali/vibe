@@ -134,9 +134,6 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     // and parameter mutation runs here, as every other engine touch in the app
     // does.
     dispatch_queue_t        _queue;
-    // nil until installInEngine:. The appliers no-op before then, and the
-    // install pass re-applies the recorded intent.
-    AVAudioEngine           *_engine;
     // Guards the intent flags and delayTapBPM. The ramp generations are
     // queue-confined and need no lock.
     os_unfair_lock          _stateLock;
@@ -189,8 +186,6 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 }
 
 - (void)installInEngine:(AVAudioEngine *)engine {
-    _engine = engine;
-
     // Master-bus low kill: mainMixer -> EQ -> and so on. The explicit connects
     // below replace the implicit mixer-to-output one. Both bands stay live for
     // the engine's lifetime, never bypassed (see kLowKillParkedHz), parked
@@ -445,9 +440,10 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // delay-line state into the signal, an audible click (see kLowKillParkedHz).
 // "Off" is purely the cutoff parked below the audible band.
 - (void)applyLowKillTargetOnQueue {
-    // TRAP: the guard is the NODE, never _engine. installInEngine: publishes
-    // _engine as its first statement and mints the nodes further down, so an
-    // _engine guard is already open over the window it claims to close.
+    // TRAP: the guard is the NODE, and the class deliberately keeps no engine
+    // handle to guard on instead. One would be published at the top of
+    // installInEngine: and the nodes minted further down, so it would already
+    // be open over the window it claims to close.
     if (!_lowKillEQ) {
         return; // Not installed yet. installInEngine: re-applies it.
     }
@@ -516,8 +512,8 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // mid-ramp preempts through the counter and continues from the current gate
 // level.
 - (void)applySendGateOnQueue:(AVAudioMixerNode *)gate enabled:(BOOL)enabled level:(float)level swellRatio:(float)swellRatio counter:(uint64_t *)counter {
-    // The gate, not _engine: see the trap at applyDelayTapOnQueue. The gate is
-    // what this ramps, and it is the thing that may not exist yet.
+    // The gate, not an engine handle: see the trap at applyDelayTapOnQueue.
+    // The gate is what this ramps, and it is the thing that may not exist yet.
     if (!gate) {
         return; // Not installed yet. installInEngine: re-applies it.
     }
@@ -643,10 +639,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // AVAudioUnitDelay caps delayTime at two seconds, so the 1/8-note send's lanes
 // pin there below an effective 30 BPM, well beyond any real tempo.
 - (void)applyDelayTapOnQueue {
-    // TRAP: the guard is the SENDS, never _engine — and here it is load-bearing
-    // rather than merely tidy. installInEngine: publishes _engine as its first
-    // statement and mints the sends further down, so an _engine guard leaves
-    // that window open, and the array literal below raises on a nil element.
+    // TRAP: the guard is the SENDS, and here it is load-bearing rather than
+    // merely tidy: the array literal below raises on a nil element. An engine
+    // handle would be no guard at all — published at the top of
+    // installInEngine: with the sends minted further down, it would leave
+    // exactly that window open — which is why the class keeps none.
     if (!_delayEighth || !_delaySixteenth) {
         return; // Not installed yet. installInEngine: re-applies it.
     }

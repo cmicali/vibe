@@ -285,6 +285,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                             error:(nullable NSError *)error
                      openRequestId:(uint64_t)openId;
 
+// Runs block beside the mutable state and returns only once it has: inline
+// when the caller is already on _queue, because dispatch_sync onto our own
+// queue deadlocks. Every accessor reachable from both sides funnels through
+// here rather than copying the guard.
+- (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
+
 - (void)resetToStoppedStateOnQueue;
 // Forgets every reference bound to the current engine without messaging it;
 // the iOS media-services-reset rebuild's first half.

@@ -452,10 +452,6 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 @implementation AudioPlayer (Devices)
 
-- (NSInteger)currentlyActiveAudioDeviceId {
-    return (NSInteger)[self activeOutputDeviceID];
-}
-
 - (void)setOutputDevice:(NSInteger)outputDeviceID {
     dispatch_async(_queue, ^{
         // System Output is a policy intent, so it supersedes a saved concrete
@@ -482,5 +478,21 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         // claim it did.
     });
 }
+
+#pragma mark - Debug
+
+#if DEBUG
+// Debug-only, declared in AudioPlayer+Debug.h: dump_state's outputDeviceId is
+// the one caller. The queue hop is the point — activeOutputDeviceID reads the
+// engine's output node, and the command channel calls this from main, while
+// every other engine touch in the app runs on _queue.
+- (NSInteger)currentlyActiveAudioDeviceId {
+    __block AudioDeviceID deviceID = kAudioObjectUnknown;
+    [self runSyncOnQueue:^{
+        deviceID = [self activeOutputDeviceID];
+    }];
+    return (NSInteger)deviceID;
+}
+#endif
 
 @end

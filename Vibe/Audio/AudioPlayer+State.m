@@ -70,12 +70,15 @@
     return (NSTimeInterval)file.length / sampleRate;
 }
 
+#if DEBUG
+// Debug-only, declared in AudioPlayer+Debug.h: dump_state is the one caller.
 - (NSUInteger)numChannels {
     os_unfair_lock_lock(&_stateLock);
     AVAudioFile *file = _file;
     os_unfair_lock_unlock(&_stateLock);
     return file.processingFormat.channelCount;
 }
+#endif
 
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);

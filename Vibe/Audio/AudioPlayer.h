@@ -93,8 +93,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-@property (nonatomic, copy, readonly) AudioLoadingConfiguration *loadingConfiguration;
-
 // Replaces the immutable snapshot used by future opens and prefetch
 // decisions. An open already in flight keeps its timeout snapshot and active
 // work is never cancelled. Main-thread callers may use this as a synchronous
@@ -206,7 +204,6 @@ NS_ASSUME_NONNULL_BEGIN
 // and duration read 0 during Loading, meaning unknown rather than zero.
 - (BOOL)isLoading;
 
-- (NSUInteger)numChannels;
 - (NSTimeInterval)duration;
 
 @end
@@ -218,8 +215,6 @@ NS_ASSUME_NONNULL_BEGIN
 // part of AudioPlayer.
 #if TARGET_OS_OSX
 @interface AudioPlayer (Devices)
-
-- (NSInteger)currentlyActiveAudioDeviceId;
 
 // outputDeviceID is a CoreAudio AudioDeviceID held as an NSInteger, or -1 to
 // follow the system default output. It is not a menu or array index. Device
