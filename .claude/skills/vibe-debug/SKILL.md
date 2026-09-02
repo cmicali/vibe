@@ -417,7 +417,7 @@ The window's appearance is `AppSettings.windowAppearanceStyle` (Auto follows the
 
 A theme's color *mode* is separate (`AppTheme.mode`): single-mode themes use one color per field in every appearance — drive it via `import_theme`/`set_theme`. Do not use `defaults write com.commonwealthrecordings.Vibe …`. The sandboxed app's prefs live in its container, so a shell `defaults` call can trip the "access data from other apps" TCC prompt.
 
-Equivalently toggle with `"$V" --debug-cmd click_menu view_appearance_light`, and likewise `view_appearance_dark` and `view_appearance_system_default`. Test both modes for any color or material change, and use real capture, path 2, to verify backgrounds. The app's window appearance is independent of the system's: a light window over a dark system is a supported, and once buggy, combination.
+Test both modes for any color or material change, and use real capture, path 2, to verify backgrounds. The app's window appearance is independent of the system's: a light window over a dark system is a supported, and once buggy, combination.
 
 ## OS-level input path: hover states and focus semantics
 

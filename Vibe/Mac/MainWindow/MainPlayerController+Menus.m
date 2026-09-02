@@ -30,13 +30,6 @@
         case VibeMenuValidationDomainWindowSize:
             [self applyWindowSizeStateToMenuItem:menuItem];
             return YES;
-        case VibeMenuValidationDomainAppearance:
-            [self applyAppearanceStateToMenuItem:menuItem];
-            // A theme that pins the window's appearance ignores this
-            // setting (AppSettings.windowAppearance folds the pin in);
-            // disable it there so the checkmark can't assert a state the
-            // window contradicts.
-            return AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
             // TRAP: hiding a parent does not disable its descendants. The menu
@@ -95,19 +88,6 @@
     MainWindow *window = (MainWindow *)self.window;
     menuItem.state = StateForBOOL(window.contentWidth ==
             [MainPlayerController contentWidthForSizeIdentifier:menuItem.identifier]);
-}
-
-- (void)applyAppearanceStateToMenuItem:(NSMenuItem *)menuItem {
-    NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
-    if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceSystem]) {
-        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
-    }
-    else if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceLight]) {
-        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
-    }
-    else if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceDark]) {
-        menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
-    }
 }
 
 // One checkmark per effect. The controls outlive any single track, but become

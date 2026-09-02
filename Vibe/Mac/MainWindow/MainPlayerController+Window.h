@@ -72,8 +72,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)applyWindowChrome;
 - (void)applyWindowBackground;
 
-// View > Appearance, dispatching on the menu item's identifier and storing it.
-- (IBAction)setAppearance:(id)sender;
 // Applies the already-stored appearance without writing it.
 - (void)applyStoredAppearance;
 

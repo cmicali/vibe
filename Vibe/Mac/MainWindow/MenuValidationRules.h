@@ -30,7 +30,6 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     VibeMenuValidationDomainViewToggle,
     // The width presets, checkmarked against the body's current width.
     VibeMenuValidationDomainWindowSize,
-    VibeMenuValidationDomainAppearance,
     // Next/previous/play-selected/skip: the items that go unavailable at the
     // ends of a playlist, with nothing loaded, or with the player stopped.
     VibeMenuValidationDomainTransport,
@@ -58,10 +57,6 @@ static NSString *const kVibeMenuShowPlaylist = @"menu_show_playlist";
 static NSString *const kVibeMenuShowPitch = @"menu_show_pitch";
 static NSString *const kVibeMenuShowFileInfo = @"menu_show_file_info";
 static NSString *const kVibeMenuAlwaysOnTop = @"menu_always_on_top";
-
-static NSString *const kVibeMenuAppearanceSystem = @"view_appearance_system_default";
-static NSString *const kVibeMenuAppearanceLight = @"view_appearance_light";
-static NSString *const kVibeMenuAppearanceDark = @"view_appearance_dark";
 
 static NSString *const kVibeMenuNextTrack = @"menu_next_track";
 static NSString *const kVibeMenuPreviousTrack = @"menu_previous_track";
@@ -157,11 +152,6 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
             || [identifier isEqualToString:kVibeMenuShowFileInfo]
             || [identifier isEqualToString:kVibeMenuAlwaysOnTop]) {
         return VibeMenuValidationDomainViewToggle;
-    }
-    if ([identifier isEqualToString:kVibeMenuAppearanceSystem]
-            || [identifier isEqualToString:kVibeMenuAppearanceLight]
-            || [identifier isEqualToString:kVibeMenuAppearanceDark]) {
-        return VibeMenuValidationDomainAppearance;
     }
     if ([identifier isEqualToString:kVibeMenuNextTrack]
             || [identifier isEqualToString:kVibeMenuPreviousTrack]

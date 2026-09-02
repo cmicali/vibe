@@ -316,11 +316,7 @@ def user_settings_restore(channel, snapshot: dict, imported_themes=()):
         channel.run(["set_theme", theme])
     appearance = snapshot.get("windowAppearance")
     if appearance:
-        # The set_appearance verb, not a menu click: it takes exactly the
-        # values dump_state reports, where the menu path needed a per-value
-        # item id — and the guessed view_appearance_system did not exist (the
-        # real item is view_appearance_system_default), so every run ended on
-        # whatever the last random flip chose.
+        # The set_appearance verb takes exactly the values dump_state reports.
         code, payload, _ = channel.run(["set_appearance", appearance])
         if code != 0 or not (payload or {}).get("ok"):
             print(f"  warning: could not restore appearance {appearance!r}",
@@ -436,9 +432,7 @@ FX_ON_OFF = [
 TRANSPORT_KEYS = ["space", "p", "left", "right", "up", "down"]
 HELD_FX_KEYS = ["w", "e", "r", "t"]
 
-APPEARANCE_MENU_IDS = [
-    "view_appearance_light", "view_appearance_dark", "view_appearance_system_default",
-]
+APPEARANCE_VALUES = ["light", "dark", "system"]
 EQUALIZER_MODES = ["balanced", "activity", "spectrum"]
 # The only three set_audio_loading keys that are not diagnostic-only, so the
 # only ones whose churn changes what the app actually does.
@@ -935,9 +929,7 @@ class OpGenerator:
         between an artwork delivery and its install is the case the
         colour-ownership guarantee is written for.
         """
-        return [("appearance",
-                 ["click_menu", self.rng.choice(APPEARANCE_MENU_IDS)],
-                 ["disabled", "no menu item"])]
+        return [("appearance", ["set_appearance", self.rng.choice(APPEARANCE_VALUES)], [])]
 
     # -- themes -------------------------------------------------------------
 
@@ -960,8 +952,7 @@ class OpGenerator:
             return self.op_appearance()
         ops = [("theme", ["set_theme", self.rng.choice(self.themes)], ["unknown theme"])]
         if self.rng.random() < 0.5:
-            ops.append(("appearance",
-                        ["set_appearance", self.rng.choice(["light", "dark", "system"])], []))
+            ops.append(("appearance", ["set_appearance", self.rng.choice(APPEARANCE_VALUES)], []))
         return ops
 
     def op_theme_import(self):

@@ -283,22 +283,6 @@
     [self.playerContentView setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
 }
 
-- (IBAction)setAppearance:(id)sender {
-    if (![sender isKindOfClass:NSMenuItem.class]) {
-        return;
-    }
-    NSMenuItem *item = sender;
-    NSString *value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-    if ([item.identifier isEqualToString:kVibeMenuAppearanceLight]) {
-        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-    }
-    else if ([item.identifier isEqualToString:kVibeMenuAppearanceDark]) {
-        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
-    }
-    AppSettings.sharedInstance.windowAppearanceStyle = value;
-    [self applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
-}
-
 // The whole themed window shape in one pass: the contentView mask that
 // shapes the window, the glass backdrop, the header panel pieces, the solid
 // background cover, and the pitch panel's drawn right-edge corners.

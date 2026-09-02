@@ -16742,7 +16742,7 @@
       "extractionState": "manual"
     },
     "menu.view.appearance": {
-      "comment": "View menu: submenu choosing the light/dark appearance; also the Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for all three.",
+      "comment": "The Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for both.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16928,7 +16928,7 @@
       "extractionState": "manual"
     },
     "menu.view.appearance.dark": {
-      "comment": "Appearance choice, View menu and Settings: always use the dark appearance.",
+      "comment": "Appearance choice in Settings: always use the dark appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17114,7 +17114,7 @@
       "extractionState": "manual"
     },
     "menu.view.appearance.light": {
-      "comment": "Appearance choice, View menu and Settings: always use the light appearance.",
+      "comment": "Appearance choice in Settings: always use the light appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -17300,7 +17300,7 @@
       "extractionState": "manual"
     },
     "menu.view.appearance.system": {
-      "comment": "Appearance choice, View menu and Settings: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.",
+      "comment": "Appearance choice in Settings: follow the system's light/dark setting. macOS System Settings names this choice Auto, beside Light and Dark — use the same word.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39622,12 +39622,6 @@
     "settings.appearance.waveform_normalize": {
       "comment": "Settings, Appearance pane, Waveform group: switch that scales each track's waveform so its loudest passage draws at full height, whatever the file's mastering level. The audio term, as in normalizing a recording's level.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Normalize"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -39656,6 +39650,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Κανονικοποίηση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normalize"
           }
         },
         "es": {
@@ -39808,12 +39808,6 @@
     "settings.appearance.waveform_normalize_caption": {
       "comment": "Settings, Appearance pane, Waveform group: caption under the Normalize switch, saying what it does.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Draw every track with its loudest passage at full height."
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -39842,6 +39836,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Σχεδιάζει κάθε κομμάτι με το πιο δυνατό του σημείο σε πλήρες ύψος."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw every track with its loudest passage at full height."
           }
         },
         "es": {

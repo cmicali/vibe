@@ -339,11 +339,6 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddItem(sizeMenu, STR_MENU_SIZE_LARGE, @selector(setWindowSize:), player, @"", 0,
             VibeWindowSizeMenuIdentifier(VibeWindowSizePresetLarge));
 
-    NSMenu *appearanceMenu = Submenu(viewMenu, STR_MENU_VIEW_APPEARANCE).submenu;
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceSystem);
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceLight);
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceDark);
-
     AddSeparator(viewMenu);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, kVibeMenuAlwaysOnTop);
 }

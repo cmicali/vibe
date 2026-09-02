@@ -30,10 +30,6 @@
                               kVibeMenuShowFileInfo, kVibeMenuAlwaysOnTop]
                    classify:VibeMenuValidationDomainViewToggle];
 
-    [self assertIdentifiers:@[kVibeMenuAppearanceSystem, kVibeMenuAppearanceLight,
-                              kVibeMenuAppearanceDark]
-                   classify:VibeMenuValidationDomainAppearance];
-
     [self assertIdentifiers:@[kVibeMenuNextTrack, kVibeMenuPreviousTrack, kVibeMenuPlaySelected,
                               kVibeMenuSkipForward, kVibeMenuSkipForwardMore,
                               kVibeMenuSkipForwardMost, kVibeMenuSkipBack,
@@ -83,7 +79,7 @@
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
                               @"remove_clicked_track_from_playlist",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
-                              @"view_appearance", kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
+                              kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
                               // The retired style family and the app-delegate-
                               // targeted Edit tail both deliberately classify
                               // as nobody's, as does the identifier a second

@@ -52,7 +52,6 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 - **Show File Info** — a checkmarked preference flipping the current theme's `showFileInfo` (default on) through the store's persist funnel, then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
 - **Always on Top** — flips `AppSettings.alwaysOnTop`, then requests the shared `AlwaysOnTop` settings effect.
 - **Size** (Small, Default, Large) — snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
-- **Appearance** (System, Light, Dark) — `setAppearance:` writes `AppSettings.windowAppearanceStyle`, a common setting deliberately outside the theme (root `CLAUDE.md`); the checkmarks read it back.
 
 ## FX
 
