@@ -26,35 +26,35 @@
 }
 
 - (void)testEveryBuilderOwnedIdentifierHasADomain {
-    [self assertIdentifiers:@[@"menu_show_playlist", @"menu_show_pitch",
-                              @"menu_show_file_info", @"menu_always_on_top"]
+    [self assertIdentifiers:@[kVibeMenuShowPlaylist, kVibeMenuShowPitch,
+                              kVibeMenuShowFileInfo, kVibeMenuAlwaysOnTop]
                    classify:VibeMenuValidationDomainViewToggle];
 
-    [self assertIdentifiers:@[@"view_appearance_system_default", @"view_appearance_light",
-                              @"view_appearance_dark"]
+    [self assertIdentifiers:@[kVibeMenuAppearanceSystem, kVibeMenuAppearanceLight,
+                              kVibeMenuAppearanceDark]
                    classify:VibeMenuValidationDomainAppearance];
 
-    [self assertIdentifiers:@[@"menu_next_track", @"menu_previous_track", @"menu_play_selected",
-                              @"menu_skip_forward", @"menu_skip_forward_more",
-                              @"menu_skip_forward_most", @"menu_skip_back",
-                              @"menu_skip_back_more", @"menu_skip_back_most"]
+    [self assertIdentifiers:@[kVibeMenuNextTrack, kVibeMenuPreviousTrack, kVibeMenuPlaySelected,
+                              kVibeMenuSkipForward, kVibeMenuSkipForwardMore,
+                              kVibeMenuSkipForwardMost, kVibeMenuSkipBack,
+                              kVibeMenuSkipBackMore, kVibeMenuSkipBackMost]
                    classify:VibeMenuValidationDomainTransport];
 
-    [self assertIdentifiers:@[@"menu_fx_low_kill", @"menu_fx_low_kill_boost", @"menu_fx_reverb",
-                              @"menu_fx_delay", @"menu_fx_short_delay"]
+    [self assertIdentifiers:@[kVibeMenuFXLowKill, kVibeMenuFXLowKillBoost, kVibeMenuFXReverb,
+                              kVibeMenuFXDelay, kVibeMenuFXShortDelay]
                    classify:VibeMenuValidationDomainFX];
 
-    [self assertIdentifiers:@[@"pitch_range_8", @"pitch_range_16"]
+    [self assertIdentifiers:@[kVibeMenuPitchRange8, kVibeMenuPitchRange16]
                    classify:VibeMenuValidationDomainPitchRange];
 
-    [self assertIdentifiers:@[@"menu_play", @"menu_close", @"show_in_finder"]
+    [self assertIdentifiers:@[kVibeMenuPlay, kVibeMenuClose, kVibeMenuShowInFinder]
                    classify:VibeMenuValidationDomainFile];
 
-    [self assertIdentifiers:@[@"menu_edit_undo", @"menu_edit_redo", @"menu_edit_copy_file",
-                              @"menu_edit_copy_name", @"menu_edit_remove_from_playlist"]
+    [self assertIdentifiers:@[kVibeMenuEditUndo, kVibeMenuEditRedo, kVibeMenuEditCopyFile,
+                              kVibeMenuEditCopyName, kVibeMenuEditRemoveFromPlaylist]
                    classify:VibeMenuValidationDomainEdit];
 
-    [self assertIdentifiers:@[@"menu_convert_to_flac", @"menu_convert_delete_original"]
+    [self assertIdentifiers:@[kVibeMenuConvertToFLAC, kVibeMenuConvertDeleteOriginal]
                    classify:VibeMenuValidationDomainConvert];
 }
 
@@ -83,11 +83,11 @@
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
                               @"remove_clicked_track_from_playlist",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
-                              @"view_appearance", @"view_theme", @"view_size", @"", @"menu_",
+                              @"view_appearance", kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
                               // The retired style family and the app-delegate-
                               // targeted Edit tail both deliberately classify
                               // as nobody's.
-                              @"waveform_style_detailed", @"menu_edit_themes"]
+                              @"waveform_style_detailed", kVibeMenuEditThemes]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }

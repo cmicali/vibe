@@ -73,16 +73,16 @@
 // should go unavailable.
 - (void)applyViewToggleStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
-    if ([menuItem.identifier isEqualToString:@"menu_show_playlist"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuShowPlaylist]) {
         menuItem.state = StateForBOOL(window.isPlaylistShown);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_show_pitch"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuShowPitch]) {
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuShowFileInfo]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.currentTheme.showFileInfo);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuAlwaysOnTop]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
     }
 }
@@ -97,13 +97,13 @@
 
 - (void)applyAppearanceStateToMenuItem:(NSMenuItem *)menuItem {
     NSString *style = AppSettings.sharedInstance.windowAppearanceStyle;
-    if ([menuItem.identifier isEqualToString:@"view_appearance_system_default"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceSystem]) {
         menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT);
     }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_light"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceLight]) {
         menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT);
     }
-    else if ([menuItem.identifier isEqualToString:@"view_appearance_dark"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuAppearanceDark]) {
         menuItem.state = StateForString(style, SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK);
     }
 }
@@ -112,29 +112,29 @@
 // unavailable together when their stored setting hides the FX menu.
 - (void)applyFXStateToMenuItem:(NSMenuItem *)menuItem {
     AudioFX *fx = self.audioPlayer.fx;
-    if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuFXLowKill]) {
         menuItem.state = StateForBOOL(fx.lowKillEnabled);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_fx_low_kill_boost"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuFXLowKillBoost]) {
         menuItem.state = StateForBOOL(fx.lowKillBoostActive);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_fx_reverb"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuFXReverb]) {
         menuItem.state = StateForBOOL(fx.reverbSendEnabled);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_fx_delay"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuFXDelay]) {
         menuItem.state = StateForBOOL(fx.delaySendEnabled);
     }
-    else if ([menuItem.identifier isEqualToString:@"menu_fx_short_delay"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuFXShortDelay]) {
         menuItem.state = StateForBOOL(fx.shortDelaySendEnabled);
     }
 }
 
 - (void)applyPitchRangeStateToMenuItem:(NSMenuItem *)menuItem {
     NSInteger range = AppSettings.sharedInstance.pitchRange;
-    if ([menuItem.identifier isEqualToString:@"pitch_range_8"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuPitchRange8]) {
         menuItem.state = StateForBOOL(range == 8);
     }
-    else if ([menuItem.identifier isEqualToString:@"pitch_range_16"]) {
+    else if ([menuItem.identifier isEqualToString:kVibeMenuPitchRange16]) {
         menuItem.state = StateForBOOL(range == 16);
     }
 }
@@ -158,13 +158,13 @@
 - (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
     // Only when there really is a track after the current one. At the end of
     // the playlist, next: is a no-op.
-    if ([menuItem.identifier isEqualToString:@"menu_next_track"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuNextTrack]) {
         return self.playlistController.hasNextTrack;
     }
-    if ([menuItem.identifier isEqualToString:@"menu_previous_track"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuPreviousTrack]) {
         return self.playlistController.hasPreviousTrack;
     }
-    if ([menuItem.identifier isEqualToString:@"menu_play_selected"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuPlaySelected]) {
         return [self hasVisiblePlaylistSelection];
     }
     // The skips need both a loaded track and a player that is not stopped:
@@ -174,7 +174,7 @@
 }
 
 - (BOOL)validateFileMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"menu_play"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuPlay]) {
         // The action is playPause:, so mirror the toggle in the title and
         // icon, as standard macOS players do. During Loading, isPlaying
         // follows whether the pending open will start or park.
@@ -184,42 +184,42 @@
                                    accessibilityDescription:menuItem.title];
         return self.playlistController.count > 0;
     }
-    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
         // Nil-targeted, so the key window's closeFile: target owns both the
         // action and this shared item's title. Settings and About restore the
         // singular title in their own validators.
         return self.playlistController.count > 0;
     }
-    return self.playlistController.currentTrack.url != nil;   // show_in_finder
+    return self.playlistController.currentTrack.url != nil;   // kVibeMenuShowInFinder
 }
 
 - (BOOL)validateEditMenuItem:(NSMenuItem *)menuItem {
     // NSUndoManager's own state and titles, never a stat; an emptied Trash
     // surfaces only when the restore runs.
-    if ([menuItem.identifier isEqualToString:@"menu_edit_undo"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) {
         menuItem.title = self.window.undoManager.undoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canUndo;
     }
-    if ([menuItem.identifier isEqualToString:@"menu_edit_redo"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) {
         menuItem.title = self.window.undoManager.redoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canRedo;
     }
     // The one structural edit: it acts on the SELECTED row, so it shares Play
     // Selected Track's whole gate — key window included.
-    if ([menuItem.identifier isEqualToString:@"menu_edit_remove_from_playlist"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) {
         return [self hasVisiblePlaylistSelection];
     }
     // The Copy items act on the current track, like Show in Finder.
-    if ([menuItem.identifier isEqualToString:@"menu_edit_copy_file"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditCopyFile]) {
         return self.playlistController.currentTrack.url != nil;
     }
-    return self.playlistController.currentTrack != nil;   // menu_edit_copy_name
+    return self.playlistController.currentTrack != nil;   // kVibeMenuEditCopyName
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
     // A preference, not an action, so never disabled.
-    if ([menuItem.identifier isEqualToString:@"menu_convert_delete_original"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuConvertDeleteOriginal]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
         return YES;
     }
@@ -237,7 +237,7 @@
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    if (![menu.identifier isEqualToString:@"view_theme"]) {
+    if (![menu.identifier isEqualToString:kVibeMenuThemeSubmenu]) {
         return;
     }
     // Rebuilt whole on every open: themes are added, renamed and removed at
@@ -265,7 +265,7 @@
     NSMenuItem *edit = [[NSMenuItem alloc] initWithTitle:STR_MENU_VIEW_EDIT_THEMES
                                                   action:@selector(showThemeSettings:)
                                            keyEquivalent:@""];
-    edit.identifier = @"menu_edit_themes";
+    edit.identifier = kVibeMenuEditThemes;
     [menu addItem:edit];
 }
 

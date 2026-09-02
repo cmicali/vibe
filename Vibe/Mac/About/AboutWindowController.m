@@ -4,6 +4,7 @@
 //
 
 #import "AboutWindowController.h"
+#import "MenuValidationRules.h"
 #import "VectorBallsView.h"
 #import "VibeLinkLabel.h"
 #import "Fonts.h"
@@ -155,7 +156,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
 // The player may have named the shared nil-targeted item "Close All Files"
 // during its previous validation. This target closes one auxiliary window.
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
     }
     return YES;

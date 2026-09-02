@@ -120,17 +120,17 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
 + (NSMenuItem *)copyNameItemWithTarget:(id)target {
     return SymbolItem(STR_MENU_EDIT_COPY_NAME, @"textformat", @selector(copyName:),
-                      target, @"", 0, @"menu_edit_copy_name");
+                      target, @"", 0, kVibeMenuEditCopyName);
 }
 
 + (NSMenuItem *)copyFileItemWithTarget:(id)target {
     return SymbolItem(STR_MENU_EDIT_COPY_FILE, @"doc.on.doc", @selector(copyFile:),
-                      target, @"", 0, @"menu_edit_copy_file");
+                      target, @"", 0, kVibeMenuEditCopyFile);
 }
 
 + (NSMenuItem *)convertToFLACItemWithTarget:(id)target {
     return SymbolItem(STR_MENU_CONVERT_TO_FLAC, @"arrow.triangle.2.circlepath",
-                      @selector(convertCurrentTrackToFLAC:), target, @"", 0, @"menu_convert_to_flac");
+                      @selector(convertCurrentTrackToFLAC:), target, @"", 0, kVibeMenuConvertToFLAC);
 }
 // One method per top-level menu, in the order they appear in the bar, so a
 // change to the View menu is a change to one method rather than a scroll
@@ -194,7 +194,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Nil-targeted so ⌘W follows the key window: the main window's chain
     // reaches the player's closeFile:; Settings and About intercept it and
     // close themselves instead.
-    AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), nil, @"w", NSEventModifierFlagCommand, @"menu_close");
+    AddSymbolItem(fileMenu, STR_MENU_FILE_CLOSE, @"xmark", @selector(closeFile:), nil, @"w", NSEventModifierFlagCommand, kVibeMenuClose);
 }
 
 + (void)buildEditMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
@@ -209,9 +209,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     VibeEditMenuCleaner *editMenuCleaner = [VibeEditMenuCleaner new];
     editItem.representedObject = editMenuCleaner;
     editMenu.delegate = editMenuCleaner;
-    AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, @"menu_edit_undo");
+    AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, kVibeMenuEditUndo);
     // ⇧⌘Z — capital "Z", same contract as Copy Name's "C" below.
-    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), player, @"Z", NSEventModifierFlagCommand, @"menu_edit_redo");
+    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), player, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     // The cleaner keeps only menu_edit_*-identified items, the separator
     // included.
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
@@ -242,7 +242,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(editMenu, STR_MENU_EDIT_REMOVE_FROM_PLAYLIST, @"minus.circle",
                   @selector(removeSelectedPlaylistTracks:), player,
                   [NSString stringWithFormat:@"%C", (unichar)NSBackspaceCharacter], 0,
-                  @"menu_edit_remove_from_playlist");
+                  kVibeMenuEditRemoveFromPlaylist);
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_select";
     // The one Edit item with NO explicit target: ⌘A has to reach whichever
@@ -258,35 +258,35 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 + (void)buildPlaybackMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // Playback
     NSMenu *playbackMenu = Submenu(mainMenu, STR_MENU_PLAYBACK).submenu;
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, @"menu_play");
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"b", 0, @"menu_previous_track");
-    AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"n", 0, @"menu_next_track");
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PLAY, @"play.fill", @selector(playPause:), player, @" ", 0, kVibeMenuPlay);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_PREVIOUS, @"backward.end.fill", @selector(previous:), player, @"b", 0, kVibeMenuPreviousTrack);
+    AddSymbolItem(playbackMenu, STR_TRANSPORT_NEXT, @"forward.end.fill", @selector(next:), player, @"n", 0, kVibeMenuNextTrack);
     // Bare Return, the keyboard twin of a double-click on the row. It is
     // enabled only while the playlist is showing and a row is selected; see
     // the Menus category. TransportKeyMonitor handles the press itself, like
     // every other bare key here.
     AddSymbolItem(playbackMenu, STR_MENU_PLAY_SELECTED, @"play.circle", @selector(playSelectedTrack:), player,
-                  [NSString stringWithFormat:@"%c", NSCarriageReturnCharacter], 0, @"menu_play_selected");
+                  [NSString stringWithFormat:@"%c", NSCarriageReturnCharacter], 0, kVibeMenuPlaySelected);
     AddSeparator(playbackMenu);
 
     // Bare A, S, D, Z, X and C, like the other transport keys, at mask 0.
     // TransportKeyMonitor actually handles them, and the key equivalents here
     // are for display and as the fallback path. They are enabled only with a
     // track loaded; see the Menus category.
-    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"a", 0, @"menu_skip_forward");
-    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"s", 0, @"menu_skip_forward_more");
-    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"d", 0, @"menu_skip_forward_most");
-    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK, @"backward", @selector(skipBack:), player, @"z", 0, @"menu_skip_back");
-    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MORE, @selector(skipBackMore:), player, @"x", 0, @"menu_skip_back_more");
-    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MOST, @selector(skipBackMost:), player, @"c", 0, @"menu_skip_back_most");
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_FORWARD, @"forward", @selector(skipForward:), player, @"a", 0, kVibeMenuSkipForward);
+    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MORE, @selector(skipForwardMore:), player, @"s", 0, kVibeMenuSkipForwardMore);
+    AddItem(playbackMenu, STR_MENU_SKIP_FORWARD_MOST, @selector(skipForwardMost:), player, @"d", 0, kVibeMenuSkipForwardMost);
+    AddSymbolItem(playbackMenu, STR_MENU_SKIP_BACK, @"backward", @selector(skipBack:), player, @"z", 0, kVibeMenuSkipBack);
+    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MORE, @selector(skipBackMore:), player, @"x", 0, kVibeMenuSkipBackMore);
+    AddItem(playbackMenu, STR_MENU_SKIP_BACK_MOST, @selector(skipBackMost:), player, @"c", 0, kVibeMenuSkipBackMost);
     AddSeparator(playbackMenu);
 
     NSString *pitchRangeTitle = STR_MENU_PITCH_RANGE;
     NSMenuItem *pitchRangeItem = Submenu(playbackMenu, pitchRangeTitle);
     pitchRangeItem.image = [NSImage imageWithSystemSymbolName:@"slider.vertical.3" accessibilityDescription:pitchRangeTitle];
     NSMenu *pitchRangeMenu = pitchRangeItem.submenu;
-    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, @"pitch_range_8");
-    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, @"pitch_range_16");
+    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange8);
+    AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange16);
 }
 
 + (void)buildFXMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
@@ -303,12 +303,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
         NSMenuItem *fxItem = Submenu(mainMenu, STR_MENU_FX);
         fxItem.identifier = @"menu_fx";
         NSMenu *fxMenu = fxItem.submenu;
-        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", @"menu_fx_low_kill");
-        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", @"menu_fx_low_kill_boost");
+        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", kVibeMenuFXLowKill);
+        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", kVibeMenuFXLowKillBoost);
         AddSeparator(fxMenu);
-        AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", @"menu_fx_reverb");
-        AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", @"menu_fx_delay");
-        AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", @"menu_fx_short_delay");
+        AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", kVibeMenuFXReverb);
+        AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
+        AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
         [self applyFXMenuVisibility:fxItem];
     }
 }
@@ -316,13 +316,13 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 + (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
     // View
     NSMenu *viewMenu = Submenu(mainMenu, STR_MENU_VIEW).submenu;
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, @"menu_show_playlist");
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, @"menu_show_pitch");
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, @"menu_show_file_info");
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PLAYLIST, @"list.dash", @selector(toggleSize:), player, [NSString stringWithFormat:@"%c", NSTabCharacter], 0, kVibeMenuShowPlaylist);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_PITCH_CONTROL, @"slider.vertical.3", @selector(togglePitchPanel:), player, @"p", 0, kVibeMenuShowPitch);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_FILE_INFO, @"info.circle", @selector(toggleFileInfo:), player, @"", 0, kVibeMenuShowFileInfo);
     AddSeparator(viewMenu);
 
     NSMenu *themeMenu = Submenu(viewMenu, STR_MENU_VIEW_THEME).submenu;
-    themeMenu.identifier = @"view_theme";
+    themeMenu.identifier = kVibeMenuThemeSubmenu;
     themeMenu.autoenablesItems = NO;
     themeMenu.delegate = player; // fills in the themes and the Edit tail
 
@@ -338,12 +338,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
             VibeWindowSizeMenuIdentifier(VibeWindowSizePresetLarge));
 
     NSMenu *appearanceMenu = Submenu(viewMenu, STR_MENU_VIEW_APPEARANCE).submenu;
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, @"view_appearance_system_default");
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, @"view_appearance_light");
-    AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, @"view_appearance_dark");
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_SYSTEM, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceSystem);
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_LIGHT, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceLight);
+    AddItem(appearanceMenu, STR_MENU_APPEARANCE_DARK, @selector(setAppearance:), player, @"", 0, kVibeMenuAppearanceDark);
 
     AddSeparator(viewMenu);
-    AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, @"menu_always_on_top");
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, kVibeMenuAlwaysOnTop);
 }
 
 + (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
@@ -356,7 +356,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     // A checkmarked preference rather than an action, so it is always enabled.
-    AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, @"menu_convert_delete_original");
+    AddSymbolItem(convertMenu, STR_MENU_CONVERT_DELETE_ORIGINAL, @"trash", @selector(toggleDeleteOriginalAfterConvert:), player, @"", 0, kVibeMenuConvertDeleteOriginal);
     [self applyConvertMenuVisibility:convertItem];
 }
 

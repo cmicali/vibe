@@ -109,7 +109,7 @@
                                                    symbolName:@"folder"
                                                        action:@selector(showInFinder:)
                                                        target:self
-                                                   identifier:@"show_in_finder"]];
+                                                   identifier:kVibeMenuShowInFinder]];
     [contextMenu addItem:[NSMenuItem separatorItem]];
     [contextMenu addItem:[MainMenuBuilder copyNameItemWithTarget:self]];
     [contextMenu addItem:[MainMenuBuilder copyFileItemWithTarget:self]];
@@ -288,10 +288,10 @@
     }
     NSMenuItem *item = sender;
     NSString *value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-    if ([item.identifier isEqualToString:@"view_appearance_light"]) {
+    if ([item.identifier isEqualToString:kVibeMenuAppearanceLight]) {
         value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
     }
-    else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
+    else if ([item.identifier isEqualToString:kVibeMenuAppearanceDark]) {
         value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
     }
     AppSettings.sharedInstance.windowAppearanceStyle = value;

@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerControllerInternal.h"
+#import "MenuValidationRules.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
 #import "AppSettings.h"
@@ -1000,7 +1001,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (IBAction)setPitchRange:(id)sender {
     if ([sender isKindOfClass:[NSMenuItem class]]) {
         NSMenuItem *item = sender;
-        AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:@"pitch_range_16"] ? 16 : 8;
+        AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:kVibeMenuPitchRange16] ? 16 : 8;
         [self applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
     }
 }

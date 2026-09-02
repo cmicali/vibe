@@ -4,6 +4,7 @@
 //
 
 #import "SettingsWindowController.h"
+#import "MenuValidationRules.h"
 #import "AppSettings.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsAboutViewController.h"
@@ -660,7 +661,7 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 // have run through the player and named it "Close All Files", so every other
 // closeFile: target restores the title that describes its own action.
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"menu_close"]) {
+    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
     }
     return YES;
