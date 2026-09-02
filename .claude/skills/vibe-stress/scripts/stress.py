@@ -292,7 +292,8 @@ def user_settings_snapshot(channel) -> dict:
     # the stored empty string, so the three values here are exactly the
     # set_appearance verb's own vocabulary and the restore hands them back
     # verbatim.
-    return {key: settings[key] for key in ("windowAppearance", "activeTheme")
+    return {key: settings[key]
+            for key in ("windowAppearance", "activeTheme", "pauseAtTrackEnd")
             if key in settings}
 
 
@@ -328,6 +329,13 @@ def user_settings_restore(channel, snapshot: dict, imported_themes=()):
     # field of the theme now rather than its own View submenu, so the set_theme
     # above has already put it back. Restoring it here would need a menu item
     # that no longer exists — which is what this used to do, silently.
+    pause = snapshot.get("pauseAtTrackEnd")
+    if pause is not None:
+        channel.run(["set_pause_at_track_end", "on" if pause else "off"])
+    # The analyzer flips end wherever the RNG left them; put the gates back the
+    # way the run forces them at start, per FEATURE_SETTINGS' contract.
+    for argv in FEATURE_SETTINGS.values():
+        channel.run(argv)
 
 
 def launch(corpus: Path, app: Path):
@@ -739,16 +747,77 @@ class OpGenerator:
         pts = [*self.point(), *self.point()]
         return [("drag", ["drag", *[str(p) for p in pts]], [])]
 
-    def op_drag_drop(self):
+    def op_file_drag_drop(self):
         if not self.files:
             return self.op_click()
         x, y = self.point()
-        ops = [("drag_hover", ["drag_hover", str(x), str(y)], [])]
+        ops = [("file_drag_hover", ["file_drag_hover", str(x), str(y)], [])]
         if self.rng.random() < 0.6:
-            ops.append(("drag_drop",
-                        ["drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
+            ops.append(("file_drag_drop",
+                        ["file_drag_drop", str(x), str(y), str(self.rng.choice(self.files))], PATH_REFUSALS))
         else:
-            ops.append(("drag_end", ["drag_end"], []))
+            ops.append(("file_drag_end", ["file_drag_end"], []))
+        return ops
+
+    def op_append(self):
+        """Extend the playlist instead of replacing it. append has its own
+        contract — no cursor touch, FIFO prefetch behind a same-turn play —
+        and the random file_drag_drop only reaches the Add well by coordinate
+        luck."""
+        if not self.files:
+            return self.op_click()
+        return [("append", ["append", str(self.rng.choice(self.files))], PATH_REFUSALS)]
+
+    def op_end_of_track(self):
+        """Flip Settings > Playback > On track end under whatever is armed.
+        The setting is enforced in two places (the successor prefetch answers
+        nil under Pause, and the track-end advance re-reads it), and the write
+        requests the live effect that re-parks or drops an already-armed
+        gapless successor — an arm/unschedule race only a mid-play flip
+        reaches. Snapshot-restored after the run."""
+        return [("end_of_track",
+                 ["set_pause_at_track_end", self.rng.choice(["on", "off"])], [])]
+
+    def op_analysis_flip(self):
+        """Flip a decode-pass analyzer under in-flight loads. The waveform
+        decode reads the setting when it starts, so a mid-run flip races the
+        loader's read and varies which deliveries the next track change must
+        drop. The run's teardown forces both analyzers back on, per
+        FEATURE_SETTINGS' contract."""
+        return [("analysis_flip",
+                 ["set_analysis", self.rng.choice(["bpm", "key"]),
+                  self.rng.choice(["on", "off"])], [])]
+
+    def op_reorder_begin(self):
+        """Start a synthetic row-reorder drag and leave it OPEN.
+
+        begin and finish are separate ops on purpose: whatever the scheduler
+        deals in between — an open that replaces the playlist, a removal, a
+        convert swap, a burst — lands inside a live drag session, which is
+        exactly the mid-drag race family no pointer can stage. A leftover
+        session is cancelled by the next begin, and rows are drawn against a
+        ceiling rather than the live count for playlist_jump's reason: out of
+        range is a tolerated refusal, cheaper than a dump_state per drag.
+        """
+        rows = {self.rng.randrange(0, 24) for _ in range(self.rng.choice([1, 1, 2, 3]))}
+        return [("reorder_begin", ["reorder_begin", *map(str, sorted(rows))],
+                 ["not draggable"])]
+
+    def op_reorder_finish(self):
+        """Resolve whatever drag session is live: probe a slot, then drop or
+        cancel. Without a session these are tolerated refusals, which also
+        keeps the no-session guard exercised."""
+        roll = self.rng.random()
+        if roll < 0.15:
+            return [("reorder_cancel", ["reorder_cancel"], ["no reorder session"])]
+        ops = []
+        if roll < 0.55:
+            ops.append(("reorder_update",
+                        ["reorder_update", str(self.rng.randrange(0, 26))],
+                        ["no reorder session"]))
+        ops.append(("reorder_drop",
+                    ["reorder_drop", str(self.rng.randrange(0, 26))],
+                    ["no reorder session"]))
         return ops
 
     def op_menu(self):
@@ -981,7 +1050,9 @@ class OpGenerator:
 
         The three ways in are deliberately all used: Backspace and Forward
         Delete are physical-key twins that only the key monitor knows apart,
-        and the Edit item is the menu path with its own validation.
+        and the Edit item is the menu path with its own validation. A REPEAT
+        delete sometimes follows, which the monitor must swallow: one gesture
+        takes one selection, and a held key must not walk the playlist.
         """
         ops = self.op_playlist_select()
         if ops and ops[0][0] == "transport":
@@ -991,6 +1062,8 @@ class OpGenerator:
             ["click_menu", "menu_edit_remove_from_playlist"],
         ])
         ops.append(("playlist_remove", gesture, ["disabled", "no menu item"]))
+        if self.rng.random() < 0.1:
+            ops.append(("playlist_remove_repeat", ["key", "delete", "repeat"], []))
         # Undo right behind the edit, while the replacement play it triggered is
         # still settling: the restore is generation-stamped and must die quietly
         # once the playlist it edited has been replaced, rather than reinserting
@@ -1063,13 +1136,15 @@ PROFILES = {
         "cache_churn": 2, "clear_caches": 1,
         "transport": 14, "seek": 8, "pitch": 5,
         "fx": 5, "held_fx": 4, "key": 4,
-        "window": 3, "resize": 3, "click": 4, "drag": 2, "drag_drop": 3,
+        "window": 3, "resize": 3, "click": 4, "drag": 2, "file_drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
+        "reorder_begin": 3, "reorder_finish": 4,
+        "append": 4, "end_of_track": 2, "analysis_flip": 2,
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
         "appearance": 2, "resize_storm": 2,
         "theme": 4, "theme_import": 1,
-        "playlist_select": 2, "playlist_remove": 2, "playlist_move": 2,
+        "playlist_select": 2, "playlist_remove": 4, "playlist_move": 2,
         "undo_storm": 1,
     },
     # Everything pointed at the open path and the async deliveries that race it.
@@ -1078,8 +1153,10 @@ PROFILES = {
         "cache_churn": 6, "clear_caches": 2,
         "transport": 10, "seek": 4, "pitch": 1,
         "fx": 1, "held_fx": 1, "key": 1,
-        "window": 1, "resize": 1, "click": 1, "drag": 0, "drag_drop": 2,
+        "window": 1, "resize": 1, "click": 1, "drag": 0, "file_drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
+        "reorder_begin": 2, "reorder_finish": 3, "playlist_remove": 3,
+        "append": 6, "end_of_track": 1, "analysis_flip": 3,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,
         "theme": 2,
@@ -1098,15 +1175,17 @@ PROFILES = {
         "seek": 8, "pitch": 2,
         "fx": 2, "held_fx": 3, "key": 2,
         "window": 2, "resize": 2, "resize_storm": 8,
-        "click": 2, "drag": 1, "drag_drop": 3,
+        "click": 2, "drag": 1, "file_drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
+        "reorder_begin": 6, "reorder_finish": 8,
+        "append": 8, "end_of_track": 3, "analysis_flip": 4,
         "block_main": 10, "audio_loading": 5, "equalizer_mode": 3,
         "appearance": 3,
         # Structural edits belong in the hammer, not only in their own profile:
         # a removal whose replacement play is still settling when the next open
         # lands on top of it is the shape neither profile reaches alone.
         "theme": 9, "theme_import": 2,
-        "playlist_select": 5, "playlist_remove": 6, "playlist_move": 5,
+        "playlist_select": 5, "playlist_remove": 8, "playlist_move": 5,
         "undo_storm": 3,
     },
     # The folder-artwork fallback: opens through all three resolve strategies
@@ -1119,8 +1198,10 @@ PROFILES = {
         "cache_churn": 3, "clear_caches": 3,
         "transport": 12, "seek": 2, "pitch": 0,
         "fx": 0, "held_fx": 0, "key": 2,
-        "window": 10, "resize": 4, "click": 3, "drag": 0, "drag_drop": 4,
+        "window": 10, "resize": 4, "click": 3, "drag": 0, "file_drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
+        "reorder_begin": 2, "reorder_finish": 2, "playlist_remove": 2,
+        "append": 4, "end_of_track": 0, "analysis_flip": 1,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "appearance": 6, "resize_storm": 3,
         "theme": 3,
@@ -1151,8 +1232,17 @@ PROFILES = {
         "transport": 18, "seek": 6, "pitch": 0,
         "playlist_jump": 18, "burst": 12,
         "fx": 0, "held_fx": 0, "key": 1,
-        "window": 1, "resize": 1, "click": 2, "drag": 0, "drag_drop": 1,
+        "window": 1, "resize": 1, "click": 2, "drag": 0, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
+        # Reorder earns a thin slot here despite the settle budget: moving the
+        # successor away re-parks prefetch, which is a live cloud transfer
+        # being retargeted — a race only this profile can reach.
+        "reorder_begin": 2, "reorder_finish": 2,
+        # playlist_remove is cloud-relevant for the same reason: a removed
+        # row's queued scan work is abandoned mid-transfer, and a removed
+        # current row supersedes a live foreground download.
+        "playlist_remove": 2,
+        "append": 2, "end_of_track": 2, "analysis_flip": 1,
         # Kept deliberately thin. This profile's weights are a measured balance
         # between opens and settles — every op kind added here is a settle not
         # taken, and the sweep needs those seconds. block_main earns its place
@@ -1164,7 +1254,7 @@ PROFILES = {
         # measured balance between opens and settles, and each op added here is
         # a settle not taken. The sweep needs those seconds.
         "theme": 0, "theme_import": 0,
-        "playlist_select": 0, "playlist_remove": 0, "playlist_move": 0,
+        "playlist_select": 0, "playlist_move": 0,
         "undo_storm": 0,
     },
     # No file loading at all: pure UI monkey against whatever is loaded.
@@ -1173,8 +1263,10 @@ PROFILES = {
         "cache_churn": 0, "clear_caches": 0,
         "transport": 10, "seek": 8, "pitch": 10,
         "fx": 10, "held_fx": 8, "key": 8,
-        "window": 8, "resize": 8, "click": 12, "drag": 6, "drag_drop": 0,
+        "window": 8, "resize": 8, "click": 12, "drag": 6, "file_drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
+        "reorder_begin": 5, "reorder_finish": 6, "playlist_remove": 5,
+        "append": 0, "end_of_track": 2, "analysis_flip": 0,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "appearance": 6, "resize_storm": 10,
         "theme": 8,
@@ -1201,7 +1293,7 @@ PROFILES = {
         "cache_churn": 3, "clear_caches": 4,
         "transport": 10, "playlist_jump": 6, "seek": 3, "pitch": 0,
         "fx": 0, "held_fx": 0, "key": 1,
-        "window": 4, "resize": 4, "click": 3, "drag": 1, "drag_drop": 2,
+        "window": 4, "resize": 4, "click": 3, "drag": 1, "file_drag_drop": 2,
         "menu": 2, "undo": 0, "settle": 6, "folder_art": 3,
         "block_main": 5, "audio_loading": 1, "equalizer_mode": 1,
         "theme": 32, "theme_import": 10,
@@ -1228,7 +1320,7 @@ PROFILES = {
         "transport": 16, "playlist_jump": 14, "burst": 4,
         "seek": 4, "pitch": 0,
         "fx": 0, "held_fx": 0, "key": 2,
-        "window": 1, "resize": 3, "click": 2, "drag": 0, "drag_drop": 3,
+        "window": 1, "resize": 3, "click": 2, "drag": 0, "file_drag_drop": 3,
         "menu": 2, "undo": 2, "settle": 5, "folder_art": 1,
         "block_main": 6, "audio_loading": 2, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,

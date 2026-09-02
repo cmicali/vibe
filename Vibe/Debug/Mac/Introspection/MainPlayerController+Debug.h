@@ -34,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The header labels the state dump reads live behind this;
 // TrackDisplayController exposes them readonly.
 @property (strong, readonly) TrackDisplayController *trackDisplay;
-// The synthetic drag verbs — drag_hover, drag_drop and drag_end — reach the
+// The synthetic drag verbs — file_drag_hover, file_drag_drop and file_drag_end — reach the
 // playlist drop zone through this.
 @property (weak, readonly) MainPlayerContentView *playerContentView;
 // check_consistency compares the table's row count against the playlist's,
