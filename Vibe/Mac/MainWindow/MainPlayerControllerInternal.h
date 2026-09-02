@@ -5,11 +5,12 @@
 //  The private surface shared between MainPlayerController.m and its
 //  categories: the class extension holding the outlets, the collaborator
 //  handles, the ivars a category touches, and the internal methods the
-//  categories call. Do not use it outside the MainPlayerController
-//  implementation files; everything else goes through MainPlayerController.h.
+//  categories call. Outside those files only the debug command channel
+//  imports it, to read the outlets and state its dumps describe; everything
+//  else goes through MainPlayerController.h.
 //
-//  The debug command channel is deliberately NOT here: its extra surface stays
-//  in Debug/Mac/Introspection/MainPlayerController+Debug.h, so that no production
+//  The channel's own additions are deliberately NOT here: they stay in
+//  Debug/Mac/Introspection/MainPlayerController+Debug.h, so that no production
 //  file carries a declaration for a tool that does not ship.
 //
 
@@ -53,14 +54,14 @@ NS_ASSUME_NONNULL_BEGIN
     // The underlying playback open this monitor observes. A same-row replay
     // preserves it; a later open of the same URL does not. Main-confined.
     uint64_t                     _downloadMonitorOpenRequestIdentifier;
-    // A duration snapshot from didStartPlaying:. The live player duration
+    // A duration cache from didStartPlaying:. The live player duration
     // reads 0 while a track is Loading, and updatePlaybackUI runs in that gap.
     // It is cleared when playback goes idle, on an error or at the end of the
     // playlist.
     NSTimeInterval              _currentTrackDuration;
     // The last track whose playlist row was fully rebuilt, so that a refresh
-    // for the same track touches only the play-state cell. Written by every
-    // path that has already rendered the row itself.
+    // for the same track does not rebuild it. Written by every path that has
+    // already rendered the row itself; nil forces the next rebuild.
     __weak AudioTrack*          _lastReloadedTrack;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
@@ -104,9 +105,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isConversionUndoRedoInFlight) BOOL conversionUndoRedoInFlight;
 
 // The undo/redo settled hook MainPlayerController+Convert fires. The debug
-// channel is its only setter, through +Debug.h; in a shipping build it costs
-// one always-nil block pointer, which is what keeps an `#if DEBUG` out of a
-// shipping header.
+// channel is its only setter; in a shipping build it costs one always-nil
+// block pointer, which is what keeps an `#if DEBUG` out of a shipping header.
 @property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
         BOOL committed, NSString *_Nullable reason);
 

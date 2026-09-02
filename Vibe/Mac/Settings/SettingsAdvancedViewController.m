@@ -5,6 +5,7 @@
 
 #import "SettingsAdvancedViewController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "Formatters.h"
@@ -15,8 +16,8 @@
 
 static const CGFloat kAdvancedPopUpWidth = 200;
 
-// The rate ladder lives in AppSettings.h (kVibeUIUpdateHzCapPresets), like the
-// Playback pane's, because the getter snaps a persisted value to it.
+// The rate ladder lives in AppSettings+Mac.h (kVibeUIUpdateHzCapPresets), like
+// the Playback pane's, because the getter snaps a persisted value to it.
 
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
@@ -153,9 +154,11 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 // the audio FX graph and output device land at the next launch exactly as
 // their captions say. Each pane resolves the rows the reset hid before the
 // shared size is retaken, but hidden panes defer their full refresh until
-// selected. The window's own two settings are cleared by the same pass and no
-// pane shows them, so the window is put back to its shipping shape separately
-// — that action writes its own state and frame.
+// selected. TRAP: the window's own two settings are cleared by the same pass
+// and no pane shows them, so the window is put back to its shipping shape
+// separately — that action writes its own state and frame. Without it the
+// window keeps a shape the store no longer agrees with and snaps at the next
+// launch.
 - (void)resetSettings:(id)sender {
     [AppSettings.sharedInstance resetToDefaults];
     MainPlayerController *player = self.playerController;
@@ -217,7 +220,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     __weak __typeof(self) weakSelf = self;
     // The invalidate completions land on the caches' own queues.
     dispatch_block_t done = ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             if (--pending == 0) {
                 __typeof(self) strongSelf = weakSelf;
                 if (strongSelf) {

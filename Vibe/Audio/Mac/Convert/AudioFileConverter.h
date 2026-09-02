@@ -52,6 +52,16 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
           presentingWindow:(nullable NSWindow *)window
                 completion:(void (^)(NSURL *_Nullable outputURL, NSError *_Nullable error))completion;
 
+// Stops the running conversion at its next buffer: the temporary FLAC is
+// removed and the request completes with NSUserCancelledError, the same
+// decision-not-failure a dismissed save panel reports. A conversion already
+// past its encode — copying tags, placing the file, or waiting on the panel —
+// runs to its own completion instead. Main thread. completion runs on the
+// main thread once that request has completed, or asynchronously at once when
+// none is running; Quit parks its reply here so the temp file is gone before
+// the process exits.
+- (void)cancelConversionWithCompletion:(nullable void (^)(void))completion;
+
 // Trashes the file a finished conversion consumed, when Convert > Delete
 // Original was on at accept — a toggle flipped mid-encode applies to the next
 // conversion, never the one in flight. Trash rather than unlink, so it is
@@ -97,9 +107,10 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // the menus name changes, and after a conversion. Main thread; nil clears.
 - (void)refreshDestinationStateForTrack:(nullable AudioTrack *)track;
 
-// The whole enable-and-retitle rule for a Convert to FLAC item, in one place
+// The enable-and-retitle rule for an idle Convert to FLAC item, in one place
 // so the menus that carry one cannot drift. Returns what the caller's
-// validateMenuItem: should return.
+// validateMenuItem: should return. The running case is the controller's — the
+// item becomes Cancel Conversion — so this is never asked while converting.
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(nullable AudioTrack *)track;
 
 @end

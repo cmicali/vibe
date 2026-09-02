@@ -28,6 +28,7 @@
 #import "SettingsAppearanceViewController+Editor.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AppTheme+Archive.h"
 #import "WaveformRendererRegistry.h"
 #import "MainPlayerController+Settings.h"
@@ -59,10 +60,10 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     BOOL _editorShown;
     // Armed by a Back pop; the toolbar's forward half re-opens the editor.
     BOOL _editorForwardAvailable;
-    // Reentrancy guard: reloadData and the programmatic reselect both post
-    // selection-changed, and the delegate treating those as user activations
-    // recursed refreshFromSettings into a stack overflow. Observed, not
-    // hypothetical.
+    // TRAP: reentrancy guard. reloadData and the programmatic reselect both
+    // post selection-changed, and the delegate treating those as user
+    // activations recursed refreshFromSettings into a stack overflow.
+    // Observed, not hypothetical.
     BOOL _refreshingThemeList;
 }
 

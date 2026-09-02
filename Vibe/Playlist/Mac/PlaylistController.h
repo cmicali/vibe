@@ -133,7 +133,8 @@ NS_ASSUME_NONNULL_BEGIN
 // or nil when index is out of range. Mints a new track rather than
 // reassigning the old one's url: AudioTrack memoizes its cache key, and a
 // track carrying the old key would file the new file's waveform and metadata
-// under the old entries. Duration and detected BPM carry across — same audio.
+// under the old entries. Duration, detected BPM, and detected key carry
+// across — same audio.
 // Playback is untouched; a caller replacing the playing row restarts it.
 - (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
@@ -189,7 +190,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
 
 - (void)reloadCurrentTrack;
-- (void)reloadCurrentTrackPlayState;
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
 

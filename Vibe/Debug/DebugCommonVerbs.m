@@ -25,11 +25,9 @@
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
-#import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
-#import "SettingsRules.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
@@ -43,17 +41,6 @@
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #endif
-
-// The transport verbs: run the action, then reply with the surface's compact
-// summary. Every one of them answers in the same shape, which is the point.
-static NSDictionary *VibeTransportCmd(NSString *usage,
-                                      void (^action)(id<VibeDebugPlayerSurface> surface)) {
-    return VibeDebugCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                              id<VibeDebugPlayerSurface> surface) {
-        action(surface);
-        return VibeJSONString(surface.debugActionSummary);
-    });
-}
 
 NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
     if (player.isPlaying) {
@@ -72,10 +59,6 @@ static const NSUInteger kMaxBurstJumps = 5000;
 // block_main's ceiling. Well under the stress driver's 20s liveness probe, so
 // a stray one is never mistaken for the hang it deliberately imitates.
 static const double kMaxBlockMainSeconds = 5.0;
-
-static BOOL VibeParseConfigurationCount(NSString *text, NSUInteger *value) {
-    return VibeParseNonnegativeInteger(text, value);
-}
 
 // Track changes at the rate the main queue will take them, which is the only
 // way to reach the interleavings that matter.
@@ -102,7 +85,7 @@ static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
         state = state * 1664525u + 1013904223u;
         [strongSurface debugPlayIndex:(state >> 16) % count];
     }
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         VibeBurstJumps(surface, remaining - 1, state);
     });
 }
@@ -230,47 +213,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugSeekToSeconds:seconds];
                 return VibeJSONString(surface.debugActionSummary);
             }),
-            // The cost of the dataless test itself, which is the ONLY price the
-            // cloud machinery makes a local file pay — the materialize step is
-            // gated behind it, so a local file never reaches one. End-to-end
-            // timing cannot see it: the whole test is microseconds against a
-            // TagLib parse of milliseconds, and both scale with the corpus, so
-            // the ratio stays under the noise at any size. Hence a direct
-            // measurement rather than a bigger folder.
-            // Iterations first, path LAST: a path argument swallows every token
-            // after it, so that a filename with spaces needs no quoting.
-            VibeDebugCmd(@"bench_dataless <iterations> <file>", 30,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                     id<VibeDebugPlayerSurface> surface) {
-                double iterations = 0;
-                if (tokens.count < 3 || !VibeParseDouble(tokens[1], &iterations) || iterations < 1) {
-                    return VibeErrorJSON(@"usage: bench_dataless <iterations> <file>");
-                }
-                // The shared path contract (join, tilde expansion), minus the
-                // iterations token it treats as the verb slot.
-                NSString *path = VibePathArgument(
-                        [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]);
-                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
-                    return VibeErrorJSON(@"no file at '%@'", path);
-                }
-                NSUInteger count = MAX((NSUInteger)iterations, (NSUInteger)1);
-                // A fresh NSURL per call, deliberately: the app asks about a
-                // long-lived AudioTrack.url, and measuring one URL over and
-                // over would measure NSURL's own resource-value memoization
-                // instead of the work.
-                CFAbsoluteTime started = CFAbsoluteTimeGetCurrent();
-                NSUInteger dataless = 0;
-                for (NSUInteger i = 0; i < count; i++) {
-                    if ([NSURLUtil isDatalessFile:[NSURL fileURLWithPath:path]]) {
-                        dataless++;
-                    }
-                }
-                double elapsed = CFAbsoluteTimeGetCurrent() - started;
-                return VibeJSONString(@{@"iterations": @(count),
-                                        @"totalMs": @(elapsed * 1000.0),
-                                        @"perCallMicroseconds": @(elapsed * 1e6 / count),
-                                        @"datalessAnswers": @(dataless)});
-            }),
             // How far the metadata sweep has actually got. Nothing else says:
             // dump_state describes the current track alone, and the sweep is
             // otherwise observable only as rows filling in on screen. It is
@@ -338,7 +280,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 if (!spec) {
                     return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
                 }
-                VibeDebugSurfaceHandler handler = spec[@"handler"];
+                VibeDebugCommandHandler handler = spec[@"handler"];
                 NSString *chained = handler(then, commandId, surface);
                 // A nil reply means the chained verb answers asynchronously
                 // through VibeWriteDebugResponse under this same commandId, so
@@ -696,7 +638,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                         unflagged = YES;
                     }
                     else if ([option hasPrefix:@"capacity="]) {
-                        if (!VibeParseConfigurationCount(
+                        if (!VibeParseNonnegativeInteger(
                                 [option substringFromIndex:9], &capacity)) {
                             return VibeErrorJSON(@"capacity must be a non-negative integer");
                         }
@@ -755,20 +697,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 [VibeFakeCloud clearTrace];
                 return VibeJSONString(@{@"ok": @YES});
-            }),
-            // The order a folder open lands its tracks in. Shared, and neither
-            // shell live-applies it — it governs the NEXT open — so a test
-            // sets it and then opens something.
-            VibeDebugCmd(@"set_folder_sort <name|newest_first|as_received>", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                     id<VibeDebugPlayerSurface> surface) {
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                VibeFolderOpenSort sort = VibeNormalizedFolderOpenSort(arg);
-                if (![VibeFolderOpenSortIdentifier(sort) isEqualToString:arg]) {
-                    return VibeErrorJSON(@"usage: set_folder_sort <name|newest_first|as_received>");
-                }
-                AppSettings.sharedInstance.folderOpenSort = sort;
-                return VibeJSONString(@{@"ok": @YES, @"folderOpenSort": arg});
             }),
             // The real-provider lane-routing measurement; see NSURLUtil+Debug.h.
             VibeDebugCmd(@"set_dataless_diag <on|off>", 0,
@@ -855,7 +783,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             VibeDebugCmd(@"quit", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                  id<VibeDebugPlayerSurface> surface) {
                 VibeWriteDebugResponse(commandId, VibeJSONString(@{@"ok": @YES, @"quitting": @YES}));
-                dispatch_async(dispatch_get_main_queue(), ^{
+                run_on_main_thread({
 #if TARGET_OS_OSX
                     [NSApp terminate:nil];
 #else

@@ -8,6 +8,7 @@
 #import "MainPlayerController+NowPlaying.h"
 
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AppStats.h"
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
@@ -132,9 +133,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
-    // The mark makes resumeUIUpdateTimer, and so updateUI, refresh only the
-    // play-state cell, where the equalizer indicator adopts the new output
-    // state, rather than rebuilding the whole row again.
+    // The mark keeps resumeUIUpdateTimer's updateUI from rebuilding it again;
+    // the row's equalizer adopts the new output state through
+    // syncEqualizerActivity.
     _lastReloadedTrack = track;
     // next and previous scroll at the click; this covers the other play paths.
     [self.playlistController scrollCurrentTrackToVisible];

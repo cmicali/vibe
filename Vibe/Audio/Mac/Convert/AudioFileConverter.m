@@ -9,10 +9,12 @@
 #import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <stdatomic.h>
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
 #import "NSURL+AudioOpen.h"
@@ -23,6 +25,10 @@ NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.conv
 // Frames per read-write pass: about 0.7 seconds at 44.1kHz, enough to
 // amortize the per-buffer overhead against the encode.
 static const AVAudioFrameCount kConvertBufferFrames = 32768;
+
+// The encode's temp name in NSTemporaryDirectory(); the launch sweep matches
+// it to remove what a crash or a kill left behind.
+static NSString *const kConvertTempPrefix = @"vibe-convert-";
 
 #pragma mark - Converter
 
@@ -49,6 +55,12 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     // consumes this, not the live setting, so a mid-encode toggle applies to
     // the next conversion, never the one in flight. Main-thread confined.
     BOOL _deleteOriginalAtAccept;
+    // Set on main by cancelConversionWithCompletion:, polled once per buffer
+    // on the converter queue, reset at accept.
+    atomic_bool _cancelRequested;
+    // The cancel completions parked until the running request completes.
+    // Main-thread confined.
+    NSMutableArray<dispatch_block_t> *_cancelWaiters;
 }
 
 - (void)dealloc {
@@ -68,8 +80,29 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         _statQueue = dispatch_queue_create("com.vibe.flacconvert.stat",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+        // On the encode's own serial queue rather than the dispose queue, so
+        // it finishes before the first conversion can create the temp it
+        // would otherwise remove.
+        dispatch_async(_queue, ^{ [self sweepStaleTempFiles]; });
     }
     return self;
+}
+
+// Converter queue. Every completed path removes its own temp; this catches
+// what a crash or a kill left behind.
+- (void)sweepStaleTempFiles {
+    NSFileManager *fileManager = NSFileManager.defaultManager;
+    NSString *tmpDir = NSTemporaryDirectory();
+    NSUInteger removed = 0;
+    for (NSString *name in [fileManager contentsOfDirectoryAtPath:tmpDir error:nil]) {
+        if ([name hasPrefix:kConvertTempPrefix] && [name.pathExtension isEqualToString:@"flac"]
+                && [fileManager removeItemAtPath:[tmpDir stringByAppendingPathComponent:name] error:nil]) {
+            removed++;
+        }
+    }
+    if (removed > 0) {
+        LogInfo(@"Removed %lu stale conversion temp file(s)", (unsigned long)removed);
+    }
 }
 
 + (NSURL *)flacDestinationForURL:(NSURL *)sourceURL {
@@ -99,10 +132,6 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(AudioTrack *)track {
-    if (self.converting) {
-        menuItem.title = STR_MENU_CONVERT_CONVERTING;
-        return NO;
-    }
     menuItem.title = STR_MENU_CONVERT_TO_FLAC;
     if (!track.url.isFileURL) {
         return NO;
@@ -161,6 +190,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
     }
 
     _converting = YES;
+    atomic_store(&_cancelRequested, false);
     _deleteOriginalAtAccept = AppSettings.sharedInstance.deleteOriginalAfterConvert;
 
     __weak AudioFileConverter *weakSelf = self;
@@ -272,10 +302,7 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
     }
     if (!outputURL) {
-        run_on_main_thread({
-            self->_converting = NO;
-            completion(nil, error);
-        });
+        [self settleConversionWithURL:nil error:error completion:completion];
         return;
     }
     // Placement is another filesystem boundary after the encoded temp was
@@ -291,12 +318,44 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
             LogError(@"The converted file failed verification and was left at %@: %@",
                     outputURL.path, verificationError.localizedDescription);
         }
-        run_on_main_thread({
-            self->_converting = NO;
-            completion(playable ? outputURL : nil,
-                       playable ? error : verificationError);
-        });
+        [self settleConversionWithURL:(playable ? outputURL : nil)
+                                error:(playable ? error : verificationError)
+                           completion:completion];
     });
+}
+
+// The request's completion on main, then the parked cancel completions —
+// after it, so a Quit waiting on them exits with the controller's swap or
+// reset already landed.
+- (void)settleConversionWithURL:(nullable NSURL *)outputURL
+                          error:(nullable NSError *)error
+                     completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
+    run_on_main_thread({
+        self->_converting = NO;
+        completion(outputURL, error);
+        NSArray<dispatch_block_t> *waiters = self->_cancelWaiters;
+        self->_cancelWaiters = nil;
+        for (dispatch_block_t waiter in waiters) {
+            waiter();
+        }
+    });
+}
+
+- (void)cancelConversionWithCompletion:(void (^)(void))completion {
+    NSAssert(NSThread.isMainThread, @"cancelConversionWithCompletion must be called on the main thread");
+    if (!_converting) {
+        if (completion) {
+            run_on_main_thread({ completion(); });
+        }
+        return;
+    }
+    atomic_store(&_cancelRequested, true);
+    if (completion) {
+        if (!_cancelWaiters) {
+            _cancelWaiters = [NSMutableArray new];
+        }
+        [_cancelWaiters addObject:completion];
+    }
 }
 
 #pragma mark - Disposing of the source
@@ -517,7 +576,7 @@ static NSString *VibeFileStat(NSURL *url) {
                            error:(NSError **)error {
     NSURL *tempURL = [NSURL fileURLWithPath:
             [NSTemporaryDirectory() stringByAppendingPathComponent:
-                    [NSString stringWithFormat:@"vibe-convert-%@.flac", NSUUID.UUID.UUIDString]]];
+                    [NSString stringWithFormat:@"%@%@.flac", kConvertTempPrefix, NSUUID.UUID.UUIDString]]];
 
     // Ahead of the open, because the length check below only runs once the open
     // has already leaked its descriptor; see NSURL+AudioOpen. Both opens below
@@ -608,6 +667,16 @@ static NSString *VibeFileStat(NSURL *url) {
         // Drained per pass: an hour-long file runs thousands of passes before
         // the queue block's own pool would.
         @autoreleasepool {
+            if (atomic_load(&self->_cancelRequested)) {
+                LogInfo(@"Conversion of %@ cancelled at frame %lld of %lld",
+                        sourceURL.lastPathComponent,
+                        (long long)source.framePosition, (long long)expectedFrameCount);
+                streamError = [NSError errorWithDomain:NSCocoaErrorDomain
+                                                  code:NSUserCancelledError
+                                              userInfo:nil];
+                ok = NO;
+                break;
+            }
             NSError *stepError = nil;
             if (![source readIntoBuffer:buffer error:&stepError]) {
                 streamError = stepError;

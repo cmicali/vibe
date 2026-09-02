@@ -55,8 +55,10 @@
     return [self moveTemp:tempURL toRelatedItem:destinationURL ofPrimary:sourceURL];
 }
 
-// Rung 2; see the header. A successful presenter is kept, because the sandbox
-// extension dies with the registration.
+// Rung 2; see the header. TRAP: a successful presenter is kept for the
+// session, because the sandbox extension lives exactly as long as the
+// registration — unregistering after the move leaves a file the app has just
+// written and can no longer read (avfaudio error -54).
 - (nullable NSURL *)moveTemp:(NSURL *)tempURL
                toRelatedItem:(NSURL *)destinationURL
                    ofPrimary:(NSURL *)primaryURL {
@@ -71,9 +73,9 @@
                                     options:NSFileCoordinatorWritingForReplacing
                                       error:&coordinationError
                                  byAccessor:^(NSURL *writeURL) {
-        // A handed URL other than the sibling path is a tracked older item —
-        // a previously trashed foo.flac — and following it would file the new
-        // FLAC in the Trash.
+        // TRAP: a handed URL other than the sibling path is a tracked older
+        // item — a previously trashed foo.flac — and following it would file
+        // the new FLAC in the Trash.
         NSURL *target = [writeURL.URLByStandardizingPath isEqual:destinationURL.URLByStandardizingPath]
                 ? writeURL : destinationURL;
         NSError *moveError = nil;

@@ -41,7 +41,7 @@ static uint32_t VibeDOSTimestampNow(void) {
             components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
                        NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond
               fromDate:NSDate.date];
-    NSInteger year = MIN(MAX(now.year, 1980), 2107);
+    NSInteger year = clampRange(now.year, 1980, 2107);
     uint32_t time = (uint32_t)(now.second / 2) |
                     ((uint32_t)now.minute << 5) | ((uint32_t)now.hour << 11);
     uint32_t date = (uint32_t)now.day |
@@ -340,8 +340,11 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         // for a container image, and it is where EVERY archived image lands —
         // a built-in's included, since a slot-named entry says nothing about
         // which build's Resources the bytes started in.
+        // An image that fails validation costs its field and nothing else —
+        // the theme still imports — so its reason never lands in the caller's
+        // error beside a record.
         NSData *image = byBaseName[entry];
-        NSString *stored = image ? [self storeCustomArtworkData:image error:error] : nil;
+        NSString *stored = image ? [self storeCustomArtworkData:image error:NULL] : nil;
         if (stored) {
             record[key] = stored;
         } else {

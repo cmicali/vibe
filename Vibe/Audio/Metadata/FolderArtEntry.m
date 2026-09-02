@@ -21,7 +21,7 @@
 
 - (void)forgetSettledAnswer {
     _artPath = nil;
-    _revision = 0;
+    _answerGeneration = 0;
     _resolving = 0;
     _settledWithoutGrant = NO;
     _readBlockedWithoutGrant = NO;

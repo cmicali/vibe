@@ -8,6 +8,7 @@
 #import "Fonts.h"
 #import "Formatters.h"
 #import "AppSettings.h" // the right-edge corners follow the themed window radius
+#import "AppSettings+Mac.h"
 #import "VibeStrings.h"
 
 const CGFloat kPitchPanelWidth = 96;

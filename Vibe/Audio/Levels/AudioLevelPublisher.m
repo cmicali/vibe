@@ -160,7 +160,7 @@ BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state, uint64_t session,
 
     atomic_fetch_add_explicit(&state->writeVersion, 1, memory_order_acq_rel);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
-        float level = isfinite(levels[band]) ? MIN(MAX(levels[band], 0.0f), 1.0f) : 0.0f;
+        float level = isfinite(levels[band]) ? clampRange(levels[band], 0.0f, 1.0f) : 0.0f;
         uint32_t bits = 0;
         memcpy(&bits, &level, sizeof(bits));
         atomic_store_explicit(&state->levelBits[band], bits, memory_order_relaxed);

@@ -37,7 +37,7 @@ static const NSTimeInterval kAudioCacheAgeLimit = 6 * (30 * (24 * 60 * 60)); // 
             bytes += size.unsignedLongLongValue;
         }
     }];
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         completion(count, bytes);
     });
 }

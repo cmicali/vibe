@@ -20,6 +20,9 @@
 #import "EqualizerIndicatorView+Debug.h"
 #import "MusicalKey.h"
 #import "AppSettings.h"
+#if TARGET_OS_OSX
+#import "AppSettings+Mac.h"
+#endif
 #import "VibeFakeCloud.h"
 
 void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *identifier,

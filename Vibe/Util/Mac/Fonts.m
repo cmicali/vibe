@@ -68,8 +68,8 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
 #pragma mark Themed slots
 
 // The pushed configuration, indexed by VibeFontSlot (AppTheme.h; entry None
-// unused). All access is under @synchronized(Fonts.class), the same lock the
-// caches above take.
+// unused). All access is under @synchronized(Fonts.class) — its own lock; the
+// caches above each lock their own dictionary.
 static NSString *slotFace[kVibeFontSlotCount];
 static CGFloat slotSize[kVibeFontSlotCount];
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;

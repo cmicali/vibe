@@ -5,6 +5,7 @@
 
 #import "ArtworkImageView.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "NSDraggingImageComponent+Util.h"
 #import "MainWindowLayout.h"
 

@@ -702,7 +702,7 @@
 }
 
 // A settled cover decodes without the resolve claim, so eviction has to be told
-// about it some other way: dropping its revision mid-decode would make the
+// about it some other way: dropping its answerGeneration mid-decode would make the
 // finished image fail its own currency check and vanish.
 - (void)testEvictionLeavesADecodeInFlightAlone {
     dispatch_semaphore_t decodeStarted = dispatch_semaphore_create(0);

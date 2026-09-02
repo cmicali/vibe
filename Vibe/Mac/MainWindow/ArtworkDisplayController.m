@@ -6,6 +6,7 @@
 #import "ArtworkDisplayController.h"
 #import "ArtworkDisplayRules.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "SettingsRules.h"
 #import "MainPlayerContentView.h"
 #import "AudioTrack.h"
@@ -302,7 +303,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             NSColor *color = request.cachedColor ?: [square dominantColor];
             ArtworkDisplayResult *result = [[ArtworkDisplayResult alloc]
                     initWithSquareImage:square dominantColor:color];
-            dispatch_async(dispatch_get_main_queue(), ^{
+            run_on_main_thread({
                 ArtworkDisplayController *strongSelf = weakSelf;
                 if (!strongSelf) {
                     return;

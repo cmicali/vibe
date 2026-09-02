@@ -6,10 +6,12 @@
 #import "MainPlayerController+Menus.h"
 #import "AppDelegate.h" // showThemeSettings:, the Edit tail's nil-targeted action
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Convert.h" // the two actions the Convert item swaps between
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MenuValidationRules.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioFX.h"
 #import "MainWindow.h"
 #import "PlaylistController.h"
@@ -195,8 +197,10 @@
 }
 
 - (BOOL)validateEditMenuItem:(NSMenuItem *)menuItem {
-    // NSUndoManager's own state and titles, never a stat; an emptied Trash
-    // surfaces only when the restore runs.
+    // TRAP: NSUndoManager's own state and titles, never a stat — validation
+    // runs on main on every menu open, and a stat on an unreachable mount
+    // blocks until it times out. An emptied Trash surfaces only when the
+    // restore runs.
     if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) {
         menuItem.title = self.window.undoManager.undoMenuItemTitle;
         return !self.isConversionUndoRedoInFlight && self.window.undoManager.canUndo;
@@ -224,13 +228,24 @@
         return YES;
     }
     // The Convert menu's item and the window-body context menu's share this
-    // identifier; the converter owns the enable-and-retitle rule. With Convert
-    // switched off (Settings > Convert > Enabled) the whole feature is hidden —
-    // the menu bar's Convert menu through applyConvertMenuVisibility, and this
-    // shared item here, which is how the context menus follow the setting live.
+    // identifier; the converter owns the idle enable-and-retitle rule. With
+    // Convert switched off (Settings > Convert > Enabled) the whole feature is
+    // hidden — the menu bar's Convert menu through applyConvertMenuVisibility,
+    // and this shared item here, which is how the context menus follow the
+    // setting live.
     menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
     if (menuItem.hidden) {
         return NO;
+    }
+    // One item, re-aimed: while a conversion runs it is the enabled Cancel
+    // Conversion, the sweep's only affordance. Swapped here rather than in the
+    // converter, which cannot name this controller's selectors; a click landing
+    // after the conversion settles reaches a cancel that is a no-op by then.
+    BOOL converting = self.fileConverter.isConverting;
+    menuItem.action = converting ? @selector(cancelConversion:) : @selector(convertCurrentTrackToFLAC:);
+    if (converting) {
+        menuItem.title = STR_MENU_CONVERT_CANCEL;
+        return YES;
     }
     return [self.fileConverter validateConvertMenuItem:menuItem
                                               forTrack:self.playlistController.currentTrack];
@@ -271,7 +286,7 @@
 
 // Without this, AppKit's key-equivalent scan calls menuNeedsUpdate:, a full
 // submenu rebuild, on every keyDown. OutputDevicesMenuController follows the
-// same pattern. The style items carry no key equivalents.
+// same pattern. The theme items carry no key equivalents.
 - (BOOL)menuHasKeyEquivalent:(NSMenu *)menu forEvent:(NSEvent *)event target:(_Nullable id *_Nonnull)target action:(_Nullable SEL *_Nonnull)action {
     return NO;
 }

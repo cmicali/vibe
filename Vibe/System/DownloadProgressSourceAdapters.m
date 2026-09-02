@@ -91,7 +91,7 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
             return;
         }
 
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             DownloadAllocatedSizeSource *source = weakSelf;
             if (!source || source->_cancelled || !source->_handler) {
                 return;
@@ -210,8 +210,9 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     }
     [query enableUpdates];
 
-    // NSURLIsUbiquitousItemKey includes third-party providers. Gathering is
-    // what proves that iCloud does not index this particular item.
+    // TRAP: NSURLIsUbiquitousItemKey is not an iCloud test — every File
+    // Provider item answers YES, a Dropbox file included. Gathering is what
+    // proves that iCloud does not index this particular item.
     if (!matched && [note.name isEqualToString:NSMetadataQueryDidFinishGatheringNotification]) {
         LogInfo(@"Download progress: %@ is not an indexed iCloud item — poll only",
                 _path.lastPathComponent);
@@ -291,7 +292,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
         // The publishing handler arrives on an arbitrary thread; _active and
         // _publishedProgress are main-confined (cancel, isActive), so attach on
         // main. The cancelled check moves inside the hop for the same reason.
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             DownloadFileProviderProgressSource *source = weakSelf;
             if (!source || source->_cancelled) {
                 return;
@@ -305,7 +306,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
         });
         __weak NSProgress *weakProgress = progress;
         return ^{
-            dispatch_async(dispatch_get_main_queue(), ^{
+            run_on_main_thread({
                 DownloadFileProviderProgressSource *source = weakSelf;
                 NSProgress *progress = weakProgress;
                 if (!source || !progress || source->_publishedProgress != progress) {
@@ -332,7 +333,7 @@ static void *kFileProviderFractionContext = &kFileProviderFractionContext;
     double fraction = ((NSProgress *)object).fractionCompleted;
     __weak DownloadFileProviderProgressSource *weakSelf = self;
     __weak NSProgress *weakProgress = object;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         DownloadFileProviderProgressSource *source = weakSelf;
         NSProgress *progress = weakProgress;
         if (!source || !progress || source->_cancelled

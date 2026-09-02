@@ -1493,9 +1493,9 @@ static NSString *VibeAudioLevelNormalizationModeName(
 // FULL-TUPLE publisher: it writes state, node, file and the position fields in
 // one lock acquisition, so a getter can never observe a torn combination such
 // as a new state carrying the old track's position. A caller whose operation
-// leaves a field untouched passes the current value through. The epoch bump is
-// structural: the position getter computes off-lock and writes
-// _lastValidPosition back only if its snapshotted epoch is still current.
+// leaves a field untouched passes the current value through. The generation
+// bump is structural: the position getter computes off-lock and writes
+// _lastValidPosition back only if its snapshotted generation is still current.
 //
 // Three PARTIAL writers are permitted, and they are the whole set. Each holds
 // _stateLock, and each is safe only because it never moves the position fields:
@@ -1503,7 +1503,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
 //   unpublishNodeOnQueue                       — clears _node alone.
 //   unpublishNodeOnQueueEnteringTerminalState: — _state and _node together.
 //   the position getter's writeback            — _lastValidPosition, under the
-//                                                epoch check (AudioPlayer+State.m).
+//                                                generation check (AudioPlayer+State.m).
 //
 // Anything else that writes this state, and anything at all that moves the
 // position fields, must come through this publisher.
@@ -1546,7 +1546,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
     _pausedPosition = position;
     _pausedRawPosition = position; // completePauseOfNode: overrides with the unclamped value
     _lastValidPosition = position;
-    _positionEpoch++;
+    _positionGeneration++;
     _state = state;
     if (state == VibePlayerStateLoading) {
         _loadingTrack = request.track;

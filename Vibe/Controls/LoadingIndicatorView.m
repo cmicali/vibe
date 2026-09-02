@@ -129,11 +129,28 @@
     [_indicator updateContentsScale:[self currentContentsScale]];
 }
 
+// Scroll-out and detachment: a row leaving its window must not keep a live
+// animation, and its table re-configures it on the way back in.
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (!self.window) {
+        self.active = NO;
+    }
+}
+
 #else
 
 - (void)layoutSubviews {
     [super layoutSubviews];
     [self forwardLayout];
+}
+
+// The iOS twin of viewDidMoveToWindow.
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    if (!self.window) {
+        self.active = NO;
+    }
 }
 
 #endif

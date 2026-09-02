@@ -21,4 +21,9 @@ static inline double clampMin(double v, double minValue) {
     return v < minValue ? minValue : v;
 }
 
+// A macro, not a function, so the integer sites (bar counts, indexes) and the
+// floating ones share one clamp without a conversion; MIN and MAX already
+// evaluate each argument exactly once.
+#define clampRange(v, lo, hi) MIN(MAX((v), (lo)), (hi))
+
 #define run_on_main_thread(block) dispatch_async(dispatch_get_main_queue(), ^(void)block)

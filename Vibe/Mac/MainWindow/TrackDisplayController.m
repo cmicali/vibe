@@ -5,6 +5,7 @@
 
 #import "TrackDisplayController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "MainPlayerContentView.h"
 #import "AudioWaveformView.h"
 #import "AudioWaveformView+Loading.h" // the shimmer and empty-state pass-throughs
@@ -98,8 +99,9 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
 // labels are a matched pair, so they take the same treatment or they visibly
 // drift apart.
 //
-// tertiaryLabelColor stands in for the old secondaryLabelColor under 50% field
-// alpha. Reproducing that exactly with a color is impossible:
+// The color is the theme's resolvedInfoColor; its factory default,
+// tertiaryLabelColor, stands in for the old secondaryLabelColor under 50%
+// field alpha. Reproducing that exactly with a color is impossible:
 // colorWithAlphaComponent: replaces the alpha rather than scaling it, and
 // layer-level alpha composites rasterized glyphs rather than changing how they
 // rasterize. A resolved color would also go stale on a light-dark flip, since
@@ -250,14 +252,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         self.currentTimeTextField.alphaValue = 1.0;
         self.totalTimeTextField.alphaValue = 1.0;
         _dropHintTextField.hidden = YES;
-        if (track.hasArtistAndTitle) {
-            setStringValueIfChanged(self.artistTextField, track.artist);
-            [self setTitleLabelText:track.title];
-        }
-        else {
-            setStringValueIfChanged(self.artistTextField, @"");
-            [self setTitleLabelText:track.singleLineTitle];
-        }
+        setStringValueIfChanged(self.artistTextField, track.displayArtist);
+        [self setTitleLabelText:track.displayTitle];
         if (state == TrackDisplayStateLoading) {
             // The open is still in flight, so the duration and position are
             // unknown rather than zero. Show placeholders, not 0:00.

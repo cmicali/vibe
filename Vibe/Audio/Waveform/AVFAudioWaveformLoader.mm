@@ -354,7 +354,7 @@
                     // remaps it in place.
                     CodableAudioWaveform *snapshot = [result snapshot];
                     if (!self.isCancelled && !self.isDetached) {
-                        dispatch_async(dispatch_get_main_queue(), ^(void) {
+                        run_on_main_thread({
                             if (!self.isCancelled && !self.isDetached) {
                                 [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
                             }

@@ -1126,7 +1126,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
             @synchronized (self) {
                 // Key identity is the whole staleness check. A match also
                 // proves the pending flag is this request's: rotation clears
-                // it, and only one request per key epoch can set it. The store
+                // it, and only one request per key generation can set it. The store
                 // stays under this monitor so a rotation cannot land between
                 // the check and the insert and strand pixels under a departed
                 // key.

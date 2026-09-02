@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 // so the compiler checks the implementation in this file.
 - (IBAction)convertCurrentTrackToFLAC:(nullable id)sender;
 
+// Convert > Cancel Conversion: the same menu item, re-aimed by validation
+// while a conversion runs. The converter's cancel is a no-op once none is,
+// so a click landing after the conversion settles does nothing.
+- (IBAction)cancelConversion:(nullable id)sender;
+
 // Edit > Undo and Redo, forwarding to the window's NSUndoManager. Two actions
 // register on it: a conversion (whose round trip moves files through the
 // Trash and never re-encodes) and a playlist row removal

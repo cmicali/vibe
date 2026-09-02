@@ -21,8 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *artPath;
 // Unique for the resolver's lifetime, 0 for none assigned. It fences both
 // discovery and decode, same-path replacement races included.
-@property (nonatomic) uint64_t revision;
-// The revision of the resolve claim currently held, or 0 for none.
+@property (nonatomic) uint64_t answerGeneration;
+// The answerGeneration of the resolve claim currently held, or 0 for none.
 @property (nonatomic) uint64_t resolving;
 // Decodes in flight that hold no resolve claim — the settled fast path in
 // displayImageForAudioFilePath:.
@@ -47,7 +47,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL settled;
 // The answer is "there is no cover here".
 @property (nonatomic, readonly) BOOL settledEmpty;
-// Work in flight checks this entry's revision when it lands, so eviction has
+// Work in flight checks this entry's answerGeneration when it lands, so eviction has
 // to leave it alone or it throws that work away.
 @property (nonatomic, readonly) BOOL busy;
 

@@ -6,8 +6,8 @@
 //  that knows nothing about either platform. Both tables are arrays of these
 //  specs, so one verb lookup and one unknown-command reply serve both.
 //
-//  It deliberately does NOT invoke a handler. Each platform's table is typed
-//  to its own controller, and calling it belongs where that type is known;
+//  It deliberately does NOT invoke a handler. Each platform's dispatcher
+//  supplies its own controller, and the call belongs where that is known;
 //  what is common is finding the spec and answering when there is none.
 //
 
@@ -18,16 +18,26 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A cross-platform verb's handler. Returns the JSON reply to write, or nil
-// when the command replies asynchronously through VibeWriteDebugResponse.
-typedef NSString *_Nullable (^VibeDebugSurfaceHandler)(NSArray<NSString *> *tokens,
+// A verb's handler. Returns the JSON reply to write, or nil when the command
+// replies asynchronously through VibeWriteDebugResponse. controller is typed
+// id because each table names its own — id<VibeDebugPlayerSurface> for the
+// shared verbs, the shell's controller class for a platform's — and a block
+// literal keeps its parameter type, so the body is still checked against what
+// it reads; only the table's slot is untyped. Never nil: each dispatcher
+// answers "app not fully launched" before any handler runs.
+typedef NSString *_Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
                                                        NSString *commandId,
-                                                       id<VibeDebugPlayerSurface> surface);
+                                                       id controller);
 
 // Builds a spec. clientTimeout is how long the CLI client waits for this
 // verb's reply, in seconds, where 0 means the default.
 NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
-                           VibeDebugSurfaceHandler handler);
+                           VibeDebugCommandHandler handler);
+
+// A transport or toggle verb: runs action against the controller, then replies
+// with the surface's compact action summary, so every one of them answers in
+// the same shape. Both shells' controllers adopt VibeDebugPlayerSurface.
+NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller));
 
 // The first word of a usage string, which is the verb itself.
 NSString *VibeDebugVerbFromUsage(NSString *usage);

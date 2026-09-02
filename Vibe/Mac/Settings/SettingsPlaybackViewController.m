@@ -5,6 +5,7 @@
 
 #import "SettingsPlaybackViewController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
@@ -16,7 +17,7 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 static NSString *const kOnEndPlayNext = @"play_next";
 static NSString *const kOnEndPause = @"pause";
 
-// The preset values live in AppSettings.h (kVibeSkipBasePresets: the smallest
+// The preset values live in AppSettings+Mac.h (kVibeSkipBasePresets: the smallest
 // skip's bar count, the three sizes being the base, twice and four times it;
 // kVibeCrossfadePresets in milliseconds, 10 the declick minimum the engine
 // always applies — effectively instant), because the getters snap persisted
@@ -35,10 +36,8 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)loadView {
     _onEndPopUp = [self popUpButtonWithWidth:kPlaybackPopUpWidth action:@selector(onEndChanged:)];
-    [_onEndPopUp addItemWithTitle:STR_SETTINGS_ON_END_PLAY_NEXT];
-    _onEndPopUp.lastItem.representedObject = kOnEndPlayNext;
-    [_onEndPopUp addItemWithTitle:STR_SETTINGS_ON_END_PAUSE];
-    _onEndPopUp.lastItem.representedObject = kOnEndPause;
+    [self addItem:STR_SETTINGS_ON_END_PLAY_NEXT value:kOnEndPlayNext to:_onEndPopUp];
+    [self addItem:STR_SETTINGS_ON_END_PAUSE value:kOnEndPause to:_onEndPopUp];
 
     // Radio buttons group by shared action, which is exactly what these two
     // have.
@@ -116,6 +115,9 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)onEndChanged:(id)sender {
     AppSettings.sharedInstance.pauseAtTrackEnd = [_onEndPopUp.selectedItem.representedObject isEqual:kOnEndPause];
+    // TRAP: EndOfTrack must follow the write. It re-parks or drops the player's
+    // successor handle; without it a mid-track switch to Pause leaves an armed
+    // gapless splice that advances past the end anyway.
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 

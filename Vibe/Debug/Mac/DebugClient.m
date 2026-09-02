@@ -10,6 +10,7 @@
 #import <notify.h>
 #import <unistd.h>
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
 
 // The CLI half of the debug command channel: VibeDebugCommandClientMain, which

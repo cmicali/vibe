@@ -14,10 +14,18 @@ holds it while it is open (`Mac/Settings/CLAUDE.md`), and it lives here rather
 than on the window because that accessor is where the style-to-appearance
 ladder already is, so every consumer of the answer gets the preview for free. Every reader imports `AppSettings.h` explicitly and uses
 `AppSettings.sharedInstance`, so a file's import list exposes the dependency.
-The preset ladders are exported once from the implementation rather than copied
-from the header into every translation unit. Its pure decision logic — the
-value ladders a stored setting is snapped to on read — is `SettingsRules.h`,
-so a rule about a setting is testable without a defaults store.
+`AppSettings.{h,m}` is the shared store; the macOS half — every mac-only
+preference and the theme store — is the `(Mac)` category in
+`Mac/AppSettings+Mac.{h,m}`, which a macOS reader imports explicitly beside
+`AppSettings.h` (`Mac/CLAUDE.md`). `AppSettingsInternal.h` is the seam between
+the two: the stored keys both halves read, the ivars the mac half keeps (a
+category cannot declare any), and the mac halves of the store-wide entry
+points, which the shared file calls under `TARGET_OS_OSX` and nothing else
+reaches. The preset ladders are exported once from the implementation rather
+than copied from the header into every translation unit. Its pure decision
+logic — the value ladders a stored setting is snapped to on read — is
+`SettingsRules.h`, so a rule about a setting is testable without a defaults
+store.
 
 **`SettingsRules.h`** — the header-only seam above, tested by `SettingsRulesTests`.
 
@@ -50,15 +58,15 @@ Both are free functions rather than categories because there is no single foreig
 
 **`DocumentTypes`** — the `CFBundleDocumentTypes` declarations from `Info.plist`, read back as `UTType`s; stateless, all class methods. `declaredTypes` is everything including the folder declaration, `declaredFileTypes` the files alone. `Info.plist` is the single source of truth, so the `⌘O` panel's filter and what the app is registered for cannot drift. The Launch Services side is `DefaultAppRegistration` (`Mac/Settings/`), which keeps this class AppKit-free.
 
-## The platform split is one `#if TARGET_OS_OSX` block plus one `#if !TARGET_OS_OSX` block
+## The platform split is the directory plus one `#if !TARGET_OS_OSX` block
 
-Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so what iOS compiles is the short list above the macOS block:
+Not a guard per property. Almost everything here configures something only macOS has — the window, the pitch fader, the FX graph, Convert to FLAC, the playlist table, folder art, BPM and key analysis — so all of that is `Mac/AppSettings+Mac`, and what iOS compiles is the short list in `AppSettings.h`:
 
 - the iOS-only loose appearance keys, in their own `#if !TARGET_OS_OSX`: `waveformStyle`, `waveformTheme` with its custom colors (a played *and* an unplayed accessor, each taking the appearance, so four colors in all). On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
 - `folderOpenSort`, genuinely shared;
 - the store-wide entry points, which belong to no one setting: `sharedInstance`, `applicationDidFinishLaunching`, `allSettingsAtDefaults` and `resetToDefaults`.
 
-"Does the iOS app honor this?" is answered by which side of the `#if` a property sits on. **Adding a property means choosing a side.**
+"Does the iOS app honor this?" is answered by which header a property sits in. **Adding a property means choosing a side.**
 
 ## There is no settings cache
 

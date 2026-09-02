@@ -5,6 +5,7 @@
 
 #import "MainWindow.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "WindowAnimation.h"
 #import "AppDelegate.h" // drops enter the app's one open funnel; see performDragOperation:
 #import "MainPlayerController.h"

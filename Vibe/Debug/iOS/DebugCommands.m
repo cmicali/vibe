@@ -159,38 +159,29 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 // The UIKit-only verbs. Everything both platforms answer the same way is in
 // Debug/DebugCommonVerbs.m, over VibeDebugPlayerSurface; this table is
-// only what needs a UIView tree or a UIWindow render. Returning nil means the
-// command replies asynchronously through VibeWriteDebugResponse.
-typedef NSString * _Nullable (^VibeiOSCommandHandler)(NSArray<NSString *> *tokens,
-                                                      NSString *commandId,
-                                                      RootViewController *controller);
-
-static NSDictionary *VibeCmd(NSString *usage, VibeiOSCommandHandler handler) {
-    return @{@"usage": usage, @"handler": [handler copy]};
-}
-
+// only what needs a UIView tree or a UIWindow render.
 static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            VibeCmd(@"dump_view_tree", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeViewTreeDump();
             }),
-            VibeCmd(@"dump_screenshot", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_screenshot", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeScreenshotJSON(commandId);
             }),
-            VibeCmd(@"dump_art", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
             // The card presents and dismisses by gesture, and the channel
             // cannot synthesize a touch; these are how it is driven without
             // the XCUITest driver.
-            VibeCmd(@"expand_player", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"expand_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 [controller expandPlayerAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
-            VibeCmd(@"minimize_player", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"minimize_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 [controller minimizePlayerAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
@@ -198,7 +189,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // synthesize. Both numbers come back because they are allowed to
             // differ: what is asked for is persisted, what is drawn is clamped
             // to what this layout's settled bitmap can hold.
-            VibeCmd(@"set_waveform_zoom <fraction>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"set_waveform_zoom <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 double fraction = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &fraction)) {
                     return VibeErrorJSON(@"usage: set_waveform_zoom <fraction 0-1>");
@@ -219,10 +210,10 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             //
             // TRAP: a folder added here is NOT security-scoped, so it survives
             // only the session. A test that relaunches must add it again.
-            VibeCmd(@"dump_search", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),
-            VibeCmd(@"add_search_folder <path>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"add_search_folder <path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: add_search_folder <path>");
                 }
@@ -235,7 +226,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 reply[@"added"] = @(added);
                 return VibeJSONString(reply);
             }),
-            VibeCmd(@"remove_search_folder <index>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"remove_search_folder <index>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0 || (NSUInteger)index >= SearchFolderStore.shared.folderURLs.count) {
                     return VibeErrorJSON(@"usage: remove_search_folder <index in dump_search.folders>");
@@ -250,7 +241,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // and a route cannot be faked at the session — so this draws the
             // indicator as a route for a look, leaving the model alone. The
             // next real route event overwrites it.
-            VibeCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSDictionary<NSString *, NSNumber *> *kinds = @{
                     @"none": @(VibeOutputRouteKindNone),
                     @"speaker": @(VibeOutputRouteKindBuiltInSpeaker),
@@ -283,7 +274,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"routeShown": ui[@"routeShown"] ?: @NO,
                 });
             }),
-            VibeCmd(@"dump_favorites", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_favorites", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeFavoritesDictionary());
             }),
             // The star sits on the Playlist tab's navigation bar and the channel
@@ -296,7 +287,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             //
             // TRAP: the ADD is asynchronous. ok:true means the handler ran, not
             // that the row exists — poll dump_favorites for that.
-            VibeCmd(@"tap_favorite_star", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"tap_favorite_star", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (![controller debugTapFavoriteStar]) {
                     return VibeErrorJSON(@"no open folder on the playlist tab to star");
                 }
@@ -307,7 +298,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the open and the unreachable-folder alert are the tap's.
             // Requires the Favorites tab to have been selected once — the
             // provider is lazy, so before that there is no screen to tap.
-            VibeCmd(@"open_favorite <index in dump_favorites.favorites>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"open_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0) {
                     return VibeErrorJSON(@"usage: open_favorite <index in dump_favorites.favorites>");
@@ -323,7 +314,7 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // screen's own methods, so the matching, the exclusion set and the
             // open are the ones a real search gets. `search` replies when the
             // table settles, since the files half answers off a walk.
-            VibeCmd(@"search <query>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"search <query>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *query = tokens.count > 1 ? tokens[1] : @"";
                 BOOL started = [controller debugSearchQuery:query
                                                  completion:^(NSDictionary *result) {
@@ -334,14 +325,14 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return nil;   // replies asynchronously
             }),
-            VibeCmd(@"open_search_hit <index into search.sections[1].rows>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"open_search_hit <index into search.sections[1].rows>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0 || ![controller debugTapSearchFileAtIndex:(NSUInteger)index]) {
                     return VibeErrorJSON(@"no such file hit (run `search <query>` first)");
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            VibeCmd(@"select_tab <playlist|favorites|files|search>", ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
                 if (![@[@"playlist", @"favorites", @"files", @"search"] containsObject:identifier ?: @""]) {
                     return VibeErrorJSON(@"usage: select_tab <playlist|favorites|files|search>");
@@ -360,18 +351,13 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
     if (!controller) {
         return VibeErrorJSON(@"app not fully launched");
     }
-    NSDictionary *common = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb);
-    if (common) {
-        VibeDebugSurfaceHandler handler = common[@"handler"];
-        return handler(tokens, commandId, controller);
+    NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb)
+            ?: VibeDebugSpecForVerb(VibeiOSCommandTable(), verb);
+    if (!spec) {
+        return VibeDebugUnknownCommandReply(verb,
+                @[VibeDebugCommonCommandTable(), VibeiOSCommandTable()], nil);
     }
-    NSDictionary *spec = VibeDebugSpecForVerb(VibeiOSCommandTable(), verb);
-    if (spec) {
-        VibeiOSCommandHandler handler = spec[@"handler"];
-        return handler(tokens, commandId, controller);
-    }
-    return VibeDebugUnknownCommandReply(verb,
-            @[VibeDebugCommonCommandTable(), VibeiOSCommandTable()], nil);
+    return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
 }
 
 void VibeiOSInstallDebugCommandHook(void) {

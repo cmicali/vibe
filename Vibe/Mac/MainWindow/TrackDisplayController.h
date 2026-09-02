@@ -135,8 +135,8 @@ typedef struct {
 - (void)setConvertSweepFraction:(double)fraction;
 - (double)convertSweepFraction;
 
-// The rendered fields, exposed for the debug command channel's state dump; see
-// MainPlayerController+Debug.h and DebugUtil.
+// The rendered fields, exposed for the debug command channel's state dump and
+// consistency check; see Debug/Mac/DebugStateDump.m and DebugHealth.m.
 @property (weak, readonly) NSTextField *artistTextField;
 @property (weak, readonly) NSTextField *titleTextField;
 @property (weak, readonly) NSTextField *totalTimeTextField;

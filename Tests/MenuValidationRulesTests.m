@@ -86,8 +86,11 @@
                               @"view_appearance", kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
                               // The retired style family and the app-delegate-
                               // targeted Edit tail both deliberately classify
-                              // as nobody's.
-                              @"waveform_style_detailed", kVibeMenuEditThemes]
+                              // as nobody's, as does the identifier a second
+                              // Convert item would carry: Cancel Conversion is
+                              // kVibeMenuConvertToFLAC re-aimed in validation.
+                              @"waveform_style_detailed", kVibeMenuEditThemes,
+                              @"menu_convert_cancel"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }

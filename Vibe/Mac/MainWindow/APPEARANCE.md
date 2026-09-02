@@ -48,11 +48,11 @@ The line has **two independent inputs** — codec text and FX state — and `Tra
 
 Two adjustments are optical, not derivable from any metric: symbols draw at **bold** weight (the default stroke is a hairline at this size), and the two dial glyphs get their own size multiplier — they spend much of their bounding box on tick marks and read visibly smaller at the row's shared box height.
 
-Symbols render a step brighter than the codec text, at full `secondaryLabelColor`, matching the time labels — **which is why both corner labels carry their dimming in the text color** (`tertiaryLabelColor` in `cornerTextAttributes`) at full field alpha, rather than a field-wide 0.5: a field alpha would dim the symbols too, and the codec/BPM lines are one visual pair. Template images, so the tint follows the label through appearance changes.
+Symbols render a step brighter than the codec text, at full `secondaryLabelColor`, matching the time labels — **which is why both corner labels carry their dimming in the text color** (the theme's `resolvedInfoColor` in `cornerTextAttributes`, `tertiaryLabelColor` by factory default) at full field alpha, rather than a field-wide 0.5: a field alpha would dim the symbols too, and the codec/BPM lines are one visual pair. Template images, so the tint follows the label through appearance changes.
 
 ## The key label
 
-The BPM line below carries the key after a `|` separator, the same one the codec line uses between its fields. With `AppSettings.keyColorsEnabled` on, that key run alone is redrawn bold and in its Camelot color — one hue per wheel number, anchored so 1 is green as on the printed wheel, so harmonically compatible keys sit in neighboring hues and a relative major/minor pair shares one.
+The BPM line below carries the key after a `|` separator, the same one the codec line uses between its fields. With the theme's `keyColorsEnabled` on (`AppTheme`), that key run alone is redrawn bold and in its Camelot color — one hue per wheel number, anchored so 1 is green as on the printed wheel, so harmonically compatible keys sit in neighboring hues and a relative major/minor pair shares one.
 
 The palette is a `dynamicProvider` color per number (`camelotColor` in `TrackDisplayController.m`), less saturated on dark chrome and darker on light, since a single fixed hue cannot read on both — and neither at full brightness, which reads as garish beside the dimmed corner text. It approximates the published wheel rather than sampling it.
 

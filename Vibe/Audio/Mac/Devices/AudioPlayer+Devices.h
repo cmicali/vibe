@@ -23,9 +23,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
 
 // Resolves the retained launch preference without blocking _queue. It only
-// applies a found device while Stopped; playback winning the lookup race leaves
-// the preference pending for the next Stopped transition or device/default
-// refresh. Runs on _queue.
+// applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
+// or Loading while the engine is not running; the rule and its trap are on
+// that function — and playback winning the lookup race leaves the preference
+// pending for the next eligible transition or device/default refresh. Runs on
+// _queue.
 - (void)resolvePendingSavedOutputDeviceOnQueue;
 
 // Rebinds the engine to a new output device, restoring the current track, the

@@ -309,7 +309,7 @@ static const CGFloat kInlineBadgeGap = 8;
 // Settings can change while the pane stays visible: through the menu bar —
 // which never moves key focus, hence the menu-tracking observer — or through
 // a system panel that took key, hence the key observer (the default-player
-// claim's confirmation, the converter's save panel).
+// registration's confirmation, the converter's save panel).
 - (void)viewDidAppear {
     [super viewDidAppear];
     __weak __typeof(self) weakSelf = self;
@@ -327,7 +327,7 @@ static const CGFloat kInlineBadgeGap = 8;
                     usingBlock:^(NSNotification *note) {
                         // After the menu item's action has run, not between
                         // tracking end and dispatch.
-                        dispatch_async(dispatch_get_main_queue(), ^{
+                        run_on_main_thread({
                             [weakSelf refreshSettingsAndPaneSize];
                         });
                     }];

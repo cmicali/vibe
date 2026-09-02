@@ -167,7 +167,7 @@
     }
     _notifyPending = YES;
     __weak CloudTransferRegistry *weakSelf = self;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         CloudTransferRegistry *strongSelf = weakSelf;
         if (!strongSelf) {
             return;

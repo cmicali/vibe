@@ -6,6 +6,7 @@
 #import "SettingsWindowController.h"
 #import "MenuValidationRules.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"

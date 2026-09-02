@@ -5,6 +5,7 @@
 
 #import "SettingsFilesViewController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "FolderAccessManager.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsRules.h"
@@ -315,6 +316,9 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 - (void)albumArtSourceChanged:(id)sender {
     AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
+    // TRAP: FolderArt must follow the write, not merely to redraw: the resolver
+    // caches this setting and that effect is the one thing that drops the
+    // cache, so a write without it is not observed at all.
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
 }
 
@@ -398,8 +402,10 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
         folderIcon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
     });
     cell.imageView.image = folderIcon;
-    // The manager's own answer, which costs no I/O: a row dims because its
-    // bookmark would not resolve, never because this pane stat-ed the path.
+    // TRAP: never stat a row. This runs on the main thread for every reload,
+    // and a dead path's mount can block for an automounter timeout — so the
+    // state is the manager's own answer, which costs no I/O: a row dims because
+    // its bookmark would not resolve, never because this pane stat-ed the path.
     // Every branch sets both properties — the cells are recycled.
     BOOL unavailable = folder.state == VibeGrantedFolderStateUnavailable;
     NSString *display = [self.class displayPath:folder.path];
@@ -424,10 +430,11 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Dropping folders in
 
-// Folders only, asked of the pasteboard rather than the file system: this runs
-// on the main thread for every mouse move of the drag, and a stat can block on
-// an unreachable mount. A package is a directory but not a folder in UTI
-// terms, so an app bundle is refused here rather than silently dropped later.
+// TRAP: never stat a drag. Folders only, asked of the pasteboard rather than
+// the file system: this runs on the main thread for every mouse move of the
+// drag, and a stat can block on an unreachable mount. A package is a directory
+// but not a folder in UTI terms, so an app bundle is refused here rather than
+// silently dropped later.
 + (NSDictionary<NSPasteboardReadingOptionKey, id> *)folderReadingOptions {
     return @{
         NSPasteboardURLReadingFileURLsOnlyKey: @YES,

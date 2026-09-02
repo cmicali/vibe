@@ -86,6 +86,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)displayTitle;
 - (nullable NSString *)displayArtist;
 
+// The title a file gets from its name alone — the last path component without
+// its extension, trimmed. It is what title answers until metadata loads and
+// what AudioTrackMetadata records for a tagless or unparseable file, so a row
+// does not change when metadata arrives. The name as given, deliberately not
+// standardized: the last component is the same either way, and standardizing
+// stats the path.
++ (NSString *)filenameTitleForURL:(NSURL *)url;
+
 @end
 
 // An ordered collection of tracks addressable by row, which is what both

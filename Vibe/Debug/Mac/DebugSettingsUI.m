@@ -11,6 +11,7 @@
 #import <AppKit/AppKit.h>
 #import "AppDelegate.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
 #import "PlatformColor.h"
 #import "SettingsFormViews.h"

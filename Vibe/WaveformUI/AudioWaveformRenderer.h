@@ -18,20 +18,13 @@ NS_ASSUME_NONNULL_BEGIN
 // unset. 2 means Retina, which is overwhelmingly the common case.
 static const CGFloat kVibeDefaultBackingScale = 2;
 
-// The rendering layer's scale sources. The mac view asks its window, the
-// authority on what the scale should be; the iOS view asks its trait
-// collection; and renderers ask a layer they have already stamped. All of them
-// go through the one clamp below, so the fallback cannot drift between sites —
+// The rendering layer's scale sources — the mac view's window, the iOS view's
+// trait collection, and a layer a renderer has already stamped — all go
+// through the one clamp below, so the fallback cannot drift between sites,
 // which is the whole reason they live together.
 static inline CGFloat VibeBackingScaleOrDefault(CGFloat scale) {
     return scale > 0 ? scale : kVibeDefaultBackingScale;
 }
-#if TARGET_OS_OSX
-static inline CGFloat VibeBackingScaleForWindow(NSWindow * _Nullable window) {
-    return window ? VibeBackingScaleOrDefault(window.backingScaleFactor)
-                  : kVibeDefaultBackingScale;
-}
-#endif
 static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
@@ -43,11 +36,11 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // continuous.
 static inline NSInteger VibeBlockIndexForX(CGFloat x, CGFloat width, NSInteger count) {
     NSInteger index = (NSInteger)(x / width * (CGFloat)count);
-    return MIN(MAX(index, (NSInteger)0), count - 1);
+    return clampRange(index, (NSInteger)0, count - 1);
 }
 static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger count) {
     NSInteger boundary = (NSInteger)llround((double)count * progress);
-    return MIN(MAX(boundary, (NSInteger)0), count);
+    return clampRange(boundary, (NSInteger)0, count);
 }
 
 // The drawn level for a bar, from its chunk's energy rather than its peaks.
@@ -102,16 +95,8 @@ static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
                                            CGFloat boundsWidth, CGFloat height, CGFloat scale) {
     CGFloat width = MAX(round(columnWidth * scale), 1) / scale;
     CGFloat left = floor((x - width / 2) * scale) / scale;
-    left = MIN(MAX(left, 0), MAX(0, boundsWidth - width));
+    left = clampRange(left, 0, MAX(0, boundsWidth - width));
     return CGRectMake(left, 0, width, height);
-}
-
-// A ramp stop: the color at `fraction` of its own alpha. The theme colors
-// carry each side's resting level in their alpha (WaveformTheme.h), so
-// renderers own only their ramp shapes and scale every stop relative to that
-// level through this.
-static inline VibeColor *VibeColorAtRampFraction(VibeColor *color, CGFloat fraction) {
-    return [color colorWithAlphaComponent:CGColorGetAlpha(color.CGColor) * fraction];
 }
 
 // Re-stamps a manually built layer tree at a new backing scale, masks and all.

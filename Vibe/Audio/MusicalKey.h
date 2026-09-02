@@ -20,6 +20,8 @@
 
 typedef NSInteger VibeMusicalKey;
 
+// TRAP: 0 is C major, not "none". A fresh holder must be set to this
+// explicitly — a zero-filled ivar or a message to nil reads as tagged C major.
 static const VibeMusicalKey VibeMusicalKeyNone = -1;
 
 static inline BOOL VibeMusicalKeyIsValid(VibeMusicalKey key) {

@@ -254,7 +254,7 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
                     loadArtBlockingForExpectedGeneration:request.artGeneration
                     sourceFileReadAllowed:sourceFileReadAllowed];
         }
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             ArtworkLoadRegistry *strongSelf = weakSelf;
             if (strongSelf) {
                 LogInfo(@"Art load: %@ for '%@' in %.1fs", image ? @"image" : @"nothing",

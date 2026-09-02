@@ -7,6 +7,7 @@
 #import "MainPlayerControllerInternal.h"
 
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioFileConverter.h"
 #import "VibeStrings.h"
 #import "AudioPlayer.h"
@@ -43,6 +44,10 @@
     if (track) {
         [self convertTrackToFLAC:track completion:nil];
     }
+}
+
+- (IBAction)cancelConversion:(id)sender {
+    [self.fileConverter cancelConversionWithCompletion:nil];
 }
 
 - (void)convertTrackToFLAC:(AudioTrack *)track

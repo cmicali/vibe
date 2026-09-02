@@ -31,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The gradient styling: its direction and extent, and the ramp's color stops.
 // color is the theme's played or unplayed color, carrying its side's resting
 // level in its alpha; the hook owns only the ramp shape, every stop scaled
-// relative to that level (VibeColorAtRampFraction). One hook serves both
+// relative to that level (VibeColorWithScaledAlpha). One hook serves both
 // sides — the played/unplayed difference is entirely the colors' levels.
 - (void)configureGradient:(CAGradientLayer *)gradient;
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark;

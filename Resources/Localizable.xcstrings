@@ -8929,187 +8929,187 @@
       },
       "extractionState": "manual"
     },
-    "menu.convert.converting": {
-      "comment": "Convert menu item, disabled: replaces 'Convert to FLAC' while a conversion is running. Ends with a real ellipsis character (…), not three periods.",
+    "menu.convert.cancel": {
+      "comment": "Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Conversion"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конвертира се…"
+            "value": "Откажи конвертирането"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Převádí se…"
+            "value": "Zrušit převod"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverterer…"
+            "value": "Annuller konvertering"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird konvertiert…"
+            "value": "Konvertierung abbrechen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Γίνεται μετατροπή…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Converting…"
+            "value": "Ακύρωση μετατροπής"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convirtiendo…"
+            "value": "Cancelar conversión"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muunnetaan…"
+            "value": "Peruuta muunnos"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conversion en cours…"
+            "value": "Annuler la conversion"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertiranje…"
+            "value": "Otkaži konvertiranje"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertálás folyamatban…"
+            "value": "Konvertálás megszakítása"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mengonversi…"
+            "value": "Batalkan Konversi"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conversione in corso…"
+            "value": "Annulla conversione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "変換中…"
+            "value": "変換をキャンセル"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "변환 중…"
+            "value": "변환 취소"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverterer…"
+            "value": "Avbryt konvertering"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bezig met converteren…"
+            "value": "Annuleer conversie"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konwertowanie…"
+            "value": "Anuluj konwersję"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convertendo…"
+            "value": "Cancelar Conversão"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A converter…"
+            "value": "Cancelar conversão"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se convertește…"
+            "value": "Anulați conversia"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Идет конвертация…"
+            "value": "Отменить конвертацию"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertuje sa…"
+            "value": "Zrušiť konverziu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverterar…"
+            "value": "Avbryt konvertering"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กำลังแปลง…"
+            "value": "ยกเลิกการแปลง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dönüştürülüyor…"
+            "value": "Dönüştürmeyi İptal Et"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Триває конвертація…"
+            "value": "Скасувати конвертацію"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đang chuyển đổi…"
+            "value": "Hủy chuyển đổi"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在转换…"
+            "value": "取消转换"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "轉換中…"
+            "value": "取消轉換"
           }
         }
       },

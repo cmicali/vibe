@@ -13,8 +13,10 @@
 //  one repeating CABasicAnimation on one layer. There is no display link, no
 //  timer, no app-side per-frame callback and no path rebuild — the whole
 //  thing runs on the compositor. What it still must not do is hold a live
-//  animation for a row nobody can see, so active goes NO on cell reuse, on
-//  hiding, and on detachment from a window; the row wiring owns that.
+//  animation for a row nobody can see, so active goes NO on cell reuse and on
+//  hiding — the row wiring owns those — and the view drops it itself on
+//  leaving its window, which is what scroll-out is; the table re-configures a
+//  row it scrolls back in.
 //
 
 #import "PlatformTypes.h"

@@ -604,6 +604,7 @@ targets:
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
       - path: Vibe/Audio/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
+      - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/AppTheme.m
       - path: Vibe/Common/Mac/AppTheme+Archive.m
       - path: Vibe/System/CloudFileMaterializer.m

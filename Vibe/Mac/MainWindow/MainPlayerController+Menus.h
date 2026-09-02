@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The menu-bar state for the View and Controls menus, and the delegate-built
-//  waveform-style submenu. AppKit reaches everything here without extra
+//  View > Theme submenu. AppKit reaches everything here without extra
 //  wiring: item validation arrives through the items' target, the controller,
 //  and menuNeedsUpdate: through the NSMenuDelegate wiring MainMenuBuilder
 //  installs.

@@ -22,7 +22,7 @@ It follows that any table reachable by the chain must answer honestly — `NSTab
 
 **The cleaner deliberately does not implement `menuHasKeyEquivalent:…`** the way the app's other menu delegates do: Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items.
 
-Undo/Redo forward to the window's lazily created `NSUndoManager`; two actions register — Convert to FLAC and Remove from Playlist (both `MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
+Undo/Redo forward to the window's lazily created `NSUndoManager`; three actions register — Convert to FLAC, Remove from Playlist and Reorder (all `MainWindow/CLAUDE.md`). Validation takes titles from `undoMenuItemTitle`/`redoMenuItemTitle` and enables from `canUndo`/`canRedo` — **the stack alone, never a stat**, since no Convert-adjacent rule may touch the file system during validation (`Audio/Mac/Convert/CLAUDE.md`).
 
 Copy Name copies the current track's `singleLineTitle`; Copy File puts its file URL on the general pasteboard. Both validate against `currentTrack`, like Show in Finder.
 
@@ -40,16 +40,19 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
 **Settings > Convert > Enabled off hides the whole feature, live.** The Convert menu is always built (identifier `menu_convert`) and hidden in place: the `ConvertMenu` settings effect calls `MainMenuBuilder.applyConvertMenuVisibility`, and the build seeds the initial state. The context menus' shared Convert to FLAC item follows through its validation branch instead, which hides it and returns NO while the setting is off. A hidden item stays in `itemArray` — `dump_menu` reports it with `hidden: true`.
 
-**Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it. The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's `menu_convert_to_flac` identifier: enabled only for WAV and AIFF with no FLAC already there, retitled with the reason otherwise — "Converting…" or "FLAC Already Exists". **Only the current track is convertible, so there is deliberately no playlist row item.**
+**Convert to FLAC** re-encodes an uncompressed current track as FLAC beside it. The rule is `AudioFileConverter.validateConvertMenuItem:forTrack:`, shared with the window-body menu's item, which reuses this one's `menu_convert_to_flac` identifier: enabled only for WAV and AIFF with no FLAC already there, retitled "FLAC Already Exists" otherwise. **While a conversion runs the same item becomes the enabled Cancel Conversion**: `MainPlayerController.validateConvertMenuItem:` swaps its title and action to `cancelConversion:` ahead of the converter's rule, under the same identifier — the sweep has no place for a button (`Audio/Mac/Convert/CLAUDE.md`). **Only the current track is convertible, so there is deliberately no playlist row item.**
 
 **Delete Original**, off by default, sends a converted source to the Trash once its FLAC is in place. A checkmarked *preference* rather than an action, so it is never disabled — one setting (`AppSettings.deleteOriginalAfterConvert`), one place that acts on it (`AudioFileConverter.trashSourceIfEnabled:convertedTo:`), which snapshots it as a conversion is accepted, so a mid-encode flip applies to the next conversion only. Undoing the deletion is Edit > Undo, which reverses the whole conversion.
 
 ## View
 
+- **Show Playlist** (Tab) — `toggleSize:`, the playlist pane's collapse and expand; its checkmark is the window's `isPlaylistShown` (`MainWindow/CLAUDE.md`).
+- **Show Pitch Control** (P) — `togglePitchPanel:`, the pitch panel's reveal; its checkmark is `isPitchPanelShown`.
 - **Theme** — the theme selector, delegate-built by `MainPlayerController.menuNeedsUpdate:` and **rebuilt whole on every open**: one checkmarked item per theme (title localized-or-user display name, `representedObject` the stable id, identifier `view_theme_<id>`), a separator, then the nil-targeted **Edit Themes…** (`menu_edit_themes` → `AppDelegate.showThemeSettings:`, the same ownership as Settings… — deliberately absent from `MenuValidationRules.h`). Selecting applies the theme and requests the composed `ThemeApply` effect.
 - **Show File Info** — a checkmarked preference flipping the current theme's `showFileInfo` (default on) through the store's persist funnel, then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
 - **Always on Top** — flips `AppSettings.alwaysOnTop`, then requests the shared `AlwaysOnTop` settings effect.
 - **Size** (Small, Default, Large) — snaps the window to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One identifier-to-width mapping, `contentWidthForSizeIdentifier:`, serves both the action and the checkmarks, so dragging off a preset simply matches none of them.
+- **Appearance** (System, Light, Dark) — `setAppearance:` writes `AppSettings.windowAppearanceStyle`, a common setting deliberately outside the theme (root `CLAUDE.md`); the checkmarks read it back.
 
 ## FX
 

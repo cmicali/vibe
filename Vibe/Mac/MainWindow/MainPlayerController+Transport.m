@@ -6,6 +6,7 @@
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerControllerInternal.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioFX.h"

@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "SettingsRules.h"
 
 #if DEBUG
@@ -292,10 +293,6 @@ NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller) {
         @"playlistShown": @(window.isPlaylistShown),
         @"pitchPanelShown": @(window.isPitchPanelShown),
     };
-}
-
-NSString *VibeActionSummary(MainPlayerController *controller) {
-    return VibeJSONString(VibeActionSummaryDictionary(controller));
 }
 
 #endif

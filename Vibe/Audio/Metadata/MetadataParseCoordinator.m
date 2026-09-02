@@ -10,7 +10,7 @@
 // They are written only inside the coordinator's monitor, before the claim is
 // returned, which is what publishes them safely to that one thread.
 @interface MetadataParseClaim ()
-@property (nonatomic, copy, nullable) id<NSCopying> key;
+@property (nonatomic, copy, nullable) NSString *key;
 @property (nonatomic, strong) id participant;
 @property (nonatomic, getter=isOwner) BOOL owner;
 @end
@@ -21,11 +21,11 @@
 @implementation MetadataParseCoordinator {
     // The owning claim per key. It holds its participant strongly: the owner
     // has to survive to complete its own parse.
-    NSMutableDictionary<id<NSCopying>, MetadataParseClaim *> *_holders;
+    NSMutableDictionary<NSString *, MetadataParseClaim *> *_holders;
     // Duplicate participants per key, held WEAKLY — a row discarded while a
     // provider-backed parse blocks for minutes has nothing left to publish to, and
     // pinning it would keep the whole discarded playlist alive.
-    NSMutableDictionary<id<NSCopying>, NSHashTable *> *_waiters;
+    NSMutableDictionary<NSString *, NSHashTable *> *_waiters;
 }
 
 - (instancetype)init {
@@ -37,10 +37,10 @@
     return self;
 }
 
-- (MetadataParseClaim *)claimParseForKey:(id<NSCopying>)key participant:(id)participant {
+- (MetadataParseClaim *)claimParseForKey:(NSString *)key participant:(id)participant {
     @synchronized (self) {
         MetadataParseClaim *claim = [MetadataParseClaim new];
-        claim.key = [(id)key copy];
+        claim.key = [key copy];
         claim.participant = participant;
         if (!claim.key) {
             claim.owner = YES;

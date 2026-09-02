@@ -6,6 +6,7 @@
 #import "DetailedAudioWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "PlatformTypes.h"
+#import "PlatformColor.h"
 #import "VibeStrings.h"
 
 #include <vector>
@@ -74,7 +75,7 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
 // This family's resting levels live in the theme colors' own alpha
 // (WaveformTheme.h) — the White pair carries what used to be this file's
 // kWaveformOpacity — so the renderer owns only the ramp SHAPE below, scaled
-// relative to each color's level through VibeColorAtRampFraction. The
+// relative to each color's level through VibeColorWithScaledAlpha. The
 // envelope bitmap bakes the same stops, so the two cannot drift.
 
 @implementation DetailedAudioWaveformRenderer {
@@ -121,7 +122,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kDetailedBarPitch);
-    return MIN(MAX(count, (NSUInteger)2), kDetailedMaxBars);
+    return clampRange(count, (NSUInteger)2, kDetailedMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -259,7 +260,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     const CGFloat kBottomAlpha = 0.45;
     return @[
             color,
-            VibeColorAtRampFraction(color, kBottomAlpha),
+            VibeColorWithScaledAlpha(color, kBottomAlpha),
     ];
 }
 
@@ -303,7 +304,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width {
     CGFloat w = width * progress;
-    return MIN(MAX(w, 0), width);
+    return clampRange(w, 0, width);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {

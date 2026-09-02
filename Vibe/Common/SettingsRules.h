@@ -5,6 +5,9 @@
 
 #import <Foundation/Foundation.h>
 #import "AppSettings.h"
+#if TARGET_OS_OSX
+#import "AppSettings+Mac.h"
+#endif
 
 // Nonnull by default: the normalizers accept a nullable stored value —
 // stringForKey: answers nil before defaults registration or after an external

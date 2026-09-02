@@ -263,11 +263,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     if (!loader || loader.isCancelled) {
         return;
     }
-    // Detach even a completed loader: isComplete is set on the decode thread
-    // BEFORE its final delivery block reaches the main queue, so "complete"
-    // can still have a live delivery in flight, and the detach flag is what
-    // deliverCompleteWaveform checks on main. Skipping the detach here let
-    // that delivery land as a live one on whatever track superseded it.
+    // TRAP: detach even a completed loader. isComplete is set on the decode
+    // thread BEFORE its final delivery block reaches the main queue, so
+    // "complete" can still have a live delivery in flight, and the detach flag
+    // is what deliverCompleteWaveform checks on main. Skipping the detach here
+    // let that delivery land as a live one on whatever track superseded it.
     [loader detach];
     if (loader.isComplete) {
         return; // nothing to pool — the decode is done and persists on its own

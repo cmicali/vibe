@@ -28,6 +28,7 @@
 
 #import "AppDelegate.h"
 #import "MainPlayerController.h"
+#import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Debug.h"
 #import "MainPlayerController+DebugPlayerSurface.h"
 #import "MainPlayerController+Transport.h"
@@ -57,15 +58,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// One handler per verb, where tokens[0] is the verb itself. Returning nil
-// means the command completes asynchronously and writes its own response later
-// through VibeWriteDebugResponse(commandId, ...), from a completion block.
-// controller is never nil: the dispatcher answers "app not fully launched"
-// before any handler runs.
-typedef NSString * _Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
-                                                        NSString *commandId,
-                                                        MainPlayerController *controller);
-
 // DebugScreenshot.m — window capture.
 BOOL VibeDumpWindowSnapshot(NSString *path);
 
@@ -75,7 +67,6 @@ NSString *VibeViewTreeDump(void);
 NSArray *VibeMenuArray(NSMenu *menu);
 NSString *VibeClickMenuItem(NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
-NSString *VibeActionSummary(MainPlayerController *controller);
 
 // DebugInput.m — synthesized keyboard, mouse and file drags.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,

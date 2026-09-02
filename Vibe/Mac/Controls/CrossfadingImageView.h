@@ -9,10 +9,9 @@
 // same clock.
 extern const NSTimeInterval kVibeArtCrossfadeDuration;
 
-// The shared base for the artwork image views, the foreground art and the
-// blurred backdrop. It is layer-backed, so that setImage: can cross-fade the
-// incoming image over the outgoing one, and opted out of drag-and-drop, so
-// that file drops fall through to the window.
+// ArtworkImageView's base, the foreground art card. It is layer-backed, so
+// that setImage: can cross-fade the incoming image over the outgoing one, and
+// opted out of drag-and-drop, so that file drops fall through to the window.
 @interface CrossfadingImageView : NSImageView
 
 @end

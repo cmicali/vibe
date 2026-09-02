@@ -15,6 +15,7 @@
 #import "Fonts.h"
 #import "MainWindowLayout.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "VibeStrings.h"
 
 // The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
@@ -651,13 +652,13 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 - (void)buildPlaylistPane {
     // The frosted backdrop under the playlist. The window's Clear glass is too
     // transparent to read row text over, so this panel frosts the playlist
-    // region alone. It is an NSVisualEffectView rather than an
-    // NSGlassEffectView, because the glass view's SwiftUI hosting internals
-    // fight the window's autoresizing when HeightSizable, and the window then
-    // refuses to expand past the design height. It sits under the scroll view,
-    // since an NSClipView background does not composite semi-transparent
-    // colors over a backdrop, so it also covers the empty area below the last
-    // row. The wash layers directly above it.
+    // region alone. TRAP: it is an NSVisualEffectView rather than an
+    // NSGlassEffectView, because a height-sizable glass view's SwiftUI hosting
+    // internals fight the stretch from design height to window height, and the
+    // window then silently refuses to expand past the design height. It sits
+    // under the scroll view, since an NSClipView background does not composite
+    // semi-transparent colors over a backdrop, so it also covers the empty area
+    // below the last row. The wash layers directly above it.
     _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
@@ -701,12 +702,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // pair: they share a font, an alignment and a dimming rule, and drift
 // apart if built separately from each other.
 - (void)buildCornerReadouts {
-    NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
-
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
-    _fileMetadataTextField.textColor = dimmedTextColor;
     // Full alpha, because this field also carries the inline FX symbols, which
     // read at the time labels' full-strength secondaryLabelColor while the
     // codec text is a step dimmer. A field-wide 0.5 would dim both, so the
@@ -721,7 +719,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _bpmTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _bpmTextField.alignment = NSTextAlignmentRight;
-    _bpmTextField.textColor = dimmedTextColor;
     // Matches the codec label above it, with full alpha and the dimming in the
     // text color. The two are one visual pair, and drift apart otherwise.
     _bpmTextField.alphaValue = 1.0;
@@ -788,7 +785,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // playlist tint wash layered above (ArtworkDisplayController).
     _playlistFrostView.hidden = solid;
     NSColor *background = solid
-            ? [theme displayPlaylistBackgroundColorForDark:dark]
+            ? [theme displayColorForBase:kVibeThemeColorPlaylistBackground dark:dark]
             : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
     _playlistDimView.layer.backgroundColor = background.CGColor;
 }

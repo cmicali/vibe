@@ -18,8 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 // conformances are internal, in the class extension in the implementation, and
 // the debug command channel's extra surface lives in
 // MainPlayerController+Debug.h. NSMenuDelegate stays public because
-// MainMenuBuilder wires the controller as the waveform-style submenu's
-// delegate.
+// MainMenuBuilder wires the controller as the View > Theme submenu's delegate.
 @interface MainPlayerController : NSWindowController <NSMenuDelegate>
 
 // The collaborators, created once in init and never replaced — readonly here,

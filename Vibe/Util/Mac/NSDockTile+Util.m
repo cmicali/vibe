@@ -168,7 +168,7 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
         if (!customIcon) {
             return; // no context — leave whatever icon is showing
         }
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             if (generation != VibeDockIconGeneration) {
                 return; // a newer icon (or a reset to the app icon) won
             }

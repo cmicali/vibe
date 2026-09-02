@@ -83,7 +83,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 @property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
 @property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) BOOL runWasCancelled;
-@property (nonatomic) CFAbsoluteTime submittedAt;
+@property (nonatomic) NSTimeInterval submittedAt;
 @end
 
 @implementation VibeAudioHandleRun
@@ -415,17 +415,14 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     return coordinator;
 }
 
+static VibeAudioFileOpener const kProductionFileOpener =
+        ^AVAudioFile *(NSURL *url, NSError **error) {
+    return url.failsAudioOpenPreflight
+            ? nil : [[AVAudioFile alloc] initForReading:url error:error];
+};
+
 - (instancetype)init {
-    AudioLoadingConfiguration *configuration = [AudioLoadingConfiguration productionConfiguration];
-    return [self initWithConfiguration:configuration
-                      operationFactory:^id<AudioFileMaterializationOperation>(
-                              NSURL *url, VibeAudioFileMaterializationRole role) {
-        return [[VibeCloudFileMaterializationOperation alloc] initWithURL:url role:role];
-    } datalessProbe:^BOOL(NSURL *url) {
-        return [NSURLUtil isDatalessFile:url];
-    } clock:^NSTimeInterval{
-        return NSProcessInfo.processInfo.systemUptime;
-    }];
+    return [self initWithFileOpener:kProductionFileOpener];
 }
 
 - (instancetype)initWithFileOpener:(VibeAudioFileOpener)fileOpener {
@@ -449,10 +446,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
                       operationFactory:operationFactory
                           datalessProbe:datalessProbe
                                   clock:clock
-                            fileOpener:^AVAudioFile *(NSURL *url, NSError **error) {
-        return url.failsAudioOpenPreflight
-                ? nil : [[AVAudioFile alloc] initForReading:url error:error];
-    }];
+                            fileOpener:kProductionFileOpener];
 }
 
 - (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
@@ -915,7 +909,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 - (void)publishTransferBeginForClaim:(VibeAudioFileMaterializationClaim *)claim {
     NSString *path = claim.path;
     NSURL *url = claim.url;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         [CloudTransferRegistry.sharedRegistry beganTransferForPath:path url:url];
     });
 }
@@ -1058,7 +1052,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
     // order.
     if (claim.state == VibeMaterializationClaimStateRunning && claim.dataless) {
         NSString *transferPath = claim.path;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             [CloudTransferRegistry.sharedRegistry endedTransferForPath:transferPath];
         });
     }
@@ -1355,7 +1349,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         run.url = url;
         run.purpose = purpose;
         run.waiter = token;
-        run.submittedAt = CFAbsoluteTimeGetCurrent();
+        run.submittedAt = self->_clock();
         self->_handleRuns[key] = run;
         [self startHandleRunStages:run];
     });
@@ -1526,7 +1520,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
                 userInfo:@{NSLocalizedDescriptionKey:
                         @"The audio file open was abandoned before it produced a result"}];
     }
-    NSTimeInterval elapsed = CFAbsoluteTimeGetCurrent() - run.submittedAt;
+    NSTimeInterval elapsed = MAX(0, _clock() - run.submittedAt);
     dispatch_async(waiter.completionQueue, ^{
         VibeAudioFileOpenCompletion completion = [waiter takeCompletionForDelivery];
         if (completion) {

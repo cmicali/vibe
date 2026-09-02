@@ -35,9 +35,9 @@
 // from the top of its frame, about 6pt high in a 28pt row. The centering is
 // -drawingRectForBounds: below.
 //
-// The truncation is set here as well as in the attributes the table builds in
-// PlaylistTableView, because an attributed string's own paragraph style beats
-// the cell's line break mode, and its default is to wrap.
+// TRAP: the truncation is set here as well as in the attributes the table
+// builds in PlaylistTableView, because an attributed string's own paragraph
+// style beats the cell's line break mode, and its default is to wrap.
 - (void)setup {
     self.editable = NO;
     self.usesSingleLineMode = YES;

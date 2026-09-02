@@ -188,7 +188,7 @@ static void VibeRequestVectorBallsPipeline(
                 cachedSampleCount = sampleCount;
             }
         }
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             completion(pipeline);
         });
     });

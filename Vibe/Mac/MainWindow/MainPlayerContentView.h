@@ -19,8 +19,9 @@ NS_ASSUME_NONNULL_BEGIN
 // — Liquid Glass on macOS 26, the frosted fallback below before it — that
 // MainPlayerController installs behind this view provides the background.
 // Button and menu actions are sent to `target`, the controller. The view is
-// pinned at its design width, with a flexible right margin, so that the
-// window can widen past it to reveal the pitch panel.
+// width- and height-sizable, following the user-resizable window; only the
+// pitch panel's reveal swaps in a pinned mask, for the duration of that
+// animation (MainPlayerController+Window).
 @interface MainPlayerContentView : NSView
 
 - (instancetype)initWithTarget:(id)target;

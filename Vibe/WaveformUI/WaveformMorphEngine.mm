@@ -234,7 +234,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     CFTimeInterval now = CACurrentMediaTime();
     // Clamp dt. After a stall — a debugger pause, an occluded window — one
     // huge step would snap the morph rather than ease it.
-    CFTimeInterval dt = MIN(MAX(now - _lastMorphTick, 0), 0.1);
+    CFTimeInterval dt = clampRange(now - _lastMorphTick, 0, 0.1);
     _lastMorphTick = now;
     float k = (float)(1.0 - exp(-dt / kMorphTau));
     float maxDistance = 0;

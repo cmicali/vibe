@@ -10,6 +10,7 @@
 #import "AppTheme.h"
 #import "AppTheme+Archive.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "PlatformColor.h"
 
 @interface AppThemeTests : XCTestCase
@@ -184,6 +185,20 @@
     XCTAssertEqual(theme.titleFontFace.length, 64u);
 }
 
+// None is what an unset control tag or a zero-filled ivar holds, so it must
+// name no field — never the title's.
+- (void)testNoneFontSlotNamesNoField {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"titleFontFace": @"Menlo-Regular",
+                                                          @"titleFontSize": @24}];
+    XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotNone], @"");
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotNone], 0);
+    [theme setFontFace:@"Courier" size:22 forSlot:VibeFontSlotNone];
+    XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"Menlo-Regular");
+    XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotTitle], 24);
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          (@{@"titleFontFace": @"Menlo-Regular", @"titleFontSize": @24}));
+}
+
 - (void)testColorsRoundTripThroughHexWithAlpha {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     [theme setPlaylistPlayingRowColor:VibeColorFromHexString(@"#FF6600AA") forDark:YES];
@@ -194,6 +209,27 @@
     XCTAssertNil([theme playlistPlayingRowColorForDark:NO]);
     [theme setPlaylistPlayingRowColor:nil forDark:YES];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+// Every pair, by the base key the editor's wells bind by: unset it displays
+// the constant its surface paints, set it displays its own override.
+- (void)testDisplayColorIsTheOverrideOrThePairsConstant {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    NSArray<NSString *> *bases = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed,
+                                   kVibeThemeColorWindowTint, kVibeThemeColorPlaylistTint,
+                                   kVibeThemeColorWindowBackground, kVibeThemeColorTitle,
+                                   kVibeThemeColorArtist, kVibeThemeColorInfo, kVibeThemeColorTime,
+                                   kVibeThemeColorPlaylistBackground, kVibeThemeColorPlaylistPlayingRow,
+                                   kVibeThemeColorPlaylistSelectedRow];
+    for (NSString *base in bases) {
+        XCTAssertNotNil([theme displayColorForBase:base dark:YES], @"%@", base);
+        XCTAssertNotNil([theme displayColorForBase:base dark:NO], @"%@", base);
+        XCTAssertNil([theme colorForBase:base dark:NO], @"%@", base);
+        [theme setColor:VibeColorFromHexString(@"#12345680") forBase:base dark:NO];
+        XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:base dark:NO]),
+                              @"#12345680", @"%@", base);
+    }
+    XCTAssertEqual(theme.dictionaryRepresentation.count, bases.count);
 }
 
 - (void)testRecordRoundTrips {
@@ -287,6 +323,23 @@
                                                    name:NULL error:&error];
     XCTAssertNil(error);
     XCTAssertEqualObjects(record, @{});
+}
+
+// The export walks the groups the field table names, in the order the rows
+// first name them, so a field in any group travels — a group list kept by
+// hand beside the table let a new group's fields import and never export.
+- (void)testEveryGroupExportsInEditorOrder {
+    NSDictionary *record = @{@"mode": @"single", @"titleFontSize": @24, @"showBPM": @NO,
+                             @"waveformTheme": @"orange", @"playlistFontSize": @12};
+    NSString *text = [[NSString alloc] initWithData:[AppTheme JSONDataForRecord:record name:@"All"]
+                                           encoding:NSUTF8StringEncoding];
+    NSUInteger previous = 0;
+    for (NSString *group in @[@"window", @"player", @"info", @"waveform", @"playlist"]) {
+        NSUInteger at = [text rangeOfString:[NSString stringWithFormat:@"\"%@\" :", group]].location;
+        XCTAssertNotEqual(at, NSNotFound, @"%@ did not export", group);
+        XCTAssertGreaterThan(at, previous, @"%@ is out of the editor's order", group);
+        previous = at;
+    }
 }
 
 #pragma mark Built-ins
@@ -973,6 +1026,17 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
                                                               name:NULL error:NULL];
     XCTAssertNil(jsonOnly[@"defaultArtworkDark"]);
     XCTAssertNil(jsonOnly[@"defaultArtworkLight"]);
+
+    // An image that fails validation (under the 64px floor) costs its field,
+    // not the theme — and leaves no error beside the record it still returns.
+    NSError *error = nil;
+    NSDictionary *badImage = [AppTheme recordFromJSONOrArchiveData:MakeStoredZip(@[
+        @[@"theme.json", danglingJSON],
+        @[@"missing.png", SquarePNG(32)],
+    ]) name:NULL error:&error];
+    XCTAssertNil(badImage[@"defaultArtworkDark"]);
+    XCTAssertEqualObjects(badImage[@"waveformTheme"], @"orange");
+    XCTAssertNil(error, @"a dropped image is not an import failure");
 }
 
 #pragma mark Store CRUD (AppSettings)

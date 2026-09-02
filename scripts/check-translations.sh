@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Fail if any catalog key is missing a translation. Covers BOTH catalogs —
-# Localizable.xcstrings and InfoPlist.xcstrings. Required before either
-# release path — see release.sh / release-appstore.sh.
+# Fail if any catalog key is missing a translation. Covers every catalog in
+# the CATALOGS list below — Localizable, InfoPlist and ThemeNames. Required
+# before either release path — see release.sh / release-appstore.sh.
 #
 # InfoPlist.xcstrings fails the same silent way and is easier to forget: its
 # keys are the bundle name, the copyright and the CFBundleTypeName values, so

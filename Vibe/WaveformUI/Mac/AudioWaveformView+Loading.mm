@@ -29,7 +29,7 @@
             initInLayer:self.layer
                   style:VibeLoadingIndicatorStyleWaveform
                  isDark:self.isDark
-          contentsScale:VibeBackingScaleForWindow(self.window)];
+          contentsScale:VibeBackingScaleOrDefault(self.window.backingScaleFactor)];
     [self layoutLoadingLayer];
 }
 
@@ -63,7 +63,7 @@
     }
 
     CALayer *line = [CALayer layer];
-    line.contentsScale = VibeBackingScaleForWindow(self.window);
+    line.contentsScale = VibeBackingScaleOrDefault(self.window.backingScaleFactor);
     [self.layer addSublayer:line];
     _placeholderLayer = line;
 

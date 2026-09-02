@@ -5,6 +5,7 @@
 
 #import "PlaylistRowView.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "NSView+DarkMode.h"
 
 @implementation PlaylistRowView
@@ -14,12 +15,12 @@
 // scroll-in, and the record lookup is cheap.
 - (NSColor *)selectedFillColor {
     return [AppSettings.sharedInstance.currentTheme
-            displayPlaylistSelectedRowColorForDark:self.isDark];
+            displayColorForBase:kVibeThemeColorPlaylistSelectedRow dark:self.isDark];
 }
 
 - (NSColor *)playingFillColor {
     return [AppSettings.sharedInstance.currentTheme
-            displayPlaylistPlayingRowColorForDark:self.isDark];
+            displayColorForBase:kVibeThemeColorPlaylistPlayingRow dark:self.isDark];
 }
 
 - (void)setPlayingRow:(BOOL)playingRow {

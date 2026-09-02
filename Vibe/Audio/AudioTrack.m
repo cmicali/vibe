@@ -94,14 +94,12 @@
     if (self.metadata.title.length > 0) {
         return self.metadata.title;
     }
-    else if (self.url) {
-        // A filename fallback until metadata loads. It strips and trims
-        // exactly as AudioTrackMetadata's filename-derived title does, so the
-        // row does not change when metadata arrives for a tagless file.
-        NSString *name = [[[self.url standardizedURL] lastPathComponent] stringByDeletingPathExtension];
-        return [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    }
-    return @"";
+    return self.url ? [AudioTrack filenameTitleForURL:self.url] : @"";
+}
+
++ (NSString *)filenameTitleForURL:(NSURL *)url {
+    NSString *name = url.lastPathComponent.stringByDeletingPathExtension;
+    return [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] ?: @"";
 }
 
 - (NSString *)artist {

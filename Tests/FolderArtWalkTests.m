@@ -8,6 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "FolderArtResolverInternal.h"
 #import "NSURLUtilInternal.h"
 

@@ -8,6 +8,7 @@
 #import "AppThemeInternal.h"
 #import "PlatformImage.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
 #import "NSView+DarkMode.h"
@@ -55,18 +56,18 @@ static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkCo
 static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
 
 // The color pairs' base names; Dark/Light is appended per appearance.
-static NSString *const kColorWaveformPlayed = @"waveformPlayedColor";
-static NSString *const kColorWaveformUnplayed = @"waveformUnplayedColor";
-static NSString *const kColorWindowTint = @"windowTintColor";
-static NSString *const kColorPlaylistTint = @"playlistTintColor";
-static NSString *const kColorWindowBackground = @"windowBackgroundColor";
-static NSString *const kColorTitle = @"titleColor";
-static NSString *const kColorArtist = @"artistColor";
-static NSString *const kColorInfo = @"infoColor";
-static NSString *const kColorTime = @"timeColor";
-static NSString *const kColorPlaylistBackground = @"playlistBackgroundColor";
-static NSString *const kColorPlaylistPlayingRow = @"playlistPlayingRowColor";
-static NSString *const kColorPlaylistSelectedRow = @"playlistSelectedRowColor";
+NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
+NSString *const kVibeThemeColorWaveformUnplayed = @"waveformUnplayedColor";
+NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
+NSString *const kVibeThemeColorPlaylistTint = @"playlistTintColor";
+NSString *const kVibeThemeColorWindowBackground = @"windowBackgroundColor";
+NSString *const kVibeThemeColorTitle = @"titleColor";
+NSString *const kVibeThemeColorArtist = @"artistColor";
+NSString *const kVibeThemeColorInfo = @"infoColor";
+NSString *const kVibeThemeColorTime = @"timeColor";
+NSString *const kVibeThemeColorPlaylistBackground = @"playlistBackgroundColor";
+NSString *const kVibeThemeColorPlaylistPlayingRow = @"playlistPlayingRowColor";
+NSString *const kVibeThemeColorPlaylistSelectedRow = @"playlistSelectedRowColor";
 
 static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     if (![raw isKindOfClass:NSString.class]) {
@@ -108,7 +109,7 @@ static FieldSanitizer NumberField(double min, double max, BOOL wholePoints) {
         if (![raw isKindOfClass:NSNumber.class] || !isfinite([raw doubleValue])) {
             return nil;
         }
-        double clamped = MIN(MAX([raw doubleValue], min), max);
+        double clamped = clampRange([raw doubleValue], min, max);
         return @(wholePoints ? round(clamped) : clamped);
     };
 }
@@ -190,10 +191,10 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWindowBackgroundStyle, window, @"backgroundStyle",
                               SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
                               LadderField(VibeNormalizedWindowBackgroundStyle))];
-        AddColorPair(rows, kColorWindowBackground, window, @"backgroundColor");
+        AddColorPair(rows, kVibeThemeColorWindowBackground, window, @"backgroundColor");
         [rows addObject:Field(kFieldWindowTint, window, @"tint", SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
                               LadderField(VibeNormalizedWindowTint))];
-        AddColorPair(rows, kColorWindowTint, window, @"tintColor");
+        AddColorPair(rows, kVibeThemeColorWindowTint, window, @"tintColor");
         // Whole points: the editor's px readout is integral, so a stored
         // fraction would draw a radius no surface can display. Rounding in
         // the gate heals imports and pre-round stored records alike; the
@@ -208,18 +209,18 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
         [rows addObject:Field(kFieldTitleFontSize, player, @"titleFontSize",
                               @(kVibeThemeTitleFontBaseSize), NumberField(20, 26, NO))];
-        AddColorPair(rows, kColorTitle, player, @"titleColor");
+        AddColorPair(rows, kVibeThemeColorTitle, player, @"titleColor");
         [rows addObject:Field(kFieldArtistFontFace, player, @"artistFontFace", @"", TextField())];
         [rows addObject:Field(kFieldArtistFontSize, player, @"artistFontSize",
                               @(kVibeThemeArtistFontBaseSize), NumberField(12, 20, NO))];
-        AddColorPair(rows, kColorArtist, player, @"artistColor");
+        AddColorPair(rows, kVibeThemeColorArtist, player, @"artistColor");
 
         [rows addObject:Field(kFieldShowFileInfo, info, @"showFileInfo", @YES, BoolField())];
         [rows addObject:Field(kFieldInfoFontFace, info, @"fontFace", @"", TextField())];
         [rows addObject:Field(kFieldInfoFontSize, info, @"fontSize",
                               @(kVibeThemeInfoFontBaseSize), NumberField(10, 15, NO))];
-        AddColorPair(rows, kColorInfo, info, @"color");
-        AddColorPair(rows, kColorTime, info, @"timeColor");
+        AddColorPair(rows, kVibeThemeColorInfo, info, @"color");
+        AddColorPair(rows, kVibeThemeColorTime, info, @"timeColor");
         [rows addObject:Field(kFieldShowRemainingTime, info, @"showRemainingTime", @NO, BoolField())];
         [rows addObject:Field(kFieldShowBPM, info, @"showBPM", @YES, BoolField())];
         [rows addObject:Field(kFieldShowKey, info, @"showKey", @YES, BoolField())];
@@ -232,16 +233,16 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWaveformTheme, waveform, @"theme", SETTINGS_VALUE_WAVEFORM_THEME_MONO,
                               LadderField(VibeNormalizedWaveformTheme))];
         [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
-        AddColorPair(rows, kColorWaveformPlayed, waveform, @"playedColor");
-        AddColorPair(rows, kColorWaveformUnplayed, waveform, @"unplayedColor");
+        AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
+        AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
 
         [rows addObject:Field(kFieldPlaylistBackgroundStyle, playlist, @"backgroundStyle",
                               SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
                               LadderField(VibeNormalizedWindowBackgroundStyle))];
-        AddColorPair(rows, kColorPlaylistBackground, playlist, @"backgroundColor");
+        AddColorPair(rows, kVibeThemeColorPlaylistBackground, playlist, @"backgroundColor");
         [rows addObject:Field(kFieldPlaylistTint, playlist, @"tint", SETTINGS_VALUE_WINDOW_TINT_MONO,
                               LadderField(VibeNormalizedPlaylistTint))];
-        AddColorPair(rows, kColorPlaylistTint, playlist, @"tintColor");
+        AddColorPair(rows, kVibeThemeColorPlaylistTint, playlist, @"tintColor");
         [rows addObject:Field(kFieldPlaylistFontFace, playlist, @"fontFace", @"", TextField())];
         [rows addObject:Field(kFieldPlaylistFontSize, playlist, @"fontSize",
                               @(kVibeThemePlaylistFontBaseSize), NumberField(11, 16, NO))];
@@ -250,8 +251,8 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
         [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
-        AddColorPair(rows, kColorPlaylistPlayingRow, playlist, @"playingRowColor");
-        AddColorPair(rows, kColorPlaylistSelectedRow, playlist, @"selectedRowColor");
+        AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
+        AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
         specs = [rows copy];
     });
     return specs;
@@ -336,7 +337,7 @@ static VibeColor *DynamicColor(VibeColor *dark, VibeColor *light, VibeColor *fal
     }];
 }
 
-// The fallback pinned to one side, for the display* accessors: a dynamic
+// The fallback pinned to one side, for displayColorForBase:dark:: a dynamic
 // semantic color resolves under whatever appearance is current, which for an
 // editor well is the pane's, not the side's.
 static VibeColor *ResolvedForDark(VibeColor *color, BOOL isDark) {
@@ -349,110 +350,71 @@ static VibeColor *ResolvedForDark(VibeColor *color, BOOL isDark) {
     return resolved ?: color;
 }
 
-// Each slot's semantic fallback is spelled once, in its resolved accessor,
-// and the display accessor beside it reads the same constant — so the
-// surfaces and the editor's wells cannot disagree about an unset slot.
-- (VibeColor *)resolvedTitleColor {
-    return DynamicColor([self titleColorForDark:YES], [self titleColorForDark:NO],
-                        NSColor.labelColor);
+// The four label pairs' semantic fallbacks — title over labelColor, artist
+// and time over secondaryLabelColor, info over tertiaryLabelColor — spelled
+// once, so the resolved accessors and the editor's wells cannot disagree
+// about a slot's fallback. nil for every other pair, whose unset slot draws a
+// constant instead.
+static NSColor *_Nullable SemanticFallbackForBase(NSString *base) {
+    if ([base isEqualToString:kVibeThemeColorTitle]) {
+        return NSColor.labelColor;
+    }
+    if ([base isEqualToString:kVibeThemeColorArtist] || [base isEqualToString:kVibeThemeColorTime]) {
+        return NSColor.secondaryLabelColor;
+    }
+    if ([base isEqualToString:kVibeThemeColorInfo]) {
+        return NSColor.tertiaryLabelColor;
+    }
+    return nil;
 }
 
-- (VibeColor *)displayTitleColorForDark:(BOOL)isDark {
-    return [self titleColorForDark:isDark] ?: ResolvedForDark(NSColor.labelColor, isDark);
-}
-
-- (VibeColor *)resolvedArtistColor {
-    return DynamicColor([self artistColorForDark:YES], [self artistColorForDark:NO],
-                        NSColor.secondaryLabelColor);
-}
-
-- (VibeColor *)displayArtistColorForDark:(BOOL)isDark {
-    return [self artistColorForDark:isDark] ?: ResolvedForDark(NSColor.secondaryLabelColor, isDark);
-}
-
-- (VibeColor *)resolvedInfoColor {
-    return DynamicColor([self infoColorForDark:YES], [self infoColorForDark:NO],
-                        NSColor.tertiaryLabelColor);
-}
-
-- (VibeColor *)displayInfoColorForDark:(BOOL)isDark {
-    return [self infoColorForDark:isDark] ?: ResolvedForDark(NSColor.tertiaryLabelColor, isDark);
-}
-
-- (VibeColor *)resolvedTimeColor {
-    return DynamicColor([self timeColorForDark:YES], [self timeColorForDark:NO],
-                        NSColor.secondaryLabelColor);
-}
-
-- (VibeColor *)displayTimeColorForDark:(BOOL)isDark {
-    return [self timeColorForDark:isDark] ?: ResolvedForDark(NSColor.secondaryLabelColor, isDark);
-}
-
-// The remaining pairs' constants for an unset slot, each beside its pair
-// rather than at the surface that draws it.
-
-// The solid covers: a near-opaque neutral in each appearance's register.
-static VibeColor *DefaultSolidBackgroundColor(BOOL isDark) {
-    return isDark ? [NSColor colorWithWhite:0.11 alpha:0.95]
-                  : [NSColor colorWithWhite:0.93 alpha:0.95];
-}
-
-// The custom washes: neutral grays in the middle of each appearance's clamp
-// band, at the alpha the artwork wash uses there — a starting point to pick
-// a hue from.
-static VibeColor *DefaultTintColor(BOOL isDark) {
-    return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
-                  : [NSColor colorWithWhite:0.88 alpha:0.55];
-}
-
-// The row fills: white in dark and black in light at low opacity, a quiet
-// lift over the playlist frost in both appearances, independent of key state
-// like the rest of the window chrome.
-static VibeColor *DefaultRowFillColor(BOOL isDark) {
-    return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
-}
-
-// The custom waveform pair: Mono's resting levels, the played hue the
+// What an unset slot draws as, spelled once per pair. The solid covers are a
+// near-opaque neutral in each appearance's register; the custom washes
+// neutral grays in the middle of each appearance's clamp band, at the alpha
+// the artwork wash uses there — a starting point to pick a hue from; the row
+// fills white in dark and black in light at low opacity, a quiet lift over
+// the playlist frost independent of key state like the rest of the window
+// chrome; the custom waveform pair Mono's resting levels, the played hue the
 // appearance's own base.
-static VibeColor *DefaultWaveformPlayedColor(BOOL isDark) {
-    return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
-                  : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
-}
-
-static VibeColor *DefaultWaveformUnplayedColor(void) {
+static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
+    NSColor *semantic = SemanticFallbackForBase(base);
+    if (semantic) {
+        return ResolvedForDark(semantic, isDark);
+    }
+    if ([base isEqualToString:kVibeThemeColorWindowBackground]
+            || [base isEqualToString:kVibeThemeColorPlaylistBackground]) {
+        return isDark ? [NSColor colorWithWhite:0.11 alpha:0.95]
+                      : [NSColor colorWithWhite:0.93 alpha:0.95];
+    }
+    if ([base isEqualToString:kVibeThemeColorWindowTint]
+            || [base isEqualToString:kVibeThemeColorPlaylistTint]) {
+        return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
+                      : [NSColor colorWithWhite:0.88 alpha:0.55];
+    }
+    if ([base isEqualToString:kVibeThemeColorPlaylistPlayingRow]
+            || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
+        return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
+        return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
+                      : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
+    }
+    NSCAssert([base isEqualToString:kVibeThemeColorWaveformUnplayed], @"no color pair %@", base);
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
-- (VibeColor *)displayWindowBackgroundColorForDark:(BOOL)isDark {
-    return [self windowBackgroundColorForDark:isDark] ?: DefaultSolidBackgroundColor(isDark);
+- (VibeColor *)resolvedColorForBase:(NSString *)base {
+    return DynamicColor([self colorForBase:base dark:YES], [self colorForBase:base dark:NO],
+                        SemanticFallbackForBase(base));
 }
 
-- (VibeColor *)displayPlaylistBackgroundColorForDark:(BOOL)isDark {
-    return [self playlistBackgroundColorForDark:isDark] ?: DefaultSolidBackgroundColor(isDark);
-}
+- (VibeColor *)resolvedTitleColor { return [self resolvedColorForBase:kVibeThemeColorTitle]; }
+- (VibeColor *)resolvedArtistColor { return [self resolvedColorForBase:kVibeThemeColorArtist]; }
+- (VibeColor *)resolvedInfoColor { return [self resolvedColorForBase:kVibeThemeColorInfo]; }
+- (VibeColor *)resolvedTimeColor { return [self resolvedColorForBase:kVibeThemeColorTime]; }
 
-- (VibeColor *)displayWindowTintColorForDark:(BOOL)isDark {
-    return [self windowTintColorForDark:isDark] ?: DefaultTintColor(isDark);
-}
-
-- (VibeColor *)displayPlaylistTintColorForDark:(BOOL)isDark {
-    return [self playlistTintColorForDark:isDark] ?: DefaultTintColor(isDark);
-}
-
-- (VibeColor *)displayPlaylistPlayingRowColorForDark:(BOOL)isDark {
-    return [self playlistPlayingRowColorForDark:isDark] ?: DefaultRowFillColor(isDark);
-}
-
-- (VibeColor *)displayPlaylistSelectedRowColorForDark:(BOOL)isDark {
-    return [self playlistSelectedRowColorForDark:isDark] ?: DefaultRowFillColor(isDark);
-}
-
-- (VibeColor *)displayWaveformPlayedColorForDark:(BOOL)isDark {
-    return [self waveformPlayedColorForDark:isDark] ?: DefaultWaveformPlayedColor(isDark);
-}
-
-- (VibeColor *)displayWaveformUnplayedColorForDark:(BOOL)isDark {
-    return [self waveformUnplayedColorForDark:isDark] ?: DefaultWaveformUnplayedColor();
+- (VibeColor *)displayColorForBase:(NSString *)base dark:(BOOL)isDark {
+    return [self colorForBase:base dark:isDark] ?: DefaultColorForBase(base, isDark);
 }
 
 #pragma mark Built-ins
@@ -848,9 +810,11 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *ThemeJS
     return groups;
 }
 
-// The editor's section order — the export's group order.
+// The export's group order: the groups as the field rows first name them,
+// which is the editor's section order. Derived, so a group a new row opens
+// exports as surely as it imports.
 static NSArray<NSString *> *ThemeJSONGroupOrder(void) {
-    return @[@"window", @"player", @"info", @"waveform", @"playlist"];
+    return [NSOrderedSet orderedSetWithArray:[FieldSpecs() valueForKey:kSpecGroup]].array;
 }
 
 // field key → [group, json key], the export side.
@@ -1111,10 +1075,13 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (void)setPlaylistDurationFontSize:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldPlaylistDurationFontSize]; }
 
 // Exhaustive, no default: a new slot unhandled here must fail the build, not
-// silently edit the title. None never arrives from a caller that guards it
-// and falls through to the title's keys otherwise.
+// silently edit the title. None names no slot, so it yields no keys — it
+// must never read as the title, which is what an unset control tag or a
+// zero-filled ivar holds.
 static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeKey) {
     switch (slot) {
+        case VibeFontSlotTitle:
+            *faceKey = kFieldTitleFontFace; *sizeKey = kFieldTitleFontSize; return;
         case VibeFontSlotArtist:
             *faceKey = kFieldArtistFontFace; *sizeKey = kFieldArtistFontSize; return;
         case VibeFontSlotInfo:
@@ -1124,26 +1091,28 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
         case VibeFontSlotPlaylistDuration:
             *faceKey = kFieldPlaylistDurationFontFace; *sizeKey = kFieldPlaylistDurationFontSize; return;
         case VibeFontSlotNone:
-        case VibeFontSlotTitle:
-            *faceKey = kFieldTitleFontFace; *sizeKey = kFieldTitleFontSize; return;
+            *faceKey = nil; *sizeKey = nil; return;
     }
 }
 
 - (NSString *)fontFaceForSlot:(VibeFontSlot)slot {
-    NSString *faceKey, *sizeKey;
+    NSString *faceKey = nil, *sizeKey = nil;
     FontSlotKeys(slot, &faceKey, &sizeKey);
-    return [self stringForKey:faceKey];
+    return faceKey ? [self stringForKey:faceKey] : @"";
 }
 
 - (CGFloat)fontSizeForSlot:(VibeFontSlot)slot {
-    NSString *faceKey, *sizeKey;
+    NSString *faceKey = nil, *sizeKey = nil;
     FontSlotKeys(slot, &faceKey, &sizeKey);
-    return [self floatForKey:sizeKey];
+    return sizeKey ? [self floatForKey:sizeKey] : 0;
 }
 
 - (void)setFontFace:(NSString *)face size:(CGFloat)size forSlot:(VibeFontSlot)slot {
-    NSString *faceKey, *sizeKey;
+    NSString *faceKey = nil, *sizeKey = nil;
     FontSlotKeys(slot, &faceKey, &sizeKey);
+    if (!faceKey) {
+        return;
+    }
     [self storeSanitized:face forKey:faceKey];
     [self storeSanitized:@(size) forKey:sizeKey];
 }
@@ -1211,40 +1180,40 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
             ? [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua] : nil;
 }
 
-- (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kColorWaveformPlayed dark:isDark]; }
-- (void)setWaveformPlayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWaveformPlayed dark:isDark]; }
+- (VibeColor *)waveformPlayedColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]; }
+- (void)setWaveformPlayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWaveformPlayed dark:isDark]; }
 
-- (VibeColor *)waveformUnplayedColorForDark:(BOOL)isDark { return [self colorForBase:kColorWaveformUnplayed dark:isDark]; }
-- (void)setWaveformUnplayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWaveformUnplayed dark:isDark]; }
+- (VibeColor *)waveformUnplayedColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]; }
+- (void)setWaveformUnplayedColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWaveformUnplayed dark:isDark]; }
 
-- (VibeColor *)windowTintColorForDark:(BOOL)isDark { return [self colorForBase:kColorWindowTint dark:isDark]; }
-- (void)setWindowTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWindowTint dark:isDark]; }
+- (VibeColor *)windowTintColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWindowTint dark:isDark]; }
+- (void)setWindowTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWindowTint dark:isDark]; }
 
-- (VibeColor *)playlistTintColorForDark:(BOOL)isDark { return [self colorForBase:kColorPlaylistTint dark:isDark]; }
-- (void)setPlaylistTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorPlaylistTint dark:isDark]; }
+- (VibeColor *)playlistTintColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistTint dark:isDark]; }
+- (void)setPlaylistTintColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistTint dark:isDark]; }
 
-- (VibeColor *)windowBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kColorWindowBackground dark:isDark]; }
-- (void)setWindowBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorWindowBackground dark:isDark]; }
+- (VibeColor *)windowBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorWindowBackground dark:isDark]; }
+- (void)setWindowBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorWindowBackground dark:isDark]; }
 
-- (VibeColor *)titleColorForDark:(BOOL)isDark { return [self colorForBase:kColorTitle dark:isDark]; }
-- (void)setTitleColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorTitle dark:isDark]; }
+- (VibeColor *)titleColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorTitle dark:isDark]; }
+- (void)setTitleColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorTitle dark:isDark]; }
 
-- (VibeColor *)artistColorForDark:(BOOL)isDark { return [self colorForBase:kColorArtist dark:isDark]; }
-- (void)setArtistColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorArtist dark:isDark]; }
+- (VibeColor *)artistColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorArtist dark:isDark]; }
+- (void)setArtistColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorArtist dark:isDark]; }
 
-- (VibeColor *)infoColorForDark:(BOOL)isDark { return [self colorForBase:kColorInfo dark:isDark]; }
-- (void)setInfoColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorInfo dark:isDark]; }
+- (VibeColor *)infoColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorInfo dark:isDark]; }
+- (void)setInfoColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorInfo dark:isDark]; }
 
-- (VibeColor *)timeColorForDark:(BOOL)isDark { return [self colorForBase:kColorTime dark:isDark]; }
-- (void)setTimeColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorTime dark:isDark]; }
+- (VibeColor *)timeColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorTime dark:isDark]; }
+- (void)setTimeColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorTime dark:isDark]; }
 
-- (VibeColor *)playlistBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kColorPlaylistBackground dark:isDark]; }
-- (void)setPlaylistBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorPlaylistBackground dark:isDark]; }
+- (VibeColor *)playlistBackgroundColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistBackground dark:isDark]; }
+- (void)setPlaylistBackgroundColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistBackground dark:isDark]; }
 
-- (VibeColor *)playlistPlayingRowColorForDark:(BOOL)isDark { return [self colorForBase:kColorPlaylistPlayingRow dark:isDark]; }
-- (void)setPlaylistPlayingRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorPlaylistPlayingRow dark:isDark]; }
+- (VibeColor *)playlistPlayingRowColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistPlayingRow dark:isDark]; }
+- (void)setPlaylistPlayingRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistPlayingRow dark:isDark]; }
 
-- (VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark { return [self colorForBase:kColorPlaylistSelectedRow dark:isDark]; }
-- (void)setPlaylistSelectedRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kColorPlaylistSelectedRow dark:isDark]; }
+- (VibeColor *)playlistSelectedRowColorForDark:(BOOL)isDark { return [self colorForBase:kVibeThemeColorPlaylistSelectedRow dark:isDark]; }
+- (void)setPlaylistSelectedRowColor:(VibeColor *)c forDark:(BOOL)isDark { [self setColor:c forBase:kVibeThemeColorPlaylistSelectedRow dark:isDark]; }
 
 @end

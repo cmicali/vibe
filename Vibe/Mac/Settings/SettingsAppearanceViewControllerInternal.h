@@ -65,8 +65,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
-    // Every themed color well → how it reads, writes and repaints its side
-    // of its pair (wellForDark:display:set:effect:). One action, one refresh
+    // Every themed color well → the pair's base key, its side and the effect
+    // its drag requests (wellForDark:base:effect:). One action, one refresh
     // loop and one seed walk serve all of them.
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
     NSPopUpButton *_waveformPopUp;

@@ -8,6 +8,7 @@
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Settings.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
 #import "OutputDevicesMenuController.h"
@@ -213,8 +214,8 @@
         }
         // The start has already rendered both affected rows — a double-click
         // and next/previous through the index-change observer, an open through
-        // its reloadData — so the mark keeps this updateUI to the play-state
-        // cell rather than rebuilding a row that was just built.
+        // its reloadData — so the mark keeps this updateUI from rebuilding a
+        // row that was just built.
         strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
         [strongSelf updateUI];
     };
@@ -507,12 +508,10 @@
                                     track:track
                              displayTrack:displayTrack];
 
-    if (displayTrack && displayTrack == _lastReloadedTrack) {
-        // The same track as last time, so only the play-pause indicator can
-        // have changed in the playlist row.
-        [self.playlistController reloadCurrentTrackPlayState];
-    }
-    else {
+    // Rebuilt on a track change only: the gutter's three states each have
+    // their own edge (the transfer registry, the cursor observer,
+    // syncEqualizerActivity), so a same-track refresh has nothing to reload.
+    if (displayTrack != _lastReloadedTrack) {
         [self.playlistController reloadCurrentTrack];
         _lastReloadedTrack = displayTrack;
     }
@@ -631,11 +630,10 @@
     // coalesces repeated appends, and already-parsed tracks are skipped when
     // it fires.
     [self scheduleDeferredMetadataLoad];
-    // The player queue owns the Loading decision. This call is FIFO behind a
-    // play submitted in the same main turn, so it can suppress an unrelated
-    // append prefetch after that play has published its pending request.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
-    [self updateUI];
+    // The re-park's prefetch is FIFO on the player queue behind a play
+    // submitted in the same main turn, so the player can suppress an unrelated
+    // append prefetch once that play has published its pending request.
+    [self reconcileAfterPlaylistStructureEdit];
 }
 
 #pragma mark - Deferred metadata load / error mask

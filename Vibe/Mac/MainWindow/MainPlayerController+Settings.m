@@ -11,6 +11,7 @@
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
 #import "Fonts.h"

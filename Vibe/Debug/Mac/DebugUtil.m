@@ -45,9 +45,7 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
                   @"sleep <seconds>",
                   @"script <file | ->"]);
     }
-    NSString *response = common
-            ? ((VibeDebugSurfaceHandler)common[@"handler"])(tokens, commandId, controller)
-            : ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
+    NSString *response = ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
     // A verb that wrote the store changed what a visible pane shows, and none
     // of the pane's own refresh triggers (appearance, key regain, menu
     // tracking) fire for a scripted write — refresh after every verb, so no

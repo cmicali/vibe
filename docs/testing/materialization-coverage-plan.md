@@ -96,7 +96,7 @@ Items are lettered; the fix steps they pair with are numbered 1–7 in the bug d
 
 A1 reproduced the bug as expected-fail and is now must-pass. A2–A4 land with J8; A5 was superseded by the private, state-derived ceiling.
 
-Host-less, in `Tests/AudioFileOpenCoordinatorTests.m`, using `initWithConfiguration:operationFactory:datalessProbe:clock:fileOpener:` so a hanging opener and a fake dataless probe compose.
+Host-less, in `Tests/AudioFileHandleOpenTests.m`, using `initWithConfiguration:operationFactory:datalessProbe:clock:fileOpener:` so a hanging opener and a fake dataless probe compose.
 
 - **A1. The B1 regression itself.** Wedge a gapless or prefetch open on path A, then submit a dataless metadata claim on path B and assert its transfer starts. This is the test whose absence is the bug.
 - **A2. Wedged opens are bounded by exact admission.** Six distinct live runs admit; the seventh settles `AdmissionExhausted` before stage 1, increments `requestsAdmissionExhausted`, and leaves transfer counts untouched.

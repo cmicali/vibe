@@ -8,6 +8,7 @@
 #import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
 
@@ -296,7 +297,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
 }
 
 - (CGFloat)devicePixelWidth {
-    return self.bounds.size.width * VibeBackingScaleForWindow(self.window);
+    return self.bounds.size.width * VibeBackingScaleOrDefault(self.window.backingScaleFactor);
 }
 
 - (double)convertSweepFraction {
@@ -373,7 +374,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
 // AppKit does not manage contentsScale for us.
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
-    CGFloat scale = VibeBackingScaleForWindow(self.window);
+    CGFloat scale = VibeBackingScaleOrDefault(self.window.backingScaleFactor);
     VibeApplyContentsScale(self.layer, scale);
     [_loadingIndicator updateContentsScale:scale];
     // Settled geometry is snapped to the old display's pixel grid, and the
@@ -385,6 +386,26 @@ static const CGFloat kWaveformDragHysteresis = 4;
 // Fires when the system switches between light and dark; under the "System
 // default" appearance the window follows the OS. Without this, the cached
 // renderer colors go stale until a manual View > Appearance toggle.
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    if (_currentWaveformRenderer) {
+        BOOL isDark = self.isDark;
+        if (_currentWaveformRenderer.isDark != isDark) {
+            // The theme is resolved per appearance, so a flip re-resolves it
+            // rather than merely recoloring: white's base and the album-art
+            // legibility clamp both depend on isDark.
+            [self applyResolvedTheme];
+            [self updateRendererProgress];
+        }
+    }
+    if (_placeholderLayer) {
+        [self updatePlaceholderColor];
+    }
+    // Unconditional: the track and fill layers re-colour whether or not a
+    // shimmer is currently up.
+    [self updateLoadingColors];
+}
+
 #pragma mark - Accessibility
 
 // The waveform is the only way to seek with the pointer, so to VoiceOver it is
@@ -439,30 +460,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [self.delegate audioWaveformView:self didSeek:(float)target];
     return YES;
-}
-
-- (void)viewDidChangeEffectiveAppearance {
-    [super viewDidChangeEffectiveAppearance];
-    [self updateAppearance];
-}
-
-- (void)updateAppearance {
-    if (_currentWaveformRenderer) {
-        BOOL isDark = self.isDark;
-        if (_currentWaveformRenderer.isDark != isDark) {
-            // The theme is resolved per appearance, so a flip re-resolves it
-            // rather than merely recoloring: white's base and the album-art
-            // legibility clamp both depend on isDark.
-            [self applyResolvedTheme];
-            [self updateRendererProgress];
-        }
-    }
-    if (_placeholderLayer) {
-        [self updatePlaceholderColor];
-    }
-    // Unconditional: the track and fill layers re-colour whether or not a
-    // shimmer is currently up.
-    [self updateLoadingColors];
 }
 
 @end

@@ -5,6 +5,7 @@
 
 #import "BasicAudioWaveformRenderer.h"
 #import "VibeStrings.h"
+#import "PlatformColor.h"
 
 #include <cmath>
 
@@ -37,7 +38,7 @@ static const NSUInteger kBasicMaxBars = 1024;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBasicBarPitch);
-    return MIN(MAX(count, (NSUInteger)2), kBasicMaxBars);
+    return clampRange(count, (NSUInteger)2, kBasicMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -90,8 +91,8 @@ static const NSUInteger kBasicMaxBars = 1024;
         return @[color, color];
     }
     NSArray *colors = @[
-            VibeColorAtRampFraction(color, 0.1),
-            VibeColorAtRampFraction(color, 0.65),
+            VibeColorWithScaledAlpha(color, 0.1),
+            VibeColorWithScaledAlpha(color, 0.65),
             color,
             color,
     ];

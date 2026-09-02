@@ -236,7 +236,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         __weak FolderAccessRestoration *weakRestoration = restoration;
         restoration.work = ^{
             NSDictionary *restored = [self resolveStoredEntry:stored];
-            dispatch_async(dispatch_get_main_queue(), ^{
+            run_on_main_thread({
                 FolderAccessRestoration *finished = weakRestoration;
                 if (restored && finished) {
                     [self mergeRestoredURL:restored[kEntryAccessedURLKey]
@@ -544,7 +544,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         if (additions.count == 0) {
             return;
         }
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             [self mergeAdditions:additions];
         });
     });
@@ -713,7 +713,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         return;
     }
     _changeNotificationPending = YES;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    run_on_main_thread({
         self->_changeNotificationPending = NO;
         [NSNotificationCenter.defaultCenter postNotificationName:FolderAccessManagerDidChangeNotification
                                                           object:self];

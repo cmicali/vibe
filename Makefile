@@ -77,7 +77,7 @@ check-cloud-scenarios:
 test-summary:
 	scripts/test-summary.sh $(RESULT_BUNDLE)
 
-# Run clang's static analyzer over the app target and FAIL on any finding
+# Run clang's static analyzer over BOTH app targets and FAIL on any finding
 # outside ThirdParty/. project.yml turns the analyzer's checks on
 # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION), and this
 # is what makes them a gate rather than a setting nobody runs. Vendored code is

@@ -53,7 +53,7 @@
 // The exact prioritizeTrack: edge this record carried when its priority slot
 // was claimed. A locality probe runs without the bookkeeping lock, so its
 // result may act only while this still matches the URL's current mark.
-@property (nonatomic) NSUInteger priorityMarkRevision;
+@property (nonatomic) NSUInteger priorityMarkGeneration;
 - (instancetype)initWithTrack:(AudioTrack *)track
                  playlistIndex:(NSUInteger)playlistIndex;
 - (instancetype)init NS_UNAVAILABLE;
@@ -76,7 +76,7 @@
 @end
 
 @interface MetadataPriorityMark : NSObject
-@property(nonatomic) NSUInteger revision;
+@property(nonatomic) NSUInteger markGeneration;
 @property(nonatomic, strong) AudioTrack *track;
 @end
 
@@ -169,7 +169,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // _materializationLock; bounded by the tracks a shell prioritizes (~1-2).
     NSMutableSet<NSURL *>* _priorityURLs;
     NSMutableDictionary<NSURL *, MetadataPriorityMark *> *_priorityMarks;
-    NSUInteger _nextPriorityMarkRevision;
+    NSUInteger _nextPriorityMarkGeneration;
     BOOL _scanMaterializationInFlight;
     BOOL _priorityMaterializationInFlight;
     // The two loader-owned slots must never join the same coordinator claim.
@@ -431,7 +431,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 // Marks the track's URL priority and makes sure a record exists to carry it.
-// The set is the live decision; each mark's revision and target identity let a
+// The set is the live decision; each mark's generation and target identity let a
 // record prove which edge it carried across an off-lock probe or completion.
 // Three cases: a pending/delayed record is reactivated for one submission; a
 // mid-flight or mid-stage-1 record adopts the mark at completion/enqueue; an
@@ -450,20 +450,20 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     NSOperation *parseOperation;
     os_unfair_lock_lock(&_materializationLock);
     MetadataPriorityMark *mark = [[MetadataPriorityMark alloc] init];
-    mark.revision = ++_nextPriorityMarkRevision;
+    mark.markGeneration = ++_nextPriorityMarkGeneration;
     mark.track = track;
     [_priorityURLs addObject:url];
     _priorityMarks[url] = mark;
     for (MetadataScanEntry *entry in _pendingMaterializations) {
         if (entry.track == track) {
-            entry.priorityMarkRevision = mark.revision;
+            entry.priorityMarkGeneration = mark.markGeneration;
             entry.yieldedUnderHold = NO;
         }
     }
     for (MetadataScanEntry *entry in [_delayedScanRetryEntries copy]) {
         if (entry.track == track) {
             [_delayedScanRetryEntries removeObject:entry];
-            entry.priorityMarkRevision = mark.revision;
+            entry.priorityMarkGeneration = mark.markGeneration;
             entry.yieldedUnderHold = NO;
             [_pendingMaterializations addObject:entry];
         }
@@ -583,8 +583,8 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             _scanOrderGeneration++;
             _priorityMaterializationInFlight = YES;
             _priorityMaterializationPath = priorityPick.standardizedPath;
-            priorityPick.priorityMarkRevision =
-                    _priorityMarks[priorityPick.url].revision;
+            priorityPick.priorityMarkGeneration =
+                    _priorityMarks[priorityPick.url].markGeneration;
         }
     }
     os_unfair_lock_unlock(&_materializationLock);
@@ -745,31 +745,31 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 // transfer). A still-dataless record waits while the rule holds and demotes
 // at the first idle tick — re-downloading a dead pick behind its error UI is
 // the sweep's call to make, at its rank. Probing is I/O, so it happens off
-// the lock. The mark revision is revalidated after the probe so a new
+// the lock. The mark generation is revalidated after the probe so a new
 // prioritizeTrack: edge cannot be removed by the old mark's judgement.
 - (void)judgeWaitingPriorityRecordsWhileHeld:(BOOL)held {
     NSMutableArray<MetadataScanEntry *> *waiting = [NSMutableArray array];
-    NSMutableArray<NSNumber *> *markRevisions = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *markGenerations = [NSMutableArray array];
     os_unfair_lock_lock(&_materializationLock);
     for (MetadataScanEntry *entry in _pendingMaterializations) {
         if (entry.yieldedUnderHold
                 && _priorityMarks[entry.url].track == entry.track) {
             [waiting addObject:entry];
-            [markRevisions addObject:@(entry.priorityMarkRevision)];
+            [markGenerations addObject:@(entry.priorityMarkGeneration)];
         }
     }
     os_unfair_lock_unlock(&_materializationLock);
     for (NSUInteger index = 0; index < waiting.count; index++) {
         MetadataScanEntry *entry = waiting[index];
-        NSUInteger markRevision = markRevisions[index].unsignedIntegerValue;
+        NSUInteger markGeneration = markGenerations[index].unsignedIntegerValue;
         BOOL local = ![NSURLUtil isDatalessFile:entry.url];
         BOOL demoted = NO;
         os_unfair_lock_lock(&_materializationLock);
         BOOL stillPending = [_pendingMaterializations containsObject:entry];
-        BOOL sameEntryMark = entry.priorityMarkRevision == markRevision;
+        BOOL sameEntryMark = entry.priorityMarkGeneration == markGeneration;
         MetadataPriorityMark *currentMark = _priorityMarks[entry.url];
         BOOL sameCurrentMark = currentMark.track == entry.track
-                && currentMark.revision == markRevision;
+                && currentMark.markGeneration == markGeneration;
         if (!stillPending || !entry.yieldedUnderHold || !sameEntryMark) {
             os_unfair_lock_unlock(&_materializationLock);
             continue;
@@ -961,7 +961,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                     VibeMetadataPriorityAfterYield(suspended, entry.local);
             MetadataPriorityMark *currentMark = _priorityMarks[entry.url];
             BOOL sameCurrentMark = currentMark.track == entry.track
-                    && currentMark.revision == entry.priorityMarkRevision;
+                    && currentMark.markGeneration == entry.priorityMarkGeneration;
             if (!sameCurrentMark) {
                 // The completed request carried an older mark. Preserve and
                 // reactivate the newer edge for exactly one submission.
@@ -1038,7 +1038,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             __typeof(self) strongSelf = weakSelf;
             if (strongSelf) {
                 if (!strongSelf.isCancelled) {
-                    [strongSelf parseOneTrack:entry.track];
+                    [strongSelf parseOneEntry:entry];
                 }
                 [strongSelf finishParseOperation:weakParse forTrack:entry.track];
             }
@@ -1336,10 +1336,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 // The stage-2 worker: the TagLib parse. The central materialization result has
 // already made provider-backed content ready before this opens the audio file.
-- (void)parseOneTrack:(AudioTrack *)track {
+- (void)parseOneEntry:(MetadataScanEntry *)entry {
     if (self.isCancelled) {
         return;
     }
+    AudioTrack *track = entry.track;
     if (track.metadata.parsedOK) {
         [self finishCarrierForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
@@ -1349,7 +1350,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // arriving while the parse is queued/running no longer has a record to
     // carry it, so both entry and terminal settlement retire that edge.
     [self retirePriorityMarkSatisfiedByTrack:track];
-    MetadataParseClaim *claim = [_parseCoordinator claimParseForKey:track.url
+    MetadataParseClaim *claim = [_parseCoordinator claimParseForKey:entry.standardizedPath
                                                          participant:track];
     if (!claim.isOwner) {
         [self finishCarrierForTrack:track];

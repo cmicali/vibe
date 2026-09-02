@@ -5,6 +5,7 @@
 
 #import "TransportKeyMonitor.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"

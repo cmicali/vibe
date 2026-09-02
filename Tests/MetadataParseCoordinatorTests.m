@@ -30,7 +30,7 @@
 
 - (void)testDuplicateRowsWaitExactlyOnceForTheirHolder {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
     NSObject *holder = [NSObject new];
     NSObject *firstDuplicate = [NSObject new];
     NSObject *secondDuplicate = [NSObject new];
@@ -60,7 +60,7 @@
 // free the true holder or drain its waiters mid-parse.
 - (void)testARepeatedOwnerClaimCannotCompleteTheRealOne {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
     NSObject *holder = [NSObject new];
     NSObject *duplicate = [NSObject new];
 
@@ -79,7 +79,7 @@
 // one waiter dying must not take its surviving siblings out of the delivery.
 - (void)testASurvivingWaiterIsStillDeliveredWhenASiblingDies {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
     NSObject *holder = [NSObject new];
     NSObject *survivor = [NSObject new];
 
@@ -95,7 +95,7 @@
 
 - (void)testOnlyTheHolderCanReleaseAClaim {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
     NSObject *holder = [NSObject new];
     NSObject *duplicate = [NSObject new];
 
@@ -248,7 +248,7 @@
 - (void)testAWaiterRacingCompletionIsNeverLost {
     static const NSUInteger kRounds = 60;
     static const NSUInteger kContenders = 32;
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
 
     for (NSUInteger round = 0; round < kRounds; round++) {
         @autoreleasepool {
@@ -322,7 +322,7 @@
 - (void)testConcurrentContentionHasOneHolderAndEveryOtherRowWaits {
     static const NSUInteger kRounds = 40;
     static const NSUInteger kContenders = 64;
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/shared.flac"];
+    NSString *key = @"/private/tmp/shared.flac";
 
     for (NSUInteger round = 0; round < kRounds; round++) {
         @autoreleasepool {
@@ -368,7 +368,7 @@
 // outside the process almost never lands inside one.
 - (void)testDebugPendingCountsTrackHoldersAndWaiters {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
-    NSURL *key = [NSURL fileURLWithPath:@"/private/tmp/counted.flac"];
+    NSString *key = @"/private/tmp/counted.flac";
     NSObject *holder = [NSObject new];
     NSObject *waiter = [NSObject new];
 

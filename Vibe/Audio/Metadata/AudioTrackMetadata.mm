@@ -5,6 +5,7 @@
 
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
+#import "AudioTrack.h"
 #import "AudioTrackArtworkInternal.h"
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
@@ -473,8 +474,7 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
 
     self.artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:url.path
                                                            extractor:VibeTagLibArtExtractor()];
-    self.title = [url.path.lastPathComponent stringByDeletingPathExtension];
-    self.title = [self.title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    self.title = [AudioTrack filenameTitleForURL:url];
 
     // A C++ exception barrier. A corrupt tag declaring a huge frame size can
     // make TagLib throw std::bad_alloc or std::length_error, and this runs on

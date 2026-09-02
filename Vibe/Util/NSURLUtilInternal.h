@@ -15,9 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface NSURLUtil (Internal)
 
-// The playable extensions, lowercased.
-+ (NSSet<NSString *> *)supportedExtensions;
-
 // One folder walk: the audio files anywhere under dir, in sort's order — by
 // full path for Name, so subfolders group.
 + (NSArray<NSURL *> *)expandDirectory:(NSURL *)dir sortedBy:(VibeFolderOpenSort)sort;

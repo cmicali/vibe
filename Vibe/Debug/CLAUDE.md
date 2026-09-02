@@ -21,7 +21,7 @@ A command is a file. The client writes one, the app drains it, the app writes a 
 | --- | --- |
 | `DebugWireFormat.{h,m}` | The wire itself: the notification name, the command/response/screenshot paths, and the JSON reply serialization. Neither app's, because both apps' tables, the shared verbs and the mac CLI client all have to agree on it. |
 | `DebugChannel.{h,m}` | The platform-neutral drain: payload validation, response writing, the stale-file sweep, the wake-up listeners. It holds no verbs — the platform table supplies an executor block. |
-| `DebugCommandDispatch.{h,m}` | The table's *shape* and the lookup over it, so one verb lookup and one unknown-command reply serve both platforms. It deliberately never invokes a handler: each table is typed to its own controller, and the call belongs where that type is known. |
+| `DebugCommandDispatch.{h,m}` | The table's *shape* and the lookup over it, so one verb lookup and one unknown-command reply serve both platforms. It deliberately never invokes a handler: each platform's dispatcher supplies its own controller, and the call belongs where that is known. |
 | `Mac/DebugClient.m` | The macOS CLI half. `main.m` routes `Vibe --debug-cmd …` here **before `NSApplicationMain`**, so the client is the same binary and never launches a second app. |
 
 iOS has no client: `debug-ios.sh` writes the command file straight into the simulator container's tmp, which is a plain host directory. The transport above it is the mac's verbatim.

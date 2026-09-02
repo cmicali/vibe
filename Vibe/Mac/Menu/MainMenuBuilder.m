@@ -6,6 +6,7 @@
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
@@ -16,13 +17,14 @@
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
-// Strips what macOS force-appends to any menu it takes for an Edit menu —
-// AutoFill, Start Dictation and Emoji & Symbols, all inert in an app with no
-// text input. There is no supported opt-out: AppKit's only suppression
-// defaults cover Dictation and the character palette, nothing covers
-// AutoFill, so the one uniform, public-API path is a delegate that drops
-// every item the builder didn't add. Ours all carry menu_edit_* identifiers;
-// anything else, the system's separators included, goes. Deliberately NOT
+// TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
+// any menu it takes for an Edit menu, all inert in an app with no text input;
+// this delegate strips them. There is no supported opt-out: AppKit's only
+// suppression defaults cover Dictation and the character palette, nothing
+// covers AutoFill, so the one uniform, public-API path is a delegate that
+// drops every item the builder didn't add. Ours all carry menu_edit_*
+// identifiers; anything else, the system's separators included, goes.
+// Deliberately NOT
 // implementing menuHasKeyEquivalent:…, unlike the app's other menu
 // delegates: this menu carries real key equivalents (⌘Z, ⇧⌘Z, ⌘C, ⇧⌘C),
 // and that override would answer for them instead of letting AppKit walk
@@ -47,8 +49,8 @@
 static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
                                 NSEventModifierFlags modifiers, NSString *identifier) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
-    // NSMenuItem defaults to a Command modifier, and the transport keys are
-    // bare, so the mask must be set explicitly every time.
+    // TRAP: NSMenuItem defaults to a Command modifier, and the transport keys
+    // are bare, so the mask must be set explicitly every time.
     item.keyEquivalentModifierMask = modifiers;
     item.target = target;
     item.identifier = identifier;
@@ -87,8 +89,8 @@ static NSMenuItem *AddSymbolItem(NSMenu *parent, NSString *title, NSString *symb
 static NSMenuItem *AddFXItem(NSMenu *parent, NSString *title, NSString *symbolName, SEL action,
                              id target, NSString *key, NSString *identifier) {
     NSMenuItem *item = AddSymbolItem(parent, title, symbolName, action, target, key, 0, identifier);
-    // Keep the intended shortcut while the live setting clears keyEquivalent.
-    // AppKit still matches descendants of a hidden top-level menu.
+    // Keeps the intended shortcut for applyFXMenuVisibility:, which clears
+    // keyEquivalent while the menu is hidden.
     item.representedObject = key;
     return item;
 }
@@ -220,7 +222,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // puts the current track's file URL on the general pasteboard, so a
     // Finder paste duplicates the file. The items are the vended ones the
     // window-body context menu also uses; only the key equivalents are the
-    // menu bar's own. Copy Name's ⇧⌘ rides in the capital "C", per the
+    // menu bar's own. TRAP: Copy Name's ⇧⌘ rides in the capital "C", per the
     // NSMenuItem contract — a lowercase key with Shift in the mask draws
     // right but never matches a real key press (charactersIgnoringModifiers
     // arrives uppercase).
@@ -352,7 +354,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     convertItem.identifier = @"menu_convert";
     NSMenu *convertMenu = convertItem.submenu;
     // Enabled only for an uncompressed current track with no FLAC beside it
-    // yet; validation retitles it with the reason otherwise.
+    // yet; validation retitles it with the reason otherwise, and re-aims it
+    // at Cancel Conversion while one runs.
     [convertMenu addItem:[self convertToFLACItemWithTarget:player]];
     AddSeparator(convertMenu);
     // A checkmarked preference rather than an action, so it is always enabled.
@@ -379,6 +382,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [self applyFXMenuVisibility:fxItem];
 }
 
+// TRAP: hiding a top-level submenu does not deactivate its children's key
+// equivalents — AppKit still matches Q/W/E/R/T under a hidden menu_fx, even
+// when validation returns NO — so they are cleared and restored with it.
 + (void)applyFXMenuVisibility:(NSMenuItem *)fxItem {
     BOOL enabled = AppSettings.sharedInstance.audioFXEnabled;
     for (NSMenuItem *item in fxItem.submenu.itemArray) {

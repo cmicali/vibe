@@ -5,6 +5,7 @@
 
 #import "SettingsGeneralViewController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
 #import "AudioPlayer.h"
 #import "DefaultAppRegistration.h"
@@ -69,18 +70,13 @@ static const CGFloat kOutputPopUpWidth = 280;
     // either popup: the waveform view reads its setting per mouse-down, the
     // art view reads its own per drag start.
     _waveformDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(waveformDragChanged:)];
-    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_WINDOW];
-    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
-    [_waveformDragPopUp addItemWithTitle:STR_SETTINGS_WAVEFORM_DRAG_SEEK];
-    _waveformDragPopUp.lastItem.representedObject = SETTINGS_VALUE_WAVEFORM_DRAG_SEEK;
+    [self addItem:STR_SETTINGS_WAVEFORM_DRAG_WINDOW value:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW to:_waveformDragPopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_DRAG_SEEK value:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK to:_waveformDragPopUp];
 
     _artworkDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(artworkDragChanged:)];
-    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_FILE];
-    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE;
-    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_PATH];
-    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH;
-    [_artworkDragPopUp addItemWithTitle:STR_SETTINGS_ARTWORK_DRAG_NAME];
-    _artworkDragPopUp.lastItem.representedObject = SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE;
+    [self addItem:STR_SETTINGS_ARTWORK_DRAG_FILE value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE to:_artworkDragPopUp];
+    [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
+    [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
@@ -102,17 +98,8 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     // The getters are normalized, so a match always exists.
-    [self selectIdentifier:AppSettings.sharedInstance.waveformDragBehavior inPopUp:_waveformDragPopUp];
-    [self selectIdentifier:AppSettings.sharedInstance.artworkDragAction inPopUp:_artworkDragPopUp];
-}
-
-- (void)selectIdentifier:(NSString *)identifier inPopUp:(NSPopUpButton *)popUp {
-    for (NSMenuItem *item in popUp.itemArray) {
-        if ([item.representedObject isEqualToString:identifier]) {
-            [popUp selectItem:item];
-            break;
-        }
-    }
+    [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
+    [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {

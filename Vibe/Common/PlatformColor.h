@@ -32,6 +32,9 @@ NSString *_Nullable VibeHexStringFromColor(VibeColor *_Nullable color);
 // Falls back to `color` itself when either has no RGB reading.
 VibeColor *VibeColorBlended(VibeColor *color, VibeColor *toward, CGFloat fraction);
 
+// The color at `fraction` of its own alpha, hue untouched.
+VibeColor *VibeColorWithScaledAlpha(VibeColor *color, CGFloat fraction);
+
 #ifdef __cplusplus
 }
 #endif

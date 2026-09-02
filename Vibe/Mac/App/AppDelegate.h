@@ -7,9 +7,6 @@
 
 @class MainPlayerController;
 
-// The app's support page. Help > Get Support and the About pane's link are
-// the two doors to it, so the address is written once.
-
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
 @property (nonatomic, strong) MainPlayerController *mainPlayerController;

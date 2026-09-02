@@ -14,9 +14,9 @@
 // The state read here is published by AudioPlayer.m's publishPlaybackState:,
 // which is where the writer model is written down: it is the full-tuple
 // publisher, and there are exactly three permitted partial writers. One of them
-// is below — the position getter's epoch-guarded _lastValidPosition writeback.
-// The fields stay readonly on the shared surface so that adding a fourth from a
-// category is a compile error rather than a race.
+// is below — the position getter's generation-guarded _lastValidPosition
+// writeback. The fields stay readonly on the shared surface so that adding a
+// fourth from a category is a compile error rather than a race.
 
 #import "AudioPlayerInternal.h"
 
@@ -88,7 +88,7 @@
     AVAudioFramePosition segmentStartFrame = _segmentStartFrame;
     NSTimeInterval pausedPosition = self.pausedPosition;
     NSTimeInterval lastValidPosition = _lastValidPosition;
-    uint64_t positionEpoch = self.positionEpoch;
+    uint64_t positionGeneration = self.positionGeneration;
     os_unfair_lock_unlock(&_stateLock);
 
     if (!file || state == VibePlayerStateStopped) {
@@ -135,14 +135,14 @@
         position = (NSTimeInterval)(segmentStartFrame + playerTime.sampleTime) / sampleRate;
     }
     NSTimeInterval duration = (NSTimeInterval)file.length / sampleRate;
-    position = MIN(MAX(position, 0), duration);
+    position = clampRange(position, 0, duration);
     if (playerTime && playerTime.sampleTimeValid) {
         os_unfair_lock_lock(&_stateLock);
         // A seek, pause or track change may have rewritten the position state
         // while this was computed off-lock, and storing it then would
         // resurrect the pre-seek position. The stale reading is not returned
-        // upward either: the epoch writer's value is the truth now.
-        if (self.positionEpoch == positionEpoch) {
+        // upward either: the generation writer's value is the truth now.
+        if (self.positionGeneration == positionGeneration) {
             _lastValidPosition = position;
         }
         else {

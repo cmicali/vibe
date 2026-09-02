@@ -252,9 +252,31 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
 
 @implementation VibeFakeCloud
 
+// The per-install configuration and its counters, back to their defaults. An
+// install describes a whole scenario, and a leftover mode from the previous
+// one would silently reshape it; after an uninstall a leftover would report a
+// config the fake no longer has. One list, so the two cannot drift. Caller
+// holds sLock. The completed/cancelled tally deliberately survives both.
+static void VibeResetScenarioLocked(void) {
+    sPercent = 0;
+    sBaseSeconds = 0;
+    sSticky = NO;
+    sFailBasename = nil;
+    sCapacity = 1;
+    sUniform = NO;
+    sProgressMode = VibeFakeCloudProgressHashed;
+    sUnflagged = NO;
+    sMetadataOverlapTransfers = 0;
+    sForegroundContentionStarts = 0;
+    sExecuting = 0;
+    sQueued = 0;
+    sMaxObservedConcurrency = 0;
+}
+
 + (void)installWithTransferSeconds:(NSTimeInterval)transferSeconds
                    datalessPercent:(NSUInteger)percent {
     os_unfair_lock_lock(&sLock);
+    VibeResetScenarioLocked();
     sInstalled = YES;
     sPercent = percent;
     sBaseSeconds = transferSeconds;
@@ -266,24 +288,11 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sMaterialized = [NSMutableSet set];
     sTransferStartedAt = [NSMutableDictionary dictionary];
     sInFlightRolesByPath = [NSMutableDictionary dictionary];
-    sMetadataOverlapTransfers = 0;
     sInFlightByRole = [NSMutableDictionary dictionary];
-    sForegroundContentionStarts = 0;
     sContentionEvents = [NSMutableArray array];
-    sSticky = NO;
-    sFailBasename = nil;
-    // Every determinism switch resets: an install describes a whole scenario,
-    // and a leftover mode from the previous one would silently reshape it.
-    sCapacity = 1;
-    sUniform = NO;
-    sProgressMode = VibeFakeCloudProgressHashed;
-    sUnflagged = NO;
     sTrace = [NSMutableArray array];
     sTraceSeq = 0;
     sInstalledAt = CFAbsoluteTimeGetCurrent();
-    sExecuting = 0;
-    sQueued = 0;
-    sMaxObservedConcurrency = 0;
     os_unfair_lock_unlock(&sLock);
 
     [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
@@ -561,16 +570,9 @@ static void VibeTraceLocked(NSString *event, NSString *role, NSString *path,
     sInFlightByRole = nil;
     sContentionEvents = nil;
     sTrace = nil;
-    // The live counters and the per-install config go too, or a transfer in
-    // flight keeps mutating stats and later reads report a config the fake no
-    // longer has. The captured blocks bail on !sInstalled before touching any
-    // of these. The completed/cancelled tally deliberately survives, as it
-    // does across re-arms.
-    sExecuting = 0;
-    sQueued = 0;
-    sMaxObservedConcurrency = 0;
-    sPercent = 0;
-    sBaseSeconds = 0;
+    // The captured blocks bail on !sInstalled before touching any of these, so
+    // a transfer still in flight stops mutating stats here.
+    VibeResetScenarioLocked();
     os_unfair_lock_unlock(&sLock);
 }
 

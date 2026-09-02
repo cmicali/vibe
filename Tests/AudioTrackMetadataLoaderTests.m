@@ -1963,11 +1963,11 @@ materializationCoordinator:coordinator
     }];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     dispatch_queue_t completionQueue = dispatch_queue_create(
-            "com.vibe.tests.metadata-priority-revision", DISPATCH_QUEUE_SERIAL);
+            "com.vibe.tests.metadata-priority-generation", DISPATCH_QUEUE_SERIAL);
     XCTestExpectation *foregroundCompleted =
             [self expectationWithDescription:@"foreground completed"];
     __unused AudioFileMaterializationRequestToken *foregroundToken = [coordinator
-            materializeURL:[self URLNamed:@"foreground-priority-revision.wav"]
+            materializeURL:[self URLNamed:@"foreground-priority-generation.wav"]
                       role:VibeAudioFileMaterializationRolePlayback
            completionQueue:completionQueue
                 completion:^(VibeAudioFileMaterializationResult result,
@@ -1977,7 +1977,7 @@ materializationCoordinator:coordinator
     }];
     [self waitForExpectations:@[controller.firstStartExpectation] timeout:2];
 
-    AudioTrack *priority = [self trackNamed:@"priority-revision.wav"];
+    AudioTrack *priority = [self trackNamed:@"priority-generation.wav"];
     [loader prioritizeTrack:priority];
     [loader load:@[priority]];
     [self waitForCondition:^BOOL{
@@ -2017,7 +2017,7 @@ materializationCoordinator:coordinator
     [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:2];
 
     XCTAssertEqualObjects(controller.startedURLs, (@[
-        [self URLNamed:@"foreground-priority-revision.wav"], priority.url
+        [self URLNamed:@"foreground-priority-generation.wav"], priority.url
     ]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRolePlayback),

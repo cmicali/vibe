@@ -212,8 +212,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     //
     // An ivar rather than one of the readonly properties below, because the
     // position getter is a second writer: it computes off-lock and stores the
-    // result back under the epoch check. Everything else in the position state
-    // keeps the write protection.
+    // result back under the generation check. Everything else in the position
+    // state keeps the write protection.
     NSTimeInterval          _lastValidPosition;
 #if TARGET_OS_IOS
     // Tags the iOS player-owned sampling loop which refreshes the cache while
@@ -262,12 +262,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 // The position state AudioPlayer+State's readers answer from, all under
 // _stateLock. The paused position is what position returns once the node stops
-// reporting; the epoch is bumped by every queue-side write of the three, and is
-// what lets the position getter tell its own off-lock result from one a seek or
-// a track change has since superseded. loadingStartPaused is the pending
-// start's intent, which is what isPlaying and isPaused report while Loading.
+// reporting; the generation is bumped by every queue-side write of the three,
+// and is what lets the position getter tell its own off-lock result from one a
+// seek or a track change has since superseded. loadingStartPaused is the
+// pending start's intent, which is what isPlaying and isPaused report while
+// Loading.
 @property (nonatomic, readonly) NSTimeInterval pausedPosition;
-@property (nonatomic, readonly) uint64_t positionEpoch;
+@property (nonatomic, readonly) uint64_t positionGeneration;
 @property (nonatomic, readonly) BOOL loadingStartPaused;
 
 // Readwrite here, readonly in AudioPlayer.h: currentTrack is written on

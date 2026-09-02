@@ -29,8 +29,8 @@
 #import "OpenRequestCoordinator.h"
 #import "AudioTrackMetadataCache.h"
 #import "ArtworkDisplayController+Debug.h"
+#import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Debug.h"
-#import "MainPlayerController+NowPlaying.h"   // displayState, displayedTrack
 #import "TrackDisplayController.h"
 #import "MainWindow.h"
 #import "PlaylistController.h"
@@ -509,13 +509,13 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
 
     if (state == TrackDisplayStateTrack || state == TrackDisplayStateLoading) {
         checked++;
-        NSString *expectedTitle = shown.hasArtistAndTitle ? shown.title : shown.singleLineTitle;
+        NSString *expectedTitle = shown.displayTitle;
         if (shown && ![title isEqualToString:expectedTitle ?: @""]) {
             VibeDebugViolation(v, @"display.title_matches_track",
                     @"header shows \"%@\", track is \"%@\"", title, expectedTitle ?: @"");
         }
         checked++;
-        NSString *expectedArtist = shown.hasArtistAndTitle ? (shown.artist ?: @"") : @"";
+        NSString *expectedArtist = shown.displayArtist ?: @"";
         if (shown && ![artist isEqualToString:expectedArtist]) {
             VibeDebugViolation(v, @"display.artist_matches_track",
                     @"header shows \"%@\", track is \"%@\"", artist, expectedArtist);

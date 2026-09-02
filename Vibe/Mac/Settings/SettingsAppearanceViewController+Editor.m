@@ -7,6 +7,7 @@
 #import "SettingsAppearanceViewControllerInternal.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "Fonts.h"
 #import "NSImage+Util.h"
 #import "VibeStrings.h"
@@ -25,11 +26,8 @@ static const CGFloat kAlbumArtBadgePointSize = 16.25; // NSFont.systemFontSize *
 // click target.
 static const CGFloat kAlbumArtBadgeInset = 1.5;
 
-// A color well's binding to its theme pair; see wellForDark:display:set:effect:.
-typedef VibeColor *(^ThemeColorGetter)(AppTheme *theme, BOOL isDark);
-typedef void (^ThemeColorSetter)(AppTheme *theme, VibeColor *color, BOOL isDark);
-static NSString *const kWellDisplay = @"display";
-static NSString *const kWellSet = @"set";
+// A color well's binding to one side of its theme pair; see wellForDark:base:effect:.
+static NSString *const kWellBase = @"base";
 static NSString *const kWellEffect = @"effect";
 static NSString *const kWellDark = @"dark";
 
@@ -84,23 +82,19 @@ static NSString *const kWellDark = @"dark";
 
 #pragma mark - Construction
 
-// A well bound to one side of a themed color pair: it reads its color through
-// the theme's display accessor (the override, or the unset slot's constant),
-// writes it through the setter, and requests the effect. Alpha is part of the
-// choice: a fill's strength, the solid background's opacity, a waveform
-// side's resting level.
-- (NSColorWell *)wellForDark:(BOOL)isDark
-                     display:(ThemeColorGetter)display
-                         set:(ThemeColorSetter)set
-                      effect:(VibeSettingsLiveEffect)effect {
+// A well bound to one side of a themed color pair, by the pair's base key: it
+// reads its color through the theme's display accessor (the override, or the
+// unset slot's constant), writes it through the base setter, and requests the
+// effect. Alpha is part of the choice: a fill's strength, the solid
+// background's opacity, a waveform side's resting level.
+- (NSColorWell *)wellForDark:(BOOL)isDark base:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
     NSColorWell *well = [[NSColorWell alloc] init];
     well.target = self;
     well.action = @selector(colorWellChanged:);
     if (!_wellBindings) {
         _wellBindings = [NSMapTable strongToStrongObjectsMapTable];
     }
-    [_wellBindings setObject:@{kWellDisplay: [display copy], kWellSet: [set copy],
-                               kWellEffect: @(effect), kWellDark: @(isDark)}
+    [_wellBindings setObject:@{kWellBase: base, kWellEffect: @(effect), kWellDark: @(isDark)}
                       forKey:well];
     if (@available(macOS 14.0, *)) {
         well.supportsAlpha = YES;
@@ -140,11 +134,9 @@ static NSString *const kWellDark = @"dark";
 }
 
 // Both sides of one themed color pair as the Dark/Light row control.
-- (NSStackView *)darkLightPairDisplay:(ThemeColorGetter)display
-                                  set:(ThemeColorSetter)set
-                               effect:(VibeSettingsLiveEffect)effect {
-    return [self darkLightPairWithDark:[self wellForDark:YES display:display set:set effect:effect]
-                                 light:[self wellForDark:NO display:display set:set effect:effect]];
+- (NSStackView *)darkLightPairForBase:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
+    return [self darkLightPairWithDark:[self wellForDark:YES base:base effect:effect]
+                                 light:[self wellForDark:NO base:base effect:effect]];
 }
 
 // A font row's trailing cluster: the current choice, then Select…, which
@@ -274,22 +266,17 @@ static NSString *const kWellDark = @"dark";
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_backgroundPopUp];
     _backgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_COLORS
-            control:[self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayWindowBackgroundColorForDark:dark]; }
-                                           set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setWindowBackgroundColor:c forDark:dark]; }
+            control:[self darkLightPairForBase:kVibeThemeColorWindowBackground
                                         effect:VibeSettingsLiveEffectWindowChrome]];
 
     _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_windowTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_windowTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_windowTintPopUp];
-    ThemeColorGetter windowTintDisplay = ^(AppTheme *t, BOOL dark) { return [t displayWindowTintColorForDark:dark]; };
-    ThemeColorSetter windowTintSet = ^(AppTheme *t, VibeColor *c, BOOL dark) { [t setWindowTintColor:c forDark:dark]; };
     _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES display:windowTintDisplay set:windowTintSet
-                                effect:VibeSettingsLiveEffectWindowTint]];
+            control:[self wellForDark:YES base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO display:windowTintDisplay set:windowTintSet
-                                effect:VibeSettingsLiveEffectWindowTint]];
+            control:[self wellForDark:NO base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
 
     _cornerRadiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
                                                    minValue:0 maxValue:kVibeThemeCornerRadiusMax
@@ -327,17 +314,13 @@ static NSString *const kWellDark = @"dark";
 
     // Title and artist paint the playlist rows too; info and time appear only
     // in the header, so their drags skip the table reload.
-    NSStackView *titleColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayTitleColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setTitleColor:c forDark:dark]; }
+    NSStackView *titleColors = [self darkLightPairForBase:kVibeThemeColorTitle
             effect:VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance];
-    NSStackView *artistColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayArtistColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setArtistColor:c forDark:dark]; }
+    NSStackView *artistColors = [self darkLightPairForBase:kVibeThemeColorArtist
             effect:VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance];
-    NSStackView *infoColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayInfoColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setInfoColor:c forDark:dark]; }
+    NSStackView *infoColors = [self darkLightPairForBase:kVibeThemeColorInfo
             effect:VibeSettingsLiveEffectTrackDisplay];
-    NSStackView *timeColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayTimeColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setTimeColor:c forDark:dark]; }
+    NSStackView *timeColors = [self darkLightPairForBase:kVibeThemeColorTime
             effect:VibeSettingsLiveEffectTrackDisplay];
 
     _waveformPopUp = [self waveformStylePopUpButton];
@@ -350,16 +333,12 @@ static NSString *const kWellDark = @"dark";
     _waveformGradientSwitch = [self switchWithAction:@selector(toggleWaveformGradient:)];
     _playlistArtworkSwitch = [self switchWithAction:@selector(togglePlaylistArtwork:)];
     _playlistDurationSwitch = [self switchWithAction:@selector(togglePlaylistDuration:)];
-    ThemeColorGetter playedDisplay = ^(AppTheme *t, BOOL dark) { return [t displayWaveformPlayedColorForDark:dark]; };
-    ThemeColorSetter playedSet = ^(AppTheme *t, VibeColor *c, BOOL dark) { [t setWaveformPlayedColor:c forDark:dark]; };
-    ThemeColorGetter unplayedDisplay = ^(AppTheme *t, BOOL dark) { return [t displayWaveformUnplayedColorForDark:dark]; };
-    ThemeColorSetter unplayedSet = ^(AppTheme *t, VibeColor *c, BOOL dark) { [t setWaveformUnplayedColor:c forDark:dark]; };
     NSStackView *(^customWells)(BOOL) = ^(BOOL dark) {
-        return [self wellPair:[self wellForDark:dark display:playedDisplay set:playedSet
-                                          effect:VibeSettingsLiveEffectWaveformTheme]
+        return [self wellPair:[self wellForDark:dark base:kVibeThemeColorWaveformPlayed
+                                         effect:VibeSettingsLiveEffectWaveformTheme]
                       caption:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED
-                         well:[self wellForDark:dark display:unplayedDisplay set:unplayedSet
-                                          effect:VibeSettingsLiveEffectWaveformTheme]
+                         well:[self wellForDark:dark base:kVibeThemeColorWaveformUnplayed
+                                         effect:VibeSettingsLiveEffectWaveformTheme]
                       caption:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
     };
     _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
@@ -371,8 +350,7 @@ static NSString *const kWellDark = @"dark";
     // the row fills are read per draw, so their drags take the lighter effects
     // rather than the full PlaylistAppearance rebuild.
     _playlistBackgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
-            control:[self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayPlaylistBackgroundColorForDark:dark]; }
-                                           set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setPlaylistBackgroundColor:c forDark:dark]; }
+            control:[self darkLightPairForBase:kVibeThemeColorPlaylistBackground
                                         effect:VibeSettingsLiveEffectPlaylistBackground]];
 
     // The playlist's tint mirrors the window's: the same three choices, the
@@ -382,21 +360,15 @@ static NSString *const kWellDark = @"dark";
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_playlistTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_playlistTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_playlistTintPopUp];
-    ThemeColorGetter playlistTintDisplay = ^(AppTheme *t, BOOL dark) { return [t displayPlaylistTintColorForDark:dark]; };
-    ThemeColorSetter playlistTintSet = ^(AppTheme *t, VibeColor *c, BOOL dark) { [t setPlaylistTintColor:c forDark:dark]; };
     _playlistTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES display:playlistTintDisplay set:playlistTintSet
-                                effect:VibeSettingsLiveEffectWindowTint]];
+            control:[self wellForDark:YES base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
     _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO display:playlistTintDisplay set:playlistTintSet
-                                effect:VibeSettingsLiveEffectWindowTint]];
+            control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    NSStackView *playingRowColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayPlaylistPlayingRowColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setPlaylistPlayingRowColor:c forDark:dark]; }
-            effect:VibeSettingsLiveEffectPlaylistRowFills];
-    NSStackView *selectedRowColors = [self darkLightPairDisplay:^(AppTheme *t, BOOL dark) { return [t displayPlaylistSelectedRowColorForDark:dark]; }
-            set:^(AppTheme *t, VibeColor *c, BOOL dark) { [t setPlaylistSelectedRowColor:c forDark:dark]; }
-            effect:VibeSettingsLiveEffectPlaylistRowFills];
+    NSStackView *playingRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
+                                                        effect:VibeSettingsLiveEffectPlaylistRowFills];
+    NSStackView *selectedRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
+                                                         effect:VibeSettingsLiveEffectPlaylistRowFills];
 
     NSTextField *titleFontValue = nil, *infoFontValue = nil, *playlistFontValue = nil;
     NSStackView *titleFontCluster = [self fontClusterForSlot:VibeFontSlotTitle valueLabel:&titleFontValue];
@@ -615,7 +587,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     for (NSColorWell *well in _wellBindings) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
-        well.color = ((ThemeColorGetter)binding[kWellDisplay])(theme, [binding[kWellDark] boolValue]);
+        well.color = [theme displayColorForBase:binding[kWellBase] dark:[binding[kWellDark] boolValue]];
     }
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
     [self refreshCornerRadiusValue];
@@ -721,8 +693,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         for (NSDictionary *binding in bindings) {
             BOOL isDark = [binding[kWellDark] boolValue];
             if (isDark == (darkPass == 1)) {
-                ((ThemeColorSetter)binding[kWellSet])(theme,
-                        ((ThemeColorGetter)binding[kWellDisplay])(theme, isDark), isDark);
+                NSString *base = binding[kWellBase];
+                [theme setColor:[theme displayColorForBase:base dark:isDark] forBase:base dark:isDark];
             }
         }
     }
@@ -732,35 +704,39 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 // pair's effect.
 - (void)colorWellChanged:(NSColorWell *)sender {
     NSDictionary *binding = [_wellBindings objectForKey:sender];
-    ((ThemeColorSetter)binding[kWellSet])(AppSettings.sharedInstance.currentTheme, sender.color,
-                                          [binding[kWellDark] boolValue]);
+    [AppSettings.sharedInstance.currentTheme setColor:sender.color forBase:binding[kWellBase]
+                                                 dark:[binding[kWellDark] boolValue]];
     [self themeFieldDidChange:(VibeSettingsLiveEffect)[binding[kWellEffect] unsignedIntegerValue]];
+}
+
+// The one gesture behind every popup that reveals color rows — the two
+// background styles, the two tints, the waveform theme: the choice that
+// consumes the pair seeds its wells first, so the surface immediately matches
+// what they show; then the field, the effect, and the row reveal.
+- (void)chooseFromPopUp:(NSPopUpButton *)popUp revealing:(NSString *)revealing
+                  wells:(NSArray<NSView *> *)rows effect:(VibeSettingsLiveEffect)effect
+                  write:(void (^)(AppTheme *theme, NSString *identifier))write {
+    NSString *identifier = popUp.selectedItem.representedObject;
+    if ([identifier isEqualToString:revealing]) {
+        [self seedWellsIn:rows];
+    }
+    write(AppSettings.sharedInstance.currentTheme, identifier);
+    [self themeFieldDidChange:effect];
+    [self resolveLayoutStateFromSettings];
 }
 
 #pragma mark - Editor: window
 
 - (void)backgroundStyleChanged:(id)sender {
-    NSString *identifier = _backgroundPopUp.selectedItem.representedObject;
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    BOOL solid = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
-    if (solid) {
-        [self seedWellsIn:@[_backgroundColorsRow]];
-    }
-    theme.windowBackgroundStyle = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
-    [self resolveLayoutStateFromSettings];
+    [self chooseFromPopUp:_backgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
+                    wells:@[_backgroundColorsRow] effect:VibeSettingsLiveEffectWindowChrome
+                    write:^(AppTheme *theme, NSString *identifier) { theme.windowBackgroundStyle = identifier; }];
 }
 
 - (void)windowTintChanged:(id)sender {
-    NSString *identifier = _windowTintPopUp.selectedItem.representedObject;
-    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if (custom) {
-        [self seedWellsIn:@[_windowTintDarkRow, _windowTintLightRow]];
-    }
-    theme.windowTint = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
-    [self resolveLayoutStateFromSettings];
+    [self chooseFromPopUp:_windowTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
+                    wells:@[_windowTintDarkRow, _windowTintLightRow] effect:VibeSettingsLiveEffectWindowTint
+                    write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
 }
 
 - (void)cornerRadiusChanged:(id)sender {
@@ -904,15 +880,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)waveformThemeChanged:(id)sender {
-    NSString *identifier = _waveformThemePopUp.selectedItem.representedObject;
-    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if (custom) {
-        [self seedWellsIn:@[_customDarkRow, _customLightRow]];
-    }
-    theme.waveformTheme = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
-    [self resolveLayoutStateFromSettings];
+    [self chooseFromPopUp:_waveformThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
+                    wells:@[_customDarkRow, _customLightRow] effect:VibeSettingsLiveEffectWaveformTheme
+                    write:^(AppTheme *theme, NSString *identifier) { theme.waveformTheme = identifier; }];
 }
 
 #pragma mark - Editor: playlist
@@ -930,26 +900,15 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)playlistBackgroundStyleChanged:(id)sender {
-    NSString *identifier = _playlistBackgroundPopUp.selectedItem.representedObject;
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
-        [self seedWellsIn:@[_playlistBackgroundColorsRow]];
-    }
-    theme.playlistBackgroundStyle = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-    [self resolveLayoutStateFromSettings];
+    [self chooseFromPopUp:_playlistBackgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
+                    wells:@[_playlistBackgroundColorsRow] effect:VibeSettingsLiveEffectPlaylistAppearance
+                    write:^(AppTheme *theme, NSString *identifier) { theme.playlistBackgroundStyle = identifier; }];
 }
 
 - (void)playlistTintChanged:(id)sender {
-    NSString *identifier = _playlistTintPopUp.selectedItem.representedObject;
-    BOOL custom = [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if (custom) {
-        [self seedWellsIn:@[_playlistTintDarkRow, _playlistTintLightRow]];
-    }
-    theme.playlistTint = identifier;
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowTint];
-    [self resolveLayoutStateFromSettings];
+    [self chooseFromPopUp:_playlistTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
+                    wells:@[_playlistTintDarkRow, _playlistTintLightRow] effect:VibeSettingsLiveEffectWindowTint
+                    write:^(AppTheme *theme, NSString *identifier) { theme.playlistTint = identifier; }];
 }
 
 #pragma mark - Editor: name

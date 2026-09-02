@@ -43,8 +43,9 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // Undo/Redo titles from NSUndoManager, the Copy items, and Remove from
     // Playlist.
     VibeMenuValidationDomainEdit,
-    // Convert to FLAC and its preference. AudioFileConverter stays the
-    // authority for the enablement and the retitling.
+    // Convert to FLAC — Cancel Conversion while one runs, see the identifier —
+    // and its preference. AudioFileConverter stays the authority for the idle
+    // item's enablement and retitling.
     VibeMenuValidationDomainConvert,
     // menuNeedsUpdate: mints these and owns their state, title and target.
     VibeMenuValidationDomainTheme,
@@ -91,6 +92,9 @@ static NSString *const kVibeMenuEditCopyFile = @"menu_edit_copy_file";
 static NSString *const kVibeMenuEditCopyName = @"menu_edit_copy_name";
 static NSString *const kVibeMenuEditRemoveFromPlaylist = @"menu_edit_remove_from_playlist";
 
+// Also Cancel Conversion: one item whose title and action the controller swaps
+// in validation while a conversion runs, as menu_play swaps to Pause, so there
+// is deliberately no menu_convert_cancel.
 static NSString *const kVibeMenuConvertToFLAC = @"menu_convert_to_flac";
 static NSString *const kVibeMenuConvertDeleteOriginal = @"menu_convert_delete_original";
 

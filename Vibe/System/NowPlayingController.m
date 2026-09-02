@@ -121,7 +121,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         delivery(delegate);
     }
     else {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             delivery(delegate);
         });
     }

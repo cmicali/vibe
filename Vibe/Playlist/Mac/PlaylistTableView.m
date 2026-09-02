@@ -5,6 +5,7 @@
 
 #import "PlaylistTableView.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioTrack.h"
 #import "Fonts.h"
 #import "PlaylistCoverImageView.h"
@@ -125,10 +126,11 @@ static NSImage *defaultArtImage;
 static void ensureCellAttributes(void) {
     if (!cellAttributesBuilt) {
         cellAttributesBuilt = YES;
-        // Every column's paragraph style truncates. These strings are set as
-        // attributed values, and an attributed string's paragraph style beats
-        // the cell's own line break mode, so leaving the style out left the
-        // default, which is wrapping, and a long title broke the row's layout.
+        // TRAP: every column's paragraph style must truncate. These strings
+        // are set as attributed values, and an attributed string's paragraph
+        // style beats the cell's own line break mode, so leaving the style out
+        // left the default, which is wrapping, and a long title broke the
+        // row's layout.
         NSMutableParagraphStyle *left = [[NSParagraphStyle new] mutableCopy];
         left.lineBreakMode = NSLineBreakByTruncatingTail;
         NSMutableParagraphStyle *right = [left mutableCopy];

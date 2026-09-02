@@ -706,9 +706,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 - (void)reloadTrackAtIndex:(NSUInteger)index {
-    // Guard against an out-of-range index, matching
-    // reloadCurrentTrackPlayState. reloadCurrentTrack fires with currentIndex
-    // 0 on an empty playlist, as updateUI does at launch.
+    // reloadCurrentTrack fires with currentIndex 0 on an empty playlist, as
+    // updateUI does at launch.
     if (index >= _model.count) {
         return;
     }
@@ -950,15 +949,6 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (void)reloadCurrentTrack {
     [self reloadTrackAtIndex:self.currentIndex];
-}
-
-- (void)reloadCurrentTrackPlayState {
-    NSInteger column = [self.tableView columnWithIdentifier:kPlaylistColumnNumber];
-    if (column < 0 || self.currentIndex >= _model.count) {
-        return;
-    }
-    [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:self.currentIndex]
-                              columnIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)column]];
 }
 
 - (void)reloadTrack:(AudioTrack *)track {

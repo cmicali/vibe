@@ -120,7 +120,7 @@ static inline uint32_t VibeLevelTapBufferFrameCount(double sampleRate) {
         sampleRate = 48000.0;
     }
     double frames = ceil(sampleRate * kLevelTapBufferSeconds);
-    return (uint32_t)MIN(MAX(frames, 1.0), (double)UINT32_MAX);
+    return (uint32_t)clampRange(frames, 1.0, (double)UINT32_MAX);
 }
 
 static inline double VibeLevelBandEdgeHz(NSUInteger edge, double sampleRate) {

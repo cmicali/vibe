@@ -5,6 +5,8 @@
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
+#import "AudioFileConverter.h"
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
@@ -289,6 +291,19 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
+}
+
+// A Quit mid-encode stops the conversion at its next buffer and waits for its
+// temp file to be gone, rather than leaving it in tmp for good.
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    AudioFileConverter *converter = self.mainPlayerController.fileConverter;
+    if (!converter.isConverting) {
+        return NSTerminateNow;
+    }
+    [converter cancelConversionWithCompletion:^{
+        [sender replyToApplicationShouldTerminate:YES];
+    }];
+    return NSTerminateLater;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {

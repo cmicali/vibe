@@ -5,6 +5,7 @@
 
 #import "SettingsConvertViewController.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "MainPlayerController+Settings.h"
 #import "VibeStrings.h"
 

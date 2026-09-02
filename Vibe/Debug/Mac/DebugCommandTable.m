@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AppTheme+Archive.h"
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
@@ -16,22 +17,6 @@
 #if DEBUG
 
 #pragma mark Command table
-
-// The first word of usage is the verb. clientTimeout is how long the CLI
-// client waits for this verb's response, in seconds, where 0 means the
-// default; see VibeDebugCommandClientMain.
-static NSDictionary *VibeCmd(NSString *usage, NSTimeInterval clientTimeout, VibeDebugCommandHandler handler) {
-    return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
-}
-
-// The transport and toggle verbs: invoke the controller action, then reply
-// with the compact action summary.
-static NSDictionary *VibeActionCmd(NSString *usage, void (^action)(MainPlayerController *controller)) {
-    return VibeCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-        action(controller);
-        return VibeActionSummary(controller);
-    });
-}
 
 // The undo and redo verbs. A conversion's file moves settle after the manager
 // call returns, so the reply waits on the controller's one-shot settled hook
@@ -105,26 +90,26 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // and check_consistency (shared table) both reach the player's
             // serial queue for the engine node count, so a wedged queue times
             // them out rather than letting them answer from stale state.
-            VibeCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugHealthJSON(controller);
             }),
             // Async: it closes the file and then polls for the pending
             // counters to unwind, so the response arrives from the poll rather
             // than from here. Sample dump_health right after it for a reading
             // taken at rest instead of mid-decode.
-            VibeCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 VibeDebugQuiesce(controller, ^(NSString *response) {
                     VibeWriteDebugResponse(commandId, response);
                 });
                 return nil; // response written by the poll
             }),
-            VibeCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();
             }),
-            VibeCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
             }),
-            VibeCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // The arguments are client-side. "-" streams the PNG bytes to
                 // stdout, and inside a script the reply carries the PNG as
                 // base64, with a label naming the decoded file; see
@@ -138,33 +123,33 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // The settings window: a second window the injection verbs below
             // cannot reach, since they all post into the player's event
             // stream. DebugSettingsUI.m addresses its controls by name.
-            VibeCmd(@"settings_open [pane]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"settings_open [pane]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsOpen(tokens);
             }),
-            VibeCmd(@"settings_close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"settings_close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsClose();
             }),
-            VibeCmd(@"dump_settings_ui", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_settings_ui", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsDump();
             }),
-            VibeCmd(@"settings_click <control> [value]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"settings_click <control> [value]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsClick(tokens);
             }),
-            VibeCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
             }),
             // Store-writing: many menu items write settings (appearance,
             // theme, Show File Info), and a scripted click never runs the
             // menu-tracking notification a real menu interaction refreshes
             // the panes through.
-            VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
                 }
                 // The rest of the tokens, so exact titles with spaces work too.
                 return VibeClickMenuItem(VibeRestArgument(tokens));
             }),
-            VibeCmd(@"append <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"append <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: append <file-or-directory>");
                 }
@@ -181,26 +166,26 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:YES];
                 return VibeJSONString(@{@"ok": @YES, @"appending": path});
             }),
-            VibeActionCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
-            VibeActionCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
-            VibeActionCmd(@"skip_forward_most", ^(MainPlayerController *controller) { [controller skipForwardMost:nil]; }),
-            VibeActionCmd(@"skip_back", ^(MainPlayerController *controller) { [controller skipBack:nil]; }),
-            VibeActionCmd(@"skip_back_more", ^(MainPlayerController *controller) { [controller skipBackMore:nil]; }),
-            VibeActionCmd(@"skip_back_most", ^(MainPlayerController *controller) { [controller skipBackMost:nil]; }),
-            VibeActionCmd(@"toggle_pitch_panel", ^(MainPlayerController *controller) { [controller togglePitchPanel:nil]; }),
+            VibeTransportCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
+            VibeTransportCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
+            VibeTransportCmd(@"skip_forward_most", ^(MainPlayerController *controller) { [controller skipForwardMost:nil]; }),
+            VibeTransportCmd(@"skip_back", ^(MainPlayerController *controller) { [controller skipBack:nil]; }),
+            VibeTransportCmd(@"skip_back_more", ^(MainPlayerController *controller) { [controller skipBackMore:nil]; }),
+            VibeTransportCmd(@"skip_back_most", ^(MainPlayerController *controller) { [controller skipBackMost:nil]; }),
+            VibeTransportCmd(@"toggle_pitch_panel", ^(MainPlayerController *controller) { [controller togglePitchPanel:nil]; }),
             // Model-level FX drivers intentionally bypass audioFXEnabled; use
             // injected key events to exercise the shipping input gates.
-            VibeActionCmd(@"toggle_low_kill", ^(MainPlayerController *controller) { [controller toggleLowKill:nil]; }),
-            VibeActionCmd(@"reverb_send_on", ^(MainPlayerController *controller) { [controller setReverbSendActive:YES]; }),
-            VibeActionCmd(@"reverb_send_off", ^(MainPlayerController *controller) { [controller setReverbSendActive:NO]; }),
-            VibeActionCmd(@"delay_send_on", ^(MainPlayerController *controller) { [controller setDelaySendActive:YES]; }),
-            VibeActionCmd(@"delay_send_off", ^(MainPlayerController *controller) { [controller setDelaySendActive:NO]; }),
-            VibeActionCmd(@"short_delay_send_on", ^(MainPlayerController *controller) { [controller setShortDelaySendActive:YES]; }),
-            VibeActionCmd(@"short_delay_send_off", ^(MainPlayerController *controller) { [controller setShortDelaySendActive:NO]; }),
-            VibeActionCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
-            VibeActionCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
-            VibeActionCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
-            VibeCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeTransportCmd(@"toggle_low_kill", ^(MainPlayerController *controller) { [controller toggleLowKill:nil]; }),
+            VibeTransportCmd(@"reverb_send_on", ^(MainPlayerController *controller) { [controller setReverbSendActive:YES]; }),
+            VibeTransportCmd(@"reverb_send_off", ^(MainPlayerController *controller) { [controller setReverbSendActive:NO]; }),
+            VibeTransportCmd(@"delay_send_on", ^(MainPlayerController *controller) { [controller setDelaySendActive:YES]; }),
+            VibeTransportCmd(@"delay_send_off", ^(MainPlayerController *controller) { [controller setDelaySendActive:NO]; }),
+            VibeTransportCmd(@"short_delay_send_on", ^(MainPlayerController *controller) { [controller setShortDelaySendActive:YES]; }),
+            VibeTransportCmd(@"short_delay_send_off", ^(MainPlayerController *controller) { [controller setShortDelaySendActive:NO]; }),
+            VibeTransportCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
+            VibeTransportCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
+            VibeTransportCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // Drives the loading indicator directly, so both of its modes
                 // can be captured without a real slow cloud open — which is
                 // otherwise the only way in, and is unreproducible by nature.
@@ -217,7 +202,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
-            VibeCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // Writes the setting and applies it live, as the Settings >
                 // Files control does; the pane itself cannot be driven from
                 // here.
@@ -229,7 +214,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
-            VibeCmd(@"set_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_theme <id-or-name>");
                 }
@@ -241,7 +226,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
                 return VibeJSONString(@{@"ok": @YES, @"activeTheme": match});
             }),
-            VibeCmd(@"remove_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"remove_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: remove_theme <id-or-name>");
                 }
@@ -267,7 +252,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // Inline JSON or a path the APP can read (the container, or a
             // granted folder) — the sandboxed open panel this bypasses is the
             // UI's business.
-            VibeCmd(@"import_theme <json|path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"import_theme <json|path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: import_theme <json|path>");
                 }
@@ -290,7 +275,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         @"name": [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier],
                         @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});
             }),
-            VibeCmd(@"dump_theme [id-or-name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"dump_theme [id-or-name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeJSONString(@{@"ok": @YES,
                             @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
@@ -311,7 +296,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // App-side, not a CLI-process prefs write: the key-label display
             // lives on the current theme, an in-memory object a cross-process
             // defaults write cannot reach.
-            VibeCmd(@"set_appearance <light|dark|system>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_appearance <light|dark|system>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *values = @{
                     @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
                     @"dark": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
@@ -326,7 +311,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
                 return VibeJSONString(@{@"ok": @YES, @"windowAppearance": tokens[1]});
             }),
-            VibeCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary<NSString *, NSString *> *notations = @{
                     @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
                     @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
@@ -345,7 +330,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
                                         @"keyColors": @(colorsOn)});
             }),
-            VibeCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
                 if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
                     return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
@@ -357,7 +342,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
                 });
             }),
-            VibeCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
                     return VibeErrorJSON(@"usage: set_window_width <body-points>");
@@ -388,52 +373,52 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"bodyWidth": @(window.frame.size.width - panel),
                 });
             }),
-            VibeCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),
-            VibeCmd(@"mouse_down <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"mouse_down <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),
-            VibeCmd(@"mouse_up <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"mouse_up <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),
-            VibeCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),
-            VibeCmd(@"file_drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"file_drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragHover(controller, tokens);
             }),
-            VibeCmd(@"file_drag_drop <x> <y> <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"file_drag_drop <x> <y> <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragDrop(controller, tokens);
             }),
-            VibeCmd(@"file_drag_end", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"file_drag_end", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragEnd(controller);
             }),
-            VibeCmd(@"reorder_begin <row> [row ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"reorder_begin <row> [row ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeReorderBegin(controller, tokens);
             }),
-            VibeCmd(@"reorder_update <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"reorder_update <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeReorderUpdate(controller, tokens);
             }),
-            VibeCmd(@"reorder_drop <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"reorder_drop <slot>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeReorderDrop(controller, tokens);
             }),
-            VibeCmd(@"reorder_cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"reorder_cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeReorderCancel(controller);
             }),
-            VibeCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectDrag(controller, tokens);
             }),
-            VibeCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectKey(controller, tokens, YES, YES);
             }),
-            VibeCmd(@"key_down <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"key_down <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectKey(controller, tokens, YES, NO);
             }),
-            VibeCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectKey(controller, tokens, NO, YES);
             }),
-            VibeCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_pitch <percent>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double percent = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &percent)) {
                     return VibeErrorJSON(@"usage: set_pitch <percent>");
@@ -444,14 +429,14 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 controller.pitchPanel.pitch = (float)percent;
                 controller.audioPlayer.pitch = controller.pitchPanel.pitch;
                 [controller debugRefreshUI];
-                return VibeActionSummary(controller);
+                return VibeJSONString(controller.debugActionSummary);
             }),
             // These are normally never reached from the CLI, because the
             // client runs scan_bpm and scan_key locally; see
             // VibeDebugCommandClientMain. The entries exist for the usage
             // listing and for callers that post the command file directly.
             // They are the same core functions either way.
-            VibeCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
                 if (!path) {
@@ -463,7 +448,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the block above
             }),
-            VibeCmd(@"scan_key <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"scan_key <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
                 if (!path) {
@@ -482,7 +467,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // The 120-second clientTimeout covers a long encode. Store-writing
             // because [keep|delete] sets deleteOriginalAfterConvert, a Convert
             // pane row.
-            VibeCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *mode = tokens.count > 1 ? tokens[1].lowercaseString : nil;
                 NSString *fault = tokens.count > 2 ? tokens[2].lowercaseString : nil;
                 BOOL omitTrashURL = [fault isEqualToString:@"omit-trash-url"];
@@ -551,10 +536,10 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }];
                 return nil; // response written by the completion above
             }),
-            VibeCmd(@"undo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"undo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeRunUndoRedoCommand(commandId, controller, NO);
             }),
-            VibeCmd(@"redo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"redo", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeRunUndoRedoCommand(commandId, controller, YES);
             }),
         ];

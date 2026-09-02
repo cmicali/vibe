@@ -73,9 +73,11 @@ NS_ASSUME_NONNULL_BEGIN
 // deviceUID and deviceName name the persisted output device. Empty means follow
 // the system default; an unmatched saved device remains pending. Discovery is
 // asynchronous and never blocks the player's queue. A match is applied only
-// while Stopped and only committed after the HAL bind succeeds; later Stopped
-// transitions retry a pending match. enableFX decides for the player's lifetime
-// whether the FX graph segment exists at all; see fx.
+// where VibeCanBindSavedOutputDevice allows — Stopped, or Loading while the
+// engine is not running; the rule and its trap live on that function
+// (AudioPlayer+Devices) — and only committed after the HAL bind succeeds;
+// later eligible transitions retry a pending match. enableFX decides for the
+// player's lifetime whether the FX graph segment exists at all; see fx.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
@@ -129,9 +131,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Stops playback and unloads the current track. Any in-flight open is
 // superseded, a playing node fades to silence before teardown, and the player
-// then reports Stopped with no currentTrack. It fires no delegate callback:
-// this is not a track-end event, so it must not drive auto-advance, and the
-// caller owns the UI reset.
+// then reports Stopped with no currentTrack. It fires no transport or
+// track-end callback: this is not a track-end event, so it must not drive
+// auto-advance, and the caller owns the UI reset.
 - (void)stop;
 
 // Ends the current track as if it had played to its end: it stops output and

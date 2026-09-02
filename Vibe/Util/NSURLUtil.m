@@ -475,7 +475,7 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         NSUInteger folderCount = 0;
         NSArray<NSURL*> *results = [self expandAndFilterList:list sortedBy:sort
                                                  folderCount:&folderCount];
-        dispatch_async(dispatch_get_main_queue(), ^{
+        run_on_main_thread({
             completion(results, folderCount);
         });
     }];

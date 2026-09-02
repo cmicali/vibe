@@ -121,11 +121,11 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         _playedColorBottom = played;
         _unPlayedColorBottom = unplayed;
     } else {
-        _playedColorBottom = VibeColorAtRampFraction(
+        _playedColorBottom = VibeColorWithScaledAlpha(
                 [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
                         colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
                 kPlayedBottomAlphaRatio);
-        _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
+        _unPlayedColorBottom = VibeColorWithScaledAlpha(unplayed, kUnplayedBottomAlphaRatio);
     }
     _hoverColor = self.theme.hoverColor;
 }
@@ -168,7 +168,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (NSUInteger)barCountForWidth:(CGFloat)width {
     NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBarPitch);
-    return MIN(MAX(count, (NSUInteger)2), kMaxBarCount);
+    return clampRange(count, (NSUInteger)2, kMaxBarCount);
 }
 
 // Matches the layer array to the bar count, two layers per bar, appending or

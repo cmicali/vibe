@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 // to instantiate or keep alive. Every live submenu's delegate is owned by the
 // object it works for and supplied here to be wired: Open Recent by the app
 // delegate's OpenRecentMenuController, Output by the player's
-// OutputDevicesMenuController, and waveform Style by the player controller
+// OutputDevicesMenuController, and View > Theme by the player controller
 // itself. Item validation lives with the items' targets, in
 // MainPlayerController+Menus.
 @interface MainMenuBuilder : NSObject

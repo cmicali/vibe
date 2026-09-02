@@ -2,8 +2,8 @@
 //  MetadataParseCoordinator.h
 //  Vibe
 //
-//  One parse holder per URL, with duplicate rows weakly waiting for
-//  its result. Foundation-only for host-less contention tests.
+//  One parse holder per standardized path, with duplicate rows weakly waiting
+//  for its result. Foundation-only for host-less contention tests.
 //
 
 #import <Foundation/Foundation.h>
@@ -21,12 +21,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MetadataParseCoordinator<__covariant ParticipantType> : NSObject
 
-// Captures the key and participant for one parse attempt. A different
-// participant joins the owner's waiter list; a repeated owner is a no-op. The
-// key is copied here, so a participant that mutates its own key afterwards
-// cannot strand the claim or its waiters. A nil key is uncoordinated: every
-// such claim owns itself and has no waiters.
-- (MetadataParseClaim *)claimParseForKey:(nullable id<NSCopying>)key
+// Captures the key and participant for one parse attempt. The key is the
+// file's standardized path (VibeStandardizedAudioOpenPath), the one spelling
+// every other identity in the loader is keyed by, so two spellings of one file
+// cannot get two owners. A different participant joins the owner's waiter
+// list; a repeated owner is a no-op. The key is copied here, so a participant
+// that mutates its own key afterwards cannot strand the claim or its waiters.
+// A nil key is uncoordinated: every such claim owns itself and has no waiters.
+- (MetadataParseClaim *)claimParseForKey:(nullable NSString *)key
                              participant:(ParticipantType)participant;
 
 // Only this exact owner claim may complete, and its waiters are returned

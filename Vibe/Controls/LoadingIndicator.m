@@ -63,6 +63,11 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
         // is a message to nil there, which is the same nil-tolerance
         // endSweepKeepingFill already relies on.
         if (VibeLoadingIndicatorMetricsForStyle(style, 0).hasShimmer) {
+            // TRAP: the band sweeps in from before its span and out past the
+            // end, and the host layer does not mask to bounds, so the shimmer
+            // rides inside this masksToBounds clip sized to that span. Without
+            // it the band draws over the artwork on one side and out to the
+            // window edge on the other.
             _shimmerClip = [CALayer layer];
             _shimmerClip.contentsScale = contentsScale;
             _shimmerClip.masksToBounds = YES;
@@ -317,7 +322,7 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
     if (gap <= 0) {
         return 0.25; // first sample: no cadence to go on yet
     }
-    return MIN(MAX(gap * 0.5, 0.12), 0.45);
+    return clampRange(gap * 0.5, 0.12, 0.45);
 }
 
 - (void)setProgress:(float)fraction inBounds:(CGRect)bounds {

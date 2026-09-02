@@ -159,7 +159,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_MENU_CONVERT                 NSLS(@"menu.convert",                 @"Convert",                       @"Menu bar: the Convert menu.")
 #define STR_MENU_CONVERT_TO_FLAC         NSLS(@"menu.convert.to_flac",         @"Convert to FLAC",               @"Convert menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.")
-#define STR_MENU_CONVERT_CONVERTING      NSLS(@"menu.convert.converting",      @"Converting…",                   @"Convert menu item, disabled: replaces 'Convert to FLAC' while a conversion is running. Ends with a real ellipsis character (…), not three periods.")
+#define STR_MENU_CONVERT_CANCEL          NSLS(@"menu.convert.cancel",          @"Cancel Conversion",             @"Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.")
 #define STR_MENU_CONVERT_FLAC_EXISTS     NSLS(@"menu.convert.flac_exists",     @"FLAC Already Exists",           @"Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.")
 #define STR_MENU_CONVERT_DELETE_ORIGINAL NSLS(@"menu.convert.delete_original", @"Delete Original After Convert", @"Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash.")
 

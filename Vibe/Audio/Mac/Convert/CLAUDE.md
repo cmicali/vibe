@@ -30,6 +30,12 @@ The panel rung refuses a selection that names the source itself — including a 
 
 That rung also needs the flac extension declared in `CFBundleDocumentTypes` with `NSIsRelatedItemType`, separate from the real "Audio Files" entry; `DocumentTypes.declaredTypes` skips related-item entries so the type is not claimed twice.
 
+## Cancelling, Quit and the temp sweep
+
+`cancelConversionWithCompletion:` sets a flag the encode loop polls once per buffer; the temp is removed and the request completes with `NSUserCancelledError` — the same decision-not-failure a dismissed save panel reports, so the controller resets the sweep and neither beeps nor logs. A conversion already past its encode — copying tags, placing the file, or a save panel waiting for its answer — runs to its own completion; the cancel only parks its completion until then. It has two callers. `AppDelegate.applicationShouldTerminate:`: a Quit mid-encode answers `NSTerminateLater`, cancels, and replies from the converter's completion, so the temp file is gone before the process exits — bounded by one buffer during an encode, by the move during a placement. And Convert > Cancel Conversion, which is the Convert to FLAC item itself, retitled and re-aimed at `MainPlayerController.cancelConversion:` by menu validation while `isConverting` — the progress surface is the waveform sweep, which has no place for a button (`Mac/Menu/CLAUDE.md`); a click landing after the conversion settled reaches the not-running no-op.
+
+What a crash or a kill leaves behind — `vibe-convert-<uuid>.flac` in the container's tmp — is swept at launch from `init`, on the converter queue rather than the dispose queue: the encode runs on that same serial queue, so the sweep is done before the first conversion can create the temp it would otherwise remove.
+
 ## Tags, progress and disposal
 
 `FLACTagCopier` carries the source's tag over with TagLib: `setProperties` for the scalars (its `PropertyMap` normalizes ID3 spellings to Vorbis ones, `TBPM` → `BPM`) plus the front-cover picture. It revalidates and opens the header-sniffed container rather than trusting the extension or cached metadata. Failure is fatal to the conversion: the temporary FLAC is removed and the original remains in place, so enabling Delete Original can never turn a tag-copy failure into metadata loss.

@@ -9,6 +9,7 @@
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MainPlayerContentView.h"
@@ -326,7 +327,7 @@
     // same one the editor's wells show.
     NSColor *color = [theme.windowBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? [theme displayWindowBackgroundColorForDark:dark] : nil;
+            ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark] : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
     overlay.layer.cornerRadius = theme.windowCornerRadius;

@@ -79,6 +79,21 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordNameKey;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 
+// The color pairs' base names — each record key less its Dark/Light suffix —
+// the keys colorForBase:dark: and its siblings take.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayed;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformUnplayed;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowTint;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTint;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowBackground;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorTitle;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorArtist;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorInfo;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorTime;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistBackground;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRow;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
+
 @interface AppTheme : NSObject
 
 + (NSArray<NSString *> *)builtInThemeIdentifiers;
@@ -200,7 +215,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // fallback, so faces are not validated here. The size is the point size the
 // slot draws at; the clamps are narrow because the frames the labels sit in
 // are fixed. The slot-indexed accessors are the same fields by VibeFontSlot,
-// for callers that walk the slots rather than name them.
+// for callers that walk the slots rather than name them; None names no
+// field, so it reads as the empty face at size 0 and a write to it is dropped.
 - (NSString *)fontFaceForSlot:(VibeFontSlot)slot;
 - (CGFloat)fontSizeForSlot:(VibeFontSlot)slot;
 - (void)setFontFace:(NSString *)face size:(CGFloat)size forSlot:(VibeFontSlot)slot;
@@ -232,7 +248,23 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's
 // default, stated beside where it was hardcoded. Alpha is meaningful
-// throughout (a fill's strength, the solid background's opacity).
+// throughout (a fill's strength, the solid background's opacity). Each pair
+// is keyed by its base name (kVibeThemeColor*, above) for callers that walk
+// the pairs — the editor's wells; the typed accessors below are the same
+// slots by name.
+- (nullable VibeColor *)colorForBase:(NSString *)base dark:(BOOL)isDark;
+- (void)setColor:(nullable VibeColor *)color forBase:(NSString *)base dark:(BOOL)isDark;
+// The pair pinned to one side, for the editor's per-side wells: the override,
+// or what an unset slot draws as — the label pairs their semantic fallback
+// resolved under that side's appearance (the dynamic fallback would resolve
+// under the pane's own appearance and show the wrong side's color in the
+// other side's well), every other pair the constant its surface paints (the
+// solid cover, the neutral tint wash, the neutral row fill, Mono's resting
+// levels). One home, so the surface an unset pair paints, the well that
+// displays it and the seed a popup writes when it reveals the wells cannot
+// disagree. A style or tint choice that does not consume the pair (glass,
+// artwork) never reads it.
+- (VibeColor *)displayColorForBase:(NSString *)base dark:(BOOL)isDark;
 - (nullable VibeColor *)waveformPlayedColorForDark:(BOOL)isDark;
 - (void)setWaveformPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformUnplayedColorForDark:(BOOL)isDark;
@@ -280,30 +312,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;
 - (VibeColor *)resolvedTimeColor;
-
-// The same slots pinned to one side, for the editor's per-side wells: the
-// override, or the slot's semantic fallback resolved under that side's
-// appearance. (The dynamic fallback would resolve under the pane's own
-// appearance and show the wrong side's color in the other side's well.)
-- (VibeColor *)displayTitleColorForDark:(BOOL)isDark;
-- (VibeColor *)displayArtistColorForDark:(BOOL)isDark;
-- (VibeColor *)displayInfoColorForDark:(BOOL)isDark;
-- (VibeColor *)displayTimeColorForDark:(BOOL)isDark;
-
-// Every other pair the same way: the override, or the constant an unset slot
-// draws as — the solid cover, the neutral tint wash, the neutral row fill,
-// Mono's resting levels. One home, so the surface an unset pair paints, the
-// well that displays it and the seed a popup writes when it reveals the
-// wells cannot disagree. A style or tint choice that does not consume the
-// pair (glass, artwork) never reads these.
-- (VibeColor *)displayWindowBackgroundColorForDark:(BOOL)isDark;
-- (VibeColor *)displayPlaylistBackgroundColorForDark:(BOOL)isDark;
-- (VibeColor *)displayWindowTintColorForDark:(BOOL)isDark;
-- (VibeColor *)displayPlaylistTintColorForDark:(BOOL)isDark;
-- (VibeColor *)displayPlaylistPlayingRowColorForDark:(BOOL)isDark;
-- (VibeColor *)displayPlaylistSelectedRowColorForDark:(BOOL)isDark;
-- (VibeColor *)displayWaveformPlayedColorForDark:(BOOL)isDark;
-- (VibeColor *)displayWaveformUnplayedColorForDark:(BOOL)isDark;
 
 // Whether the record names any image the app container holds — the
 // custom:<sha1> files the artwork sweep is keyed on.
