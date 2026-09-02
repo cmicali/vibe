@@ -2421,4 +2421,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # A run's stdout is nearly always redirected to a file, and Python
+    # block-buffers that — so a soak's progress stays invisible until the
+    # process exits, which for an hour-long run is the entire run.
+    sys.stdout.reconfigure(line_buffering=True)
     sys.exit(main())
