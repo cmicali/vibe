@@ -4,6 +4,7 @@
 //
 
 #import "PlaylistTableView.h"
+#import "AppSettings.h"
 #import "AudioTrack.h"
 #import "Fonts.h"
 #import "PlaylistCoverImageView.h"
@@ -74,8 +75,17 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
             column.resizingMask = NSTableColumnAutoresizingMask;
             [self addTableColumn:column];
         }
+        [self applyThemedColumnVisibility];
     }
     return self;
+}
+
+// The theme's two optional columns. The title column absorbs the freed width
+// through the sequential autoresizing the table already uses.
+- (void)applyThemedColumnVisibility {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtworkColumn;
+    [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDurationColumn;
 }
 
 + (NSScrollView *)scrollViewWithFrame:(NSRect)frame {
@@ -106,10 +116,15 @@ static NSDictionary *numColumnAttributes;
 static NSDictionary *lengthColumnAttributes;
 static NSDictionary *titleAttributes;
 static NSDictionary *artistAttributes;
+// Not dispatch_once: the attributes carry the theme's fonts and label
+// colors, so the PlaylistAppearance effect invalidates and the next cell
+// rebuilds — the invalidate-on-effect idiom, in place of cached-forever.
+static BOOL cellAttributesBuilt;
+static NSImage *defaultArtImage;
 
 static void ensureCellAttributes(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
+    if (!cellAttributesBuilt) {
+        cellAttributesBuilt = YES;
         // Every column's paragraph style truncates. These strings are set as
         // attributed values, and an attributed string's paragraph style beats
         // the cell's own line break mode, so leaving the style out left the
@@ -118,31 +133,46 @@ static void ensureCellAttributes(void) {
         left.lineBreakMode = NSLineBreakByTruncatingTail;
         NSMutableParagraphStyle *right = [left mutableCopy];
         right.alignment = NSTextAlignmentRight;
+        // One label-color set spans the header and the playlist: titleColor
+        // is every title, artistColor every secondary line — here the artist
+        // run and both numeric columns, which already share its fallback.
+        AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+        defaultArtImage = theme.resolvedDefaultArtworkImage;
+        NSColor *titleColor = theme.resolvedTitleColor;
+        NSColor *artistColor = theme.resolvedArtistColor;
         numColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.5),
+                // Deliberately not the duration slot: the # column is row
+                // chrome, like the drop hint, so it keeps the built-in
+                // numbers font whatever face the theme picks for track text.
                 NSFontAttributeName: [Fonts fontForNumbers:12],
                 NSParagraphStyleAttributeName: right,
         };
         lengthColumnAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-1.0),
-                NSFontAttributeName: [Fonts fontForNumbers:12],
+                NSFontAttributeName:
+                        [Fonts playlistDurationFont],
                 NSParagraphStyleAttributeName: right,
         };
         titleAttributes = @{
-                NSForegroundColorAttributeName: NSColor.labelColor,
+                NSForegroundColorAttributeName: titleColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
+                NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
         artistAttributes = @{
-                NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+                NSForegroundColorAttributeName: artistColor,
                 NSKernAttributeName: @(-0.3),
-                NSFontAttributeName: [Fonts font:14],
+                NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
-    });
+    }
+}
+
++ (void)invalidateCellAttributes {
+    cellAttributesBuilt = NO;
 }
 
 // A static text field for a table cell, backed by the vertically centering
@@ -306,7 +336,11 @@ static NSTextField *makeCellTextField(NSRect frame) {
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {
-    return thumbnail ?: [NSImage imageNamed:@"record-bg"];
+    // The placeholder rides the invalidate-on-effect attribute cache: the
+    // per-cell cost on the scroll path is one pointer read, not a theme
+    // field lookup and cache probe per artless row.
+    ensureCellAttributes();
+    return thumbnail ?: defaultArtImage;
 }
 
 @end

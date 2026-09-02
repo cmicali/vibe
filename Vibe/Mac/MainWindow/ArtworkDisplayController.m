@@ -120,6 +120,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 @implementation ArtworkDisplayController {
     ArtworkImageView            *_artworkView;
     NSView                      *_headerTintView;
+    NSView                      *_playlistTintView;
     NSColor                     *_dominantArtColor; // raw; clamps applied per-appearance at apply time
     // The raw dominant color per source image, under weak keys so it dies with
     // the decoded art. A shared folder cover is sampled once, while a replaced
@@ -167,6 +168,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     if (self) {
         _artworkView = contentView.albumArtImageView;
         _headerTintView = contentView.headerTintView;
+        _playlistTintView = contentView.playlistTintView;
         _dominantColorByArt = [NSMapTable weakToStrongObjectsMapTable];
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
@@ -175,12 +177,12 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     return self;
 }
 
-// Derives the on-screen wash from the raw dominant color, applying the
-// appearance clamps here, and pushes it to the header. It is also the public
-// refresh hook for appearance changes. The wash is this view's own
-// backgroundColor rather than the glass's tintColor, because AppKit silently
-// discards a glass tint whenever the window is not key, and the window must
-// look the same whether active or not.
+// Derives the on-screen washes from the theme and the raw dominant color,
+// applying the appearance clamps here, and pushes them to the header and the
+// playlist. It is also the public refresh hook for appearance changes. Each
+// wash is its view's own backgroundColor rather than the glass's tintColor,
+// because AppKit silently discards a glass tint whenever the window is not
+// key, and the window must look the same whether active or not.
 //
 // The appearance to clamp against is resolved from the window, not from
 // _headerTintView. This method's appearance-change caller is the content
@@ -195,25 +197,24 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 - (BOOL)isDarkAppearance {
     NSAppearance *appearance = _headerTintView.window.effectiveAppearance
             ?: _headerTintView.effectiveAppearance;
-    return [NSAppearanceNameDarkAqua isEqualToString:
-            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua,
-                                                            NSAppearanceNameDarkAqua ]]];
+    return appearance.isDark;
 }
 
 - (NSColor *)dominantArtColor {
     return _dominantArtColor;
 }
 
-// The one home of the wash's resolution rules: Settings > Appearance > Window
-// tint over the settled art color. Only the wash follows the setting — the
-// color itself still settles, so the dock icon and the album_art waveform
-// theme look the same under every choice. A custom color is used exactly as
-// picked, alpha and all; the clamps exist to tame a color nobody chose. Mono,
-// and an unset custom color, are no wash.
-- (NSColor *)resolvedHeaderTintIsDark:(BOOL)dark {
-    NSString *tint = AppSettings.sharedInstance.windowTint;
+// The one home of the washes' resolution rules: the theme's tint choice over
+// the settled art color, for the header and the playlist alike. Only the
+// washes follow the setting — the color itself still settles, so the dock
+// icon and the album_art waveform theme look the same under every choice. A
+// custom color is used exactly as picked, alpha and all; the clamps exist to
+// tame a color nobody chose. Mono, and an unset custom color, are no wash.
+- (NSColor *)resolvedWashForTint:(NSString *)tint
+                     customColor:(NSColor *)customColor
+                          isDark:(BOOL)dark {
     if ([tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
-        return [AppSettings.sharedInstance windowTintCustomColorForDark:dark];
+        return customColor;
     }
     if (![tint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] || !_dominantArtColor) {
         return nil;
@@ -229,14 +230,12 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
                                                                  alpha:kTintAlphaLight];
 }
 
-- (void)refreshHeaderTint {
-    NSColor *color = [self resolvedHeaderTintIsDark:[self isDarkAppearance]];
-    // AppKit disables implicit actions on a view's backing layer, so the fade
-    // is explicit: set the model value action-free, then animate from the
-    // presentationLayer's current color, which retargets a fade already in
-    // flight. "No tint" animates as clearColor rather than nil, so the fade-out
-    // is a color ramp rather than an instant clear.
-    CALayer *layer = _headerTintView.layer;
+// AppKit disables implicit actions on a view's backing layer, so the fade is
+// explicit: set the model value action-free, then animate from the
+// presentationLayer's current color, which retargets a fade already in
+// flight. "No tint" animates as clearColor rather than nil, so the fade-out
+// is a color ramp rather than an instant clear.
+static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     CGColorRef newColor = (color ?: NSColor.clearColor).CGColor;
     CALayer *presentation = layer.presentationLayer ?: layer;
     CGColorRef fromColor = presentation.backgroundColor ?: NSColor.clearColor.CGColor;
@@ -250,6 +249,19 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     fade.duration = kVibeArtCrossfadeDuration;
     fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
     [layer addAnimation:fade forKey:@"tintFade"];
+}
+
+- (void)refreshTintWashes {
+    BOOL dark = [self isDarkAppearance];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    FadeLayerToColor(_headerTintView.layer,
+            [self resolvedWashForTint:theme.windowTint
+                          customColor:[theme windowTintColorForDark:dark]
+                               isDark:dark]);
+    FadeLayerToColor(_playlistTintView.layer,
+            [self resolvedWashForTint:theme.playlistTint
+                          customColor:[theme playlistTintColorForDark:dark]
+                               isDark:dark]);
 }
 
 // Produces the square display bitmap and its dominant color together off-main.
@@ -323,7 +335,7 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
         if (self.dominantColorDidChangeHandler) {
             self.dominantColorDidChangeHandler();
         }
-        [self refreshHeaderTint];
+        [self refreshTintWashes];
         [NSDockTile setDockIcon:result.squareImage];
         _displayedArt = request.sourceArt;
         _displayedArtTrack = request.track;
@@ -466,6 +478,18 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     [self showDefaultArtworkInvalidatingRender:YES];
 }
 
+- (void)refreshDefaultArtwork {
+    // The lifetime cache returns pointer-identical images, so an unchanged
+    // placeholder is one comparison — TrackDisplay fires for every
+    // info-display toggle, and re-installing would reset the dock tile and
+    // re-derive the tint washes for nothing.
+    if (_showingDefaultArt && _artworkView.image !=
+            AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage) {
+        _showingDefaultArt = NO;
+        [self showDefaultArtworkInvalidatingRender:NO];
+    }
+}
+
 - (void)showDefaultArtworkInvalidatingRender:(BOOL)invalidateRender {
     if (invalidateRender) {
         _artworkRenderGeneration++; // orphan any in-flight crop-and-color result
@@ -475,12 +499,12 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     if (_showingDefaultArt && _initialized) {
         return;
     }
-    _artworkView.image = [NSImage imageNamed:@"record-bg"];
+    _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
     _dominantArtColor = nil;
     if (self.dominantColorDidChangeHandler) {
         self.dominantColorDidChangeHandler();
     }
-    [self refreshHeaderTint];
+    [self refreshTintWashes];
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
     _displayedArtTrack = nil;

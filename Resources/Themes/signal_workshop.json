@@ -1,0 +1,54 @@
+{
+  "version" : 1,
+  "name" : "Signal Workshop",
+  "description" : "Warm machinery, tactile controls, and precise signal colors in paired light and dark palettes.",
+  "window" : {
+    "backgroundColorDark" : "#161715",
+    "backgroundColorLight" : "#E7E6DE",
+    "backgroundStyle" : "solid",
+    "cornerRadius" : 8,
+    "tint" : "mono"
+  },
+  "player" : {
+    "artistColorDark" : "#BBBAB1",
+    "artistColorLight" : "#4D4F49",
+    "artistFontFace" : "HelveticaNeue-Medium",
+    "artistFontSize" : 15,
+    "defaultArtworkDark" : "bundled:signal_workshop_dark.png",
+    "defaultArtworkLight" : "bundled:signal_workshop_light.png",
+    "titleColorDark" : "#F3F2EC",
+    "titleColorLight" : "#171814",
+    "titleFontFace" : "HelveticaNeue-Bold",
+    "titleFontSize" : 24
+  },
+  "info" : {
+    "colorDark" : "#989890",
+    "colorLight" : "#5A5C56",
+    "fontFace" : "Monaco",
+    "fontSize" : 11,
+    "timeColorDark" : "#69B9D6",
+    "timeColorLight" : "#155F7B"
+  },
+  "waveform" : {
+    "gradient" : false,
+    "playedColorDark" : "#F25A35",
+    "playedColorLight" : "#C33B1E",
+    "style" : "basic",
+    "theme" : "custom",
+    "unplayedColorDark" : "#666761",
+    "unplayedColorLight" : "#82847E"
+  },
+  "playlist" : {
+    "backgroundColorDark" : "#0F100F",
+    "backgroundColorLight" : "#D8D8D0",
+    "backgroundStyle" : "solid",
+    "durationFontFace" : "Monaco",
+    "durationFontSize" : 11,
+    "fontFace" : "HelveticaNeue-Medium",
+    "fontSize" : 13,
+    "playingRowColorDark" : "#F25A3538",
+    "playingRowColorLight" : "#C33B1E2E",
+    "selectedRowColorDark" : "#F3F2EC1F",
+    "selectedRowColorLight" : "#1718141F"
+  }
+}

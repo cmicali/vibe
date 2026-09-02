@@ -36,6 +36,76 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
+// The block-quantization rules shared by the discrete-block styles — Sonic
+// Cirrus's bar layers and Basic's blocks: which block sits under a view x,
+// and how many whole blocks a progress fraction fills, each block flipping at
+// its midpoint. Presentation only — the seek a hover or click reports stays
+// continuous.
+static inline NSInteger VibeBlockIndexForX(CGFloat x, CGFloat width, NSInteger count) {
+    NSInteger index = (NSInteger)(x / width * (CGFloat)count);
+    return MIN(MAX(index, (NSInteger)0), count - 1);
+}
+static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger count) {
+    NSInteger boundary = (NSInteger)llround((double)count * progress);
+    return MIN(MAX(boundary, (NSInteger)0), count);
+}
+
+// The drawn level for a bar, from its chunk's energy rather than its peaks.
+// Peak min/max pegs on limited dance masters — at Basic's pitch every bar
+// covers seconds of audio, so each one contains a full-scale transient and
+// the whole strip reads as a solid block — while RMS still varies through
+// drops and breakdowns. Full height is kVibeWaveformFullScaleRMS (-9 dBFS
+// RMS — a loud club master's sustained level fills the band); anything
+// hotter clamps.
+static const float kVibeWaveformFullScaleRMS = 0.35f;
+static inline float VibeWaveformBarLevel(float meanSquare) {
+    return fminf(sqrtf(fmaxf(meanSquare, 0.0f)) / kVibeWaveformFullScaleRMS, 1.0f);
+}
+
+// The level's energy is averaged over a column no finer than 1/1024 of the
+// track — 8 source chunks, ~0.4s of a typical track, the momentary-loudness
+// scale — however fine the bars. RMS over a window shorter than a beat
+// converges back to peak, which re-pegged the fixed-count oversampling
+// styles: their bars cover as little as one ~50ms chunk, so every kick read
+// as a full-height bar and the upper envelope was the old solid block again.
+// Only the level is floored; the min/max shape keeps per-bar resolution.
+static const NSUInteger kVibeWaveformEnergyColumns = 1024;
+
+// Which energy column bar i of count belongs to. Split from the accessor
+// below because a renderer caching per column keys on the index and must not
+// re-derive it: the two spellings would drift, and a bar scaled by its
+// neighbour's level looks like nothing in particular.
+static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
+    return count > kVibeWaveformEnergyColumns
+            ? i * kVibeWaveformEnergyColumns / count : i;
+}
+
+// The energy column bar i of count draws its level from. Every bar-level
+// consumer maps through this rather than reading its own chunk's energy, so
+// a renderer with bars finer than the column cannot re-peg to sub-beat RMS —
+// nothing at a call site otherwise hints at the floor.
+static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWaveform *waveform,
+                                                                     NSUInteger i,
+                                                                     NSUInteger count) {
+    return count > kVibeWaveformEnergyColumns
+            ? waveform->getChunkAtIndex(VibeWaveformEnergyColumnIndexForBar(i, count),
+                                        kVibeWaveformEnergyColumns)
+            : waveform->getChunkAtIndex(i, count);
+}
+
+// Snap a hover/seek column to the device-pixel grid. A fractional origin or
+// width leaves half-lit edge pixels, and the column is supposed to be the
+// crispest thing in the waveform. x and the returned rect are in the caller's
+// local (bounds-relative) space; x may overshoot either edge — the clamp
+// keeps the column inside.
+static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
+                                           CGFloat boundsWidth, CGFloat height, CGFloat scale) {
+    CGFloat width = MAX(round(columnWidth * scale), 1) / scale;
+    CGFloat left = floor((x - width / 2) * scale) / scale;
+    left = MIN(MAX(left, 0), MAX(0, boundsWidth - width));
+    return CGRectMake(left, 0, width, height);
+}
+
 // A ramp stop: the color at `fraction` of its own alpha. The theme colors
 // carry each side's resting level in their alpha (WaveformTheme.h), so
 // renderers own only their ramp shapes and scale every stop relative to that
@@ -124,6 +194,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // stores it and does nothing else.
 - (void)setHoverHighlightX:(CGFloat)x;
 @property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
+
+// Whether the settled envelope can be baked into a bitmap pixel-identical to
+// this renderer's live tree (the Detailed family's envelope-image API, used by
+// the iOS scrubber's fast path). The base answers NO; a subclass that changes
+// its gradient aim or played-fill quantization must answer for its own bake —
+// which is why Basic overrides this back to NO despite subclassing Detailed.
+@property (readonly) BOOL supportsEnvelopeBake;
 
 @end
 

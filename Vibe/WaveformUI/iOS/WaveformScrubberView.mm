@@ -709,7 +709,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
     _bakeGeneration++;
-    if (!self.waveform || ![_renderer isKindOfClass:DetailedAudioWaveformRenderer.class]) {
+    // The renderer answers for its own bake fidelity — a kind-of test here
+    // let Basic (class-wise a Detailed subclass) through and baked both its
+    // gradient and its block quantization wrong.
+    if (!self.waveform || !_renderer.supportsEnvelopeBake) {
         return;
     }
     NSUInteger generation = _bakeGeneration;

@@ -7,11 +7,10 @@
 //  notification a write to either posts.
 //
 //  These are iOS-owned NSUserDefaults keys, beside FolderSession's and the
-//  waveform zoom's, rather than AppSettings' equivalents: those sit inside its
-//  macOS-only block, and they are there because they are read on every
-//  playback tick and ride the hot cache that block exists for. The waveform
-//  style is deliberately NOT here — both platforms draw waveforms, so it is a
-//  shared AppSettings property.
+//  waveform zoom's, rather than AppSettings' equivalents: on macOS those are
+//  AppTheme fields now, and iOS has no theme system. The waveform style is
+//  deliberately NOT here — both platforms draw waveforms, so it stays an
+//  AppSettings property (iOS-compiled; on macOS the theme owns it).
 //
 
 #import <Foundation/Foundation.h>

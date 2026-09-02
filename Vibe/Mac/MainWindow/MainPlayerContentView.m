@@ -14,6 +14,7 @@
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "MainWindowLayout.h"
+#import "AppSettings.h"
 #import "VibeStrings.h"
 
 // The design-time size, kMainWindowContentWidth by kMainWindowDesignHeight
@@ -44,7 +45,10 @@ static const CGFloat kArtSize = kHeaderHeight; // square, fills the header band
 // rounds all its corners, and the window shape clipping the right-side arcs
 // off-screen is what keeps the header's right edge square. The bleed must be
 // at least the radius.
-static const CGFloat kHeaderPanelRightBleed = kMainWindowCornerRadius + 2;
+// Sized to the radius CLAMP's ceiling, not the live value: the bleed only
+// needs to be at least the radius, and the ceiling keeps this design-time
+// frame valid for every legal radius without re-deriving it on a change.
+static const CGFloat kHeaderPanelRightBleed = kVibeThemeCornerRadiusMax + 2;
 static const CGFloat kHeaderPanelX = kArtSize - 25;
 static const CGFloat kHeaderPanelWidth =
         kMainWindowContentWidth + kHeaderPanelRightBleed - kHeaderPanelX;
@@ -56,6 +60,14 @@ static const CGFloat kHeaderContentWidth =
         kMainWindowContentWidth - kHeaderContentX - kHeaderContentRightMargin;
 static const CGFloat kHeaderContentMaxX = kMainWindowContentWidth - kHeaderContentRightMargin;
 
+// An NSTextField draws its text ~2pt inside its frame (the cell's own
+// horizontal padding), while the waveform draws to its exact frame edges. So
+// every header text frame is pushed outward by this on its text-anchored side,
+// aligning the ink — not the frame — with the waveform's edges.
+static const CGFloat kLabelInkInset = 2;
+static const CGFloat kHeaderTextX = kHeaderContentX - kLabelInkInset;
+static const CGFloat kHeaderTextMaxX = kHeaderContentMaxX + kLabelInkInset;
+
 static const CGFloat kWaveformY = 215;
 static const CGFloat kWaveformHeight = 86;
 
@@ -63,7 +75,7 @@ static const CGFloat kWaveformHeight = 86;
 // right-aligned. They are declared before the title and artist lines, which
 // size themselves to stay clear of this corner.
 static const CGFloat kCodecLabelWidth = 240;
-static const CGFloat kCodecLabelX = kHeaderContentMaxX - kCodecLabelWidth;
+static const CGFloat kCodecLabelX = kHeaderTextMaxX - kCodecLabelWidth;
 static const CGFloat kCodecLabelY = 325;
 static const CGFloat kBPMLabelY = 307;
 
@@ -82,10 +94,12 @@ static const CGFloat kBPMLabelY = 307;
 // the autoresizing pass starts from.
 static const CGFloat kCodecColumnGutter = 12;
 static const CGFloat kArtistY = 293;
-static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderContentX;
+static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderTextX;
 static const CGFloat kArtistHeight = 48;
 static const CGFloat kTitleY = 292;
-static const CGFloat kTitleWidth = 415;
+// The width grows by the ink inset the x moved left by, so the right cap —
+// clearance against the BPM line's ink — stays where it was tuned.
+static const CGFloat kTitleWidth = 415 + kLabelInkInset;
 static const CGFloat kTitleHeight = 30;
 
 // The time row: elapsed on the left, total on the right, and the empty-state
@@ -93,7 +107,7 @@ static const CGFloat kTitleHeight = 30;
 static const CGFloat kSmallLabelHeight = 16;
 static const CGFloat kTimeRowY = 207;
 static const CGFloat kTimeLabelWidth = 59;
-static const CGFloat kTotalTimeX = kHeaderContentMaxX - kTimeLabelWidth;
+static const CGFloat kTotalTimeX = kHeaderTextMaxX - kTimeLabelWidth;
 static const CGFloat kDropHintX = kHeaderContentX + kTimeLabelWidth;
 static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 
@@ -125,9 +139,6 @@ static const CGFloat kTransportSymbolSize = 31;
 // the real macOS controls.
 static const CFTimeInterval kControlFadeDur = 0.2;
 
-// The shared point size for the small numeric labels: the time readouts, the
-// codec line and the BPM line.
-static const CGFloat kNumericLabelFontSize = 13;
 
 // One shadow recipe for every header label. The opacity itself is driven by
 // the appearance, in updateMaterialForAppearance: dark text on the light glass
@@ -213,8 +224,7 @@ API_AVAILABLE(macos(26.0))
     // mode gets a white wash, brightening rather than dimming, which lifts row
     // contrast for the dark text while letting the blur through.
     _playlistFrostView.material = NSVisualEffectMaterialUnderWindowBackground;
-    _playlistDimView.layer.backgroundColor = dark ? NSColor.clearColor.CGColor
-                                                  : [NSColor colorWithWhite:1 alpha:0.35].CGColor;
+    [self applyPlaylistBackground];
     // The header-label shadows lift readability for light text on dark glass.
     // Dark text on the bright light material needs none, and a dark shadow
     // under dark text reads simply as smudge.
@@ -271,8 +281,33 @@ API_AVAILABLE(macos(26.0))
 //
 // Both inputs move: the geometry on every resize, hooked below, and the text on
 // every codec and FX change, hooked by TrackDisplayController.
+// TRAP: measure with the field's own font. The corner lines' attributed
+// strings carry color and kern but no font (TrackDisplayController's
+// cornerTextAttributes), so -size lays the metadata run out in the system
+// default 12pt instead of the themed info font — which under a 15pt or
+// monospaced face under-measures by tens of points, and the artist line then
+// runs under the codec text. The FX symbol runs carry a font of their own and
+// keep it.
+- (CGFloat)renderedCodecTextWidth {
+    NSAttributedString *text = _fileMetadataTextField.attributedStringValue;
+    NSFont *font = _fileMetadataTextField.font;
+    if (text.length == 0 || !font) {
+        return ceil(text.size.width);
+    }
+    NSMutableAttributedString *measured = [text mutableCopy];
+    [measured enumerateAttribute:NSFontAttributeName
+                         inRange:NSMakeRange(0, measured.length)
+                         options:0
+                      usingBlock:^(NSFont *run, NSRange range, BOOL *stop) {
+        if (!run) {
+            [measured addAttribute:NSFontAttributeName value:font range:range];
+        }
+    }];
+    return ceil(measured.size.width);
+}
+
 - (void)layoutArtistLineClearOfCodecLine {
-    CGFloat codecTextWidth = ceil(_fileMetadataTextField.attributedStringValue.size.width);
+    CGFloat codecTextWidth = [self renderedCodecTextWidth];
     CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - codecTextWidth - kCodecColumnGutter;
     NSRect frame = _artistTextField.frame;
     frame.size.width = MAX(0, clearX - NSMinX(frame));
@@ -397,6 +432,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildHeaderLabels];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
+    // The one spelling of the themed fonts and label colors; without this the
+    // labels would launch semantic-colored and re-style only when a live
+    // effect first fired.
+    [self applyThemedLabelFonts];
+    [self applyThemedLabelColors];
 }
 
 // The glass panel behind the waveform and header, the art-color tint over
@@ -404,19 +444,18 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // above them.
 - (void)buildHeaderBackdrop {
     NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
+    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     if (@available(macOS 26.0, *)) {
-        VibePassthroughGlassView *glass = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
-        glass.cornerRadius = kMainWindowCornerRadius;
-        _backgroundGlassView = glass;
+        _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
     }
     else {
         VibePassthroughFrostView *frost = [[VibePassthroughFrostView alloc] initWithFrame:headerPanelFrame];
         frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         frost.state = NSVisualEffectStateActive; // never dims, like the playlist frost
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
-        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:kMainWindowCornerRadius];
         _backgroundGlassView = frost;
     }
+    [MainPlayerContentView applyCornerRadius:cornerRadius toBackdrop:_backgroundGlassView];
     // Width-flexible, so the bleed stays past the moving right edge. The
     // height must not be flexible; see the playlist frost's note below.
     _backgroundGlassView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
@@ -428,7 +467,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // color.
     _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
     _headerTintView.wantsLayer = YES;
-    _headerTintView.layer.cornerRadius = kMainWindowCornerRadius;
+    _headerTintView.layer.cornerRadius = cornerRadius;
     _headerTintView.layer.masksToBounds = YES;
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
     [self addSubview:_headerTintView];
@@ -444,7 +483,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 - (void)buildAlbumArt {
     _albumArtImageView = [[ArtworkImageView alloc] initWithFrame:
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
-    _albumArtImageView.image = [NSImage imageNamed:@"record-bg"];
+    _albumArtImageView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
     _albumArtImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
     _albumArtImageView.refusesFirstResponder = YES;
     _albumArtImageView.focusRingType = NSFocusRingTypeNone;
@@ -552,9 +591,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
     _artistTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kArtistY, kArtistWidth, kArtistHeight)];
-    _artistTextField.font = [Fonts font:16];
-    _artistTextField.textColor = dimmedTextColor;
+            NSMakeRect(kHeaderTextX, kArtistY, kArtistWidth, kArtistHeight)];
     // Truncating, not the shared clipping default: this line takes whatever a
     // file's artist tag holds, and long ones are common. Clipping cut a glyph
     // mid-stroke at the label's edge and gave no sign the string went on.
@@ -564,9 +601,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self addSubview:_artistTextField];
 
     _titleTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kTitleY, kTitleWidth, kTitleHeight)];
-    _titleTextField.font = [Fonts font:23];
-    _titleTextField.textColor = [NSColor labelColor];
+            NSMakeRect(kHeaderTextX, kTitleY, kTitleWidth, kTitleHeight)];
     _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_titleTextField, YES);
@@ -574,17 +609,14 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _totalTimeTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kTotalTimeX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
-    _totalTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
-    _totalTimeTextField.textColor = dimmedTextColor;
     _totalTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_totalTimeTextField, YES);
     [self addSubview:_totalTimeTextField];
 
     _currentTimeTextField = [MainPlayerContentView labelWithFrame:
-            NSMakeRect(kHeaderContentX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
-    _currentTimeTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:YES];
-    _currentTimeTextField.textColor = dimmedTextColor;
+            NSMakeRect(kHeaderTextX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
+
     // Left-anchored, unlike the right-aligned total time it pairs with.
     _currentTimeTextField.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     // No rasterization. This field's content changes every second, so
@@ -625,7 +657,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // refuses to expand past the design height. It sits under the scroll view,
     // since an NSClipView background does not composite semi-transparent
     // colors over a backdrop, so it also covers the empty area below the last
-    // row. The light-mode dim wash rides inside it.
+    // row. The wash layers directly above it.
     _playlistFrostView = [[NSVisualEffectView alloc] initWithFrame:
             NSMakeRect(0, 0, kMainWindowContentWidth, kPlaylistHeight)];
     _playlistFrostView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
@@ -633,10 +665,20 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _playlistFrostView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [self addSubview:_playlistFrostView];
 
-    _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.bounds];
+    // A sibling above the frost, never its child: the solid playlist style
+    // hides the frost and keeps the wash as the whole background, which a
+    // parented wash would vanish along with.
+    _playlistDimView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
     _playlistDimView.wantsLayer = YES;
     _playlistDimView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [_playlistFrostView addSubview:_playlistDimView];
+    [self addSubview:_playlistDimView];
+
+    // The themed tint wash above the background, below the table — the
+    // playlist's headerTintView. ArtworkDisplayController colors it.
+    _playlistTintView = [[NSView alloc] initWithFrame:_playlistFrostView.frame];
+    _playlistTintView.wantsLayer = YES;
+    _playlistTintView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [self addSubview:_playlistTintView];
 
     // The table — its columns, row metrics and cell construction — belongs
     // entirely to PlaylistTableView. Only the frame is placed here.
@@ -663,7 +705,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
     _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
-    _fileMetadataTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     _fileMetadataTextField.textColor = dimmedTextColor;
     // Full alpha, because this field also carries the inline FX symbols, which
@@ -679,7 +720,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // The BPM readout, directly below the codec line and styled to match.
     _bpmTextField = [MainPlayerContentView labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
-    _bpmTextField.font = [Fonts fontForNumbers:kNumericLabelFontSize bold:NO];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.textColor = dimmedTextColor;
     // Matches the codec label above it, with full alpha and the dimming in the
@@ -709,8 +749,74 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     return button;
 }
 
+- (void)applyThemedLabelFonts {
+    _artistTextField.font = [Fonts artistFont];
+    _titleTextField.font = [Fonts titleFont];
+    _totalTimeTextField.font = [Fonts infoFontBold:YES];
+    _currentTimeTextField.font = [Fonts infoFontBold:YES];
+    _fileMetadataTextField.font = [Fonts infoFontBold:NO];
+    _bpmTextField.font = [Fonts infoFontBold:NO];
+}
+
+- (void)applyThemedLabelColors {
+    // The corner readouts' color rides their attributed strings
+    // (cornerTextAttributes); the drop hint stays unthemed with the rest of
+    // the empty state.
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    _titleTextField.textColor = theme.resolvedTitleColor;
+    _artistTextField.textColor = theme.resolvedArtistColor;
+    _totalTimeTextField.textColor = theme.resolvedTimeColor;
+    _currentTimeTextField.textColor = theme.resolvedTimeColor;
+}
+
+// The glass style's unthemed lift: clear in dark, a white brightening wash in
+// light that lifts row contrast for the dark text while letting the blur
+// through.
++ (NSColor *)defaultPlaylistBackgroundColorForDark:(BOOL)dark {
+    return dark ? NSColor.clearColor : [NSColor colorWithWhite:1 alpha:0.35];
+}
+
+- (void)applyPlaylistBackground {
+    BOOL dark = self.isDark;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL solid = [theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    // Solid removes the behind-window blur outright; the background layer then
+    // carries the whole background over whatever the window backdrop shows.
+    // Under glass it is the unthemed appearance lift — the theme's color pair
+    // belongs to the solid cover alone, and any themed color over glass is the
+    // playlist tint wash layered above (ArtworkDisplayController).
+    _playlistFrostView.hidden = solid;
+    NSColor *background = solid
+            ? [theme displayPlaylistBackgroundColorForDark:dark]
+            : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
+    _playlistDimView.layer.backgroundColor = background.CGColor;
+}
+
+// The one home of the pre/post-26 backdrop dichotomy: Liquid Glass takes a
+// layer radius, the frost fallback a regenerated mask (its blur region
+// ignores a layer radius). Both build paths and both live re-applies call it.
++ (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop {
+    if (@available(macOS 26.0, *)) {
+        if ([backdrop isKindOfClass:NSGlassEffectView.class]) {
+            ((NSGlassEffectView *)backdrop).cornerRadius = radius;
+            return;
+        }
+    }
+    if ([backdrop isKindOfClass:NSVisualEffectView.class]) {
+        ((NSVisualEffectView *)backdrop).maskImage =
+                [MainPlayerContentView frostCornerMaskWithRadius:radius];
+    }
+}
+
+- (void)applyCornerRadius:(CGFloat)radius {
+    [MainPlayerContentView applyCornerRadius:radius toBackdrop:_backgroundGlassView];
+    _headerTintView.layer.cornerRadius = radius;
+}
+
 // A stretchable rounded-rect alpha mask, cap-inset so the corners never
-// scale. See the header comment for why maskImage rather than a layer radius.
+// scale. An NSVisualEffectView shapes its blur through maskImage — a layer
+// cornerRadius clips its tint but not the blur region.
 + (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius {
     NSSize size = NSMakeSize(radius * 2 + 1, radius * 2 + 1);
     NSImage *mask = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {

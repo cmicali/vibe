@@ -115,12 +115,18 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     VibeColor *played = self.theme.playedColor;
     VibeColor *unplayed = self.theme.unplayedColor;
     _playedColorTop = played;
-    _playedColorBottom = VibeColorAtRampFraction(
-            [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
-                    colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
-            kPlayedBottomAlphaRatio);
     _unPlayedColorTop = unplayed;
-    _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
+    if (self.theme.flatFill) {
+        // No ramp: the mirror bars take the tops as-is.
+        _playedColorBottom = played;
+        _unPlayedColorBottom = unplayed;
+    } else {
+        _playedColorBottom = VibeColorAtRampFraction(
+                [VibeColorBlended(played, [VibeColor whiteColor], kPlayedBottomBlendTowardWhite)
+                        colorWithAlphaComponent:CGColorGetAlpha(played.CGColor)],
+                kPlayedBottomAlphaRatio);
+        _unPlayedColorBottom = VibeColorAtRampFraction(unplayed, kUnplayedBottomAlphaRatio);
+    }
     _hoverColor = self.theme.hoverColor;
 }
 
@@ -140,8 +146,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     NSInteger barCount = (NSInteger)(_layers.count / 2);
     NSInteger index = -1;
     if (x >= 0 && width > 0 && barCount > 0) {
-        index = (NSInteger)(x / width * (CGFloat)barCount);
-        index = MIN(MAX(index, 0), barCount - 1);
+        index = VibeBlockIndexForX(x, width, barCount);
     }
     if (index == _hoverBarIndex) {
         return;
@@ -176,9 +181,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         return;
     }
     if (self.lastProgressBoundary > 0 && have > 0) {
-        NSInteger boundary = (NSInteger)llround(
-                (double)self.lastProgressBoundary * (double)count / (double)have);
-        self.lastProgressBoundary = MIN(MAX(boundary, 0), (NSInteger)count);
+        self.lastProgressBoundary = VibeBlockBoundaryForProgress(
+                (CGFloat)self.lastProgressBoundary / (CGFloat)have, (NSInteger)count);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -228,9 +232,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     NSInteger count = (NSInteger)(_layers.count / 2);
-    NSInteger newBoundary = (NSInteger)round((CGFloat)count * progress);
-    if (newBoundary < 0) newBoundary = 0;
-    if (newBoundary > count) newBoundary = count;
+    NSInteger newBoundary = VibeBlockBoundaryForProgress(progress, count);
 
     NSInteger oldBoundary = self.lastProgressBoundary;
     NSInteger start, end;
@@ -269,7 +271,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // width and restores the previous bar's resting color.
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    // Build the morph target: each bar's normalized peak-to-peak height, or
+    // Build the morph target: each bar's RMS-derived level, or
     // all-zero when there is no waveform, so that a track change collapses the
     // old bars toward the baseline until the new waveform retargets them. The
     // engine owns the fast, collapsed and commit scaffold and skips this fill
@@ -278,8 +280,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
-            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-            target[i] = fabsf(m.getMax() - m.getMin()) / 2;
+            target[i] = VibeWaveformBarLevel(
+                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare());
         }
     }];
 }

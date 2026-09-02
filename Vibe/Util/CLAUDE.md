@@ -14,6 +14,8 @@ Code with **no feature**. That is the whole admission test, and it is stricter t
 
 **`Categories/` (portable):** `NSURL+Hash` (the cache key — see the root `CLAUDE.md`), `NSURL+AudioOpen`, `NSURL+FileIdentity`, `NSBundle+BuildInfo`, `NSString+CPPStrings`, `NSString+FormLabel`.
 
+`NSURL+Hash` carries a second category in the same file, `NSData (Hash)`'s `sha1Hex` — the one spelling of the hex-SHA-1 naming that the cache key's path hash and `AppTheme`'s content-addressed artwork files share. It is filed under the URL's name because the two are one rule, and it is the one thing here that `Common/` reaches for.
+
 `NSString+FormLabel`'s `vibeFormLabel` drops a settings string's form-layout colon ("Output:", French "Sortie :"). The catalogs keep the colon, because that is the form most of the mac's panes draw; a grouped row — the mac's cards, every row on the iOS settings screens — puts the value in its own column and wants the bare noun. Both platforms ask here rather than each trimming its own way, so one rule covers the French no-break space and the fullwidth colon CJK uses.
 
 **`Mac/` (AppKit)** and **`iOS/` (UIKit)** each have their own `CLAUDE.md`. Neither target names the other's subdirectory — see the root `CLAUDE.md` on the directory being the platform boundary.

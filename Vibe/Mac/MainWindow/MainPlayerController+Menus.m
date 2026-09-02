@@ -4,6 +4,7 @@
 //
 
 #import "MainPlayerController+Menus.h"
+#import "AppDelegate.h" // showThemeSettings:, the Edit tail's nil-targeted action
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
@@ -29,7 +30,11 @@
             return YES;
         case VibeMenuValidationDomainAppearance:
             [self applyAppearanceStateToMenuItem:menuItem];
-            return YES;
+            // A theme that pins the window's appearance ignores this
+            // setting (AppSettings.windowAppearance folds the pin in);
+            // disable it there so the checkmark can't assert a state the
+            // window contradicts.
+            return AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
         case VibeMenuValidationDomainFX:
             [self applyFXStateToMenuItem:menuItem];
             // TRAP: hiding a parent does not disable its descendants. The menu
@@ -47,7 +52,7 @@
             return [self validateEditMenuItem:menuItem];
         case VibeMenuValidationDomainConvert:
             return [self validateConvertMenuItem:menuItem];
-        case VibeMenuValidationDomainWaveformStyle:
+        case VibeMenuValidationDomainTheme:
             // menuNeedsUpdate: mints these and sets their state and enablement.
             return YES;
         case VibeMenuValidationDomainUnknown:
@@ -75,7 +80,7 @@
         menuItem.state = StateForBOOL(window.isPitchPanelShown);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_show_file_info"]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.showFileInfo);
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.currentTheme.showFileInfo);
     }
     else if ([menuItem.identifier isEqualToString:@"menu_always_on_top"]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
@@ -231,42 +236,37 @@
                                               forTrack:self.playlistController.currentTrack];
 }
 
-// A plain helper, deliberately not named numberOfItemsInMenu:. That selector
-// is NSMenuDelegate's opt-in to incremental menu population, which requires
-// the menu:updateItem:atIndex:shouldCancel: companion this class does not
-// implement, and it would return 0 for every other delegated menu.
-- (NSInteger)waveformStyleMenuItemCount {
-    return self.waveformView.availableWaveformStyles.count;
-}
-
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    if ([menu.identifier isEqualToString:@"waveform_style"]) {
-        NSInteger count = [self waveformStyleMenuItemCount];
-        while ([menu numberOfItems] < count)
-            [menu insertItem:[NSMenuItem new] atIndex:0];
-        while ([menu numberOfItems] > count)
-            [menu removeItemAtIndex:0];
-        // Sort by localized display name; localizedStandardCompare: keeps
-        // x2/x4/x8 in numeric order.
-        AudioWaveformView *waveformView = self.waveformView;
-        NSArray<NSString *> *styles = [waveformView.availableWaveformStyles sortedArrayUsingComparator:
-                ^NSComparisonResult(NSString *a, NSString *b) {
-                    return [[waveformView displayNameForStyle:a] localizedStandardCompare:[waveformView displayNameForStyle:b]];
-                }];
-        for (NSUInteger i = 0; i < count; ++i) {
-            NSMenuItem *item = [menu itemAtIndex:i];
-            NSString *identifier = styles[i];
-            item.title = [waveformView displayNameForStyle:identifier];
-            // The identifier travels on the item — a localized title can't
-            // round-trip into NSUserDefaults — and gives click_menu a stable id.
-            item.representedObject = identifier;
-            item.identifier = VibeWaveformStyleMenuIdentifier(identifier);
-            item.state = StateForBOOL([identifier isEqualToString:waveformView.currentWaveformStyle]);
-            item.enabled = YES;
-            item.target = self;
-            item.action = @selector(setWaveformStyle:);
-        }
+    if (![menu.identifier isEqualToString:@"view_theme"]) {
+        return;
     }
+    // Rebuilt whole on every open: themes are added, renamed and removed at
+    // runtime, and a full rebuild is simpler than teaching incremental item
+    // arithmetic about the static Edit tail.
+    [menu removeAllItems];
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *active = settings.activeThemeIdentifier;
+    for (NSString *identifier in settings.orderedThemeIdentifiers) {
+        NSMenuItem *item = [[NSMenuItem alloc]
+                initWithTitle:[settings displayNameForThemeIdentifier:identifier] ?: identifier
+                       action:@selector(selectTheme:)
+                keyEquivalent:@""];
+        // The identifier travels on the item — a display name can't
+        // round-trip into the store — and gives click_menu a stable id.
+        item.representedObject = identifier;
+        item.identifier = VibeThemeMenuIdentifier(identifier);
+        item.state = StateForBOOL([identifier isEqualToString:active]);
+        item.target = self;
+        [menu addItem:item];
+    }
+    [menu addItem:[NSMenuItem separatorItem]];
+    // Nil-targeted: the app delegate answers showThemeSettings:, the same
+    // ownership as Settings… itself.
+    NSMenuItem *edit = [[NSMenuItem alloc] initWithTitle:STR_MENU_VIEW_EDIT_THEMES
+                                                  action:@selector(showThemeSettings:)
+                                           keyEquivalent:@""];
+    edit.identifier = @"menu_edit_themes";
+    [menu addItem:edit];
 }
 
 // Without this, AppKit's key-equivalent scan calls menuNeedsUpdate:, a full
@@ -276,22 +276,14 @@
     return NO;
 }
 
-- (IBAction)setWaveformStyle:(id)sender {
+- (IBAction)selectTheme:(id)sender {
     if ([sender isKindOfClass:NSMenuItem.class]) {
         NSString *identifier = ((NSMenuItem *)sender).representedObject;
         if (identifier) {
-            AppSettings.sharedInstance.waveformStyle = identifier;
-            [self applySettingsLiveEffects:VibeSettingsLiveEffectWaveformStyle];
+            [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
+            [self applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
         }
     }
-}
-
-- (NSArray<NSString *> *)availableWaveformStyleIdentifiers {
-    return self.waveformView.availableWaveformStyles;
-}
-
-- (NSString *)displayNameForWaveformStyle:(NSString *)identifier {
-    return [self.waveformView displayNameForStyle:identifier];
 }
 
 - (void)refreshWaveformTheme {

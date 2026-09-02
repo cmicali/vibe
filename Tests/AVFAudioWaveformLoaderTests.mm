@@ -331,13 +331,20 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     AudioWaveform *waveform = result.waveform;
     NSUInteger numChunks = waveform->getNumChunks();
     XCTAssertTrue(numChunks > 0);
-    NSUInteger silent = 0;
+    NSUInteger silent = 0, wrongEnergy = 0;
     for (NSUInteger i = 0; i < numChunks; i++) {
-        if (!ChunkHasContent(waveform->getChunkAtIndex(i, numChunks))) {
+        AudioWaveformCacheChunk chunk = waveform->getChunkAtIndex(i, numChunks);
+        if (!ChunkHasContent(chunk)) {
             silent++;
+        }
+        // Every sample of the fixture is ±0.5, so every chunk's meanSquare is
+        // exactly 0.25 wherever the chunk boundaries land.
+        if (fabsf(chunk.getMeanSquare() - 0.25f) > 1e-4f) {
+            wrongEnergy++;
         }
     }
     XCTAssertEqual(silent, (NSUInteger)0, @"every chunk of a full-scale signal must have content");
+    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of a constant ±0.5 signal carries meanSquare 0.25");
 }
 
 // The short-file path end to end: fewer frames than chunks, stretched to span

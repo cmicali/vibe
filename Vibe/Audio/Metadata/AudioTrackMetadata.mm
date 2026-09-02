@@ -396,21 +396,6 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
     return finalized ? encoded : nil;
 }
 
-// The longest side of encoded image bytes, from the container header alone —
-// no pixel decode.
-static CGFloat VibeEncodedArtMaxDimension(NSData *data) {
-    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data, NULL);
-    if (!source) {
-        return 0;
-    }
-    NSDictionary *properties = CFBridgingRelease(
-            CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
-    CFRelease(source);
-    NSNumber *width = properties[(id)kCGImagePropertyPixelWidth];
-    NSNumber *height = properties[(id)kCGImagePropertyPixelHeight];
-    return MAX(width.doubleValue, height.doubleValue);
-}
-
 - (NSData *)encodeThumbnailDataIfNeeded {
     NSData *stored = [self.artwork encodedThumbnailDataForStorage];
     if (stored) {
@@ -440,7 +425,8 @@ static CGFloat VibeEncodedArtMaxDimension(NSData *data) {
     if (!original) {
         return;
     }
-    CGFloat maxDimension = VibeEncodedArtMaxDimension(original);
+    CGSize pixels = VibeEncodedImagePixelSize(original);
+    CGFloat maxDimension = MAX(pixels.width, pixels.height);
     if (maxDimension <= 0) {
         return;
     }

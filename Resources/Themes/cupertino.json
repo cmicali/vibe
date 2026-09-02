@@ -1,0 +1,44 @@
+{
+  "version" : 1,
+  "name" : "Cupertino",
+  "description" : "The Apple Music look: near-white and charcoal surfaces, system type, legible secondary grays, and a red-pink accent reserved for what is playing. The bundled placeholder pairs a rounded gray tile with the familiar double-note silhouette.",
+  "window" : {
+    "backgroundColorDark" : "#282828",
+    "backgroundColorLight" : "#F5F5F7",
+    "backgroundStyle" : "solid",
+    "cornerRadius" : 26,
+    "tint" : "mono"
+  },
+  "player" : {
+    "artistColorDark" : "#A8A8AD",
+    "artistColorLight" : "#515156",
+    "defaultArtworkDark" : "bundled:cupertino_dark.png",
+    "defaultArtworkLight" : "bundled:cupertino_light.png",
+    "titleColorDark" : "#F5F5F7",
+    "titleColorLight" : "#1D1D1F"
+  },
+  "info" : {
+    "colorDark" : "#A1A1A6",
+    "colorLight" : "#66666C",
+    "timeColorDark" : "#A1A1A6",
+    "timeColorLight" : "#66666C"
+  },
+  "waveform" : {
+    "gradient" : false,
+    "playedColorDark" : "#D9D9DE",
+    "playedColorLight" : "#8E8E93",
+    "style" : "cupertino",
+    "theme" : "custom",
+    "unplayedColorDark" : "#FFFFFF40",
+    "unplayedColorLight" : "#00000026"
+  },
+  "playlist" : {
+    "backgroundColorDark" : "#1E1E1E",
+    "backgroundColorLight" : "#FFFFFF",
+    "backgroundStyle" : "solid",
+    "playingRowColorDark" : "#FB5C7433",
+    "playingRowColorLight" : "#E3193F2B",
+    "selectedRowColorDark" : "#FFFFFF1F",
+    "selectedRowColorLight" : "#00000018"
+  }
+}

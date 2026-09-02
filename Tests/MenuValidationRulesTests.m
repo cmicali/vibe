@@ -66,10 +66,12 @@
                    classify:VibeMenuValidationDomainWindowSize];
 }
 
-- (void)testTheWaveformStyleFamilyIsMatchedByPrefix {
-    for (NSString *style in @[@"bars", @"sonic_cirrus", @"x4"]) {
-        XCTAssertEqual(VibeMenuValidationDomainForIdentifier(VibeWaveformStyleMenuIdentifier(style)),
-                       VibeMenuValidationDomainWaveformStyle, @"%@", style);
+- (void)testTheThemeFamilyIsMatchedByPrefix {
+    // Built-ins and minted user-theme UUIDs alike.
+    for (NSString *theme in @[@"vibe", @"industrial",
+                              NSUUID.UUID.UUIDString]) {
+        XCTAssertEqual(VibeMenuValidationDomainForIdentifier(VibeThemeMenuIdentifier(theme)),
+                       VibeMenuValidationDomainTheme, @"%@", theme);
     }
 }
 
@@ -81,7 +83,11 @@
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
                               @"remove_clicked_track_from_playlist",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
-                              @"view_appearance", @"waveform_style", @"view_size", @"", @"menu_"]
+                              @"view_appearance", @"view_theme", @"view_size", @"", @"menu_",
+                              // The retired style family and the app-delegate-
+                              // targeted Edit tail both deliberately classify
+                              // as nobody's.
+                              @"waveform_style_detailed", @"menu_edit_themes"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }

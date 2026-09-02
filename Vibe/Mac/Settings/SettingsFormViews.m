@@ -4,54 +4,20 @@
 //
 
 #import "SettingsFormViews.h"
+#import "NSView+DarkMode.h"
 #import "NSString+FormLabel.h"
 
 static const CGFloat kRowPaddingH = 16;
 static const CGFloat kRowPaddingV = 8;
-static const CGFloat kRowMinHeight = 38;
+static const CGFloat kRowMinHeight = 40;
 static const CGFloat kRowTitleControlGap = 8;
-static const CGFloat kCardCornerRadius = 6;
+static const CGFloat kCardCornerRadius = 10;
 static const CGFloat kHeaderCardGap = 6;
 
-// updateLayer resolves colors against the current appearance, and the
-// appearance-change hook re-runs it, so both dynamic colors track a live
+// updateLayer resolves the side's color against the current appearance, and
+// the appearance-change hook re-runs it, so a dynamic color tracks a live
 // light/dark flip.
-@interface SettingsHairlineView : NSView
-@end
-
-@implementation SettingsHairlineView
-
-- (instancetype)initWithFrame:(NSRect)frameRect {
-    self = [super initWithFrame:frameRect];
-    if (self) {
-        self.wantsLayer = YES;
-        self.translatesAutoresizingMaskIntoConstraints = NO;
-        [self.heightAnchor constraintEqualToConstant:1].active = YES;
-    }
-    return self;
-}
-
-- (BOOL)wantsUpdateLayer {
-    return YES;
-}
-
-- (void)updateLayer {
-    self.layer.backgroundColor = NSColor.separatorColor.CGColor;
-}
-
-- (void)viewDidChangeEffectiveAppearance {
-    [super viewDidChangeEffectiveAppearance];
-    self.needsDisplay = YES;
-}
-
-@end
-
-// The card: white in light mode with a hairline edge, a light wash over the
-// window in dark — the System Settings pairing on each backdrop.
-@interface SettingsCardView : NSView
-@end
-
-@implementation SettingsCardView
+@implementation SettingsFillView
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
@@ -67,15 +33,8 @@ static const CGFloat kHeaderCardGap = 6;
 }
 
 - (void)updateLayer {
-    self.layer.cornerRadius = kCardCornerRadius;
-    BOOL dark = [[self.effectiveAppearance
-            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
-            isEqualToString:NSAppearanceNameDarkAqua];
-    self.layer.backgroundColor = dark
-            ? [NSColor colorWithWhite:1 alpha:0.06].CGColor
-            : NSColor.whiteColor.CGColor;
-    self.layer.borderWidth = dark ? 0 : 1;
-    self.layer.borderColor = [NSColor colorWithWhite:0 alpha:0.07].CGColor;
+    self.layer.cornerRadius = _cornerRadius;
+    self.layer.backgroundColor = (self.isDark ? _darkColor : _lightColor).CGColor;
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -88,11 +47,15 @@ static const CGFloat kHeaderCardGap = 6;
 #pragma mark - Row
 
 @implementation SettingsRowView {
-    SettingsHairlineView *_separator;
+    SettingsFillView *_separator;
 }
 
 + (instancetype)rowWithTitle:(NSString *)title control:(NSView *)control {
     return [self rowWithTitle:title caption:nil controls:@[control]];
+}
+
+- (void)setRowTitle:(NSString *)title {
+    _titleLabel.stringValue = title.vibeFormLabel;
 }
 
 + (instancetype)rowWithTitle:(NSString *)title caption:(NSString *)caption control:(NSView *)control {
@@ -180,9 +143,12 @@ static const CGFloat kHeaderCardGap = 6;
         _separator = nil;
         return;
     }
-    _separator = [[SettingsHairlineView alloc] initWithFrame:NSZeroRect];
+    _separator = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+    _separator.darkColor = NSColor.separatorColor;
+    _separator.lightColor = NSColor.separatorColor;
     [self addSubview:_separator];
     [NSLayoutConstraint activateConstraints:@[
+        [_separator.heightAnchor constraintEqualToConstant:1],
         [_separator.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:kRowPaddingH],
         [_separator.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
         [_separator.topAnchor constraintEqualToAnchor:self.topAnchor],
@@ -220,7 +186,14 @@ static const CGFloat kHeaderCardGap = 6;
         [row.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     }];
 
-    SettingsCardView *card = [[SettingsCardView alloc] initWithFrame:NSZeroRect];
+    // The card: one lift-step off the pane background in each direction,
+    // borderless — the System Settings pairing, measured off its pixels: dark
+    // cards sit ~7/255 above the background, light cards ~8/255 below the
+    // white one the pane paints (SettingsPaneViewController).
+    SettingsFillView *card = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+    card.darkColor = [NSColor colorWithWhite:1 alpha:0.032];
+    card.lightColor = [NSColor colorWithWhite:0 alpha:0.032];
+    card.cornerRadius = kCardCornerRadius;
     [card addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[
         [stack.leadingAnchor constraintEqualToAnchor:card.leadingAnchor],
@@ -235,9 +208,9 @@ static const CGFloat kHeaderCardGap = 6;
     if (header.length) {
         NSTextField *headerLabel = [NSTextField labelWithString:header.vibeFormLabel];
         headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        headerLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
-                                             weight:NSFontWeightSemibold];
-        headerLabel.textColor = NSColor.secondaryLabelColor;
+        // Semibold primary at text size — the System Settings section heading.
+        headerLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
+        headerLabel.textColor = NSColor.labelColor;
         [section addSubview:headerLabel];
         section->_headerLabel = headerLabel;
         [NSLayoutConstraint activateConstraints:@[

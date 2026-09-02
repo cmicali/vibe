@@ -48,14 +48,45 @@ static inline NSString *VibeFolderOpenSortIdentifier(VibeFolderOpenSort sort) {
 }
 
 #if TARGET_OS_OSX
-// An unknown stored window-tint identifier snaps to artwork, the default:
-// the header wash follows the playing track's art color.
-static inline NSString *VibeNormalizedWindowTint(NSString *_Nullable identifier) {
+// The two tint ladders are one shape with different defaults: an unknown
+// window tint snaps to artwork (the header wash follows the playing track's
+// art color), an unknown playlist tint to mono (the factory playlist takes
+// no wash).
+static inline NSString *VibeNormalizedTint(NSString *_Nullable identifier, NSString *fallback) {
     if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_MONO] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_ARTWORK] ||
         [identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         return identifier;
     }
-    return SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+    return fallback;
+}
+
+static inline NSString *VibeNormalizedWindowTint(NSString *_Nullable identifier) {
+    return VibeNormalizedTint(identifier, SETTINGS_VALUE_WINDOW_TINT_ARTWORK);
+}
+
+static inline NSString *VibeNormalizedPlaylistTint(NSString *_Nullable identifier) {
+    return VibeNormalizedTint(identifier, SETTINGS_VALUE_WINDOW_TINT_MONO);
+}
+
+// The theme record's other two-value ladders, each snapping to its factory
+// side: dual color sets, the glass background, Camelot notation.
+static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]
+            ? SETTINGS_VALUE_THEME_MODE_SINGLE
+            : SETTINGS_VALUE_THEME_MODE_DUAL;
+}
+
+static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
+            ? SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
+            : SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+}
+
+static inline NSString *VibeNormalizedKeyNotation(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
+            ? SETTINGS_VALUE_KEY_NOTATION_MUSICAL
+            : SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
 }
 
 // An unknown stored waveform-drag identifier snaps to drag_window, the

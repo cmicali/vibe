@@ -58,10 +58,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _didClickInside = NO;
 }
 
-- (NSString *)currentWaveformStyle {
-    return [_currentWaveformRenderer.class styleIdentifier];
-}
-
 - (void)setWaveformStyle:(NSString*)identifier {
     Class renderer = [WaveformRendererRegistry rendererClassForIdentifier:identifier];
     if (!renderer) {
@@ -71,6 +67,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
         if (!renderer) {
             return;
         }
+    }
+    if (_currentWaveformRenderer && [_currentWaveformRenderer class] == renderer) {
+        return; // unchanged style: keep the live layer tree and its state
     }
     _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
     [self applyResolvedTheme];
@@ -84,13 +83,15 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if (!_currentWaveformRenderer) {
         return;
     }
-    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL isDark = self.isDark;
-    _currentWaveformRenderer.theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                                isDark:isDark
-                                                          artworkColor:self.artworkThemeColor
-                                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
-                                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+    WaveformTheme *resolved = [WaveformTheme themeForIdentifier:theme.waveformTheme
+                                                          isDark:isDark
+                                                    artworkColor:self.artworkThemeColor
+                                                    customPlayed:[theme waveformPlayedColorForDark:isDark]
+                                                  customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
+    resolved.flatFill = !theme.waveformGradient;
+    _currentWaveformRenderer.theme = resolved;
     [_currentWaveformRenderer updateColors:isDark];
 }
 
@@ -103,10 +104,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self updateRendererProgress];
 }
 
-- (NSString *)displayNameForStyle:(NSString *)identifier {
-    return [WaveformRendererRegistry displayNameForIdentifier:identifier];
-}
-
 - (void)drawWaveform {
     [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
 }
@@ -116,10 +113,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
-}
-
-- (NSArray<NSString*>*)availableWaveformStyles {
-    return [WaveformRendererRegistry availableIdentifiers];
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -347,7 +340,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         // Prefer the persisted style, then the app default; the registry owns
         // the chain.
         [self setWaveformStyle:[WaveformRendererRegistry
-                resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]]];
+                resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle]];
     }
     [self drawWaveform];
 }

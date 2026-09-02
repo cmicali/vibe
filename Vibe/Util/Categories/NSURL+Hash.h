@@ -5,6 +5,14 @@
 
 #import <Foundation/Foundation.h>
 
+@interface NSData (Hash)
+
+// Lowercase hex SHA-1 of the bytes — the one spelling of the content-hash
+// naming that cacheKey's path hash and AppTheme's custom-artwork files share.
+- (nonnull NSString *)sha1Hex;
+
+@end
+
 @interface NSURL (Hash)
 
 // A cheap identity key for caching: "<size>-<mtime_us>-<sha1(path)>", computed

@@ -213,6 +213,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                 @"com.pinterest.PINDiskCache.audio_waveform_cache",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache_v2",
                 @"com.pinterest.PINDiskCache.audio_waveform_cache_v3",
+                @"com.pinterest.PINDiskCache.audio_waveform_cache_v4",
         ];
         for (NSString *name in legacyCacheNames) {
             [[NSFileManager defaultManager] removeItemAtPath:[cachesDir stringByAppendingPathComponent:name] error:nil];
@@ -318,6 +319,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
     [self applyAuxiliaryWindowLevels];
     [self.settingsWindowController showWindow:sender];
+}
+
+- (IBAction)showThemeSettings:(id)sender {
+    [self showSettingsWindow:sender];
+    [self.settingsWindowController showThemeEditor];
 }
 
 - (IBAction)showSupportPage:(id)sender {

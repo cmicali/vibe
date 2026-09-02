@@ -6,6 +6,7 @@
 #import <QuartzCore/QuartzCore.h> // CATransition for the state fade
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
+#import "NSImage+Util.h"
 #import "Fonts.h"
 #import "VibeStrings.h"
 
@@ -418,13 +419,9 @@ static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloa
     NSString *key = [NSString stringWithFormat:@"%@/%@", name, color];
     NSImage *image = _symbolCache[key];
     if (!image) {
-        NSImageSymbolConfiguration *config =
-                [NSImageSymbolConfiguration configurationWithPointSize:kDropIconPointSize
-                                                                weight:NSFontWeightMedium];
-        config = [config configurationByApplyingConfiguration:
-                [NSImageSymbolConfiguration configurationWithPaletteColors:@[ color ]]];
-        image = [[NSImage imageWithSystemSymbolName:name accessibilityDescription:nil]
-                imageWithSymbolConfiguration:config];
+        image = [NSImage symbolNamed:name pointSize:kDropIconPointSize
+                              weight:NSFontWeightMedium palette:@[color]
+            accessibilityDescription:nil];
         _symbolCache[key] = image;
     }
     return image;

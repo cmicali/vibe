@@ -8,6 +8,7 @@
 #import "DetailedAudioWaveformRenderer.h"
 #import "SonicCirrusWaveformRenderer.h"
 #import "BasicAudioWaveformRenderer.h"
+#import "CupertinoWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 
 @implementation WaveformRendererRegistry
@@ -18,6 +19,7 @@
     dispatch_once(&onceToken, ^{
         NSMutableDictionary<NSString *, Class> *registry = [NSMutableDictionary new];
         for (Class renderer in @[BasicAudioWaveformRenderer.class,
+                                 CupertinoWaveformRenderer.class,
                                  SonicCirrusWaveformRenderer.class,
                                  DetailedAudioWaveformRenderer.class,
                                  x2OversamplingDetailedAudioWaveformRenderer.class,

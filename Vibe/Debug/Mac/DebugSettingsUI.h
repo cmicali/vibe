@@ -15,8 +15,8 @@
 // nothing for a caller to aim at but coordinates that move with every
 // localization and every pane resize.
 //
-// So this addresses controls the way the pane presents them: by the form
-// grid's row label or the control's own title. dump_settings_ui lists what the
+// So this addresses controls the way the pane presents them: by the row's
+// title or the control's own. dump_settings_ui lists what the
 // selected pane holds and settings_click activates one of those by name,
 // through the control's real action path.
 //
@@ -38,6 +38,20 @@ NSString *VibeDebugSettingsDump(void);
 // settings_click <control> [value]: activates one control of the selected
 // pane; see the usage text in the implementation for the per-kind values.
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens);
+
+// settings_resize <width> <height> — a user resize by other means: sets the
+// settings window's frame (content points, clamped to contentMinSize like a
+// real drag), flushes layout, and replies with the SETTLED frame — which is
+// what makes a constraint snap-back observable from a test.
+NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens);
+
+// Run by the dispatch funnel after every verb: re-runs the selected pane's
+// refresh so a dump_settings_ui right after a store write reads the new
+// state. The pane's own refresh triggers are all user gestures —
+// appearance, window-key regain, menu-tracking end — none of which a verb
+// fires. No-op while the window is closed; an unappeared pane refreshes on
+// its next viewWillAppear anyway.
+void VibeDebugSettingsRefreshSelectedPane(void);
 
 #ifdef __cplusplus
 }

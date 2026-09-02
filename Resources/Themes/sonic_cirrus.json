@@ -1,0 +1,11 @@
+{
+  "version" : 1,
+  "name" : "Sonic Cirrus",
+  "window" : {
+    "tint" : "mono"
+  },
+  "waveform" : {
+    "style" : "sonic_cirrus",
+    "theme" : "orange"
+  }
+}

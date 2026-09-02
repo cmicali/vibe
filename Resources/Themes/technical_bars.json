@@ -1,0 +1,47 @@
+{
+  "version" : 1,
+  "name" : "Technical Bars",
+  "window" : {
+    "backgroundColorDark" : "#0E0E0E",
+    "backgroundColorLight" : "#C9C9C3",
+    "backgroundStyle" : "solid",
+    "cornerRadius" : 2,
+    "tint" : "mono"
+  },
+  "player" : {
+    "artistColorDark" : "#9A9A94",
+    "artistColorLight" : "#6E6E68",
+    "artistFontFace" : "Helvetica-Bold",
+    "titleColorDark" : "#F0F0EE",
+    "titleColorLight" : "#141412",
+    "titleFontFace" : "Helvetica-Bold"
+  },
+  "info" : {
+    "colorDark" : "#8A8A84",
+    "colorLight" : "#6E6E68",
+    "fontFace" : "Monaco",
+    "fontSize" : 12,
+    "timeColorDark" : "#8DE8B0",
+    "timeColorLight" : "#3D3D39"
+  },
+  "waveform" : {
+    "gradient" : false,
+    "playedColorDark" : "#8DE8B0",
+    "playedColorLight" : "#E04A28",
+    "style" : "basic",
+    "theme" : "custom",
+    "unplayedColorDark" : "#3C5A48",
+    "unplayedColorLight" : "#A9A9A3"
+  },
+  "playlist" : {
+    "backgroundColorDark" : "#171717",
+    "backgroundColorLight" : "#BFBFB9",
+    "backgroundStyle" : "solid",
+    "durationFontFace" : "Monaco",
+    "fontFace" : "Helvetica-Bold",
+    "playingRowColorDark" : "#8DE8B034",
+    "playingRowColorLight" : "#E04A2826",
+    "selectedRowColorDark" : "#FFFFFF1F",
+    "selectedRowColorLight" : "#0000001F"
+  }
+}

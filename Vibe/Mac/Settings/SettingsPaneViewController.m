@@ -4,14 +4,82 @@
 //
 
 #import "SettingsPaneViewController.h"
+#import "NSImage+Util.h"
+#import "NSView+DarkMode.h"
 #import "WindowAnimation.h"
 
-static const CGFloat kPanePadding = 20;
+
+// The System Settings inline dropdown: borderless, the value beside an
+// always-visible chevron badge, no hover treatment — the reference has none;
+// the menu just pops on click. AppKit draws a popup's arrows only with a
+// bezel, so the badge is drawn here, in width the intrinsic size reserves
+// for it. (A bezel-on-hover variant fought the widened bounds and double
+// drew; owning the whole rendering is the stable form.)
+@interface VibeInlinePopUpButton : NSPopUpButton
+@end
+
+@implementation VibeInlinePopUpButton
+
+// The badge is the System Settings treatment, measured off its pixels: the
+// chevrons sit in a filled circle one lift-step above the card, label-colored
+// so both halves adapt to the appearance.
+static const CGFloat kInlineBadgeDiameter = 19;
+static const CGFloat kInlineBadgeGap = 8;
+
+// Sized to the DISPLAYED value, not the widest menu item — the badge stays
+// pinned at the row's trailing edge and the text hugs it, like the
+// reference. The height is the cell's own answer.
+- (NSSize)intrinsicContentSize {
+    NSSize size = [super intrinsicContentSize];
+    NSString *title = self.selectedItem.title ?: @"";
+    CGFloat text = ceil([title sizeWithAttributes:@{NSFontAttributeName: self.font}].width);
+    size.width = text + 8 + kInlineBadgeGap + kInlineBadgeDiameter + 2;
+    return size;
+}
+
+// Selection reaches the displayed title through here, for a user pick and
+// the programmatic selects alike — the moment the width's input changes.
+- (void)synchronizeTitleAndSelectedItem {
+    [super synchronizeTitleAndSelectedItem];
+    [self invalidateIntrinsicContentSize];
+}
+
+- (void)selectItem:(NSMenuItem *)item {
+    [super selectItem:item];
+    [self invalidateIntrinsicContentSize];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    NSRect bounds = self.bounds;
+    NSRect circle = NSMakeRect(NSMaxX(bounds) - kInlineBadgeDiameter - 2,
+                               NSMidY(bounds) - kInlineBadgeDiameter / 2,
+                               kInlineBadgeDiameter, kInlineBadgeDiameter);
+    circle = [self backingAlignedRect:circle options:NSAlignAllEdgesNearest];
+    [[NSColor.labelColor colorWithAlphaComponent:0.08] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
+    // Built per draw so the palette color resolves against the appearance the
+    // draw runs under — a template drawInRect: renders black, not tinted.
+    NSImage *chevrons = [NSImage symbolNamed:@"chevron.up.chevron.down"
+                                   pointSize:9 weight:NSFontWeightBold
+                                     palette:@[NSColor.labelColor]
+                    accessibilityDescription:nil];
+    NSSize size = chevrons.size;
+    NSRect target = NSMakeRect(NSMidX(circle) - size.width / 2,
+                               NSMidY(circle) - size.height / 2,
+                               size.width, size.height);
+    [chevrons drawInRect:[self backingAlignedRect:target options:NSAlignAllEdgesNearest]
+                fromRect:NSZeroRect
+               operation:NSCompositingOperationSourceOver
+                fraction:1.0
+          respectFlipped:YES
+                   hints:nil];
+}
+
+@end
 
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;
-    NSLayoutConstraint *_paneWidth;
-    NSLayoutConstraint *_paneHeight;
     id _windowKeyObserver;
     id _menuTrackingObserver;
 }
@@ -43,31 +111,27 @@ static const CGFloat kPanePadding = 20;
     // edges (Greek was the first to overflow the original fixed width).
     NSSize paneSize = [self naturalPaneSize];
 
-    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
-    // The size constraints define the pane's fitting size, which IS the
-    // settings window's settled size: the constraint engine re-sizes a
-    // contentViewController window to its content's fitting size after every
-    // layout pass (_changeWindowFrameFromConstraintsIfNecessary), so a frame
-    // held anywhere else snaps back. At 999, not required: a required size
-    // forces the window there in a single layout pass when shared size changes;
-    // at 999 the window edge wins while the coordinated frame and pane layout
-    // animate to that size.
-    //
-    // The height rides the safe-area guide, not the view: the titlebar
-    // overlays the pane (full-size content view), and anchoring the guide
-    // makes the engine add that overlay to the window on its own.
-    //
-    // TRAP: the height is a CONSTANT, remeasured by paneContentDidChange, and
-    // must stay one. Expressing it as an inequality against the stack instead
-    // — height >= stack.height + padding — leaves the stack's own height
-    // under-determined, and the solver spends the slack by stretching the
-    // first section card down the pane.
-    _paneWidth = [view.widthAnchor constraintEqualToConstant:paneSize.width];
-    _paneHeight = [view.safeAreaLayoutGuide.heightAnchor constraintEqualToConstant:paneSize.height];
-    _paneWidth.priority = NSLayoutPriorityRequired - 1;
-    _paneHeight.priority = NSLayoutPriorityRequired - 1;
-    [NSLayoutConstraint activateConstraints:@[_paneWidth, _paneHeight]];
-    self.preferredContentSize = paneSize;
+    // The pane's own backdrop: white in light mode — System Settings' light
+    // content area is white, not the window gray, with the cards a step
+    // DARKER — and nothing in dark, where the window background already
+    // matches.
+    SettingsFillView *view = [[SettingsFillView alloc]
+            initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
+    view.darkColor = NSColor.clearColor;
+    view.lightColor = NSColor.whiteColor;
+    // TRAP: the pane carries NO size constraints of its own — the view just
+    // tracks the window through the tab view's edge pins. Any pane-side size
+    // constraint, equality or minimum, re-enters the fitting-size snap: the
+    // constraint engine re-sizes a contentViewController window to its
+    // content's fitting size after every layout pass, so a user's drag
+    // snapped straight back to the constrained answer (observed with both
+    // forms). That includes preferredContentSize itself: macOS 26.5 turns a
+    // nonzero one into equality constraints on this view at priority 501,
+    // which pinned the window (sharedPaneSize in the header). The shared size
+    // lives in that plain property alone; the tab controller turns it into
+    // the window's contentMinSize and grows an undersized window, and
+    // AppKit's own resize clamp holds the floor under a user drag.
+    _sharedPaneSize = paneSize;
 
     [view addSubview:stack];
     // The safe-area top, not the view's: the settings window's titlebar
@@ -93,15 +157,14 @@ static const CGFloat kPanePadding = 20;
 // YES when the pane's size actually moved, which is what the host needs to
 // know: the window follows the panes, not the other way round.
 - (BOOL)applyPaneSize:(NSSize)size {
-    if (!_paneWidth || !_paneHeight) {
+    if (!self.isViewLoaded) {
         return NO;
     }
-    if (fabs(_paneWidth.constant - size.width) < 0.5 && fabs(_paneHeight.constant - size.height) < 0.5) {
+    if (fabs(_sharedPaneSize.width - size.width) < 0.5
+            && fabs(_sharedPaneSize.height - size.height) < 0.5) {
         return NO;
     }
-    _paneWidth.constant = size.width;
-    _paneHeight.constant = size.height;
-    self.preferredContentSize = size;
+    _sharedPaneSize = size;
     return YES;
 }
 
@@ -136,8 +199,8 @@ static const CGFloat kPanePadding = 20;
             changed |= [(SettingsPaneViewController *)pane applyPaneSize:shared];
         }
     }
-    // The visible pane's constraints cannot move the window on their own —
-    // they sit below required — so the host applies the matching frame.
+    // A pane carries no size constraints, so the new shared size cannot reach
+    // the window by itself — the host applies the matching frame.
     id host = panes.firstObject.parentViewController;
     if (changed && [host conformsToProtocol:@protocol(SettingsPaneSizeHost)]) {
         [(id<SettingsPaneSizeHost>)host settingsPaneSizeDidChange];
@@ -159,12 +222,7 @@ static const CGFloat kPanePadding = 20;
 // pass resolves that layout state before taking its maximum, and the panes are
 // remeasured after each selected-pane refresh or direct row toggle.
 - (void)paneContentDidChange {
-    [self animatePaneContentChange:^{}];
-}
-
-- (void)animatePaneContentChange:(void (^)(void))change {
     if (!_sectionStack) {
-        change();
         return;
     }
     // Capture the old arranged-view frames before hidden changes replace the
@@ -172,7 +230,6 @@ static const CGFloat kPanePadding = 20;
     // section headers and cards with the frame instead of jumping ahead of it.
     [self.view layoutSubtreeIfNeeded];
     void (^updates)(void) = ^{
-        change();
         [self remeasurePanes];
         [self.view layoutSubtreeIfNeeded];
     };
@@ -187,14 +244,31 @@ static const CGFloat kPanePadding = 20;
     }];
 }
 
+// The width is a CAP for a runaway localized or device-named title, not a
+// fixed size — the value hugs the row's trailing edge.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(SEL)action {
-    NSPopUpButton *popUp = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    NSPopUpButton *popUp = [[VibeInlinePopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     if (action) {
         popUp.target = self;
         popUp.action = action;
     }
-    [popUp.widthAnchor constraintEqualToConstant:width].active = YES;
+    popUp.bordered = NO;
+    // A borderless popup still draws its own small arrows where the badge
+    // sits; the badge is the only chevron treatment.
+    ((NSPopUpButtonCell *)popUp.cell).arrowPosition = NSPopUpNoArrow;
+    [popUp setContentHuggingPriority:NSLayoutPriorityDefaultHigh
+                      forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [popUp.widthAnchor constraintLessThanOrEqualToConstant:width].active = YES;
     return popUp;
+}
+
+- (void)addItem:(NSString *)title value:(id)value to:(NSPopUpButton *)popUp {
+    [popUp addItemWithTitle:title];
+    popUp.lastItem.representedObject = value;
+}
+
+- (void)selectValue:(id)value in:(NSPopUpButton *)popUp {
+    [popUp selectItemAtIndex:[popUp indexOfItemWithRepresentedObject:value]];
 }
 
 - (NSSwitch *)switchWithAction:(SEL)action {

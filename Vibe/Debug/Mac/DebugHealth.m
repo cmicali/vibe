@@ -226,14 +226,31 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
     process[@"machPorts"] = @(VibeMachPortCount());
     process[@"uptimeSeconds"] = @(VibeProcessUptimeSeconds());
 
+    // VISIBLE windows only, and that qualifier is the whole measurement.
+    //
+    // TRAP: NSApp.windows holds every window the app has ever built, closed
+    // ones included — AppDelegate caches settingsWindowController for the
+    // process's life and NSColorPanel is a shared singleton that never dies.
+    // Counting their subtrees made ONE visit to Settings add ~750 views
+    // permanently, which reads as an unbounded leak forever after: a soak run
+    // failed on `views grew 50 -> 889` with every one of those views sitting
+    // in two closed windows. A window the app deliberately retains for reuse
+    // is not a leak, and a metric that cannot tell the two apart is a number
+    // rather than a measurement.
+    //
+    // Stranded windows are still caught, by `windows` below — that count stays
+    // over NSApp.windows precisely so an unbounded number of retained windows
+    // has somewhere to show up.
     NSUInteger views = 0;
     NSUInteger trackingAreas = 0;
     NSUInteger layers = 0;
+    NSUInteger visibleWindows = 0;
     for (NSWindow *window in NSApp.windows) {
         NSView *content = window.contentView;
-        if (!content) {
+        if (!content || !window.isVisible) {
             continue;
         }
+        visibleWindows++;
         VibeCountViews(content, &views, &trackingAreas);
         if (content.layer) {
             layers += VibeLayerCount(content.layer);
@@ -253,6 +270,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
         @"process": process,
         @"ui": @{
             @"windows": @(NSApp.windows.count),
+            @"visibleWindows": @(visibleWindows),
             @"views": @(views),
             @"layers": @(layers),
             @"trackingAreas": @(trackingAreas),
@@ -378,6 +396,48 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
     if (rows != (NSInteger)count) {
         VibeDebugViolation(v, @"playlist.table_rows_match",
                 @"table has %ld rows, playlist has %lu tracks", (long)rows, (unsigned long)count);
+    }
+
+    // Both of Playlist's row indexes against the array they index. Every
+    // structural edit rebuilds them wholesale rather than patching, so a
+    // rebuild that drops or doubles an entry leaves lookups answering a
+    // neighbouring row forever after — silent, because the counts still agree
+    // and every row still draws. The identity lookup also catches one object
+    // landing in two rows, which is what a move that copies instead of
+    // relocating produces.
+    checked++;
+    PlaylistController *list = controller.playlistController;
+    for (NSUInteger i = 0; i < count; i++) {
+        AudioTrack *track = [list trackAtIndex:i];
+        if (!track) {
+            VibeDebugViolation(v, @"playlist.indexes_agree",
+                    @"row %lu is nil among %lu tracks", (unsigned long)i, (unsigned long)count);
+            break;
+        }
+        NSInteger mapped = [list getIndexForTrack:track];
+        if (mapped != (NSInteger)i) {
+            VibeDebugViolation(v, @"playlist.indexes_agree",
+                    @"row %lu (%@) maps to %ld", (unsigned long)i,
+                    track.url.lastPathComponent ?: @"(nil)", (long)mapped);
+            break;
+        }
+        if (![[list indexesOfTracksWithURL:track.url] containsIndex:i]) {
+            VibeDebugViolation(v, @"playlist.indexes_agree",
+                    @"row %lu (%@) missing from its URL index", (unsigned long)i,
+                    track.url.lastPathComponent ?: @"(nil)");
+            break;
+        }
+    }
+
+    // A selection surviving past the rows it named. The table clamps its own,
+    // so this is really about a structural edit that reconciled the view with
+    // precise row operations and left the selection describing the old shape.
+    checked++;
+    NSIndexSet *selection = controller.playlistTableView.selectedRowIndexes;
+    if (selection.count > 0 && selection.lastIndex >= count) {
+        VibeDebugViolation(v, @"playlist.selection_in_range",
+                @"selection reaches row %lu with %lu tracks",
+                (unsigned long)selection.lastIndex, (unsigned long)count);
     }
 
     checked++;

@@ -17,6 +17,9 @@
 #import <Foundation/Foundation.h>
 #import "FolderOpenSort.h"
 #import "PlatformTypes.h"
+#if TARGET_OS_OSX
+#import "AppTheme.h"
+#endif
 
 // Nonnull by default: every string getter is backed by a registered default
 // (registerDefaults covers each key, the device name and UID as @""), and the
@@ -46,6 +49,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class NSAppearance;
 
+
+// The window's appearance setting: "" follows the OS, light and dark pin it.
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT     @""
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT       @"light"
 #define SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK        @"dark"
@@ -56,6 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 // custom uses the picked color pair as picked. Only the wash follows this;
 // the art color still settles, so the dock icon and the album_art waveform
 // theme are the same under every choice.
+
 #define SETTINGS_VALUE_WINDOW_TINT_MONO                     @"mono"
 #define SETTINGS_VALUE_WINDOW_TINT_ARTWORK                  @"artwork"
 #define SETTINGS_VALUE_WINDOW_TINT_CUSTOM                   @"custom"
@@ -111,6 +117,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
 
+// iOS's loose appearance keys. On macOS the theme migration consumed them and
+// currentTheme.<field> is the store of record, so they are compiled out there:
+// a macOS caller fails to build instead of silently reading the registered
+// default forever.
+#if !TARGET_OS_OSX
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 
@@ -127,6 +138,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+#endif  // !TARGET_OS_OSX
 
 // The order a folder's tracks land in the playlist — see FolderOpenSort.h.
 // Normalized on read: an identifier no picker can produce reads as Name.
@@ -149,12 +161,29 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
 
+// "" (Auto, the default) tracks the OS light/dark setting; light and dark pin
+// the main window. A common setting, deliberately outside the theme — a theme
+// decides its COLORS' mode (AppTheme.mode), never the window's appearance.
 - (NSString *)windowAppearanceStyle;
 - (void)setWindowAppearanceStyle:(NSString *)name;
 
 // nil is the system default: a nil window appearance tracks the OS
-// light/dark setting rather than pinning one.
+// light/dark setting rather than pinning one. It answers the preview below
+// over the stored style while one is held, and a single-mode theme's pin
+// (AppTheme.requiredWindowAppearance) over both — the one place the window's
+// appearance is decided, so the window, the menu and the Settings toolbar's
+// preview toggle cannot disagree.
 - (nullable NSAppearance *)windowAppearance;
+
+// The Settings window's Appearance page holds a temporary light/dark preview
+// while it is on screen, so a theme's other palette can be looked at without
+// the visit changing what the app looks like afterwards. Nothing persists it,
+// windowAppearanceStyle keeps reporting the stored choice, and writing that
+// style clears the preview — an explicit choice can never land under a stale
+// one. A writer requests VibeSettingsLiveEffectWindowAppearance, as for any
+// other appearance write.
+- (nullable NSString *)windowAppearancePreviewStyle;
+- (void)setWindowAppearancePreviewStyle:(nullable NSString *)name;
 
 // YES, the default, shows the custom close and minimize traffic lights in the
 // main window. A writer requests VibeSettingsLiveEffectTrafficLights so the
@@ -162,20 +191,62 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
 
-// The window header's color wash — see the SETTINGS_VALUE_WINDOW_TINT_*
-// identifiers above. Normalized on read: an unknown stored value reads as
-// artwork. ArtworkDisplayController's refreshHeaderTint is the one place that
-// resolves it; a writer requests VibeSettingsLiveEffectWindowTint to fade the
-// wash across.
-- (NSString *)windowTint;
-- (void)setWindowTint:(NSString *)identifier;
 
-// The custom tint's color, one per appearance — a wash that reads over dark
-// glass silhouettes the labels over light — persisted as #RRGGBB[AA], the
-// alpha being the wash's strength. nil when unset or unparsable, which
-// resolves as mono, so the pane seeds it when Custom is chosen.
-- (nullable VibeColor *)windowTintCustomColorForDark:(BOOL)isDark;
-- (void)setWindowTintCustomColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+#pragma mark Themes
+
+// The themed appearance fields — window tint, info-display toggles, key
+// notation and colors, waveform style and palette, fonts, playlist colors,
+// window chrome — are AppTheme's, read through currentTheme below. They have
+// no loose accessors here; the pre-theme keys are migrated at init and
+// consumed.
+
+// The one working theme every appearance consumer reads. Materialized once
+// from the stored working record — or, when none diverges, from the active
+// theme's record — and mutated in place from then on. Main thread only, like
+// every reader of it.
+- (AppTheme *)currentTheme;
+
+// The named theme the working state derives from: a built-in identifier or a
+// user theme's minted id, snapped to vibe when it names neither.
+- (NSString *)activeThemeIdentifier;
+
+// Built-ins first, then the user themes in creation order.
+- (NSArray<NSString *> *)orderedThemeIdentifiers;
+
+// A user theme's stored name; the built-ins' localized names. nil for an
+// identifier that names nothing.
+- (nullable NSString *)displayNameForThemeIdentifier:(NSString *)identifier;
+
+// The named theme's sanitized sparse record — what export serializes and
+// apply installs. An unknown identifier answers vibe's (the empty record).
+- (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
+
+// Repopulates currentTheme from the named record and makes it active. Store
+// only — the caller requests VibeSettingsLiveEffectThemeApply, per the
+// store-first contract.
+- (void)applyThemeWithIdentifier:(NSString *)identifier;
+
+// The one persist funnel: every currentTheme field edit calls this after
+// writing the field. The working record lands in the active user theme's own
+// record; diverging from a read-only built-in, it lands in its own key
+// instead, so a casual toggle survives relaunch without dirtying the
+// built-in, and re-applying the theme resets it.
+- (void)currentThemeDidChange;
+
+// User-theme CRUD. Every mutation refuses a built-in identifier; names are
+// deduped against every display name. addUserThemeWithRecord returns the
+// minted id; duplicateThemeWithIdentifier resolves built-ins and user themes
+// alike and returns the copy's id, nil for an unknown source. Removing the
+// active theme applies the successor — nil, or one that names nothing, is
+// vibe — and the caller requests VibeSettingsLiveEffectThemeApply as it
+// would for any apply. Every path that can drop the last reference to a
+// custom placeholder image sweeps the container's files itself.
+- (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
+                                name:(nullable NSString *)name;
+- (nullable NSString *)duplicateThemeWithIdentifier:(NSString *)identifier;
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier
+                        fallingBackTo:(nullable NSString *)successor;
+- (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;
@@ -190,18 +261,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)alwaysOnTop;
 - (void)setAlwaysOnTop:(BOOL)onTop;
 
-// The right-hand time label's mode. YES shows the minus-prefixed remaining
-// time, such as "-1:50", and NO, the default, shows the total duration.
-// Clicking the label toggles it.
-- (BOOL)showRemainingTime;
-- (void)setShowRemainingTime:(BOOL)show;
-
-// YES, the default, shows the header's file-format readout (codec, bitrate,
-// sample rate) and the BPM/key line. View > Show File Info and Settings >
-// Appearance share this setting; TrackDisplayController reads it at render
-// time, and VibeSettingsLiveEffectTrackDisplay repaints a toggle.
-- (BOOL)showFileInfo;
-- (void)setShowFileInfo:(BOOL)show;
 
 // What a drag starting on the waveform does — see the SETTINGS_VALUE_WAVEFORM_DRAG_*
 // identifiers above. Normalized on read: an unknown stored value reads as
@@ -287,31 +346,6 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
 
-// Whether the header shows the tempo at all. Default on; off, the BPM half of
-// the header's readout is blank. Detection is Playback's analyzeBPM — this
-// only hides the readout, and the delay's BPM-synced taps still follow the
-// track's tempo.
-- (BOOL)showBPM;
-- (void)setShowBPM:(BOOL)show;
-
-// Whether the header shows the musical key at all. Default on; off, the
-// notation and color settings below have nothing to govern. Detection is
-// Playback's analyzeKey — this only hides the readout.
-- (BOOL)showKey;
-- (void)setShowKey:(BOOL)show;
-
-// YES draws the key label in the CDJ-style color of its Camelot number, in
-// bold. Default off — the plain dimmed label matches the rest of the corner.
-- (BOOL)keyColorsEnabled;
-- (void)setKeyColorsEnabled:(BOOL)enabled;
-
-// How the key label renders: VibeKeyNotationCamelot ("8A") or
-// VibeKeyNotationMusical ("Am"). Stable identifiers, never display names.
-// It governs every key the app shows, including one read from the file's own
-// tag: a tagged "Bbm" displays as "3A" under Camelot, because the tag is
-// parsed to a VibeMusicalKey at the boundary and never shown as written.
-- (NSString *)keyNotation;
-- (void)setKeyNotation:(NSString *)notation;
 
 // YES makes Convert to FLAC always run the save panel instead of writing the
 // FLAC silently beside the source.

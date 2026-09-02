@@ -4,11 +4,13 @@
 //
 
 #import "DebugSettingsUI.h"
+#import "SettingsAppearanceViewController.h"
 
 #if DEBUG
 
 #import <AppKit/AppKit.h>
 #import "AppDelegate.h"
+#import "AppSettings.h"
 #import "DebugWireFormat.h"
 #import "PlatformColor.h"
 #import "SettingsFormViews.h"
@@ -104,6 +106,18 @@ static NSString *VibePaneNameList(NSTabViewController *tabs) {
     return [names componentsJoinedByString:@", "];
 }
 
+void VibeDebugSettingsRefreshSelectedPane(void) {
+    NSString *unusedError = nil;
+    NSTabViewController *tabs = VibeSettingsTabs(&unusedError);
+    if (!tabs) {
+        return;
+    }
+    NSViewController *pane = VibeSelectedPane(tabs).viewController;
+    if ([pane isKindOfClass:SettingsPaneViewController.class]) {
+        [(SettingsPaneViewController *)pane refreshSettingsAndPaneSize];
+    }
+}
+
 #pragma mark - Control inventory
 
 // One addressable thing in a pane. `name` is what settings_click matches on
@@ -195,53 +209,13 @@ static NSString *VibeElementName(NSView *view, NSString *kind, NSString *rowLabe
 }
 
 static void VibeCollectElements(NSView *view, NSString *rowLabel,
-                                NSMutableArray<VibeSettingsElement *> *out);
-
-// A form row's column 0 is the label FOR the row, not a thing of its own, so it
-// names the controls beside it instead of being listed separately. A
-// single-column grid — the Permissions pane — has no such head cell and every
-// cell is content.
-static void VibeCollectGridElements(NSGridView *grid, NSString *inheritedLabel,
-                                    NSMutableArray<VibeSettingsElement *> *out) {
-    for (NSInteger row = 0; row < grid.numberOfRows; row++) {
-        NSString *rowLabel = inheritedLabel;
-        NSInteger firstContentColumn = 0;
-        if (grid.numberOfColumns > 1) {
-            NSView *head = [grid cellAtColumnIndex:0 rowIndex:row].contentView;
-            BOOL headIsLabel = [head isKindOfClass:NSTextField.class] && ![(NSTextField *)head isEditable];
-            BOOL hasContentBeside = NO;
-            for (NSInteger column = 1; column < grid.numberOfColumns; column++) {
-                NSView *content = [grid cellAtColumnIndex:column rowIndex:row].contentView;
-                if (content && content != NSGridCell.emptyContentView) {
-                    hasContentBeside = YES;
-                    break;
-                }
-            }
-            if (headIsLabel && hasContentBeside) {
-                rowLabel = ((NSTextField *)head).stringValue;
-                firstContentColumn = 1;
-            }
-        }
-        for (NSInteger column = firstContentColumn; column < grid.numberOfColumns; column++) {
-            NSView *content = [grid cellAtColumnIndex:column rowIndex:row].contentView;
-            if (content && content != NSGridCell.emptyContentView) {
-                VibeCollectElements(content, rowLabel, out);
-            }
-        }
-    }
-}
-
-static void VibeCollectElements(NSView *view, NSString *rowLabel,
                                 NSMutableArray<VibeSettingsElement *> *out) {
     // A scroll view's scrollers are NSControls, and nothing a caller would ever
     // aim at; the document view inside it still gets collected.
     if ([view isKindOfClass:NSScroller.class]) {
         return;
     }
-    if ([view isKindOfClass:NSGridView.class]) {
-        VibeCollectGridElements((NSGridView *)view, rowLabel, out);
-        return;
-    }
+
     // A grouped-form row: its title is the addressing label for the controls
     // beside it, and the title and caption are structure, not elements. A
     // section passes its header down the same way, which is how the Files
@@ -463,6 +437,37 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
             return matches.firstObject;
         }
         if (matches.count > 1) {
+            // A hidden page's controls stay in the dump for honesty, but a
+            // NAME should resolve against what is on screen: the two-page
+            // Appearance pane has an "Appearance" popup on each page, and
+            // without this tie-break neither is ever reachable by name.
+            NSMutableArray<VibeSettingsElement *> *visible = [NSMutableArray array];
+            for (VibeSettingsElement *match in matches) {
+                if (!match.view.isHiddenOrHasHiddenAncestor) {
+                    [visible addObject:match];
+                }
+            }
+            if (visible.count == 1) {
+                return visible.firstObject;
+            }
+            if (visible.count) {
+                matches = visible;
+            }
+            // A readout beside a control legitimately shares its row's label
+            // (the corner-radius slider's px value), and a readout cannot be
+            // clicked — so the unclickable kinds only make a name ambiguous
+            // when nothing clickable matched.
+            NSMutableArray<VibeSettingsElement *> *clickable = [NSMutableArray array];
+            for (VibeSettingsElement *match in matches) {
+                if (![match.kind isEqualToString:@"label"] &&
+                        ![match.kind isEqualToString:@"field"] &&
+                        ![match.kind isEqualToString:@"control"]) {
+                    [clickable addObject:match];
+                }
+            }
+            if (clickable.count == 1) {
+                return clickable.firstObject;
+            }
             NSMutableArray<NSString *> *names = [NSMutableArray array];
             for (VibeSettingsElement *match in matches) {
                 [names addObject:match.name];
@@ -697,6 +702,31 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
     });
 }
 
+NSString *VibeDebugSettingsResize(NSArray<NSString *> *tokens) {
+    double width = 0, height = 0;
+    if (tokens.count != 3 || !VibeParseDouble(tokens[1], &width)
+            || !VibeParseDouble(tokens[2], &height)) {
+        return VibeErrorJSON(@"usage: settings_resize <width> <height>");
+    }
+    NSWindow *window = VibeSettingsWindow();
+    if (!window) {
+        return VibeErrorJSON(@"settings window is not open (run settings_open)");
+    }
+    NSSize minSize = window.contentMinSize;
+    // The window refuses engine-driven size changes, so the resize must go
+    // through the controller's blessed funnel.
+    [(SettingsWindowController *)window.windowController applyContentSize:
+            NSMakeSize(MAX(width, minSize.width), MAX(height, minSize.height))];
+    // Flush layout so any constraint-driven snap-back would happen before the
+    // reply reads the frame — its absence is what this verb verifies.
+    [window layoutIfNeeded];
+    return VibeJSONString(@{
+        @"ok": @YES,
+        @"frame": NSStringFromRect(window.frame),
+        @"contentMinSize": NSStringFromSize(window.contentMinSize),
+    });
+}
+
 NSString *VibeDebugSettingsClose(void) {
     NSWindow *window = VibeSettingsWindow();
     if (!window || !window.isVisible) {
@@ -750,6 +780,45 @@ NSString *VibeDebugSettingsDump(void) {
 }
 
 NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
+    // The toolbar sits outside the pane, beyond the walker's reach; its
+    // navigation pill and its light/dark preview toggle route by name so
+    // scripts keep one addressing scheme. Both are the Appearance pane's own
+    // model, so both are driven through it rather than through the control.
+    BOOL back = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"back"] == NSOrderedSame;
+    BOOL forward = tokens.count == 2
+            && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
+    BOOL preview = tokens.count == 3
+            && [tokens[1] caseInsensitiveCompare:@"preview"] == NSOrderedSame;
+    if (back || forward || preview) {
+        NSString *tabsError = nil;
+        NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
+        if (!tabs) {
+            return tabsError;
+        }
+        SettingsAppearanceViewController *pane =
+                [(SettingsWindowController *)VibeSettingsWindow().windowController appearancePane];
+        if (pane) {
+            if (preview) {
+                BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;
+                if (!dark && [tokens[2] caseInsensitiveCompare:@"light"] != NSOrderedSame) {
+                    return VibeErrorJSON(@"usage: settings_click preview <light|dark>");
+                }
+                [pane previewAppearanceDark:dark];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"preview",
+                                        @"action": @"previewed",
+                                        @"windowAppearancePreview": tokens[2].lowercaseString,
+                                        @"windowAppearance":
+                                                AppSettings.sharedInstance.windowAppearanceStyle
+                                                        ?: @""});
+            }
+            if (back ? pane.canGoBack : pane.canGoForward) {
+                back ? [pane navigateBack] : [pane navigateForward];
+                return VibeJSONString(@{@"ok": @YES, @"control": tokens[1].lowercaseString,
+                                        @"action": @"navigated"});
+            }
+            return VibeErrorJSON(@"%@ is not available here", tokens[1].lowercaseString);
+        }
+    }
     NSString *usage = @"usage: settings_click <control> [value] — quote names with spaces";
     if (tokens.count < 2 || tokens.count > 3) {
         return VibeErrorJSON(@"%@", usage);

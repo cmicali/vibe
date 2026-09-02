@@ -7,7 +7,7 @@
 #import "PitchFaderView.h"
 #import "Fonts.h"
 #import "Formatters.h"
-#import "MainWindowLayout.h" // kMainWindowCornerRadius — the right-edge corners follow the window shape
+#import "AppSettings.h" // the right-edge corners follow the themed window radius
 #import "VibeStrings.h"
 
 const CGFloat kPitchPanelWidth = 96;
@@ -96,7 +96,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     // mask, and drawing past the left edge bleeds a dark strip over the main
     // content — seen on macOS 26, at least through CALayer renderInContext.
     NSRect b = self.bounds;
-    CGFloat r = kMainWindowCornerRadius;
+    CGFloat r = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
     [background moveToPoint:NSMakePoint(NSMinX(b), NSMinY(b))];
     [background lineToPoint:NSMakePoint(NSMaxX(b) - r, NSMinY(b))];

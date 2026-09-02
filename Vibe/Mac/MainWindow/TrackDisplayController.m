@@ -14,6 +14,7 @@
 #import "Fonts.h"
 #import "MusicalKey.h"
 #import "VibeStrings.h"
+#import "NSView+DarkMode.h"
 
 @implementation TrackDisplayController {
     __weak AudioWaveformView *_waveformView;
@@ -38,6 +39,8 @@
     // label is width-flexible, so a window resize invalidates the fit; see
     // refitTitleIfWidthChanged.
     CGFloat                  _titleFittedWidth;
+    // The corner lines' attributes, theme-colored; see cornerTextAttributes.
+    NSDictionary            *_cornerTextAttributes;
     // Held only for the artist line's re-cap: the width it may occupy depends
     // on how wide the codec line renders, which is this class's own output.
     __weak MainPlayerContentView *_contentView;
@@ -101,10 +104,17 @@ static NSDictionary *kernedRightAlignedAttributes(void) {
 // layer-level alpha composites rasterized glyphs rather than changing how they
 // rasterize. A resolved color would also go stale on a light-dark flip, since
 // these strings are rebuilt only on content changes.
-static NSDictionary *cornerTextAttributes(void) {
-    NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
-    attributes[NSForegroundColorAttributeName] = NSColor.tertiaryLabelColor;
-    return attributes;
+// Cached until resetRenderGuards, which the TrackDisplay effect runs exactly
+// when the theme's colors can have changed; the fader recomposes the BPM
+// line every tick and should not mint a dynamic color each time.
+- (NSDictionary *)cornerTextAttributes {
+    if (!_cornerTextAttributes) {
+        NSMutableDictionary *attributes = [kernedRightAlignedAttributes() mutableCopy];
+        attributes[NSForegroundColorAttributeName] =
+                AppSettings.sharedInstance.currentTheme.resolvedInfoColor;
+        _cornerTextAttributes = attributes;
+    }
+    return _cornerTextAttributes;
 }
 
 // The Camelot wheel's own colors: one hue per wheel number, stepping once
@@ -130,10 +140,7 @@ static NSColor *camelotColor(NSInteger key) {
         for (NSInteger i = 1; i <= 12; i++) {
             CGFloat hue = fmod(kCamelotHueOfNumberOne + (CGFloat)(i - 1) / 12.0, 1.0);
             palette[i] = [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
-                NSAppearanceName matched = [appearance bestMatchFromAppearancesWithNames:@[
-                    NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
-                ]];
-                BOOL dark = [matched isEqualToString:NSAppearanceNameDarkAqua];
+                BOOL dark = appearance.isDark;
                 return [NSColor colorWithHue:hue
                                   saturation:dark ? 0.62 : 0.90
                                   brightness:dark ? 0.82 : 0.60
@@ -184,22 +191,44 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     self.titleTextField.stringValue = text;
 }
 
-// The fit itself, always measured at the base font size, so that re-running it
-// on a widened label restores the font a narrower fit shrank.
+// The fit itself, always measured from the slot's unshrunk font, so that
+// re-running it on a widened label restores the font a narrower fit shrank.
 - (void)fitTitleFontForText:(NSString *)text {
-    static const CGFloat kTitleFontSize = 23;
-    static const CGFloat kTitleMinFontSize = 15;
-    NSFont *font = [Fonts font:kTitleFontSize];
+    // The shrink floor scales with the themed size: 15/23 of the base, the
+    // pre-theme ratio.
+    static const CGFloat kTitleMinRatio = 15.0 / 23.0;
+    NSFont *font = [Fonts titleFont];
+    CGFloat baseSize = font.pointSize;
     CGFloat maxWidth = self.titleTextField.frame.size.width;
     _titleFittedWidth = maxWidth;
     CGFloat width = [text sizeWithAttributes:@{NSFontAttributeName: font}].width;
     if (width > maxWidth) {
         // Glyph advance scales linearly with point size, so one scale step
         // lands on the fitting size. The 2% margin covers the rounding.
-        CGFloat fitted = kTitleFontSize * (maxWidth / width) * 0.98;
-        font = [Fonts font:MAX(kTitleMinFontSize, floor(fitted * 2) / 2)];
+        // Derive the shrunk font from the resolved font's own descriptor, so
+        // the fit math holds under any themed face.
+        CGFloat fitted = baseSize * (maxWidth / width) * 0.98;
+        CGFloat size = MAX(baseSize * kTitleMinRatio, floor(fitted * 2) / 2);
+        font = [NSFont fontWithDescriptor:font.fontDescriptor size:size] ?: font;
     }
     self.titleTextField.font = font;
+}
+
+// The Fonts live effect's hook: re-fit whatever the title shows under the
+// freshly pushed fonts.
+- (void)refitTitle {
+    [self fitTitleFontForText:self.titleTextField.stringValue];
+}
+
+// A theme color change must repaint text whose string did not change; the
+// composed-line guards compare content, never color. The follow-up updateUI
+// pass recomposes both corner lines.
+- (void)resetRenderGuards {
+    _fileMetadataText = nil;
+    _cornerTextAttributes = nil;
+    // NSIntegerMin, not -1: -1 is the legitimate "no color" key, and a reset
+    // to it would still satisfy the equality guard and skip the repaint.
+    _lastKeyColorKey = NSIntegerMin;
 }
 
 - (void)refitTitleIfWidthChanged {
@@ -245,7 +274,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         }
         // The line itself is AudioTrackMetadata's, shared with the iOS page
         // header; the setting decides only whether it is shown.
-        [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
+        [self setFileMetadataText:(AppSettings.sharedInstance.currentTheme.showFileInfo ? track.metadata.fileInfoLine : @"")];
         break;
 
     case TrackDisplayStateLaunchGrace:
@@ -331,7 +360,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
     NSString *text;
-    if (AppSettings.sharedInstance.showRemainingTime) {
+    if (AppSettings.sharedInstance.currentTheme.showRemainingTime) {
         NSTimeInterval remaining = MAX(0, duration / rate - displayPosition);
         text = [VibeNotLocalized(@"-") stringByAppendingString:
                 [[Formatters sharedInstance] durationStringFromTimeInterval:remaining]];
@@ -354,7 +383,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
-    if (!AppSettings.sharedInstance.showFileInfo) {
+    if (!AppSettings.sharedInstance.currentTheme.showFileInfo) {
         // Hidden along with the codec text above it; the FX symbols are deck
         // state, not file info, and keep rendering.
         displayBPM = 0;
@@ -383,15 +412,13 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 
     NSMutableAttributedString *line =
             [[NSMutableAttributedString alloc] initWithString:text
-                                                  attributes:cornerTextAttributes()];
+                                                  attributes:self.cornerTextAttributes];
     NSColor *keyColor = camelotColor(colorKey);
     if (keyColor && keyText.length > 0) {
         // The key sits at the tail, after the separator when both are shown.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
         [line addAttribute:NSForegroundColorAttributeName value:keyColor range:range];
-        [line addAttribute:NSFontAttributeName
-                     value:[Fonts fontForNumbers:_bpmTextField.font.pointSize bold:YES]
-                     range:range];
+        [line addAttribute:NSFontAttributeName value:[Fonts infoFontBold:YES] range:range];
     }
     _bpmTextField.attributedStringValue = line;
 }
@@ -431,7 +458,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     if (symbols.count == 0) {
         self.fileMetadataTextField.attributedStringValue =
                 [[NSAttributedString alloc] initWithString:_fileMetadataText
-                                                attributes:cornerTextAttributes()];
+                                                attributes:self.cornerTextAttributes];
         // The artist line ends where this text begins, so every write moves it.
         [_contentView layoutArtistLineClearOfCodecLine];
         return;
@@ -448,7 +475,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                                                                      attributes:@{NSFontAttributeName: font}]];
     }
     [line appendAttributedString:[[NSAttributedString alloc] initWithString:_fileMetadataText
-                                                                attributes:cornerTextAttributes()]];
+                                                                attributes:self.cornerTextAttributes]];
     // Right-align the whole line, symbols included. Only the kern and the
     // paragraph style are set, so the per-run foreground colors above survive.
     [line addAttributes:kernedRightAlignedAttributes() range:NSMakeRange(0, line.length)];

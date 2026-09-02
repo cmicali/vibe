@@ -17,6 +17,7 @@
 #import "PitchControlPanel.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
+#import "NSView+DarkMode.h"
 #import "SymbolButton.h"
 #import "TrackDisplayController.h"
 #import "UIUpdateTimer.h"
@@ -37,7 +38,6 @@
     NSView *backdrop;
     if (@available(macOS 26.0, *)) {
         NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:contentView.bounds];
-        glass.cornerRadius = kMainWindowCornerRadius;
         // Clear, rather than Regular, keeps the backdrop legible as glass
         // rather than a frosted wall: more of what is behind the window shows
         // through.
@@ -49,11 +49,28 @@
         frost.blendingMode = NSVisualEffectBlendingModeBehindWindow;
         frost.state = NSVisualEffectStateActive; // key-state-independent, like the playlist frost
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
-        frost.maskImage = [MainPlayerContentView frostCornerMaskWithRadius:kMainWindowCornerRadius];
         backdrop = frost;
     }
+    [MainPlayerContentView applyCornerRadius:AppSettings.sharedInstance.currentTheme.windowCornerRadius
+                                  toBackdrop:backdrop];
     backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:backdrop];
+    self.windowBackdropView = backdrop;
+
+    // The themed solid background: a plain layer between the glass and the
+    // content, colored per appearance with its alpha as the opacity. Hidden
+    // under the default glass style, so the stock chrome is untouched.
+    NSView *backgroundOverlay = [[NSView alloc] initWithFrame:contentView.bounds];
+    backgroundOverlay.wantsLayer = YES;
+    backgroundOverlay.layer.masksToBounds = YES;
+    backgroundOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    backgroundOverlay.hidden = YES;
+    [contentView addSubview:backgroundOverlay];
+    self.windowBackgroundOverlayView = backgroundOverlay;
+    [self applyWindowBackground];
+
+    // The themed fonts must be in Fonts before any label is built.
+    [self applyStoredFonts];
     MainPlayerContentView *content = [[MainPlayerContentView alloc] initWithTarget:self];
     self.playerContentView = content;
     [self applyTrafficLights];
@@ -270,16 +287,49 @@
         return;
     }
     NSMenuItem *item = sender;
+    NSString *value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
     if ([item.identifier isEqualToString:@"view_appearance_light"]) {
-        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
+        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
     }
     else if ([item.identifier isEqualToString:@"view_appearance_dark"]) {
-        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
+        value = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK;
     }
-    else {
-        AppSettings.sharedInstance.windowAppearanceStyle = SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT;
-    }
+    AppSettings.sharedInstance.windowAppearanceStyle = value;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+}
+
+// The whole themed window shape in one pass: the contentView mask that
+// shapes the window, the glass backdrop, the header panel pieces, the solid
+// background cover, and the pitch panel's drawn right-edge corners.
+- (void)applyWindowChrome {
+    CGFloat radius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
+    NSView *contentView = self.window.contentView;
+    contentView.layer.cornerRadius = radius;
+    [MainPlayerContentView applyCornerRadius:radius toBackdrop:self.windowBackdropView];
+    [self.playerContentView applyCornerRadius:radius];
+    [self applyWindowBackground];
+    self->_pitchPanel.needsDisplay = YES;
+    [self.window invalidateShadow];
+}
+
+// Layer colors are CGColor, not appearance-dynamic, so the appearance-change
+// handler re-runs this — the same funnel that re-derives the header tint.
+- (void)applyWindowBackground {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSView *overlay = self.windowBackgroundOverlayView;
+    // Light/dark comes from the WINDOW, not the overlay: one caller is the
+    // appearance funnel, where a sibling view can still report the outgoing
+    // appearance mid-flip (the refreshTintWashes trap, APPEARANCE.md).
+    BOOL dark = self.window.effectiveAppearance.isDark;
+    // Solid with an unset pair (a hand-edited import — the gate has no
+    // cross-field rules) draws the display accessor's default cover, the
+    // same one the editor's wells show.
+    NSColor *color = [theme.windowBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
+            ? [theme displayWindowBackgroundColorForDark:dark] : nil;
+    overlay.hidden = (color == nil);
+    overlay.layer.backgroundColor = color.CGColor;
+    overlay.layer.cornerRadius = theme.windowCornerRadius;
 }
 
 - (void)applyStoredAppearance {

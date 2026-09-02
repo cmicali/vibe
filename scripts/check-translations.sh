@@ -40,7 +40,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CATALOGS=("$ROOT/Resources/Localizable.xcstrings" "$ROOT/Resources/InfoPlist.xcstrings")
+CATALOGS=("$ROOT/Resources/Localizable.xcstrings" "$ROOT/Resources/InfoPlist.xcstrings" "$ROOT/Resources/ThemeNames.xcstrings")
 
 GITHUB_MODE=0
 case "${1:-}" in

@@ -8,9 +8,10 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Row background drawing for the playlist. It replaces the system accent-blue
-// selection fill with a quiet neutral wash, and gives the playing row the same
-// wash as a persistent marker. The fixed-white equalizer and that wash are the
-// complete playing-row treatment; there is no saturated row fill.
+// selection fill with the theme's selected-row color, and marks the playing
+// row with the theme's playing-row color — two separate pairs, each defaulting
+// through AppTheme's display accessors to the quiet neutral wash the app drew
+// before themes. A theme may make either of them fully saturated.
 @interface PlaylistRowView : NSTableRowView
 
 // YES on the playlist's current row, which is drawn with the neutral wash even

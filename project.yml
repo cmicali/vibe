@@ -226,6 +226,15 @@ targets:
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
         buildPhase: resources
+      # Built-in theme names' hand-managed catalog (table "ThemeNames") — not
+      # touched by extraction; covered by check-translations.
+      - path: Resources/ThemeNames.xcstrings
+        buildPhase: resources
+      # A folder reference: every JSON dropped in Resources/Themes ships as a
+      # built-in theme with no project edit — the point of the directory.
+      - path: Resources/Themes
+        type: folder
+        buildPhase: resources
     preBuildScripts:
       # Writes build/generated/VibeGitInfo.h (commit/branch/dirty) for the
       # startup log — see NSBundle+BuildInfo. Reading .git needs
@@ -558,6 +567,11 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
+      # The bundled built-in themes, so the suite's loader reads the SAME
+      # files the app ships and testBundledThemesAreValid gates a theme PR.
+      - path: Resources/Themes
+        type: folder
+        buildPhase: resources
       - path: Tests
         excludes:
           - "**/.DS_Store"
@@ -590,6 +604,8 @@ targets:
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
       - path: Vibe/Audio/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
+      - path: Vibe/Common/Mac/AppTheme.m
+      - path: Vibe/Common/Mac/AppTheme+Archive.m
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m

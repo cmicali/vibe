@@ -29,12 +29,6 @@ static const CGFloat kMainWindowMinContentWidth = 480;
 // has chosen.
 static const CGFloat kMainWindowLargeContentWidth = kMainWindowContentWidth * 1.75;
 
-// The corner radius of the main window, shared by the contentView layer mask
-// in MainWindow, which is the one that actually shapes the window, the Liquid
-// Glass backdrop, the header glass panel and its tint layer, and the pitch
-// panel's right-edge corners. 20pt is the macOS 27 standardized window radius;
-// Tahoe used 26.
-static const CGFloat kMainWindowCornerRadius = 20;
 
 // The player-only height, with the playlist collapsed. Anything taller than
 // this is a large-layout window, meaning the playlist is showing.

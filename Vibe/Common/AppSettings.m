@@ -2,14 +2,15 @@
 //  AppSettings.m
 //  Vibe
 //
-// Laid out like the header: what both targets compile, then one macOS-only
-// block holding everything else — the hot-path cache included, since every
-// cached setting is a macOS one.
+// Laid out like the header: what both targets compile, an iOS-only block for
+// the loose appearance keys the mac theme migration consumed, then one
+// macOS-only block holding everything else.
 //
 
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
+#import "VibeStrings.h"
 
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
 #define SETTING_WAVEFORM_THEME                      @"Settings.waveformTheme"
@@ -55,6 +56,9 @@
 // every existing user's setting to the default. It predates the folder-artwork
 // → folder-art vocabulary and stays as written.
 #define SETTING_FOLDER_ART                          @"Audio.folderArtwork"
+#define SETTING_ACTIVE_THEME                        @"Appearance.activeTheme"
+#define SETTING_USER_THEMES                         @"Appearance.userThemes"
+#define SETTING_CURRENT_THEME                       @"Appearance.currentTheme"
 
 const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 const size_t kVibeSkipBasePresetCount =
@@ -78,48 +82,15 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
     return best;
 }
 
-// ---- The hot-path cache, which lives for ONE turn of the main run loop.
-//
-// The cached settings are the ones read far more often than the rest: the
-// right time label's mode on every playback tick, the file-info, BPM, key,
-// key-notation and key-color flags several times per updateUI pass, and the
-// refresh cap on every live-resize frame. Every other accessor here is a
-// CFPreferences lookup apiece, which is what FolderArtResolver caches its own
-// setting to avoid. All of them are macOS settings, which is why the whole
-// cache is inside this block; the ivar block below is the list.
-//
-// TRAP: the obvious invalidation, NSUserDefaultsDidChangeNotification,
-// does NOT fire for a write from another process — and the debug channel's
-// prefs verbs (set_key_display, set_analysis, set_folder_art) are exactly
-// that, writing from the CLI client while the app runs, as is a plain
-// `defaults write`. Caching on that notification left the app reporting
-// the old value for good; observed, not hypothetical.
-//
-// So the lifetime is a run-loop turn instead: an observer drops the cache
-// before the loop sleeps, and the setters drop it immediately. Every read
-// inside one updateUI pass or one tick is then served from the cache — all
-// of the cost, since that is where the repetition is — while a value can
-// never be more than one turn stale, which is the same freshness an
-// uncached read gave. No writer has to remember anything, which is the
-// difference from the resolver's cache and its one call to forget.
-//
-// Main thread only, which every reader of them is: the header labels, the
-// updateUI funnel, the Settings panes and the debug channel.
-// The analysis flags are deliberately NOT cached — the waveform loader is
-// handed their values once per decode, which is not a hot path.
-//
 #endif  // TARGET_OS_OSX
 
 @implementation AppSettings {
 #if TARGET_OS_OSX
-    BOOL        _hotCacheValid;
-    BOOL        _hotShowRemainingTime;
-    BOOL        _hotShowFileInfo;
-    BOOL        _hotShowBPM;
-    BOOL        _hotShowKey;
-    BOOL        _hotKeyColorsEnabled;
-    NSInteger   _hotUIUpdateHzCap;
-    NSString   *_hotKeyNotation;
+    NSArray<NSDictionary *> *_storedUserThemesCache;
+    AppTheme   *_currentTheme;
+    // The Settings window's temporary appearance preview: transient by
+    // design, so a window left open on the Appearance page at quit reverts.
+    NSString   *_windowAppearancePreviewStyle;
 #endif
 }
 
@@ -142,10 +113,10 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
         // domain, so a registered default would read as stored.
         [self migrateLegacyWaveformStyle];
         [self migrateWaveformTheme];
-        [self registerDefaults];
 #if TARGET_OS_OSX
-        [self installHotCacheInvalidator];
+        [self migrateLooseAppearanceSettingsToTheme];
 #endif
+        [self registerDefaults];
     }
     return self;
 }
@@ -176,7 +147,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
     ] mutableCopy];
 #if TARGET_OS_OSX
-    [keys addObjectsFromArray:@[SETTING_WINDOW_TINT_CUSTOM_DARK, SETTING_WINDOW_TINT_CUSTOM_LIGHT]];
+    [keys addObjectsFromArray:@[SETTING_USER_THEMES, SETTING_CURRENT_THEME]];
 #endif
     return keys;
 }
@@ -199,7 +170,9 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
         [defaults removeObjectForKey:key];
     }
 #if TARGET_OS_OSX
-    [self invalidateHotCache];
+    _storedUserThemesCache = nil; // the disk keys were just removed
+    [_currentTheme replaceWithRecord:nil];
+    [self sweepUnreferencedThemeArtwork];
 #endif
 }
 
@@ -239,6 +212,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     }
 }
 
+#if !TARGET_OS_OSX
 - (NSString *)waveformStyle {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_STYLE];
 }
@@ -246,6 +220,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setWaveformStyle:(NSString *)identifier {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
+#endif
 
 // The style/theme split left existing Sonic Cirrus users' orange to this
 // one-time write; after it a theme key always exists. Runs before
@@ -259,6 +234,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     }
 }
 
+#if !TARGET_OS_OSX
 - (NSString *)waveformTheme {
     return VibeNormalizedWaveformTheme([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_THEME]);
 }
@@ -286,6 +262,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [self setHexColor:color forKey:
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
 }
+#endif  // !TARGET_OS_OSX
 
 
 - (VibeFolderOpenSort)folderOpenSort {
@@ -298,6 +275,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
                                               forKey:SETTING_FOLDER_OPEN_SORT];
 }
 
+#if !TARGET_OS_OSX
 - (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
     NSString *hex = VibeHexStringFromColor(color);
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -307,6 +285,7 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
         [defaults removeObjectForKey:key];
     }
 }
+#endif
 
 #if TARGET_OS_OSX
 
@@ -316,14 +295,12 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [defaults addEntriesFromDictionary:@{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
-            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
+            SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
             SETTING_PITCH_RANGE:                    @(8),
-            SETTING_SHOW_REMAINING_TIME:            @(NO),
-            SETTING_SHOW_FILE_INFO:                 @(YES),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
@@ -335,57 +312,335 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
             SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
-            SETTING_KEY_NOTATION:                   SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-            SETTING_KEY_COLORS:                     @(NO),
-            SETTING_SHOW_BPM:                       @(YES),
-            SETTING_SHOW_KEY:                       @(YES),
-            SETTING_WINDOW_TINT:                    SETTINGS_VALUE_WINDOW_TINT_ARTWORK,
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
+            SETTING_ACTIVE_THEME:                   kVibeThemeIdentifierVibe,
     }];
 }
 
-#pragma mark The hot-path cache
+#pragma mark Themes
 
-- (void)primeHotCache {
-    NSAssert(NSThread.isMainThread, @"AppSettings' hot-path cache is main-thread only");
-    if (_hotCacheValid) {
-        return;
-    }
+// The pre-theme loose appearance settings, keyed by their AppTheme field
+// names. One-time: any stored active-theme key means it already ran, and a
+// successful run writes one. Runs before registerDefaults — the decision
+// keys on "no stored value" — and consumes the loose keys it migrates,
+// shared-named waveform keys included: this is the Mac store, and iOS is a
+// separate app over a separate one.
+- (void)migrateLooseAppearanceSettingsToTheme {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    _hotShowRemainingTime = [defaults boolForKey:SETTING_SHOW_REMAINING_TIME];
-    _hotShowFileInfo = [defaults boolForKey:SETTING_SHOW_FILE_INFO];
-    _hotShowBPM = [defaults boolForKey:SETTING_SHOW_BPM];
-    _hotShowKey = [defaults boolForKey:SETTING_SHOW_KEY];
-    _hotKeyColorsEnabled = [defaults boolForKey:SETTING_KEY_COLORS];
-    _hotUIUpdateHzCap = [self storedUIUpdateHzCap];
-    _hotKeyNotation = [self storedKeyNotation];
-    _hotCacheValid = YES;
-}
-
-- (void)invalidateHotCache {
-    _hotCacheValid = NO;
-}
-
-// Drops the cache before the main run loop sleeps, and on the exit of any
-// nested loop (menu tracking, a live resize), which is what bounds a cached
-// value to the turn that read it. Common modes, so tracking loops are covered.
-// The singleton lives for the process, so the observer is never removed.
-- (void)installHotCacheInvalidator {
-    if (!NSThread.isMainThread) {
-        // The singleton can, in principle, be created by an off-main first
-        // touch. The invalidator belongs to the main loop either way.
-        run_on_main_thread({ [self installHotCacheInvalidator]; });
+    if ([defaults objectForKey:SETTING_ACTIVE_THEME]) {
         return;
     }
-    __weak AppSettings *weakSelf = self;
-    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
-            kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, YES, 0,
-            ^(CFRunLoopObserverRef o, CFRunLoopActivity activity) {
-                [weakSelf invalidateHotCache];
-            });
-    CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
-    CFRelease(observer);
+    NSDictionary<NSString *, NSString *> *legacyKeys = @{
+        @"waveformStyle":              SETTING_WAVEFORM_STYLE,
+        @"waveformTheme":              SETTING_WAVEFORM_THEME,
+        @"waveformPlayedColorDark":    SETTING_WAVEFORM_CUSTOM_PLAYED_DARK,
+        @"waveformUnplayedColorDark":  SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK,
+        @"waveformPlayedColorLight":   SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT,
+        @"waveformUnplayedColorLight": SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
+        @"windowTint":                 SETTING_WINDOW_TINT,
+        @"windowTintColorDark":        SETTING_WINDOW_TINT_CUSTOM_DARK,
+        @"windowTintColorLight":       SETTING_WINDOW_TINT_CUSTOM_LIGHT,
+        @"showFileInfo":               SETTING_SHOW_FILE_INFO,
+        @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,
+        @"showBPM":                    SETTING_SHOW_BPM,
+        @"showKey":                    SETTING_SHOW_KEY,
+        @"keyColorsEnabled":           SETTING_KEY_COLORS,
+        @"keyNotation":                SETTING_KEY_NOTATION,
+    };
+    NSMutableDictionary *legacyValues = [NSMutableDictionary dictionary];
+    for (NSString *field in legacyKeys) {
+        id value = [defaults objectForKey:legacyKeys[field]];
+        if (value) {
+            legacyValues[field] = value;
+        }
+    }
+    NSDictionary *record = [AppTheme migratedRecordFromLegacyValues:legacyValues];
+    if (record) {
+        NSString *identifier = NSUUID.UUID.UUIDString;
+        [defaults setObject:@[UserThemeEntry(record, identifier, STR_THEME_NAME_CUSTOM)]
+                     forKey:SETTING_USER_THEMES];
+        [defaults setObject:identifier forKey:SETTING_ACTIVE_THEME];
+    }
+    for (NSString *field in legacyKeys) {
+        [defaults removeObjectForKey:legacyKeys[field]];
+    }
+}
+
+// A stored user-theme entry is its sparse record plus id and name, flat —
+// the same shape a theme JSON carries, minus the version.
+static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, NSString *name) {
+    NSMutableDictionary *entry = [record mutableCopy];
+    entry[kVibeThemeRecordIdentifierKey] = identifier;
+    entry[kVibeThemeRecordNameKey] = name;
+    return entry;
+}
+
+// Sanitized on read: an entry without a usable id and name is dropped, and
+// every entry's fields go back through AppTheme's gate, so an external
+// defaults write cannot smuggle in what an import would refuse. Memoized —
+// the sanitize pass costs a full record walk per theme and every identity
+// query funnels here. persistUserThemes: — the one RUNTIME writer; the
+// one-time migration above writes the key directly, before this memo can
+// have populated — installs what it wrote rather than dropping it: every
+// caller hands it entries built from this list and AppTheme's own output, so
+// they are already through the gate (no CLI-side verb writes this key, so
+// the cross-process prefs trap in Common/CLAUDE.md does not reach it).
+- (NSArray<NSDictionary *> *)storedUserThemes {
+    if (_storedUserThemesCache) {
+        return _storedUserThemesCache;
+    }
+    NSArray *stored = [[NSUserDefaults standardUserDefaults] arrayForKey:SETTING_USER_THEMES];
+    NSMutableArray<NSDictionary *> *themes = [NSMutableArray array];
+    for (id entry in stored) {
+        if (![entry isKindOfClass:NSDictionary.class]) {
+            continue;
+        }
+        NSString *identifier = entry[kVibeThemeRecordIdentifierKey];
+        NSString *name = entry[kVibeThemeRecordNameKey];
+        if (![identifier isKindOfClass:NSString.class] || identifier.length == 0 ||
+            [AppTheme isBuiltInIdentifier:identifier] ||
+            ![name isKindOfClass:NSString.class] || name.length == 0) {
+            continue;
+        }
+        [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:entry], identifier, name)];
+    }
+    _storedUserThemesCache = [themes copy];
+    return _storedUserThemesCache;
+}
+
+- (void)persistUserThemes:(NSArray<NSDictionary *> *)themes {
+    _storedUserThemesCache = [themes copy];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (themes.count) {
+        [defaults setObject:themes forKey:SETTING_USER_THEMES];
+    } else {
+        [defaults removeObjectForKey:SETTING_USER_THEMES];
+    }
+}
+
+- (NSDictionary *)storedUserThemeWithIdentifier:(NSString *)identifier {
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if ([entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            return entry;
+        }
+    }
+    return nil;
+}
+
+- (NSString *)activeThemeIdentifier {
+    return [self resolvedThemeIdentifier:
+            [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_ACTIVE_THEME]];
+}
+
+// An identifier naming no built-in and no stored user theme — a deleted
+// theme, an external write — snaps to vibe.
+- (NSString *)resolvedThemeIdentifier:(NSString *)identifier {
+    if ([AppTheme isBuiltInIdentifier:identifier] ||
+        (identifier && [self storedUserThemeWithIdentifier:identifier])) {
+        return identifier;
+    }
+    return kVibeThemeIdentifierVibe;
+}
+
+- (NSArray<NSString *> *)orderedThemeIdentifiers {
+    NSMutableArray<NSString *> *identifiers = [[AppTheme builtInThemeIdentifiers] mutableCopy];
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        [identifiers addObject:entry[kVibeThemeRecordIdentifierKey]];
+    }
+    return identifiers;
+}
+
+- (NSString *)displayNameForThemeIdentifier:(NSString *)identifier {
+    // A built-in's English name travels in its bundled JSON; the hand-managed
+    // ThemeNames catalog (keyed by identifier) overlays a translation where
+    // one exists, so a theme added by pull request needs no code and no
+    // catalog entry to ship.
+    NSString *builtInName = [AppTheme builtInNameForIdentifier:identifier];
+    if (builtInName) {
+        return [NSBundle.mainBundle localizedStringForKey:identifier
+                                                    value:builtInName
+                                                    table:@"ThemeNames"];
+    }
+    return [self storedUserThemeWithIdentifier:identifier][kVibeThemeRecordNameKey];
+}
+
+- (NSArray<NSString *> *)allThemeDisplayNames {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
+        [names addObject:[self displayNameForThemeIdentifier:identifier]];
+    }
+    // One store fetch for every user name, not one per identifier.
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        [names addObject:entry[kVibeThemeRecordNameKey]];
+    }
+    return names;
+}
+
+- (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return [AppTheme builtInRecordForIdentifier:identifier];
+    }
+    NSDictionary *entry = [self storedUserThemeWithIdentifier:identifier];
+    if (entry) {
+        // Already through the gate in storedUserThemes; strip the entry keys.
+        NSMutableDictionary *record = [entry mutableCopy];
+        [record removeObjectsForKeys:@[kVibeThemeRecordIdentifierKey,
+                                       kVibeThemeRecordNameKey]];
+        return [record copy];
+    }
+    return [AppTheme builtInRecordForIdentifier:kVibeThemeIdentifierVibe];
+}
+
+- (AppTheme *)currentTheme {
+    NSAssert(NSThread.isMainThread, @"AppSettings.currentTheme is main-thread only");
+    if (!_currentTheme) {
+        NSDictionary *diverged =
+                [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
+        _currentTheme = [[AppTheme alloc] initWithRecord:
+                diverged ?: [self recordForThemeIdentifier:self.activeThemeIdentifier]];
+    }
+    return _currentTheme;
+}
+
+- (void)applyThemeWithIdentifier:(NSString *)identifier {
+    NSString *resolved = [self resolvedThemeIdentifier:identifier];
+    [self.currentTheme replaceWithRecord:[self recordForThemeIdentifier:resolved]];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
+    [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    // Dropping the divergence record can drop the last reference to a custom
+    // image picked while a built-in was active.
+    [self sweepUnreferencedThemeArtwork];
+}
+
+- (void)currentThemeDidChange {
+    if (!_currentTheme) {
+        return;
+    }
+    NSDictionary *record = _currentTheme.dictionaryRepresentation;
+    NSString *active = self.activeThemeIdentifier;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    // What this write replaces: the divergence record or the entry. Its
+    // artwork references against the new record's decide the sweep below,
+    // so a replaced or cleared placeholder image cannot strand its file —
+    // and a color drag, which changes no reference, never lists the
+    // container.
+    NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    if ([AppTheme isBuiltInIdentifier:active]) {
+        previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
+        // A built-in stays pristine; the working record carries the
+        // divergence, and only while there is one.
+        if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
+            [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+        } else {
+            [defaults setObject:record forKey:SETTING_CURRENT_THEME];
+        }
+    } else {
+        // A user theme IS its working state: the record lands in the entry,
+        // from the same dictionary, so the two cannot drift.
+        NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+        for (NSUInteger i = 0; i < themes.count; i++) {
+            if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
+                previous = previous ?: themes[i];
+                themes[i] = UserThemeEntry(record, active, themes[i][kVibeThemeRecordNameKey]);
+                break;
+            }
+        }
+        [self persistUserThemes:themes];
+        [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    }
+    if (![[AppTheme customArtworkFilesInRecord:previous]
+            isEqualToSet:[AppTheme customArtworkFilesInRecord:record]]) {
+        [self sweepUnreferencedThemeArtwork];
+    }
+}
+
+- (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
+                                name:(NSString *)name {
+    NSString *deduped = [AppTheme dedupedThemeName:name
+                                          fallback:STR_THEME_NAME_CUSTOM
+                                     existingNames:[self allThemeDisplayNames]];
+    NSString *identifier = NSUUID.UUID.UUIDString;
+    NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
+    [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:record], identifier, deduped)];
+    [self persistUserThemes:themes];
+    return identifier;
+}
+
+- (NSString *)duplicateThemeWithIdentifier:(NSString *)identifier {
+    NSString *name = [self displayNameForThemeIdentifier:identifier];
+    if (!name) {
+        return nil;
+    }
+    return [self addUserThemeWithRecord:[self recordForThemeIdentifier:identifier] name:name];
+}
+
+- (void)removeUserThemeWithIdentifier:(NSString *)identifier
+                        fallingBackTo:(NSString *)successor {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return;
+    }
+    BOOL wasActive = [[self activeThemeIdentifier] isEqualToString:identifier];
+    NSMutableArray<NSDictionary *> *themes = [NSMutableArray array];
+    for (NSDictionary *entry in [self storedUserThemes]) {
+        if (![entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            [themes addObject:entry];
+        }
+    }
+    [self persistUserThemes:themes];
+    if (wasActive) {
+        // The apply sweeps; the successor resolves to vibe when it names
+        // nothing, the removed theme itself included.
+        [self applyThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
+    } else {
+        [self sweepUnreferencedThemeArtwork];
+    }
+}
+
+// Deletes every stored custom placeholder image no record names any more.
+// The files are content-hash-named and shared by reference
+// (AppTheme.storeCustomArtworkData:), so each store write that can drop the
+// last reference — the field funnel when its artwork keys move, a theme
+// removal, a theme apply (it drops the divergence record), a factory reset —
+// runs this after its write.
+- (void)sweepUnreferencedThemeArtwork {
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
+    for (NSString *identifier in [self orderedThemeIdentifiers]) {
+        [records addObject:[self recordForThemeIdentifier:identifier]];
+    }
+    // The persisted divergence record can name an image no theme's own record
+    // holds. The in-memory working record needs no read of its own: every
+    // caller sweeps after its store write, by which point that record has
+    // landed in a theme entry or the divergence key.
+    NSDictionary *diverged =
+            [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME];
+    if (diverged) {
+        [records addObject:diverged];
+    }
+    [AppTheme removeCustomArtworkFilesUnreferencedByRecords:records];
+}
+
+- (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {
+    if ([AppTheme isBuiltInIdentifier:identifier]) {
+        return;
+    }
+    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
+    for (NSUInteger i = 0; i < themes.count; i++) {
+        if (![themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:identifier]) {
+            continue;
+        }
+        NSMutableArray *otherNames = [[self allThemeDisplayNames] mutableCopy];
+        [otherNames removeObject:themes[i][kVibeThemeRecordNameKey]];
+        NSString *deduped = [AppTheme dedupedThemeName:name
+                                              fallback:STR_THEME_NAME_CUSTOM
+                                         existingNames:otherNames];
+        NSMutableDictionary *entry = [themes[i] mutableCopy];
+        entry[kVibeThemeRecordNameKey] = deduped;
+        themes[i] = entry;
+        [self persistUserThemes:themes];
+        return;
+    }
 }
 
 #pragma mark Output device
@@ -408,26 +663,43 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 #pragma mark Window
 
+// The default is Auto — the window follows the OS. The pre-theme app pinned
+// dark by default; themes made the adaptive factory look the product's
+// default instead.
 - (NSString *)windowAppearanceStyle {
     return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
 - (void)setWindowAppearanceStyle:(NSString *)name {
+    // An explicit choice ends any preview, so it cannot land under one and
+    // read as ignored.
+    _windowAppearancePreviewStyle = nil;
     [[NSUserDefaults standardUserDefaults] setObject:name forKey:SETTING_WINDOW_APPEARANCE_STYLE];
 }
 
-- (NSAppearance *)windowAppearance {
-    return [self appearanceForSettingValue:self.windowAppearanceStyle];
+- (NSString *)windowAppearancePreviewStyle {
+    return _windowAppearancePreviewStyle;
 }
 
-- (NSAppearance *)appearanceForSettingValue:(NSString *)value {
+- (void)setWindowAppearancePreviewStyle:(NSString *)name {
+    _windowAppearancePreviewStyle = [name copy];
+}
+
+- (NSAppearance *)windowAppearance {
+    // A single-mode theme's one look outranks both the stored style and the
+    // preview; folded in here so every reader of the answer gets the pin.
+    NSAppearance *required = self.currentTheme.requiredWindowAppearance;
+    if (required) {
+        return required;
+    }
+    NSString *value = _windowAppearancePreviewStyle ?: self.windowAppearanceStyle;
     if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameAqua];
     }
-    else if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
+    if ([value isEqualToString:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK]) {
         return [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     }
-    // System default: a nil window appearance tracks the OS light/dark setting.
+    // Auto: a nil window appearance tracks the OS light/dark setting.
     return nil;
 }
 
@@ -465,46 +737,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 
 #pragma mark Header labels
 
-// Cached; see primeHotCache. Read on every playback tick.
-- (BOOL)showRemainingTime {
-    [self primeHotCache];
-    return _hotShowRemainingTime;
-}
-
-- (void)setShowRemainingTime:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_REMAINING_TIME];
-    [self invalidateHotCache];
-}
-
-// Cached; read twice per updateUI pass, by the codec and BPM lines.
-- (BOOL)showFileInfo {
-    [self primeHotCache];
-    return _hotShowFileInfo;
-}
-
-- (void)setShowFileInfo:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_FILE_INFO];
-    [self invalidateHotCache];
-}
-
-// Not cached: read once per art install and per appearance flip, not per frame.
-- (NSString *)windowTint {
-    return VibeNormalizedWindowTint([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WINDOW_TINT]);
-}
-
-- (void)setWindowTint:(NSString *)identifier {
-    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WINDOW_TINT];
-}
-
-- (VibeColor *)windowTintCustomColorForDark:(BOOL)isDark {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
-            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT]);
-}
-
-- (void)setWindowTintCustomColor:(VibeColor *)color forDark:(BOOL)isDark {
-    [self setHexColor:color forKey:
-            isDark ? SETTING_WINDOW_TINT_CUSTOM_DARK : SETTING_WINDOW_TINT_CUSTOM_LIGHT];
-}
 
 // Not cached: read once per mouse-down on the waveform, not per frame.
 - (NSString *)waveformDragBehavior {
@@ -564,20 +796,15 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
 }
 
-- (NSInteger)storedUIUpdateHzCap {
+// Read on every live-resize frame through syncUITimerRate; a CFPreferences
+// lookup is cheap enough uncached.
+- (NSInteger)uiUpdateHzCap {
     NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_UI_UPDATE_HZ_CAP];
     return VibeNearestPreset(stored, kVibeUIUpdateHzCapPresets, kVibeUIUpdateHzCapPresetCount);
 }
 
-// Cached; read on every live-resize frame through syncUITimerRate.
-- (NSInteger)uiUpdateHzCap {
-    [self primeHotCache];
-    return _hotUIUpdateHzCap;
-}
-
 - (void)setUiUpdateHzCap:(NSInteger)hz {
     [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
-    [self invalidateHotCache];
 }
 
 - (BOOL)audioFXEnabled {
@@ -606,59 +833,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
     [[NSUserDefaults standardUserDefaults] setBool:analyze forKey:SETTING_ANALYZE_KEY];
 }
 
-- (NSString *)storedKeyNotation {
-    NSString *notation = [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_KEY_NOTATION];
-    // An unrecognized persisted value renders as Camelot rather than nothing.
-    if (![notation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]) {
-        return SETTINGS_VALUE_KEY_NOTATION_CAMELOT;
-    }
-    return notation;
-}
-
-// Cached; read on every updateUI pass and every fader tick, through
-// effectiveTempoDidChange.
-- (NSString *)keyNotation {
-    [self primeHotCache];
-    return _hotKeyNotation;
-}
-
-- (void)setKeyNotation:(NSString *)notation {
-    [[NSUserDefaults standardUserDefaults] setObject:notation forKey:SETTING_KEY_NOTATION];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)showBPM {
-    [self primeHotCache];
-    return _hotShowBPM;
-}
-
-- (void)setShowBPM:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_BPM];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)showKey {
-    [self primeHotCache];
-    return _hotShowKey;
-}
-
-- (void)setShowKey:(BOOL)show {
-    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_KEY];
-    [self invalidateHotCache];
-}
-
-// Cached; read alongside keyNotation on the same pass.
-- (BOOL)keyColorsEnabled {
-    [self primeHotCache];
-    return _hotKeyColorsEnabled;
-}
-
-- (void)setKeyColorsEnabled:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_KEY_COLORS];
-    [self invalidateHotCache];
-}
 
 #pragma mark Files and conversion
 

@@ -38,12 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 // after an artwork color settles.
 - (void)refreshThemeColors;
 
-// Styles are identified by the renderer's stable styleIdentifier, never its
-// localized display name; displayNameForStyle: turns one into UI text.
-- (NSString *)currentWaveformStyle;
+// Styles are identified by the renderer's stable styleIdentifier
+// (WaveformRendererRegistry), never its localized display name.
 - (void)setWaveformStyle:(NSString *)identifier;
-- (NSArray<NSString *> *)availableWaveformStyles;
-- (NSString *)displayNameForStyle:(NSString *)identifier;
 
 // Clears the previous track's waveform ahead of a new load, and installs the
 // persisted renderer style on first use.

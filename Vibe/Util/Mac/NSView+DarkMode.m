@@ -5,10 +5,20 @@
 
 #import "NSView+DarkMode.h"
 
+@implementation NSAppearance (DarkMode)
+
+- (BOOL)isDark {
+    return [NSAppearanceNameDarkAqua isEqualToString:
+            [self bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,
+                                                      NSAppearanceNameDarkAqua]]];
+}
+
+@end
+
 @implementation NSView (DarkMode)
 
 - (BOOL)isDark {
-    return [NSAppearanceNameDarkAqua isEqualToString:[self.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]];
+    return self.effectiveAppearance.isDark;
 }
 
 @end

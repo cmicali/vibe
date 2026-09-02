@@ -245,9 +245,13 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 "$V" --debug-cmd scan_bpm - < file   # {ok, bpm} — fresh decode+analyze, runs IN THE CLI PROCESS (no app needed; see Test audio files). Audio rides stdin; prefer the scan-bpm.sh wrapper
 "$V" --debug-cmd scan_key - < file   # {ok, key, camelot, index} — the key-analyzer twin of scan_bpm, same contract; prefer scan-key.sh. Ignores tags: dump_state's currentTrack.key/.camelot show the app's tag-over-analysis resolution instead
 "$V" --debug-cmd clear_disk_caches   # {ok, cleared} — CLI-process deletion of the PINDiskCache dirs, ONLY for when the app is NOT running (prefer clear-caches.sh, which picks the right one)
-"$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, CLI-process prefs write for the NEXT launch (live toggle: click_menu view_appearance_*)
+"$V" --debug-cmd set_appearance dark # {ok, windowAppearance} — light|dark|system, the window's own appearance setting, applied live (a theme's color MODE is its own field: AppTheme.mode, single|dual)
 "$V" --debug-cmd set_analysis bpm off # {ok, analyzeBPM, analyzeKey} — <bpm|key> <on|off>, CLI-process prefs write a running app sees immediately (the next waveform decode reads it — no relaunch), so this is how you A/B the analyzers' cost; dump_state.settings reports the live values
-"$V" --debug-cmd set_key_display musical colors # {ok, keyNotation, keyColors} — <camelot|musical> <colors|plain>, same live prefs write; the label repaints at its next re-render (key delivery, fader tick, or track change), not on the write itself
+"$V" --debug-cmd set_key_display musical colors # {ok, keyNotation, keyColors} — <camelot|musical> <colors|plain>. App-side, not a CLI prefs write: the key-label display lives on the current THEME, an in-memory object a cross-process defaults write cannot reach. Writes the theme, persists, requests TrackDisplay — repaints immediately
+"$V" --debug-cmd set_theme technical # {ok, activeTheme} — applies a theme by stable id or display name (case-insensitive) and requests the composed ThemeApply effect; dump_state.settings.activeTheme/themeCount assert it
+"$V" --debug-cmd import_theme '"'"'{"name":"T","window":{"cornerRadius":0}}'"'"' # {ok, imported, name, themeCount} — inline JSON (starts with "{"), or a path the APP can read (container tmp works) to a .json or a theme ZIP (theme.json + a custom album-art image); the same sanitize-and-store path as the Settings importer, powerbox-free. The only scripted route to a font change
+"$V" --debug-cmd remove_theme "fuzz-3" # {ok, removed, activeTheme, themeCount} — removes a USER theme by stable id or display name (a built-in is refused); removing the active one falls back to vibe with the apply effect. The cleanup half of import_theme: a harness that imports themes must remove them, or they persist in the user's real store
+"$V" --debug-cmd dump_theme ["id-or-name"] # {ok, activeTheme?, id?, theme} — no arg: the current WORKING record (divergence included); with one: that theme'"'"'s stored record + name, the exportable form
 "$V" --debug-cmd set_folder_art off # {ok, folderArt} — <on|off>, the Settings > Files album-art dropdown: writes the setting AND re-resolves the loaded playlist's folder art, header, dock and rows included. Unlike the prefs writes above this one needs a RUNNING app — the live re-resolve is the half worth testing, and the pane itself cannot be driven over this channel
 "$V" --debug-cmd set_pause_at_track_end off # {ok, pauseAtTrackEnd} — <on|off>, the Settings > Playback “On track end” choice: writes it and requests the EndOfTrack live effect, which immediately re-parks or drops the already-armed successor
 "$V" --debug-cmd sleep 0.5           # client-side pause (0–600s, sub-second OK) — for scripts; the app's main thread never sleeps
@@ -322,7 +326,7 @@ printf '%s\n' "$out" | jq -s -e '
 
 `dump_menu` and `click_menu` run the same `validateMenuItem` pass that opening the menu would, so enabled state and checkmarks are live. This replaces AppleScript and System Events menu clicking, with no Automation permission and no frontmost requirement. Get identifiers from `dump_menu`.
 
-The waveform style items carry `waveform_style_<identifier>` ids (`waveform_style_basic`, `_detailed`, `_sonic_cirrus`, `_oversampling_detailed_x2|x4|x8`), so they can be clicked without matching their display names. They are built by the submenu's delegate, though, so **run `dump_menu` first in each app run** — until something populates that submenu, `click_menu` can't find them. Matching `dump_state.settings.waveformStyle` uses those same identifiers (`oversampling_detailed_x4`), NOT the menu's display text ("Oversampling Detailed x4") — the two were split so a localized name can never reach NSUserDefaults.
+The View > Theme items carry `view_theme_<identifier>` ids (`view_theme_vibe`, `view_theme_technical`, `view_theme_<uuid>` for user themes; the tail is `menu_edit_themes`), so they can be clicked without matching their display names. They are built by the submenu's delegate, though, so **run `dump_menu` first in each app run** — until something populates that submenu, `click_menu` can't find them. Matching `dump_state.settings.activeTheme` uses those same identifiers, NOT the menu's display text — the two were split so a display name can never reach the store. The waveform style now lives inside the theme editor (`settings_click Style <identifier>` there), not in the menu bar.
 
 Action replies are a compact `{ok, state, index, count, position, pitch, lowKill, reverbSend, delaySend, shortDelaySend, playlistShown, pitchPanelShown}` object, read synchronously, so they can lag async engine work. Run `dump_state` afterwards to confirm. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage error. With **two instances running the channel is racy**, because commands travel as per-id files and either instance may consume one, so quit one first.
 
@@ -348,7 +352,7 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 ### The settings window
 
-The Settings window has four verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+The Settings window has five verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click`, `settings_resize` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
 
 ### In-process input injection
 
@@ -401,15 +405,15 @@ It prints the image size and the RGBA at each point. Coordinates are bitmap pixe
 
 ## Appearance (light and dark) testing
 
-The app's appearance setting persists in its defaults. Set it for the next launch with:
+The window's appearance is `AppSettings.windowAppearanceStyle` (Auto follows the OS; light/dark pin the main window). Toggle it live with:
 
 ```bash
-"$V" --debug-cmd set_appearance light    # or: dark, system — runs in the CLI process, app need not be running
+"$V" --debug-cmd set_appearance light    # or: dark, system — app-side, applied to the window immediately
 ```
 
-Do not use `defaults write com.commonwealthrecordings.Vibe …`. The sandboxed app's prefs live in its container, so a shell `defaults` call can trip the "access data from other apps" TCC prompt. `set_appearance` writes the same key from inside the CLI client.
+A theme's color *mode* is separate (`AppTheme.mode`): single-mode themes use one color per field in every appearance — drive it via `import_theme`/`set_theme`. Do not use `defaults write com.commonwealthrecordings.Vibe …`. The sandboxed app's prefs live in its container, so a shell `defaults` call can trip the "access data from other apps" TCC prompt.
 
-Relaunch to apply, or toggle live with `"$V" --debug-cmd click_menu view_appearance_light`, and likewise `view_appearance_dark` and `view_appearance_system_default`. Test both modes for any color or material change, and use real capture, path 2, to verify backgrounds. The app's window appearance is independent of the system's: a light window over a dark system is a supported, and once buggy, combination.
+Equivalently toggle with `"$V" --debug-cmd click_menu view_appearance_light`, and likewise `view_appearance_dark` and `view_appearance_system_default`. Test both modes for any color or material change, and use real capture, path 2, to verify backgrounds. The app's window appearance is independent of the system's: a light window over a dark system is a supported, and once buggy, combination.
 
 ## OS-level input path: hover states and focus semantics
 

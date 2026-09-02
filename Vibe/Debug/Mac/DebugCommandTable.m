@@ -7,9 +7,11 @@
 
 #import "DebugInternal.h"
 #import "AppSettings.h"
+#import "AppTheme+Archive.h"
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
+#import "VibeStrings.h"
 
 #if DEBUG
 
@@ -78,6 +80,19 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     return nil; // response written by the settled block
 }
 
+// A theme by stable id or display name (case-insensitive); nil when it names
+// nothing. Shared by set_theme and dump_theme.
+static NSString *VibeThemeIdentifierMatching(NSString *query) {
+    for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
+        NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier];
+        if ([identifier isEqualToString:query] ||
+            [name caseInsensitiveCompare:query] == NSOrderedSame) {
+            return identifier;
+        }
+    }
+    return nil;
+}
+
 // The command set. Dispatch, the unknown-command usage reply and the client's
 // per-verb wait all derive from this table, so adding an entry here is the
 // entire app-side hookup. The usage docs live in the vibe-debug skill.
@@ -135,6 +150,13 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeCmd(@"settings_click <control> [value]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsClick(tokens);
             }),
+            VibeCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsResize(tokens);
+            }),
+            // Store-writing: many menu items write settings (appearance,
+            // theme, Show File Info), and a scripted click never runs the
+            // menu-tracking notification a real menu interaction refreshes
+            // the panes through.
             VibeCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
@@ -206,6 +228,122 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 AppSettings.sharedInstance.useFolderArt = [arg isEqualToString:@"on"];
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
+            }),
+            VibeCmd(@"set_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_theme <id-or-name>");
+                }
+                NSString *match = VibeThemeIdentifierMatching(tokens[1]);
+                if (!match) {
+                    return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
+                }
+                [AppSettings.sharedInstance applyThemeWithIdentifier:match];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+                return VibeJSONString(@{@"ok": @YES, @"activeTheme": match});
+            }),
+            VibeCmd(@"remove_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: remove_theme <id-or-name>");
+                }
+                NSString *match = VibeThemeIdentifierMatching(tokens[1]);
+                if (!match) {
+                    return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
+                }
+                if ([AppTheme isBuiltInIdentifier:match]) {
+                    return VibeErrorJSON(@"built-in themes cannot be removed: %@", match);
+                }
+                // Removing the active theme applies vibe in the store; the
+                // apply effect makes that visible, as set_theme's does.
+                BOOL wasActive = [AppSettings.sharedInstance.activeThemeIdentifier
+                        isEqualToString:match];
+                [AppSettings.sharedInstance removeUserThemeWithIdentifier:match fallingBackTo:nil];
+                if (wasActive) {
+                    [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+                }
+                return VibeJSONString(@{@"ok": @YES, @"removed": match,
+                        @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
+                        @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});
+            }),
+            // Inline JSON or a path the APP can read (the container, or a
+            // granted folder) — the sandboxed open panel this bypasses is the
+            // UI's business.
+            VibeCmd(@"import_theme <json|path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: import_theme <json|path>");
+                }
+                NSData *data = [tokens[1] hasPrefix:@"{"]
+                        ? [tokens[1] dataUsingEncoding:NSUTF8StringEncoding]
+                        : [NSData dataWithContentsOfFile:tokens[1]];
+                NSString *name = nil;
+                NSError *error = nil;
+                NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:data
+                                                                         name:&name
+                                                                        error:&error];
+                if (!record) {
+                    return VibeErrorJSON(@"not a theme: %@", error.localizedDescription ?: @"unreadable");
+                }
+                // The same default the Settings pane's import gives a file
+                // that carried no name of its own.
+                NSString *identifier = [AppSettings.sharedInstance addUserThemeWithRecord:record
+                        name:(name.length ? name : STR_THEME_NAME_IMPORTED)];
+                return VibeJSONString(@{@"ok": @YES, @"imported": identifier,
+                        @"name": [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier],
+                        @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count)});
+            }),
+            VibeCmd(@"dump_theme [id-or-name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeJSONString(@{@"ok": @YES,
+                            @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
+                            @"theme": AppSettings.sharedInstance.currentTheme.dictionaryRepresentation});
+                }
+                NSString *match = VibeThemeIdentifierMatching(tokens[1]);
+                if (!match) {
+                    return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
+                }
+                NSData *json = [AppTheme JSONDataForRecord:
+                        [AppSettings.sharedInstance recordForThemeIdentifier:match]
+                                                      name:[AppSettings.sharedInstance
+                                                            displayNameForThemeIdentifier:match]];
+                NSDictionary *record = [NSJSONSerialization JSONObjectWithData:json
+                                                                       options:0 error:NULL];
+                return VibeJSONString(@{@"ok": @YES, @"id": match, @"theme": record});
+            }),
+            // App-side, not a CLI-process prefs write: the key-label display
+            // lives on the current theme, an in-memory object a cross-process
+            // defaults write cannot reach.
+            VibeCmd(@"set_appearance <light|dark|system>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSDictionary<NSString *, NSString *> *values = @{
+                    @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
+                    @"dark": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
+                    @"system": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
+                };
+                // The empty string (system) is a present, non-nil value.
+                NSString *value = tokens.count == 2 ? values[tokens[1].lowercaseString] : nil;
+                if (!value) {
+                    return VibeErrorJSON(@"usage: set_appearance <light|dark|system>");
+                }
+                AppSettings.sharedInstance.windowAppearanceStyle = value;
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+                return VibeJSONString(@{@"ok": @YES, @"windowAppearance": tokens[1]});
+            }),
+            VibeCmd(@"set_key_display <camelot|musical> <colors|plain>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSDictionary<NSString *, NSString *> *notations = @{
+                    @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
+                    @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
+                };
+                NSString *notation = tokens.count == 3 ? notations[tokens[1].lowercaseString] : nil;
+                BOOL colorsOn = tokens.count == 3 && [tokens[2] isEqualToString:@"colors"];
+                BOOL colorsOff = tokens.count == 3 && [tokens[2] isEqualToString:@"plain"];
+                if (!notation || (!colorsOn && !colorsOff)) {
+                    return VibeErrorJSON(@"usage: set_key_display <camelot|musical> <colors|plain>");
+                }
+                AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+                theme.keyNotation = notation;
+                theme.keyColorsEnabled = colorsOn;
+                [AppSettings.sharedInstance currentThemeDidChange];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+                return VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
+                                        @"keyColors": @(colorsOn)});
             }),
             VibeCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
@@ -341,7 +479,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // > Delete Original, as the menu item does, and leaves it written.
             // omit-trash-url is a one-shot fault for the ambiguous successful
             // Trash result; applied only once the command will actually convert.
-            // The 120-second clientTimeout covers a long encode.
+            // The 120-second clientTimeout covers a long encode. Store-writing
+            // because [keep|delete] sets deleteOriginalAfterConvert, a Convert
+            // pane row.
             VibeCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *mode = tokens.count > 1 ? tokens[1].lowercaseString : nil;
                 NSString *fault = tokens.count > 2 ? tokens[2].lowercaseString : nil;

@@ -130,54 +130,6 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"cleared": cleared}), inScript);
             return 0;
         }
-        // In-process: shell `defaults write` into the container prompts; this
-        // process writes its own domain. Persists for the next launch — with
-        // the app running use click_menu view_appearance_* instead. "system"
-        // writes the "" follow-OS sentinel (like the View menu) rather than
-        // deleting the key, whose registered default is dark.
-        if ([args.firstObject isEqualToString:@"set_appearance"]) {
-            NSDictionary<NSString *, NSString *> *values = @{
-                @"light": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT,
-                @"dark": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK,
-                @"system": SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
-            };
-            NSString *value = args.count == 2 ? values[args[1]] : nil;
-            if (!value) {
-                fprintf(stderr, "usage: Vibe --debug-cmd set_appearance <light|dark|system>\n");
-                return 64;
-            }
-            AppSettings.sharedInstance.windowAppearanceStyle = value;
-            // Short-lived process: force the cfprefsd flush before exit.
-            [NSUserDefaults.standardUserDefaults synchronize];
-            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"windowAppearance": args[1]}), inScript);
-            return 0;
-        }
-        // The key-label appearance settings. A CLI-process write reaches a
-        // running app's reads immediately (same bundle ID and container, so
-        // cfprefsd shares the domain — verified with dump_state), but nothing
-        // repaints on the write itself: the label picks the change up at its
-        // next re-render (a key delivery, fader tick, track change, or
-        // updateUI). The Settings pane that owns these cannot be driven over
-        // this channel.
-        if ([args.firstObject isEqualToString:@"set_key_display"]) {
-            NSDictionary<NSString *, NSString *> *notations = @{
-                @"camelot": SETTINGS_VALUE_KEY_NOTATION_CAMELOT,
-                @"musical": SETTINGS_VALUE_KEY_NOTATION_MUSICAL,
-            };
-            NSString *notation = args.count == 3 ? notations[args[1]] : nil;
-            BOOL colorsOn = args.count == 3 && [args[2] isEqualToString:@"colors"];
-            BOOL colorsOff = args.count == 3 && [args[2] isEqualToString:@"plain"];
-            if (!notation || (!colorsOn && !colorsOff)) {
-                fprintf(stderr, "usage: Vibe --debug-cmd set_key_display <camelot|musical> <colors|plain>\n");
-                return 64;
-            }
-            AppSettings.sharedInstance.keyNotation = notation;
-            AppSettings.sharedInstance.keyColorsEnabled = colorsOn;
-            [NSUserDefaults.standardUserDefaults synchronize];
-            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
-                                                  @"keyColors": @(colorsOn)}), inScript);
-            return 0;
-        }
         // The analysis toggles — a CLI-process prefs write that, like
         // set_key_display above, a running app's reads see immediately:
         // the next waveform decode picks the new values up, no

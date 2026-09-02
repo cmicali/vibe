@@ -35,33 +35,49 @@ struct AudioWaveformCacheChunk {
 
     inline float getMin() const noexcept { return values[0]; }
     inline float getMax() const noexcept { return values[1]; }
-    inline void set(float min, float max) noexcept { values[0] = min; values[1] = max; }
+    // Mean of the squared samples across every frame merged in — sqrt of it is
+    // the chunk's RMS. 0 for an empty chunk.
+    inline float getMeanSquare() const noexcept { return values[3] > 0 ? values[2] / values[3] : 0; }
+    inline void set(float min, float max) noexcept { set(min, max, 0, 0); }
+    inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
+        values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
+    }
     inline void merge(AudioWaveformCacheChunk* chunk) noexcept {
         if (chunk->values[0] < values[0]) values[0] = chunk->values[0];
         if (chunk->values[1] > values[1]) values[1] = chunk->values[1];
+        values[2] += chunk->values[2];
+        values[3] += chunk->values[3];
     }
 
     inline void mergeFromMonoBuffer(const float* mono, NSUInteger numFrames) {
         if (numFrames == 0) return;
 
-        float minVal, maxVal;
+        float minVal, maxVal, meanSquare;
         vDSP_minv(mono, 1, &minVal, numFrames);
         vDSP_maxv(mono, 1, &maxVal, numFrames);
+        vDSP_measqv(mono, 1, &meanSquare, numFrames);
 
         // A corrupt file can decode NaN or Inf floats, which vDSP propagates
-        // into the min and max. Left unsanitized they produce NaN CGRects in
-        // the renderers, giving CoreGraphics error spam and blank bars, and,
-        // because isComplete stays YES, they get persisted under the file hash
-        // and break that track forever. Clamp them to 0 here.
+        // into all three reductions. Left unsanitized they produce NaN CGRects
+        // in the renderers, giving CoreGraphics error spam and blank bars,
+        // and, because isComplete stays YES, they get persisted under the file
+        // hash and break that track forever. Clamp them to 0 here.
         if (!std::isfinite(minVal)) minVal = 0.0f;
         if (!std::isfinite(maxVal)) maxVal = 0.0f;
+        if (!std::isfinite(meanSquare)) meanSquare = 0.0f;
 
         if (minVal < values[0]) values[0] = minVal;
         if (maxVal > values[1]) values[1] = maxVal;
+        values[2] += meanSquare * (float)numFrames;
+        values[3] += (float)numFrames;
     }
 
 private:
-    float values[2];
+    // min, max, sum of squared samples, frame count. Energy is a sum plus a
+    // weight rather than a stored mean so that merging — partial decode
+    // buffers into one chunk, chunks into one drawn column — stays exact and
+    // order-independent whatever the pieces' frame counts.
+    float values[4];
 };
 
 class AudioWaveform {

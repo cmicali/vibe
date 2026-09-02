@@ -26,10 +26,14 @@ static const CGFloat kSettingsPaneWidth = 480;
 // size instead of hugging its panes' content.
 static const CGFloat kSettingsPaneMinHeight = 480;
 
-// The panes' host — the tab controller — owns the window's size. A pane's own
-// constraints sit below required, so the window edge wins over them while a
-// pane is on screen (see SettingsWindowController); this is how a size change
-// made while the window is open reaches the frame.
+// The content inset every pane page uses — the base section stack and the
+// Appearance pane's editor page alike.
+static const CGFloat kPanePadding = 20;
+
+// The panes' host — the tab controller — owns the window's size. A pane carries
+// no size constraints at all (loadPaneWithSections: says why), so nothing on
+// the pane side can move the window; this is how a size change made while the
+// window is open reaches the frame.
 @protocol SettingsPaneSizeHost <NSObject>
 - (void)settingsPaneSizeDidChange;
 @end
@@ -37,6 +41,14 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 @interface SettingsPaneViewController : NSViewController
 
 @property (weak, readonly, nullable) MainPlayerController *playerController;
+
+// The one size every pane presents — the largest pane's, applied by
+// settleSharedSizeForPanes:. TRAP: deliberately NOT preferredContentSize.
+// macOS 26.5 turns a nonzero preferredContentSize into active equality
+// constraints on the pane's view at priority 501 — one above
+// NSLayoutPriorityWindowSizeStayPut — which fully determines the window's
+// size: no resize cursor at all, and every programmatic resize snapped back.
+@property (readonly, nonatomic) NSSize sharedPaneSize;
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
@@ -52,9 +64,20 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 // switch resizes nothing. Full refreshes remain selected-pane work.
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
-// A fixed-width popup targeting the pane; pass NULL for a popup whose items
-// carry their own targets.
+// The System Settings inline dropdown — borderless, the value beside an
+// always-drawn chevron badge, no hover treatment (the reference has none),
+// value hugging the row's trailing edge; width caps a runaway title. Pass
+// NULL for a popup whose items carry their own targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
+
+// One popup item: title shown, stable identifier on representedObject — the
+// pairing every settings popup uses, so a mis-paired title/value cannot
+// happen one line at a time.
+- (void)addItem:(NSString *)title value:(nullable id)value to:(NSPopUpButton *)popUp;
+
+// The read half: selects the item carrying value on representedObject, or
+// none when no item does.
+- (void)selectValue:(nullable id)value in:(NSPopUpButton *)popUp;
 
 // The iOS-style toggle every boolean row uses; reads and writes exactly like
 // the checkbox it replaced (NSControlStateValueOn/Off).
@@ -71,16 +94,18 @@ static const CGFloat kSettingsPaneMinHeight = 480;
 
 // Remeasures every pane against the rows it is actually showing and re-sizes
 // them all to the largest, which is what the settings window sizes itself to.
-// The base selected-pane refresh path runs it after refreshing; a pane that
-// hides or shows a row at any other moment must call it, or the window keeps
-// the size it was last measured at.
+// The remeasurement, the stack layout and the window frame land in one
+// animated transaction while the window is visible, so the rows cannot jump
+// ahead of the window. The base selected-pane refresh path runs it after
+// refreshing; a pane that hides or shows a row at any other moment must call
+// it, or the window keeps the size it was last measured at.
 - (void)paneContentDidChange;
 
-// Applies a visible-row change, remeasures every pane, and animates the
-// resulting stack layout and window frame in one transaction. A direct UI
-// action that hides or reveals rows uses this instead of changing them before
-// paneContentDidChange, which would make the rows jump ahead of the window.
-- (void)animatePaneContentChange:(void (^)(void))change;
+// The three steps above as one refresh — what every selected-pane trigger
+// (appearance, window-key regain, menu-tracking end) runs. The debug
+// channel's store-writing verbs run it too, so a scripted write is followed
+// by the same refresh a user gesture gets.
+- (void)refreshSettingsAndPaneSize;
 
 @end
 

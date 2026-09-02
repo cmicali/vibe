@@ -4,6 +4,8 @@
 //
 
 #import "MainPlayerController+Settings.h"
+#import "ArtworkDisplayController.h"
+#import "PlaylistController.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
@@ -11,9 +13,19 @@
 #import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioWaveformView.h"
+#import "Fonts.h"
 #import "MainMenuBuilder.h"
+#import "PlaylistTableView.h"
+#import "MainPlayerContentView.h"
+#import "TrackDisplayController.h"
 
 @implementation MainPlayerController (Settings)
+
+// The theme's font choice, pushed into Fonts — which may not read a setting
+// itself. Runs before label construction at launch and from the Fonts effect.
+- (void)applyStoredFonts {
+    [Fonts applyThemeFonts:AppSettings.sharedInstance.currentTheme];
+}
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
     NSAssert(NSThread.isMainThread, @"Settings live effects are main-thread only");
@@ -42,8 +54,35 @@
     if (effects & VibeSettingsLiveEffectWindowAppearance) {
         [self applyStoredAppearance];
     }
+    if (effects & VibeSettingsLiveEffectWindowChrome) {
+        [self applyWindowChrome];
+    }
+    if (effects & VibeSettingsLiveEffectFonts) {
+        [self applyStoredFonts];
+        // The re-style resets the title to base size, so the refit must
+        // follow in the same branch, or a shrink-fitted title strands at
+        // full size and truncated.
+        [self.playerContentView applyThemedLabelFonts];
+        [self.trackDisplay refitTitle];
+    }
+    if (effects & VibeSettingsLiveEffectPlaylistRowFills) {
+        // PlaylistRowView reads its themed fill per draw, so a row-fill color
+        // change needs only a repaint, never a cell rebuild.
+        [self.playlistTableView enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
+            rowView.needsDisplay = YES;
+        }];
+    }
+    if (effects & VibeSettingsLiveEffectPlaylistBackground) {
+        [self.playerContentView applyPlaylistBackground];
+    }
+    if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
+        [PlaylistTableView invalidateCellAttributes];
+        [self.playerContentView applyPlaylistBackground];
+        [self.playlistTableView applyThemedColumnVisibility];
+        [self.playlistTableView reloadData];
+    }
     if (effects & VibeSettingsLiveEffectWaveformStyle) {
-        self.waveformView.waveformStyle = settings.waveformStyle;
+        self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];
@@ -52,6 +91,13 @@
         [self refreshWindowTint];
     }
     if (effects & VibeSettingsLiveEffectTrackDisplay) {
+        // Colors only — fonts are the Fonts effect's, so a color drag never
+        // re-measures the title. Drop the content guards so unchanged strings
+        // still repaint; the themed no-artwork placeholder re-applies here
+        // for the same reason.
+        [self.playerContentView applyThemedLabelColors];
+        [self->_artworkController refreshDefaultArtwork];
+        [self.trackDisplay resetRenderGuards];
         [self updateUI];
     }
     if (effects & VibeSettingsLiveEffectFolderArt) {

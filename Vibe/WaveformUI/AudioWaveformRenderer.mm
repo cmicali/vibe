@@ -80,4 +80,8 @@
 
 }
 
+- (BOOL)supportsEnvelopeBake {
+    return NO;
+}
+
 @end

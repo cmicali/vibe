@@ -117,12 +117,13 @@ static NSString *NormalizePathSeparators(NSString *name) {
 }
 
 // TRAP: a path cannot hold a NUL, and an unpaired surrogate is not text at
-// all, but both reach us — from a file truncated mid-write, from one written
-// as UTF-16 and read as something else, from a %00 in a file:// URL. NSURL
-// answers *nil* for such a component, and a nil candidate takes the whole open
-// down with an exception on a background expansion worker. They are dropped
-// here, while the name is still a string: what is left either names the file
-// or resolves to nothing, and neither crashes.
+// all, but both reach us — from a file truncated mid-write, or one written
+// as UTF-16 and read as something else. (%00 in a file:// URL was the third
+// origin; the m3u URL branch now drops it in encoded form.) NSURL answers
+// *nil* for such a component, and a nil candidate takes the whole open down
+// with an exception on a background expansion worker. They are dropped here,
+// while the name is still a string: what is left either names the file or
+// resolves to nothing, and neither crashes.
 static NSString *StrippedOfUnpathableCharacters(NSString *name) {
     NSUInteger length = name.length;
     BOOL suspect = NO;
@@ -234,6 +235,14 @@ static BOOL IsCueFileTypeKeyword(NSString *token) {
             if (![entry.lowercaseString hasPrefix:@"file://"]) {
                 return;
             }
+            // TRAP: what NSURL.path answers for %00 moved between OS releases
+            // — older Foundation decoded it to a NUL (which the strip below
+            // dropped), macOS 26 leaves the literal %00 in the path. A NUL
+            // cannot name a file either way, so drop the encoded form before
+            // NSURL sees it and both generations converge on the rescued
+            // name. Unambiguous here: a file literally named a%00b travels
+            // as %2500, which does not contain the substring %00.
+            entry = [entry stringByReplacingOccurrencesOfString:@"%00" withString:@""];
             NSString *path = [NSURL URLWithString:entry].path;
             if (path.length == 0) {
                 // Sloppy writers emit file:// URLs with raw spaces, which

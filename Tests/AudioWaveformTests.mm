@@ -194,6 +194,7 @@
     AudioWaveformCacheChunk c(samples, 3);
     XCTAssertEqual(c.getMin(), 0.0f);
     XCTAssertEqual(c.getMax(), 0.75f);
+    XCTAssertEqualWithAccuracy(c.getMeanSquare(), (0.0625f + 0.5625f + 0.25f) / 3.0f, 1e-6);
 
     const float bipolar[] = {-0.6f, 0.2f};
     AudioWaveformCacheChunk d(bipolar, 2);
@@ -209,11 +210,52 @@
     AudioWaveformCacheChunk c(withNaN, 3);
     XCTAssertTrue(std::isfinite(c.getMin()));
     XCTAssertTrue(std::isfinite(c.getMax()));
+    XCTAssertTrue(std::isfinite(c.getMeanSquare()));
 
     const float withInf[] = {INFINITY, -INFINITY};
     AudioWaveformCacheChunk d(withInf, 2);
     XCTAssertTrue(std::isfinite(d.getMin()));
     XCTAssertTrue(std::isfinite(d.getMax()));
+    XCTAssertTrue(std::isfinite(d.getMeanSquare()));
+}
+
+- (void)testChunkFromMonoBufferAccumulatesEnergyWeightedByFrames {
+    const float first[] = {0.5f, -0.5f};       // meanSquare 0.25 over 2 frames
+    AudioWaveformCacheChunk c(first, 2);
+    XCTAssertEqualWithAccuracy(c.getMeanSquare(), 0.25f, 1e-6);
+
+    const float second[] = {1.0f};             // meanSquare 1.0 over 1 frame
+    c.mergeFromMonoBuffer(second, 1);
+    XCTAssertEqualWithAccuracy(c.getMeanSquare(), (0.25f * 2 + 1.0f) / 3.0f, 1e-6);
+}
+
+- (void)testMergeCombinesEnergyExactlyWhateverTheOrder {
+    // Sequential pairwise merges must equal one flat combine: energy is a sum
+    // plus a frame count, not a stored mean, or the first chunk's weight
+    // would halve with every later merge.
+    AudioWaveformCacheChunk a, b, c;
+    a.set(0, 0, 4.0f, 2.0f);
+    b.set(0, 0, 1.0f, 1.0f);
+    c.set(0, 0, 10.0f, 5.0f);
+    a.merge(&b);
+    a.merge(&c);
+    XCTAssertEqualWithAccuracy(a.getMeanSquare(), 15.0f / 8.0f, 1e-6);
+}
+
+- (void)testColumnsCombineEnergyOnBothCombinePaths {
+    // Chunk i carries meanSquare i over one frame, so a column's meanSquare is
+    // the average of its chunk indexes — checkable on the <16 plain loop
+    // (8 chunks per column) and the vDSP path (16 per column) alike.
+    std::vector<AudioWaveformCacheChunk> chunks(64, AudioWaveformCacheChunk());
+    for (NSUInteger i = 0; i < 64; i++) {
+        chunks[i].set(0, 0, (float)i, 1.0f);
+    }
+    AudioWaveform *w = new AudioWaveform(chunks.size(), chunks.data());
+    XCTAssertEqualWithAccuracy(w->getChunkAtIndex(0, 8).getMeanSquare(), 3.5f, 1e-6,
+                               @"column 0 covers chunks [0,8)");
+    XCTAssertEqualWithAccuracy(w->getChunkAtIndex(3, 4).getMeanSquare(), 55.5f, 1e-6,
+                               @"column 3 covers chunks [48,64)");
+    delete w;
 }
 
 - (void)testEmptyMonoBufferLeavesTheChunkUntouched {
@@ -222,6 +264,7 @@
     c.mergeFromMonoBuffer(nullptr, 0);
     XCTAssertEqual(c.getMin(), -2.0f);
     XCTAssertEqual(c.getMax(), 3.0f);
+    XCTAssertEqual(c.getMeanSquare(), 0.0f, @"no frames merged means no energy");
 }
 
 #pragma mark - AudioWaveformMonoMix

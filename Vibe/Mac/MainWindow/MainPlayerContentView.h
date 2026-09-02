@@ -25,10 +25,27 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTarget:(id)target;
 
-// The rounded-rect mask for the pre-26 frosted stand-ins for Liquid Glass:
-// an NSVisualEffectView shapes its blur through maskImage — a layer
-// cornerRadius clips its tint but not the blur region.
-+ (NSImage *)frostCornerMaskWithRadius:(CGFloat)radius;
+// The pre/post-26 backdrop dichotomy in one place: glass takes a layer
+// radius, frost a regenerated mask. Shared by both build paths and both live
+// re-applies (this view's instance applyCornerRadius: and the controller's
+// applyWindowChrome).
++ (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
+
+// Re-shapes the header glass panel and its tint layer to the themed radius;
+// the window mask and backdrop are the controller's (applyWindowChrome).
+- (void)applyCornerRadius:(CGFloat)radius;
+
+// Re-resolve the header labels' themed fonts and colors, split so a
+// color-only edit does not reset fonts (which would force the title's
+// shrink-to-fit — TrackDisplayController owns the fit — and a text
+// re-measure per color-well drag tick). The corner readouts' color rides
+// their attributed strings.
+- (void)applyThemedLabelFonts;
+- (void)applyThemedLabelColors;
+
+// Re-resolves the themed wash over the playlist frost; also runs on every
+// appearance change (updateMaterialForAppearance).
+- (void)applyPlaylistBackground;
 
 // Fires from the effective-appearance funnel, after the view's own material
 // and tint updates, so that appearance-dependent state owned elsewhere — the
@@ -50,6 +67,10 @@ NS_ASSUME_NONNULL_BEGIN
 // its tint entirely while the window is inactive, and the wash must not change
 // with key state; see ArtworkDisplayController.
 @property (readonly) NSView *headerTintView;
+// The playlist's counterpart: the tint wash over the playlist background —
+// frost or solid cover — under the table, driven by the same controller from
+// the theme's playlistTint.
+@property (readonly) NSView *playlistTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
 @property (readonly) AudioWaveformView *waveformView;
 

@@ -30,6 +30,47 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
+// One sampling for the live target fill and the envelope bake, which must
+// stay pixel-identical: the bar's peak envelope rescaled so the energy
+// decides the size and the min/max keep the shape (and its asymmetry on
+// DC-offset material). Both the energy and the scale's reference extent come
+// from the kVibeWaveformEnergyColumns-floored COLUMN, not the bar: the
+// column's loudest bar lands exactly on the energy envelope and finer bars
+// keep their relative peak texture below it — the dips between transients
+// that distinguish the oversampling styles. Normalizing each bar's own
+// extent to the level instead flattened every bar in a column to the same
+// height, which drew x4 and x8 as plain Detailed with extra rects.
+//
+// The caller carries the last column between bars: at the oversampling
+// counts the column advances only every count/1024 bars, and the fills run
+// at 10 Hz through a decode — x8's 8192 bars would otherwise re-combine and
+// re-sqrt every column eight times per fill.
+typedef struct {
+    NSUInteger index; // NSNotFound before the first bar
+    float extent, level;
+} VibeEnergyColumn;
+
+static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger i, NSUInteger count,
+                                            VibeEnergyColumn *column,
+                                            float *outMin, float *outMax) {
+    AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+    NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
+    if (column->index != columnIndex) {
+        AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
+                ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
+        column->index = columnIndex;
+        column->extent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+        column->level = VibeWaveformBarLevel(c.getMeanSquare());
+    }
+    // A count that is not a multiple of the column count lets a bar straddle
+    // two columns and carry a peak its mapped column lacks; the wider extent
+    // keeps that bar on the envelope rather than past it.
+    float extent = fmaxf(column->extent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
+    float scale = extent > 0 ? column->level / extent : 0;
+    *outMin = m.getMin() * scale;
+    *outMax = m.getMax() * scale;
+}
+
 // This family's resting levels live in the theme colors' own alpha
 // (WaveformTheme.h) — the White pair carries what used to be this file's
 // kWaveformOpacity — so the renderer owns only the ramp SHAPE below, scaled
@@ -56,8 +97,8 @@ static const CGFloat kHoverHighlightWidth = 1.5;
     // than a line drawn over it.
     CALayer *_hoverColumn;
 
-    // The samples are a normalized, interleaved min and max per bar, and
-    // rebuildMaskPaths is the rebuild callback.
+    // The samples are a normalized, interleaved energy-scaled [min, max]
+    // envelope per bar, and rebuildMaskPaths is the rebuild callback.
     WaveformMorphEngine *_morph;
 }
 
@@ -212,6 +253,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
 // The stops are the same in light and dark, because the gradient's startPoint
 // and endPoint fix the direction, not the array order.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
+    if (self.theme.flatFill) {
+        return @[color, color];
+    }
     const CGFloat kBottomAlpha = 0.45;
     return @[
             color,
@@ -232,29 +276,34 @@ static const NSUInteger kDetailedMaxBars = 8192;
         [CATransaction commit];
         return;
     }
-    // Snap both edges to the device-pixel grid. A fractional origin or width
-    // leaves half-lit edge pixels, and the column is supposed to be the
-    // brightest thing in the waveform.
-    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
-    CGFloat width = MAX(round(kHoverHighlightWidth * scale), 1) / scale;
-    CGFloat left = floor((x - width / 2) * scale) / scale;
-    left = MIN(MAX(left, 0), MAX(0, b.size.width - width));
+    CGRect column = [self hoverColumnRectForX:x bounds:b
+                                        scale:VibeBackingScaleForLayer(self.parentLayer)];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _hoverColumn.bounds = CGRectMake(0, 0, width, b.size.height);
-    _hoverColumn.position = CGPointMake(left, 0);
+    _hoverColumn.bounds = CGRectMake(0, 0, column.size.width, column.size.height);
+    _hoverColumn.position = column.origin;
     _hoverColumn.hidden = NO;
     [CATransaction commit];
+}
+
+// The polymorphic hook — Basic overrides this with its block-quantized
+// column; the snap itself is the shared rule (VibeSnappedColumnRect).
+- (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale {
+    return VibeSnappedColumnRect(x, kHoverHighlightWidth,
+                                 bounds.size.width, bounds.size.height, scale);
 }
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     if (!_playedClip || !self.parentLayer) return;
     CGRect b = self.parentLayer.bounds;
-    CGFloat w = b.size.width * progress;
-    if (w < 0) w = 0;
-    if (w > b.size.width) w = b.size.width;
-    _playedClip.bounds = CGRectMake(0, 0, w, b.size.height);
+    _playedClip.bounds = CGRectMake(0, 0, [self playedClipWidthForProgress:progress width:b.size.width],
+                                    b.size.height);
     _playedClip.position = CGPointZero;
+}
+
+- (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width {
+    CGFloat w = width * progress;
+    return MIN(MAX(w, 0), width);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
@@ -280,8 +329,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
     // variants. Do not clamp to the pixel count.
     NSUInteger count = [self numBarsForWidth:bounds.size.width];
 
-    // The target the bars ease toward: the waveform's per-bar min and max, or
-    // all-zero, collapsed to the midline, when there is no waveform. A track
+    // The target the bars ease toward: the waveform's per-bar energy-scaled
+    // envelope, or all-zero, collapsed to the midline, when there is no waveform. A track
     // change therefore morphs the old bars toward zero until the new track's
     // waveform arrives and retargets them to its shape. The engine owns the
     // fast, collapsed and commit scaffold and skips this fill on a live-resize
@@ -289,10 +338,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
     // sampling itself belongs to this family.
     [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
                            fill:^(std::vector<float> &target) {
+        VibeEnergyColumn column = {NSNotFound, 0, 0};
         for (NSUInteger i = 0; i < count; i++) {
-            AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-            target[i * 2] = m.getMin();
-            target[i * 2 + 1] = m.getMax();
+            VibeEnergyScaledEnvelope(waveform, i, count, &column,
+                                     &target[i * 2], &target[i * 2 + 1]);
         }
     }];
 }
@@ -364,10 +413,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
     NSUInteger count = [self numBarsForWidth:self.parentLayer.bounds.size.width];
     NSMutableData *data = [NSMutableData dataWithLength:count * 2 * sizeof(float)];
     float *out = (float *)data.mutableBytes;
+    VibeEnergyColumn column = {NSNotFound, 0, 0};
     for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-        out[i * 2] = m.getMin();
-        out[i * 2 + 1] = m.getMax();
+        VibeEnergyScaledEnvelope(waveform, i, count, &column, &out[i * 2], &out[i * 2 + 1]);
     }
     return data;
 }
@@ -444,6 +492,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
 - (CGFloat)unplayedOverPlayedOpacity {
     CGFloat playedTop = CGColorGetAlpha(self.theme.playedColor.CGColor);
     return playedTop > 0 ? CGColorGetAlpha(self.theme.unplayedColor.CGColor) / playedTop : 1;
+}
+
+- (BOOL)supportsEnvelopeBake {
+    return YES;
 }
 
 @end

@@ -4,9 +4,9 @@
 //
 //  Owns the artwork display policy for the main window: which image shows in
 //  the album-art view, whether the track's art or the default record-bg
-//  backdrop, the header glass tint drawn from the dominant art color, and the
-//  dock icon. It also owns the deferred off-main-thread art loads and the
-//  full-resolution art memory lifecycle.
+//  backdrop, the header and playlist tint washes drawn from the theme and the
+//  dominant art color, and the dock icon. It also owns the deferred
+//  off-main-thread art loads and the full-resolution art memory lifecycle.
 //
 //  It is one of the two display controllers, with TrackDisplayController, that
 //  render into MainPlayerContentView's widgets. The content view builds and
@@ -24,10 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 // Main thread only.
 @interface ArtworkDisplayController : NSObject
 
-// Adopts the album-art view and the header tint view from the content view.
-// The tint view is the layer-backed wash over the header glass, whose
-// background this controller sets to the art's dominant color.
-// MainPlayerContentView keeps ownership of the view hierarchy.
+// Adopts the album-art view and the two tint views — header and playlist —
+// from the content view. Each tint view is a layer-backed wash whose
+// background this controller resolves from the theme's tint choice and the
+// art's dominant color. MainPlayerContentView keeps ownership of the view
+// hierarchy.
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView;
 
 // A deferred art load must re-check which track is current when it completes,
@@ -63,17 +64,23 @@ NS_ASSUME_NONNULL_BEGIN
 // loading shimmer.
 - (void)showPlaceholderForSlowLoad;
 
-// Re-derives the header wash from the stored art color. The wash depends on
-// the appearance — a deep wash in dark mode, a pastel one in light — but not
-// on key-window state: its strength is constant whether or not the window is
-// active. That is why it is a plain view's background rather than the glass's
-// own tintColor; see the .m. Call it on appearance changes.
-- (void)refreshHeaderTint;
+// Re-derives the header and playlist washes from the theme and the stored art
+// color. A wash depends on the appearance — a deep wash in dark mode, a
+// pastel one in light — but not on key-window state: its strength is constant
+// whether or not the window is active. That is why each is a plain view's
+// background rather than the glass's own tintColor; see the .m. Call it on
+// appearance changes.
+- (void)refreshTintWashes;
 
 // Demotes the previous track's full-resolution art — both the decoded bitmap
 // and the compressed bytes — when playback moves to a new track, so that art
 // does not accumulate for the playlist's lifetime.
 - (void)trackDidStartPlaying:(AudioTrack *)track;
+
+// Re-applies the theme's no-artwork placeholder while it is on screen — the
+// theme's default artwork changed, and showDefaultArtwork's already-showing
+// guard would otherwise keep the old image up.
+- (void)refreshDefaultArtwork;
 
 @end
 

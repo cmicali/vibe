@@ -17,6 +17,8 @@
 - (IBAction)openDocument:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
 - (IBAction)showSettingsWindow:(id)sender;
+// View > Theme > Edit Themes…: opens Settings on the theme editor.
+- (IBAction)showThemeSettings:(id)sender;
 - (IBAction)showSupportPage:(id)sender;
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.

@@ -13,6 +13,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// A flat, appearance-following layer fill: the color for the side the view
+// is drawn under, re-resolved on a live light/dark flip. Every plain surface
+// of the form is one — the row hairline, the section card, the pane's own
+// backdrop — differing only in colors and radius.
+@interface SettingsFillView : NSView
+@property (nonatomic, strong) NSColor *darkColor;
+@property (nonatomic, strong) NSColor *lightColor;
+@property (nonatomic) CGFloat cornerRadius;
+@end
+
 @interface SettingsRowView : NSView
 
 // The title may end with a localized colon (the strings are shared with the
@@ -31,6 +41,11 @@ NS_ASSUME_NONNULL_BEGIN
 // row's addressing label and skip both as elements of their own.
 @property (readonly, nullable) NSTextField *titleLabel;
 @property (readonly, nullable) NSTextField *captionLabel;
+
+// Retitle in place, through the same form-label trim the constructor applies.
+// The theme editor's per-side color rows lose their side under a single-mode
+// theme, and the title is what the debug walker addresses the row by.
+- (void)setRowTitle:(NSString *)title;
 
 // Set by the section on every row but its first, so a hidden row takes its
 // separator with it.
