@@ -33,6 +33,26 @@
     return new AudioWaveform(_source.size(), _source.data());
 }
 
+#pragma mark - getMaxMeanSquare
+
+// 64 chunks whose mean square is their index, so the loudest column at any
+// resolution is the mean of the last chunks it covers.
+- (void)testMaxMeanSquareIsTheLoudestColumnAtThatResolution {
+    std::vector<AudioWaveformCacheChunk> source(64, AudioWaveformCacheChunk());
+    for (NSUInteger i = 0; i < 64; i++) {
+        source[i].set(0, 0, (float)i * 4, 4);
+    }
+    AudioWaveform *w = new AudioWaveform(source.size(), source.data());
+    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(64), 63, 1e-5);
+    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(8), 59.5, 1e-5);   // chunks 56..63
+    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(1), 31.5, 1e-5);   // the whole track
+    XCTAssertEqualWithAccuracy(w->getMaxMeanSquare(1024), 63, 1e-5); // finer than the source repeats
+    delete w;
+    AudioWaveform *empty = new AudioWaveform();
+    XCTAssertEqual(empty->getMaxMeanSquare(64), 0);
+    delete empty;
+}
+
 #pragma mark - getChunkAtIndex
 
 - (void)testRequestingTheNativeChunkCountReturnsChunksVerbatim {

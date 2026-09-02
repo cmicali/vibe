@@ -20,6 +20,16 @@ NS_ASSUME_NONNULL_BEGIN
 // dropdown of the editor. A cap for runaway titles, not a fixed size.
 static const CGFloat kAppearancePopUpWidth = 220;
 
+// A slider with a tick above and below the track at detentValue — the visual
+// for its action's magnetic snap onto the default. NSSlider's own tick marks
+// are evenly spaced and single-sided, so the pair is drawn by the class; the
+// knob geometry mirrors AppKit's linear layout (half the knob inset at each
+// end). The editor's corner radius and the list page's waveform gain both
+// use it; the implementation is the Editor category's.
+@interface VibeDetentSlider : NSSlider
+@property (nonatomic) double detentValue;
+@end
+
 // The table conformances stay on the class because
 // SettingsAppearanceViewController.m implements them; the font panel's and the
 // text field's are declared on the Editor category, which implements those.

@@ -62,6 +62,12 @@ NS_ASSUME_NONNULL_BEGIN
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill;
 
+// The target derives from the renderer's gain as well as its waveform, and
+// the gain is not in the identity — so a gain change asks for the next
+// updateTargetForSize: to run its fill rather than take the same-identity
+// fast path, and the bars ease to their new heights.
+- (void)invalidateTarget;
+
 // The number of consecutive samples that make up one drawn bar: 1, the
 // default, for Sonic Cirrus, 2 for the Detailed family's interleaved
 // [min, max] pairs. The dip rounds its span outward to this stride, so an

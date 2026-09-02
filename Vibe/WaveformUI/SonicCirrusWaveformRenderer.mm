@@ -277,13 +277,20 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // engine owns the fast, collapsed and commit scaffold and skips this fill
     // on a live-resize frame, where the waveform identity and count are
     // unchanged. Only the sampling itself belongs to this family.
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float gainDB = self.gainDB;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
         for (NSUInteger i = 0; i < count; i++) {
             target[i] = VibeWaveformBarLevel(
-                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare());
+                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
+                    fullScaleRMS, gainDB);
         }
     }];
+}
+
+- (void)levelMappingDidChange {
+    [_morph invalidateTarget];
 }
 
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to {

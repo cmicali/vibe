@@ -105,6 +105,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"showBPM": @(theme.showBPM),
             @"showKey": @(theme.showKey),
             @"showTrafficLights": @(AppSettings.sharedInstance.showTrafficLights),
+            @"waveformNormalize": @(AppSettings.sharedInstance.waveformNormalize),
+            @"waveformGainDB": @(AppSettings.sharedInstance.waveformGainDB),
             @"windowTint": theme.windowTint,
             @"playlistTint": theme.playlistTint,
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),

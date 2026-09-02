@@ -20,6 +20,7 @@
         NSMutableDictionary<NSString *, Class> *registry = [NSMutableDictionary new];
         for (Class renderer in @[BasicAudioWaveformRenderer.class,
                                  CupertinoWaveformRenderer.class,
+                                 CupertinoBasicWaveformRenderer.class,
                                  SonicCirrusWaveformRenderer.class,
                                  DetailedAudioWaveformRenderer.class,
                                  x2OversamplingDetailedAudioWaveformRenderer.class,

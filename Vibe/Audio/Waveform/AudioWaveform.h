@@ -93,6 +93,10 @@ public:
     ~AudioWaveform();
 
     AudioWaveformCacheChunk getChunkAtIndex(NSUInteger index, NSUInteger size);
+    // The loudest of the track's energy columns at this resolution — its mean
+    // square, as getMeanSquare — which the renderers' Normalize draws at
+    // full height. 0 for an empty or silent waveform.
+    float getMaxMeanSquare(NSUInteger columns);
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
     }

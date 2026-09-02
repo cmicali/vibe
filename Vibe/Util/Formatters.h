@@ -20,6 +20,11 @@
 // per locale; the minus is U+2212, matching the fader's printed scale.
 - (NSString *)signedPercentString:(double)percent;
 
+// Signed decimal for the waveform gain readout ("+3.5", "−6", "0"): the
+// pitch readout's sign and U+2212 minus, at most one fraction digit and none
+// when the value is whole, zero unsigned.
+- (NSString *)signedDecimalString:(double)value;
+
 // A 0-1 fraction as a whole-number percentage, placed per locale: "42%" in en,
 // "42 %" in fr. For the accessibility value of the position and pitch sliders,
 // which is spoken rather than drawn, so it is rounded and unsigned — unlike

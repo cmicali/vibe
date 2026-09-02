@@ -88,6 +88,9 @@
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];
     }
+    if (effects & VibeSettingsLiveEffectWaveformLevels) {
+        [self.waveformView refreshWaveformLevels];
+    }
     if (effects & VibeSettingsLiveEffectWindowTint) {
         [self refreshWindowTint];
     }

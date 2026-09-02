@@ -24,6 +24,13 @@ NS_ASSUME_NONNULL_BEGIN
 // in one path are cheap, whereas as many layers would not be.
 - (NSUInteger)numBarsForWidth:(CGFloat)width;
 
+// The samples every bar is drawn from: count interleaved, normalized
+// [min, max] pairs into out. Here it is the energy-scaled peak envelope;
+// Cupertino overrides it to ±level, a bar mirrored about the midline. One
+// hook feeds both the live morph target and the envelope bake, which must
+// stay pixel-identical.
+- (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
+
 // The bar geometry: the width of every bar, and the x origin of bar `index`.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
 - (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth;

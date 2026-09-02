@@ -32,6 +32,27 @@
     _hoverHighlightX = x;
 }
 
+- (void)setNormalizesLevels:(BOOL)normalizes {
+    if (normalizes == _normalizesLevels) {
+        return;
+    }
+    _normalizesLevels = normalizes;
+    [self levelMappingDidChange];
+}
+
+- (void)setGainDB:(float)gainDB {
+    if (gainDB == _gainDB) {
+        return;
+    }
+    _gainDB = gainDB;
+    [self levelMappingDidChange];
+}
+
+// The base draws no bars; the families forward to their morph engine.
+- (void)levelMappingDidChange {
+
+}
+
 // Abstract. Both are declared nonnull, and styleIdentifier is used as a
 // dictionary key by AudioWaveformView's registry, so a subclass that forgets
 // to override would otherwise raise deep inside -setup with nothing naming the

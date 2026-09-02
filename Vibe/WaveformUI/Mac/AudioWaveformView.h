@@ -38,6 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 // after an artwork color settles.
 - (void)refreshThemeColors;
 
+// Re-reads AppSettings' waveformNormalize and waveformGainDB into the
+// renderer and refills its bars from the waveform it already holds, easing
+// them to their new heights.
+- (void)refreshWaveformLevels;
+
 // Styles are identified by the renderer's stable styleIdentifier
 // (WaveformRendererRegistry), never its localized display name.
 - (void)setWaveformStyle:(NSString *)identifier;

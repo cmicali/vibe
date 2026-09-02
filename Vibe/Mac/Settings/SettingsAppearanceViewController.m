@@ -33,6 +33,7 @@
 #import "WaveformRendererRegistry.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
+#import "Formatters.h"
 #import "VibeStrings.h"
 
 static const CGFloat kThemeListRowHeight = 22;
@@ -41,6 +42,9 @@ static const CGFloat kThemeListRowHeight = 22;
 static const CGFloat kThemeListHeight = 10 * kThemeListRowHeight;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
+// The gain slider's magnetic detent: within this many dB of 0 snaps onto the
+// plain mapping — the reset, without a button.
+static const double kWaveformGainDetentDB = 0.75;
 
 @implementation SettingsAppearanceViewController {
     // The list page.
@@ -57,6 +61,9 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSArray<NSView *> *_listSections;
     // The list page's shortcut to the same theme field as _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
+    NSSwitch *_waveformNormalizeSwitch;
+    NSSlider *_waveformGainSlider; // a VibeDetentSlider, typed by what is read of it
+    NSTextField *_waveformGainValue;
     BOOL _editorShown;
     // Armed by a Back pop; the toolbar's forward half re-opens the editor.
     BOOL _editorForwardAvailable;
@@ -129,11 +136,38 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     // in the divergence key rather than dirtying the theme.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
+    // The level mapping's two common settings sit beside it. The gain takes
+    // the corner-radius cluster's shape: a detent slider and a fixed-width
+    // readout, so the changing digit count never nudges the slider.
+    _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
+    VibeDetentSlider *gainSlider = [VibeDetentSlider sliderWithValue:0
+                                                            minValue:-kVibeWaveformGainMaxDB
+                                                            maxValue:kVibeWaveformGainMaxDB
+                                                              target:self action:@selector(waveformGainChanged:)];
+    gainSlider.detentValue = 0;
+    gainSlider.continuous = YES;
+    [gainSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _waveformGainSlider = gainSlider;
+    _waveformGainValue = [NSTextField labelWithString:@""];
+    _waveformGainValue.textColor = NSColor.secondaryLabelColor;
+    _waveformGainValue.alignment = NSTextAlignmentRight;
+    [_waveformGainValue.widthAnchor constraintEqualToConstant:50].active = YES;
+    NSStackView *gainCluster = [NSStackView stackViewWithViews:@[_waveformGainSlider, _waveformGainValue]];
+    gainCluster.spacing = 10;
+
     _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SECTION control:_listWaveformPopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_listWaveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE
+                                  caption:STR_SETTINGS_WAVEFORM_NORMALIZE_CAPTION
+                                  control:_waveformNormalizeSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN
+                                  caption:STR_SETTINGS_WAVEFORM_GAIN_CAPTION
+                                  control:gainCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             [SettingsRowView rowWithContentView:scrollView],
@@ -231,10 +265,13 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
 
-    // The common card, plus the list page's waveform shortcut.
+    // The common cards, plus the list page's waveform style shortcut.
     [self selectValue:settings.windowAppearanceStyle in:_appearancePopUp];
     _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
+    _waveformNormalizeSwitch.state = StateForBOOL(settings.waveformNormalize);
+    _waveformGainSlider.doubleValue = settings.waveformGainDB;
+    [self refreshWaveformGainValue];
 
     // The theme list. Selection mirrors activation, so reselect the active
     // row after every reload.
@@ -639,6 +676,30 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     AppSettings.sharedInstance.showTrafficLights =
             (_trafficLightsSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
+}
+
+- (void)toggleWaveformNormalize:(id)sender {
+    AppSettings.sharedInstance.waveformNormalize =
+            (_waveformNormalizeSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
+}
+
+- (void)waveformGainChanged:(id)sender {
+    // A magnetic detent at 0 dB — the reset, without a button. The getter
+    // answers the half-dB ladder; the knob re-syncs to what actually landed.
+    double gainDB = _waveformGainSlider.doubleValue;
+    if (fabs(gainDB) < kWaveformGainDetentDB) {
+        gainDB = 0;
+    }
+    AppSettings.sharedInstance.waveformGainDB = gainDB;
+    _waveformGainSlider.doubleValue = AppSettings.sharedInstance.waveformGainDB;
+    [self refreshWaveformGainValue];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
+}
+
+- (void)refreshWaveformGainValue {
+    _waveformGainValue.stringValue = [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_GAIN_VALUE,
+            [Formatters.sharedInstance signedDecimalString:AppSettings.sharedInstance.waveformGainDB]];
 }
 
 // The stored choice, which also ends any titlebar preview (the store drops it

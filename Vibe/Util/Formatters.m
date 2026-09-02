@@ -12,6 +12,7 @@
     NSDateComponentsFormatter *_spelledDurationFormatter;
     NSNumberFormatter         *_decimalFormatter;
     NSNumberFormatter         *_signedPercentFormatter;
+    NSNumberFormatter         *_signedDecimalFormatter;
     NSNumberFormatter         *_percentFormatter;
     NSNumberFormatter         *_countFormatter;
 }
@@ -66,6 +67,16 @@
     _signedPercentFormatter.positivePrefix = [@"+" stringByAppendingString:_signedPercentFormatter.positivePrefix ?: @""];
     _signedPercentFormatter.minusSign = @"−";
 
+    // The gain readout's number: the signed percent's sign and minus over
+    // a plain decimal, with the fraction digit only when there is one.
+    _signedDecimalFormatter = [[NSNumberFormatter alloc] init];
+    _signedDecimalFormatter.numberStyle = NSNumberFormatterDecimalStyle;
+    _signedDecimalFormatter.usesGroupingSeparator = NO;
+    _signedDecimalFormatter.minimumFractionDigits = 0;
+    _signedDecimalFormatter.maximumFractionDigits = 1;
+    _signedDecimalFormatter.positivePrefix = [@"+" stringByAppendingString:_signedDecimalFormatter.positivePrefix ?: @""];
+    _signedDecimalFormatter.minusSign = @"−";
+
     // Default multiplier (100), unlike the signed one: this takes a 0-1
     // fraction, which is what both sliders' progress already is.
     _percentFormatter = [[NSNumberFormatter alloc] init];
@@ -108,18 +119,27 @@
 }
 
 - (NSString *)signedPercentString:(double)percent {
-    if (isnan(percent)) {
-        percent = 0;
+    return [self signedString:percent with:_signedPercentFormatter];
+}
+
+- (NSString *)signedDecimalString:(double)value {
+    return [self signedString:value with:_signedDecimalFormatter];
+}
+
+- (NSString *)signedString:(double)value with:(NSNumberFormatter *)formatter {
+    if (isnan(value)) {
+        value = 0;
     }
-    // Exact zero reads "0.0%" with no sign — the readout's neutral state.
-    if (percent == 0) {
-        NSString *zero = [_signedPercentFormatter stringFromNumber:@0];
+    // Exact zero reads "0.0%" and "0" with no sign — the readouts' neutral
+    // state.
+    if (value == 0) {
+        NSString *zero = [formatter stringFromNumber:@0];
         if ([zero hasPrefix:@"+"]) {
             zero = [zero substringFromIndex:1];
         }
         return zero ?: @"";
     }
-    return [_signedPercentFormatter stringFromNumber:@(percent)] ?: @"";
+    return [formatter stringFromNumber:@(value)] ?: @"";
 }
 
 - (NSString *)percentString:(double)fraction {

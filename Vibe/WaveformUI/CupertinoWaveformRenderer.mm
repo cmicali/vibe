@@ -5,6 +5,60 @@
 
 #import "CupertinoWaveformRenderer.h"
 #import "VibeStrings.h"
+#import "PlatformColor.h"
+
+#pragma mark - Cupertino
+
+// A hairline on a 1x display, two device pixels on Retina, with the other
+// three points of Basic's pitch a gap.
+static const CGFloat kCupertinoBarWidth = 1;
+
+@implementation CupertinoWaveformRenderer
+
++ (NSString *)styleIdentifier {
+    return @"cupertino";
+}
+
++ (NSString *)displayName {
+    return STR_WAVEFORM_STYLE_CUPERTINO;
+}
+
+- (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
+    return kCupertinoBarWidth;
+}
+
+// ±level rather than the peak envelope: every bar is centered on the midline
+// and its height is the column's energy, the level Sonic Cirrus draws.
+- (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float gainDB = self.gainDB;
+    for (NSUInteger i = 0; i < count; i++) {
+        float level = VibeWaveformBarLevel(
+                VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
+                fullScaleRMS, gainDB);
+        out[i * 2] = -level;
+        out[i * 2 + 1] = level;
+    }
+}
+
+// A bar mirrored about the midline gets a fade mirrored the same way —
+// Basic's grounded ramp would dim one half of every bar — full at the
+// midline, Detailed's bottom level at both ends, over Basic's full-view axis.
+- (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
+    if (self.theme.flatFill) {
+        return @[color, color];
+    }
+    const CGFloat kEndAlpha = 0.45;
+    return @[
+            VibeColorWithScaledAlpha(color, kEndAlpha),
+            color,
+            VibeColorWithScaledAlpha(color, kEndAlpha),
+    ];
+}
+
+@end
+
+#pragma mark - Cupertino Basic
 
 // Apple Music's scrubber is about 7pt; this one is deliberately a little
 // taller. Hovering grows the pill, Apple Music's own affordance, and the
@@ -23,7 +77,7 @@ static const CGFloat kHoverColumnWidth = 1.5;
 // stays the window's, as with every style.
 static const CGFloat kSeekBandHeight = 28;
 
-@implementation CupertinoWaveformRenderer {
+@implementation CupertinoBasicWaveformRenderer {
     CALayer *_track;       // the capsule: unplayed color, masks the two below
     CALayer *_fill;        // played color over [0, progress]; its leading cap
                            // is the track's mask, its playhead edge is square
@@ -33,11 +87,11 @@ static const CGFloat kSeekBandHeight = 28;
 }
 
 + (NSString *)styleIdentifier {
-    return @"cupertino";
+    return @"cupertino_basic";
 }
 
 + (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_CUPERTINO;
+    return STR_WAVEFORM_STYLE_CUPERTINO_BASIC;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {

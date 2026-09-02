@@ -31,6 +31,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     // once the caller's waveform is released.
     const void *_lastTargetIdentity;
     NSUInteger _lastTargetCount;
+    BOOL _targetInvalidated;
     NSTimer *_morphTimer;
     CFTimeInterval _lastMorphTick;
     float _pendingRebuildPx;  // screen-space bar movement accumulated since the last rebuild
@@ -60,7 +61,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
-    if (identity == _lastTargetIdentity && count == _lastTargetCount) {
+    if (!_targetInvalidated && identity == _lastTargetIdentity && count == _lastTargetCount) {
         // The target is unchanged, so do not touch the scratch: after a commit
         // it holds the stale target, and comparing against it would morph back
         // to it. Only a geometry change matters here.
@@ -73,6 +74,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     }
     _lastTargetIdentity = identity;
     _lastTargetCount = count;
+    _targetInvalidated = NO;
     std::vector<float> &target = [self targetScratchWithCount:count];
     if (identity) {
         fill(target);
@@ -80,6 +82,10 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         std::fill(target.begin(), target.end(), 0.0f);
     }
     [self commitTargetForSize:size hasWaveform:(identity != NULL)];
+}
+
+- (void)invalidateTarget {
+    _targetInvalidated = YES;
 }
 
 - (std::vector<float> &)targetScratchWithCount:(NSUInteger)count {

@@ -101,6 +101,18 @@ static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable i
     return SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
 }
 
+// The waveform gain's ladder: an external write outside the slider's range
+// clamps, NaN reads as the plain mapping, and every value lands on the
+// nearest half dB — the slider's step — so the pane's knob and readout never
+// show a value the store did not keep.
+static inline double VibeNormalizedWaveformGainDB(double gainDB) {
+    if (isnan(gainDB)) {
+        return 0;
+    }
+    double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
+    return round(clamped * 2) / 2;
+}
+
 // An unknown stored artwork-drag identifier snaps to copy_file, the default:
 // dragging the art out delivers the audio file itself.
 static inline NSString *VibeNormalizedArtworkDragAction(NSString *_Nullable identifier) {

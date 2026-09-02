@@ -10,6 +10,7 @@
 // only.
 #import "AudioWaveform.h"
 #import "WaveformTheme.h"
+#import "WaveformLevelMath.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -43,18 +44,10 @@ static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger
     return clampRange(boundary, (NSInteger)0, count);
 }
 
-// The drawn level for a bar, from its chunk's energy rather than its peaks.
-// Peak min/max pegs on limited dance masters — at Basic's pitch every bar
-// covers seconds of audio, so each one contains a full-scale transient and
-// the whole strip reads as a solid block — while RMS still varies through
-// drops and breakdowns. Full height is kVibeWaveformFullScaleRMS (-9 dBFS
-// RMS — a loud club master's sustained level fills the band); anything
-// hotter clamps.
-static const float kVibeWaveformFullScaleRMS = 0.35f;
-static inline float VibeWaveformBarLevel(float meanSquare) {
-    return fminf(sqrtf(fmaxf(meanSquare, 0.0f)) / kVibeWaveformFullScaleRMS, 1.0f);
-}
-
+// The level a bar draws at is VibeWaveformBarLevel (WaveformLevelMath.h):
+// its energy column's RMS against the fill's full-scale reference
+// (VibeWaveformFullScaleRMSForWaveform below), through the renderer's gainDB.
+//
 // The level's energy is averaged over a column no finer than 1/1024 of the
 // track — 8 source chunks, ~0.4s of a typical track, the momentary-loudness
 // scale — however fine the bars. RMS over a window shorter than a beat
@@ -84,6 +77,20 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
             ? waveform->getChunkAtIndex(VibeWaveformEnergyColumnIndexForBar(i, count),
                                         kVibeWaveformEnergyColumns)
             : waveform->getChunkAtIndex(i, count);
+}
+
+// The full-scale reference for one fill: the fixed -9 dBFS RMS, or with
+// Normalize on the track's loudest energy column at the floored resolution,
+// so that column draws full height whatever the master's level. The
+// resolution is the fixed column count rather than the bar count, so a
+// resize cannot move the reference. A silent or still-empty waveform falls
+// back to the constant rather than dividing by zero; its bars are zero
+// either way.
+static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
+                                                        BOOL normalize) {
+    float loudest = (normalize && waveform)
+            ? sqrtf(waveform->getMaxMeanSquare(kVibeWaveformEnergyColumns)) : 0;
+    return loudest > 0 ? loudest : kVibeWaveformFullScaleRMS;
 }
 
 // Snap a hover/seek column to the device-pixel grid. A fractional origin or
@@ -131,6 +138,18 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // rather than every bar. Set it to -1 to force a full repaint, as after the
 // played and unplayed colors change in updateColors:.
 @property (assign) NSInteger lastProgressBoundary;
+
+// Settings > Appearance > Waveform's Normalize and Gain, handed over by the
+// view as the theme is; the init defaults — off, 0 dB — are the plain
+// mapping. Every fill measures its bars against
+// VibeWaveformFullScaleRMSForWaveform and passes the gain to
+// VibeWaveformBarLevel. Either setter reaches levelMappingDidChange, which
+// the bar families forward to their morph engine's invalidateTarget, so a
+// change refills from the same waveform and the bars ease to their new
+// heights rather than staying where the last fill put them.
+@property (nonatomic) BOOL normalizesLevels;
+@property (nonatomic) float gainDB;
+- (void)levelMappingDidChange;
 
 @property (strong) CALayer* parentLayer;
 

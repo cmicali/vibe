@@ -39,6 +39,17 @@ AudioWaveform::~AudioWaveform() {
     free(this->chunks);
 }
 
+float AudioWaveform::getMaxMeanSquare(NSUInteger columns) {
+    float loudest = 0;
+    for (NSUInteger i = 0; i < columns; i++) {
+        float meanSquare = getChunkAtIndex(i, columns).getMeanSquare();
+        if (meanSquare > loudest) {
+            loudest = meanSquare;
+        }
+    }
+    return loudest;
+}
+
 AudioWaveformCacheChunk AudioWaveform::getChunkAtIndex(NSUInteger index, NSUInteger size)  {
     AudioWaveformCacheChunk result;
     // A failed calloc leaves chunks NULL and numChunks 0; see the

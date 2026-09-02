@@ -33,6 +33,18 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testWaveformGainClampsAndLandsOnHalfDecibels {
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(0), 0);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(3.5), 3.5);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(3.3), 3.5);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(3.2), 3.0);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(-6.74), -6.5);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(-0.2), 0);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(40), kVibeWaveformGainMaxDB);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(-40), -kVibeWaveformGainMaxDB);
+    XCTAssertEqual(VibeNormalizedWaveformGainDB(NAN), 0);
+}
+
 - (void)testFolderOpenSortNormalizesUnknownsToName {
     XCTAssertEqual(VibeNormalizedFolderOpenSort(@"name"), VibeFolderOpenSortName);
     XCTAssertEqual(VibeNormalizedFolderOpenSort(@"newest_first"), VibeFolderOpenSortNewestFirst);

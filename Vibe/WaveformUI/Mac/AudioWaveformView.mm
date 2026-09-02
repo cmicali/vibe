@@ -73,9 +73,24 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return; // unchanged style: keep the live layer tree and its state
     }
     _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
+    [self applyLevelSettings];
     [self applyResolvedTheme];
     [self drawWaveform];
     [self updateRendererProgress];
+}
+
+- (void)applyLevelSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    _currentWaveformRenderer.normalizesLevels = settings.waveformNormalize;
+    _currentWaveformRenderer.gainDB = (float)settings.waveformGainDB;
+}
+
+- (void)refreshWaveformLevels {
+    if (!_currentWaveformRenderer) {
+        return;
+    }
+    [self applyLevelSettings];
+    [self drawWaveform];
 }
 
 // The one resolution site on this view: settings + appearance +

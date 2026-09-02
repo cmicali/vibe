@@ -38,6 +38,10 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WINDOW_TINT_ARTWORK                  @"artwork"
 #define SETTINGS_VALUE_WINDOW_TINT_CUSTOM                   @"custom"
 
+// Settings > Appearance > Waveform > Gain reaches this far either side of
+// 0 dB, in half-dB steps (SettingsRules.h).
+static const double kVibeWaveformGainMaxDB = 12;
+
 // Key-label notation identifiers, never display names.
 #define SETTINGS_VALUE_KEY_NOTATION_CAMELOT                 @"camelot"
 #define SETTINGS_VALUE_KEY_NOTATION_MUSICAL                 @"musical"
@@ -112,6 +116,18 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // already-built controls update immediately.
 - (BOOL)showTrafficLights;
 - (void)setShowTrafficLights:(BOOL)show;
+
+// The waveform's level mapping, two common settings rather than theme
+// fields — they are set for a library's mastering level and must survive a
+// theme switch — and one live effect, VibeSettingsLiveEffectWaveformLevels.
+// Normalize (default YES) draws every track with its loudest passage at
+// full height; the gain, in dB with 0 the plain mapping, applies over that.
+// What each does to the bars is WaveformLevelMath.h's. The gain getter
+// answers the half-dB ladder, so the pane's knob re-reads what landed.
+- (BOOL)waveformNormalize;
+- (void)setWaveformNormalize:(BOOL)normalize;
+- (double)waveformGainDB;
+- (void)setWaveformGainDB:(double)gainDB;
 
 
 #pragma mark Themes

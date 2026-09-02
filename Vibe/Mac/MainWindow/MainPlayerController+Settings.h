@@ -42,6 +42,10 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // layer color the cells never read, so a background color drag skips the
     // cell rebuild and reload. The other lighter sibling for live drags.
     VibeSettingsLiveEffectPlaylistBackground = 1UL << 18,
+    // The waveform's level mapping — Normalize and the gain: the renderer
+    // refills its morph target from the same waveform, so the bars ease to
+    // their new heights under a drag.
+    VibeSettingsLiveEffectWaveformLevels   = 1UL << 19,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the

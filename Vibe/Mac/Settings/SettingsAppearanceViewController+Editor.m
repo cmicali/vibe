@@ -51,14 +51,6 @@ static NSString *const kWellDark = @"dark";
 
 @end
 
-// The corner-radius slider, with a tick above and below the track at the
-// factory default — the visual for the action's magnetic detent. NSSlider's
-// own tick marks are evenly spaced and single-sided, so the pair is drawn
-// here; the knob geometry mirrors AppKit's linear layout (half the knob
-// inset at each end).
-@interface VibeDetentSlider : NSSlider
-@end
-
 @implementation VibeDetentSlider
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -67,8 +59,7 @@ static NSString *const kWellDark = @"dark";
         return;
     }
     CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
-    CGFloat fraction = (kVibeThemeCornerRadiusDefault - self.minValue)
-            / (self.maxValue - self.minValue);
+    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
     CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
     CGFloat midY = NSMidY(self.bounds);
     [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
@@ -278,9 +269,11 @@ static NSString *const kWellDark = @"dark";
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    _cornerRadiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
-                                                   minValue:0 maxValue:kVibeThemeCornerRadiusMax
-                                                     target:self action:@selector(cornerRadiusChanged:)];
+    VibeDetentSlider *radiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
+                                                              minValue:0 maxValue:kVibeThemeCornerRadiusMax
+                                                                target:self action:@selector(cornerRadiusChanged:)];
+    radiusSlider.detentValue = kVibeThemeCornerRadiusDefault;
+    _cornerRadiusSlider = radiusSlider;
     _cornerRadiusSlider.continuous = YES;
     [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     _cornerRadiusValue = [NSTextField labelWithString:@""];
