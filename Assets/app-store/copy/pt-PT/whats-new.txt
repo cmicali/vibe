@@ -1,11 +1,9 @@
-* Agora funciona no macOS 13 Ventura ou posterior
-* Temas de cores para a janela e a forma de onda — ou escolha as suas próprias cores
-* A capa do álbum agora vem da pasta da faixa quando o ficheiro não tem nenhuma
-* Carregamento mais fiável de ficheiros na nuvem, com barra de progresso (iCloud Drive, Dropbox)
-* Nova janela de Definições, com muito mais opções
-* Controlo da lista de reprodução pelo teclado — as setas selecionam, Enter reproduz
-* As barras de EQ da faixa em reprodução movem-se agora com o áudio
-* Carregamento mais rápido de pastas grandes, tags e capas
-* Redimensionamento da forma de onda mais suave e animação de reprodução mais suave em faixas curtas
-* Traduções mais consistentes nos 30 idiomas
-* Corrigidas fugas de memória e de descritores de ficheiro
+* Temas — vários designs integrados e um editor para criar os seus
+* Edição da lista de reprodução — selecione várias faixas, remova-as ou arraste para reordenar
+* Novos estilos de forma de onda, além de Normalizar e um cursor de Ganho para a altura do desenho
+* Suporte de VoiceOver na forma de onda e no cursor de Pitch
+* As gravações de notas de voz (.qta) são agora reproduzidas
+* Um comutador para mostrar ou ocultar os controlos da janela
+* Deslocação mais rápida em listas de reprodução grandes
+* Carregamento mais fiável de ficheiros lentos e de ficheiros na nuvem
+* Corrigida a abertura de pastas através de uma ligação simbólica

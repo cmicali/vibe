@@ -1,11 +1,9 @@
-* Now runs on macOS 13 Ventura and later
-* Color themes for the window and the waveform — or pick colors of your own
-* Album art now comes from the track's folder when the file carries none
-* More reliable cloud file loading, with a progress bar (iCloud Drive, Dropbox)
-* A new Settings window, with far more to configure
-* Keyboard control in the playlist — arrow keys select, Return plays
-* The playing track's EQ bars now move with the audio
-* Faster loading of large folders, tags, and artwork
-* Smoother waveform resizing, and smoother playback animation on short tracks
-* More consistent translations across all 30 languages
-* Fixed memory and file descriptor leaks
+* Themes — several built-in designs, and an editor for making your own
+* Playlist editing — select several tracks, remove them, or drag to reorder
+* New waveform styles, plus Normalize and a Gain slider for how tall it draws
+* VoiceOver support for the waveform and the pitch fader
+* Voice memo recordings (.qta) now play
+* A switch for showing or hiding the window buttons
+* Faster playlist scrolling in large libraries
+* More reliable loading of slow and cloud-backed files
+* Fixed opening folders reached through a symlink

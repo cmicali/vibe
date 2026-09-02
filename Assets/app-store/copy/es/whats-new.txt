@@ -1,11 +1,9 @@
-* Ahora funciona con macOS 13 Ventura o posterior
-* Temas de color para la ventana y la forma de onda — o elige tus propios colores
-* La portada del álbum ahora se toma de la carpeta de la pista cuando el archivo no tiene ninguna
-* Carga más fiable de archivos en la nube, con barra de progreso (iCloud Drive, Dropbox)
-* Nueva ventana de Ajustes, con muchas más opciones
-* Control de la lista de reproducción con el teclado — las flechas seleccionan, Intro reproduce
-* Las barras de EQ de la pista en reproducción ahora se mueven con el audio
-* Carga más rápida de carpetas grandes, etiquetas y portadas
-* Redimensionado más fluido de la forma de onda y animación de reproducción más fluida en pistas cortas
-* Traducciones más coherentes en los 30 idiomas
-* Corregidas fugas de memoria y de descriptores de archivo
+* Temas — varios diseños integrados y un editor para crear los tuyos
+* Edición de la lista de reproducción — selecciona varias pistas, elimínalas o arrastra para reordenar
+* Nuevos estilos de forma de onda, además de Normalizar y un regulador de Ganancia para su altura
+* Compatibilidad con VoiceOver en la forma de onda y el regulador de Pitch
+* Las grabaciones de notas de voz (.qta) ya se reproducen
+* Un interruptor para mostrar u ocultar los controles de la ventana
+* Desplazamiento más rápido en listas de reproducción grandes
+* Carga más fiable de archivos lentos y de archivos en la nube
+* Corregida la apertura de carpetas a través de un enlace simbólico

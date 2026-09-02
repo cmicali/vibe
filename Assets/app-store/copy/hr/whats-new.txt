@@ -1,11 +1,9 @@
-* Sada radi na sustavu macOS 13 Ventura i novijim verzijama
-* Teme boja za prozor i valni oblik — ili odaberite vlastite boje
-* Omot albuma sada se uzima iz mape pjesme kada ga datoteka nema
-* Pouzdanije učitavanje datoteka u oblaku, s trakom napretka (iCloud Drive, Dropbox)
-* Novi prozor Postavke, s mnogo više mogućnosti
-* Upravljanje popisom pjesama tipkovnicom — strelice biraju, Enter reproducira
-* EQ trake pjesme koja svira sada se kreću zajedno sa zvukom
-* Brže učitavanje velikih mapa, oznaka i omota
-* Glatkija promjena veličine valnog oblika i glatkija animacija reprodukcije kod kratkih pjesama
-* Dosljedniji prijevodi na svih 30 jezika
-* Ispravljena curenja memorije i opisnika datoteka
+* Teme — nekoliko ugrađenih izgleda i uređivač za izradu vlastitih
+* Uređivanje popisa pjesama — odaberite više pjesama, uklonite ih ili ih povlačenjem presložite
+* Novi stilovi valnog oblika, uz Normaliziraj i klizač Pojačanje za visinu crtanja
+* Podrška za VoiceOver na valnom obliku i klizaču Pitch
+* Snimke glasovnih bilježaka (.qta) sada se reproduciraju
+* Prekidač za prikaz ili skrivanje gumba prozora
+* Brže pomicanje kroz velike popise pjesama
+* Pouzdanije učitavanje sporih datoteka i datoteka u oblaku
+* Ispravljeno otvaranje mapa putem simboličke poveznice

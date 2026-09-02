@@ -1,11 +1,9 @@
-* Działa teraz na macOS 13 Ventura i nowszych
-* Motywy kolorów dla okna i kształtu fali — albo wybierz własne kolory
-* Okładka albumu jest teraz pobierana z folderu utworu, gdy plik jej nie zawiera
-* Bardziej niezawodne wczytywanie plików w chmurze, z paskiem postępu (iCloud Drive, Dropbox)
-* Nowe okno Ustawień, z o wiele większą liczbą opcji
-* Obsługa playlisty z klawiatury — strzałki wybierają, Enter odtwarza
-* Słupki EQ odtwarzanego utworu poruszają się teraz razem z dźwiękiem
-* Szybsze wczytywanie dużych folderów, tagów i okładek
-* Płynniejsza zmiana rozmiaru kształtu fali i płynniejsza animacja odtwarzania przy krótkich utworach
-* Bardziej spójne tłumaczenia we wszystkich 30 językach
-* Naprawiono wycieki pamięci i deskryptorów plików
+* Motywy — kilka wbudowanych wyglądów oraz edytor do tworzenia własnych
+* Edycja playlisty — zaznacz wiele utworów, usuń je lub przeciągnij, aby zmienić kolejność
+* Nowe style kształtu fali, a do tego Normalizuj i suwak Wzmocnienie regulujący wysokość rysowania
+* Obsługa VoiceOver dla kształtu fali i suwaka Pitch
+* Nagrania notatek głosowych (.qta) są już odtwarzane
+* Przełącznik pokazywania i ukrywania przycisków okna
+* Szybsze przewijanie dużych playlist
+* Bardziej niezawodne wczytywanie wolnych plików i plików w chmurze
+* Poprawiono otwieranie folderów przez dowiązanie symboliczne

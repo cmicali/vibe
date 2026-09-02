@@ -1,11 +1,9 @@
-* Kör nu på macOS 13 Ventura och senare
-* Färgteman för fönstret och vågformen — eller välj egna färger
-* Albumbilden hämtas nu från spårets mapp när filen saknar en egen
-* Mer tillförlitlig inläsning av molnfiler, med förloppsindikator (iCloud Drive, Dropbox)
-* Nytt inställningsfönster med betydligt mer att ställa in
-* Tangentbordsstyrning i spellistan — piltangenterna väljer, Retur spelar upp
-* EQ-staplarna för spåret som spelas rör sig nu med ljudet
-* Snabbare inläsning av stora mappar, taggar och albumbilder
-* Jämnare storleksändring av vågformen och jämnare uppspelningsanimation för korta spår
-* Mer enhetliga översättningar på alla 30 språk
-* Åtgärdade minnesläckor och läckor av filbeskrivare
+* Teman — flera inbyggda utseenden och en redigerare för egna
+* Redigering av spellistan — markera flera spår, ta bort dem eller dra för att ändra ordning
+* Nya vågformsstilar, plus Normalisera och ett Gain-reglage för ritningens höjd
+* VoiceOver-stöd för vågformen och Pitch-reglaget
+* Inspelningar av röstmemon (.qta) spelas nu upp
+* Ett reglage för att visa eller gömma fönsterknapparna
+* Snabbare rullning i stora spellistor
+* Mer tillförlitlig inläsning av långsamma filer och molnfiler
+* Åtgärdade öppning av mappar via en symbolisk länk

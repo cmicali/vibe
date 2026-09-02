@@ -1,11 +1,9 @@
-* Fonctionne désormais sous macOS 13 Ventura et versions ultérieures
-* Thèmes de couleurs pour la fenêtre et la forme d’onde — ou choisissez vos propres couleurs
-* L’illustration d’album provient désormais du dossier du morceau lorsque le fichier n’en contient pas
-* Chargement des fichiers cloud plus fiable, avec barre de progression (iCloud Drive, Dropbox)
-* Nouvelle fenêtre de Réglages, avec bien plus d’options
-* Contrôle de la liste de lecture au clavier — les flèches sélectionnent, Retour lit
-* Les barres d’EQ du morceau en cours suivent désormais le son
-* Chargement plus rapide des grands dossiers, des tags et des illustrations
-* Redimensionnement de la forme d’onde plus fluide et animation de lecture plus fluide sur les morceaux courts
-* Traductions plus cohérentes dans les 30 langues
-* Correction de fuites de mémoire et de descripteurs de fichiers
+* Thèmes — plusieurs designs intégrés, et un éditeur pour créer les vôtres
+* Édition de la liste de lecture — sélectionnez plusieurs morceaux, supprimez-les ou glissez pour réordonner
+* Nouveaux styles de forme d’onde, avec Normaliser et un curseur Gain pour la hauteur du tracé
+* Prise en charge de VoiceOver pour la forme d’onde et le curseur Pitch
+* Les enregistrements de mémos vocaux (.qta) se lisent désormais
+* Un réglage pour afficher ou masquer les boutons de la fenêtre
+* Défilement plus rapide dans les grandes listes de lecture
+* Chargement plus fiable des fichiers lents et des fichiers cloud
+* Correction de l’ouverture des dossiers via un lien symbolique

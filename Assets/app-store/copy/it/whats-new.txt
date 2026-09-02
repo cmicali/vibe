@@ -1,11 +1,9 @@
-* Ora funziona su macOS 13 Ventura e versioni successive
-* Temi colore per la finestra e la forma d’onda — oppure scegli i tuoi colori
-* La copertina dell’album ora arriva dalla cartella del brano quando il file non ne ha una
-* Caricamento più affidabile dei file nel cloud, con barra di avanzamento (iCloud Drive, Dropbox)
-* Nuova finestra Impostazioni, con molte più opzioni
-* Controllo della playlist da tastiera — le frecce selezionano, Invio riproduce
-* Le barre EQ del brano in riproduzione ora si muovono con l’audio
-* Caricamento più rapido di cartelle grandi, tag e copertine
-* Ridimensionamento della forma d’onda più fluido e animazione di riproduzione più fluida sui brani brevi
-* Traduzioni più coerenti in tutte le 30 lingue
-* Corrette perdite di memoria e di descrittori di file
+* Temi — diversi design integrati e un editor per crearne di tuoi
+* Modifica della playlist — seleziona più brani, rimuovili o trascina per riordinare
+* Nuovi stili di forma d’onda, oltre a Normalizza e un cursore Guadagno per l’altezza del disegno
+* Supporto VoiceOver per la forma d’onda e il cursore Pitch
+* Le registrazioni dei memo vocali (.qta) ora si riproducono
+* Un interruttore per mostrare o nascondere i controlli della finestra
+* Scorrimento più veloce nelle playlist di grandi dimensioni
+* Caricamento più affidabile dei file lenti e dei file nel cloud
+* Corretta l’apertura delle cartelle tramite un collegamento simbolico

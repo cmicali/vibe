@@ -1,11 +1,9 @@
-* Toimii nyt macOS 13 Ventura -versiossa ja sitä uudemmissa
-* Väriteemat ikkunalle ja aaltomuodolle — tai valitse omat värisi
-* Albumin kansikuva haetaan nyt kappaleen kansiosta, kun tiedostossa ei ole omaa
-* Luotettavampi pilvitiedostojen lataus, edistymispalkin kera (iCloud Drive, Dropbox)
-* Uusi asetusikkuna, jossa on paljon enemmän säädettävää
-* Näppäimistöohjaus soittolistassa — nuolinäppäimet valitsevat, Enter toistaa
-* Soivan kappaleen EQ-palkit liikkuvat nyt äänen mukana
-* Nopeampi suurten kansioiden, tunnisteiden ja kansikuvien lataus
-* Sulavampi aaltomuodon koon muutos ja sulavampi toistoanimaatio lyhyissä kappaleissa
-* Yhtenäisemmät käännökset kaikilla 30 kielellä
-* Korjattu muistivuotoja ja tiedostokahvojen vuotoja
+* Teemat — useita valmiita ulkoasuja ja editori omien tekemiseen
+* Soittolistan muokkaus — valitse useita kappaleita, poista ne tai järjestä vetämällä
+* Uusia aaltomuototyylejä sekä Normalisoi ja Vahvistus-liukusäädin piirtokorkeudelle
+* VoiceOver-tuki aaltomuodolle ja Pitch-liukusäätimelle
+* Sanelutallenteet (.qta) toistuvat nyt
+* Kytkin ikkunasäätimien näyttämiseen tai kätkemiseen
+* Nopeampi vieritys suurissa soittolistoissa
+* Luotettavampi hitaiden ja pilvitiedostojen lataus
+* Korjattu kansioiden avaaminen symbolisen linkin kautta

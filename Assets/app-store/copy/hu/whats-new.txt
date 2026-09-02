@@ -1,11 +1,9 @@
-* Mostantól macOS 13 Ventura és újabb rendszereken fut
-* Színtémák az ablakhoz és a hullámformához — vagy válassz saját színeket
-* Az albumborító mostantól a szám mappájából érkezik, ha a fájlban nincs
-* Megbízhatóbb felhőfájl-betöltés, folyamatjelzővel (iCloud Drive, Dropbox)
-* Új Beállítások ablak, sokkal több beállítási lehetőséggel
-* Billentyűzetes vezérlés a lejátszási listában — a nyilak választanak, az Enter lejátszik
-* Az éppen szóló szám EQ-sávjai mostantól a hanggal együtt mozognak
-* Gyorsabb betöltés nagy mappák, címkék és borítók esetén
-* Simább hullámforma-átméretezés és simább lejátszási animáció rövid számoknál
-* Egységesebb fordítások mind a 30 nyelven
-* Javítva memória- és fájlleíró-szivárgások
+* Témák — több beépített megjelenés, és egy szerkesztő a sajátjaidhoz
+* Lejátszási lista szerkesztése — jelölj ki több számot, távolítsd el őket, vagy húzással rendezd át
+* Új hullámforma-stílusok, valamint Normalizálás és egy Erősítés csúszka a rajzolt magassághoz
+* VoiceOver-támogatás a hullámformához és a Pitch csúszkához
+* A hangjegyzet-felvételek (.qta) mostantól lejátszhatók
+* Kapcsoló az ablakvezérlők megjelenítéséhez vagy elrejtéséhez
+* Gyorsabb görgetés nagy lejátszási listákban
+* Megbízhatóbb betöltés lassú és felhőben tárolt fájloknál
+* Javítva a szimbolikus linken keresztüli mappanyitás

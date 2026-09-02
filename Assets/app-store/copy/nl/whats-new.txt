@@ -1,11 +1,9 @@
-* Werkt nu op macOS 13 Ventura en nieuwer
-* Kleurthema’s voor het venster en de golfvorm — of kies je eigen kleuren
-* De albumillustratie komt nu uit de map van het nummer als het bestand er zelf geen heeft
-* Betrouwbaarder laden van cloudbestanden, met voortgangsbalk (iCloud Drive, Dropbox)
-* Nieuw instellingenvenster met veel meer om in te stellen
-* Toetsenbordbediening in de afspeellijst — de pijltoetsen selecteren, Enter speelt af
-* De EQ-balkjes van het spelende nummer bewegen nu mee met het geluid
-* Sneller laden van grote mappen, tags en illustraties
-* Vloeiender formaat wijzigen van de golfvorm en vloeiender afspeelanimatie bij korte nummers
-* Consistentere vertalingen in alle 30 talen
-* Geheugenlekken en lekken van bestandsdescriptors opgelost
+* Thema’s — meerdere ingebouwde ontwerpen, en een editor om je eigen te maken
+* Afspeellijst bewerken — selecteer meerdere nummers, verwijder ze of sleep om te herschikken
+* Nieuwe golfvormstijlen, plus Normaliseren en een Gain-schuifknop voor de tekenhoogte
+* VoiceOver-ondersteuning voor de golfvorm en de Pitch-schuifknop
+* Opnamen van spraakmemo’s (.qta) worden nu afgespeeld
+* Een schakelaar om de vensterknoppen te tonen of te verbergen
+* Sneller scrollen in grote afspeellijsten
+* Betrouwbaarder laden van trage bestanden en cloudbestanden
+* Openen van mappen via een symbolische koppeling hersteld

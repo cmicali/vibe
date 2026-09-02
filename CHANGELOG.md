@@ -1,6 +1,6 @@
 # v1.11
 
-* mac: Added themeing and theme editor
+* mac: Added theming and theme editor
 * mac: Added playlist editing: multi-select, remove, drag/drop
 * mac: Added accessibility/VoiceOver to waveform and pitch fader
 * ios: New favorites tab
@@ -11,7 +11,6 @@
 * Added QTA file support (Voice Notes export format)
 * Improved slow/cloud file loading
 * Improved playlist scrolling performance with large libraries
-* Improved large playlist scrolling performance
 * Fixed loading symlinked folders
 
 # v1.10

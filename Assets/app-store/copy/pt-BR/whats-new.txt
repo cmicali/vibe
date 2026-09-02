@@ -1,11 +1,9 @@
-* Agora funciona no macOS 13 Ventura ou posterior
-* Temas de cores para a janela e a forma de onda — ou escolha suas próprias cores
-* A capa do álbum agora vem da pasta da faixa quando o arquivo não tem uma
-* Carregamento mais confiável de arquivos na nuvem, com barra de progresso (iCloud Drive, Dropbox)
-* Nova janela de Ajustes, com muito mais opções
-* Controle da playlist pelo teclado — as setas selecionam, Enter reproduz
-* As barras de EQ da faixa em reprodução agora se movem com o áudio
-* Carregamento mais rápido de pastas grandes, tags e capas
-* Redimensionamento da forma de onda mais suave e animação de reprodução mais suave em faixas curtas
-* Traduções mais consistentes nos 30 idiomas
-* Corrigidos vazamentos de memória e de descritores de arquivo
+* Temas — vários designs integrados e um editor para criar os seus
+* Edição da playlist — selecione várias faixas, remova-as ou arraste para reordenar
+* Novos estilos de forma de onda, além de Normalizar e um controle deslizante de Ganho para a altura do desenho
+* Suporte a VoiceOver na forma de onda e no controle deslizante de Pitch
+* As gravações de notas de voz (.qta) agora são reproduzidas
+* Um ajuste para mostrar ou ocultar os controles da janela
+* Rolagem mais rápida em playlists grandes
+* Carregamento mais confiável de arquivos lentos e de arquivos na nuvem
+* Corrigida a abertura de pastas por meio de um link simbólico

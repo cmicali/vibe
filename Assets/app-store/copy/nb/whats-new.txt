@@ -1,11 +1,9 @@
-* Kjører nå på macOS 13 Ventura og nyere
-* Fargetemaer for vinduet og bølgeformen — eller velg dine egne farger
-* Albumbildet hentes nå fra sporets mappe når filen ikke har et selv
-* Mer pålitelig innlasting av skyfiler, med fremdriftslinje (iCloud Drive, Dropbox)
-* Nytt innstillingsvindu med langt flere valg
-* Tastaturstyring i spillelisten — piltastene velger, Retur spiller av
-* EQ-stolpene til sporet som spilles, beveger seg nå med lyden
-* Raskere innlasting av store mapper, tagger og albumbilder
-* Jevnere endring av bølgeformens størrelse og jevnere avspillingsanimasjon på korte spor
-* Mer enhetlige oversettelser på alle 30 språk
-* Rettet minnelekkasjer og lekkasjer av filbeskrivere
+* Temaer — flere innebygde utseender og et redigeringsverktøy for dine egne
+* Redigering av spillelisten — velg flere spor, fjern dem, eller dra for å endre rekkefølgen
+* Nye bølgeformstiler, pluss Normaliser og en Gain-skyveknapp for tegnehøyden
+* VoiceOver-støtte for bølgeformen og Pitch-skyveknappen
+* Opptak av talememoer (.qta) spilles nå av
+* En bryter for å vise eller skjule vindusknappene
+* Raskere rulling i store spillelister
+* Mer pålitelig innlasting av trege filer og skyfiler
+* Rettet åpning av mapper via en symbolsk lenke

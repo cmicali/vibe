@@ -1,11 +1,9 @@
-* Kører nu på macOS 13 Ventura og nyere
-* Farvetemaer til vinduet og bølgeformen — eller vælg dine egne farver
-* Albumbilledet hentes nu fra nummerets mappe, når filen ikke selv har et
-* Mere pålidelig indlæsning af cloud-filer, med statuslinje (iCloud Drive, Dropbox)
-* Nyt indstillingsvindue med langt flere valgmuligheder
-* Tastaturbetjening i spillelisten — piletasterne vælger, Retur afspiller
-* EQ-bjælkerne for det nummer, der spiller, bevæger sig nu med lyden
-* Hurtigere indlæsning af store mapper, tags og albumbilleder
-* Jævnere ændring af bølgeformens størrelse og jævnere afspilningsanimation på korte numre
-* Mere ensartede oversættelser på alle 30 sprog
-* Rettet hukommelseslæk og læk af filbeskrivere
+* Temaer — flere indbyggede udseender og en editor til dine egne
+* Redigering af spillelisten — vælg flere numre, fjern dem, eller træk for at omarrangere
+* Nye bølgeformstile samt Normaliser og en Gain-mærke til tegnehøjden
+* VoiceOver-understøttelse af bølgeformen og Pitch-mærket
+* Optagelser af talememoer (.qta) afspilles nu
+* En kontakt til at vise eller skjule vinduesknapperne
+* Hurtigere rulning i store spillelister
+* Mere pålidelig indlæsning af langsomme filer og skyfiler
+* Rettet åbning af mapper via et symbolsk link

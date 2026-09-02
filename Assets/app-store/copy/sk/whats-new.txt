@@ -1,11 +1,9 @@
-* Teraz beží na macOS 13 Ventura a novších verziách
-* Farebné motívy pre okno a vlnový priebeh — alebo si zvoľte vlastné farby
-* Obal albumu sa teraz načíta z priečinka skladby, keď ho súbor sám nemá
-* Spoľahlivejšie načítavanie súborov v cloude, s ukazovateľom priebehu (iCloud Drive, Dropbox)
-* Nové okno Nastavenia, s oveľa väčším počtom volieb
-* Ovládanie playlistu klávesnicou — šípky vyberajú, Enter prehráva
-* Pruhy EQ prehrávanej skladby sa teraz hýbu so zvukom
-* Rýchlejšie načítavanie veľkých priečinkov, značiek a obalov
-* Plynulejšia zmena veľkosti vlnového priebehu a plynulejšia animácia prehrávania pri krátkych skladbách
-* Konzistentnejšie preklady vo všetkých 30 jazykoch
-* Opravené úniky pamäte a súborových deskriptorov
+* Motívy — niekoľko vstavaných vzhľadov a editor na tvorbu vlastných
+* Úpravy playlistu — vyberte viac skladieb, odstráňte ich alebo ich presuňte myšou
+* Nové štýly vlnového priebehu, k tomu Normalizovať a posuvník Zisk pre výšku vykreslenia
+* Podpora VoiceOveru pre vlnový priebeh a fader Pitch
+* Nahrávky hlasových poznámok (.qta) sa už prehrávajú
+* Prepínač na zobrazenie alebo skrytie ovládacích prvkov okna
+* Rýchlejšie posúvanie vo veľkých playlistoch
+* Spoľahlivejšie načítanie pomalých a cloudových súborov
+* Opravené otváranie priečinkov cez symbolický odkaz

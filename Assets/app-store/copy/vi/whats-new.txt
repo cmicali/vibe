@@ -1,11 +1,9 @@
-* Hiện chạy trên macOS 13 Ventura trở lên
-* Chủ đề màu cho cửa sổ và dạng sóng — hoặc tự chọn màu của bạn
-* Ảnh bìa album nay được lấy từ thư mục của bản nhạc khi tệp không có sẵn
-* Tải tệp trên đám mây đáng tin cậy hơn, kèm thanh tiến trình (iCloud Drive, Dropbox)
-* Cửa sổ Cài đặt mới, với nhiều tùy chọn hơn hẳn
-* Điều khiển playlist bằng bàn phím — phím mũi tên chọn, Return phát
-* Các thanh EQ của bản nhạc đang phát nay chuyển động theo âm thanh
-* Tải thư mục lớn, thẻ và ảnh bìa nhanh hơn
-* Thay đổi kích thước dạng sóng mượt hơn và hoạt ảnh phát mượt hơn ở bản nhạc ngắn
-* Bản dịch nhất quán hơn trên cả 30 ngôn ngữ
-* Đã sửa rò rỉ bộ nhớ và rò rỉ file descriptor
+* Chủ đề — nhiều thiết kế tích hợp sẵn và trình chỉnh sửa để tạo chủ đề của riêng bạn
+* Chỉnh sửa danh sách phát — chọn nhiều bản nhạc, xóa chúng hoặc kéo để sắp xếp lại
+* Kiểu dạng sóng mới, cùng với Chuẩn hóa và thanh trượt Độ khuếch đại cho chiều cao hiển thị
+* Hỗ trợ VoiceOver cho dạng sóng và thanh trượt Pitch
+* Bản ghi âm ghi chú giọng nói (.qta) giờ đã phát được
+* Công tắc hiện hoặc ẩn các điều khiển cửa sổ
+* Cuộn nhanh hơn trong danh sách phát lớn
+* Tải tệp chậm và tệp trên đám mây đáng tin cậy hơn
+* Đã sửa lỗi mở thư mục qua liên kết tượng trưng

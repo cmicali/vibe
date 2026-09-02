@@ -1,11 +1,9 @@
-* Läuft jetzt unter macOS 13 Ventura und neuer
-* Farbthemen für Fenster und Wellenform — oder wähle eigene Farben
-* Das Albumcover kommt jetzt aus dem Ordner des Titels, wenn die Datei selbst keines hat
-* Zuverlässigeres Laden von Cloud-Dateien, mit Fortschrittsbalken (iCloud Drive, Dropbox)
-* Neues Einstellungsfenster mit deutlich mehr Optionen
-* Tastatursteuerung in der Wiedergabeliste — die Pfeiltasten wählen aus, Enter spielt ab
-* Die EQ-Balken des laufenden Titels bewegen sich jetzt mit dem Ton
-* Schnelleres Laden großer Ordner, Tags und Cover
-* Flüssigeres Skalieren der Wellenform und flüssigere Wiedergabeanimation bei kurzen Titeln
-* Einheitlichere Übersetzungen in allen 30 Sprachen
-* Speicher- und Dateideskriptor-Lecks behoben
+* Themen — mehrere eingebaute Designs und ein Editor für eigene
+* Wiedergabeliste bearbeiten — mehrere Titel auswählen, entfernen oder per Drag & Drop umsortieren
+* Neue Wellenformstile, dazu Normalisieren und ein Gain-Regler für die Höhe der Darstellung
+* VoiceOver-Unterstützung für Wellenform und Tempo-Regler
+* Sprachmemo-Aufnahmen (.qta) werden jetzt abgespielt
+* Ein Schalter zum Ein- und Ausblenden der Fenstertasten
+* Schnelleres Scrollen in großen Wiedergabelisten
+* Zuverlässigeres Laden langsamer und in der Cloud liegender Dateien
+* Öffnen von Ordnern über einen symbolischen Link behoben

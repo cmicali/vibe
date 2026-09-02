@@ -1,11 +1,9 @@
-* Artık macOS 13 Ventura ve sonraki sürümlerde çalışır
-* Pencere ve dalga biçimi için renk temaları — ya da kendi renklerinizi seçin
-* Dosyada kapak yoksa albüm kapağı artık parçanın klasöründen gelir
-* Bulut dosyalarının yüklenmesi daha güvenilir, ilerleme çubuğuyla (iCloud Drive, Dropbox)
-* Çok daha fazla seçenek sunan yeni Ayarlar penceresi
-* Çalma listesinde klavye denetimi — ok tuşları seçer, Return çalar
-* Çalan parçanın EQ çubukları artık sesle birlikte hareket eder
-* Büyük klasörlerin, etiketlerin ve kapakların yüklenmesi hızlandı
-* Dalga biçiminin yeniden boyutlandırılması ve kısa parçalarda çalma animasyonu daha akıcı
-* 30 dilin tamamında daha tutarlı çeviriler
-* Bellek ve dosya tanımlayıcı sızıntıları giderildi
+* Temalar — birkaç yerleşik tasarım ve kendinizinkini yapmanız için bir düzenleyici
+* Çalma listesi düzenleme — birden çok parça seçin, kaldırın ya da sürükleyerek yeniden sıralayın
+* Yeni dalga biçimi stilleri, ayrıca Normalleştir ve çizim yüksekliği için bir Kazanç sürgüsü
+* Dalga biçimi ve Pitch sürgüsü için VoiceOver desteği
+* Sesli not kayıtları (.qta) artık çalıyor
+* Pencere denetimlerini göstermek ya da gizlemek için bir anahtar
+* Büyük çalma listelerinde daha hızlı kaydırma
+* Yavaş dosyaların ve bulut dosyalarının daha güvenilir yüklenmesi
+* Sembolik bağlantı üzerinden klasör açma düzeltildi
