@@ -93,6 +93,23 @@
     return url;
 }
 
+// A symbolic link at relative, naming target under the fixture root. The
+// destination need not exist — a broken link is one of the cases the walk has
+// to classify.
+- (NSURL *)makeLink:(NSString *)relative to:(NSString *)target {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES
+                                            attributes:nil
+                                                 error:nil];
+    NSError *error = nil;
+    XCTAssertTrue([NSFileManager.defaultManager
+            createSymbolicLinkAtURL:url
+                withDestinationURL:[_root URLByAppendingPathComponent:target]
+                             error:&error], @"%@ -> %@: %@", relative, target, error);
+    return url;
+}
+
 - (NSURL *)makeText:(NSString *)text at:(NSString *)relative {
     NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
     [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
@@ -536,6 +553,122 @@
 
     [self waitForExpectations:expectations timeout:30];
     XCTAssertEqual((NSUInteger)atomic_load(&asks), kPlaylists);
+}
+
+#pragma mark - Symbolic links
+
+// NSURLIsDirectoryKey is lstat-shaped, so a link to a folder answers NO to it
+// and used to fall through to the extension filter, which dropped it: dragging
+// a ~/Music/NAS link on the window ended in the empty state.
+- (void)testADroppedFolderLinkExpandsToItsTargetsAudio {
+    [self makeFile:@"Music/Song.mp3"];
+    NSURL *link = [self makeLink:@"NAS" to:@"Music"];
+    NSUInteger folderCount = 0;
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[link] folderCount:&folderCount];
+
+    XCTAssertEqualObjects(files, (@[@"Music/Song.mp3"]));
+    XCTAssertEqual(folderCount, 1u);
+}
+
+// The walk answers in the target's spelling, not the link's, so that the
+// directories it reports to the folder-art resolver and the tracks it returns
+// name the same folder.
+- (void)testAFolderLinkInsideAWalkedFolderIsFollowed {
+    [self makeFile:@"library/Own.mp3"];
+    [self makeFile:@"elsewhere/Linked.mp3"];
+    [self makeLink:@"library/shortcut" to:@"elsewhere"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                              sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"elsewhere/Linked.mp3", @"library/Own.mp3"]));
+}
+
+- (void)testALinkToAnAudioFileIsStillAFile {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/Alias.mp3" to:@"library/Song.mp3"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                              sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/Alias.mp3", @"library/Song.mp3"]));
+}
+
+// The emptiness filter answers NO to anything it cannot stat, deliberately, so
+// that a sandbox denial is left for the real open to report — which leaves the
+// walk itself as the only place a link pointing at nothing can be dropped.
+- (void)testABrokenLinkFoundByTheWalkIsSkipped {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/gone.mp3" to:@"nowhere"];
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[[self makeDirectory:@"library"]]
+                                           folderCount:NULL];
+
+    XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
+}
+
+// The covered set is what ends this: without it the walk follows the link back
+// into the folder it is already in, forever.
+- (void)testALinkCycleTerminates {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/loop" to:@"library"];
+    [self makeLink:@"library/deep/up" to:@"library"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                              sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
+}
+
+// Two links onto one folder, and a link into a subtree the walk already
+// listed, are all one listing: a duplicate here is a duplicate playlist row.
+- (void)testALinkIntoAnAlreadyWalkedSubtreeListsItOnce {
+    [self makeFile:@"library/album/Song.mp3"];
+    [self makeLink:@"library/shortcut" to:@"library/album"];
+    [self makeLink:@"library/again" to:@"library/album"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                              sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/album/Song.mp3"]));
+}
+
+// The link is walked first and the folder containing it second, so the second
+// enumeration has to recognize the subtree it already listed as it passes.
+- (void)testALinkWalkedBeforeItsRealParentListsItOnce {
+    [self makeFile:@"outer/album/Song.mp3"];
+    [self makeLink:@"drop/toAlbum" to:@"outer/album"];
+    [self makeLink:@"drop/toOuter" to:@"outer"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [NSURLUtil expandDirectory:[self makeDirectory:@"drop"]
+                              sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"outer/album/Song.mp3"]));
+}
+
+// The folder-art resolver is handed directories, and asks about them by the
+// path a track sits in; a link's target has to be spelled the same in both.
+- (void)testTheWalkedDirectoriesHandlerNamesTheLinkTarget {
+    [self makeFile:@"elsewhere/Song.mp3"];
+    [self makeLink:@"library/shortcut" to:@"elsewhere"];
+    __block NSSet<NSString *> *reported = nil;
+    [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories, NSDictionary *art) {
+        reported = directories;
+    }];
+
+    NSArray<NSURL *> *files = [NSURLUtil expandDirectory:[self makeDirectory:@"library"]
+                                                sortedBy:VibeFolderOpenSortName];
+    [NSURLUtil setWalkedDirectoriesHandler:nil];
+
+    XCTAssertEqualObjects([self relativePaths:files], (@[@"elsewhere/Song.mp3"]));
+    XCTAssertEqualObjects(reported, [NSSet setWithObject:
+            [_root.path stringByAppendingPathComponent:@"elsewhere"]]);
 }
 
 @end

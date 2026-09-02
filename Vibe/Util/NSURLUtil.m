@@ -12,6 +12,9 @@
 #import "PlayableExtensions.h"
 #import "PlaylistFile.h"
 
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #if DEBUG
@@ -164,6 +167,30 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 }
 #endif
 
+// The directory a symbolic link names, canonically spelled, or nil when it
+// names anything else — a file, or nothing at all because the link is broken.
+//
+// TRAP: NSURLIsDirectoryKey is lstat-shaped. A link to a folder answers NO to
+// it, and the enumerator refuses such a link as its root outright (ENOTDIR,
+// every URL spelling), so a folder link left unresolved is taken for a file and
+// then dropped by the extension filter: a dragged ~/Music/NAS link opened to
+// nothing. realpath, not URLByResolvingSymlinksInPath, which leaves a /private
+// prefix as it found it — the enumerator answers in fully resolved paths, so
+// only realpath's spelling can be compared against them.
+static NSString *VibeResolvedDirectoryPath(NSString *path) {
+    if (path.length == 0) {
+        return nil;
+    }
+    char resolved[PATH_MAX];
+    struct stat st;
+    if (!realpath(path.fileSystemRepresentation, resolved) ||
+        stat(resolved, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        return nil;
+    }
+    return [NSFileManager.defaultManager stringWithFileSystemRepresentation:resolved
+                                                                     length:strlen(resolved)];
+}
+
 // Whether path names a file sitting directly in directory — a string test, so a
 // walk can tell it is still in the same folder without rebuilding that folder's
 // path for every entry.
@@ -249,10 +276,19 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     NSMutableDictionary<NSString*, NSNumber*> *artRankByDirectory = [NSMutableDictionary dictionary];
     NSMutableSet<NSString*> *directoriesWalked = [NSMutableSet set];
     NSSet<NSString*> *supported = [self supportedExtensions];
-    // The enumerator is depth-first, so entries arrive in long runs from one
-    // directory; remembering the last one avoids rebuilding the parent path for
-    // every file in a folder.
-    NSString *lastDirectory = nil;
+
+    // The enumerator neither follows a directory symlink nor opens one as its
+    // root, so the walk owns them: each one found becomes another root here,
+    // and the top-level folder is resolved so every path below is canonical
+    // like the enumerator's own answers. covered holds every directory an
+    // enumeration has passed through, which is what ends a link cycle and
+    // keeps a link into an already-walked subtree from listing it twice.
+    NSMutableArray<NSString*> *pendingRoots = [NSMutableArray array];
+    NSMutableSet<NSString*> *covered = [NSMutableSet set];
+    NSString *resolvedRoot = VibeResolvedDirectoryPath(dir.path);
+    if (resolvedRoot) {
+        [pendingRoots addObject:resolvedRoot];
+    }
 
     // Skip hidden files. On exFAT, SMB and USB volumes macOS writes
     // AppleDouble sidecars such as "._Song.mp3", whose extension passes the
@@ -260,54 +296,111 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     // each one showed up as a duplicate, unplayable playlist row. Skipping
     // package descendants keeps the walk out of app and bundle internals.
     // The modification date is prefetched only when the sort needs it; every
-    // key here is one more attribute the provider has to answer for.
+    // key here is one more attribute the provider has to answer for — the link
+    // flag rides along rather than costing a getattrlist per entry.
     NSArray<NSURLResourceKey> *keys = sort == VibeFolderOpenSortNewestFirst
-            ? @[NSURLIsDirectoryKey, NSURLContentModificationDateKey]
-            : @[NSURLIsDirectoryKey];
-    NSDirectoryEnumerator *enumerator = [fileManager
-            enumeratorAtURL:dir
- includingPropertiesForKeys:keys
-                    options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
-               errorHandler:^(NSURL *url, NSError *error) {
-                   // Skip the unreadable entry or subtree, but keep
-                   // enumerating the rest of the drop.
-                   LogWarn(@"Error enumerating %@: %@", url, error);
-                   return YES;
-               }];
-    for (NSURL *url in enumerator) {
-        NSError *error = nil;
-        NSNumber *isDirectory = nil;
-        BOOL isFile;
-        if ([url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&error]) {
-            isFile = !isDirectory.boolValue;
-        }
-        else {
-            // Log it and treat it as a file, the same fallback
-            // expandFileList:folderCount: uses, so that it still reaches the
-            // extension filter rather than vanishing.
-            LogWarn(@"Could not read directory flag for %@: %@", url, error);
-            isFile = YES;
-        }
-        if (!isFile) {
+            ? @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey, NSURLContentModificationDateKey]
+            : @[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey];
+
+    while (pendingRoots.count > 0) {
+        NSString *rootPath = pendingRoots.firstObject;
+        [pendingRoots removeObjectAtIndex:0];
+        if ([covered containsObject:rootPath]) {
             continue;
         }
-        // One string per entry, rather than the URL and two strings
-        // URLByDeletingLastPathComponent.path would cost. Non-audio entries
-        // stay out of results but still reach the folder-art bookkeeping
-        // below: a cover is exactly a non-audio entry.
-        NSString *path = url.path;
-        BOOL isAudio = [supported containsObject:path.pathExtension.lowercaseString];
-        if (isAudio) {
-            [results addObject:url];
+        [covered addObject:rootPath];
+        // Directory links seen under this root. Held back until it has been
+        // enumerated in full, so each can be tested against everything the
+        // enumeration actually covered rather than against a partial answer.
+        NSMutableArray<NSString*> *linkedRoots = [NSMutableArray array];
+        // The enumerator is depth-first, so entries arrive in long runs from one
+        // directory; remembering the last one avoids rebuilding the parent path for
+        // every file in a folder.
+        NSString *lastDirectory = nil;
+        NSDirectoryEnumerator *enumerator = [fileManager
+                enumeratorAtURL:[NSURL fileURLWithPath:rootPath isDirectory:YES]
+     includingPropertiesForKeys:keys
+                        options:NSDirectoryEnumerationSkipsHiddenFiles | NSDirectoryEnumerationSkipsPackageDescendants
+                   errorHandler:^(NSURL *url, NSError *error) {
+                       // Skip the unreadable entry or subtree, but keep
+                       // enumerating the rest of the drop.
+                       LogWarn(@"Error enumerating %@: %@", url, error);
+                       return YES;
+                   }];
+        for (NSURL *url in enumerator) {
+            NSError *error = nil;
+            NSNumber *isDirectory = nil;
+            BOOL isFile;
+            if ([url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&error]) {
+                isFile = !isDirectory.boolValue;
+            }
+            else {
+                // Log it and treat it as a file, the same fallback
+                // expandFileList:folderCount: uses, so that it still reaches the
+                // extension filter rather than vanishing.
+                LogWarn(@"Could not read directory flag for %@: %@", url, error);
+                isFile = YES;
+            }
+            // One string per entry, rather than the URL and two strings
+            // URLByDeletingLastPathComponent.path would cost. Non-audio entries
+            // stay out of results but still reach the folder-art bookkeeping
+            // below: a cover is exactly a non-audio entry.
+            NSString *path = url.path;
+            if (!isFile) {
+                // A real subdirectory the enumerator descends itself: record it
+                // so a link pointing anywhere into this subtree is recognized as
+                // covered. One a link already made a root of is skipped whole.
+                if (path.length == 0) {
+                    continue;
+                }
+                if ([covered containsObject:path]) {
+                    [enumerator skipDescendants];
+                }
+                else {
+                    [covered addObject:path];
+                }
+                continue;
+            }
+            NSNumber *isLink = nil;
+            if ([url getResourceValue:&isLink forKey:NSURLIsSymbolicLinkKey error:NULL] &&
+                isLink.boolValue) {
+                NSString *linked = VibeResolvedDirectoryPath(path);
+                if (linked) {
+                    [linkedRoots addObject:linked];
+                    continue;
+                }
+                // A link to a file stays a file, reaching the extension filter
+                // and the emptiness stat like any other entry. One pointing at
+                // nothing is dropped here instead: that filter answers NO to
+                // anything it cannot stat, deliberately, so that a sandbox
+                // denial is left for the real open to report (NSURL+AudioOpen)
+                // — which means a dangling Song.mp3 link would otherwise
+                // survive as an unplayable row. The link itself just came out
+                // of the enumeration, so ENOENT can only be its target.
+                struct stat targetInfo;
+                if (stat(path.fileSystemRepresentation, &targetInfo) != 0 && errno == ENOENT) {
+                    continue;
+                }
+            }
+            BOOL isAudio = [supported containsObject:path.pathExtension.lowercaseString];
+            if (isAudio) {
+                [results addObject:url];
+            }
+            if (!VibePathIsDirectlyInside(path, lastDirectory)) {
+                lastDirectory = path.stringByDeletingLastPathComponent;
+            }
+            if (lastDirectory.length > 0 && isAudio) {
+                [directoriesWalked addObject:lastDirectory];
+            }
+            VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
+                                       artByDirectory, artRankByDirectory);
         }
-        if (!VibePathIsDirectlyInside(path, lastDirectory)) {
-            lastDirectory = path.stringByDeletingLastPathComponent;
+
+        for (NSString *linked in linkedRoots) {
+            if (![covered containsObject:linked]) {
+                [pendingRoots addObject:linked];
+            }
         }
-        if (lastDirectory.length > 0 && isAudio) {
-            [directoriesWalked addObject:lastDirectory];
-        }
-        VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
-                                   artByDirectory, artRankByDirectory);
     }
 
     VibeWalkedDirectoriesHandler walked = WalkedDirectoriesHandler();
@@ -438,10 +531,19 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
         // only the trailing slash, so a directory URL built without
         // isDirectory:YES — from an argv path or some pasteboards — would be
         // treated as a file and then silently dropped by the extension filter.
-        NSNumber *isDirectory = nil;
-        BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
+        // Both keys in one read: NSURLIsDirectoryKey answers for the link
+        // itself, so a dropped ~/Music/NAS folder link needs resolving before
+        // that same filter drops it (VibeResolvedDirectoryPath).
+        NSDictionary<NSURLResourceKey, id> *values =
+                [url resourceValuesForKeys:@[NSURLIsDirectoryKey, NSURLIsSymbolicLinkKey]
+                                     error:NULL];
+        NSNumber *isDirectory = values[NSURLIsDirectoryKey];
+        BOOL isDir = isDirectory != nil
                 ? isDirectory.boolValue
                 : url.hasDirectoryPath; // resource read failed; fall back to the slash
+        if (!isDir && [values[NSURLIsSymbolicLinkKey] boolValue]) {
+            isDir = VibeResolvedDirectoryPath(url.path) != nil;
+        }
         if (isDir) {
             if (folderCount) {
                 (*folderCount)++;
