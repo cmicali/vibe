@@ -96,7 +96,13 @@ static SInt64 VibePreflightGetSize(void *clientData) {
         AudioFileClose(file);
     }
     close(context.descriptor);
-    return status != noErr;
+    // TRAP: CoreAudio's QuickTime reader (file type MooV, the container Voice
+    // Memos exports as .qta) implements no callback open at all: it answers
+    // kAudio_UnimplementedError for any hint whatever the header holds, so that
+    // status says nothing about the file. Let the real open decide; the leak
+    // above is then bounded to a corrupt QuickTime file, the one case this
+    // probe cannot see.
+    return status != noErr && status != kAudio_UnimplementedError;
 }
 
 - (BOOL)validateAudioFileIsReadableAndHasContent {

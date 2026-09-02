@@ -75,6 +75,10 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
     VibeAudioFileOpenErrorMaterializationYielded,
     // The central path-wide request failed before AVAudioFile was attempted.
     VibeAudioFileOpenErrorMaterializationFailed,
+    // CoreAudio's header parse refused the file before AVAudioFile was
+    // attempted (NSURL.failsAudioOpenPreflight, the fd-safe probe). Unlike
+    // Abandoned it is a verdict on the file, so a retry is pointless.
+    VibeAudioFileOpenErrorRefusedByPreflight,
 };
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {

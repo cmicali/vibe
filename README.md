@@ -10,7 +10,7 @@ A fast, minimal player for your music files on the Mac. No third-party engine, n
 
 ## Features
 
-- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV, all decoded natively by CoreAudio
+- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF and WAV, all decoded natively by CoreAudio
 - **Waveform seek bar** — a SoundCloud-style waveform; click it to seek
 - **Drag and drop** — drop files or folders on the window or the dock icon to play them
 - **Metadata and artwork** — read with TagLib, then cached to disk

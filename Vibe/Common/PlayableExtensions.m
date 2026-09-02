@@ -12,7 +12,7 @@
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         ordered = @[@"wav", @"wave", @"bwf", @"aif", @"aiff", @"flac",
-                    @"m4a", @"mp4", @"aac", @"mp3", @"mp2"];
+                    @"m4a", @"mp4", @"qta", @"aac", @"mp3", @"mp2"];
     });
     return ordered;
 }

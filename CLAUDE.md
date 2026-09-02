@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) working in this repository.
 
-Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks only — `AVAudioEngine` and CoreAudio, no third-party audio library. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4 (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
+Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++. Playback is Apple frameworks only — `AVAudioEngine` and CoreAudio, no third-party audio library. Formats: MP3, MP2, AAC, AIFF/AIF, WAV/WAVE/BWF, FLAC, M4A, MP4, QTA (`Common/PlayableExtensions`, the one home of the set). OGG is not supported.
 
 ## Building
 

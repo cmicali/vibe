@@ -417,8 +417,16 @@ static const NSUInteger kMaximumHandleRunCount = 6;
 
 static VibeAudioFileOpener const kProductionFileOpener =
         ^AVAudioFile *(NSURL *url, NSError **error) {
-    return url.failsAudioOpenPreflight
-            ? nil : [[AVAudioFile alloc] initForReading:url error:error];
+    if (url.failsAudioOpenPreflight) {
+        if (error) {
+            *error = [NSError errorWithDomain:VibeAudioFileOpenErrorDomain
+                    code:VibeAudioFileOpenErrorRefusedByPreflight
+                    userInfo:@{NSLocalizedDescriptionKey:
+                            @"CoreAudio refused the file's header before the open"}];
+        }
+        return nil;
+    }
+    return [[AVAudioFile alloc] initForReading:url error:error];
 };
 
 - (instancetype)init {

@@ -157,7 +157,7 @@
 
     XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"aif", @"aiff",
                                                             @"wav", @"wave", @"bwf", @"flac",
-                                                            @"m4a", @"mp4"]]));
+                                                            @"m4a", @"mp4", @"qta"]]));
     // The filter and the playlist fallback read one list, so the ordered form
     // the fallback walks must hold each spelling exactly once and no other.
     NSArray<NSString *> *ordered = PlayableExtensions.ordered;

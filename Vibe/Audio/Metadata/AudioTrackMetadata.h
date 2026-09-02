@@ -89,6 +89,9 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 
 // The codec line both screens render: file type, bitrate (lossy only), sample
 // rate, joined with " | ". Each part is appended only when present — TagLib can
+// return no audioProperties even with a fileType set, and a rate it reports as
+// 0 is stored as nil — so it never reads "(null) kbps", "0 kbps" or "0.0 kHz",
+// and it is the empty string with no fileType at all.| ". Each part is appended only when present — TagLib can
 // return no audioProperties even with a fileType set — so it never reads
 // "(null) kbps" or "0.0 kHz", and it is the empty string with no fileType at
 // all. Whether to SHOW it is the caller's decision; how it reads is here, so

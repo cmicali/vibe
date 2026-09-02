@@ -77,6 +77,7 @@ body:
         - AAC
         - FLAC
         - MP4 / M4A
+        - QTA (Voice Memos)
         - AIFF
         - WAV
         - Other / not sure

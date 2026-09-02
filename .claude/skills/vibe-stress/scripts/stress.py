@@ -74,7 +74,7 @@ VERB_TIMEOUTS = {"file_cache": 90, "convert_to_flac": 150, "quiesce": 40}
 # latency is ~110ms.
 STALL_PROBE_MS = 2000
 
-AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".aac", ".flac",
+AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".qta", ".aac", ".flac",
                   ".wav", ".wave", ".bwf", ".aif", ".aiff"}
 # .cue is a playlist file to Vibe (PlaylistFile.m reads it), and a real ripped
 # library carries them beside the audio. Leaving it out meant the whole sheet

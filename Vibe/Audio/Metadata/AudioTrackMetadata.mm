@@ -103,14 +103,16 @@ private:
     }
 
     // The extension-to-format mapping, copied from
-    // FileRef::detectByExtension, plus the wave/bwf spellings
-    // NSURLUtil's supported set admits.
+    // FileRef::detectByExtension, plus the wave, bwf and qta spellings
+    // NSURLUtil's supported set admits. A .qta is a QuickTime container
+    // (Voice Memos), which MP4::File parses like any other ftyp-branded file.
     static std::unique_ptr<TagLib::File> openByExtension(const char *path, TagLib::IOStream *stream) {
         NSString *ext = [@(path) pathExtension].uppercaseString;
         if ([ext isEqualToString:@"MP3"] || [ext isEqualToString:@"MP2"] || [ext isEqualToString:@"AAC"])
             return std::make_unique<TagLib::MPEG::File>(stream);
         if ([ext isEqualToString:@"M4A"] || [ext isEqualToString:@"M4R"] || [ext isEqualToString:@"M4B"] ||
-            [ext isEqualToString:@"M4P"] || [ext isEqualToString:@"MP4"] || [ext isEqualToString:@"M4V"])
+            [ext isEqualToString:@"M4P"] || [ext isEqualToString:@"MP4"] || [ext isEqualToString:@"M4V"] ||
+            [ext isEqualToString:@"QTA"])
             return std::make_unique<TagLib::MP4::File>(stream);
         if ([ext isEqualToString:@"FLAC"])
             return std::make_unique<TagLib::FLAC::File>(stream);
@@ -503,8 +505,11 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
 
         if (auto props = file->audioProperties()) {
             self.duration = static_cast<NSTimeInterval>(props->lengthInMilliseconds()) / 1000;
-            self.bitrate = @(props->bitrate());
-            self.sampleRate = @(props->sampleRate());
+            // TagLib answers 0 for a rate it could not find, and 0 is "unknown",
+            // not a rate to print: the codec line drops what is nil, not what
+            // is zero. A QuickTime container (.qta) is one such for the bitrate.
+            if (props->bitrate() > 0) self.bitrate = @(props->bitrate());
+            if (props->sampleRate() > 0) self.sampleRate = @(props->sampleRate());
         }
 
         // TagLib's PropertyMap normalizes every format's tempo tag — ID3 TBPM,

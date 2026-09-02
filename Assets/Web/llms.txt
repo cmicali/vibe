@@ -11,8 +11,8 @@ AVAudioEngine, with no third-party audio engine. It is free, open source under
 Apache 2.0, and available on the Mac App Store or as a direct download.
 
 - Requires macOS 13 Ventura or later, Apple silicon or Intel.
-- Formats: MP3, MP2, AAC, FLAC, MP4/M4A, AIFF, WAV — all decoded by macOS
-  itself, lossless at full resolution.
+- Formats: MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF, WAV — all
+  decoded by macOS itself, lossless at full resolution.
 - No library or database: drop a file or folder on the window and it plays.
   Tags, artwork and BPM are read in the background and cached to disk.
 - Files may live anywhere the Files system can reach — a local disk, an
