@@ -114,6 +114,12 @@ NS_ASSUME_NONNULL_BEGIN
 // and does nothing when they already match. Fanned out like the style.
 - (void)syncWaveformTheme;
 
+// Normalize and Gain, the waveform's level mapping. Re-applies them when they
+// no longer match what the renderer on screen was drawn with, replacing the
+// bitmap that baked the old bar heights, and does nothing when they already
+// match. One setting for every page, so it is fanned out like the style.
+- (void)syncWaveformLevels;
+
 // The dominant color of THIS page's artwork, which the album_art theme draws
 // its palette from; nil for a track with no art, which resolves to Mono's
 // answer. The mac's AudioWaveformView carries the same property for the same

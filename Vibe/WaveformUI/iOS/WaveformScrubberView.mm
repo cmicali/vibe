@@ -319,7 +319,17 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
                                               bounds:[self virtualBounds]
                                               isDark:self.isDark];
+    [self applyLevelSettings];
     [self applyResolvedTheme];
+}
+
+// Normalize and Gain into the renderer's level mapping, the mac view's two
+// lines. Not part of the theme: they are set for a library's mastering level
+// and survive a theme switch (AppSettings.h).
+- (void)applyLevelSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    _renderer.normalizesLevels = settings.waveformNormalize;
+    _renderer.gainDB = (float)settings.waveformGainDB;
 }
 
 // The one resolution site on this view: settings + appearance + this page's
@@ -374,6 +384,23 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // delay, like syncWaveformStyle.
     [self teardownBakedWaveform];
     [self applyResolvedTheme];
+    [self applyScrollAndProgress];
+    [self scheduleEnvelopeBakeAfter:0];
+}
+
+- (void)syncWaveformLevels {
+    if (!_renderer) {
+        return;  // nothing on screen: the next install reads the settings
+    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (_renderer.normalizesLevels == settings.waveformNormalize &&
+        _renderer.gainDB == (float)settings.waveformGainDB) {
+        return;
+    }
+    // The bake is a picture of the old level mapping, so it comes down with
+    // it — syncWaveformTheme's shape, and for the same reason.
+    [self teardownBakedWaveform];
+    [self applyLevelSettings];
     [self applyScrollAndProgress];
     [self scheduleEnvelopeBakeAfter:0];
 }

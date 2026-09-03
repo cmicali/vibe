@@ -20,8 +20,6 @@
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
 #define SETTING_SHOW_TRAFFIC_LIGHTS                 @"Appearance.showTrafficLights"
-#define SETTING_WAVEFORM_NORMALIZE                  @"Appearance.waveformNormalize"
-#define SETTING_WAVEFORM_GAIN_DB                    @"Appearance.waveformGainDB"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
@@ -88,8 +86,6 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_ALWAYS_ON_TOP:                  @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
-            SETTING_WAVEFORM_NORMALIZE:             @(YES),
-            SETTING_WAVEFORM_GAIN_DB:               @(0.0),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
             SETTING_ARTWORK_DRAG_ACTION:            SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE,
@@ -539,23 +535,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 - (void)setShowTrafficLights:(BOOL)show {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_TRAFFIC_LIGHTS];
-}
-
-- (BOOL)waveformNormalize {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_NORMALIZE];
-}
-
-- (void)setWaveformNormalize:(BOOL)normalize {
-    [[NSUserDefaults standardUserDefaults] setBool:normalize forKey:SETTING_WAVEFORM_NORMALIZE];
-}
-
-- (double)waveformGainDB {
-    return VibeNormalizedWaveformGainDB(
-            [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WAVEFORM_GAIN_DB]);
-}
-
-- (void)setWaveformGainDB:(double)gainDB {
-    [[NSUserDefaults standardUserDefaults] setDouble:gainDB forKey:SETTING_WAVEFORM_GAIN_DB];
 }
 
 #pragma mark Header labels

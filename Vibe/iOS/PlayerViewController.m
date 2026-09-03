@@ -129,6 +129,7 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
         }
         [cell.waveformView syncWaveformStyle];
         [cell.waveformView syncWaveformTheme];
+        [cell.waveformView syncWaveformLevels];
     }
     [self repaintTimesOnVisiblePages];
 }

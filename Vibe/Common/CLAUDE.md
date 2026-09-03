@@ -64,6 +64,7 @@ Not a guard per property. Almost everything here configures something only macOS
 
 - the iOS-only loose appearance keys, in their own `#if !TARGET_OS_OSX`: `waveformStyle`, `waveformTheme` with its custom colors (a played *and* an unplayed accessor, each taking the appearance, so four colors in all). On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
 - `folderOpenSort`, genuinely shared;
+- `waveformNormalize` and `waveformGainDB`, genuinely shared too — the waveform's level mapping, which both platforms' renderers draw through (`WaveformUI/CLAUDE.md`). They are set for a library's mastering level rather than for a look, which is why they are plain settings on both sides and were never `AppTheme` fields on macOS;
 - the store-wide entry points, which belong to no one setting: `sharedInstance`, `applicationDidFinishLaunching`, `allSettingsAtDefaults` and `resetToDefaults`.
 
 "Does the iOS app honor this?" is answered by which header a property sits in. **Adding a property means choosing a side.**

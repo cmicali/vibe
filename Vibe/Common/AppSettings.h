@@ -39,6 +39,10 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
+// The waveform Gain reaches this far either side of 0 dB, in half-dB steps
+// (SettingsRules.h).
+static const double kVibeWaveformGainMaxDB = 12;
+
 // The folder-open order's identifiers are in FolderOpenSort.h instead, beside
 // the enum the app passes around — Util/NSURLUtil needs the enum and must not
 // reach a setting to get it.
@@ -83,6 +87,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 #endif  // !TARGET_OS_OSX
+
+// The waveform's level mapping, two common settings rather than theme fields
+// — they are set for a library's mastering level and must survive a theme
+// switch — and on macOS one live effect, VibeSettingsLiveEffectWaveformLevels.
+// Normalize (default YES) draws every track with its loudest passage at
+// full height; the gain, in dB with 0 the plain mapping, applies over that.
+// What each does to the bars is WaveformLevelMath.h's, which both platforms'
+// renderers already draw through. The gain getter answers the half-dB ladder,
+// so a knob re-reads what landed.
+- (BOOL)waveformNormalize;
+- (void)setWaveformNormalize:(BOOL)normalize;
+- (double)waveformGainDB;
+- (void)setWaveformGainDB:(double)gainDB;
 
 // The order a folder's tracks land in the playlist — see FolderOpenSort.h.
 // Normalized on read: an identifier no picker can produce reads as Name.

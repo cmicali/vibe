@@ -31,6 +31,18 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
 
 // The folder-open order, both ways: an unknown stored identifier snaps to
 // Name, the default and the order every folder open used before the setting.
+// The waveform gain's ladder: an external write outside the slider's range
+// clamps, NaN reads as the plain mapping, and every value lands on the
+// nearest half dB — the slider's step — so the pane's knob and readout never
+// show a value the store did not keep.
+static inline double VibeNormalizedWaveformGainDB(double gainDB) {
+    if (isnan(gainDB)) {
+        return 0;
+    }
+    double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
+    return round(clamped * 2) / 2;
+}
+
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;
@@ -99,18 +111,6 @@ static inline NSString *VibeNormalizedWaveformDragBehavior(NSString *_Nullable i
         return identifier;
     }
     return SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW;
-}
-
-// The waveform gain's ladder: an external write outside the slider's range
-// clamps, NaN reads as the plain mapping, and every value lands on the
-// nearest half dB — the slider's step — so the pane's knob and readout never
-// show a value the store did not keep.
-static inline double VibeNormalizedWaveformGainDB(double gainDB) {
-    if (isnan(gainDB)) {
-        return 0;
-    }
-    double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
-    return round(clamped * 2) / 2;
 }
 
 // An unknown stored artwork-drag identifier snaps to copy_file, the default:

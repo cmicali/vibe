@@ -154,6 +154,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     [self applyWaveformZoomToCell:page];
     [page.waveformView syncWaveformStyle];
     [page.waveformView syncWaveformTheme];
+    [page.waveformView syncWaveformLevels];
 
     [self hydrateWaveformInCell:page atIndex:index];
     if (![_waveformCoordinator isCompleteAtIndex:index]) {

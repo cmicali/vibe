@@ -46,6 +46,8 @@
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
+            SETTING_WAVEFORM_NORMALIZE: @(YES),
+            SETTING_WAVEFORM_GAIN_DB: @(0.0),
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
     } mutableCopy];
 #if TARGET_OS_OSX
@@ -181,6 +183,23 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 }
 #endif  // !TARGET_OS_OSX
 
+
+- (BOOL)waveformNormalize {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_NORMALIZE];
+}
+
+- (void)setWaveformNormalize:(BOOL)normalize {
+    [[NSUserDefaults standardUserDefaults] setBool:normalize forKey:SETTING_WAVEFORM_NORMALIZE];
+}
+
+- (double)waveformGainDB {
+    return VibeNormalizedWaveformGainDB(
+            [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WAVEFORM_GAIN_DB]);
+}
+
+- (void)setWaveformGainDB:(double)gainDB {
+    [[NSUserDefaults standardUserDefaults] setDouble:gainDB forKey:SETTING_WAVEFORM_GAIN_DB];
+}
 
 - (VibeFolderOpenSort)folderOpenSort {
     return VibeNormalizedFolderOpenSort(
