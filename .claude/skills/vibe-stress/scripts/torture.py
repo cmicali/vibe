@@ -285,7 +285,15 @@ def main():
         if not app.alive():
             print("FAILED: app DIED while loading the playlist (crash on open)")
             return 1
+        # Nearly always the sandbox grant: this script direct-execs the binary
+        # to pin WHICH build runs, and a direct-exec launch cannot grant a
+        # folder from argv, so an ungranted folder opens as nothing at all.
         print("FAIL: playlist never populated")
+        print(f"      The sandbox most likely holds no grant for {args.playlist}.")
+        print("      run-torture.sh direct-execs the binary to be sure which build")
+        print("      runs, and a direct-exec launch cannot grant a folder from argv.")
+        print("      Grant it once through the open funnel, then re-run this:")
+        print(f'        .claude/skills/vibe-debug/scripts/launch.sh "{args.playlist}"')
         return 2
 
     base = health_of(app)
