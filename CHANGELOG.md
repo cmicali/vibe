@@ -1,3 +1,5 @@
+# v1.12
+
 # v1.11
 
 * mac: Added theming and theme editor
