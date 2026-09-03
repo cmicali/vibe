@@ -29,6 +29,6 @@
 # cached a permanent redirect would keep fetching that one version forever,
 # with nothing on this end able to correct it.
 
-/download         https://github.com/cmicali/vibe/releases/download/v1.10/Vibe-macOS-1.10.dmg   302
-/download/        https://github.com/cmicali/vibe/releases/download/v1.10/Vibe-macOS-1.10.dmg   302
-/download/latest  https://github.com/cmicali/vibe/releases/download/v1.10/Vibe-macOS-1.10.dmg   302
+/download         https://github.com/cmicali/vibe/releases/download/v1.11/Vibe-macOS-universal-1.11.dmg   302
+/download/        https://github.com/cmicali/vibe/releases/download/v1.11/Vibe-macOS-universal-1.11.dmg   302
+/download/latest  https://github.com/cmicali/vibe/releases/download/v1.11/Vibe-macOS-universal-1.11.dmg   302
