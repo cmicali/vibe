@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 #
-# Build a distributable, notarized Vibe.dmg: generate -> archive (Release) ->
-# export signed with Developer ID -> notarize -> staple -> disk image ->
-# notarize -> staple.
+# Build universal and arm64-only distributable Vibe apps and disk images:
+# generate -> archive (Release) -> export signed with Developer ID -> notarize
+# -> staple -> disk image -> notarize -> staple. Each architecture gets its own
+# archive and trust chain; scripts/github-release.sh publishes all four DMG/zip
+# carriers, with each published DMG named for its architecture.
 #
 # This is NOT scripts/release-appstore.sh. The two release paths are different
 # products:
 #
-#   release.sh           Developer ID + notarize + staple  -> a .dmg you host
-#                        yourself. Anyone can download and run it.
+#   release.sh           Developer ID + notarize + staple  -> universal and
+#                        arm64-only .dmgs you host yourself. Anyone can
+#                        download and run the matching build.
 #   release-appstore.sh  Apple Distribution + App Store profile -> a .pkg
 #                        uploaded to App Store Connect. An App Store-signed app
 #                        is rejected by Gatekeeper if handed out directly, so
@@ -55,13 +58,22 @@ SCHEME=Vibe
 PRODUCT=Vibe
 TEAM_ID="${TEAM_ID:-4UEV752JH4}"
 
-BUILD_DIR="build/release"
+RELEASE_DIR="build/release"
+BUILD_DIR="$RELEASE_DIR"
 ARCHIVE="$BUILD_DIR/$PRODUCT.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
-APP="$EXPORT_DIR/$PRODUCT.app"
-ZIP="$BUILD_DIR/$PRODUCT.zip"          # notarization input, and the stapled app's carrier
-DMG="$BUILD_DIR/$PRODUCT.dmg"          # what a human downloads
-DMG_STAGE="$BUILD_DIR/dmg"
+UNIVERSAL_APP="$EXPORT_DIR/$PRODUCT.app"
+UNIVERSAL_ZIP="$BUILD_DIR/$PRODUCT.zip"
+UNIVERSAL_DMG="$BUILD_DIR/$PRODUCT-universal.dmg"
+UNIVERSAL_DMG_STAGE="$BUILD_DIR/dmg"
+
+ARM64_BUILD_DIR="$RELEASE_DIR/arm64"
+ARM64_ARCHIVE="$ARM64_BUILD_DIR/$PRODUCT.xcarchive"
+ARM64_EXPORT_DIR="$ARM64_BUILD_DIR/export"
+ARM64_APP="$ARM64_EXPORT_DIR/$PRODUCT.app"
+ARM64_ZIP="$ARM64_BUILD_DIR/$PRODUCT.zip"
+ARM64_DMG="$ARM64_BUILD_DIR/$PRODUCT.dmg"
+ARM64_DMG_STAGE="$ARM64_BUILD_DIR/dmg"
 VOLNAME="$PRODUCT"
 
 # ---------------------------------------------------------------------------
@@ -104,11 +116,14 @@ echo "🔊 team id          : $TEAM_ID"
 
 # ---------------------------------------------------------------------------
 # Generate + archive + export — shared mechanics in asc-build-lib.sh, which
-# documents why the archive carries no signing overrides.
+# documents why the archives carry no signing overrides. Architecture is an
+# explicit archive input: thinning an exported app would invalidate its code
+# signature and notarization, and a second archive keeps the arm64 product a
+# first-class signed build.
 # ---------------------------------------------------------------------------
-asc_generate_and_archive
-
-cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
+write_developer_id_export_options() {
+    local path="$1"
+    cat > "$path" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -121,81 +136,104 @@ cat > "$BUILD_DIR/ExportOptions.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+}
 
-asc_export_archive "Developer ID" developer-id
+asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO
+asc_require_binary_architectures \
+    "$ARCHIVE/Products/Applications/$PRODUCT.app/Contents/MacOS/$PRODUCT" \
+    arm64 x86_64
+write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
+asc_export_archive "Developer ID, universal" developer-id
+asc_require_binary_architectures \
+    "$UNIVERSAL_APP/Contents/MacOS/$PRODUCT" arm64 x86_64
+
+# asc_generate_and_archive deliberately wipes BUILD_DIR, so the second archive
+# uses asc_archive directly and lives under the already-clean release tree.
+# Give it its own BUILD_DIR during export too: that keeps its options and export
+# log beside the archive without disturbing the universal products above.
+mkdir -p "$ARM64_BUILD_DIR"
+BUILD_DIR="$ARM64_BUILD_DIR"
+ARCHIVE="$ARM64_ARCHIVE"
+EXPORT_DIR="$ARM64_EXPORT_DIR"
+asc_archive "Release, arm64-only" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO
+asc_require_binary_architectures \
+    "$ARCHIVE/Products/Applications/$PRODUCT.app/Contents/MacOS/$PRODUCT" arm64
+write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
+asc_export_archive "Developer ID, arm64-only" developer-id
+asc_require_binary_architectures "$ARM64_APP/Contents/MacOS/$PRODUCT" arm64
 
 # ---------------------------------------------------------------------------
-# Notarize + staple.
+# Notarize + staple each app, then package, sign and notarize its disk image.
+# A notarization ticket is bound to the submitted code, so the universal and
+# arm64-only products cannot share either the app or image submission.
 # ---------------------------------------------------------------------------
-echo "🔊 zip for submission"
-ditto -c -k --keepParent "$APP" "$ZIP"
-
-echo "🔊 notarize (waits for Apple's verdict)"
-xcrun notarytool submit "$ZIP" \
-    --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
-
-echo "🔊 staple + validate"
-xcrun stapler staple "$APP"
-xcrun stapler validate "$APP"
-# The real test: what Gatekeeper says about the app a recipient would download.
-spctl -a -vvv --type exec "$APP"
-
-# Repackage the now-stapled app for distribution.
-rm -f "$ZIP"
-ditto -c -k --keepParent "$APP" "$ZIP"
-
-# ---------------------------------------------------------------------------
-# The disk image a human downloads.
+# The disk images are what humans should download. A zip expands wherever the
+# browser drops it, which for Safari is ~/Downloads, and a quarantined app
+# launched from there runs TRANSLOCATED — a read-only random mount point that
+# vanishes on quit. That is not cosmetic for this app: Settings > Set Vibe as
+# Default Music Player registers with Launch Services from its running path, so
+# a translocated registration points somewhere that ceases to exist. Dragging
+# out of a disk image onto its /Applications alias clears translocation.
 #
-# The zip above exists because notarytool needs an archive to submit; it is not
-# what anyone should download. A zip expands wherever the browser drops it,
-# which for Safari is ~/Downloads, and a quarantined app launched from there
-# runs TRANSLOCATED — a read-only random mount point that vanishes on quit.
-# That is not cosmetic for this app: Settings > Set Vibe as Default Music
-# Player registers with Launch Services from the path it is running at, so a
-# click from a translocated copy registers a path that ceases to exist
-# (DefaultAppRegistration already has to reason about several copies). A drag
-# out of a disk image onto the /Applications alias below is what clears
-# translocation, and the alias is what makes that the obvious gesture.
-#
-# Deliberately a plain window — no background image, no icon placement. Setting
-# those means driving Finder over AppleScript to write a .DS_Store, which needs
-# Automation permission and is the flakiest step in every DMG script; two icons
-# side by side carry the whole point.
-#
-# The app inside is already stapled, so it verifies offline once dragged out.
-# The image is then signed, notarized and stapled in its own right, which is
-# what lets Gatekeeper clear the download before it is ever mounted.
-# ---------------------------------------------------------------------------
-echo "🔊 disk image"
-rm -rf "$DMG_STAGE" "$DMG"
-mkdir -p "$DMG_STAGE"
-# ditto, as everywhere else a signed bundle is copied here: it reproduces the
-# bundle exactly, symlinks, permissions and metadata included, and a signature
-# is only as good as the copy under it. The staple rides along as a file in the
-# bundle (Contents/CodeResources), so the app dragged out of the image verifies
-# with no network.
-ditto "$APP" "$DMG_STAGE/$PRODUCT.app"
-ln -s /Applications "$DMG_STAGE/Applications"
-hdiutil create -quiet -volname "$VOLNAME" -srcfolder "$DMG_STAGE" \
-    -fs HFS+ -format UDZO -ov "$DMG"
-rm -rf "$DMG_STAGE"
+# Deliberately plain: no background or icon placement. Those require driving
+# Finder over AppleScript to write a .DS_Store, which needs Automation
+# permission and is the flakiest step in a DMG build; two icons carry the point.
+notarize_and_package() {
+    local label="$1"
+    local app="$2"
+    local zip="$3"
+    local dmg="$4"
+    local dmg_stage="$5"
 
-echo "🔊 sign the image"
-codesign --force --timestamp --sign "$DEVELOPER_ID" "$DMG"
+    echo "🔊 $label: zip for submission"
+    ditto -c -k --keepParent "$app" "$zip"
 
-echo "🔊 notarize the image (waits for Apple's verdict)"
-xcrun notarytool submit "$DMG" \
-    --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
+    echo "🔊 $label: notarize app (waits for Apple's verdict)"
+    xcrun notarytool submit "$zip" \
+        --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
 
-echo "🔊 staple + validate the image"
-xcrun stapler staple "$DMG"
-xcrun stapler validate "$DMG"
-# What Gatekeeper says about the file a recipient double-clicks. The app inside
-# was checked with --type exec above; a disk image is judged as something to
-# open, against its own signature.
-spctl -a -vvv -t open --context context:primary-signature "$DMG"
+    echo "🔊 $label: staple + validate app"
+    xcrun stapler staple "$app"
+    xcrun stapler validate "$app"
+    # The real test: what Gatekeeper says about the app a recipient receives.
+    spctl -a -vvv --type exec "$app"
+
+    # The published zip must carry the staple added after the submission zip.
+    rm -f "$zip"
+    ditto -c -k --keepParent "$app" "$zip"
+
+    echo "🔊 $label: disk image"
+    rm -rf "$dmg_stage" "$dmg"
+    mkdir -p "$dmg_stage"
+    # ditto reproduces the signed bundle exactly. The staple rides along in
+    # Contents/CodeResources, so the app dragged from the image verifies offline.
+    ditto "$app" "$dmg_stage/$PRODUCT.app"
+    ln -s /Applications "$dmg_stage/Applications"
+    hdiutil create -quiet -volname "$VOLNAME" -srcfolder "$dmg_stage" \
+        -fs HFS+ -format UDZO -ov "$dmg"
+    rm -rf "$dmg_stage"
+
+    echo "🔊 $label: sign image"
+    codesign --force --timestamp --sign "$DEVELOPER_ID" "$dmg"
+
+    echo "🔊 $label: notarize image (waits for Apple's verdict)"
+    xcrun notarytool submit "$dmg" \
+        --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
+
+    echo "🔊 $label: staple + validate image"
+    xcrun stapler staple "$dmg"
+    xcrun stapler validate "$dmg"
+    spctl -a -vvv -t open --context context:primary-signature "$dmg"
+}
+
+notarize_and_package universal "$UNIVERSAL_APP" "$UNIVERSAL_ZIP" \
+    "$UNIVERSAL_DMG" "$UNIVERSAL_DMG_STAGE"
+notarize_and_package arm64-only "$ARM64_APP" "$ARM64_ZIP" \
+    "$ARM64_DMG" "$ARM64_DMG_STAGE"
 
 echo "🔊 done"
-echo "    app: $APP"
-echo "    dmg: $DMG  (notarized + stapled, drag-to-Applications)"
+echo "    universal app: $UNIVERSAL_APP"
+echo "    universal dmg: $UNIVERSAL_DMG"
+echo "    arm64 app:     $ARM64_APP"
+echo "    arm64 dmg:     $ARM64_DMG"
+echo "    both disk images are notarized + stapled, drag-to-Applications"

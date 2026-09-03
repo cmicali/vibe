@@ -65,7 +65,13 @@ already public in the repo, so that costs nothing.
 The button links a **direct** `.dmg` URL, not `/releases/latest`, because it
 also shows the version and the two must agree. GitHub's `latest/download`
 shortcut cannot help: it only redirects for an asset name that never changes,
-and the release assets are named `Vibe-macOS-<version>.dmg`.
+and the default release asset is named
+`Vibe-macOS-universal-<version>.dmg`.
+
+That DMG is the universal (`arm64` + `x86_64`) build, matching the page's
+Apple-silicon-and-Intel promise. The release also carries
+`Vibe-macOS-arm64-<version>.dmg` for Apple silicon, plus architecture-named
+ZIPs; those are GitHub alternatives rather than the website default.
 
 So the link is rewritten instead. `scripts/web-set-version.sh <version>` edits
 the four places in `index.html` that name a version — the button's `href` and
@@ -104,8 +110,8 @@ path 404s on the non-canonical copy.
 ## Releasing, end to end
 
 ```bash
-make release            # build, sign, notarize, staple -> build/release/Vibe.dmg
-make github-release     # repoint the page, push it, then tag and publish
+make release            # universal + arm64: build, sign, notarize, staple
+make github-release     # repoint page to universal, then publish all 4 assets
 make deploy-web         # push the same page to Cloudflare
 ```
 

@@ -34,7 +34,8 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
 - [Privacy policy](https://vibeplayer.app/privacy): what Vibe stores locally,
   and why it cannot send anything anywhere.
 - [Download (.dmg)](https://vibeplayer.app/download/latest): always the
-  current notarized disk image — a redirect to the release asset on GitHub.
+  current notarized universal disk image — a redirect to the release asset on
+  GitHub, where an arm64-only alternate is also available.
 - [Release notes](https://github.com/cmicali/vibe/releases): every version,
   with what changed in each.
 - [Mac App Store](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)

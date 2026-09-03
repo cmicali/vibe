@@ -115,16 +115,16 @@ install: build
 	rm -rf /Applications/Vibe.app
 	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
 
-# Build Release, then sign (Developer ID), notarize and staple a distributable
-# app, and package it as a drag-to-Applications disk image — itself signed,
-# notarized and stapled. See scripts/release.sh for the required credentials.
+# Build universal and arm64-only Release archives, then independently export,
+# sign (Developer ID), notarize and staple both apps and their
+# drag-to-Applications disk images. See scripts/release.sh for credentials.
 release:
 	scripts/release.sh
 
 # Publish what `make release` produced as a GitHub release: tags HEAD as
-# v<MARKETING_VERSION>, attaches Vibe-macOS-<version>.dmg and
-# Vibe-macOS-<arch>-<version>.zip, notes from the App Store whats-new.txt.
-# See scripts/github-release.sh.
+# v<MARKETING_VERSION>, attaches universal and arm64 DMG/zip artifacts, and
+# uses notes from the App Store whats-new.txt. The website points to the
+# architecture-named universal DMG. See scripts/github-release.sh.
 github-release:
 	scripts/github-release.sh
 
@@ -142,9 +142,9 @@ deploy-web:
 web-set-version:
 	scripts/web-set-version.sh $(V)
 
-# Build Release signed for the Mac App Store and run App Store Connect's
-# validation, WITHOUT submitting. See scripts/release-appstore.sh for the
-# required App Store Connect API credentials.
+# Build a universal (arm64 + x86_64) Release signed for the Mac App Store and
+# run App Store Connect's validation, WITHOUT submitting. See
+# scripts/release-appstore.sh for the required credentials.
 appstore-build:
 	scripts/release-appstore.sh
 

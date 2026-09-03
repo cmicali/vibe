@@ -4,12 +4,14 @@
 #
 #   scripts/github-release.sh [--draft]
 #
-# Takes both artifacts `make release` produced (build/release/Vibe.dmg and
-# Vibe.zip), verifies every staple in them, tags HEAD as v<version> and creates
-# the release with both attached, as Vibe-macOS-<version>.dmg and
-# Vibe-macOS-<arch>-<version>.zip. The image is listed first: it is the
-# download that lands the app in /Applications, and the zip is there for
-# anyone who wants the bundle without mounting anything.
+# Takes the universal and arm64-only products from `make release`, verifies
+# every app/image staple and exact binary architecture, tags HEAD as v<version>
+# and attaches four carriers:
+#
+#   Vibe-macOS-universal-<version>.dmg   universal, website default
+#   Vibe-macOS-universal-<version>.zip   universal bare bundle
+#   Vibe-macOS-arm64-<version>.dmg       Apple silicon only
+#   Vibe-macOS-arm64-<version>.zip       Apple silicon bare bundle
 #
 # Deliberately a separate step from release.sh: building+notarizing is
 # repeatable, publishing is not — a deleted release leaves the tag and any
@@ -27,10 +29,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BUILD_DIR="build/release"
-APP="$BUILD_DIR/export/Vibe.app"
-DMG="$BUILD_DIR/Vibe.dmg"
-ZIP="$BUILD_DIR/Vibe.zip"
+UNIVERSAL_APP="$BUILD_DIR/export/Vibe.app"
+UNIVERSAL_DMG="$BUILD_DIR/Vibe-universal.dmg"
+UNIVERSAL_ZIP="$BUILD_DIR/Vibe.zip"
+ARM64_APP="$BUILD_DIR/arm64/export/Vibe.app"
+ARM64_DMG="$BUILD_DIR/arm64/Vibe.dmg"
+ARM64_ZIP="$BUILD_DIR/arm64/Vibe.zip"
 NOTES="Assets/app-store/copy/en/whats-new.txt"
+
+# shellcheck source=scripts/asc-build-lib.sh
+source scripts/asc-build-lib.sh
 
 DRAFT=""
 case "${1:-}" in
@@ -50,8 +58,11 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: gh is not authenticated — run: gh auth login" >&2
     exit 1
 }
-[[ -f "$DMG" && -f "$ZIP" && -d "$APP" ]] || {
-    echo "error: no release artifacts at $DMG and $ZIP — run 'make release' first" >&2
+[[ -d "$UNIVERSAL_APP" && -f "$UNIVERSAL_DMG" && -f "$UNIVERSAL_ZIP" \
+        && -d "$ARM64_APP" && -f "$ARM64_DMG" && -f "$ARM64_ZIP" ]] || {
+    echo "error: universal or arm64 release artifacts are missing — run 'make release' first" >&2
+    echo "       expected $UNIVERSAL_DMG, $UNIVERSAL_ZIP," >&2
+    echo "                $ARM64_DMG, and $ARM64_ZIP" >&2
     exit 1
 }
 [[ -s "$NOTES" ]] || {
@@ -59,49 +70,101 @@ gh auth status >/dev/null 2>&1 || {
     exit 1
 }
 
-# Verify BOTH staples on the artifact itself, by mounting it exactly as a
-# recipient would. The image and the app inside it are notarized separately —
-# release.sh staples the app before packaging and the image after — and either
-# one missing means a download Gatekeeper re-checks online, which is precisely
-# what stapling exists to avoid. Read the version out of the mounted app too,
-# so the tag names what is really inside the image rather than what is sitting
-# in the export directory beside it.
-xcrun stapler validate "$DMG" >/dev/null || {
-    echo "error: $DMG is not stapled — re-run 'make release'" >&2
-    exit 1
-}
-MOUNT="$(mktemp -d)"
-# The image must be detached before the mount point is removed, and both must
-# happen however this script exits.
-trap 'hdiutil detach "$MOUNT" -quiet -force 2>/dev/null || true; rm -rf "$MOUNT"' EXIT
-hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet -readonly
-MOUNTED_APP="$MOUNT/Vibe.app"
-[[ -d "$MOUNTED_APP" ]] || {
-    echo "error: $DMG holds no Vibe.app — re-run 'make release'" >&2
-    exit 1
-}
-[[ -L "$MOUNT/Applications" ]] || {
-    echo "error: $DMG holds no /Applications alias — re-run 'make release'" >&2
-    exit 1
-}
-xcrun stapler validate "$MOUNTED_APP" >/dev/null || {
-    echo "error: the app inside $DMG is not stapled — re-run 'make release'" >&2
-    exit 1
-}
+# Verify each image exactly as a recipient gets it. The image and its app are
+# notarized separately, and either missing staple forces an online Gatekeeper
+# check. The zip holds another copy made only after the app was stapled, so it
+# is unpacked and checked independently. This also refuses mislabeled payloads:
+# lipo's architecture assertion compares the exact slice set, not containment.
+verify_release_variant() (
+    local label="$1"
+    local app="$2"
+    local dmg="$3"
+    local zip="$4"
+    shift 4
+    local expected_architectures=("$@")
+    local mount
+    local zip_tmp
+    local mounted_app
+    local zipped_app
+    local version
+    local build
+    local candidate_version
+    local candidate_build
 
-# The zip ships too, and it holds its own copy of the app — release.sh zips
-# twice, once to submit for notarization and once after stapling, so this is
-# the check that the SECOND one is what is about to be uploaded.
-ZIP_TMP="$(mktemp -d)"
-trap 'hdiutil detach "$MOUNT" -quiet -force 2>/dev/null || true; rm -rf "$MOUNT" "$ZIP_TMP"' EXIT
-ditto -x -k "$ZIP" "$ZIP_TMP"
-xcrun stapler validate "$ZIP_TMP/Vibe.app" >/dev/null || {
-    echo "error: the app inside $ZIP is not stapled — re-run 'make release'" >&2
+    mount="$(mktemp -d)"
+    zip_tmp="$(mktemp -d)"
+    trap 'hdiutil detach "$mount" -quiet -force 2>/dev/null || true; rm -rf "$mount" "$zip_tmp"' EXIT
+
+    xcrun stapler validate "$app" >/dev/null || {
+        echo "error: $label exported app is not stapled — re-run 'make release'" >&2
+        exit 1
+    }
+    asc_require_binary_architectures "$app/Contents/MacOS/Vibe" \
+        "${expected_architectures[@]}"
+
+    xcrun stapler validate "$dmg" >/dev/null || {
+        echo "error: $dmg is not stapled — re-run 'make release'" >&2
+        exit 1
+    }
+    hdiutil attach "$dmg" -mountpoint "$mount" -nobrowse -quiet -readonly
+    mounted_app="$mount/Vibe.app"
+    [[ -d "$mounted_app" ]] || {
+        echo "error: $dmg holds no Vibe.app — re-run 'make release'" >&2
+        exit 1
+    }
+    [[ -L "$mount/Applications" ]] || {
+        echo "error: $dmg holds no /Applications alias — re-run 'make release'" >&2
+        exit 1
+    }
+    xcrun stapler validate "$mounted_app" >/dev/null || {
+        echo "error: the app inside $dmg is not stapled — re-run 'make release'" >&2
+        exit 1
+    }
+    asc_require_binary_architectures "$mounted_app/Contents/MacOS/Vibe" \
+        "${expected_architectures[@]}"
+
+    ditto -x -k "$zip" "$zip_tmp"
+    zipped_app="$zip_tmp/Vibe.app"
+    xcrun stapler validate "$zipped_app" >/dev/null || {
+        echo "error: the app inside $zip is not stapled — re-run 'make release'" >&2
+        exit 1
+    }
+    asc_require_binary_architectures "$zipped_app/Contents/MacOS/Vibe" \
+        "${expected_architectures[@]}"
+
+    version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' \
+        "$mounted_app/Contents/Info.plist")"
+    build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' \
+        "$mounted_app/Contents/Info.plist")"
+    [[ -n "$version" && -n "$build" ]] || {
+        echo "error: $label image carries no version" >&2
+        exit 1
+    }
+    for candidate in "$app" "$zipped_app"; do
+        candidate_version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' \
+            "$candidate/Contents/Info.plist")"
+        candidate_build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' \
+            "$candidate/Contents/Info.plist")"
+        [[ "$candidate_version" == "$version" && "$candidate_build" == "$build" ]] || {
+            echo "error: $label app carriers do not have one version/build" >&2
+            exit 1
+        }
+    done
+
+    printf '%s\t%s\n' "$version" "$build"
+)
+
+UNIVERSAL_METADATA="$(verify_release_variant universal "$UNIVERSAL_APP" \
+    "$UNIVERSAL_DMG" "$UNIVERSAL_ZIP" arm64 x86_64)"
+IFS=$'\t' read -r VERSION BUILD <<< "$UNIVERSAL_METADATA"
+ARM64_METADATA="$(verify_release_variant arm64-only "$ARM64_APP" \
+    "$ARM64_DMG" "$ARM64_ZIP" arm64)"
+IFS=$'\t' read -r ARM64_VERSION ARM64_BUILD <<< "$ARM64_METADATA"
+[[ "$ARM64_VERSION" == "$VERSION" && "$ARM64_BUILD" == "$BUILD" ]] || {
+    echo "error: universal is $VERSION ($BUILD), but arm64 is $ARM64_VERSION ($ARM64_BUILD)" >&2
+    echo "       re-run 'make release' so every asset comes from one build" >&2
     exit 1
 }
-
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$MOUNTED_APP/Contents/Info.plist")"
-BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$MOUNTED_APP/Contents/Info.plist")"
 TAG="v$VERSION"
 
 # The tag is created on HEAD, so HEAD must be what the remote will see.
@@ -120,20 +183,16 @@ fi
 # ---------------------------------------------------------------------------
 # Publish.
 # ---------------------------------------------------------------------------
-# The zip carries the bare bundle, so its name says which machines that bundle
-# runs on — read from the binary itself, never assumed: one slice names its
-# arch, more collapse to "universal". The image is the download for a human
-# with a Mac in front of them and says only the version.
-ARCHS="$(lipo -archs "$MOUNTED_APP/Contents/MacOS/Vibe")"
-if [[ "$ARCHS" == *" "* ]]; then ARCH="universal"; else ARCH="$ARCHS"; fi
-
-# Everything read out of the image has been read; give it back before the
-# upload, so a failure there cannot leave a volume mounted.
-hdiutil detach "$MOUNT" -quiet
-ASSET_DMG="$BUILD_DIR/Vibe-macOS-$VERSION.dmg"
-ASSET_ZIP="$BUILD_DIR/Vibe-macOS-$ARCH-$VERSION.zip"
-cp "$DMG" "$ASSET_DMG"
-cp "$ZIP" "$ASSET_ZIP"
+# Every carrier names its verified architecture. The website and its stable
+# /download redirect point to this same universal asset name.
+ASSET_UNIVERSAL_DMG="$BUILD_DIR/Vibe-macOS-universal-$VERSION.dmg"
+ASSET_UNIVERSAL_ZIP="$BUILD_DIR/Vibe-macOS-universal-$VERSION.zip"
+ASSET_ARM64_DMG="$BUILD_DIR/Vibe-macOS-arm64-$VERSION.dmg"
+ASSET_ARM64_ZIP="$BUILD_DIR/Vibe-macOS-arm64-$VERSION.zip"
+cp "$UNIVERSAL_DMG" "$ASSET_UNIVERSAL_DMG"
+cp "$UNIVERSAL_ZIP" "$ASSET_UNIVERSAL_ZIP"
+cp "$ARM64_DMG" "$ASSET_ARM64_DMG"
+cp "$ARM64_ZIP" "$ASSET_ARM64_ZIP"
 
 # ---------------------------------------------------------------------------
 # Repoint the marketing page, and land it BEFORE the tag.
@@ -184,8 +243,10 @@ fi
 
 echo "🔊 releasing $TAG (build $BUILD) at $(git rev-parse --short HEAD)"
 gh release create "$TAG" \
-    "$ASSET_DMG#Vibe $VERSION (macOS, notarized disk image)" \
-    "$ASSET_ZIP#Vibe $VERSION (macOS, notarized zip)" \
+    "$ASSET_UNIVERSAL_DMG#Vibe $VERSION (macOS Universal, notarized disk image)" \
+    "$ASSET_UNIVERSAL_ZIP#Vibe $VERSION (macOS Universal, notarized zip)" \
+    "$ASSET_ARM64_DMG#Vibe $VERSION (Apple silicon, notarized disk image)" \
+    "$ASSET_ARM64_ZIP#Vibe $VERSION (Apple silicon, notarized zip)" \
     --title "Vibe $VERSION" \
     --notes-file "$NOTES" \
     --target "$(git rev-parse HEAD)" \

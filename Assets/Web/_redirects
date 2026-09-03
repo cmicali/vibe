@@ -22,7 +22,8 @@
 # Download button — one source, so the branded link and the button can never
 # name different builds. GitHub's own /releases/latest/download shortcut
 # cannot stand in: it only redirects for an asset name that never changes,
-# and the assets are named Vibe-macOS-<version>.dmg.
+# and the default asset is named Vibe-macOS-universal-<version>.dmg. The arm64
+# DMG remains an alternate on GitHub.
 #
 # TRAP: 302, never 301. The target moves every release, and a browser that
 # cached a permanent redirect would keep fetching that one version forever,

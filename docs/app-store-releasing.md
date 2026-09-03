@@ -18,9 +18,10 @@ make appstore-upload-signed-build             # build + validate + upload the bi
 ```
 
 This is the App Store path only. The direct-download path (`make release`:
-Developer ID + notarize + staple) is a different product with different
-certificates — see `scripts/release.sh` and the `vibe-release` skill. The two
-are not interchangeable.
+Developer ID + notarize + staple) produces universal and arm64-only products
+and uses a different certificate — see `scripts/release.sh` and the
+`vibe-release` skill. The App Store path remains explicitly universal (`arm64`
++ `x86_64`); the two signing paths are not interchangeable.
 
 ## 1. One-time setup
 
@@ -161,11 +162,12 @@ make appstore-upload-signed-build  # same, then actually upload
 ```
 
 `scripts/release-appstore.sh` regenerates the Xcode project, archives Release
-(unsigned — `CODE_SIGN_IDENTITY: "-"`, so everyday builds need no
-credentials), exports re-signed with Apple Distribution + Mac Installer via
-cloud signing, validates the `.pkg` with App Store Connect, and with
-`--upload` submits it. Validation runs the same checks as upload, so `make
-appstore-build` alone is a safe full rehearsal.
+with both `arm64` and `x86_64` slices (unsigned — `CODE_SIGN_IDENTITY: "-"`,
+so everyday builds need no credentials), and refuses to export unless that
+exact universal architecture set is present. It exports re-signed with Apple
+Distribution + Mac Installer via cloud signing, validates the `.pkg` with App
+Store Connect, and with `--upload` submits it. Validation runs the same checks
+as upload, so `make appstore-build` alone is a safe full rehearsal.
 
 Processing takes a few minutes after upload; the build then appears in App
 Store Connect under the app's TestFlight tab and the version's Build section.

@@ -16,10 +16,12 @@
 # to name different builds.
 #
 # The page hardcodes a direct .dmg URL rather than /releases/latest because the
-# asset name carries the version — Vibe-macOS-<version>.dmg — and GitHub's
+# asset name carries the architecture and version —
+# Vibe-macOS-universal-<version>.dmg — and GitHub's
 # latest/download shortcut only redirects for a filename that never changes.
-# A direct link is therefore correct exactly as long as something rewrites it,
-# which is this script's whole job.
+# The arm64 DMG is a GitHub alternate, not the site's Apple-silicon-and-Intel
+# default. A direct link is therefore correct exactly as long as something
+# rewrites it, which is this script's whole job.
 #
 # The edits key on element ids and JSON property names, not on the markup
 # around them, so restyling the button or reordering the JSON does not silently
@@ -53,7 +55,7 @@ VERSION="${VERSION#v}"
     exit 1
 }
 
-URL="https://github.com/cmicali/vibe/releases/download/v$VERSION/Vibe-macOS-$VERSION.dmg"
+URL="https://github.com/cmicali/vibe/releases/download/v$VERSION/Vibe-macOS-universal-$VERSION.dmg"
 
 BEFORE="$(cat "$PAGE" "$REDIRECTS")"
 

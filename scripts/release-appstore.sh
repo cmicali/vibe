@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Build and submit Vibe to the Mac App Store:
-#   generate -> archive (Release) -> export signed for App Store -> validate
-#   -> (with --upload) upload to App Store Connect.
+# Build and submit Vibe's universal macOS binary to the Mac App Store:
+#   generate -> archive arm64 + x86_64 (Release) -> export signed for App Store
+#   -> validate -> (with --upload) upload to App Store Connect.
 #
 # This is NOT scripts/release.sh. The two release paths are different products:
 #
-#   release.sh           Developer ID + notarize + staple  -> a .zip you host
-#                        yourself. Gatekeeper-approved direct download.
+#   release.sh           Developer ID + notarize + staple  -> universal and
+#                        arm64-only DMG/zip direct-download products.
 #   release-appstore.sh  Apple Distribution + App Store profile -> a .pkg
 #                        uploaded to App Store Connect. NOT notarized (the
 #                        store notarizes on its side); the Developer ID cert
@@ -96,7 +96,7 @@ echo "🔊 upload      : $([[ $UPLOAD == 1 ]] && echo yes || echo 'no (validate 
 # Generate + archive + export — shared mechanics in asc-build-lib.sh, which
 # documents why the archive carries no signing overrides.
 # ---------------------------------------------------------------------------
-asc_generate_and_archive
+asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO
 
 # The version comes from the archived app's Info.plist, the same way
 # github-release.sh takes it from the built app, so the number this run reports
@@ -112,6 +112,8 @@ ARCHIVED_APP="$ARCHIVE/Products/Applications/$PRODUCT.app"
 [[ -f "$ARCHIVED_APP/Contents/Info.plist" ]] || {
     echo "error: no Info.plist at $ARCHIVED_APP — did the archive lay out somewhere else?" >&2
     exit 1; }
+asc_require_binary_architectures "$ARCHIVED_APP/Contents/MacOS/$PRODUCT" \
+    arm64 x86_64
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' \
     "$ARCHIVED_APP/Contents/Info.plist")"
 BUILD_NUM="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' \
