@@ -897,7 +897,7 @@ static NSURL *Directory(NSString *path) {
     XCTAssertTrue([text containsString:@"/%23three.mp3\n"]);
     XCTAssertTrue([text containsString:@"\n/"]);   // far.mp3, absolute
     NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
-    [[text dataUsingEncoding:NSUTF8StringEncoding] writeToURL:playlist atomically:YES];
+    XCTAssertTrue([PlaylistFile writeM3UForTracks:tracks relativeToDirectory:dir toURL:playlist error:NULL]);
 
     NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
@@ -934,7 +934,8 @@ static NSURL *Directory(NSString *path) {
                           (@[@"/Music/u.mp3", @"/Music/a.mp3"]));
 }
 
-- (void)testFileURLsInM3UDataOfEmptyDataIsEmpty {
+- (void)testFileURLsInM3UDataOfNoDataIsEmpty {
+    XCTAssertEqualObjects([PlaylistFile fileURLsInM3UData:nil], @[]);
     XCTAssertEqualObjects([PlaylistFile fileURLsInM3UData:[NSData data]], @[]);
 }
 

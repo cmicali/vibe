@@ -80,8 +80,10 @@
     // Coalesces the redraws behind FolderArtDidResolveNotification; see
     // folderArtDidResolve:. Main thread only.
     BOOL                        _folderArtRefreshScheduled;
-    // Whether this controller currently holds sudden termination off; see
-    // syncSuddenTerminationHold.
+    // Whether this controller holds sudden termination off; see
+    // applyReopenLastPlaylist. The counter is process-wide and shared with
+    // AppStats' listening-clock hold, so each side balances its own pair —
+    // this one through this flag.
     BOOL                        _holdsSuddenTerminationForPlaylist;
 }
 
@@ -332,6 +334,7 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
+    [self applyReopenLastPlaylist];
 
     self.waveformView.delegate = self;
     // The theme's style, not the loose Settings.waveformStyle key — migration
@@ -522,7 +525,6 @@
         _lastReloadedTrack = displayTrack;
     }
     [self syncUITimerRate];
-    [self syncSuddenTerminationHold];
     [self updatePlaybackUI];
     [self updateNowPlaying];
 }
@@ -612,8 +614,7 @@
     [self loadURLs:urls selectingIndex:0 startPaused:NO];
 }
 
-// The one replacement path: an open and the launch restore differ only in
-// the row they land on and whether it sounds.
+// An open and the launch restore differ only in row and whether it sounds.
 - (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
     // The old playlist's scan dies before the new first track is submitted —
@@ -743,12 +744,9 @@
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
     // Relative to the chosen file's folder, which is what the reader resolves
     // against; the common directory above only seeds the panel.
-    NSString *text = [PlaylistFile m3uTextForTracks:self.playlistController.playlist
-                                relativeToDirectory:url.URLByDeletingLastPathComponent];
-    // Lossy so the data is total: an unpaired surrogate from a malformed tag
-    // costs one character, not the save.
-    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-    if (![data writeToURL:url options:NSDataWritingAtomic error:error]) {
+    if (![PlaylistFile writeM3UForTracks:self.playlistController.playlist
+                     relativeToDirectory:url.URLByDeletingLastPathComponent
+                                   toURL:url error:error]) {
         return NO;
     }
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
@@ -758,16 +756,16 @@
 #pragma mark - The last playlist
 
 // The container mirror: absolute paths so PlaylistFile reads it back with no
-// folder to resolve against, never noted in Open Recent — the writer's second
-// caller beside writePlaylistToURL:error:. The cursor rides a defaults key as
-// the current track's path: state, like VibeGrantedFolders, not a
-// preference, so resetToDefaults leaves it and the live effect clears it.
-static NSString *const kVibeLastPlaylistCurrentPathKey = @"VibeLastPlaylistCurrentPath";
+// folder to resolve against, and never noted in Open Recent. The cursor rides
+// a defaults key as the row index — written in the same call as the mirror,
+// so it is exact — and is state, like VibeGrantedFolders, not a preference:
+// resetToDefaults leaves it and the live effect clears it.
+static NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
 
 static NSURL *VibeLastPlaylistURL(void) {
     NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
                                                             NSUserDomainMask, YES).firstObject;
-    NSString *dir = [support stringByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier ?: @"Vibe"];
+    NSString *dir = [support stringByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier];
     return [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:@"LastPlaylist.m3u"] isDirectory:NO];
 }
 
@@ -780,75 +778,59 @@ static NSURL *VibeLastPlaylistURL(void) {
     NSURL *url = VibeLastPlaylistURL();
     [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
                            withIntermediateDirectories:YES attributes:nil error:nil];
-    NSData *data = [[PlaylistFile m3uTextForTracks:tracks relativeToDirectory:nil]
-            dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
     NSError *error = nil;
-    if (![data writeToURL:url options:NSDataWritingAtomic error:&error]) {
+    if (![PlaylistFile writeM3UForTracks:tracks relativeToDirectory:nil toURL:url error:&error]) {
         LogError(@"Last playlist not saved: %@", error.localizedDescription);
         [self removeLastPlaylist];   // a stale mirror must not outlive a failed write
         return;
     }
-    [NSUserDefaults.standardUserDefaults
-            setObject:self.playlistController.currentTrack.url.path.stringByStandardizingPath
-               forKey:kVibeLastPlaylistCurrentPathKey];
+    [NSUserDefaults.standardUserDefaults setInteger:(NSInteger)self.playlistController.currentIndex
+                                             forKey:kVibeLastPlaylistCurrentIndexKey];
 }
 
 - (void)removeLastPlaylist {
     [NSFileManager.defaultManager removeItemAtURL:VibeLastPlaylistURL() error:nil];
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kVibeLastPlaylistCurrentPathKey];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kVibeLastPlaylistCurrentIndexKey];
+}
+
+- (NSArray<NSURL *> *)lastPlaylistURLs {
+    return [PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]];
 }
 
 - (BOOL)restoreLastPlaylist {
     if (!AppSettings.sharedInstance.reopenLastPlaylist) {
         return NO;
     }
-    NSData *data = [NSData dataWithContentsOfURL:VibeLastPlaylistURL()];
-    NSArray<NSURL *> *urls = data ? [PlaylistFile fileURLsInM3UData:data] : @[];
+    NSArray<NSURL *> *urls = [self lastPlaylistURLs];
     if (urls.count == 0) {
         return NO;
     }
     // Every row comes back, readable or not; an unreadable current row lands
     // in the inline error state when its parked open fails.
-    NSString *currentPath = [NSUserDefaults.standardUserDefaults stringForKey:kVibeLastPlaylistCurrentPathKey];
-    NSUInteger index = [urls indexOfObjectPassingTest:^BOOL(NSURL *url, NSUInteger i, BOOL *stop) {
-        return [url.path isEqualToString:currentPath];
-    }];
-    // BEFORE the submission: playWillStartHandler's updateUI publishes the
-    // loading gap's track identity, and nothing may be published until a
-    // track plays.
-    _nowPlayingWithheldForRestore = YES;
-    [self loadURLs:urls selectingIndex:(index == NSNotFound ? 0 : index) startPaused:YES];
+    NSInteger index = [NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey];
+    [self loadURLs:urls selectingIndex:(NSUInteger)index startPaused:YES];
     return YES;
 }
 
-// Quit from Paused or Stopped is a SIGKILL under NSSupportsSuddenTermination,
-// with no applicationWillTerminate: to write the mirror — so while the
-// setting is on, the hold keeps every quit on the callback path. The whole
-// time, not only while rows exist: an empty playlist at quit has a mirror to
-// DELETE, and releasing the hold on Close was observed to skip exactly that
-// callback. The counter is process-wide and shared with AppStats'
-// listening-clock hold; each side balances its own pair, this one by
-// construction. Runs from the updateUI funnel and the live effect; the
-// defaults read per pass is the cost syncUITimerRate already pays there.
-- (void)syncSuddenTerminationHold {
-    BOOL wanted = AppSettings.sharedInstance.reopenLastPlaylist;
-    if (wanted == _holdsSuddenTerminationForPlaylist) {
-        return;
-    }
-    if (wanted) {
-        [NSProcessInfo.processInfo disableSuddenTermination];
-    }
-    else {
-        [NSProcessInfo.processInfo enableSuddenTermination];
-    }
-    _holdsSuddenTerminationForPlaylist = wanted;
-}
-
+// TRAP: quit from Paused or Stopped is a SIGKILL under
+// NSSupportsSuddenTermination, with no applicationWillTerminate: to write the
+// mirror — so the hold is held the whole time the setting is on, not only
+// while rows exist: an empty playlist at quit has a mirror to DELETE, and
+// releasing the hold on Close was observed to skip exactly that callback.
 - (void)applyReopenLastPlaylist {
-    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
+    BOOL wanted = AppSettings.sharedInstance.reopenLastPlaylist;
+    if (!wanted) {
         [self removeLastPlaylist];   // off means forget, not merely stop writing
     }
-    [self syncSuddenTerminationHold];   // on takes the hold now; nothing is written until quit
+    if (wanted != _holdsSuddenTerminationForPlaylist) {
+        if (wanted) {
+            [NSProcessInfo.processInfo disableSuddenTermination];
+        }
+        else {
+            [NSProcessInfo.processInfo enableSuddenTermination];
+        }
+        _holdsSuddenTerminationForPlaylist = wanted;
+    }
 }
 
 - (IBAction)next:(nullable id)sender {
@@ -1269,16 +1251,11 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (NSDictionary *)debugLastPlaylistDictionary {
-    NSData *data = [NSData dataWithContentsOfURL:VibeLastPlaylistURL()];
     return @{
-        @"exists": @(data != nil),
-        @"rows": @(data ? [PlaylistFile fileURLsInM3UData:data].count : 0),
-        @"currentPath": [NSUserDefaults.standardUserDefaults stringForKey:kVibeLastPlaylistCurrentPathKey] ?: NSNull.null,
+        @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
+        @"rows": @([self lastPlaylistURLs].count),
+        @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
-}
-
-- (BOOL)debugNowPlayingWithheldForRestore {
-    return _nowPlayingWithheldForRestore;
 }
 #endif
 

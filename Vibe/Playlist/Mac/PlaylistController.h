@@ -92,8 +92,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)play;
 
-// Replaces the list and lands the cursor on index, clamped — Playlist's
-// setter does not range-check — then scrolls it into view. Playback is
+// Replaces the list and lands the cursor on index — an out-of-range index
+// leaves the replacement's row 0 — then scrolls it into view. Playback is
 // untouched: the shell follows with play or playStartPaused:, so an open and
 // the launch restore share one replacement path.
 - (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index;

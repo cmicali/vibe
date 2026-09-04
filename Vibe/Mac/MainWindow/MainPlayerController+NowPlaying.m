@@ -27,12 +27,7 @@
     // out on displayedTrack — so both derive from this read.
     AudioTrack *currentTrack = self.playlistController.currentTrack;
     TrackDisplayState displayState = [self displayStateForTrack:currentTrack];
-    // Withheld after a launch restore until the first real play: a parked
-    // start publishes like any other, and nothing may be published until a
-    // track plays. The call still runs so next/previous availability follows
-    // the playlist — the controller applies it before its nil-track return.
-    AudioTrack *track = _nowPlayingWithheldForRestore
-            ? nil : [self displayedTrackForState:displayState track:currentTrack];
+    AudioTrack *track = [self displayedTrackForState:displayState track:currentTrack];
     NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(self.audioPlayer.isPlaying,
                                                                  self.audioPlayer.isPaused);
     // Report pitch-adjusted, wall-clock time, so that Control Center matches

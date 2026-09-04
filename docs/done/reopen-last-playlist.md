@@ -2,7 +2,7 @@
 
 Implemented 2026-09-04, from the plan below, on top of File > Save Playlist… (PR #21). The plan is
 kept as the record of the reasoning; the code and the directory docs are the authority on what
-shipped. The implementation diverged in two places:
+shipped. The implementation diverged in these places:
 
 - **The sudden-termination hold follows the setting alone, not the setting and a nonempty
   playlist.** Verified live: with the hold released after Close, the quit that followed ran no
@@ -14,6 +14,11 @@ shipped. The implementation diverged in two places:
 - The Startup section sits below Audio rather than first, and the copy shipped as "Load last
   playlist on launch" with the caption "Playlist is saved on quit and loaded on next launch"; the
   keys are unchanged.
+- After the consolidating pass: the hold is applied once at construction and by the live effect,
+  not from `updateUI`; the current row is stored as its index, not its path; the "nothing until
+  the first play" rule moved into `NowPlayingController` itself (withhold every publish before the
+  first Playing one), so the mac shell carries no withholding flag; and both writers share
+  `PlaylistFile.writeM3UForTracks:relativeToDirectory:toURL:error:`.
 
 **This replaced the design of 2026-08-25 that lived in this file** (git history keeps it, last at
 `7d38d64`). Two things changed since it was written: the row-removal feature added a paused-open

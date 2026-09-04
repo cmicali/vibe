@@ -233,13 +233,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 
-// Settings > General > Startup > Load last playlist on launch. NO, the default, starts
-// empty. YES has the mac shell mirror the playlist to the container at quit
-// and reopen it at launch, parked on the last current row — never playing,
-// and never publishing Now Playing until the first play. The mirror is
-// MainPlayerController's (saveLastPlaylist / restoreLastPlaylist); a writer
-// must request VibeSettingsLiveEffectReopenLastPlaylist, which deletes the
-// mirror when switched off and syncs the sudden-termination hold.
+// Settings > General > Startup > Load last playlist on launch. NO, the
+// default, starts empty; YES has the mac shell mirror the playlist to the
+// container at quit and reopen it parked at launch (MainPlayerController). A
+// writer must request VibeSettingsLiveEffectReopenLastPlaylist, which deletes
+// the mirror when switched off and syncs the sudden-termination hold.
 - (BOOL)reopenLastPlaylist;
 - (void)setReopenLastPlaylist:(BOOL)reopen;
 

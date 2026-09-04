@@ -59,12 +59,6 @@ NS_ASSUME_NONNULL_BEGIN
     // It is cleared when playback goes idle, on an error or at the end of the
     // playlist.
     NSTimeInterval              _currentTrackDuration;
-    // Set by the launch restore before its parked submission — the loading
-    // gap already publishes a track's identity — and cleared by the first
-    // real start (didStartPlaying: while playing) or the parked track's
-    // resume (didResumePlaying:). While set, updateNowPlaying hands the
-    // publisher nil: nothing may be published until a track plays.
-    BOOL                        _nowPlayingWithheldForRestore;
     // The last track whose playlist row was fully rebuilt, so that a refresh
     // for the same track does not rebuild it. Written by every path that has
     // already rendered the row itself; nil forces the next rebuild.

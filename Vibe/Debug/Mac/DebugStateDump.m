@@ -82,7 +82,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),
             @"displayState": VibeDebugDisplayStateName(controller.displayState),
-            @"nowPlayingWithheldForRestore": @(controller.debugNowPlayingWithheldForRestore),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),

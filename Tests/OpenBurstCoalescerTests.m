@@ -119,9 +119,7 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     XCTAssertFalse([_coalescer startAndDrainQueue]);
     XCTAssertEqual(_drains.count, 0u);
     XCTAssertEqual(_timers.count, 0u);
-    // An empty start armed no burst, so a Finder open a beat later replaces
-    // rather than appends — which is what lets the launch restore land
-    // without entering the coalescer at all.
+    // An empty start arms no burst, so a Finder open a beat later replaces.
     [_coalescer openBurstURLs:URLBatch(1)];
     XCTAssertEqualObjects(_drains, @[@"replace 1"]);
 }

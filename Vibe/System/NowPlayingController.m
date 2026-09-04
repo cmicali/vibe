@@ -52,8 +52,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     BOOL _suppressed;
 #endif
 
-    // Vibe must not claim the system Now Playing slot at launch. updateUI runs
-    // with no track before anything has played, and publishing even a cleared
+    // Vibe must not claim the system Now Playing slot before anything has
+    // played: the shells publish a nil track at launch, and a restored session
+    // parks a track that never sounded. Publishing even a cleared or paused
     // state would evict the user's current Now Playing app.
     BOOL _hasPublished;
 
@@ -263,10 +264,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         _publishedHasPrevious = hasPrevious;
     }
 
+    // Nothing until the first track PLAYS; see _hasPublished. Command
+    // availability above still follows the playlist.
+    if (!_hasPublished && state != NowPlayingPlaybackStatePlaying) {
+        return;
+    }
+
     if (!track) {
-        // Silent until the first track plays; see _hasPublished. After that, a
-        // nil track clears the published state exactly once.
-        if (!_hasPublished || _publishedURL == nil) {
+        // A nil track clears the published state exactly once.
+        if (_publishedURL == nil) {
             return;
         }
         center.nowPlayingInfo = nil;

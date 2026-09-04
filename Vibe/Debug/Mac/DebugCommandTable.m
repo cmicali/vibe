@@ -25,6 +25,13 @@
 // non-conversion undo — a playlist removal's restore — settles inside the
 // manager call and never fires that hook, so the post-call check answers it
 // synchronously instead of timing the client out.
+
+// The <on|off> argument every settings switch verb takes; NO for anything else.
+static BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
+    NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+    *on = [arg isEqualToString:@"on"];
+    return *on || [arg isEqualToString:@"off"];
+}
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
     if (controller.isConversionUndoRedoInFlight) {
@@ -206,11 +213,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // Writes the setting and applies it live, as the Settings >
                 // Files control does; the pane itself cannot be driven from
                 // here.
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_folder_art <on|off>");
                 }
-                AppSettings.sharedInstance.useFolderArt = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.useFolderArt = on;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
                 return VibeJSONString(@{@"ok": @YES, @"folderArt": @(AppSettings.sharedInstance.useFolderArt)});
             }),
@@ -331,11 +338,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                                         @"keyColors": @(colorsOn)});
             }),
             VibeDebugCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
                 }
-                AppSettings.sharedInstance.pauseAtTrackEnd = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.pauseAtTrackEnd = on;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
                 return VibeJSONString(@{
                     @"ok": @YES,
@@ -343,11 +350,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
             }),
             VibeDebugCmd(@"set_reopen_playlist <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_reopen_playlist <on|off>");
                 }
-                AppSettings.sharedInstance.reopenLastPlaylist = [arg isEqualToString:@"on"];
+                AppSettings.sharedInstance.reopenLastPlaylist = on;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectReopenLastPlaylist];
                 return VibeJSONString(@{
                     @"ok": @YES,
@@ -488,8 +495,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 return VibeJSONString(@{@"ok": @YES, @"path": path, @"tracks": @(count)});
             }),
-            // The container mirror as it stands on disk: written only at quit,
-            // so a fresh session reads the LAST quit's until it quits itself.
             VibeDebugCmd(@"dump_last_playlist", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeJSONString(controller.debugLastPlaylistDictionary);
             }),

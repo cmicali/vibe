@@ -143,10 +143,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // grants are back — bounded, see restoreGrantedAccessWithCompletion:.
     // Opens that land in the meantime queue in the coalescer.
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
-        // A launch-time open outranks the remembered playlist. The restore is
-        // not an open: it enters neither the coalescer — an empty drain leaves
-        // no burst, so a Finder open a beat later replaces — nor
-        // openURLs:appending:, so no stats, no bookmarks, no Open Recent.
+        // A launch-time open outranks the remembered playlist, and the restore
+        // is not an open: it never enters the coalescer (Mac/App/CLAUDE.md).
         if (![self->_openBurstCoalescer startAndDrainQueue]
                 && ![self.mainPlayerController restoreLastPlaylist]) {
             // No launch-time open is queued and nothing was remembered: Finder

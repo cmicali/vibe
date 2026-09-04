@@ -664,9 +664,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index {
     [_model replaceAllWithURLs:urls];
-    // The replacement already reset the index to 0 and announced it; only a
-    // different row goes through the setter, whose observer repaints both
-    // rows and re-ranks the metadata neighborhood.
+    // 0 is already the replacement's announced cursor; the setter would
+    // announce it again.
     if (index > 0 && index < _model.count) {
         self.currentIndex = index;
     }
