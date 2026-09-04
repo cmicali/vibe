@@ -459,6 +459,23 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the block above
             }),
+            // The write without its panel; the path must be writable by the
+            // sandboxed app (the container's tmp, or a granted folder).
+            VibeDebugCmd(@"save_playlist <path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: save_playlist <path>");
+                }
+                NSUInteger count = controller.playlistController.count;
+                if (count == 0) {
+                    return VibeErrorJSON(@"playlist is empty");
+                }
+                NSString *path = VibePathArgument(tokens);
+                NSError *error = nil;
+                if (![controller writePlaylistToURL:[NSURL fileURLWithPath:path isDirectory:NO] error:&error]) {
+                    return VibeErrorJSON(@"save failed: %@", error.localizedDescription);
+                }
+                return VibeJSONString(@{@"ok": @YES, @"path": path, @"tracks": @(count)});
+            }),
             // The whole Convert to FLAC path on the current track, swap and
             // disposal included. The optional keep|delete token writes Convert
             // > Delete Original, as the menu item does, and leaves it written.

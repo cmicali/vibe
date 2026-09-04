@@ -81,6 +81,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_FILE_OPEN_RECENT_CLEAR NSLS(@"menu.file.open_recent.clear", @"Clear Menu",      @"Open Recent submenu: empties the list of recent files.")
 #define STR_MENU_FILE_CLOSE             NSLS(@"menu.file.close",             @"Close File",      @"File menu item: unloads the current track. Becomes 'Close All Files' when more than one is loaded — two independent strings, not a plural; the count is never shown.")
 #define STR_MENU_FILE_CLOSE_ALL         NSLS(@"menu.file.close_all",         @"Close All Files", @"File menu item: unloads the whole playlist. Replaces 'Close File' when more than one track is loaded.")
+#define STR_MENU_FILE_SAVE_PLAYLIST     NSLS(@"menu.file.save_playlist",     @"Save Playlist…",  @"File menu item: shows the save panel that writes the current playlist as an M3U file. Use the system's own word for Save. Ends with a real ellipsis character (…), not three periods.")
 
 #pragma mark - Edit menu
 
@@ -430,6 +431,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_PLAYLIST_GRANT_MESSAGE NSLS(@"playlist.grant.message", @"%1$@ needs permission to read the audio files listed in “%2$@”. Select the folder that contains them.", @"Message atop the folder-picker panel shown when a playlist file's (CUE, M3U) audio files are not readable under the sandbox. %1$@ is the app name, %2$@ the playlist file's name.")
 #define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button of the folder-picker panel that grants access to a playlist file's folder.")
+#define STR_PLAYLIST_SAVE_DEFAULT_NAME NSLS(@"playlist.save.default_name", @"Playlist", @"Default file name, without extension, that the save panel offers when the playlist's tracks share no folder to name it after. It becomes a file name, so it must not contain a slash.")
 
 #pragma mark - iOS
 

@@ -7,10 +7,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioTrack;
+
 // Readers for playlist-like files that expand into an ordered list of audio
-// files: CUE sheets and M3U playlists. Only the file references are read — CUE
-// TRACK/INDEX timing and M3U #EXTINF metadata are ignored, and the referenced
-// files are loaded whole.
+// files — CUE sheets and M3U playlists — and the M3U writer. Only the file
+// references are read: CUE TRACK/INDEX timing and M3U #EXTINF metadata are
+// ignored, and the referenced files are loaded whole.
 @interface PlaylistFile : NSObject
 
 // YES for a (lowercased) path extension this class expands: cue, m3u, m3u8.
@@ -44,6 +46,21 @@ NS_ASSUME_NONNULL_BEGIN
 // for sandbox access" or "skip" — so calling again after a grant resolves
 // better.
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
+
+#pragma mark - Writing
+
+// The playlist as extended M3U text: "#EXTM3U", then per track an
+// "#EXTINF:<seconds>,<Artist - Title>" line and the path. A path is written
+// relative to directory when the track sits under it and absolute otherwise;
+// nil means absolute throughout. LF line endings; the caller writes UTF-8
+// without a BOM, and the result reads back through m3uEntriesInText: and
+// resolvedFileURLsForPlaylistAtURL: unchanged.
++ (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks
+           relativeToDirectory:(nullable NSURL *)directory;
+
+// The deepest folder every track sits under — the directory a saved file
+// makes every entry relative to. nil when nothing below the root is shared.
++ (nullable NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks;
 
 @end
 

@@ -177,6 +177,13 @@ NS_ASSUME_NONNULL_BEGIN
 // didFinishPlaying:, which then parks instead of advancing.
 - (nullable AudioTrack *)successorPrefetchTrack;
 
+#pragma mark - Saving the playlist
+
+// The whole playlist, in list order, as extended M3U at url, then noted in
+// Open Recent so it reopens with one click. Shared by savePlaylist: and the
+// save_playlist debug verb; the playlist is snapshotted here, at the write.
+- (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error;
+
 #pragma mark - Deferred metadata load and the error mask
 
 - (void)scheduleDeferredMetadataLoad;

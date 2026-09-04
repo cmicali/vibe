@@ -5,6 +5,21 @@
 
 #import <XCTest/XCTest.h>
 #import "PlaylistFile.h"
+#import "AudioTrack.h"
+#import "AudioTrackInternal.h"
+#import "AudioTrackMetadata.h"
+
+// Named apart from AudioTrackTests' fake, since two classes of one name
+// collide at link; parsedOK is what installMetadataIfUnresolved: consults.
+@interface PlaylistWriterFakeMetadata : NSObject
+@property (nonatomic, copy) NSString *title;
+@property (nonatomic, copy) NSString *artist;
+@property (nonatomic) NSTimeInterval duration;
+@property (nonatomic) BOOL parsedOK;
+@end
+
+@implementation PlaylistWriterFakeMetadata
+@end
 
 @interface PlaylistFileTests : XCTestCase
 @end
@@ -255,8 +270,8 @@
 }
 
 // The comment test runs after the trim, so an indented directive is still a
-// directive — and a file whose name starts with # is unreachable, which is the
-// format's own limitation.
+// directive — and a bare entry whose name starts with # is unreachable, the
+// format's own limitation, which is why Vibe's writer spells one as a URL.
 - (void)testM3UIndentedDirectivesAreStillComments {
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:@"   #EXTM3U\n\t# comment\n#a.mp3\nb.mp3\n"],
                           @[@"b.mp3"]);
@@ -756,6 +771,164 @@
             [dir URLByAppendingPathComponent:@"mix.m3u"]];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertTrue([NSFileManager.defaultManager isReadableFileAtPath:urls.firstObject.path]);
+}
+
+#pragma mark - m3uTextForTracks:relativeToDirectory:
+
+static AudioTrack *TrackAt(NSString *path) {
+    return [AudioTrack withURL:[NSURL fileURLWithPath:path]];
+}
+
+static AudioTrack *TaggedTrackAt(NSString *path, NSString *artist, NSString *title, NSTimeInterval duration) {
+    AudioTrack *track = TrackAt(path);
+    PlaylistWriterFakeMetadata *metadata = [PlaylistWriterFakeMetadata new];
+    metadata.artist = artist;
+    metadata.title = title;
+    metadata.duration = duration;
+    metadata.parsedOK = YES;
+    [track installMetadataIfUnresolved:(AudioTrackMetadata *)metadata];
+    return track;
+}
+
+static NSURL *Directory(NSString *path) {
+    return [NSURL fileURLWithPath:path isDirectory:YES];
+}
+
+- (void)testM3UTextForNoTracksIsAValidEmptyPlaylist {
+    XCTAssertEqualObjects([PlaylistFile m3uTextForTracks:@[] relativeToDirectory:nil], @"#EXTM3U\n");
+}
+
+- (void)testM3UInfoLineCarriesArtistAndTitleAndRoundedSeconds {
+    AudioTrack *track = TaggedTrackAt(@"/Music/A/x.mp3", @"Björk", @"Jóga", 305.4);
+    NSString *text = [PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil];
+    XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:305,Björk - Jóga\n/Music/A/x.mp3\n");
+}
+
+// No tags: the filename-derived single line, underscores read as spaces, the
+// same rule the rows and the header draw by.
+- (void)testM3UInfoLineFallsBackToTheFilenameTitleAndUnknownDuration {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/01_My_Track.mp3")]
+                                relativeToDirectory:nil];
+    XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:-1,01 My Track\n/Music/A/01_My_Track.mp3\n");
+}
+
+- (void)testM3UInfoLineDurationRounds {
+    AudioTrack *track = TrackAt(@"/Music/A/x.mp3");
+    [track setDuration:200.6];
+    XCTAssertTrue([[PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil]
+            containsString:@"#EXTINF:201,x\n"]);
+}
+
+- (void)testM3UPathsUnderTheDirectoryAreRelativeIncludingSubfolders {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Music/A/disc2/y.mp3")]
+                                relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"x.mp3", @"disc2/y.mp3"]));
+}
+
+// The prefix test carries a trailing slash, or /Music/Album would claim
+// /Music/Album2's files and write them as "2/x.mp3".
+- (void)testM3UPathsOutsideTheDirectoryAreAbsolute {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/Album2/x.mp3"), TrackAt(@"/Volumes/USB/y.mp3")]
+                                relativeToDirectory:Directory(@"/Music/Album")];
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text],
+                          (@[@"/Music/Album2/x.mp3", @"/Volumes/USB/y.mp3"]));
+}
+
+- (void)testM3URelativePrefixIsCaseSensitive {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/a/x.mp3")]
+                                relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], @[@"/Music/a/x.mp3"]);
+}
+
+- (void)testM3UARelativeNameStartingWithHashIsNotWrittenAsAComment {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/#1 hit.mp3")]
+                                relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertTrue([text containsString:@"\nfile:///Music/A/%231%20hit.mp3\n"]);
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], @[@"/Music/A/#1 hit.mp3"]);
+}
+
+// The reader splits at every newline character, not just LF.
+- (void)testM3UANameWithANewlineIsWrittenAsAFileURL {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/a\nb.mp3"), TrackAt(@"/Music/A/c d.mp3")]
+                                relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertTrue([text containsString:@"\nfile:///Music/A/a%0Ab.mp3\n"]);
+    XCTAssertTrue([text containsString:@"\nfile:///Music/A/c%E2%80%A8d.mp3\n"]);
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"/Music/A/a\nb.mp3", @"/Music/A/c d.mp3"]));
+}
+
+// The reader trims each line.
+- (void)testM3UANameWithEdgeWhitespaceIsWrittenAsAFileURL {
+    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/ x.mp3"), TrackAt(@"/Music/A/y.mp3\t")]
+                                relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertTrue([text containsString:@"\nfile:///Music/A/%20x.mp3\n"]);
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"/Music/A/ x.mp3", @"/Music/A/y.mp3\t"]));
+}
+
+- (void)testM3UANewlineInATitleCannotBreakTheInfoLine {
+    AudioTrack *track = TaggedTrackAt(@"/Music/A/x.mp3", @"A", @"Line\nTwo", 10);
+    NSString *text = [PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil];
+    XCTAssertTrue([text containsString:@"#EXTINF:10,A - Line Two\n"]);
+    XCTAssertEqual([PlaylistFile m3uEntriesInText:text].count, 1u);
+}
+
+- (void)testM3UTextRoundTripsMixedEntriesInOrder {
+    NSArray<AudioTrack *> *tracks = @[TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Volumes/USB/y.flac"),
+                                      TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Music/A/sub/z.wav")];
+    NSString *text = [PlaylistFile m3uTextForTracks:tracks relativeToDirectory:Directory(@"/Music/A")];
+    XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text],
+                          (@[@"x.mp3", @"/Volumes/USB/y.flac", @"x.mp3", @"sub/z.wav"]));
+}
+
+// End to end through the reader against real files — the one place the
+// relative rule meets a real temp-dir path and its two spellings.
+- (void)testM3UTextWrittenBesideItsFilesResolvesEveryEntry {
+    NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3", @"#three.mp3"] playlistName:@"seed.m3u" text:@""];
+    NSURL *sub = [dir URLByAppendingPathComponent:@"sub" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:sub withIntermediateDirectories:YES attributes:nil error:nil];
+    [[NSData data] writeToURL:[sub URLByAppendingPathComponent:@"two.mp3"] atomically:YES];
+    NSURL *far = [self makeTempDirWithFiles:@[@"far.mp3"] playlistName:@"seed.m3u" text:@""];
+    NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:[dir URLByAppendingPathComponent:@"one.mp3"]],
+                                      [AudioTrack withURL:[sub URLByAppendingPathComponent:@"two.mp3"]],
+                                      [AudioTrack withURL:[dir URLByAppendingPathComponent:@"#three.mp3"]],
+                                      [AudioTrack withURL:[far URLByAppendingPathComponent:@"far.mp3"]]];
+    NSString *text = [PlaylistFile m3uTextForTracks:tracks relativeToDirectory:dir];
+    XCTAssertTrue([text containsString:@"\none.mp3\n"]);
+    XCTAssertTrue([text containsString:@"\nsub/two.mp3\n"]);
+    XCTAssertTrue([text containsString:@"/%23three.mp3\n"]);
+    XCTAssertTrue([text containsString:@"\n/"]);   // far.mp3, absolute
+    NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
+    [[text dataUsingEncoding:NSUTF8StringEncoding] writeToURL:playlist atomically:YES];
+
+    NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
+    XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
+                          (@[@"one.mp3", @"two.mp3", @"#three.mp3", @"far.mp3"]));
+    for (NSURL *url in urls) {
+        XCTAssertTrue([NSFileManager.defaultManager isReadableFileAtPath:url.path], @"%@", url);
+    }
+}
+
+#pragma mark - commonDirectoryForTracks:
+
+- (void)testCommonDirectoryOfOneTrackIsItsFolder {
+    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:@[TrackAt(@"/Music/A/x.mp3")]].path, @"/Music/A");
+}
+
+// Shortened at component boundaries, so /M/Album and /M/Album2 share /M, not
+// "/M/Album".
+- (void)testCommonDirectoryIsTheDeepestSharedFolder {
+    NSArray *tracks = @[TrackAt(@"/M/A/x.mp3"), TrackAt(@"/M/A/s/y.mp3"), TrackAt(@"/M/B/z.mp3")];
+    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:tracks].path, @"/M");
+    NSArray *siblings = @[TrackAt(@"/M/Album/x.mp3"), TrackAt(@"/M/Album2/y.mp3")];
+    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:siblings].path, @"/M");
+}
+
+- (void)testCommonDirectoryOfUnrelatedVolumesIsNil {
+    NSArray *tracks = @[TrackAt(@"/Users/me/x.mp3"), TrackAt(@"/Volumes/USB/y.mp3")];
+    XCTAssertNil([PlaylistFile commonDirectoryForTracks:tracks]);
+}
+
+- (void)testCommonDirectoryOfNoTracksIsNil {
+    XCTAssertNil([PlaylistFile commonDirectoryForTracks:@[]]);
 }
 
 @end
