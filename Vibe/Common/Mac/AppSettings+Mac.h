@@ -237,7 +237,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // default, starts empty; YES has the mac shell mirror the playlist to the
 // container at quit and reopen it parked at launch (MainPlayerController). A
 // writer must request VibeSettingsLiveEffectReopenLastPlaylist, which deletes
-// the mirror when switched off and syncs the sudden-termination hold.
+// the mirror when switched off.
 - (BOOL)reopenLastPlaylist;
 - (void)setReopenLastPlaylist:(BOOL)reopen;
 

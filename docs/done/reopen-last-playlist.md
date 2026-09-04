@@ -14,8 +14,12 @@ shipped. The implementation diverged in these places:
 - The Startup section sits below Audio rather than first, and the copy shipped as "Load last
   playlist on launch" with the caption "Playlist is saved on quit and loaded on next launch"; the
   keys are unchanged.
-- After the consolidating pass: the hold is applied once at construction and by the live effect,
-  not from `updateUI`; the current row is stored as its index, not its path; the "nothing until
+- `NSSupportsSuddenTermination` was then removed outright, at the owner's call: it existed only so
+  the app could be killed instantly at logout when idle, and both holds — `AppStats`' and the
+  mirror's — existed only to defeat it. Every quit now reaches `applicationWillTerminate:`, and
+  the hold, its flag, and the observed-skip trap are gone.
+- After the consolidating pass: the hold (while it existed) was applied by the live effect, not
+  from `updateUI`; the current row is stored as its index, not its path; the "nothing until
   the first play" rule moved into `NowPlayingController` itself (withhold every publish before the
   first Playing one), so the mac shell carries no withholding flag; and both writers share
   `PlaylistFile.writeM3UForTracks:relativeToDirectory:toURL:error:`.

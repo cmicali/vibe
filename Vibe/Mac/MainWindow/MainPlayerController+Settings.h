@@ -46,8 +46,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // refills its morph target from the same waveform, so the bars ease to
     // their new heights under a drag.
     VibeSettingsLiveEffectWaveformLevels   = 1UL << 19,
-    // Off deletes the container mirror; either way the sudden-termination
-    // hold follows the setting.
+    // Off deletes the container mirror.
     VibeSettingsLiveEffectReopenLastPlaylist = 1UL << 20,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark

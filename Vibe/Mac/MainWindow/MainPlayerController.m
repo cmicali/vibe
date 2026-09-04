@@ -80,11 +80,6 @@
     // Coalesces the redraws behind FolderArtDidResolveNotification; see
     // folderArtDidResolve:. Main thread only.
     BOOL                        _folderArtRefreshScheduled;
-    // Whether this controller holds sudden termination off; see
-    // applyReopenLastPlaylist. The counter is process-wide and shared with
-    // AppStats' listening-clock hold, so each side balances its own pair —
-    // this one through this flag.
-    BOOL                        _holdsSuddenTerminationForPlaylist;
 }
 
 - (void)dealloc {
@@ -334,7 +329,6 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
-    [self applyReopenLastPlaylist];
 
     self.waveformView.delegate = self;
     // The theme's style, not the loose Settings.waveformStyle key — migration
@@ -812,24 +806,9 @@ static NSURL *VibeLastPlaylistURL(void) {
     return YES;
 }
 
-// TRAP: quit from Paused or Stopped is a SIGKILL under
-// NSSupportsSuddenTermination, with no applicationWillTerminate: to write the
-// mirror — so the hold is held the whole time the setting is on, not only
-// while rows exist: an empty playlist at quit has a mirror to DELETE, and
-// releasing the hold on Close was observed to skip exactly that callback.
 - (void)applyReopenLastPlaylist {
-    BOOL wanted = AppSettings.sharedInstance.reopenLastPlaylist;
-    if (!wanted) {
+    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
         [self removeLastPlaylist];   // off means forget, not merely stop writing
-    }
-    if (wanted != _holdsSuddenTerminationForPlaylist) {
-        if (wanted) {
-            [NSProcessInfo.processInfo disableSuddenTermination];
-        }
-        else {
-            [NSProcessInfo.processInfo enableSuddenTermination];
-        }
-        _holdsSuddenTerminationForPlaylist = wanted;
     }
 }
 
