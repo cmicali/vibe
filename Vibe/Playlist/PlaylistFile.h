@@ -47,6 +47,13 @@ NS_ASSUME_NONNULL_BEGIN
 // better.
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
 
+// The entries of M3U data this app wrote itself — m3uTextForTracks: with a
+// nil directory, so every entry is absolute — as file URLs in order, with no
+// resolution rungs and no probes: nothing is stat'd, a relative entry is
+// skipped. The reader for the container mirror; a user's playlist file goes
+// through resolvedFileURLsForPlaylistAtURL:.
++ (NSArray<NSURL *> *)fileURLsInM3UData:(NSData *)data;
+
 #pragma mark - Writing
 
 // The playlist as extended M3U text: "#EXTM3U", then per track an

@@ -96,6 +96,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (track != [self.playlistController currentTrack]) {
         return;
     }
+    // A real start ends the launch restore's Now Playing withholding; a
+    // parked start leaves it, so a paused restore stays unpublished.
+    if (self.audioPlayer.isPlaying) {
+        _nowPlayingWithheldForRestore = NO;
+    }
     [self performPerTrackRefreshForStartedTrack:track];
 }
 
@@ -170,6 +175,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A device-loss error can mask a track the player merely parked as Paused;
     // see audioPlayer:error:. Resuming proves the mask wrong.
     [self clearErrorMask];
+    _nowPlayingWithheldForRestore = NO;   // the restored park resumed: the first real play
     [[AppStats sharedInstance] playbackStarted];
     [self resumeUIUpdateTimer];
 }

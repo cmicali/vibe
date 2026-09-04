@@ -35,6 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 // re-derives it from the live inputs, which check_consistency pairs with it.
 - (NSUInteger)debugUIUpdateHz;
 - (NSUInteger)debugExpectedUIUpdateHz;
+// The container mirror as read back from disk: {exists, rows, currentPath}.
+- (NSDictionary *)debugLastPlaylistDictionary;
+// Whether the launch restore is still withholding the Now Playing publish.
+- (BOOL)debugNowPlayingWithheldForRestore;
 
 @end
 

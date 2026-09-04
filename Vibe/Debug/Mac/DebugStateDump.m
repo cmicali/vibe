@@ -82,6 +82,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),
             @"displayState": VibeDebugDisplayStateName(controller.displayState),
+            @"nowPlayingWithheldForRestore": @(controller.debugNowPlayingWithheldForRestore),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),
@@ -101,6 +102,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"artworkDragAction": AppSettings.sharedInstance.artworkDragAction,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+            @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
             @"showBPM": @(theme.showBPM),
             @"showKey": @(theme.showKey),

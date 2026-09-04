@@ -53,6 +53,17 @@ NS_ASSUME_NONNULL_BEGIN
 // is being opened, and play: ends the grace on its own. Idempotent.
 - (void)revealEmptyState;
 
+// The launch restore of the container mirror, parked on its last current
+// row: YES when a playlist came back, NO when the setting is off or nothing
+// was saved, and the caller reveals the empty state as before. Not an open:
+// no stats, no bookmarks, no Open Recent, no burst.
+- (BOOL)restoreLastPlaylist;
+// Quit-time: writes the mirror while the setting is on and the playlist is
+// nonempty, and deletes it otherwise. The sudden-termination hold, held the
+// whole time the setting is on, is what guarantees a quit reaches
+// applicationWillTerminate: to call this at all.
+- (void)saveLastPlaylist;
+
 - (IBAction)closeApp:(id)sender;
 - (IBAction)minimizeWindow:(id)sender;
 

@@ -28,6 +28,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     NSPopUpButton *_outputPopUp;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
+    NSSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
     // The last answer from the async default-app check, shown immediately on
@@ -64,6 +65,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
+    _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
     // Identifiers in representedObject, localized names in the titles — a
     // display name must never reach NSUserDefaults. No live effect for
@@ -82,6 +84,11 @@ static const CGFloat kOutputPopUpWidth = 280;
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
         ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_STARTUP_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
+                                  caption:STR_SETTINGS_REOPEN_PLAYLIST_CAPTION
+                                  control:_reopenPlaylistSwitch],
+        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
@@ -97,6 +104,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self refreshOutputPopUp];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+    _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
     // The getters are normalized, so a match always exists.
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
@@ -105,6 +113,11 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
+}
+
+- (void)toggleReopenPlaylist:(id)sender {
+    AppSettings.sharedInstance.reopenLastPlaylist = (_reopenPlaylistSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectReopenLastPlaylist];
 }
 
 - (void)waveformDragChanged:(id)sender {

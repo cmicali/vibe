@@ -342,6 +342,18 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
                 });
             }),
+            VibeDebugCmd(@"set_reopen_playlist <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                    return VibeErrorJSON(@"usage: set_reopen_playlist <on|off>");
+                }
+                AppSettings.sharedInstance.reopenLastPlaylist = [arg isEqualToString:@"on"];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectReopenLastPlaylist];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
+                });
+            }),
             VibeDebugCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
@@ -475,6 +487,11 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"save failed: %@", error.localizedDescription);
                 }
                 return VibeJSONString(@{@"ok": @YES, @"path": path, @"tracks": @(count)});
+            }),
+            // The container mirror as it stands on disk: written only at quit,
+            // so a fresh session reads the LAST quit's until it quits itself.
+            VibeDebugCmd(@"dump_last_playlist", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeJSONString(controller.debugLastPlaylistDictionary);
             }),
             // The whole Convert to FLAC path on the current track, swap and
             // disposal included. The optional keep|delete token writes Convert
