@@ -166,6 +166,11 @@
                                    accessibilityDescription:menuItem.title];
         return self.playlistController.count > 0;
     }
+    if ([menuItem.identifier isEqualToString:kVibeMenuSavePlaylist]) {
+        // The sheet attaches to this window, so it must be the key one: ⌘S in
+        // front of Settings or About must not raise a sheet behind them.
+        return self.window.isKeyWindow && self.playlistController.count > 0;
+    }
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
         // Nil-targeted, so the key window's closeFile: target owns both the

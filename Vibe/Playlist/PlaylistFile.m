@@ -5,6 +5,7 @@
 
 #import "PlaylistFile.h"
 
+#import "AudioTrack.h"
 #import "PlayableExtensions.h"
 
 #include <string.h>
@@ -352,6 +353,75 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
         }
     }
     return urls;
+}
+
+#pragma mark - M3U writing
+
+// The path line for one track: relative under prefix, absolute otherwise.
+// TRAP: the reader's line rules decide the rest. It trims whitespace, splits
+// at any newline and reads a leading # as a comment — this reader and every
+// other — so a name any of those would mangle goes out as a percent-encoded
+// file:// URL, which the reader decodes whole. Relativity is given up for it.
+static NSString *M3UPathLine(NSString *path, NSString *_Nullable prefix) {
+    NSString *line = prefix != nil && [path hasPrefix:prefix] ? [path substringFromIndex:prefix.length] : path;
+    if ([line hasPrefix:@"#"]
+            || [line rangeOfCharacterFromSet:NSCharacterSet.newlineCharacterSet].location != NSNotFound
+            || ![[line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] isEqualToString:line]) {
+        return [NSURL fileURLWithPath:path isDirectory:NO].absoluteString;
+    }
+    return line;
+}
+
+// "Artist - Title", or the display title alone: the display-name rule's own
+// halves, joined by a literal rather than STR_LABEL_TRACK_ARTIST_TITLE because
+// an interchange file must not change shape with the UI language. A newline
+// becomes a space, or the tail would read as an entry line.
+static NSString *M3UInfoName(AudioTrack *track) {
+    NSString *artist = track.displayArtist;
+    NSString *name = artist ? [NSString stringWithFormat:@"%@ - %@", artist, track.displayTitle]
+                            : track.displayTitle;
+    return [[name componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+            componentsJoinedByString:@" "];
+}
+
++ (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory {
+    // The trailing slash keeps /Music/Album from claiming /Music/Album2/x.mp3.
+    // Both sides standardize the same way, so one folder's /private/var and
+    // /var spellings agree; nothing under a music path is stat'd for it.
+    NSString *dir = directory.path.stringByStandardizingPath;
+    NSString *prefix = [dir hasSuffix:@"/"] ? dir : [dir stringByAppendingString:@"/"];
+    NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];
+    for (AudioTrack *track in tracks) {
+        NSTimeInterval duration = track.duration;
+        [text appendFormat:@"#EXTINF:%lld,%@\n%@\n",
+                duration > 0 ? llround(duration) : -1LL,
+                M3UInfoName(track),
+                M3UPathLine(track.url.path.stringByStandardizingPath, prefix)];
+    }
+    return text;
+}
+
++ (NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks {
+    NSArray<NSString *> *common = nil;
+    for (AudioTrack *track in tracks) {
+        NSArray<NSString *> *components =
+                track.url.path.stringByStandardizingPath.stringByDeletingLastPathComponent.pathComponents;
+        if (!common) {
+            common = components;
+            continue;
+        }
+        NSUInteger shared = 0, limit = MIN(common.count, components.count);
+        while (shared < limit && [common[shared] isEqualToString:components[shared]]) {
+            shared++;
+        }
+        if (shared <= 1) {
+            return nil;   // "/" alone: nothing deeper can be shared
+        }
+        if (shared < common.count) {
+            common = [common subarrayWithRange:NSMakeRange(0, shared)];
+        }
+    }
+    return common.count > 1 ? [NSURL fileURLWithPath:[NSString pathWithComponents:common] isDirectory:YES] : nil;
 }
 
 @end

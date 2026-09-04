@@ -1,5 +1,7 @@
 # v1.12
 
+* mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file
+
 # v1.11
 
 * mac: Added theming and theme editor

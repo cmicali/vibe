@@ -39,6 +39,7 @@ Drag the artwork out to copy the playing file somewhere else.
 | `Tab` | Show / hide playlist |
 | `P` | Show / hide pitch control |
 | `⌘O` | Open file or folder |
+| `⌘S` | Save the playlist as an M3U file |
 
 #### FX
 

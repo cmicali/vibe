@@ -69,6 +69,10 @@ NS_ASSUME_NONNULL_BEGIN
 // app to the empty state.
 - (IBAction)closeFile:(nullable id)sender;
 
+// File > Save Playlist… (⌘S): the playlist as an M3U file, wherever the save
+// panel lands it. The audio files are never touched.
+- (IBAction)savePlaylist:(nullable id)sender;
+
 // Edit > Remove from Playlist, and the same through Backspace and Forward
 // Delete: takes the selected row out of the playlist, leaving its file where it
 // is. Removing a row that is not playing never interrupts playback; removing

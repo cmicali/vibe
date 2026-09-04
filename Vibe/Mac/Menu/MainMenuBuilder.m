@@ -145,7 +145,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
     [self buildAppMenuIn:mainMenu appDelegate:appDelegate];
-    [self buildFileMenuIn:mainMenu openRecentMenuController:openRecentMenuController];
+    [self buildFileMenuIn:mainMenu player:player openRecentMenuController:openRecentMenuController];
     [self buildEditMenuIn:mainMenu player:player];
     [self buildPlaybackMenuIn:mainMenu player:player];
     [self buildFXMenuIn:mainMenu player:player];
@@ -186,12 +186,15 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
             @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
 }
 
-+ (void)buildFileMenuIn:(NSMenu *)mainMenu openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
++ (void)buildFileMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player
+        openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     // File
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
     AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"o", NSEventModifierFlagCommand, nil);
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
+    AddSeparator(fileMenu);
+    AddSymbolItem(fileMenu, STR_MENU_FILE_SAVE_PLAYLIST, @"square.and.arrow.down", @selector(savePlaylist:), player, @"s", NSEventModifierFlagCommand, kVibeMenuSavePlaylist);
     AddSeparator(fileMenu);
     // Nil-targeted so ⌘W follows the key window: the main window's chain
     // reaches the player's closeFile:; Settings and About intercept it and

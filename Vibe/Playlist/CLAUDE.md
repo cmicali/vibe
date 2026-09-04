@@ -27,6 +27,10 @@ These files come from other people's software, so two traps are load-bearing rat
 
 **TRAP: a name may not reach `NSURL` carrying a NUL or an unpaired surrogate.** Both turn up in truncated and mis-encoded files. `URLByAppendingPathComponent:` and `fileURLWithPath:` answer *nil* for such a component, and a nil candidate raised an exception on a background expansion worker — a crash on opening a corrupted playlist. `StrippedOfUnpathableCharacters` drops them while the name is still a string, and the resolver treats a nil primary as "this entry has no URL" rather than trusting it. A `%00` in a `file://` M3U entry is the encoded form of the same NUL and is dropped *before* `NSURL` parses the URL — which side of `NSURL` decodes it moved between OS releases (older Foundation decoded it into `.path`, macOS 26 leaves the literal `%00`), so the parser no longer lets either generation answer.
 
+### Writing one
+
+`m3uTextForTracks:relativeToDirectory:` is the reader's inverse and the only writer: extended M3U, UTF-8, LF, a track under the target directory written relative to it and anything else absolute (no `../` form). Vibe's own reader still ignores the `#EXTINF` lines; other players show them. **TRAP: the reader's line rules bound what a bare line can carry — it trims whitespace, splits at any newline and reads a leading `#` as a comment, by this reader and every other — so a name any of those would mangle goes out as a percent-encoded `file://` URL, which the reader decodes whole.** A backslash in a name does not round-trip in either form: the Windows-separator rule turns it into `/`, that rule's documented trade. `commonDirectoryForTracks:` answers the folder that makes every entry relative. macOS reaches the writer through File > Save Playlist… (`Mac/MainWindow/CLAUDE.md`); iOS has no caller yet.
+
 ## Where opens come from
 
 `Mac/App/CLAUDE.md` owns the open funnel — Launch Services burst coalescing, out-of-order expansion results and supersession. This directory only receives the resulting `play:` / `append:`.

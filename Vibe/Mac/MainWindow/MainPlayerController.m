@@ -26,6 +26,7 @@
 #import "FolderArtResolver.h"
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
+#import "PlaylistFile.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "MainWindow.h"
@@ -48,6 +49,8 @@
 #import "AppStats.h"
 #import "TrackCommands.h"
 #import "VibeStrings.h"
+
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // The state the categories share is in MainPlayerControllerInternal.h; what
 // follows is private to this file.
@@ -702,6 +705,43 @@
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];
     [self updateUI];
+}
+
+// File > Save Playlist… (⌘S). The panel is seeded from the folder every
+// track sits under, so a folder's playlist lands beside its music with
+// relative entries.
+- (IBAction)savePlaylist:(nullable id)sender {
+    NSURL *common = [PlaylistFile commonDirectoryForTracks:self.playlistController.playlist];
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    panel.allowedContentTypes = @[UTTypeM3UPlaylist];
+    panel.directoryURL = common;   // nil: the panel's own default
+    panel.nameFieldStringValue = [(common.lastPathComponent ?: STR_PLAYLIST_SAVE_DEFAULT_NAME)
+                                  stringByAppendingString:@".m3u"];
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
+        if (response != NSModalResponseOK || !panel.URL) {
+            return;
+        }
+        NSError *error = nil;
+        if (![self writePlaylistToURL:panel.URL error:&error]) {
+            // A panel that just closes is indistinguishable from a saved file.
+            [[NSAlert alertWithError:error] beginSheetModalForWindow:self.window completionHandler:nil];
+        }
+    }];
+}
+
+- (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
+    // Relative to the chosen file's folder, which is what the reader resolves
+    // against; the common directory above only seeds the panel.
+    NSString *text = [PlaylistFile m3uTextForTracks:self.playlistController.playlist
+                                relativeToDirectory:url.URLByDeletingLastPathComponent];
+    // Lossy so the data is total: an unpaired surrogate from a malformed tag
+    // costs one character, not the save.
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
+    if (![data writeToURL:url options:NSDataWritingAtomic error:error]) {
+        return NO;
+    }
+    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
+    return YES;
 }
 
 - (IBAction)next:(nullable id)sender {

@@ -43,7 +43,7 @@
     [self assertIdentifiers:@[kVibeMenuPitchRange8, kVibeMenuPitchRange16]
                    classify:VibeMenuValidationDomainPitchRange];
 
-    [self assertIdentifiers:@[kVibeMenuPlay, kVibeMenuClose, kVibeMenuShowInFinder]
+    [self assertIdentifiers:@[kVibeMenuPlay, kVibeMenuSavePlaylist, kVibeMenuClose, kVibeMenuShowInFinder]
                    classify:VibeMenuValidationDomainFile];
 
     [self assertIdentifiers:@[kVibeMenuEditUndo, kVibeMenuEditRedo, kVibeMenuEditCopyFile,

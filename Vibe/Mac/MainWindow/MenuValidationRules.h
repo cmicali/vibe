@@ -37,7 +37,8 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // outlive any single track.
     VibeMenuValidationDomainFX,
     VibeMenuValidationDomainPitchRange,
-    // Play/Close/Show in Finder: dynamic titles and symbols over the playlist.
+    // Play/Save Playlist/Close/Show in Finder: dynamic titles and symbols,
+    // and enablement, over the playlist.
     VibeMenuValidationDomainFile,
     // Undo/Redo titles from NSUndoManager, the Copy items, and Remove from
     // Playlist.
@@ -78,6 +79,7 @@ static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
 static NSString *const kVibeMenuPlay = @"menu_play";
+static NSString *const kVibeMenuSavePlaylist = @"menu_save_playlist";
 static NSString *const kVibeMenuClose = @"menu_close";
 static NSString *const kVibeMenuShowInFinder = @"show_in_finder";
 
@@ -176,6 +178,7 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
         return VibeMenuValidationDomainPitchRange;
     }
     if ([identifier isEqualToString:kVibeMenuPlay]
+            || [identifier isEqualToString:kVibeMenuSavePlaylist]
             || [identifier isEqualToString:kVibeMenuClose]
             || [identifier isEqualToString:kVibeMenuShowInFinder]) {
         return VibeMenuValidationDomainFile;
