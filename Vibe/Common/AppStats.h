@@ -11,8 +11,8 @@
 // Both platforms count, and both show the totals in Settings > About. What
 // differs is only how a running listening clock is kept honest across the
 // process going quiet, and that is one #if TARGET_OS_OSX block in the
-// implementation: the mac brackets its clock around system sleep and holds off
-// sudden termination, iOS folds it at every background and terminate edge.
+// implementation: the mac brackets its clock around system sleep, iOS folds it
+// at every background and terminate edge.
 @interface AppStats : NSObject
 
 + (AppStats *)sharedInstance;

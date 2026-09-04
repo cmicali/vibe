@@ -148,6 +148,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Pitch range and timer rate also have non-setting callers.
 - (void)applyPitchRange;
 - (void)applyEndOfTrackAction;
+- (void)applyReopenLastPlaylist;
 - (void)syncUITimerRate;
 - (void)refreshFolderArt;
 - (void)refreshWindowTint;

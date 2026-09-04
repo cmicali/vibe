@@ -101,6 +101,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"artworkDragAction": AppSettings.sharedInstance.artworkDragAction,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+            @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
             @"showBPM": @(theme.showBPM),
             @"showKey": @(theme.showKey),

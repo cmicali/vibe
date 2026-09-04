@@ -43,4 +43,6 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 
 `AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player events, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/CLAUDE.md` for the store and for what the two platforms do differently about keeping a running clock honest.
 
-The open sinks and the player-delegate transitions feed it. **`stop` and quit fire no delegate callback**, so `closeFile:` and `applicationWillTerminate:` flush by hand; that asymmetry is the whole reason the counters are not simply derived.
+## The last playlist
+
+Launch order is grants → drain → restore → empty state: inside `restoreGrantedAccessWithCompletion:`, `startAndDrainQueue` runs first, and only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and only when that finds nothing does `revealEmptyState`. **A launch-time open outranks the remembered playlist, and the restore is not an open**: it enters neither the coalescer — an empty drain arms no burst, so a Finder open a beat later replaces rather than appends — nor `openURLs:appending:`, so it records no stats and mints no bookmarks; what its parked start refreshes, Open Recent included, is the ordinary per-track refresh. `applicationWillTerminate:` calls `saveLastPlaylist` beside the stats flush, and it runs on every quit: the app does not opt into sudden termination, under which an idle quit is a SIGKILL with no callback.

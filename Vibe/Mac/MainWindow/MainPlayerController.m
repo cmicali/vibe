@@ -605,6 +605,11 @@
 }
 
 - (void)play:(NSArray<NSURL *> *)urls {
+    [self loadURLs:urls selectingIndex:0 startPaused:NO];
+}
+
+// An open and the launch restore differ only in row and whether it sounds.
+- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused {
     _emptyStateSuppressed = NO; // a real track supersedes the launch grace
     // The old playlist's scan dies before the new first track is submitted —
     // its in-flight cloud transfer would otherwise compete with the open the
@@ -612,7 +617,8 @@
     // playlist. iOS has always done this (PlaybackController's folder-open
     // path); replacement only — next and previous must keep the sweep.
     [self.metadataCache cancelScan];
-    [self.playlistController play:urls];
+    [self.playlistController loadURLs:urls selectingIndex:index];
+    [self.playlistController playStartPaused:startPaused];
     // Defer the playlist-wide metadata load until playback has actually
     // started. Four workers reading every file can starve the player's own
     // file open on a slow disk, delaying the first sound by seconds. The
@@ -732,16 +738,78 @@
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
     // Relative to the chosen file's folder, which is what the reader resolves
     // against; the common directory above only seeds the panel.
-    NSString *text = [PlaylistFile m3uTextForTracks:self.playlistController.playlist
-                                relativeToDirectory:url.URLByDeletingLastPathComponent];
-    // Lossy so the data is total: an unpaired surrogate from a malformed tag
-    // costs one character, not the save.
-    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-    if (![data writeToURL:url options:NSDataWritingAtomic error:error]) {
+    if (![PlaylistFile writeM3UForTracks:self.playlistController.playlist
+                     relativeToDirectory:url.URLByDeletingLastPathComponent
+                                   toURL:url error:error]) {
         return NO;
     }
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
     return YES;
+}
+
+#pragma mark - The last playlist
+
+// The container mirror: absolute paths so PlaylistFile reads it back with no
+// folder to resolve against, and never noted in Open Recent. The cursor rides
+// a defaults key as the row index — written in the same call as the mirror,
+// so it is exact — and is state, like VibeGrantedFolders, not a preference:
+// resetToDefaults leaves it and the live effect clears it.
+static NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
+
+static NSURL *VibeLastPlaylistURL(void) {
+    NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
+                                                            NSUserDomainMask, YES).firstObject;
+    NSString *dir = [support stringByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier];
+    return [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:@"LastPlaylist.m3u"] isDirectory:NO];
+}
+
+- (void)saveLastPlaylist {
+    NSArray<AudioTrack *> *tracks = self.playlistController.playlist;
+    if (!AppSettings.sharedInstance.reopenLastPlaylist || tracks.count == 0) {
+        [self removeLastPlaylist];
+        return;
+    }
+    NSURL *url = VibeLastPlaylistURL();
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    NSError *error = nil;
+    if (![PlaylistFile writeM3UForTracks:tracks relativeToDirectory:nil toURL:url error:&error]) {
+        LogError(@"Last playlist not saved: %@", error.localizedDescription);
+        [self removeLastPlaylist];   // a stale mirror must not outlive a failed write
+        return;
+    }
+    [NSUserDefaults.standardUserDefaults setInteger:(NSInteger)self.playlistController.currentIndex
+                                             forKey:kVibeLastPlaylistCurrentIndexKey];
+}
+
+- (void)removeLastPlaylist {
+    [NSFileManager.defaultManager removeItemAtURL:VibeLastPlaylistURL() error:nil];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kVibeLastPlaylistCurrentIndexKey];
+}
+
+- (NSArray<NSURL *> *)lastPlaylistURLs {
+    return [PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]];
+}
+
+- (BOOL)restoreLastPlaylist {
+    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
+        return NO;
+    }
+    NSArray<NSURL *> *urls = [self lastPlaylistURLs];
+    if (urls.count == 0) {
+        return NO;
+    }
+    // Every row comes back, readable or not; an unreadable current row lands
+    // in the inline error state when its parked open fails.
+    NSInteger index = [NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey];
+    [self loadURLs:urls selectingIndex:(NSUInteger)index startPaused:YES];
+    return YES;
+}
+
+- (void)applyReopenLastPlaylist {
+    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
+        [self removeLastPlaylist];   // off means forget, not merely stop writing
+    }
 }
 
 - (IBAction)next:(nullable id)sender {
@@ -1159,6 +1227,14 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
                                      _currentTrackDuration,
                                      self.playbackRate,
                                      AppSettings.sharedInstance.uiUpdateHzCap);
+}
+
+- (NSDictionary *)debugLastPlaylistDictionary {
+    return @{
+        @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
+        @"rows": @([self lastPlaylistURLs].count),
+        @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
+    };
 }
 #endif
 

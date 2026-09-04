@@ -29,6 +29,7 @@
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
 #define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
+#define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
@@ -94,6 +95,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_SKIP_BASE_BARS:                 @(8),
             SETTING_CROSSFADE_MILLISECONDS:         @(10),
             SETTING_PAUSE_AT_TRACK_END:             @(NO),
+            SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
@@ -596,6 +598,14 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 - (void)setPauseAtTrackEnd:(BOOL)pause {
     [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
+}
+
+- (BOOL)reopenLastPlaylist {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_REOPEN_LAST_PLAYLIST];
+}
+
+- (void)setReopenLastPlaylist:(BOOL)reopen {
+    [[NSUserDefaults standardUserDefaults] setBool:reopen forKey:SETTING_REOPEN_LAST_PLAYLIST];
 }
 
 // Read on every live-resize frame through syncUITimerRate; a CFPreferences

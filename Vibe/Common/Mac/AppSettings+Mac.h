@@ -233,6 +233,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 
+// Settings > General > Startup > Load last playlist on launch. NO, the
+// default, starts empty; YES has the mac shell mirror the playlist to the
+// container at quit and reopen it parked at launch (MainPlayerController). A
+// writer must request VibeSettingsLiveEffectReopenLastPlaylist, which deletes
+// the mirror when switched off.
+- (BOOL)reopenLastPlaylist;
+- (void)setReopenLastPlaylist:(BOOL)reopen;
+
 // The ceiling on the playback-UI tick rate, which scales itself to the
 // playhead's on-screen speed (Util/UIUpdateMath.h): 3, 30 (default) or
 // 60 Hz, "Playhead refresh" in Settings > Advanced. Only a short file can

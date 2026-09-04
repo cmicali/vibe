@@ -48,6 +48,7 @@ Seven panes, in sidebar order. Each is listed by what it holds and, where a row 
 
 ### General
 
+- **Load last playlist on launch** switch, in the Startup group below Audio — writes `AppSettings.reopenLastPlaylist`, then requests `ReopenLastPlaylist` (`Mac/MainWindow/CLAUDE.md`). Its caption row is the pane's one use of `rowWithTitle:caption:control:`.
 - **Output** popup — mirrors the menu bar's Output menu by using its own `OutputDevicesMenuController` instance as the popup menu's delegate and builder, so the two layouts cannot drift.
 - **Always on top** switch — writes `AppSettings.alwaysOnTop`, then requests `AlwaysOnTop`. That effect pushes the player's window level and, through `AppDelegate.applyAuxiliaryWindowLevels`, the About and Settings windows' too, which must ride at the player's level or a floating player would bury them.
 - **Waveform drag** (`waveformDragBehavior`, identifiers `drag_window` and `seek`) above **Artwork drag** (`artworkDragAction`, identifiers `copy_file`, `copy_path`, `copy_artist_title`) — **the two rows with no live effect**, because each view reads the setting per gesture: the waveform per mouse-down (`WaveformUI/Mac/CLAUDE.md`), the art view per drag start (`Mac/Controls/CLAUDE.md`). The waveform label string keeps its historical `settings.appearance` key.

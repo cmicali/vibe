@@ -15,8 +15,8 @@
     NSTimeInterval _playbackStartUptime;
 #if TARGET_OS_OSX
     // A run folded at will-sleep and awaiting its did-wake restart. While set,
-    // the run is logically still active — playbackStopped must still balance
-    // the sudden-termination hold, and playbackStarted must not re-take it.
+    // the run is logically still active: did-wake restarts its clock, and a
+    // stop in between ends it like any other.
     BOOL _sleepPausedRun;
 #endif
 }
@@ -90,15 +90,6 @@
 }
 
 - (void)playbackStarted {
-#if TARGET_OS_OSX
-    if (![self runActive]) {
-        // The app supports sudden termination, under which quit is a SIGKILL
-        // and applicationWillTerminate: never runs. Holding it off while the
-        // clock runs is what lets the quit-time flush actually happen. iOS has
-        // no such API — it folds at every background edge instead, below.
-        [NSProcessInfo.processInfo disableSuddenTermination];
-    }
-#endif
     [self foldElapsedPlayback];
 #if TARGET_OS_OSX
     _sleepPausedRun = NO;
@@ -114,7 +105,6 @@
     _playbackStartUptime = 0;
 #if TARGET_OS_OSX
     _sleepPausedRun = NO;
-    [NSProcessInfo.processInfo enableSuddenTermination];
 #endif
 }
 

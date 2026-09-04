@@ -355,6 +355,20 @@ static NSURL *ResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManag
     return urls;
 }
 
++ (NSArray<NSURL *> *)fileURLsInM3UData:(NSData *)data {
+    NSString *text = [self textFromData:data];
+    NSArray<NSString *> *entries = text ? [self m3uEntriesInText:text] : @[];
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:entries.count];
+    for (NSString *entry in entries) {
+        // isDirectory:NO, or fileURLWithPath: stats the path to decide.
+        NSURL *url = [entry hasPrefix:@"/"] ? [NSURL fileURLWithPath:entry isDirectory:NO] : nil;
+        if (url.path) {   // nil for a component no path can hold
+            [urls addObject:url];
+        }
+    }
+    return urls;
+}
+
 #pragma mark - M3U writing
 
 // The path line for one track: relative under prefix, absolute otherwise.
@@ -399,6 +413,15 @@ static NSString *M3UInfoName(AudioTrack *track) {
                 M3UPathLine(track.url.path.stringByStandardizingPath, prefix)];
     }
     return text;
+}
+
++ (BOOL)writeM3UForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory
+                    toURL:(NSURL *)url error:(NSError **)error {
+    NSString *text = [self m3uTextForTracks:tracks relativeToDirectory:directory];
+    // Lossy so the data is total: an unpaired surrogate from a malformed tag
+    // costs one character, not the save.
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
+    return [data writeToURL:url options:NSDataWritingAtomic error:error];
 }
 
 + (NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks {

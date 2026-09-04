@@ -261,7 +261,6 @@ targets:
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
-        NSSupportsSuddenTermination: YES
 
         NSPrincipalClass: "NSApplication"
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"

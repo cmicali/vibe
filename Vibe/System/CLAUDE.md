@@ -16,6 +16,8 @@ The republish position rule is header-only in `NowPlayingRules.h`, tested — be
 
 **TRAP: the debug-only `--no-audio-hw` flag suppresses all of it** — no publish, no command registration — because becoming the system's active media app pulls auto-switching AirPods over from another device even when no output device was ever opened. Verifying this class needs a launch *without* that flag; under it `dump_now_playing` always reports `hasInfo: 0`. See the `vibe-debug` skill.
 
+**Nothing is published until the first track plays.** `updateWithTrack:…` withholds every publish before its first Playing one — a nil track, a parked or paused start alike — so an app launching into a restored session cannot claim the system slot; next/previous command availability is applied before that return regardless. After the first play a nil track clears the slot once.
+
 ## DownloadProgressMonitor
 
 Best-effort download progress for a cloud file being materialized by its file provider, feeding the waveform's loading indicator on both platforms: shimmer while indeterminate, determinate fill when a fraction is known. Main thread only, like the delegate paths it feeds. **It observes and must never trigger a download** — the player's open is what actually fetches.

@@ -91,7 +91,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)player;
 
 - (void)play;
-- (void)play:(NSArray<NSURL *> *)urls;
+
+// Replaces the list and lands the cursor on index — an out-of-range index
+// leaves the replacement's row 0 — then scrolls it into view. Playback is
+// untouched: the shell follows with play or playStartPaused:, so an open and
+// the launch restore share one replacement path.
+- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index;
 
 // The parked twin of play: the current track is submitted at its start with
 // nothing rendering until playPause. It shares play's funnel, so
@@ -101,7 +106,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)playStartPaused:(BOOL)startPaused;
 
 // Adds tracks to the end without touching playback or currentIndex, whereas
-// play: replaces and restarts. AppDelegate's open burst uses it.
+// loadURLs:selectingIndex: replaces. AppDelegate's open burst uses it.
 - (void)append:(NSArray<NSURL *> *)urls;
 
 // Empties the playlist and resets currentIndex. It does not touch the audio

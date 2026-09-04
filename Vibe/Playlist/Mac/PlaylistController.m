@@ -662,12 +662,16 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model currentTrack];
 }
 
-- (void)play:(NSArray<NSURL *> *)urls {
+- (void)loadURLs:(NSArray<NSURL *> *)urls selectingIndex:(NSUInteger)index {
     [_model replaceAllWithURLs:urls];
+    // 0 is already the replacement's announced cursor; the setter would
+    // announce it again.
+    if (index > 0 && index < _model.count) {
+        self.currentIndex = index;
+    }
     // The observer's reloadData keeps the scroll offset, but a new playlist
-    // starts at the top.
+    // starts at its cursor.
     [self scrollCurrentTrackToVisible];
-    [self play];
 }
 
 - (void)append:(NSArray<NSURL *> *)urls {

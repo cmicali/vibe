@@ -897,7 +897,7 @@ static NSURL *Directory(NSString *path) {
     XCTAssertTrue([text containsString:@"/%23three.mp3\n"]);
     XCTAssertTrue([text containsString:@"\n/"]);   // far.mp3, absolute
     NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
-    [[text dataUsingEncoding:NSUTF8StringEncoding] writeToURL:playlist atomically:YES];
+    XCTAssertTrue([PlaylistFile writeM3UForTracks:tracks relativeToDirectory:dir toURL:playlist error:NULL]);
 
     NSArray<NSURL *> *urls = [PlaylistFile resolvedFileURLsForPlaylistAtURL:playlist];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
@@ -905,6 +905,38 @@ static NSURL *Directory(NSString *path) {
     for (NSURL *url in urls) {
         XCTAssertTrue([NSFileManager.defaultManager isReadableFileAtPath:url.path], @"%@", url);
     }
+}
+
+#pragma mark - fileURLsInM3UData:
+
+// The container mirror's read: what the writer emits with no directory —
+// bare absolute lines and the URL forms alike — comes back as the same paths,
+// in order, with nothing stat'd.
+- (void)testM3UDataWrittenAbsoluteReadsBackThroughFileURLsInM3UData {
+    NSArray<NSString *> *paths = @[@"/Music/A/x.mp3", @"/Music/A/disc2/y.flac", @"/Music/A/#1 hit.mp3",
+                                   @"/Music/A/ z.wav", @"/Music/A/a\nb.mp3", @"/Música/Jóga 🎧.mp3"];
+    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray new];
+    for (NSString *path in paths) {
+        [tracks addObject:TrackAt(path)];
+    }
+    NSData *data = [[PlaylistFile m3uTextForTracks:tracks relativeToDirectory:nil]
+            dataUsingEncoding:NSUTF8StringEncoding];
+    // Against the tracks' own paths, not the literals: NSURL answers a file
+    // path in decomposed Unicode, on both sides of the trip alike.
+    XCTAssertEqualObjects([[PlaylistFile fileURLsInM3UData:data] valueForKeyPath:@"path"],
+                          [tracks valueForKeyPath:@"url.path"]);
+}
+
+- (void)testFileURLsInM3UDataSkipsRelativeAndDirectiveLines {
+    NSData *data = [@"#EXTM3U\n#EXTINF:1,x\nrelative.mp3\nfile:///Music/u.mp3\n/Music/a.mp3\n"
+            dataUsingEncoding:NSUTF8StringEncoding];
+    XCTAssertEqualObjects([[PlaylistFile fileURLsInM3UData:data] valueForKeyPath:@"path"],
+                          (@[@"/Music/u.mp3", @"/Music/a.mp3"]));
+}
+
+- (void)testFileURLsInM3UDataOfNoDataIsEmpty {
+    XCTAssertEqualObjects([PlaylistFile fileURLsInM3UData:nil], @[]);
+    XCTAssertEqualObjects([PlaylistFile fileURLsInM3UData:[NSData data]], @[]);
 }
 
 #pragma mark - commonDirectoryForTracks:

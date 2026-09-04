@@ -35,6 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 // re-derives it from the live inputs, which check_consistency pairs with it.
 - (NSUInteger)debugUIUpdateHz;
 - (NSUInteger)debugExpectedUIUpdateHz;
+// The container mirror as read back from disk: {exists, rows, currentIndex}.
+- (NSDictionary *)debugLastPlaylistDictionary;
 
 @end
 

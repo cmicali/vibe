@@ -44,6 +44,9 @@
     if (effects & VibeSettingsLiveEffectEndOfTrack) {
         [self applyEndOfTrackAction];
     }
+    if (effects & VibeSettingsLiveEffectReopenLastPlaylist) {
+        [self applyReopenLastPlaylist];
+    }
     if (effects & VibeSettingsLiveEffectCrossfade) {
         self.audioPlayer.crossfadeMilliseconds = settings.crossfadeMilliseconds;
     }

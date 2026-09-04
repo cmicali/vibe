@@ -27,6 +27,8 @@ Drop audio files or a folder on the window to play them. Click the waveform to s
 
 Drag the artwork out to copy the playing file somewhere else.
 
+Settings > General > Load last playlist on launch saves the playlist when Vibe quits and brings it back next time, paused on the last track. Off by default.
+
 ### Key commands
 
 | Key | Action |

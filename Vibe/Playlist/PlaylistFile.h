@@ -47,16 +47,29 @@ NS_ASSUME_NONNULL_BEGIN
 // better.
 + (NSArray<NSURL *> *)resolvedFileURLsForPlaylistAtURL:(NSURL *)url;
 
+// The entries of M3U data this app wrote itself — m3uTextForTracks: with a
+// nil directory, so every entry is absolute — as file URLs in order, with no
+// resolution rungs and no probes: nothing is stat'd, a relative entry is
+// skipped. The reader for the container mirror; a user's playlist file goes
+// through resolvedFileURLsForPlaylistAtURL:.
++ (NSArray<NSURL *> *)fileURLsInM3UData:(nullable NSData *)data;
+
 #pragma mark - Writing
 
 // The playlist as extended M3U text: "#EXTM3U", then per track an
 // "#EXTINF:<seconds>,<Artist - Title>" line and the path. A path is written
 // relative to directory when the track sits under it and absolute otherwise;
-// nil means absolute throughout. LF line endings; the caller writes UTF-8
-// without a BOM, and the result reads back through m3uEntriesInText: and
-// resolvedFileURLsForPlaylistAtURL: unchanged.
+// nil means absolute throughout. LF line endings, and the result reads back
+// through m3uEntriesInText: and resolvedFileURLsForPlaylistAtURL: unchanged.
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks
            relativeToDirectory:(nullable NSURL *)directory;
+
+// That text written atomically as UTF-8 without a BOM: the one spelling of
+// the file's encoding, for every playlist this app writes.
++ (BOOL)writeM3UForTracks:(NSArray<AudioTrack *> *)tracks
+      relativeToDirectory:(nullable NSURL *)directory
+                    toURL:(NSURL *)url
+                    error:(NSError **)error;
 
 // The deepest folder every track sits under — the directory a saved file
 // makes every entry relative to. nil when nothing below the root is shared.

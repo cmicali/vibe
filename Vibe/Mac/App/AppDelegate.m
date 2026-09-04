@@ -143,10 +143,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // grants are back — bounded, see restoreGrantedAccessWithCompletion:.
     // Opens that land in the meantime queue in the coalescer.
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
-        if (![self->_openBurstCoalescer startAndDrainQueue]) {
-            // No launch-time open is queued: Finder events land before this
-            // point, so the empty state may render. Argv paths arrive a beat
-            // later, off their exists checks, and replace it as a burst open.
+        // A launch-time open outranks the remembered playlist, and the restore
+        // is not an open: it never enters the coalescer (Mac/App/CLAUDE.md).
+        if (![self->_openBurstCoalescer startAndDrainQueue]
+                && ![self.mainPlayerController restoreLastPlaylist]) {
+            // No launch-time open is queued and nothing was remembered: Finder
+            // events land before this point, so the empty state may render.
+            // Argv paths arrive a beat later, off their exists checks, and
+            // replace it as a burst open.
             [self.mainPlayerController revealEmptyState];
         }
     }];
@@ -309,6 +313,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 - (void)applicationWillTerminate:(NSNotification *)notification {
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
+    [self.mainPlayerController saveLastPlaylist];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.
