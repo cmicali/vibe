@@ -709,6 +709,12 @@ static NSURL *_sharedTrashURL;
 
 - (void)asynchronouslySetAccessCount:(NSInteger)accessCount forURL:(NSURL *)fileURL
 {
+    // Vibe: the on-disk count feeds only the least-frequently-used eviction
+    // sort. Under the default least-recently-used strategy this was one
+    // setxattr per cache hit that nothing ever read back.
+    if (self.evictionStrategy != PINCacheEvictionStrategyLeastFrequentlyUsed) {
+        return;
+    }
     [self.operationQueue scheduleOperation:^{
         [self lockForWriting];
             [self _locked_setAcessCount:accessCount forURL:fileURL];

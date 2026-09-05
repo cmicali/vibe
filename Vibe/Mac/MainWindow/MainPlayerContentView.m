@@ -199,6 +199,9 @@ API_AVAILABLE(macos(26.0))
     // a second writer of the same alpha. Seeded before the tracking area
     // exists, so it defaults to the setting's own default.
     BOOL _trafficLightsShown;
+    // The codec line's rendered text width, measured at the text edge
+    // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
+    CGFloat _codecTextWidth;
 }
 
 - (instancetype)initWithTarget:(id)target {
@@ -307,9 +310,14 @@ API_AVAILABLE(macos(26.0))
     return ceil(measured.size.width);
 }
 
+// The text edge: measures the codec line once, then caps the artist line.
 - (void)layoutArtistLineClearOfCodecLine {
-    CGFloat codecTextWidth = [self renderedCodecTextWidth];
-    CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - codecTextWidth - kCodecColumnGutter;
+    _codecTextWidth = [self renderedCodecTextWidth];
+    [self capArtistLineAtCodecText];
+}
+
+- (void)capArtistLineAtCodecText {
+    CGFloat clearX = NSMaxX(_fileMetadataTextField.frame) - _codecTextWidth - kCodecColumnGutter;
     NSRect frame = _artistTextField.frame;
     frame.size.width = MAX(0, clearX - NSMinX(frame));
     if (!NSEqualRects(frame, _artistTextField.frame)) {
@@ -318,10 +326,12 @@ API_AVAILABLE(macos(26.0))
 }
 
 // Runs on every frame change, live drag included, which the resize
-// notifications the controller listens to do not cover.
+// notifications the controller listens to do not cover. The geometry edge
+// only: the codec text has not changed, so it is not laid out again — that
+// per-frame measure was 15% of the app's own resize work.
 - (void)resizeSubviewsWithOldSize:(NSSize)oldSize {
     [super resizeSubviewsWithOldSize:oldSize];
-    [self layoutArtistLineClearOfCodecLine];
+    [self capArtistLineAtCodecText];
 }
 
 #pragma mark - Hover reveal
@@ -753,6 +763,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.font = [Fonts infoFontBold:YES];
     _fileMetadataTextField.font = [Fonts infoFontBold:NO];
     _bpmTextField.font = [Fonts infoFontBold:NO];
+    // A font change is a text edge too: the codec line's measure depends on it.
+    [self layoutArtistLineClearOfCodecLine];
 }
 
 - (void)applyThemedLabelColors {

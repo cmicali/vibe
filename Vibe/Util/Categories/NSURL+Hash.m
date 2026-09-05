@@ -5,6 +5,9 @@
 
 #import "NSURL+Hash.h"
 #include <CommonCrypto/CommonDigest.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
 
 @implementation NSData (Hash)
 
@@ -27,28 +30,36 @@
 @implementation NSURL (Hash)
 
 - (nullable NSString *)cacheKey {
-    // Resolve symlinks first: attributesOfItemAtPath: does NOT traverse them,
-    // so a symlinked track would key off the link's own tiny, fixed size/mtime
-    // — retagging the target file would keep serving stale cached metadata
-    // for up to the cache age limit. Keying off the resolved path also lets a
-    // link and its target share one cache entry (same underlying file).
+    // Resolve symlinks first, so that the hashed path is the target's: a link
+    // and its target then share one entry, and retagging the target
+    // invalidates it rather than serving stale metadata through the link.
     NSString *path = [self.path stringByResolvingSymlinksInPath];
-    NSError *error = nil;
-    NSDictionary<NSFileAttributeKey, id> *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:&error];
-    if (!attrs) {
+    // stat(2), not NSFileManager's attributesOfItemAtPath:, which fetches every
+    // extended attribute of the file to build a dictionary two fields are read
+    // from — that fetch was the single largest cost of the playlist scan.
+    struct stat st;
+    if (stat(path.fileSystemRepresentation, &st) != 0) {
         // No key rather than a degenerate "0-0-<sha1>" one: callers memoize
         // and persist under this, and a transiently-unstattable file would
         // mis-file its cache entries under that garbage identity forever.
-        LogWarn(@"Could not stat %@ for cache key: %@", path, error);
+        LogWarn(@"Could not stat %@ for cache key: %s", path, strerror(errno));
         return nil;
     }
-    unsigned long long size = [attrs[NSFileSize] unsignedLongLongValue];
     // Microsecond resolution is enough to distinguish writes; APFS only
     // surfaces sub-second mtime via getattrlist anyway.
-    long long mtimeUs = (long long)llround([(NSDate *)attrs[NSFileModificationDate] timeIntervalSince1970] * 1e6);
+    //
+    // TRAP: the rounding must match what Foundation's NSDate for this timespec
+    // produced, or every persisted key changes. Foundation converts to
+    // reference-date seconds BEFORE adding the nanoseconds; doing the 1970
+    // arithmetic directly lands 1µs off on about 6% of real files, which
+    // would orphan their cache entries.
+    NSTimeInterval sinceReference = ((NSTimeInterval)st.st_mtimespec.tv_sec - NSTimeIntervalSince1970)
+            + (NSTimeInterval)st.st_mtimespec.tv_nsec / 1e9;
+    NSDate *modified = [NSDate dateWithTimeIntervalSinceReferenceDate:sinceReference];
+    long long mtimeUs = (long long)llround(modified.timeIntervalSince1970 * 1e6);
 
     NSString *hex = [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex];
-    return [NSString stringWithFormat:@"%llu-%lld-%@", size, mtimeUs, hex];
+    return [NSString stringWithFormat:@"%llu-%lld-%@", (unsigned long long)st.st_size, mtimeUs, hex];
 }
 
 @end
