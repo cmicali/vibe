@@ -57,11 +57,41 @@ static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
     return item;
 }
 
+// Items awaiting their symbol image, until the first menu is tracked. Nothing
+// can see a menu item's image before then, and loading the bar's forty-odd SF
+// Symbols at install cost ~7 ms of the launch path ahead of the first frame.
+// Weak keys: a context menu rebuilt before any menu opens just drops out.
+static NSMapTable<NSMenuItem *, NSString *> *sPendingSymbolItems;
+static BOOL sSymbolImagesFilled;
+
+static void SetSymbolImage(NSMenuItem *item, NSString *symbolName) {
+    if (sSymbolImagesFilled) {
+        item.image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:item.title];
+        return;
+    }
+    if (!sPendingSymbolItems) {
+        sPendingSymbolItems = [NSMapTable weakToStrongObjectsMapTable];
+        __block id observer = [NSNotificationCenter.defaultCenter
+                addObserverForName:NSMenuDidBeginTrackingNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *note) {
+            [NSNotificationCenter.defaultCenter removeObserver:observer];
+            sSymbolImagesFilled = YES;
+            for (NSMenuItem *pending in sPendingSymbolItems) {
+                SetSymbolImage(pending, [sPendingSymbolItems objectForKey:pending]);
+            }
+            sPendingSymbolItems = nil;
+        }];
+    }
+    [sPendingSymbolItems setObject:symbolName forKey:item];
+}
+
 // The same, plus a system-symbol icon.
 static NSMenuItem *SymbolItem(NSString *title, NSString *symbolName, SEL action, id target,
                                       NSString *key, NSEventModifierFlags modifiers, NSString *identifier) {
     NSMenuItem *item = Item(title, action, target, key, modifiers, identifier);
-    item.image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:title];
+    SetSymbolImage(item, symbolName);
     return item;
 }
 
@@ -288,7 +318,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     NSString *pitchRangeTitle = STR_MENU_PITCH_RANGE;
     NSMenuItem *pitchRangeItem = Submenu(playbackMenu, pitchRangeTitle);
-    pitchRangeItem.image = [NSImage imageWithSystemSymbolName:@"slider.vertical.3" accessibilityDescription:pitchRangeTitle];
+    SetSymbolImage(pitchRangeItem, @"slider.vertical.3");
     NSMenu *pitchRangeMenu = pitchRangeItem.submenu;
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange8);
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange16);

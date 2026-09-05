@@ -102,6 +102,11 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
     // The samples are a normalized, interleaved energy-scaled [min, max]
     // envelope per bar, and rebuildMaskPaths is the rebuild callback.
     WaveformMorphEngine *_morph;
+    // rebuildMaskPaths' rect scratch, kept across the 60 Hz morph so the bars
+    // reach the path through one CGPathAddRects call: appending 4,096 rects
+    // one at a time regrew the path's buffer on the way, and that regrowth was
+    // 40% of the rebuild.
+    std::vector<CGRect> _barRects;
 }
 
 + (NSString *)styleIdentifier {
@@ -393,7 +398,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGFloat minHeight = _morph.barMinHeight;
     BOOL settled = _morph.isSettled;
     CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
-    CGMutablePathRef path = CGPathCreateMutable();
+    _barRects.resize(count);
     for (NSUInteger i = 0; i < count; i++) {
         // y-up layer coords: the bar's top comes from the positive peak (max),
         // the bottom from the negative peak (min). Subtracting instead draws
@@ -406,8 +411,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
         }
         CGFloat height = MAX(top - bottom, minHeight);
         CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
-        CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
+        _barRects[i] = CGRectMake(x, bottom, barWidth, height);
     }
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRects(path, NULL, _barRects.data(), count);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _barMask.path = path;
@@ -461,14 +468,17 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
     CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
-    CGMutablePathRef path = CGPathCreateMutable();
+    // A local scratch, not _barRects: this runs on any queue.
+    std::vector<CGRect> rects(count);
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat top = round((midY + s[i * 2 + 1] * vscale) * scale) / scale;
         CGFloat bottom = round((midY + s[i * 2] * vscale) * scale) / scale;
         CGFloat height = MAX(top - bottom, 1);
         CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
-        CGPathAddRect(path, NULL, CGRectMake(x, bottom, barWidth, height));
+        rects[i] = CGRectMake(x, bottom, barWidth, height);
     }
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRects(path, NULL, rects.data(), count);
     CGContextAddPath(ctx, path);
     CGContextClip(ctx);
     CGPathRelease(path);

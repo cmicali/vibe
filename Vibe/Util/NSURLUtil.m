@@ -218,18 +218,23 @@ static BOOL VibePathIsDirectlyInside(NSString *path, NSString *directory) {
 // newest-first's tiebreak, so a batch of files copied in one go — one shared
 // mtime — still reads in track order rather than arbitrarily.
 //
-// TRAP: the dates are decorated onto the list once rather than read inside the
-// comparator, which runs O(n log n) times. The enumeration prefetches the key,
-// so each read here is served from that batch instead of costing a round trip
-// to the file provider.
+// TRAP: the dates and the names are decorated onto the list once rather than
+// read inside the comparator, which runs O(n log n) times. The enumeration
+// prefetches the date key, so each read here is served from that batch instead
+// of costing a round trip to the file provider; NSURL.path mints a new string
+// on every read, and the comparator would read two per comparison.
 static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort sort,
                               BOOL byFullPath) {
     if (sort == VibeFolderOpenSortAsReceived) {
         return;
     }
+    NSMutableDictionary<NSURL*, NSString*> *nameByURL =
+            [NSMutableDictionary dictionaryWithCapacity:urls.count];
+    for (NSURL *url in urls) {
+        nameByURL[url] = (byFullPath ? url.path : url.lastPathComponent) ?: @"";
+    }
     NSComparisonResult (^byName)(NSURL *, NSURL *) = ^(NSURL *a, NSURL *b) {
-        return byFullPath ? [a.path localizedStandardCompare:b.path]
-                          : [a.lastPathComponent localizedStandardCompare:b.lastPathComponent];
+        return [nameByURL[a] localizedStandardCompare:nameByURL[b]];
     };
     if (sort != VibeFolderOpenSortNewestFirst) {
         [urls sortUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
