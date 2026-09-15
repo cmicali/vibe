@@ -16,6 +16,7 @@
 
 #if DEBUG
 
+#import "VibeWorkTally.h"
 #import <sys/resource.h>
 
 #pragma mark Command table
