@@ -802,20 +802,27 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // glyph fields' resolve-time fallback, the way Fonts resolves an uninstalled
 // face. A button drawing nothing is never the answer.
 static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
-    return [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] ? glyph : factory;
+    // Whether this macOS has a symbol never changes within a run, and the
+    // probe allocates an image, so remember each name's answer.
+    static NSMutableDictionary<NSString *, NSNumber *> *known;
+    if (!known) {
+        known = [NSMutableDictionary dictionary];
+    }
+    NSNumber *has = known[glyph];
+    if (!has) {
+        has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
+        known[glyph] = has;
+    }
+    return has.boolValue ? glyph : factory;
 }
 
-// One button's whole themed look: its custom image for the art under it —
-// the other side's image when that side is unset, so one picked image
-// dresses both — else its glyph, and the resting color the states derive
-// from.
-static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme,
-                               NSString *darkImageKey, NSString *lightImageKey,
+// One button's whole themed look: its picture for the art under it
+// (AppTheme.buttonImageForKey:, either side of the pair), else its glyph,
+// and the resting color the states derive from.
+static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
                                NSString *glyph, NSString *factoryGlyph,
                                NSString *colorBase, BOOL dark) {
-    NSString *firstKey = dark ? darkImageKey : lightImageKey;
-    NSString *otherKey = dark ? lightImageKey : darkImageKey;
-    button.image = [theme customImageForKey:firstKey] ?: [theme customImageForKey:otherKey];
+    button.image = [theme buttonImageForKey:imageKey];
     button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
@@ -831,14 +838,14 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme,
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL dark = self.transportBackdropIsDark;
     ApplyThemeToButton(_playlistToggleButton, theme,
-                       kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight,
+                       dark ? kVibeThemeImagePlaylistButtonDark : kVibeThemeImagePlaylistButtonLight,
                        theme.playlistButtonGlyph, kVibeThemePlaylistButtonGlyphDefault,
                        kVibeThemeColorPlaylistButton, dark);
     ApplyThemeToButton(_nextButton, theme,
-                       kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight,
+                       dark ? kVibeThemeImageNextButtonDark : kVibeThemeImageNextButtonLight,
                        theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
                        kVibeThemeColorNextButton, dark);
-    [self setPlayButtonShowsPause:_playShowsPause];
+    [self dressPlayButton];
     _albumArtGradientView.hidden = !theme.buttonGradient;
 }
 
@@ -855,14 +862,24 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme,
 // falls back to its glyph on its own, so a theme with only a play image
 // still shows a pause glyph while playing rather than the play picture.
 - (void)setPlayButtonShowsPause:(BOOL)showsPause {
+    // updateUI asks on every transport event; the dress is a CATransaction
+    // and three colors, so only a state change pays for it.
+    if (showsPause == _playShowsPause) {
+        return;
+    }
     _playShowsPause = showsPause;
+    [self dressPlayButton];
+}
+
+- (void)dressPlayButton {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    ApplyThemeToButton(_playButton, theme,
-                       showsPause ? kVibeThemeImagePauseButtonDark : kVibeThemeImagePlayButtonDark,
-                       showsPause ? kVibeThemeImagePauseButtonLight : kVibeThemeImagePlayButtonLight,
-                       showsPause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
-                       showsPause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
-                       kVibeThemeColorPlayButton, self.transportBackdropIsDark);
+    BOOL dark = self.transportBackdropIsDark, pause = _playShowsPause;
+    NSString *imageKey = pause ? (dark ? kVibeThemeImagePauseButtonDark : kVibeThemeImagePauseButtonLight)
+                               : (dark ? kVibeThemeImagePlayButtonDark : kVibeThemeImagePlayButtonLight);
+    ApplyThemeToButton(_playButton, theme, imageKey,
+                       pause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
+                       pause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
+                       kVibeThemeColorPlayButton, dark);
 }
 
 // The glass style's unthemed lift: clear in dark, a white brightening wash in

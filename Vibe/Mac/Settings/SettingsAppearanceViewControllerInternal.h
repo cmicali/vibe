@@ -51,15 +51,6 @@ static const CGFloat kAppearancePopUpWidth = 220;
     // to the old one's half-typed text — the album-art sheet's stale-target
     // drop, for the field editor.
     NSString *_nameFieldThemeIdentifier;
-    // The editor's undo: the record before each edit, newest last, for the
-    // theme being edited — a switch to another theme drops the stack. The
-    // baseline is the record as of the last edit or refresh, which is what
-    // the next edit pushes; the last push's keys and time coalesce a drag.
-    NSMutableArray<NSDictionary<NSString *, id> *> *_undoStack;
-    NSString *_undoThemeIdentifier;
-    NSDictionary<NSString *, id> *_undoBaselineRecord;
-    NSSet<NSString *> *_undoLastChangedKeys;
-    NSTimeInterval _undoLastPushTime;
     SettingsRowView *_nameRow;
     NSPopUpButton *_backgroundPopUp;
     SettingsRowView *_backgroundColorsRow;

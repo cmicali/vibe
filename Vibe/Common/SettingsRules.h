@@ -116,46 +116,48 @@ static inline NSString *VibeNormalizedDockIcon(NSString *_Nullable identifier) {
 // SF Symbol names every macOS the app runs on carries. The theme's glyph
 // fields are free text (AppTheme), so these are the editor's menu and the
 // pair table below, not a ladder: a JSON may name a symbol outside them.
+static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
+    return @[@"list.bullet", @"list.dash", @"list.triangle", @"list.number", @"music.note.list",
+             @"text.justify", @"line.3.horizontal", @"square.stack", @"rectangle.stack",
+             @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
+}
+
 // The play choices are play/pause PAIRS, because one pick has to dress both
-// states; the first column is what the editor lists and the play field
-// stores, the second what it writes to the pause field beside it.
-static NSString *const _Nonnull kVibePlaylistButtonGlyphs[] = {
-    @"list.bullet", @"list.dash", @"list.triangle", @"list.number", @"music.note.list",
-    @"text.justify", @"line.3.horizontal", @"square.stack", @"rectangle.stack",
-    @"tablecells", @"sidebar.left", @"chevron.up.chevron.down",
-};
-static const size_t kVibePlaylistButtonGlyphCount =
-        sizeof(kVibePlaylistButtonGlyphs) / sizeof(kVibePlaylistButtonGlyphs[0]);
+// states: the first is what the editor lists and the play field stores, the
+// second what it writes to the pause field beside it.
+static inline NSArray<NSArray<NSString *> *> *VibePlayPauseGlyphPairs(void) {
+    return @[@[@"play.fill", @"pause.fill"],
+             @[@"play", @"pause"],
+             @[@"play.circle.fill", @"pause.circle.fill"],
+             @[@"play.circle", @"pause.circle"],
+             @[@"play.rectangle.fill", @"pause.rectangle.fill"],
+             @[@"play.rectangle", @"pause.rectangle"],
+             @[@"arrowtriangle.right.fill", @"pause.fill"],
+             @[@"arrowtriangle.right", @"pause"]];
+}
 
-static NSString *const _Nonnull kVibePlayPauseGlyphPairs[][2] = {
-    {@"play.fill", @"pause.fill"},
-    {@"play", @"pause"},
-    {@"play.circle.fill", @"pause.circle.fill"},
-    {@"play.circle", @"pause.circle"},
-    {@"play.rectangle.fill", @"pause.rectangle.fill"},
-    {@"play.rectangle", @"pause.rectangle"},
-    {@"arrowtriangle.right.fill", @"pause.fill"},
-    {@"arrowtriangle.right", @"pause"},
-};
-static const size_t kVibePlayPauseGlyphPairCount =
-        sizeof(kVibePlayPauseGlyphPairs) / sizeof(kVibePlayPauseGlyphPairs[0]);
+static inline NSArray<NSString *> *VibePlayButtonGlyphs(void) {
+    NSMutableArray<NSString *> *glyphs = [NSMutableArray array];
+    for (NSArray<NSString *> *pair in VibePlayPauseGlyphPairs()) {
+        [glyphs addObject:pair[0]];
+    }
+    return glyphs;
+}
 
-static NSString *const _Nonnull kVibeNextButtonGlyphs[] = {
-    @"forward.end.fill", @"forward.end", @"forward.end.alt.fill", @"forward.end.alt",
-    @"forward.fill", @"forward", @"forward.frame.fill", @"forward.end.circle.fill",
-    @"chevron.right", @"chevron.right.2", @"arrow.right", @"arrow.right.circle.fill",
-    @"arrow.right.to.line", @"arrowtriangle.right.fill", @"arrowshape.right.fill",
-};
-static const size_t kVibeNextButtonGlyphCount =
-        sizeof(kVibeNextButtonGlyphs) / sizeof(kVibeNextButtonGlyphs[0]);
+static inline NSArray<NSString *> *VibeNextButtonGlyphs(void) {
+    return @[@"forward.end.fill", @"forward.end", @"forward.end.alt.fill", @"forward.end.alt",
+             @"forward.fill", @"forward", @"forward.frame.fill", @"forward.end.circle.fill",
+             @"chevron.right", @"chevron.right.2", @"arrow.right", @"arrow.right.circle.fill",
+             @"arrow.right.to.line", @"arrowtriangle.right.fill", @"arrowshape.right.fill"];
+}
 
 // The pause glyph a play pick dresses the playing state with: its pair-table
 // partner, or the factory pause glyph for a play glyph the table does not
 // know — a JSON-authored one — so the two states never draw the same glyph.
 static inline NSString *VibePauseGlyphForPlayGlyph(NSString *_Nullable playGlyph) {
-    for (size_t i = 0; i < kVibePlayPauseGlyphPairCount; i++) {
-        if ([kVibePlayPauseGlyphPairs[i][0] isEqualToString:playGlyph]) {
-            return kVibePlayPauseGlyphPairs[i][1];
+    for (NSArray<NSString *> *pair in VibePlayPauseGlyphPairs()) {
+        if ([pair[0] isEqualToString:playGlyph]) {
+            return pair[1];
         }
     }
     return kVibeThemePauseButtonGlyphDefault;

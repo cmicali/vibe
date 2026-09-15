@@ -143,10 +143,17 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // apply installs. An unknown identifier answers vibe's (the empty record).
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
-// Records held outside the store whose custom images the sweep must keep:
-// the theme editor's undo stack, which can put a cleared image reference
-// back. Empty until the editor sets it, and set again as the stack moves.
-@property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *themeUndoRecords;
+// The theme editor's undo. currentThemeDidChange pushes the record each
+// edit of a USER theme replaced — a drag's ticks, which move the same keys
+// within two seconds of each other, coalesce onto the first tick's entry —
+// fifty deep; a theme apply drops the stack, so an undo never lands on
+// another theme, and a built-in's edits are divergence rather than the
+// theme's and are not recorded. undoThemeEdit puts the top entry back into
+// the working record and persists it without recording; the caller
+// requests ThemeApply. The image sweep keeps a custom image a stacked
+// record still names, so an undo can put a cleared picture back.
+@property (readonly, nonatomic) BOOL canUndoThemeEdit;
+- (void)undoThemeEdit;
 
 // Repopulates currentTheme from the named record and makes it active. Store
 // only — the caller requests VibeSettingsLiveEffectThemeApply, per the

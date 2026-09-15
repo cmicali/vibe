@@ -96,26 +96,40 @@ NSString *const kVibeThemeColorPlaylistTitle = @"playlistTitleColor";
 NSString *const kVibeThemeColorPlaylistArtist = @"playlistArtistColor";
 NSString *const kVibeThemeColorPlaylistDuration = @"playlistDurationColor";
 
-// The playlist columns' pairs, in column order, each mapped to the label
-// pair it inherits while its switch is off or a side is unset. nil for
-// every other base, which is how the fallback code tells a column apart.
-static NSDictionary<NSString *, NSString *> *PlaylistColorFallbackBases(void) {
-    static NSDictionary<NSString *, NSString *> *bases;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        bases = @{
-            kVibeThemeColorPlaylistNumber: kVibeThemeColorArtist,
-            kVibeThemeColorPlaylistTitle: kVibeThemeColorTitle,
-            kVibeThemeColorPlaylistArtist: kVibeThemeColorArtist,
-            kVibeThemeColorPlaylistDuration: kVibeThemeColorArtist,
-        };
-    });
-    return bases;
+// The switch's key beside a switched pair: playlistNumberColorEnabled in
+// the record, numberColorEnabled in the JSON.
+static NSString *const kEnabledSuffix = @"Enabled";
+static NSString *PlaylistColorEnabledKey(NSString *base) {
+    return [base stringByAppendingString:kEnabledSuffix];
 }
 
-// The switch's record key beside its pair: playlistNumberColorEnabled.
-static NSString *PlaylistColorEnabledKey(NSString *base) {
-    return [base stringByAppendingString:@"Enabled"];
+// The transport buttons' pairs are keyed by the art under them, not the
+// appearance, so single mode — one color per APPEARANCE — leaves both sides
+// live; every other pair collapses to its dark slot. See
+// kVibeThemeColorPlaylistButton.
+static BOOL VibeIsArtKeyedColorBase(NSString *base) {
+    return [base isEqualToString:kVibeThemeColorPlaylistButton]
+            || [base isEqualToString:kVibeThemeColorPlayButton]
+            || [base isEqualToString:kVibeThemeColorNextButton];
+}
+
+// The button image pairs by either side: the partner an unset side draws.
+static NSString *_Nullable PartnerImageKey(NSString *key) {
+    static NSDictionary<NSString *, NSString *> *partners;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *map = [NSMutableDictionary dictionary];
+        for (NSArray<NSString *> *pair in @[
+                @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight],
+                @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight],
+                @[kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight],
+                @[kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight]]) {
+            map[pair[0]] = pair[1];
+            map[pair[1]] = pair[0];
+        }
+        partners = [map copy];
+    });
+    return partners[key];
 }
 
 static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
@@ -141,6 +155,7 @@ static NSString *const kSpecGroup = @"group";
 static NSString *const kSpecJSONKey = @"json";
 static NSString *const kSpecDefault = @"default";
 static NSString *const kSpecColorBase = @"colorBase";
+static NSString *const kSpecInheritsBase = @"inheritsBase";
 static NSString *const kSpecArchiveEntry = @"archiveEntry";
 static NSString *const kSpecSanitize = @"sanitize";
 
@@ -256,11 +271,17 @@ static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, 
 }
 
 // A playlist column's switch, then its pair: playlist.numberColorEnabled
-// beside playlist.numberColorDark/Light.
-static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group, NSString *jsonBase) {
+// beside playlist.numberColorDark/Light. The label pair the column draws
+// while the switch is off, or a side is unset, rides the pair's rows.
+static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group,
+                                 NSString *jsonBase, NSString *inheritsBase) {
     [rows addObject:Field(PlaylistColorEnabledKey(base), group,
-                          [jsonBase stringByAppendingString:@"Enabled"], @NO, BoolField())];
+                          [jsonBase stringByAppendingString:kEnabledSuffix], @NO, BoolField())];
+    NSUInteger first = rows.count;
     AddColorPair(rows, base, group, jsonBase);
+    for (NSUInteger i = first; i < rows.count; i++) {
+        rows[i][kSpecInheritsBase] = inheritsBase;
+    }
 }
 
 static NSArray<NSDictionary *> *FieldSpecs(void) {
@@ -363,10 +384,10 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
         [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistNumber, playlist, @"numberColor");
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistTitle, playlist, @"titleColor");
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor");
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistNumber, playlist, @"numberColor", kVibeThemeColorArtist);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistTitle, playlist, @"titleColor", kVibeThemeColorTitle);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor", kVibeThemeColorArtist);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor", kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
         specs = [rows copy];
@@ -451,6 +472,24 @@ static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
     return ColorFieldKeysByBase()[base][isDark ? 0 : 1];
 }
 
+// The playlist columns' pairs mapped to the label pair each inherits, from
+// the rows; nil for every other base, which is how the fallback code tells
+// a column apart.
+static NSDictionary<NSString *, NSString *> *PlaylistColorFallbackBases(void) {
+    static NSDictionary<NSString *, NSString *> *bases;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableDictionary *map = [NSMutableDictionary dictionary];
+        for (NSDictionary *spec in FieldSpecs()) {
+            if (spec[kSpecInheritsBase]) {
+                map[spec[kSpecColorBase]] = spec[kSpecInheritsBase];
+            }
+        }
+        bases = [map copy];
+    });
+    return bases;
+}
+
 @implementation AppTheme {
     // Only sanitized values differing from the defaults — the sparse record.
     NSMutableDictionary<NSString *, id> *_fields;
@@ -529,13 +568,10 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
-    // The transport buttons' pair is keyed by the art UNDER them, not the
-    // appearance: the dark slot is the factory white over the darkened
-    // lower edge (0.55 is SymbolButton's resting strength), the light slot
-    // its black counterpart for a bright cover with the gradient off.
-    if ([base isEqualToString:kVibeThemeColorPlaylistButton]
-            || [base isEqualToString:kVibeThemeColorPlayButton]
-            || [base isEqualToString:kVibeThemeColorNextButton]) {
+    // The art-keyed pairs: the dark slot is the factory white over the
+    // darkened lower edge (0.55 is SymbolButton's resting strength), the
+    // light slot its black counterpart for a bright cover with the gradient off.
+    if (VibeIsArtKeyedColorBase(base)) {
         return [NSColor colorWithWhite:isDark ? 1 : 0 alpha:0.55];
     }
     if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
@@ -1358,6 +1394,10 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     return [AppTheme imageForReference:reference];
 }
 
+- (NSImage *)buttonImageForKey:(NSString *)key {
+    return [self customImageForKey:key] ?: [self customImageForKey:PartnerImageKey(key)];
+}
+
 - (NSImage *)resolvedDefaultArtworkImage {
     return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
                                            light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
@@ -1371,11 +1411,6 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
 
 #pragma mark Dice
 
-static NSString *const kRandomFontFaces[] = {
-    @"Georgia", @"Baskerville", @"Palatino-Roman",
-    @"HelveticaNeue-Medium", @"AvenirNext-Medium", @"Futura-Medium",
-    @"Menlo-Regular",
-};
 static NSString *const kRandomMonoFontFace = @"Menlo-Regular";
 
 static NSUInteger RandomIndex(NSUInteger count) {
@@ -1391,18 +1426,17 @@ static id RandomPick(NSArray *choices) {
 }
 
 + (NSArray<NSString *> *)randomizableFontFaces {
-    NSMutableArray *faces = [NSMutableArray array];
-    for (size_t i = 0; i < sizeof(kRandomFontFaces) / sizeof(kRandomFontFaces[0]); i++) {
-        [faces addObject:kRandomFontFaces[i]];
-    }
-    return faces;
+    return @[@"Georgia", @"Baskerville", @"Palatino-Roman",
+             @"HelveticaNeue-Medium", @"AvenirNext-Medium", @"Futura-Medium",
+             kRandomMonoFontFace];
 }
 
 - (void)randomizeSettingsWithWaveformStyles:(NSArray<NSString *> *)styles {
-    self.windowBackgroundStyle = RandomPick(@[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-                                              SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
-                                              SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]);
-    self.windowTint = RandomPick(@[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK]);
+    NSArray *backgrounds = @[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS, SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
+                             SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
+    NSArray *tints = @[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK];
+    self.windowBackgroundStyle = RandomPick(backgrounds);
+    self.windowTint = RandomPick(tints);
     self.customCornerRadius = RandomChance(50);
     self.windowCornerRadius = [RandomPick(@[@0, @8, @12, @16, @20, @28, @36]) doubleValue];
     if (styles.count) {
@@ -1412,21 +1446,19 @@ static id RandomPick(NSArray *choices) {
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformGradient = RandomChance(50);
     self.buttonGradient = RandomChance(60);
-    self.playlistButtonGlyph = kVibePlaylistButtonGlyphs[RandomIndex(kVibePlaylistButtonGlyphCount)];
-    NSUInteger pair = RandomIndex(kVibePlayPauseGlyphPairCount);
-    self.playButtonGlyph = kVibePlayPauseGlyphPairs[pair][0];
-    self.pauseButtonGlyph = kVibePlayPauseGlyphPairs[pair][1];
-    self.nextButtonGlyph = kVibeNextButtonGlyphs[RandomIndex(kVibeNextButtonGlyphCount)];
-    self.playlistBackgroundStyle = RandomPick(@[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
-                                                SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
-                                                SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]);
-    self.playlistTint = RandomPick(@[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK]);
+    self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
+    NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());
+    self.playButtonGlyph = pair[0];
+    self.pauseButtonGlyph = pair[1];
+    self.nextButtonGlyph = RandomPick(VibeNextButtonGlyphs());
+    self.playlistBackgroundStyle = RandomPick(backgrounds);
+    self.playlistTint = RandomPick(tints);
     self.showPlaylistArtworkColumn = RandomChance(75);
     self.showPlaylistDurationColumn = RandomChance(75);
     // One face for the text, at the factory sizes; the small numeric slots
     // go monospace half the time, the way the built-ins pair a text face
     // with a numbers face.
-    NSString *face = kRandomFontFaces[RandomIndex(sizeof(kRandomFontFaces) / sizeof(kRandomFontFaces[0]))];
+    NSString *face = RandomPick(AppTheme.randomizableFontFaces);
     NSString *numbers = RandomChance(50) ? kRandomMonoFontFace : face;
     [self setFontFace:face size:kVibeThemeTitleFontBaseSize forSlot:VibeFontSlotTitle];
     [self setFontFace:face size:kVibeThemeArtistFontBaseSize forSlot:VibeFontSlotArtist];
@@ -1526,15 +1558,6 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
 }
 
 #pragma mark Color pairs
-
-// The transport buttons' pairs are keyed by the art under them, not the
-// appearance, so single mode — one color per APPEARANCE — leaves both sides
-// live; every other pair collapses to its dark slot.
-static BOOL VibeIsArtKeyedColorBase(NSString *base) {
-    return [base isEqualToString:kVibeThemeColorPlaylistButton]
-            || [base isEqualToString:kVibeThemeColorPlayButton]
-            || [base isEqualToString:kVibeThemeColorNextButton];
-}
 
 - (NSString *)colorKeyForBase:(NSString *)base dark:(BOOL)isDark {
     return ColorFieldKey(base, (self.isSingleMode && !VibeIsArtKeyedColorBase(base)) ? YES : isDark);

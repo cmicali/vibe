@@ -4,6 +4,7 @@
 //
 
 #import "SymbolButton.h"
+#import "PlatformColor.h"
 
 static const CFTimeInterval kFadeDuration = 0.1;
 
@@ -215,8 +216,7 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
         color = _symbolDisabledColor;
         opacity = kDisabledAlpha / kHoverAlpha;
     } else if (_mouseDown && _hovering) {
-        color = [_symbolHighlightColor colorWithAlphaComponent:
-                _symbolHighlightColor.alphaComponent * kPressedFraction];
+        color = VibeColorWithScaledAlpha(_symbolHighlightColor, kPressedFraction);
         opacity = kPressedFraction;
     } else if (_hovering) {
         color = _symbolHighlightColor;
@@ -237,10 +237,9 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
 }
 
 - (void)setSymbolColorsFromRestingColor:(NSColor *)color {
-    CGFloat alpha = color.alphaComponent;
     _symbolNormalColor = color;
-    _symbolHighlightColor = [color colorWithAlphaComponent:MIN(1, alpha * (kHoverAlpha / kRestingAlpha))];
-    _symbolDisabledColor = [color colorWithAlphaComponent:alpha * (kDisabledAlpha / kRestingAlpha)];
+    _symbolHighlightColor = VibeColorWithScaledAlpha(color, kHoverAlpha / kRestingAlpha);
+    _symbolDisabledColor = VibeColorWithScaledAlpha(color, kDisabledAlpha / kRestingAlpha);
     [self applyColorAnimated:NO];
 }
 

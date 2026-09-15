@@ -313,6 +313,8 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    [_themeUndoStack removeAllObjects];
+    _themeUndoChangedKeys = nil;
     // Dropping the divergence record can drop the last reference to a custom
     // image picked while a built-in was active.
     [self sweepUnreferencedThemeImages];
@@ -331,6 +333,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     // and a color drag, which changes no reference, never lists the
     // container.
     NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    if (![AppTheme isBuiltInIdentifier:active] && !_themeUndoRestoring) {
+        [self pushThemeUndoEntry:[self recordForThemeIdentifier:active] replacedBy:record];
+    }
     if ([AppTheme isBuiltInIdentifier:active]) {
         previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
         // A built-in stays pristine; the working record carries the
@@ -423,16 +428,57 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [records addObject:diverged];
     }
     // The editor's undo stack: a record there can put a cleared image back.
-    [records addObjectsFromArray:_themeUndoRecords];
+    [records addObjectsFromArray:_themeUndoStack];
     [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
 }
 
-- (NSArray<NSDictionary<NSString *, id> *> *)themeUndoRecords {
-    return _themeUndoRecords ?: @[];
+// The record an edit replaced goes on the stack — unless nothing changed,
+// or the same keys moved within two seconds of the last push, which is a
+// drag whose first tick already pushed the record before it.
+- (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record {
+    if ([before isEqualToDictionary:record]) {
+        return;
+    }
+    NSMutableSet<NSString *> *changed = [NSMutableSet set];
+    for (NSString *key in [[NSSet setWithArray:before.allKeys] setByAddingObjectsFromArray:record.allKeys]) {
+        if (![before[key] isEqual:record[key]]) {
+            [changed addObject:key];
+        }
+    }
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    if (_themeUndoChangedKeys && [changed isEqualToSet:_themeUndoChangedKeys]
+            && now - _themeUndoPushTime < 2) {
+        _themeUndoPushTime = now;
+        return;
+    }
+    if (!_themeUndoStack) {
+        _themeUndoStack = [NSMutableArray array];
+    }
+    [_themeUndoStack addObject:before];
+    if (_themeUndoStack.count > 50) {
+        [_themeUndoStack removeObjectAtIndex:0];
+    }
+    _themeUndoChangedKeys = changed;
+    _themeUndoPushTime = now;
 }
 
-- (void)setThemeUndoRecords:(NSArray<NSDictionary<NSString *, id> *> *)records {
-    _themeUndoRecords = [records copy];
+- (BOOL)canUndoThemeEdit {
+    return _themeUndoStack.count > 0;
+}
+
+- (void)undoThemeEdit {
+    NSDictionary *record = _themeUndoStack.lastObject;
+    if (!record) {
+        return;
+    }
+    [_themeUndoStack removeLastObject];
+    // The restore is not itself an edit, and the next edit starts a fresh
+    // entry rather than coalescing onto the one just popped.
+    _themeUndoChangedKeys = nil;
+    [self.currentTheme replaceWithRecord:record];
+    _themeUndoRestoring = YES;
+    [self currentThemeDidChange];
+    _themeUndoRestoring = NO;
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {

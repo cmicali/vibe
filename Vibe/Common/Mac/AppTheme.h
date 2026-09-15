@@ -345,6 +345,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // bundled image, else nil — the app icon and the buttons fall back to their
 // own factory (the bundle's icon, the glyph), never to the record image.
 - (nullable NSImage *)customImageForKey:(NSString *)key;
+// A transport button slot's picture for the art under it: its own, else the
+// other side of its Dark/Light pair, so one picked image dresses both; nil
+// when neither side has one, which is the glyph's cue.
+- (nullable NSImage *)buttonImageForKey:(NSString *)key;
 // This theme's resolved placeholder as ONE image: when the sides differ, a
 // cached dynamic wrapper drawing whichever the current drawing appearance
 // asks for — the dynamic-color pattern for pixels — so consumers need no

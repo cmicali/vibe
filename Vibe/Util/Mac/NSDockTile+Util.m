@@ -165,9 +165,12 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
 + (void)setDockIcon:(NSImage*)image shaped:(BOOL)shaped {
     CGFloat size = kVibeDockIconCanvasSize;
     NSUInteger generation = ++VibeDockIconGeneration;
-    if (!shaped) {
-        // The picture as it is: nothing to compose, so nothing to hop for.
-        VibeInstalledDockIconView().image = image;
+    // The picture as it is, or the composition this very image already had:
+    // every theme apply re-installs the tile, and the art view hands back
+    // one instance per install, so a hit assigns with no hop.
+    static NSImage *composedFrom = nil, *composed = nil;
+    if (!shaped || image == composedFrom) {
+        VibeInstalledDockIconView().image = shaped ? composed : image;
         [[NSApp dockTile] display];
         return;
     }
@@ -188,6 +191,8 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
             if (generation != VibeDockIconGeneration) {
                 return; // a newer icon (or a reset to the app icon) won
             }
+            composedFrom = image;
+            composed = customIcon;
             VibeInstalledDockIconView().image = customIcon;
             [[NSApp dockTile] display];
         });

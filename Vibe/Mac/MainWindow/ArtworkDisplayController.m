@@ -181,10 +181,6 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
         _headerTintView = contentView.headerTintView;
         _playlistTintView = contentView.playlistTintView;
         _dominantColorByArt = [NSMapTable weakToStrongObjectsMapTable];
-        // The content view's own seed for the factory placeholder, so the
-        // first sample publishes exactly when it differs from what the
-        // buttons already draw.
-        _transportBackdropIsDark = YES;
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _artworkRenderQueue = dispatch_queue_create("com.vibe.artwork.render", attributes);
@@ -357,7 +353,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         _displayedArtMetadata = request.metadata;
         _showingDefaultArt = NO;
         [self applyDockIcon];
-        [self setTransportBackdropIsDark:result.lowerBandIsDark];
+        [self publishTransportBackdropDark:result.lowerBandIsDark];
     }
 
     _renderInFlight = NO;
@@ -541,19 +537,21 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     _displayedArtTrack = nil;
     _displayedArtMetadata = nil;
     _showingDefaultArt = YES;
-    // Sampled on main: the placeholder is a lifetime-cached decode and the
-    // sample is a 32x32 draw, and a placeholder swap has no worker to ride.
-    [self setTransportBackdropIsDark:VibeImageLowerBandIsDark(_artworkView.image,
-                                                              kTransportBandFraction)];
+    // Sampled on main, once per placeholder instance: the placeholder is a
+    // lifetime-cached decode, so the answer is constant per pointer, and a
+    // placeholder swap has no worker to ride.
+    static NSImage *sampled = nil;
+    static BOOL sampledDark = YES;
+    if (_artworkView.image != sampled) {
+        sampled = _artworkView.image;
+        sampledDark = VibeImageLowerBandIsDark(sampled, kTransportBandFraction);
+    }
+    [self publishTransportBackdropDark:sampledDark];
 }
 
-- (void)setTransportBackdropIsDark:(BOOL)dark {
-    if (_transportBackdropIsDark == dark) {
-        return;
-    }
-    _transportBackdropIsDark = dark;
+- (void)publishTransportBackdropDark:(BOOL)dark {
     if (self.transportBackdropDidChangeHandler) {
-        self.transportBackdropDidChangeHandler();
+        self.transportBackdropDidChangeHandler(dark);
     }
 }
 
