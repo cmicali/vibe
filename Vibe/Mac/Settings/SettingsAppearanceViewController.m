@@ -351,6 +351,9 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
     [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
     [self.playerController applySettingsLiveEffects:effect];
+    // The undo arrow follows the stack this edit just pushed onto — the
+    // toolbar alone, so a drag's ticks never re-read the page under it.
+    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
 #pragma mark - Waveform style, on both pages

@@ -53,47 +53,22 @@ static VibeSettingsLiveEffect EffectForImageKey(NSString *key) {
     return VibeSettingsLiveEffectTransportButtons;
 }
 
-// The theme's fields by transport button, keyed by the button's dark image
-// key — what its popup and rows are looked up by: the image slots its Custom
-// image choice governs (the first is the one the panel opens for; the play
-// button carries the pause state's pair too) and the glyph field, by the
-// property name the record key is. A play pick also writes the pause field
-// from the pair table.
-static NSString *const kButtonImages = @"images";
-static NSString *const kButtonGlyph = @"glyph";
-static NSDictionary<NSString *, NSDictionary *> *ButtonFields(void) {
-    static NSDictionary<NSString *, NSDictionary *> *fields;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        fields = @{
-            kVibeThemeImagePlaylistButtonDark: @{
-                kButtonImages: @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight],
-                kButtonGlyph: @"playlistButtonGlyph"},
-            kVibeThemeImagePlayButtonDark: @{
-                kButtonImages: @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight,
-                                 kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight],
-                kButtonGlyph: @"playButtonGlyph"},
-            kVibeThemeImageNextButtonDark: @{
-                kButtonImages: @[kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight],
-                kButtonGlyph: @"nextButtonGlyph"},
-        };
-    });
-    return fields;
+// The image slots a transport button's Custom image choice governs, by the
+// dark image key its popup and rows are looked up by: the first is the one
+// the panel opens for, and the play button carries the pause state's pair.
+static NSArray<NSString *> *ImageKeysForButton(NSString *key) {
+    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
+        return @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight,
+                 kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight];
+    }
+    if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
+        return @[kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight];
+    }
+    return @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight];
 }
 
-// The glyph field an image slot stands in for: the pause state's for the
-// pause slots, its button's for every other.
-static NSString *GlyphKeyForImageKey(NSString *key) {
-    if ([key isEqualToString:kVibeThemeImagePauseButtonDark]
-            || [key isEqualToString:kVibeThemeImagePauseButtonLight]) {
-        return @"pauseButtonGlyph";
-    }
-    for (NSString *button in ButtonFields()) {
-        if ([ButtonFields()[button][kButtonImages] containsObject:key]) {
-            return ButtonFields()[button][kButtonGlyph];
-        }
-    }
-    return @"playlistButtonGlyph";
+static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
+    return [key isEqualToString:dark] || [key isEqualToString:light];
 }
 
 // TRAP: the editor page's document view must be FLIPPED. An unflipped one
@@ -317,7 +292,7 @@ static NSString *GlyphKeyForImageKey(NSString *key) {
 // keyed by the button's dark image field, which its popup and rows are
 // looked up by. The color and image rows swap on whether an image is set
 // (resolveLayoutStateFromSettings): a glyph has a color, a picture has its
-// own. Both pairs are art-keyed, so neither collapses under single mode.
+// own.
 - (NSArray<SettingsRowView *> *)buttonRowsForImageKey:(NSString *)imageKey
                                                 title:(NSString *)title
                                            colorTitle:(NSString *)colorTitle
@@ -352,13 +327,9 @@ static NSString *GlyphKeyForImageKey(NSString *key) {
 
 #pragma mark - Transport buttons: the theme's fields by button
 
-- (NSArray<NSString *> *)imageKeysForButtonImageKey:(NSString *)key {
-    return ButtonFields()[key][kButtonImages];
-}
-
 - (BOOL)buttonHasImageForKey:(NSString *)key {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    for (NSString *imageKey in [self imageKeysForButtonImageKey:key]) {
+    for (NSString *imageKey in ImageKeysForButton(key)) {
         if ([theme imageReferenceForKey:imageKey].length) {
             return YES;
         }
@@ -370,15 +341,30 @@ static NSString *GlyphKeyForImageKey(NSString *key) {
 // — so the two states never draw the same glyph.
 - (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSString *glyphKey = ButtonFields()[key][kButtonGlyph];
-    [theme setValue:glyph forKey:glyphKey];
-    if ([glyphKey isEqualToString:@"playButtonGlyph"]) {
+    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
+        theme.playButtonGlyph = glyph;
         theme.pauseButtonGlyph = VibePauseGlyphForPlayGlyph(glyph);
+    } else if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
+        theme.nextButtonGlyph = glyph;
+    } else {
+        theme.playlistButtonGlyph = glyph;
     }
 }
 
+// The glyph an image slot stands in for: the pause state's for the pause
+// slots, its button's for every other.
 - (NSString *)glyphForImageKey:(NSString *)key {
-    return [AppSettings.sharedInstance.currentTheme valueForKey:GlyphKeyForImageKey(key)];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (IsEitherSide(key, kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight)) {
+        return theme.pauseButtonGlyph;
+    }
+    if (IsEitherSide(key, kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight)) {
+        return theme.playButtonGlyph;
+    }
+    if (IsEitherSide(key, kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight)) {
+        return theme.nextButtonGlyph;
+    }
+    return theme.playlistButtonGlyph;
 }
 
 // The popup's selection from the theme: Custom image while the button has
@@ -1187,7 +1173,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [self setGlyph:choice forButtonImageKey:key];
-    for (NSString *imageKey in [self imageKeysForButtonImageKey:key]) {
+    for (NSString *imageKey in ImageKeysForButton(key)) {
         [theme setImageReference:@"" forKey:imageKey];
     }
     [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];

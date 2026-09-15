@@ -827,9 +827,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
 
-// The buttons' color pair is keyed by what is under them: the gradient, when
-// on, makes the backdrop dark whatever the cover; off, the art's own lower
-// band decides — never the appearance, which the art does not follow.
+// The gradient, when on, makes the backdrop dark whatever the cover; off,
+// the art's own lower band decides.
 - (BOOL)transportBackdropIsDark {
     return AppSettings.sharedInstance.currentTheme.buttonGradient || _transportBackdropDark;
 }

@@ -30,8 +30,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // whatever appearance the window has. single keeps ONE color per field and
 // always uses it, whatever the system or Vibe's own appearance setting says;
 // the window's chrome still follows the appearance, only the theme's colors
-// stop caring. The transport buttons' pairs are keyed by the art under them
-// rather than the appearance, so they stay two-sided under either mode.
+// stop caring. The art-keyed transport pairs (kVibeThemeColorPlaylistButton)
+// are the exception.
 #define SETTINGS_VALUE_THEME_MODE_SINGLE                    @"single"
 #define SETTINGS_VALUE_THEME_MODE_DUAL                      @"dual"
 
@@ -149,10 +149,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkDark;
 FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkLight;
 FOUNDATION_EXPORT NSString *const kVibeThemeImageAppIcon;
 // A transport button's images come as a pair like its colors — Dark over
-// dark artwork, Light over light — and, like its colors, the pair is keyed
-// by the art under the buttons rather than the appearance, so it never
-// collapses under single mode. An unset side draws the other side's image
-// before falling back to the glyph, so one picked image dresses both.
+// dark artwork, Light over light, art-keyed like them. An unset side draws
+// the other side's image before falling back to the glyph, so one picked
+// image dresses both.
 FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButtonDark;
 FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButtonLight;
 FOUNDATION_EXPORT NSString *const kVibeThemeImagePlayButtonDark;

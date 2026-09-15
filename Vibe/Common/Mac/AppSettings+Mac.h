@@ -143,17 +143,18 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // apply installs. An unknown identifier answers vibe's (the empty record).
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
-// The theme editor's undo. currentThemeDidChange pushes the record each
-// edit of a USER theme replaced — a continuous gesture's ticks (the
-// continuous form below), moving the same keys within two seconds of each
-// other, coalesce onto the first tick's entry, while discrete edits never
-// do, so two menu picks of one field are two undos — fifty deep; a theme
-// apply drops the stack, so an undo never lands on another theme, and a
-// built-in's edits are divergence rather than the theme's and are not
-// recorded. undoThemeEdit puts the top entry back into the working record
-// and persists it without recording; the caller requests ThemeApply. The
-// image sweep keeps a custom image a stacked record still names, so an
-// undo can put a cleared picture back.
+// The theme editor's undo. currentThemeDidChange pushes the stored entry
+// each edit of a USER theme replaced — fields and name, so a committed
+// rename (renameUserThemeWithIdentifier:toName:) is an entry too — and a
+// continuous gesture's ticks (the continuous form below), moving the same
+// keys within two seconds of each other, coalesce onto the first tick's
+// entry, while discrete edits never do, so two menu picks of one field are
+// two undos; fifty deep. A theme apply drops the stack, so an undo never
+// lands on another theme, and a built-in's edits are divergence rather than
+// the theme's and are not recorded. undoThemeEdit puts the top entry's name
+// and fields back and persists them without recording; the caller requests
+// ThemeApply. The image sweep keeps a custom image a stacked entry still
+// names, so an undo can put a cleared picture back.
 @property (readonly, nonatomic) BOOL canUndoThemeEdit;
 - (void)undoThemeEdit;
 

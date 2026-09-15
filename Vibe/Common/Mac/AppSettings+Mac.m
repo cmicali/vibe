@@ -337,10 +337,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     // and a color drag, which changes no reference, never lists the
     // container.
     NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
-    if (![AppTheme isBuiltInIdentifier:active] && !_themeUndoRestoring) {
-        [self pushThemeUndoEntry:[self recordForThemeIdentifier:active] replacedBy:record
-                      continuous:continuous];
-    }
+    // The stored entry this write replaces — nil for a built-in — is what
+    // undo puts back, name included.
+    NSDictionary *replaced = [self storedUserThemeWithIdentifier:active];
     if ([AppTheme isBuiltInIdentifier:active]) {
         previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
         // A built-in stays pristine; the working record carries the
@@ -363,6 +362,10 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         }
         [self persistUserThemes:themes];
         [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    }
+    if (replaced && !_themeUndoRestoring) {
+        [self pushThemeUndoEntry:replaced replacedBy:[self storedUserThemeWithIdentifier:active]
+                      continuous:continuous];
     }
     if (![[AppTheme customImageFilesInRecord:previous]
             isEqualToSet:[AppTheme customImageFilesInRecord:record]]) {
@@ -437,11 +440,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
 }
 
-// The record an edit replaced goes on the stack — unless nothing changed,
-// or this is a continuous gesture's tick moving the same keys within two
-// seconds of the last push, whose first tick already pushed the record
-// before it. Time alone cannot tell a drag from two quick menu picks of one
-// field, which are two edits; the writer says which it is.
+// The stored entry an edit replaced — its fields and its name — goes on the
+// stack, unless nothing changed, or this is a continuous gesture's tick
+// moving the same keys within two seconds of the last push, whose first
+// tick already pushed the entry before it. Time alone cannot tell a drag
+// from two quick menu picks of one field, which are two edits; the writer
+// says which it is.
 - (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record
                 continuous:(BOOL)continuous {
     if ([before isEqualToDictionary:record]) {
@@ -475,16 +479,20 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (void)undoThemeEdit {
-    NSDictionary *record = _themeUndoStack.lastObject;
-    if (!record) {
+    NSDictionary *entry = _themeUndoStack.lastObject;
+    if (!entry) {
         return;
     }
     [_themeUndoStack removeLastObject];
     // The restore is not itself an edit, and the next edit starts a fresh
-    // entry rather than coalescing onto the one just popped.
+    // entry rather than coalescing onto the one just popped. The name goes
+    // back through the rename path, which keeps its validation; the fields
+    // through the working record, which reads only the keys it knows.
     _themeUndoChangedKeys = nil;
-    [self.currentTheme replaceWithRecord:record];
     _themeUndoRestoring = YES;
+    [self renameUserThemeWithIdentifier:self.activeThemeIdentifier
+                                 toName:entry[kVibeThemeRecordNameKey]];
+    [self.currentTheme replaceWithRecord:entry];
     [self currentThemeDidChange];
     _themeUndoRestoring = NO;
 }
@@ -503,10 +511,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         NSString *deduped = [AppTheme dedupedThemeName:name
                                               fallback:STR_THEME_NAME_CUSTOM
                                          existingNames:otherNames];
-        NSMutableDictionary *entry = [themes[i] mutableCopy];
+        NSDictionary *replaced = themes[i];
+        NSMutableDictionary *entry = [replaced mutableCopy];
         entry[kVibeThemeRecordNameKey] = deduped;
         themes[i] = entry;
         [self persistUserThemes:themes];
+        // A committed rename of the theme being edited is an edit of it.
+        if ([identifier isEqualToString:self.activeThemeIdentifier] && !_themeUndoRestoring) {
+            [self pushThemeUndoEntry:replaced replacedBy:entry continuous:NO];
+        }
         return;
     }
 }

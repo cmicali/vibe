@@ -305,9 +305,8 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         // fraction would draw a radius no surface can display. Rounding in
         // the gate heals imports and pre-round stored records alike; the
         // slider merely re-syncs to what landed. The switch's row follows
-        // the radius's: its default is whether a radius is stored
-        // (defaultForKey:), so a record's radius must land before its
-        // switch is judged against it.
+        // the radius's: its off is kept only beside a stored radius
+        // (storeSanitized:), so a record's radius must land first.
         [rows addObject:Field(kFieldWindowCornerRadius, window, @"cornerRadius",
                               @(kVibeThemeCornerRadiusDefault),
                               NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
@@ -1182,6 +1181,14 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
     }
+    // The custom-radius switch postdates the radius: a record naming a
+    // radius with no word on the switch — a stored theme or an exported
+    // file from before it — chose that shape, so it reads as custom. Decided
+    // here, at the one place a record is read, so the setters stay plain.
+    if (_fields[kFieldWindowCornerRadius]
+            && !SanitizedFieldValue(kFieldCustomCornerRadius, record[kFieldCustomCornerRadius])) {
+        _fields[kFieldCustomCornerRadius] = @YES;
+    }
 }
 
 + (NSDictionary<NSString *, id> *)sanitizedRecord:(NSDictionary<NSString *, id> *)record {
@@ -1193,45 +1200,31 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 }
 
 // Sanitize, then keep only a value that differs from the default — the
-// record stays sparse whatever a setter or file hands it.
+// record stays sparse whatever a setter or file hands it. The one exception
+// is the custom-radius switch's off beside a stored radius: dropped as the
+// default, the bare radius left behind would read back as custom
+// (replaceWithRecord:), so off would not survive a reload or an export.
 - (void)storeSanitized:(id)raw forKey:(NSString *)key {
     id value = SanitizedFieldValue(key, raw);
-    if (!value || [value isEqual:[self defaultForKey:key]]) {
+    BOOL keep = [key isEqualToString:kFieldCustomCornerRadius]
+            && _fields[kFieldWindowCornerRadius] != nil;
+    if (!value || (!keep && [value isEqual:FieldDefaults()[key]])) {
         [_fields removeObjectForKey:key];
     } else {
         _fields[key] = value;
     }
-    if ([key isEqualToString:kFieldWindowCornerRadius]) {
-        // The switch's default moved with the radius; re-judge what it holds
-        // against the new one, so the record stays sparse.
-        [self storeSanitized:@(self.customCornerRadius) forKey:kFieldCustomCornerRadius];
-    }
-}
-
-// The custom-radius switch's default is whether a radius is stored, the
-// rest of the fields' a constant. A record naming a radius with no word on
-// the switch — a stored theme or an exported file from before the switch
-// existed — chose that shape, so it reads as custom; only an explicit off
-// beside a radius is worth a key, and it survives every round trip because
-// the sparse rule compares against THIS default rather than a constant NO
-// that an off beside a radius would equal and vanish into.
-- (id)defaultForKey:(NSString *)key {
-    if ([key isEqualToString:kFieldCustomCornerRadius]) {
-        return @(_fields[kFieldWindowCornerRadius] != nil);
-    }
-    return FieldDefaults()[key];
 }
 
 - (NSString *)stringForKey:(NSString *)key {
-    return _fields[key] ?: [self defaultForKey:key];
+    return _fields[key] ?: FieldDefaults()[key];
 }
 
 - (CGFloat)floatForKey:(NSString *)key {
-    return [(NSNumber *)(_fields[key] ?: [self defaultForKey:key]) doubleValue];
+    return [(NSNumber *)(_fields[key] ?: FieldDefaults()[key]) doubleValue];
 }
 
 - (BOOL)boolForKey:(NSString *)key {
-    return [(NSNumber *)(_fields[key] ?: [self defaultForKey:key]) boolValue];
+    return [(NSNumber *)(_fields[key] ?: FieldDefaults()[key]) boolValue];
 }
 
 #pragma mark Scalar fields
@@ -1451,8 +1444,7 @@ static id RandomPick(NSArray *choices) {
     NSArray *tints = @[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK];
     self.windowBackgroundStyle = RandomPick(backgrounds);
     self.windowTint = RandomPick(tints);
-    // Radius first: a stored radius reads as custom until the switch says
-    // otherwise, so the switch's roll is the one that has to land last.
+    // Radius first: the switch's off is kept only beside a stored radius.
     self.windowCornerRadius = [RandomPick(@[@0, @8, @12, @16, @20, @28, @36]) doubleValue];
     self.customCornerRadius = RandomChance(50);
     if (styles.count) {
@@ -1493,8 +1485,19 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
 }
 
 - (void)setHue:(CGFloat)hue alpha:(CGFloat)alpha forBase:(NSString *)base {
-    [self setColor:HueColor(hue, YES, alpha) forBase:base dark:YES];
-    [self setColor:HueColor(hue, NO, alpha) forBase:base dark:NO];
+    [self setHue:hue darkAlpha:alpha lightAlpha:alpha forBase:base];
+}
+
+// A hue on both sides of a pair — or on the one slot the pair has: under
+// single mode every appearance-keyed pair reads and writes its dark slot
+// from either side, and the window is pinned dark, so the light write would
+// land its deeper shade on top of the pastel the window then draws.
+- (void)setHue:(CGFloat)hue darkAlpha:(CGFloat)darkAlpha lightAlpha:(CGFloat)lightAlpha
+       forBase:(NSString *)base {
+    [self setColor:HueColor(hue, YES, darkAlpha) forBase:base dark:YES];
+    if (![[self colorKeyForBase:base dark:NO] isEqualToString:[self colorKeyForBase:base dark:YES]]) {
+        [self setColor:HueColor(hue, NO, lightAlpha) forBase:base dark:NO];
+    }
 }
 
 - (void)randomizeColors {
@@ -1560,11 +1563,9 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
             break;
         default: // A wash of the hue over the window and the playlist, labels left plain.
             self.windowTint = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
-            [self setColor:HueColor(hue, YES, 0.35) forBase:kVibeThemeColorWindowTint dark:YES];
-            [self setColor:HueColor(hue, NO, 0.45) forBase:kVibeThemeColorWindowTint dark:NO];
+            [self setHue:hue darkAlpha:0.35 lightAlpha:0.45 forBase:kVibeThemeColorWindowTint];
             self.playlistTint = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
-            [self setColor:HueColor(hue, YES, 0.25) forBase:kVibeThemeColorPlaylistTint dark:YES];
-            [self setColor:HueColor(hue, NO, 0.35) forBase:kVibeThemeColorPlaylistTint dark:NO];
+            [self setHue:hue darkAlpha:0.25 lightAlpha:0.35 forBase:kVibeThemeColorPlaylistTint];
             [self setHue:hue alpha:0.2 forBase:kVibeThemeColorPlaylistPlayingRow];
             self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
             [self setHue:hue alpha:0.8 forBase:kVibeThemeColorWaveformPlayed];
@@ -1605,7 +1606,7 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
 // dark-keyed half is its canonical slot: reads and writes from either side
 // land there, and the light-keyed halves lie dormant — preserved, so a theme
 // flipped to single and back to dual keeps its second palette. The
-// art-keyed button pairs are the exception (colorKeyForBase:dark:).
+// art-keyed pairs are the exception (VibeIsArtKeyedColorBase).
 - (BOOL)isSingleMode {
     return [self.mode isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE];
 }

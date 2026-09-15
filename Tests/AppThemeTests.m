@@ -103,16 +103,17 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
-// The custom-radius switch's default is whether a radius is stored: a
-// record naming a radius with no word on the switch — every stored theme and
-// exported file from before it — chose that shape and keeps it, while one
-// that says off draws the standard radius whatever its slider holds.
+// The custom-radius switch postdates the radius: a record naming a radius
+// with no word on the switch — every stored theme and exported file from
+// before it — chose that shape and keeps it, decided where the record is
+// read, while one that says off draws the standard radius whatever its
+// slider holds.
 - (void)testARadiusWithoutTheSwitchReadsAsCustom {
     AppTheme *legacy = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8}];
     XCTAssertTrue(legacy.customCornerRadius);
     XCTAssertEqual(legacy.resolvedWindowCornerRadius, 8);
-    XCTAssertEqualObjects(legacy.dictionaryRepresentation, @{@"windowCornerRadius": @8},
-                          @"custom beside a radius is the default, so it is not stored");
+    XCTAssertEqualObjects(legacy.dictionaryRepresentation,
+                          (@{@"windowCornerRadius": @8, @"customCornerRadius": @YES}));
 
     AppTheme *off = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8,
                                                         @"customCornerRadius": @NO}];
@@ -120,26 +121,29 @@
     XCTAssertEqual(off.windowCornerRadius, 8, @"the slider keeps its value");
     XCTAssertEqual(off.resolvedWindowCornerRadius, 16, @"but the window draws the standard one");
 
-    // Sliding the radius alone therefore reads as custom too — one rule for
-    // a setter and a record — and the switch on beside it is still default.
+    // A setter is not a record: sliding the radius alone does not flip the
+    // switch — the editor's slider is disabled until the switch is on — and
+    // the switch is not the slider's: on stays on through the standard
+    // radius, the one value the record does not store.
     AppTheme *edited = [[AppTheme alloc] initWithRecord:nil];
     edited.windowCornerRadius = 30;
-    XCTAssertTrue(edited.customCornerRadius);
-    XCTAssertEqual(edited.resolvedWindowCornerRadius, 30);
+    XCTAssertFalse(edited.customCornerRadius);
+    XCTAssertEqual(edited.resolvedWindowCornerRadius, 16);
     edited.customCornerRadius = YES;
-    XCTAssertEqualObjects(edited.dictionaryRepresentation, @{@"windowCornerRadius": @30});
-    // On with the standard radius is the one shape that stores the switch on.
-    AppTheme *standard = [[AppTheme alloc] initWithRecord:nil];
-    standard.customCornerRadius = YES;
-    XCTAssertEqualObjects(standard.dictionaryRepresentation, @{@"customCornerRadius": @YES});
-    XCTAssertEqual(standard.resolvedWindowCornerRadius, 16);
+    XCTAssertEqual(edited.resolvedWindowCornerRadius, 30);
+    edited.windowCornerRadius = 8;
+    edited.windowCornerRadius = 16;
+    XCTAssertTrue(edited.customCornerRadius, @"through 16 the switch stands");
+    XCTAssertEqualObjects(edited.dictionaryRepresentation, @{@"customCornerRadius": @YES});
+    edited.windowCornerRadius = 20;
+    XCTAssertEqual(edited.resolvedWindowCornerRadius, 20);
 }
 
 // The editor's sequence — set a radius, then switch custom off — used to
 // store the switch as a false that the sparse rule dropped for equalling
-// the constant default, leaving a bare radius that read back as custom:
-// off did not survive a reload, an export or an undo. Every round trip the
-// record takes has to keep it.
+// the default, leaving a bare radius that read back as custom: off did not
+// survive a reload, an export or an undo. Every round trip the record takes
+// has to keep it, and the radius with it for the next time the switch is on.
 - (void)testSwitchingCustomRadiusOffSurvivesEveryRoundTrip {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     theme.customCornerRadius = YES;
@@ -162,12 +166,16 @@
     XCTAssertEqualObjects(file[@"window"], (@{@"cornerRadius": @8, @"customCornerRadius": @NO}));
     XCTAssertEqualObjects([AppTheme recordFromJSONData:json name:NULL error:NULL], record);
 
-    // Back on drops the key again, and clearing the radius clears both.
+    // Back on, the chosen radius is still there to draw.
     theme.customCornerRadius = YES;
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"windowCornerRadius": @8});
+    XCTAssertEqual(theme.resolvedWindowCornerRadius, 8);
+    // And a switch off with the standard radius is the factory look, however
+    // the record spells it on the way there.
     theme.customCornerRadius = NO;
     theme.windowCornerRadius = 16;
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+    XCTAssertFalse(theme.customCornerRadius);
+    XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
+    XCTAssertEqualObjects([AppTheme sanitizedRecord:theme.dictionaryRepresentation], @{});
 }
 
 - (void)testDockIconSnapsToAlbumArt {
@@ -277,7 +285,8 @@
         @"futureField": @"whatever",
         @"windowCornerRadius": @12,
     }];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"windowCornerRadius": @12});
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          (@{@"windowCornerRadius": @12, @"customCornerRadius": @YES}));
 }
 
 - (void)testIdentifiersSnapToTheirLadders {
@@ -556,6 +565,51 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     }
 }
 
+static CGFloat Brightness(NSString *hex) {
+    CGFloat brightness = 0;
+    [[VibeColorFromHexString(hex) colorUsingColorSpace:NSColorSpace.sRGBColorSpace]
+            getHue:NULL saturation:NULL brightness:&brightness alpha:NULL];
+    return brightness;
+}
+
+// Single mode has one slot per appearance-keyed pair — the dark-keyed one,
+// which the pinned-dark window draws — so a roll paints it with the dark
+// side's pastel; the light side's deeper shade used to land on top of it
+// through the same slot. The art-keyed buttons keep both sides, and dual
+// mode both palettes.
+- (void)testRandomizeColorsPaintsSingleModesOneSlotWithTheDarkPalette {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
+    BOOL sawButtons = NO;
+    for (int roll = 0; roll < 60; roll++) {
+        [theme randomizeColors];
+        NSDictionary *record = theme.dictionaryRepresentation;
+        for (NSString *key in record) {
+            if ([key hasSuffix:@"ColorLight"]) {
+                XCTAssertTrue([key hasSuffix:@"ButtonColorLight"],
+                        @"%@: no light slot to paint under single mode", key);
+                XCTAssertEqualWithAccuracy(Brightness(record[key]), 0.55, 0.03, @"%@", key);
+                sawButtons = YES;
+            } else if ([key hasSuffix:@"ColorDark"]) {
+                XCTAssertEqualWithAccuracy(Brightness(record[key]), 0.95, 0.03, @"%@", key);
+            }
+        }
+        XCTAssertEqual([theme colorForBase:kVibeThemeColorPlayButton dark:YES] != nil,
+                       [theme colorForBase:kVibeThemeColorPlayButton dark:NO] != nil);
+    }
+    XCTAssertTrue(sawButtons, @"sixty rolls never reached the scheme that paints the buttons");
+
+    theme.mode = @"dual";
+    [theme randomizeColors];
+    NSDictionary *record = theme.dictionaryRepresentation;
+    for (NSString *key in record) {
+        if ([key hasSuffix:@"ColorDark"]) {
+            XCTAssertEqualWithAccuracy(Brightness(record[key]), 0.95, 0.03, @"%@", key);
+            NSString *light = [[key substringToIndex:key.length - 4] stringByAppendingString:@"Light"];
+            XCTAssertEqualWithAccuracy(Brightness(record[light]), 0.55, 0.03, @"%@", light);
+        }
+    }
+}
+
 - (void)testRecordRoundTrips {
     AppTheme *first = [[AppTheme alloc] initWithRecord:nil];
     first.waveformStyle = @"detailed";
@@ -590,7 +644,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
     XCTAssertEqualObjects(json[@"waveform"], @{@"theme": @"orange"});
-    XCTAssertEqualObjects(json[@"window"], @{@"cornerRadius": @6});
+    XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
     // version, then name, then the sections, in the file's own byte order.
@@ -605,7 +659,8 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSError *error = nil;
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
-    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6}));
+    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
+                                   @"customCornerRadius": @YES}));
     XCTAssertEqualObjects(name, @"Exported");
 }
 
@@ -620,7 +675,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertNil(name);  // a non-string name does not travel
-    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @36});
+    XCTAssertEqualObjects(record, (@{@"windowCornerRadius": @36, @"customCornerRadius": @YES}));
 }
 
 - (void)testJSONImportRefusesJunk {
@@ -1219,12 +1274,11 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
                         @"%@: names art the bundle does not carry (%@)", identifier, art);
             }
         }
-        // A built-in shaping its own corners says it by the radius alone:
-        // custom is the default beside a radius, so a spelled-out switch on
-        // would drop on import and the round-trip above would drift.
+        // A built-in shaping its own corners says so: without the switch the
+        // gate would add it on import, and the round-trip above would drift.
         if (record[@"windowCornerRadius"]) {
-            XCTAssertTrue([[[AppTheme alloc] initWithRecord:record] customCornerRadius],
-                    @"%@: a built-in's radius must draw", identifier);
+            XCTAssertEqualObjects(record[@"customCornerRadius"], @YES,
+                    @"%@: sets a radius without customCornerRadius", identifier);
         }
     }
 }
@@ -1467,6 +1521,22 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     XCTAssertEqual(settings.currentTheme.resolvedWindowCornerRadius, 16);
     XCTAssertEqualObjects([settings recordForThemeIdentifier:identifier],
                           (@{@"windowCornerRadius": @8, @"customCornerRadius": @NO}));
+
+    // A committed rename is an edit of the theme like any other: its own
+    // entry, undone in order with the field edits around it.
+    [settings renameUserThemeWithIdentifier:identifier toName:@"Renamed"];
+    XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Renamed");
+    [settings renameUserThemeWithIdentifier:identifier toName:@"Renamed"];
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    [settings undoThemeEdit];
+    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Renamed",
+                          @"the field edit undone, the rename still stands");
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Undo",
+                          @"a same-name rename pushed nothing");
+    XCTAssertFalse(settings.currentTheme.customCornerRadius, @"the fields rode along untouched");
     [settings resetToDefaults];
 }
 
