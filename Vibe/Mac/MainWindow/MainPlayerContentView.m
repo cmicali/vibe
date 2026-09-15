@@ -809,7 +809,7 @@ static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
         known = [NSMutableDictionary dictionary];
     }
     NSNumber *has = known[glyph];
-    if (!has) {
+    if (has == nil) {
         has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
         known[glyph] = has;
     }
