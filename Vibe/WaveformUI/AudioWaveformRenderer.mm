@@ -4,6 +4,7 @@
 //
 
 #import "AudioWaveformRenderer.h"
+#import "WaveformMorphEngine.h"
 
 @implementation AudioWaveformRenderer {
     CGFloat _hoverHighlightX;
@@ -48,9 +49,19 @@
     [self levelMappingDidChange];
 }
 
-// The base draws no bars; the families forward to their morph engine.
 - (void)levelMappingDidChange {
+    [_morph invalidateTarget];
+}
 
+- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
+               waveform:(AudioWaveform *)waveform {
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float gainDB = self.gainDB;
+    for (NSUInteger i = 0; i < count; i++) {
+        out[i * stride] = VibeWaveformBarLevel(
+                VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
+                fullScaleRMS, gainDB);
+    }
 }
 
 // Abstract. Both are declared nonnull, and styleIdentifier is used as a
@@ -90,15 +101,15 @@
 }
 
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-
+    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
 }
 
 - (void)settleMorphImmediately {
-
+    [_morph settleImmediately];
 }
 
 - (void)backingScaleDidChange {
-
+    [_morph rebuildNow];
 }
 
 - (BOOL)supportsEnvelopeBake {

@@ -120,7 +120,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
     }
 }
 
-@interface AudioWaveformRenderer : NSObject
+@class WaveformMorphEngine;
+
+@interface AudioWaveformRenderer : NSObject {
+@protected
+    // Bar renderers install their geometry callback; flat controls leave this nil.
+    WaveformMorphEngine *_morph;
+}
 
 @property (assign) BOOL isDark;
 
@@ -144,12 +150,17 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // mapping. Every fill measures its bars against
 // VibeWaveformFullScaleRMSForWaveform and passes the gain to
 // VibeWaveformBarLevel. Either setter reaches levelMappingDidChange, which
-// the bar families forward to their morph engine's invalidateTarget, so a
+// invalidates the optional morph engine's target, so a
 // change refills from the same waveform and the bars ease to their new
 // heights rather than staying where the last fill put them.
 @property (nonatomic) BOOL normalizesLevels;
 @property (nonatomic) float gainDB;
 - (void)levelMappingDidChange;
+
+// One energy level per bar. Stride permits interleaved envelopes without a
+// temporary sample buffer; the caller supplies their sign and symmetry.
+- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
+               waveform:(AudioWaveform *)waveform;
 
 @property (strong) CALayer* parentLayer;
 
@@ -175,20 +186,20 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
-// The window moved to a display with a different backing scale. The base does
-// nothing; the families rebuild their settled geometry, whose device-pixel
+// The window moved to a display with a different backing scale. Rebuild the
+// optional morph engine's geometry, whose device-pixel
 // snapping baked in the old scale and which a same-size updateWaveform: pass
 // skips.
 - (void)backingScaleDidChange;
 
 // The Convert to FLAC sweep: collapse the bars in the x-fraction span
-// [from, to) to the midline and let the shared morph ease them back. The base
-// does nothing; the families forward to their morph engine.
+// [from, to) to the midline and let the shared morph ease them back. A no-op
+// for a renderer with no morph engine.
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to;
 
 // Land the in-flight morph on its target in one rebuild rather than easing
 // there — see WaveformMorphEngine.settleImmediately for when that is worth
-// doing. The base does nothing; the families forward to their morph engine.
+// doing. A no-op for a renderer with no morph engine.
 - (void)settleMorphImmediately;
 
 // The hover scrubbing affordance: light the waveform's own column at view x to

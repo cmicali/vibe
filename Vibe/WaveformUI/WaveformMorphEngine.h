@@ -53,10 +53,9 @@ NS_ASSUME_NONNULL_BEGIN
 // non-nil, because a silent track's all-zero waveform is sample-identical to
 // the collapsed target but draws hairlines rather than nothing. Start the morph
 // timer when the target has moved. The first build starts collapsed, so the
-// waveform grows out of the midline; a later bar-count change — a resize,
-// since the renderers derive their count from the width — resamples the
-// displayed bars to the new count instead, so a live resize never collapses
-// the picture.
+// waveform grows out of the midline. A settled waveform lands a new bar count
+// immediately during resize, with no extra animation; a resize during an
+// existing morph resamples the displayed bars and continues that morph.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count

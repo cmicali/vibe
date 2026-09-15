@@ -31,9 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 // stay pixel-identical.
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
 
-// The bar geometry: the width of every bar, and the x origin of bar `index`.
+// The bar width. Every style spaces its bars evenly across the drawn width.
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
-- (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth;
 
 // The gradient styling: its direction and extent, and the ramp's color stops.
 // color is the theme's played or unplayed color, carrying its side's resting

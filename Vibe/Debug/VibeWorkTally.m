@@ -18,6 +18,7 @@
 static os_unfair_lock gTallyLock = OS_UNFAIR_LOCK_INIT;
 static NSMutableDictionary<NSString *, NSNumber *> *gCounts;
 static NSMutableDictionary<NSString *, NSNumber *> *gNanos;
+static NSMutableDictionary<NSString *, NSNumber *> *gMaxNanos;
 static NSString *gLabel;
 static uint64_t gWindowStart;
 
@@ -27,6 +28,7 @@ void VibeWorkTallyBeginWindow(const char *label) {
     gWindowStart = VibeMonotonicNanos();
     gCounts = [NSMutableDictionary dictionary];
     gNanos = [NSMutableDictionary dictionary];
+    gMaxNanos = [NSMutableDictionary dictionary];
     os_unfair_lock_unlock(&gTallyLock);
 }
 
@@ -36,32 +38,46 @@ void VibeWorkTallyAdd(const char *name, uint64_t nanos) {
         NSString *key = @(name);
         gCounts[key] = @(gCounts[key].unsignedIntegerValue + 1);
         gNanos[key] = @(gNanos[key].unsignedLongLongValue + nanos);
+        gMaxNanos[key] = @(MAX(gMaxNanos[key].unsignedLongLongValue, nanos));
     }
     os_unfair_lock_unlock(&gTallyLock);
 }
 
-void VibeWorkTallyEndWindow(void) {
+NSDictionary *VibeWorkTallyTakeWindow(void) {
     os_unfair_lock_lock(&gTallyLock);
     NSString *label = gLabel;
     NSDictionary *counts = gCounts;
     NSDictionary *nanos = gNanos;
+    NSDictionary *maxNanos = gMaxNanos;
     uint64_t elapsed = gWindowStart > 0 ? VibeMonotonicNanos() - gWindowStart : 0;
     gLabel = nil;
     gCounts = nil;
     gNanos = nil;
+    gMaxNanos = nil;
     gWindowStart = 0;
     os_unfair_lock_unlock(&gTallyLock);
 
-    if (!counts) {
-        return;
+    NSMutableDictionary *work = [NSMutableDictionary dictionary];
+    for (NSString *key in counts) {
+        work[key] = @{@"count": counts[key],
+                      @"totalMs": @([nanos[key] unsignedLongLongValue] / 1e6),
+                      @"maxMs": @([maxNanos[key] unsignedLongLongValue] / 1e6)};
     }
+    return @{@"active": @(counts != nil), @"label": label ?: @"",
+             @"elapsedMs": @(elapsed / 1e6), @"work": work};
+}
+
+void VibeWorkTallyEndWindow(void) {
+    NSDictionary *result = VibeWorkTallyTakeWindow();
+    if (![result[@"active"] boolValue]) return;
+    NSDictionary *work = result[@"work"];
     // Slowest total first: the ordering the reader wants is "what did this
     // window spend its main thread on", and a pure count sorts to the bottom
     // where it belongs.
-    NSArray<NSString *> *keys = [counts.allKeys sortedArrayUsingComparator:
+    NSArray<NSString *> *keys = [work.allKeys sortedArrayUsingComparator:
             ^NSComparisonResult(NSString *a, NSString *b) {
-        unsigned long long na = [nanos[a] unsignedLongLongValue];
-        unsigned long long nb = [nanos[b] unsignedLongLongValue];
+        double na = [work[a][@"totalMs"] doubleValue];
+        double nb = [work[b][@"totalMs"] doubleValue];
         if (na != nb) {
             return na > nb ? NSOrderedAscending : NSOrderedDescending;
         }
@@ -69,10 +85,10 @@ void VibeWorkTallyEndWindow(void) {
     }];
     NSMutableArray<NSString *> *rows = [NSMutableArray arrayWithCapacity:keys.count];
     for (NSString *key in keys) {
-        [rows addObject:[NSString stringWithFormat:@"%@ x%@ %.2fms", key, counts[key],
-                                                   [nanos[key] unsignedLongLongValue] / 1e6]];
+        [rows addObject:[NSString stringWithFormat:@"%@ x%@ %.2fms", key, work[key][@"count"],
+                                                   [work[key][@"totalMs"] doubleValue]]];
     }
-    LogInfo(@"[tally] %@ over %.1fms: %@", label, elapsed / 1e6,
+    LogInfo(@"[tally] %@ over %.1fms: %@", result[@"label"], [result[@"elapsedMs"] doubleValue],
             rows.count ? [rows componentsJoinedByString:@", "] : @"(nothing)");
 }
 
