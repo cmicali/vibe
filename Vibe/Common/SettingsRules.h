@@ -93,9 +93,11 @@ static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) 
 }
 
 static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]
-            ? SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
-            : SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
+    if ([identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS;
 }
 
 static inline NSString *VibeNormalizedKeyNotation(NSString *_Nullable identifier) {

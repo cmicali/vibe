@@ -38,9 +38,13 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // The background styles' stable identifiers, shared by the window and the
 // playlist: glass, the default, is the translucent look as shipped; solid
 // covers it with the surface's color pair, whose alpha is the cover's
-// opacity. On the playlist, solid also removes the behind-window blur.
+// opacity; clear drops the surface's own pane so the window's Clear glass
+// backdrop — what a transparent placeholder shows through the art — is the
+// whole look. On the playlist, solid and clear both remove the behind-window
+// blur.
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS              @"glass"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
+#define SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR              @"clear"
 
 // What the Dock tile shows while a track with artwork plays: album_art, the
 // default, composes the playing track's cover into the icon grid; app_icon

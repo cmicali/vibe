@@ -36,6 +36,12 @@ NS_ASSUME_NONNULL_BEGIN
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;
 
+// Shows or hides the header glass panel for the theme's window background:
+// present under glass and solid, gone under clear, where the window's own
+// backdrop is the whole look. The controller's applyWindowBackground runs it
+// beside the solid cover.
+- (void)applyWindowBackgroundStyle;
+
 // Re-resolve the header labels' themed fonts and colors, split so a
 // color-only edit does not reset fonts (which would force the title's
 // shrink-to-fit — TrackDisplayController owns the fit — and a text

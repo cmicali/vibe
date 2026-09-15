@@ -326,6 +326,9 @@
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
     overlay.layer.cornerRadius = theme.resolvedWindowCornerRadius;
+    // The header panel's half of the style; nil before the body is built,
+    // which applies its own at construction.
+    [self.playerContentView applyWindowBackgroundStyle];
 }
 
 - (void)applyStoredAppearance {

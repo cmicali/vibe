@@ -252,6 +252,11 @@
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
+    // The third background style is a real choice on both surfaces.
+    theme.windowBackgroundStyle = @"clear";
+    theme.playlistBackgroundStyle = @"clear";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation,
+                          (@{@"windowBackgroundStyle": @"clear", @"playlistBackgroundStyle": @"clear"}));
 }
 
 - (void)testPlaylistTintLadderKeepsItsOwnDefault {

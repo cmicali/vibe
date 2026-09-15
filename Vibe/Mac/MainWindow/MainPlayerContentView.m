@@ -456,6 +456,18 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self applyThemedLabelFonts];
     [self applyThemedLabelColors];
     [self applyThemedTransportButtons];
+    [self applyWindowBackgroundStyle];
+}
+
+// The header panel under the theme's window background: the Regular glass
+// pane the labels and waveform sit on under glass and solid, and NO pane at
+// all under clear — the window's own Clear backdrop is the whole look, the
+// same sheet a transparent placeholder shows through the art. Hidden rather
+// than restyled Clear: a second Clear pane over the backdrop compounds into
+// a visibly lighter band, so the header would not match the art beside it.
+- (void)applyWindowBackgroundStyle {
+    _backgroundGlassView.hidden = [AppSettings.sharedInstance.currentTheme.windowBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
 }
 
 // The glass panel behind the waveform and header, the art-color tint over
@@ -865,15 +877,20 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme,
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL solid = [theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    BOOL clear = [theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
     // Solid removes the behind-window blur outright; the background layer then
     // carries the whole background over whatever the window backdrop shows.
     // Under glass it is the unthemed appearance lift — the theme's color pair
     // belongs to the solid cover alone, and any themed color over glass is the
-    // playlist tint wash layered above (ArtworkDisplayController).
-    _playlistFrostView.hidden = solid;
+    // playlist tint wash layered above (ArtworkDisplayController). Clear
+    // removes the blur and the lift both: the window's Clear backdrop is the
+    // whole background, readability being the theme's own call.
+    _playlistFrostView.hidden = solid || clear;
     NSColor *background = solid
             ? [theme displayColorForBase:kVibeThemeColorPlaylistBackground dark:dark]
-            : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
+            : clear ? NSColor.clearColor
+                    : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
     _playlistDimView.layer.backgroundColor = background.CGColor;
 }
 
