@@ -143,6 +143,11 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // apply installs. An unknown identifier answers vibe's (the empty record).
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
+// Records held outside the store whose custom images the sweep must keep:
+// the theme editor's undo stack, which can put a cleared image reference
+// back. Empty until the editor sets it, and set again as the stack moves.
+@property (nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *themeUndoRecords;
+
 // Repopulates currentTheme from the named record and makes it active. Store
 // only — the caller requests VibeSettingsLiveEffectThemeApply, per the
 // store-first contract.

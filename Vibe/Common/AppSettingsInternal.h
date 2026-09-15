@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AppSettings () {
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
+    NSArray<NSDictionary *> *_themeUndoRecords;
     // The Settings window's temporary appearance preview: transient by
     // design, so a window left open on the Appearance page at quit reverts.
     NSString   *_windowAppearancePreviewStyle;

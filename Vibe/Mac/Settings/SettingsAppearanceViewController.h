@@ -36,5 +36,10 @@
 @property (readonly, nonatomic) BOOL canRandomize;
 - (void)randomizeThemeSettings;
 - (void)randomizeThemeColors;
+// The third segment: puts the theme back the way it was before the last
+// edit — any edit on the editor page, a roll included, drags coalesced —
+// most recent first, for as long as the edited theme stays active.
+@property (readonly, nonatomic) BOOL canUndoEdit;
+- (void)undoEdit;
 
 @end

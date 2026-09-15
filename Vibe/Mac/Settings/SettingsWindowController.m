@@ -519,19 +519,23 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
     if ([itemIdentifier isEqualToString:kRandomizeItemIdentifier]) {
-        // The theme editor's two dice, beside the preview toggle: the first
-        // rolls the settings, the second the colors — the pane's own model,
-        // as everything in this toolbar is. Enabled only on the editor page
-        // over a user theme (updateThemeNavigation).
+        // The theme editor's dice, beside the preview toggle: the die rolls
+        // the settings, the palette the colors, and the arrow undoes the
+        // last edit — the pane's own model, as everything in this toolbar
+        // is. Enabled only on the editor page over a user theme
+        // (updateThemeNavigation).
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"dice"
                           accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS],
-                [NSImage imageWithSystemSymbolName:@"dice.fill"
-                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS]]
+                [NSImage imageWithSystemSymbolName:@"paintpalette"
+                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS],
+                [NSImage imageWithSystemSymbolName:@"arrow.uturn.backward"
+                          accessibilityDescription:STR_MENU_EDIT_UNDO]]
                 trackingMode:NSSegmentSwitchTrackingMomentary
                       target:self action:@selector(randomizeTheme:)];
         [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS forSegment:0];
         [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_COLORS forSegment:1];
+        [control setToolTip:STR_MENU_EDIT_UNDO forSegment:2];
         _randomizeControl = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
@@ -644,6 +648,7 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     BOOL canRandomize = selected && pane.canRandomize;
     [_randomizeControl setEnabled:canRandomize forSegment:0];
     [_randomizeControl setEnabled:canRandomize forSegment:1];
+    [_randomizeControl setEnabled:(selected && pane.canUndoEdit) forSegment:2];
     // windowAppearance owns the style-to-appearance ladder, preview and a
     // single-mode theme's pin folded in; its nil (Auto) shows the side the
     // system is on right now.
@@ -661,10 +666,10 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 
 - (void)randomizeTheme:(NSSegmentedControl *)sender {
     SettingsAppearanceViewController *pane = [self appearancePane];
-    if (sender.selectedSegment == 0) {
-        [pane randomizeThemeSettings];
-    } else {
-        [pane randomizeThemeColors];
+    switch (sender.selectedSegment) {
+        case 0: [pane randomizeThemeSettings]; break;
+        case 1: [pane randomizeThemeColors]; break;
+        default: [pane undoEdit]; break;
     }
 }
 

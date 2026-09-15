@@ -226,6 +226,79 @@ static const double kWaveformGainDetentDB = 0.75;
     [self refreshFromSettings];
 }
 
+#pragma mark - Undo
+
+// The stack belongs to the theme being edited: a switch drops it, so an
+// undo can never land on another theme, and the baseline restarts from the
+// theme now showing. The store learns the stack because a record on it can
+// put a cleared custom image back, which its sweep would otherwise delete.
+- (void)resetUndoBaseline {
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (![settings.activeThemeIdentifier isEqualToString:_undoThemeIdentifier]) {
+        _undoThemeIdentifier = settings.activeThemeIdentifier;
+        _undoStack = [NSMutableArray array];
+        _undoLastChangedKeys = nil;
+        settings.themeUndoRecords = _undoStack;
+    }
+    _undoBaselineRecord = settings.currentTheme.dictionaryRepresentation;
+}
+
+// Called by the edit funnel after the field has been written: the baseline
+// is what the theme looked like before, so it is what an undo restores. A
+// drag's ticks each move the same keys within a breath of the last, and
+// coalesce onto the entry the first tick pushed; a built-in's edits are
+// divergence, not the theme's, and are not undoable.
+- (void)pushUndoBaseline {
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL sameTheme = [settings.activeThemeIdentifier isEqualToString:_undoThemeIdentifier];
+    NSDictionary *before = _undoBaselineRecord;
+    [self resetUndoBaseline];
+    NSDictionary *current = _undoBaselineRecord;
+    if (!sameTheme || !before || [before isEqualToDictionary:current] || !self.canRandomize) {
+        return;
+    }
+    NSMutableSet<NSString *> *changed = [NSMutableSet set];
+    for (NSString *key in [[NSSet setWithArray:before.allKeys] setByAddingObjectsFromArray:current.allKeys]) {
+        if (![before[key] isEqual:current[key]]) {
+            [changed addObject:key];
+        }
+    }
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    if ([changed isEqualToSet:_undoLastChangedKeys] && now - _undoLastPushTime < 2) {
+        _undoLastPushTime = now;
+        return;
+    }
+    [_undoStack addObject:before];
+    if (_undoStack.count > 50) {
+        [_undoStack removeObjectAtIndex:0];
+    }
+    _undoLastChangedKeys = changed;
+    _undoLastPushTime = now;
+    settings.themeUndoRecords = _undoStack;
+}
+
+- (BOOL)canUndoEdit {
+    return self.canRandomize && _undoStack.count > 0
+            && [AppSettings.sharedInstance.activeThemeIdentifier isEqualToString:_undoThemeIdentifier];
+}
+
+- (void)undoEdit {
+    if (!self.canUndoEdit) {
+        return;
+    }
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSDictionary *record = _undoStack.lastObject;
+    [_undoStack removeLastObject];
+    settings.themeUndoRecords = _undoStack;
+    [settings.currentTheme replaceWithRecord:record];
+    // The restore is not itself an edit: the baseline moves with it, and
+    // the next edit starts a fresh entry rather than coalescing.
+    _undoBaselineRecord = settings.currentTheme.dictionaryRepresentation;
+    _undoLastChangedKeys = nil;
+    [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
 - (BOOL)canGoBack {
     return _editorShown;
 }
@@ -318,12 +391,14 @@ static const double kWaveformGainDetentDB = 0.75;
     _removeThemeButton.enabled = !builtIn;
 
     [self refreshEditorFromSettings];
+    [self resetUndoBaseline];
     [self resolveLayoutStateFromSettings];
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
 // field: persist the working record, then request the row's live effect.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect {
+    [self pushUndoBaseline];
     [AppSettings.sharedInstance currentThemeDidChange];
     [self.playerController applySettingsLiveEffects:effect];
 }

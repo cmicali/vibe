@@ -801,7 +801,8 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             && [tokens[1] caseInsensitiveCompare:@"preview"] == NSOrderedSame;
     BOOL randomize = tokens.count == 3
             && [tokens[1] caseInsensitiveCompare:@"randomize"] == NSOrderedSame;
-    if (back || forward || preview || randomize) {
+    BOOL undo = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"undo"] == NSOrderedSame;
+    if (back || forward || preview || randomize || undo) {
         NSString *tabsError = nil;
         NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
         if (!tabs) {
@@ -822,6 +823,13 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                         @"windowAppearance":
                                                 AppSettings.sharedInstance.windowAppearanceStyle
                                                         ?: @""});
+            }
+            if (undo) {
+                if (!pane.canUndoEdit) {
+                    return VibeErrorJSON(@"undo is not available here");
+                }
+                [pane undoEdit];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone"});
             }
             if (randomize) {
                 BOOL colors = [tokens[2] caseInsensitiveCompare:@"colors"] == NSOrderedSame;

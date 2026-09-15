@@ -422,7 +422,17 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if (diverged) {
         [records addObject:diverged];
     }
+    // The editor's undo stack: a record there can put a cleared image back.
+    [records addObjectsFromArray:_themeUndoRecords];
     [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)themeUndoRecords {
+    return _themeUndoRecords ?: @[];
+}
+
+- (void)setThemeUndoRecords:(NSArray<NSDictionary<NSString *, id> *> *)records {
+    _themeUndoRecords = [records copy];
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {

@@ -40922,7 +40922,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.randomize": {
-      "comment": "Settings toolbar: label of the theme editor's two-segment dice control (icon-only on screen; read by VoiceOver and the customize sheet).",
+      "comment": "Settings toolbar: label of the theme editor's dice control — roll settings, roll colors, undo — (icon-only on screen; read by VoiceOver and the customize sheet).",
       "localizations": {
         "bg": {
           "stringUnit": {
