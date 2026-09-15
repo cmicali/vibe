@@ -285,6 +285,15 @@
         strongSelf.waveformView.artworkThemeColor = strongSelf->_artworkController.dominantArtColor;
         [strongSelf refreshWaveformTheme];
     };
+    // The transport buttons pick their light or dark color from the art
+    // under them, which the controller samples at every install.
+    _artworkController.transportBackdropDidChangeHandler = ^{
+        MainPlayerController *strongSelf = weakControllerForArt;
+        if (strongSelf) {
+            [strongSelf.playerContentView setTransportBackdropDark:
+                    strongSelf->_artworkController.transportBackdropIsDark];
+        }
+    };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.
     self.playerContentView.appearanceChangedHandler = ^{

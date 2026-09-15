@@ -46,9 +46,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Re-resolves the three transport buttons' themed look — glyph or custom
 // image, color — and the gradient behind them; the TransportButtons live
-// effect's body, also run on every appearance change, since the colors are a
-// per-appearance pair landing in non-dynamic layer colors.
+// effect's body.
 - (void)applyThemedTransportButtons;
+
+// Which side of the buttons' color pair draws: the pair is keyed Dark/Light
+// by what is UNDER the buttons, not by the appearance. The artwork controller
+// samples the installed image's lower band and pushes the answer here; with
+// the gradient on the backdrop is always dark, whatever the art.
+- (void)setTransportBackdropDark:(BOOL)dark;
 
 // The play button's state, drawn through the theme's play/pause glyph and
 // image pair. The controller's updateUI is the one caller.

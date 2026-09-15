@@ -202,6 +202,9 @@ API_AVAILABLE(macos(26.0))
     // The play button's state, kept so a theme re-apply can redraw it in the
     // state the controller last asked for.
     BOOL _playShowsPause;
+    // Whether the art under the transport row reads as dark — the artwork
+    // controller's sample, seeded dark for the factory placeholder.
+    BOOL _transportBackdropDark;
     // The codec line's rendered text width, measured at the text edge
     // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
     CGFloat _codecTextWidth;
@@ -213,6 +216,7 @@ API_AVAILABLE(macos(26.0))
         // Shown until told otherwise: a zero-filled ivar would mean a caller
         // that forgot setTrafficLightsShown: silently loses the buttons.
         _trafficLightsShown = YES;
+        _transportBackdropDark = YES;
         self.wantsLayer = YES;
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
@@ -242,9 +246,6 @@ API_AVAILABLE(macos(26.0))
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
-    // The transport buttons' colors are a per-appearance pair landing in
-    // layer colors, which are not dynamic, so they re-resolve here.
-    [self applyThemedTransportButtons];
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -449,11 +450,12 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildHeaderLabels];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
-    // The one spelling of the themed fonts and label colors; without this the
-    // labels would launch semantic-colored and re-style only when a live
-    // effect first fired.
+    // The one spelling of the themed fonts, label colors and transport looks;
+    // without this the labels would launch semantic-colored and re-style
+    // only when a live effect first fired.
     [self applyThemedLabelFonts];
     [self applyThemedLabelColors];
+    [self applyThemedTransportButtons];
 }
 
 // The glass panel behind the waveform and header, the art-color tint over
@@ -801,9 +803,16 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
 
+// The buttons' color pair is keyed by what is under them: the gradient, when
+// on, makes the backdrop dark whatever the cover; off, the art's own lower
+// band decides — never the appearance, which the art does not follow.
+- (BOOL)transportBackdropIsDark {
+    return AppSettings.sharedInstance.currentTheme.buttonGradient || _transportBackdropDark;
+}
+
 - (void)applyThemedTransportButtons {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    BOOL dark = self.isDark;
+    BOOL dark = self.transportBackdropIsDark;
     ApplyThemeToButton(_playlistToggleButton, theme, kVibeThemeImagePlaylistButton,
                        theme.playlistButtonGlyph, kVibeThemePlaylistButtonGlyphDefault,
                        kVibeThemeColorPlaylistButton, dark);
@@ -812,6 +821,14 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                        kVibeThemeColorNextButton, dark);
     [self setPlayButtonShowsPause:_playShowsPause];
     _albumArtGradientView.hidden = !theme.buttonGradient;
+}
+
+- (void)setTransportBackdropDark:(BOOL)dark {
+    if (_transportBackdropDark == dark) {
+        return;
+    }
+    _transportBackdropDark = dark;
+    [self applyThemedTransportButtons];
 }
 
 // The play button dresses two states from one theme slot pair: the pause
@@ -825,7 +842,7 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                        showsPause ? kVibeThemeImagePauseButton : kVibeThemeImagePlayButton,
                        showsPause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
                        showsPause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
-                       kVibeThemeColorPlayButton, self.isDark);
+                       kVibeThemeColorPlayButton, self.transportBackdropIsDark);
 }
 
 // The glass style's unthemed lift: clear in dark, a white brightening wash in

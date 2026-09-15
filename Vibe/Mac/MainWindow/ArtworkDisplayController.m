@@ -14,6 +14,7 @@
 #import "ArtworkImageView.h"
 #import "NSDockTile+Util.h"
 #import "NSImage+Util.h"
+#import "PlatformImage.h"
 #import "NSColor+OKLCH.h"
 #import "NSView+DarkMode.h"
 #import "CrossfadingImageView.h"
@@ -94,23 +95,32 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
 @interface ArtworkDisplayResult : NSObject
 @property (nonatomic, strong, readonly) NSImage *squareImage;
 @property (nonatomic, strong, readonly, nullable) NSColor *dominantColor;
+@property (nonatomic, readonly) BOOL lowerBandIsDark;
 - (instancetype)initWithSquareImage:(NSImage *)squareImage
-                       dominantColor:(nullable NSColor *)dominantColor;
+                       dominantColor:(nullable NSColor *)dominantColor
+                     lowerBandIsDark:(BOOL)lowerBandIsDark;
 @end
 
 @implementation ArtworkDisplayResult
 
 - (instancetype)initWithSquareImage:(NSImage *)squareImage
-                       dominantColor:(nullable NSColor *)dominantColor {
+                       dominantColor:(nullable NSColor *)dominantColor
+                     lowerBandIsDark:(BOOL)lowerBandIsDark {
     self = [super init];
     if (self) {
         _squareImage = squareImage;
         _dominantColor = dominantColor;
+        _lowerBandIsDark = lowerBandIsDark;
     }
     return self;
 }
 
 @end
+
+// The share of the art's height the transport row covers — the bottom
+// kArtworkTransportExclusionHeight of a kMainWindowSmallHeight square, with
+// the buttons' 50pt frames reaching a little above it.
+static const CGFloat kTransportBandFraction = 1.0 / 3;
 
 @interface ArtworkDisplayController ()
 - (void)startRenderRequest:(ArtworkRenderRequest *)request;
@@ -162,6 +172,9 @@ static const CGFloat kTintMaxChromaLight     = 0.10;
     ArtworkRenderRequest       *_queuedRenderRequest;
     BOOL                        _renderInFlight;
     BOOL                        _initialized;
+    // The first sample always publishes, so the buttons never keep their
+    // built-in guess past the first image.
+    BOOL                        _transportBackdropSettled;
 }
 
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView {
@@ -302,7 +315,8 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                     ?: request.renderSource;
             NSColor *color = request.cachedColor ?: [square dominantColor];
             ArtworkDisplayResult *result = [[ArtworkDisplayResult alloc]
-                    initWithSquareImage:square dominantColor:color];
+                    initWithSquareImage:square dominantColor:color
+                        lowerBandIsDark:VibeImageLowerBandIsDark(square, kTransportBandFraction)];
             run_on_main_thread({
                 ArtworkDisplayController *strongSelf = weakSelf;
                 if (!strongSelf) {
@@ -342,6 +356,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         _displayedArtMetadata = request.metadata;
         _showingDefaultArt = NO;
         [self applyDockIcon];
+        [self setTransportBackdropIsDark:result.lowerBandIsDark];
     }
 
     _renderInFlight = NO;
@@ -525,6 +540,21 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     _displayedArtTrack = nil;
     _displayedArtMetadata = nil;
     _showingDefaultArt = YES;
+    // Sampled on main: the placeholder is a lifetime-cached decode and the
+    // sample is a 32x32 draw, and a placeholder swap has no worker to ride.
+    [self setTransportBackdropIsDark:VibeImageLowerBandIsDark(_artworkView.image,
+                                                              kTransportBandFraction)];
+}
+
+- (void)setTransportBackdropIsDark:(BOOL)dark {
+    if (_transportBackdropIsDark == dark && _transportBackdropSettled) {
+        return;
+    }
+    _transportBackdropIsDark = dark;
+    _transportBackdropSettled = YES;
+    if (self.transportBackdropDidChangeHandler) {
+        self.transportBackdropDidChangeHandler();
+    }
 }
 
 - (void)trackDidStartPlaying:(AudioTrack *)track {

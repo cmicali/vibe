@@ -29948,7 +29948,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_next_color": {
-      "comment": "Theme editor, Player group: row beside the next-track button's symbol color wells, one per appearance.",
+      "comment": "Theme editor, Transport group: row beside the next-track button's symbol color wells — the Dark one drawn over dark artwork, the Light one over light artwork.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -30506,7 +30506,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_play_color": {
-      "comment": "Theme editor, Player group: row beside the play/pause button's symbol color wells, one per appearance.",
+      "comment": "Theme editor, Transport group: row beside the play/pause button's symbol color wells — the Dark one drawn over dark artwork, the Light one over light artwork.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31064,7 +31064,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_playlist_color": {
-      "comment": "Theme editor, Player group: row beside the playlist button's symbol color wells, one per appearance.",
+      "comment": "Theme editor, Transport group: row beside the playlist button's symbol color wells — the Dark one drawn over dark artwork, the Light one over light artwork, decided by the art under the buttons rather than the appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {

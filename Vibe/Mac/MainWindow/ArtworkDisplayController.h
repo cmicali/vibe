@@ -52,6 +52,13 @@ NS_ASSUME_NONNULL_BEGIN
 // waveform's album-art theme.
 @property (nonatomic, copy) void (^dominantColorDidChangeHandler)(void);
 
+// Whether the band of the installed image the transport row sits over reads
+// as dark — sampled from the very image on screen, the placeholder included,
+// so the buttons pick their color from what is under them rather than from
+// the appearance. Settles with every install; the handler fires on a change.
+@property (nonatomic, readonly) BOOL transportBackdropIsDark;
+@property (nonatomic, copy) void (^transportBackdropDidChangeHandler)(void);
+
 // Reflects the track's art; a nil track shows the default. New art replaces
 // old art directly, and while a track's art is still unresolved the previous
 // track's art stays on screen, so the default never flashes between tracks. It

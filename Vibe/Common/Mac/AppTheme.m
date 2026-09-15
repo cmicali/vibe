@@ -481,13 +481,14 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
-    // The transport buttons sit over the album art's darkened lower edge, not
-    // the window chrome, so their factory white holds in both appearances;
-    // 0.55 is SymbolButton's resting strength.
+    // The transport buttons' pair is keyed by the art UNDER them, not the
+    // appearance: the dark slot is the factory white over the darkened
+    // lower edge (0.55 is SymbolButton's resting strength), the light slot
+    // its black counterpart for a bright cover with the gradient off.
     if ([base isEqualToString:kVibeThemeColorPlaylistButton]
             || [base isEqualToString:kVibeThemeColorPlayButton]
             || [base isEqualToString:kVibeThemeColorNextButton]) {
-        return [NSColor colorWithWhite:1 alpha:0.55];
+        return [NSColor colorWithWhite:isDark ? 1 : 0 alpha:0.55];
     }
     if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
