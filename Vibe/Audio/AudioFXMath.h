@@ -19,11 +19,13 @@ static const float kLowKillCutoffHz = 200.0f;
 // A held W drives the same filter to double the toggle's cutoff, 400 Hz: a
 // momentary harder kill that releases back to the Q state.
 static const float kLowKillBoostMultiplier = 2.0f;
-// The parked, disengaged cutoff: AUNBandEQ's frequency floor, below the
-// audible band, so the filter is inaudible while parked. The bands are never
-// bypassed, because un-bypassing one dumps its stale delay-line state into the
-// signal and clicks audibly. On and off are purely a cutoff sweep between
-// these two values.
+// The parked, disengaged cutoff: AUNBandEQ's frequency floor. A high-pass
+// parked here is not colorless — the resonant band's peak lifts 20–60 Hz by
+// up to 4 dB — so once the sweep lands here AudioFX swaps the bands to a 0 dB
+// parametric type, an identity filter, and swaps back before sweeping up. The
+// bands are never bypassed, because flipping bypass dumps stale delay-line
+// state into the signal and clicks audibly; a type swap keeps the state and
+// only lets the old response decay out at this frequency.
 static const float kLowKillParkedHz = 20.0f;
 
 // The tap length with no tempo known: 0.25s at the 1/8-note division.

@@ -123,7 +123,7 @@ Stage-1 admission applies the immutable configuration's path-transfer limits, pe
 
 The numbers those toggles resolve to — the three-way low-kill cutoff, the ping-pong tap and lane times with their no-tempo fallback, the lane feedback and the swell target — are `AudioFXMath.h`, header-only and tested, since the class owns an `AVAudioEngine` graph and cannot be reached from the host-less suite.
 
-The class owns the whole master-bus graph segment between `mainMixerNode` and `outputNode`. `installInEngine:` wires it once on the player queue during the async init; the `AudioFX` object is created synchronously, so intent set before the engine exists is applied at install. Every toggle is click-free — cutoff sweeps and gate fades on the player queue with generation-counter preemption. Its `.m` records the hard-won AVFAudio traps (MatrixReverb's stale header ranges, dropped pre-attach mixer writes, EQ bypass clicks).
+The class owns the whole master-bus graph segment between `mainMixerNode` and `outputNode`. `installInEngine:` wires it once on the player queue during the async init; the `AudioFX` object is created synchronously, so intent set before the engine exists is applied at install. Every toggle is click-free — cutoff sweeps and gate fades on the player queue with generation-counter preemption — and **off is colorless**: the low kill sweeps to the 20 Hz floor and then swaps its bands to a 0 dB parametric type, an identity biquad, because a high-pass parked at the floor still lifted the sub-bass through its resonant peak. Its `.m` records the hard-won AVFAudio traps (MatrixReverb's stale header ranges, dropped pre-attach mixer writes, EQ bypass clicks).
 
 ## The platform halves
 

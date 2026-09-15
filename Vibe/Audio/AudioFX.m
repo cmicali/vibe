@@ -19,6 +19,12 @@
 // Resonance of the resonant band, as AUNBandEQ bandwidth in octaves, where
 // narrower is peakier. A touch of squelch at the cutoff, not a scream.
 static const float kLowKillResonanceBandwidth = 0.7f;
+// Bandwidth of the parked bands. A 0 dB parametric band is an identity filter
+// whatever its bandwidth, so this only shapes how the old response's residue
+// dies after the swap: two octaves is a hair over critically damped, settling
+// in ~60ms without a ring. At the resonant bandwidth the residue rang at 20 Hz
+// for ~250ms instead.
+static const float kLowKillFlatBandwidth = 2.0f;
 // Sweep resolution, much finer than the volume fades. Coefficient jumps big
 // enough to hear as zipper or click need small steps, and a slightly longer
 // total sweep of about 80ms still reads as an instant kill.
@@ -187,21 +193,18 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 
 - (void)installInEngine:(AVAudioEngine *)engine {
     // Master-bus low kill: mainMixer -> EQ -> and so on. The explicit connects
-    // below replace the implicit mixer-to-output one. Both bands stay live for
-    // the engine's lifetime, never bypassed (see kLowKillParkedHz), parked
-    // inaudibly at 20 Hz, and the controls only sweep the cutoff through
-    // applyLowKillTargetOnQueue. The output node converts if a later device
-    // runs at a different sample rate from this format.
+    // below replace the implicit mixer-to-output one. Both bands stay live and
+    // un-bypassed for the engine's lifetime (see kLowKillParkedHz); the
+    // controls sweep the cutoff and swap the band types through
+    // applyLowKillTargetOnQueue, and the parked state is the transparent one.
+    // The output node converts if a later device runs at a different sample
+    // rate from this format.
     _lowKillEQ = [[AVAudioUnitEQ alloc] initWithNumberOfBands:2];
-    AVAudioUnitEQFilterParameters *resonantBand = _lowKillEQ.bands[0];
-    resonantBand.filterType = AVAudioUnitEQFilterTypeResonantHighPass;
-    resonantBand.bandwidth = kLowKillResonanceBandwidth;
-    AVAudioUnitEQFilterParameters *plainBand = _lowKillEQ.bands[1];
-    plainBand.filterType = AVAudioUnitEQFilterTypeHighPass;
     for (AVAudioUnitEQFilterParameters *band in _lowKillEQ.bands) {
         band.frequency = kLowKillParkedHz;
         band.bypass = NO;
     }
+    [self setLowKillBandsFlat:YES];
     [engine attachNode:_lowKillEQ];
 
     // Momentary reverb send and return; the ivar comment gives the graph.
@@ -438,7 +441,8 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // the current frequency, so there is no jump. Bypass is never touched after
 // installInEngine: un-bypasses the bands once: flipping it dumps stale
 // delay-line state into the signal, an audible click (see kLowKillParkedHz).
-// "Off" is purely the cutoff parked below the audible band.
+// "Off" is the cutoff swept down to the parked floor and then the bands
+// swapped to their flat type, which is what makes it colorless.
 - (void)applyLowKillTargetOnQueue {
     // TRAP: the guard is the NODE, and the class deliberately keeps no engine
     // handle to guard on instead. One would be published at the top of
@@ -453,8 +457,41 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     os_unfair_lock_unlock(&_stateLock);
     float target = VibeLowKillCutoffHz(enabled, boost);
     uint64_t generation = ++_lowKillRampGeneration;
+    if (target != kLowKillParkedHz) {
+        [self setLowKillBandsFlat:NO]; // Re-arm at the parked floor, then sweep up.
+    }
     [self stepLowKillRamp:1 from:_lowKillEQ.bands.firstObject.frequency
                        to:target generation:generation];
+}
+
+// The parked state is a 0 dB parametric band, an identity biquad — its
+// feedback and feed-forward coefficients are equal, so it passes the signal
+// bit-exact — rather than a high-pass at the frequency floor, which at 20 Hz
+// still lifted the sub-bass by up to 4 dB through the resonant band's peak.
+// Swapping the type changes coefficients under the retained filter state, so
+// the old response's residue decays at the band's own 20 Hz with no
+// discontinuity — unlike bypass, which clicks. Idempotent: a repeated swap to
+// the same type would restart that decay for nothing.
+- (void)setLowKillBandsFlat:(BOOL)flat {
+    AVAudioUnitEQFilterParameters *resonantBand = _lowKillEQ.bands[0];
+    AVAudioUnitEQFilterParameters *plainBand = _lowKillEQ.bands[1];
+    if (flat) {
+        if (resonantBand.filterType == AVAudioUnitEQFilterTypeParametric) {
+            return;
+        }
+        for (AVAudioUnitEQFilterParameters *band in _lowKillEQ.bands) {
+            band.filterType = AVAudioUnitEQFilterTypeParametric;
+            band.gain = 0.0f;
+            band.bandwidth = kLowKillFlatBandwidth;
+        }
+        return;
+    }
+    if (resonantBand.filterType == AVAudioUnitEQFilterTypeResonantHighPass) {
+        return;
+    }
+    resonantBand.filterType = AVAudioUnitEQFilterTypeResonantHighPass;
+    resonantBand.bandwidth = kLowKillResonanceBandwidth;
+    plainBand.filterType = AVAudioUnitEQFilterTypeHighPass;
 }
 
 // The fade-loop pattern applied to the filter cutoff. Both cascaded bands
@@ -472,6 +509,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         band.frequency = frequency;
     }
     if (step >= kLowKillSweepSteps) {
+        if (target == kLowKillParkedHz) {
+            [self setLowKillBandsFlat:YES]; // Landed at the floor: go colorless.
+        }
         return;
     }
     __weak AudioFX *weakSelf = self;
