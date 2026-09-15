@@ -10,6 +10,7 @@
 #import "BasicAudioWaveformRenderer.h"
 #import "CupertinoWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "VibeStrings.h"
 
 @implementation WaveformRendererRegistry
 
@@ -37,6 +38,7 @@
             }
             registry[identifier] = renderer;
         }
+        registry[@"wiggle"] = DetailedAudioWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -46,11 +48,18 @@
     return [self renderersByIdentifier].allKeys;
 }
 
-+ (Class)rendererClassForIdentifier:(NSString *)identifier {
-    return identifier.length ? [self renderersByIdentifier][identifier] : nil;
++ (AudioWaveformRenderer *)rendererForIdentifier:(NSString *)identifier
+                                         layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
+    NSString *style = [self resolveStyleIdentifier:identifier];
+    Class renderer = [self renderersByIdentifier][style];
+    if ([style isEqualToString:@"wiggle"]) {
+        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES];
+    }
+    return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"wiggle"]) return STR_WAVEFORM_STYLE_WIGGLE;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 

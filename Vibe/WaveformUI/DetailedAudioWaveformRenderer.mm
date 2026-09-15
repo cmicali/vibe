@@ -31,6 +31,52 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
+// One filled stroke path for both the live mask and the settled bitmap.
+static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
+                                  BOOL hasWaveform) CF_RETURNS_RETAINED;
+static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
+                                  BOOL hasWaveform) {
+    CGMutablePathRef line = CGPathCreateMutable();
+    CGFloat stroke = 1.5;
+    CGFloat amplitude = MAX(0, VibeBarVScale(size.height) * 2 - stroke);
+    if (count == 0 || size.width <= stroke || amplitude == 0) return line;
+    if (!hasWaveform) {
+        BOOL collapsed = YES;
+        for (NSUInteger i = 0; i < count; i++) {
+            if (samples[i * 2 + 1] > 0) { collapsed = NO; break; }
+        }
+        if (collapsed) return line;
+    }
+    CGFloat baseline = size.height / 2 - VibeBarVScale(size.height) + stroke / 2;
+    CGFloat pitch = (size.width - stroke) / count;
+    CGFloat radiusX = pitch / 4;
+    const CGFloat kCircleControl = 0.5522847498;
+    CGPathMoveToPoint(line, NULL, stroke / 2, baseline);
+    for (NSUInteger i = 0; i < count; i++) {
+        CGFloat x = stroke / 2 + i * pitch;
+        CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
+        CGFloat top = baseline + height;
+        CGFloat radiusY = MIN(radiusX, height / 2);
+        CGFloat cx = radiusX * kCircleControl, cy = radiusY * kCircleControl;
+        CGPathAddCurveToPoint(line, NULL, x + cx, baseline,
+                             x + radiusX, baseline + radiusY - cy,
+                             x + radiusX, baseline + radiusY);
+        CGPathAddLineToPoint(line, NULL, x + radiusX, top - radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + radiusX, top - radiusY + cy,
+                             x + 2 * radiusX - cx, top, x + 2 * radiusX, top);
+        CGPathAddCurveToPoint(line, NULL, x + 2 * radiusX + cx, top,
+                             x + 3 * radiusX, top - radiusY + cy,
+                             x + 3 * radiusX, top - radiusY);
+        CGPathAddLineToPoint(line, NULL, x + 3 * radiusX, baseline + radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + 3 * radiusX, baseline + radiusY - cy,
+                             x + pitch - cx, baseline, x + pitch, baseline);
+    }
+    CGPathRef path = CGPathCreateCopyByStrokingPath(line, NULL, stroke,
+                                                 kCGLineCapRound, kCGLineJoinRound, 0);
+    CGPathRelease(line);
+    return path;
+}
+
 // Detailed's fillEnvelope:, one sampling for the live target fill and the
 // envelope bake, which must stay pixel-identical: the bar's peak envelope
 // rescaled so the energy decides the size and the min/max keep the shape (and
@@ -80,6 +126,7 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
 // envelope bitmap bakes the same stops, so the two cannot drift.
 
 @implementation DetailedAudioWaveformRenderer {
+    BOOL _wiggle;
     // One bar-shaped mask clips the whole gradient stack. Masking the two
     // gradients separately would rasterize the identical bar path twice per
     // morph frame, a full-view alpha pass each, and ship the 4,096-element
@@ -127,8 +174,8 @@ static const CGFloat kDetailedBarPitch = 0.5;
 static const NSUInteger kDetailedMaxBars = 8192;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kDetailedBarPitch);
-    return clampRange(count, (NSUInteger)2, kDetailedMaxBars);
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / (_wiggle ? 8 : kDetailedBarPitch));
+    return clampRange(count, (NSUInteger)2, _wiggle ? (NSUInteger)1024 : kDetailedMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -150,11 +197,17 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
+    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO];
+}
+
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
+                       wiggle:(BOOL)wiggle {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
+        _wiggle = wiggle;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
-                initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
+                initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height) * (wiggle ? 2 : 1); }
                        rebuild:^{ [weakSelf rebuildMaskPaths]; }];
         _morph.samplesPerBar = 2; // interleaved [min, max] per bar
         [self setupGradientLayers];
@@ -354,6 +407,13 @@ static const NSUInteger kDetailedMaxBars = 8192;
     float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
+        if (_wiggle) {
+            out[i * 2] = 0;
+            out[i * 2 + 1] = VibeWaveformBarLevel(
+                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
+                    fullScaleRMS, gainDB);
+            continue;
+        }
         VibeEnergyScaledEnvelope(waveform, i, count, &column, fullScaleRMS, gainDB,
                                  &out[i * 2], &out[i * 2 + 1]);
     }
@@ -388,33 +448,39 @@ static const NSUInteger kDetailedMaxBars = 8192;
         return;
     }
     VibeSignpostBegin(waveform_path);
-    CGSize maskSize = _morph.size;
-    CGFloat width = maskSize.width;
-    CGFloat midY = maskSize.height / 2;
-    CGFloat vscale = VibeBarVScale(maskSize.height);
-    CGFloat barWidth = [self barWidthForWidth:width barCount:count];
-    // Hairline floor vs. collapse-to-nothing — policy on the engine, shared
-    // with the Sonic Cirrus family.
-    CGFloat minHeight = _morph.barMinHeight;
-    BOOL settled = _morph.isSettled;
-    CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
-    _barRects.resize(count);
-    for (NSUInteger i = 0; i < count; i++) {
-        // y-up layer coords: the bar's top comes from the positive peak (max),
-        // the bottom from the negative peak (min). Subtracting instead draws
-        // the envelope vertically mirrored (visible on DC-offset material).
-        CGFloat top = midY + samples[i * 2 + 1] * vscale;
-        CGFloat bottom = midY + samples[i * 2] * vscale;
-        if (settled) {
-            top = round(top * scale) / scale;
-            bottom = round(bottom * scale) / scale;
+    CGPathRef path;
+    if (_wiggle) {
+        path = VibeNewWigglePath(_morph.size, samples.data(), count, _morph.barMinHeight > 0);
+    } else {
+        CGSize maskSize = _morph.size;
+        CGFloat width = maskSize.width;
+        CGFloat midY = maskSize.height / 2;
+        CGFloat vscale = VibeBarVScale(maskSize.height);
+        CGFloat barWidth = [self barWidthForWidth:width barCount:count];
+        // Hairline floor vs. collapse-to-nothing — policy on the engine, shared
+        // with the Sonic Cirrus family.
+        CGFloat minHeight = _morph.barMinHeight;
+        BOOL settled = _morph.isSettled;
+        CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
+        _barRects.resize(count);
+        for (NSUInteger i = 0; i < count; i++) {
+            // y-up layer coords: the bar's top comes from the positive peak (max),
+            // the bottom from the negative peak (min). Subtracting instead draws
+            // the envelope vertically mirrored (visible on DC-offset material).
+            CGFloat top = midY + samples[i * 2 + 1] * vscale;
+            CGFloat bottom = midY + samples[i * 2] * vscale;
+            if (settled) {
+                top = round(top * scale) / scale;
+                bottom = round(bottom * scale) / scale;
+            }
+            CGFloat height = MAX(top - bottom, minHeight);
+            CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
+            _barRects[i] = CGRectMake(x, bottom, barWidth, height);
         }
-        CGFloat height = MAX(top - bottom, minHeight);
-        CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
-        _barRects[i] = CGRectMake(x, bottom, barWidth, height);
+        CGMutablePathRef bars = CGPathCreateMutable();
+        CGPathAddRects(bars, NULL, _barRects.data(), count);
+        path = bars;
     }
-    CGMutablePathRef path = CGPathCreateMutable();
-    CGPathAddRects(path, NULL, _barRects.data(), count);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _barMask.path = path;
@@ -462,26 +528,33 @@ static const NSUInteger kDetailedMaxBars = 8192;
     }
     CGContextScaleCTM(ctx, scale, scale);
 
-    // rebuildMaskPaths' settled branch: pixel-rounded bar edges and the
-    // 1-point hairline floor a loaded waveform draws with.
-    const float *s = (const float *)samples.bytes;
-    CGFloat midY = size.height / 2;
-    CGFloat vscale = VibeBarVScale(size.height);
-    CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
-    // A local scratch, not _barRects: this runs on any queue.
-    std::vector<CGRect> rects(count);
-    for (NSUInteger i = 0; i < count; i++) {
-        CGFloat top = round((midY + s[i * 2 + 1] * vscale) * scale) / scale;
-        CGFloat bottom = round((midY + s[i * 2] * vscale) * scale) / scale;
-        CGFloat height = MAX(top - bottom, 1);
-        CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
-        rects[i] = CGRectMake(x, bottom, barWidth, height);
+    if (_wiggle) {
+        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, YES);
+        CGContextAddPath(ctx, path);
+        CGContextClip(ctx);
+        CGPathRelease(path);
+    } else {
+        // rebuildMaskPaths' settled branch: pixel-rounded bar edges and the
+        // 1-point hairline floor a loaded waveform draws with.
+        const float *s = (const float *)samples.bytes;
+        CGFloat midY = size.height / 2;
+        CGFloat vscale = VibeBarVScale(size.height);
+        CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
+        // A local scratch, not _barRects: this runs on any queue.
+        std::vector<CGRect> rects(count);
+        for (NSUInteger i = 0; i < count; i++) {
+            CGFloat top = round((midY + s[i * 2 + 1] * vscale) * scale) / scale;
+            CGFloat bottom = round((midY + s[i * 2] * vscale) * scale) / scale;
+            CGFloat height = MAX(top - bottom, 1);
+            CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
+            rects[i] = CGRectMake(x, bottom, barWidth, height);
+        }
+        CGMutablePathRef path = CGPathCreateMutable();
+        CGPathAddRects(path, NULL, rects.data(), count);
+        CGContextAddPath(ctx, path);
+        CGContextClip(ctx);
+        CGPathRelease(path);
     }
-    CGMutablePathRef path = CGPathCreateMutable();
-    CGPathAddRects(path, NULL, rects.data(), count);
-    CGContextAddPath(ctx, path);
-    CGContextClip(ctx);
-    CGPathRelease(path);
 
     // configureGradient:'s band-pinned fade. This family's fade only — Basic
     // re-aims its gradient, so its styles would need their own bake. The

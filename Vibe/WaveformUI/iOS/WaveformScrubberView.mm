@@ -307,18 +307,13 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // as it does for the mac view.
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
-    Class rendererClass = [WaveformRendererRegistry rendererClassForIdentifier:style];
-    if (!rendererClass) {
-        return;
-    }
     _styleIdentifier = style;
     _rendererHost.contentsScale = [self displayScale];
     // The renderer reads parentLayer.bounds, so the host must be at virtual
     // size before it exists.
     _rendererHost.bounds = [self virtualBounds];
-    _renderer = [[rendererClass alloc] initWithLayer:_rendererHost
-                                              bounds:[self virtualBounds]
-                                              isDark:self.isDark];
+    _renderer = [WaveformRendererRegistry rendererForIdentifier:style layer:_rendererHost
+                                                        bounds:[self virtualBounds] isDark:self.isDark];
     [self applyLevelSettings];
     [self applyResolvedTheme];
 }

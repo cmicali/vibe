@@ -10,6 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
+// Wiggle shares the envelope's layers, progress, morph and bitmap bake.
+- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
+                       wiggle:(BOOL)wiggle;
+
 // The subclass hooks. The Oversampling x2, x4 and x8 variants override the
 // count, and Basic overrides the count, geometry and gradient hooks below.
 // Everything else — the layer setup, hydration animation, progress clipping
