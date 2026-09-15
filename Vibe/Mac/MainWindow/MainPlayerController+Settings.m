@@ -10,6 +10,7 @@
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
+#import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
@@ -48,7 +49,20 @@
         [self applyReopenLastPlaylist];
     }
     if (effects & VibeSettingsLiveEffectCrossfade) {
-        self.audioPlayer.crossfadeMilliseconds = settings.crossfadeMilliseconds;
+        self.audioPlayer.crossfadeMilliseconds = settings.effectiveCrossfadeMilliseconds;
+    }
+    if (effects & VibeSettingsLiveEffectBitPerfect) {
+        BOOL bitPerfect = settings.bitPerfectOutput;
+        if (bitPerfect) {
+            // No varispeed under the mode, so the pitch is 0 by construction;
+            // the fader mirrors the player at the next reveal, and the panel
+            // is withdrawn until the mode goes off.
+            self.audioPlayer.pitch = 0;
+            [(MainWindow *)self.window setPitchPanelShown:NO animate:YES];
+            [self updateRateDependentUI];
+        }
+        [self.audioPlayer setBitPerfectOutput:bitPerfect];
+        [self updateFXIndicators];
     }
     if (effects & VibeSettingsLiveEffectUIUpdateRate) {
         [self syncUITimerRate];
@@ -114,7 +128,7 @@
         [MainMenuBuilder applyConvertMenuVisibility];
     }
     if (effects & VibeSettingsLiveEffectFXControls) {
-        if (!settings.audioFXEnabled) {
+        if (!settings.audioFXAllowed) {
             self.lowKillBoostActive = NO;
             self.lowKillActive = NO;
             self.reverbSendActive = NO;

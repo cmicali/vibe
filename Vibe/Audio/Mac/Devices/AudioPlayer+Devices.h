@@ -9,9 +9,24 @@
 
 #import "AudioPlayer.h"
 #import "AudioDeviceManager.h"
+#import "OutputFormatRules.h"
+#import <AVFoundation/AVFoundation.h>
 #import <CoreAudio/CoreAudio.h>
 
 NS_ASSUME_NONNULL_BEGIN
+
+// The shell-facing half of bit-perfect output: what the header glyph, the
+// Settings caption and dump_state read. It sits here rather than in
+// AudioPlayer.h because the report is OutputFormatRules.h's type, which only
+// this platform's tree has.
+@interface AudioPlayer (BitPerfect)
+
+// The newest published report — a locked snapshot, no queue hop, like
+// outputAudioActive. Recomputed at every settlement, hog edge, mode toggle and
+// playback-state publication.
+@property (readonly) VibeBitPerfectReport bitPerfectReport;
+
+@end
 
 @interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
 
@@ -41,6 +56,54 @@ NS_ASSUME_NONNULL_BEGIN
 // The AVAudioEngineConfigurationChangeNotification handler. The observer that
 // AudioPlayer's init installs dispatches it onto _queue.
 - (void)handleEngineConfigurationChange;
+
+@end
+
+// Bit-perfect output's queue-side mechanism, split from (DevicesInternal) so
+// each category's header block matches its implementation block. All on
+// _queue.
+@interface AudioPlayer (BitPerfectMechanism)
+
+// Whether prepareOutputOnQueueForFile: would write a format — the settlement's
+// park predicate. NO whenever the mode cannot apply.
+- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
+
+// Runs with the engine STOPPED when a switch is needed — the caller stops it,
+// because only the caller knows nothing is audible. Reads the bound device's
+// capabilities, applies the rate and depth rules, writes one physical format,
+// waits (bounded) for the nominal rate to read back, and publishes the
+// report. Remembers the device's format before the first change so it can be
+// put back.
+- (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
+
+// Hog for the bound device, when the mode, an eligible device, no FX graph
+// and a non-virtual transport all hold. Idempotent through the HAL read.
+- (void)acquireExclusiveOutputOnQueue;
+- (void)releaseExclusiveOutputOnQueue;
+
+// Writes the remembered format back to the device it was read from when one
+// is owed, and clears the slot either way — a vanished device fails the write
+// and is simply forgotten. No read-back wait: the HAL owns the change once
+// the call returns.
+- (void)restoreOutputFormatOnQueue;
+
+// Folds the queue-side facts against the live state and publishes the copy
+// the shell reads.
+- (void)publishBitPerfectReportOnQueue;
+
+// The parked settlement's re-entry, called by completeRetiredFadePair: when
+// the last counted fade is silent.
+- (void)runParkedSettlementOnQueue;
+
+// The chosen device vanished: drops the mode, the hog and the owed format
+// without touching a device that is gone. The two fallback sites call it
+// before falling back to System Output.
+- (void)abandonBitPerfectForVanishedDeviceOnQueue;
+
+// Whether the chain is built without a varispeed — the mode's pruning follows
+// the switch, so a run with it on never mints one. The retire path and the
+// device restore both ask.
+- (BOOL)chainOmitsVarispeed;
 
 @end
 

@@ -46,6 +46,8 @@ The codec line doubles as the FX indicator: the SF Symbols of latched effects dr
 
 The line has **two independent inputs** — codec text and FX state — and `TrackDisplayController` composes it from the last of each, because FX are deck state that outlives any track: they persist across track changes and into the empty state.
 
+**Bit-perfect output rides the same run, last, against the codec text it qualifies**: a closed lock (`lock.fill`) while the current track is delivered bit-perfect, an open lock (`lock.open`) while the mode is on but is not — an unsupported rate, a lossy source, a scaled volume — and nothing while the mode is off. The open lock's reason is the codec label's tooltip (`renderBitPerfectToolTip:`, the same sentence Settings > General shows as the switch's caption), so the whole line is the hover target. `VibeFXDisplayState.bitPerfect` carries the three states, filled by `updateFXIndicators` from `AudioPlayer.bitPerfectReport`.
+
 Two adjustments are optical, not derivable from any metric: symbols draw at **bold** weight (the default stroke is a hairline at this size), and the two dial glyphs get their own size multiplier — they spend much of their bounding box on tick marks and read visibly smaller at the row's shared box height.
 
 Symbols render a step brighter than the codec text, at full `secondaryLabelColor`, matching the time labels — **which is why both corner labels carry their dimming in the text color** (the theme's `resolvedInfoColor` in `cornerTextAttributes`, `tertiaryLabelColor` by factory default) at full field alpha, rather than a field-wide 0.5: a field alpha would dim the symbols too, and the codec/BPM lines are one visual pair. Template images, so the tint follows the label through appearance changes.

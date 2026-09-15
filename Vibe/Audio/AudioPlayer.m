@@ -624,8 +624,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                                              segmentWasQueued);
     [self unpublishNodeOnQueue];   // oldNode above is the handle the retire uses
 
-    AVAudioUnitVarispeed *newVarispeed = [[AVAudioUnitVarispeed alloc] init];
-    [_engine attachNode:newVarispeed];
+    AVAudioUnitVarispeed *newVarispeed = nil;
+#if TARGET_OS_OSX
+    // Bit-perfect output prunes the chain to node -> mixer: a resampler at
+    // ratio 1.0 is still a resampler, so none is minted rather than trusted.
+    if (![self chainOmitsVarispeed])
+#endif
+    {
+        newVarispeed = [[AVAudioUnitVarispeed alloc] init];
+        [_engine attachNode:newVarispeed];
+    }
     _varispeed = newVarispeed; // finishPlayOnQueueWithFile: connects its incoming node through this
 
     // The retire fades the outgoing side out while the incoming node fades in
@@ -633,6 +641,25 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // audible, true crossfade.
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 }
+
+#if TARGET_OS_OSX
+// The device restore's chain reshape: the mode toggled on mid-track drops the
+// track's varispeed, toggled off mints one. The engine is stopped, so neither
+// clicks; the restore then reconnects through connectNode:throughVarispeedWithFormat:.
+- (void)reshapeChainForBitPerfectOnQueue {
+    if ([self chainOmitsVarispeed]) {
+        if (_varispeed) {
+            [self detachNodeAfterFailedConnect:_varispeed];
+            _varispeed = nil;
+        }
+    }
+    else if (!_varispeed) {
+        AVAudioUnitVarispeed *varispeed = [[AVAudioUnitVarispeed alloc] init];
+        [_engine attachNode:varispeed];
+        _varispeed = varispeed;
+    }
+}
+#endif
 
 // Detach the previous play from its path claim and cancel any still-abortable
 // materialization. If AVAudioFile has already blocked in the OS, the
@@ -711,6 +738,21 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)finishPlayOnQueueWithFile:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+#if TARGET_OS_OSX
+    // Bit-perfect output: a format switch stops the engine, which would cut a
+    // still-fading outgoing node mid-waveform. Park until the outgoing audio
+    // is silent, then re-enter verbatim; consumeRequest: below drops a
+    // re-entry a newer play or a stop has superseded, so no generation is
+    // needed. Last writer wins if the same-path prefetch race delivers twice.
+    if (file && _activeRetiredOutputCount > 0 && [self outputNeedsSwitchOnQueueForFile:file]) {
+        [self preemptRetiredFadesOnQueue];
+        __weak AudioPlayer *weakSelf = self;
+        _parkedSettlement = ^{
+            [weakSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
+        };
+        return;
+    }
+#endif
     VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
@@ -736,6 +778,15 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
 
+#if TARGET_OS_OSX
+    // Nothing is audible now — either nothing was counted, or the park above
+    // ran — so the switch may stop the engine. prepare publishes the report
+    // either way.
+    if ([self outputNeedsSwitchOnQueueForFile:file]) {
+        [_engine stop];
+    }
+    [self prepareOutputOnQueueForFile:file];
+#endif
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
     if (!node) {
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -1581,6 +1632,12 @@ static NSString *VibeAudioLevelNormalizationModeName(
     BOOL changed = _outputAudioActive != active;
     _outputAudioActive = active;
     os_unfair_lock_unlock(&_stateLock);
+#if TARGET_OS_OSX
+    // Every state publication and fade completion funnels here, which makes
+    // it the edge that keeps the bit-perfect report's "a track is playing"
+    // input honest without a hook in each publisher.
+    [self publishBitPerfectReportOnQueue];
+#endif
     if (!changed) {
         return;
     }

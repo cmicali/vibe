@@ -30,6 +30,11 @@
 // macOS-only layer. Reads the engine on _queue, where every other engine touch
 // in the app runs — the command channel calls this from main.
 - (NSInteger)currentlyActiveAudioDeviceId;
+
+// Bit-perfect output's queue-confined ownership, for dump_state:
+// {hoggedDeviceId, restoreOwedToDeviceId, varispeedPresent}, -1 for none.
+// Implemented in AudioPlayer+Devices.m beside the mechanism; one queue hop.
+- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership;
 #endif
 
 // Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone

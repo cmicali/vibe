@@ -47,7 +47,7 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 ## View
 
 - **Show Playlist** (Tab) — `toggleSize:`, the playlist pane's collapse and expand; its checkmark is the window's `isPlaylistShown` (`MainWindow/CLAUDE.md`).
-- **Show Pitch Control** (P) — `togglePitchPanel:`, the pitch panel's reveal; its checkmark is `isPitchPanelShown`.
+- **Show Pitch Control** (P) — `togglePitchPanel:`, the pitch panel's reveal; its checkmark is `isPitchPanelShown`. Validates NO, and the P key is swallowed, while bit-perfect output is on: the mode mints no varispeed, so a revealed fader would drive nothing. The window's launch restore of the panel reads the same condition.
 - **Theme** — the theme selector, delegate-built by `MainPlayerController.menuNeedsUpdate:` and **rebuilt whole on every open**: one checkmarked item per theme (title localized-or-user display name, `representedObject` the stable id, identifier `view_theme_<id>`), a separator, then the nil-targeted **Edit Themes…** (`menu_edit_themes` → `AppDelegate.showThemeSettings:`, the same ownership as Settings… — deliberately absent from `MenuValidationRules.h`). Selecting applies the theme and requests the composed `ThemeApply` effect.
 - **Show File Info** — a checkmarked preference flipping the current theme's `showFileInfo` (default on) through the store's persist funnel, then requesting the shared `TrackDisplay` settings effect. Off hides the header's codec and BPM/key readouts; **the FX symbols riding the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
 - **Always on Top** — flips `AppSettings.alwaysOnTop`, then requests the shared `AlwaysOnTop` settings effect.
@@ -57,7 +57,7 @@ Between View and Output: Convert to FLAC, a separator, then Delete Original.
 
 One checkmarked toggle per performance effect: Low Kill, Low Kill Boost, Reverb, Delay 1/8, Delay 1/16, on bare Q, W, E, R, T. While available they are deck controls that persist across tracks. The toggle actions live in `MainPlayerController+Transport` and are written against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip.
 
-The graph remains a launch-time choice. When this run has one, `MainMenuBuilder` builds the top-level `menu_fx` item and the `FXControls` settings effect clears every active effect before hiding the item, or restores it immediately when enabled. Hiding also clears the child items' key equivalents; restoring puts their intended keys back. Menu validation and `TransportKeyMonitor` additionally require the setting and a graph, so Q/W/E/R/T cannot change an effect while the controls are off. A run launched without the graph builds no menu and cannot expose the controls until relaunch.
+The graph remains a launch-time choice. When this run has one, `MainMenuBuilder` builds the top-level `menu_fx` item and the `FXControls` settings effect clears every active effect before hiding the item, or restores it immediately when enabled. Hiding also clears the child items' key equivalents; restoring puts their intended keys back. Menu validation and `TransportKeyMonitor` additionally require a graph and **`AppSettings.audioFXAllowed`** — the FX setting with bit-perfect output outranking it — so Q/W/E/R/T cannot change an effect while the controls are off, and turning bit-perfect output on withdraws them exactly as the FX switch does. A run launched without the graph builds no menu and cannot expose the controls until relaunch.
 
 **TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit can still match Q/W/E/R/T under a hidden `menu_fx`, even when validation returns NO. The visibility effect must clear and restore those equivalents as well as hiding the item; validation remains the direct-dispatch gate.
 
@@ -65,7 +65,7 @@ The graph remains a launch-time choice. When this run has one, `MainMenuBuilder`
 
 `OutputDevicesMenuController` populates the audio device menu from the `AudioDeviceManager` singleton and, as an `AudioDeviceManagerObserver`, rebuilds it in place when devices change **while it is open** — which is why the manager fans out in the common run-loop modes (`Audio/Mac/Devices/CLAUDE.md`).
 
-Layout: "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears falls back to System Output, persisted.
+Layout: "System Output (<default device>)" — tag -1, the default choice — then a separator, then every output device. The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`. An explicitly chosen device that disappears falls back to System Output, persisted — and turns bit-perfect output off with it, since the mode cannot drive System Output. **While bit-perfect output is on, System Output and every device off the transport allowlist gray out** (`VibeBitPerfectDeviceEligible`), in the menu bar and in the Settings popup alike, so the mode can never be moved onto a device it cannot drive.
 
 **A second instance serves the Output popup in Settings > General**, using the same controller as the popup menu's delegate and builder, so the two layouts cannot drift.
 

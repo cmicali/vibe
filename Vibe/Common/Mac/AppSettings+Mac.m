@@ -32,6 +32,7 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
+#define SETTING_BIT_PERFECT_OUTPUT                  @"AudioPlayer.bitPerfectOutput"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -98,6 +99,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
+            SETTING_BIT_PERFECT_OUTPUT:             @(NO),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
@@ -625,6 +627,22 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 - (void)setAudioFXEnabled:(BOOL)enabled {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
+}
+
+- (BOOL)bitPerfectOutput {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_BIT_PERFECT_OUTPUT];
+}
+
+- (void)setBitPerfectOutput:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_BIT_PERFECT_OUTPUT];
+}
+
+- (BOOL)audioFXAllowed {
+    return self.audioFXEnabled && !self.bitPerfectOutput;
+}
+
+- (NSInteger)effectiveCrossfadeMilliseconds {
+    return self.bitPerfectOutput ? kVibeCrossfadePresets[0] : self.crossfadeMilliseconds;
 }
 
 #pragma mark Analysis and the key label

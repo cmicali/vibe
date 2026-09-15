@@ -164,6 +164,29 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // fails. It stays set through that retry so a persistent failure cannot
     // create a polling loop.
     BOOL                    _systemOutputBindRetryScheduled;
+
+    // ---- Bit-perfect output, owned by AudioPlayer+Devices.m.
+    // The setting's queue-side intent, carried by setBitPerfectOutput: like
+    // _levelsWanted.
+    BOOL                    _bitPerfectWanted;
+    // The device this process currently hogs, or kAudioObjectUnknown.
+    AudioDeviceID           _hoggedDeviceID;
+    // The one device whose format this run changed and has not yet put back,
+    // its first output stream, and the physical format it had before the
+    // first change. kAudioObjectUnknown when nothing is owed;
+    // restoreOutputFormatOnQueue clears all three.
+    AudioDeviceID           _changedFormatDeviceID;
+    AudioStreamID           _changedFormatStreamID;
+    AudioStreamBasicDescription _formatBeforeChange;
+    // A settlement waiting for the outgoing audio to go silent before it may
+    // stop the engine for a format switch; run once by completeRetiredFadePair:
+    // when _activeRetiredOutputCount reaches zero.
+    dispatch_block_t        _parkedSettlement;
+    // The last prepare's facts, folded and published for the shell's readout:
+    // _bitPerfectFacts is queue-confined, _bitPerfectReport its copy under
+    // _stateLock.
+    VibeBitPerfectReport    _bitPerfectFacts;
+    VibeBitPerfectReport    _bitPerfectReport;
 #endif
 
     // ---- The fades, owned by AudioPlayer+Fades.m.
@@ -306,6 +329,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
 - (void)createEngineAndMasterBusOnQueue;
+#if TARGET_OS_OSX
+// Drops or mints the current track's varispeed to match what bit-perfect
+// output wants now, for the device restore that reconnects the track with
+// the engine stopped. Lives in AudioPlayer.m because _varispeed is written
+// there alone.
+- (void)reshapeChainForBitPerfectOnQueue;
+#endif
 // The permitted partial writers of the published playback state; the full
 // model, and why there are exactly three of them, is at publishPlaybackState:
 // in AudioPlayer.m. Both return the node they unpublished, for the caller to

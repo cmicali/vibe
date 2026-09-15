@@ -179,6 +179,14 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     if (state.shortDelay) {
         [names addObject:@"repeat.circle"];
     }
+    // Last, against the codec text it qualifies: closed while bit-perfect
+    // output is delivering the track, open while the mode is on but is not.
+    if (state.bitPerfect == 2) {
+        [names addObject:@"lock.fill"];
+    }
+    else if (state.bitPerfect == 1) {
+        [names addObject:@"lock.open"];
+    }
     return names;
 }
 
@@ -440,6 +448,14 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     }
     _fxState = state;
     [self composeFileMetadataLabel];
+}
+
+- (void)renderBitPerfectToolTip:(NSString *)toolTip {
+    NSString *current = self.fileMetadataTextField.toolTip;
+    if (current == toolTip || [current isEqualToString:toolTip]) {
+        return;
+    }
+    self.fileMetadataTextField.toolTip = toolTip;
 }
 
 // TRAP: nil is a live input, not a programmer error. A track whose metadata

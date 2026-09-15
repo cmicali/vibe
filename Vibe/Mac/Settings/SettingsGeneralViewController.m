@@ -11,7 +11,9 @@
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h"
 #import "OutputDevicesMenuController.h"
+#import "OutputFormatRules.h"
 #import "VibeStrings.h"
 
 static const CGFloat kOutputPopUpWidth = 280;
@@ -26,6 +28,10 @@ static const CGFloat kOutputPopUpWidth = 280;
     // observation below covers it while it is closed.
     OutputDevicesMenuController *_outputMenuController;
     NSPopUpButton *_outputPopUp;
+    // Enabled only for a device bit-perfect output can drive; the row's
+    // caption says why otherwise, and names the format while it is active.
+    NSSwitch *_bitPerfectSwitch;
+    SettingsRowView *_bitPerfectRow;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSSwitch *_reopenPlaylistSwitch;
@@ -64,6 +70,11 @@ static const CGFloat kOutputPopUpWidth = 280;
     widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
+    _bitPerfectSwitch = [self switchWithAction:@selector(toggleBitPerfect:)];
+    _bitPerfectRow = [SettingsRowView rowWithTitle:STR_SETTINGS_BIT_PERFECT
+                                           caption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF
+                                           control:_bitPerfectSwitch];
+
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
     _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
@@ -83,6 +94,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
+            _bitPerfectRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_STARTUP_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
@@ -102,12 +114,54 @@ static const CGFloat kOutputPopUpWidth = 280;
 
 - (void)refreshFromSettings {
     [self refreshOutputPopUp];
+    [self refreshBitPerfectRow];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
     // The getters are normalized, so a match always exists.
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
+}
+
+// The switch follows the Output popup beside it: enabled only while the
+// chosen device is one the mode can drive (OutputFormatRules.h), with the
+// caption saying why otherwise. On, the caption is the player's own report —
+// the same sentence the header's open lock shows on hover.
+- (void)refreshBitPerfectRow {
+    AudioPlayer *audioPlayer = self.playerController.audioPlayer;
+    NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
+    AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
+    BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
+    _bitPerfectSwitch.enabled = eligible;
+    _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
+    NSString *caption;
+    if (!eligible) {
+        caption = STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
+    }
+    else if (on) {
+        caption = [self.playerController bitPerfectStatusText];
+    }
+    else {
+        caption = STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
+    }
+    if (![_bitPerfectRow.captionLabel.stringValue isEqualToString:caption]) {
+        _bitPerfectRow.captionLabel.stringValue = caption;
+        [self paneContentDidChange];
+    }
+}
+
+- (void)toggleBitPerfect:(id)sender {
+    AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
+    // FXControls and Crossfade ride along: their branches, reading the derived
+    // audioFXAllowed and effectiveCrossfadeMilliseconds, are what withdraw the
+    // FX and drop the crossfade — the same path the FX switch and the
+    // crossfade popup take themselves.
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
+                                                  | VibeSettingsLiveEffectFXControls
+                                                  | VibeSettingsLiveEffectCrossfade];
+    [self refreshBitPerfectRow];
+    [self refreshOutputPopUp]; // the popup grays ineligible devices out while on
 }
 
 - (void)toggleAlwaysOnTop:(id)sender {
@@ -149,12 +203,14 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)audioOutputDevicesDidChange {
     if (self.viewLoaded) {
         [self refreshOutputPopUp];
+        [self refreshBitPerfectRow];
     }
 }
 
 - (void)systemDefaultOutputDeviceDidChange {
     if (self.viewLoaded) {
         [self refreshOutputPopUp];
+        [self refreshBitPerfectRow];
     }
 }
 

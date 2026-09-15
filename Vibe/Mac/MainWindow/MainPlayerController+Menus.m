@@ -26,6 +26,12 @@
     switch (VibeMenuValidationDomainForIdentifier(menuItem.identifier)) {
         case VibeMenuValidationDomainViewToggle:
             [self applyViewToggleStateToMenuItem:menuItem];
+            // Bit-perfect output mints no varispeed, so a revealed fader would
+            // do nothing: the toggle goes unavailable with it. The P key gate
+            // in TransportKeyMonitor is the same condition.
+            if ([menuItem.identifier isEqualToString:kVibeMenuShowPitch]) {
+                return !AppSettings.sharedInstance.bitPerfectOutput;
+            }
             return YES;
         case VibeMenuValidationDomainWindowSize:
             [self applyWindowSizeStateToMenuItem:menuItem];
@@ -35,7 +41,7 @@
             // TRAP: hiding a parent does not disable its descendants. The menu
             // builder removes their key equivalents; this also blocks direct
             // menu dispatch while the controls are off.
-            return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXEnabled;
+            return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXAllowed;
         case VibeMenuValidationDomainPitchRange:
             [self applyPitchRangeStateToMenuItem:menuItem];
             return YES;

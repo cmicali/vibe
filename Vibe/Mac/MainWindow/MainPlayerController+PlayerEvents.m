@@ -9,6 +9,9 @@
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer+Devices.h"
+#import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h"
 #import "AppStats.h"
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
@@ -327,6 +330,19 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (newDeviceIndex == -1) {
         AppSettings.sharedInstance.audioOutputDeviceName = @"";
         AppSettings.sharedInstance.audioOutputDeviceUID = @"";
+        // The one place the app turns bit-perfect output off rather than the
+        // user: the chosen device vanished and the player abandoned the mode
+        // before falling back to System Output. The report's enabled flag is
+        // the player's word for it — the launch-time announcement of System
+        // Output, made while the saved device is still binding, leaves the
+        // mode wanted and must not be read as a fallback.
+        if (AppSettings.sharedInstance.bitPerfectOutput && !audioPlayer.bitPerfectReport.enabled) {
+            LogInfo(@"bit-perfect: output fell back to System Output; persisting the mode off");
+            AppSettings.sharedInstance.bitPerfectOutput = NO;
+            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
+                                          | VibeSettingsLiveEffectFXControls
+                                          | VibeSettingsLiveEffectCrossfade];
+        }
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -338,6 +354,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
         }
     }
+    // The bit-perfect report follows the device; updateUI does not run here.
+    [self updateFXIndicators];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

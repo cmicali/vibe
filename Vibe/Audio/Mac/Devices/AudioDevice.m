@@ -11,13 +11,15 @@
 - (instancetype)initWithName:(NSString *)name
                          uid:(NSString *)uid
                     deviceId:(NSInteger)deviceId
-             isSystemDefault:(BOOL)isSystemDefault {
+             isSystemDefault:(BOOL)isSystemDefault
+               transportType:(UInt32)transportType {
     self = [super init];
     if (self) {
         _name = [name copy];
         _uid = [uid copy];
         _deviceId = deviceId;
         _isSystemDefault = isSystemDefault;
+        _transportType = transportType;
     }
     return self;
 }

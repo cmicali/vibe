@@ -541,10 +541,17 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     // resolve to whichever enumerated first. +deviceForUID:name:inDevices:
     // skips an empty UID query, so resolution for these devices falls through
     // to the name match.
+    // Optional, never load-bearing: a failed transport read leaves Unknown,
+    // which bit-perfect output treats as ineligible. It must not mark the
+    // sweep incomplete — a device missing from the list is worse than one
+    // whose transport is unknown.
+    UInt32 transportType = kAudioDeviceTransportTypeUnknown;
+    [CoreAudioUtil readTransportType:&transportType forDeviceID:deviceID];
     *device = [[AudioDevice alloc] initWithName:name
                                             uid:uid ?: @""
                                        deviceId:(NSInteger)deviceID
-                                isSystemDefault:(deviceID == defaultID)];
+                                isSystemDefault:(deviceID == defaultID)
+                                  transportType:transportType];
     return YES;
 }
 

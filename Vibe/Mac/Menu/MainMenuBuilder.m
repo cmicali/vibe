@@ -414,7 +414,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 // equivalents — AppKit still matches Q/W/E/R/T under a hidden menu_fx, even
 // when validation returns NO — so they are cleared and restored with it.
 + (void)applyFXMenuVisibility:(NSMenuItem *)fxItem {
-    BOOL enabled = AppSettings.sharedInstance.audioFXEnabled;
+    BOOL enabled = AppSettings.sharedInstance.audioFXAllowed;
     for (NSMenuItem *item in fxItem.submenu.itemArray) {
         NSString *intendedKey = item.representedObject;
         if ([intendedKey isKindOfClass:NSString.class]) {

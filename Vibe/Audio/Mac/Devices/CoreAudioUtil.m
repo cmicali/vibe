@@ -5,6 +5,8 @@
 
 #import "CoreAudioUtil.h"
 #import <CoreAudio/CoreAudio.h>
+#import <AudioToolbox/AudioToolbox.h> // kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+#import <unistd.h>
 
 @implementation CoreAudioUtil
 
@@ -132,6 +134,179 @@
     }
     free(bufferList);
     return status == noErr;
+}
+
+#pragma mark - Bit-perfect output: transport, rate, physical format, volume, hog
+
+static BOOL VibeReadDeviceProperty(AudioObjectID object, AudioObjectPropertySelector selector,
+                                   AudioObjectPropertyScope scope, void *value, UInt32 size) {
+    if (object == kAudioObjectUnknown || !value) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = { selector, scope, kAudioObjectPropertyElementMain };
+    if (!AudioObjectHasProperty(object, &addr)) {
+        return NO;
+    }
+    UInt32 ioSize = size;
+    return AudioObjectGetPropertyData(object, &addr, 0, NULL, &ioSize, value) == noErr
+            && ioSize == size;
+}
+
+static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySelector selector,
+                                    const void *value, UInt32 size) {
+    if (object == kAudioObjectUnknown || !value) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = { selector, kAudioObjectPropertyScopeGlobal,
+                                        kAudioObjectPropertyElementMain };
+    OSStatus status = AudioObjectSetPropertyData(object, &addr, 0, NULL, size, value);
+    if (status != noErr) {
+        LogWarn(@"CoreAudioUtil: set property '%c%c%c%c' on %u failed (OSStatus %d)",
+                (char)(selector >> 24), (char)(selector >> 16), (char)(selector >> 8), (char)selector,
+                object, (int)status);
+    }
+    return status == noErr;
+}
+
++ (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID {
+    if (!transportType) {
+        return NO;
+    }
+    *transportType = kAudioDeviceTransportTypeUnknown;
+    return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyTransportType,
+                                  kAudioObjectPropertyScopeGlobal, transportType, sizeof(*transportType));
+}
+
++ (BOOL)readNominalSampleRate:(Float64 *)rate forDeviceID:(AudioDeviceID)deviceID {
+    if (!rate) {
+        return NO;
+    }
+    *rate = 0;
+    return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyNominalSampleRate,
+                                  kAudioObjectPropertyScopeGlobal, rate, sizeof(*rate));
+}
+
++ (BOOL)setNominalSampleRate:(Float64)rate forDeviceID:(AudioDeviceID)deviceID {
+    return VibeWriteDeviceProperty(deviceID, kAudioDevicePropertyNominalSampleRate, &rate, sizeof(rate));
+}
+
++ (BOOL)readOutputStream:(AudioStreamID *)stream
+          physicalFormat:(AudioStreamBasicDescription *)format
+        availableFormats:(AudioStreamRangedDescription **)availableFormats
+                   count:(UInt32 *)count
+             forDeviceID:(AudioDeviceID)deviceID {
+    if (!stream || !format || !availableFormats || !count) {
+        return NO;
+    }
+    *stream = kAudioObjectUnknown;
+    memset(format, 0, sizeof(*format));
+    *availableFormats = NULL;
+    *count = 0;
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress streamsAddr = { kAudioDevicePropertyStreams,
+                                               kAudioObjectPropertyScopeOutput,
+                                               kAudioObjectPropertyElementMain };
+    UInt32 size = 0;
+    if (!AudioObjectHasProperty(deviceID, &streamsAddr)
+            || AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, NULL, &size) != noErr
+            || size < sizeof(AudioStreamID)) {
+        return NO;
+    }
+    AudioStreamID *streams = (AudioStreamID *)malloc(size);
+    if (!streams) {
+        return NO;
+    }
+    if (AudioObjectGetPropertyData(deviceID, &streamsAddr, 0, NULL, &size, streams) != noErr
+            || size < sizeof(AudioStreamID)) {
+        free(streams);
+        return NO;
+    }
+    AudioStreamID first = streams[0];
+    free(streams);
+    if (!VibeReadDeviceProperty(first, kAudioStreamPropertyPhysicalFormat,
+                                kAudioObjectPropertyScopeGlobal, format, sizeof(*format))) {
+        return NO;
+    }
+    AudioObjectPropertyAddress availableAddr = { kAudioStreamPropertyAvailablePhysicalFormats,
+                                                 kAudioObjectPropertyScopeGlobal,
+                                                 kAudioObjectPropertyElementMain };
+    UInt32 availableSize = 0;
+    if (AudioObjectHasProperty(first, &availableAddr)
+            && AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
+            && availableSize >= sizeof(AudioStreamRangedDescription)) {
+        AudioStreamRangedDescription *formats = (AudioStreamRangedDescription *)malloc(availableSize);
+        if (formats && AudioObjectGetPropertyData(first, &availableAddr, 0, NULL,
+                                                  &availableSize, formats) == noErr) {
+            *availableFormats = formats;
+            *count = availableSize / sizeof(AudioStreamRangedDescription);
+        }
+        else {
+            free(formats);
+        }
+    }
+    *stream = first;
+    return YES;
+}
+
++ (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream {
+    return VibeWriteDeviceProperty(stream, kAudioStreamPropertyPhysicalFormat, &format, sizeof(format));
+}
+
++ (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID {
+    if (!volume) {
+        return NO;
+    }
+    *volume = 1.0f;
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = { kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                                        kAudioObjectPropertyScopeOutput,
+                                        kAudioObjectPropertyElementMain };
+    if (!AudioObjectHasProperty(deviceID, &addr)) {
+        return YES; // no software volume at all: nothing scales the samples
+    }
+    Float32 read = 1.0f;
+    UInt32 size = sizeof(read);
+    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &read) != noErr) {
+        return NO;
+    }
+    *volume = read;
+    return YES;
+}
+
++ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID {
+    if (!owner) {
+        return NO;
+    }
+    *owner = -1;
+    return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,
+                                  kAudioObjectPropertyScopeGlobal, owner, sizeof(*owner));
+}
+
++ (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID {
+    pid_t owner = -1;
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
+        return NO;
+    }
+    pid_t me = getpid();
+    // "Owned by this process" is the whole state: a release with another
+    // process holding it is already true, and an acquire over another holder
+    // is refused by the HAL itself (the write leaves it unchanged, and the
+    // read-back below says so).
+    if (owned ? owner == me : owner != me) {
+        return YES; // already in the requested state; a write here would toggle it
+    }
+    pid_t request = owned ? me : -1;
+    if (!VibeWriteDeviceProperty(deviceID, kAudioDevicePropertyHogMode, &request, sizeof(request))) {
+        return NO;
+    }
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
+        return NO;
+    }
+    return owned ? owner == me : owner != me;
 }
 
 @end

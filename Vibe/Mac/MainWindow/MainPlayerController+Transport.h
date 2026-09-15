@@ -60,6 +60,10 @@ NS_ASSUME_NONNULL_BEGIN
 // too.
 - (void)updateFXIndicators;
 
+// The bit-perfect report as one sentence — the header's open-lock tooltip and
+// the Settings > General caption read the same one.
+- (NSString *)bitPerfectStatusText;
+
 @end
 
 NS_ASSUME_NONNULL_END

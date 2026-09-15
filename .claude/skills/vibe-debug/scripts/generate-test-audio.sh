@@ -68,6 +68,16 @@ if ! have tone.flac; then
     afconvert -f flac -d flac "$OUT/tone-short-1.wav" "$OUT/tone.flac"
 fi
 
+# The rates set, for bit-perfect output: the long tone at the rates and word
+# lengths a DAC is asked for, so a loopback can prove each arrives unchanged
+# (verify-bit-perfect.swift). Deterministic content, known rate and depth.
+mkdir -p "$OUT/rates"
+have rates/tone-44100-16.wav || afconvert -f WAVE -d LEI16@44100 "$OUT/tone-long.wav" "$OUT/rates/tone-44100-16.wav"
+have rates/tone-48000-16.wav || afconvert -f WAVE -d LEI16@48000 "$OUT/tone-long.wav" "$OUT/rates/tone-48000-16.wav"
+have rates/tone-88200-24.wav || afconvert -f WAVE -d LEI24@88200 "$OUT/tone-long.wav" "$OUT/rates/tone-88200-24.wav"
+have rates/tone-96000-24.wav || afconvert -f WAVE -d LEI24@96000 "$OUT/tone-long.wav" "$OUT/rates/tone-96000-24.wav"
+have rates/tone-96000-24.flac || afconvert -f flac -d flac "$OUT/rates/tone-96000-24.wav" "$OUT/rates/tone-96000-24.flac"
+
 # Kick/hat drum loop at an exact tempo: gen_bpm_wav <path> <bpm> <seconds>.
 # Kick (40-120 Hz sweep) on every beat, hat (noise burst) on the offbeats —
 # strong low-frequency onsets on the quarter grid so the analyzer's base

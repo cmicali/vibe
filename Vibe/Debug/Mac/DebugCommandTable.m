@@ -349,6 +349,24 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
                 });
             }),
+            VibeDebugCmd(@"set_bit_perfect <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The pane's toggle, minus the pane's eligibility gate: the
+                // mode can be forced on over an ineligible device here, and
+                // the report then reads off — which is what a test of that
+                // gate wants to see.
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
+                    return VibeErrorJSON(@"usage: set_bit_perfect <on|off>");
+                }
+                AppSettings.sharedInstance.bitPerfectOutput = on;
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
+                                                   | VibeSettingsLiveEffectFXControls
+                                                   | VibeSettingsLiveEffectCrossfade];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
+                });
+            }),
             VibeDebugCmd(@"set_reopen_playlist <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {

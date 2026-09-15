@@ -139,9 +139,12 @@
     // the player's serial queue or this pre-first-paint path.
     self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:AppSettings.sharedInstance.audioOutputDeviceUID
                                                          name:AppSettings.sharedInstance.audioOutputDeviceName
-                                                     enableFX:AppSettings.sharedInstance.audioFXEnabled
+                                                     enableFX:AppSettings.sharedInstance.audioFXAllowed
                                                      delegate:self];
-    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
+    // The mode is wanted from the first play; the saved device binds
+    // asynchronously and the report follows it.
+    [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput];
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];

@@ -125,6 +125,13 @@
         _activeRetiredOutputCount--;
     }
     [self refreshOutputAudioActiveOnQueue];
+#if TARGET_OS_OSX
+    // The outgoing audio is silent: a settlement parked for a bit-perfect
+    // format switch may stop the engine now.
+    if (_activeRetiredOutputCount == 0) {
+        [self runParkedSettlementOnQueue];
+    }
+#endif
 }
 
 // Stops and detaches a retired pair, exactly once per pair: the caller owns it

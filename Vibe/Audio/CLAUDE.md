@@ -23,8 +23,8 @@ Drives an `AVAudioEngine` with a fresh `AVAudioPlayerNode` per track. State mach
 | `+Fades` | Every volume ramp, and the two liveness mechanisms below. |
 | `+Seek` | Seeking, playing and paused. |
 | `+Graph` | Node/varispeed wiring helpers. |
-| `+Engine` | When the `AVAudioEngine` runs at all: starting it to play a node, and the deferred idle stop. A pair, because starting playback is what cancels the pending stop. |
-| `+Devices` (`Mac/Devices/`) | Device resolution, switching, config-change recovery, parking or falling back when a device vanishes. |
+| `+Engine` | When the `AVAudioEngine` runs at all: starting it to play a node, and the deferred idle stop. A pair, because starting playback is what cancels the pending stop. On macOS the start acquires and both stops release bit-perfect output's hog, and the idle delay is 6 s while hogged, 10 s otherwise. |
+| `+Devices` (`Mac/Devices/`) | Device resolution, switching, config-change recovery, parking or falling back when a device vanishes, and bit-perfect output — the rate and depth switch, the hog, the restore and the report. |
 | `+Recovery` (`iOS/`) | The iOS engine restart and media-services-reset rebuild. |
 
 They all share `AudioPlayerInternal.h` — the class extension and every ivar a category touches. **That shared header is the cost of every split**: a category that would push more state into it than it takes out of `AudioPlayer.m` is not worth making.
@@ -49,7 +49,9 @@ Track-change crossfade length is `crossfadeMilliseconds` (default the 10ms decli
 
 Longer fades keep ~10ms per step (`VibeFadeStepsForMilliseconds`) so the curve stays smooth. Crossfade-length fades ride an equal-power curve — complementary sides sum to ~unity power, so a 2s crossfade holds level instead of dipping at the midpoint — while declick-length fades keep the log curve; `VibeFadeVolumeForFadeLength` picks per length.
 
-A track change crossfades on **two independent chains**: each track gets its own `AVAudioUnitVarispeed`, minted in `playOnQueue:`. The outgoing node's live connection is never rerouted — it fades out on its own varispeed and is detached, varispeed and all, once silent, while the incoming node fades in from silence on the new one. Reconnecting a live node reconfigures the graph and clicks.
+A track change crossfades on **two independent chains**: each track gets its own `AVAudioUnitVarispeed`, minted in `playOnQueue:`. The outgoing node's live connection is never rerouted — it fades out on its own varispeed and is detached, varispeed and all, once silent, while the incoming node fades in from silence on the new one. Reconnecting a live node reconfigures the graph and clicks. **Under bit-perfect output no varispeed is minted** and the node connects to the mixer directly (`Mac/Devices/CLAUDE.md`); a varispeed at ratio 1.0 measures as not quite a pass-through, so the everyday chain's own transparency is an open item (`docs/future/bit-perfect-output.md`, Phase 5).
+
+**A settlement may park before it is consumed.** On macOS `finishPlayOnQueueWithFile:…` parks itself when bit-perfect output must switch the device's format while outgoing audio is still counted, and re-enters verbatim from `completeRetiredFadePair:` once silent; the re-entry lands on `consumeRequest:`, which is the supersession guard, so Loading semantics and a newer play's precedence are untouched.
 
 **TRAP: a varispeed reconnected between stereo and mono throws `kAudioUnitErr_FormatNotSupported` and forces an engine stop.** Each varispeed is connected exactly once, for one format. The single re-connect, in device-switch recovery, rewires the same varispeed for the same format with the engine stopped.
 

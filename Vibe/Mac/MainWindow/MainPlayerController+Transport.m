@@ -8,8 +8,11 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
 #import "AudioPlayer+Seek.h"
 #import "AudioFX.h"
+#import "Formatters.h"
+#import "VibeStrings.h"
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
@@ -167,13 +170,58 @@ static double SkipBaseBars(void) {
 // lowKillBoostActive — so only the live flags describe what is actually on.
 - (void)updateFXIndicators {
     AudioFX *fx = self.audioPlayer.fx;
+    VibeBitPerfectReport report = self.audioPlayer.bitPerfectReport;
+    NSInteger bitPerfect = 0;
+    if (report.enabled) {
+        bitPerfect = (report.status == VibeBitPerfectStatusActive) ? 2 : 1;
+    }
     [self.trackDisplay renderFXState:(VibeFXDisplayState){
         .lowKill      = fx.lowKillEnabled,
         .lowKillBoost = fx.lowKillBoostActive,
         .reverb       = fx.reverbSendEnabled,
         .delay        = fx.delaySendEnabled,
         .shortDelay   = fx.shortDelaySendEnabled,
+        .bitPerfect   = bitPerfect,
     }];
+    [self.trackDisplay renderBitPerfectToolTip:(bitPerfect == 1 ? [self bitPerfectStatusText] : nil)];
+}
+
+// One sentence per status, shared by the header's tooltip and the Settings
+// caption so the two cannot disagree about why. Every string is English-only
+// until release (docs/future/bit-perfect-output.md).
+- (NSString *)bitPerfectStatusText {
+    VibeBitPerfectReport report = self.audioPlayer.bitPerfectReport;
+    Formatters *formatters = [Formatters sharedInstance];
+    NSString *kHz = [formatters decimalString:report.sampleRate / 1000 fractionDigits:1];
+    switch (report.status) {
+        case VibeBitPerfectStatusOff:
+            return STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
+        case VibeBitPerfectStatusIdle:
+            return STR_SETTINGS_BIT_PERFECT_IDLE;
+        case VibeBitPerfectStatusActive: {
+            NSString *bits = [NSString stringWithFormat:@"%u", (unsigned)report.bitsPerChannel];
+            NSString *format = [NSString stringWithFormat:
+                    report.exclusive ? STR_SETTINGS_BIT_PERFECT_FORMAT_EXCLUSIVE : STR_SETTINGS_BIT_PERFECT_FORMAT,
+                    kHz, bits];
+            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_ACTIVE, format];
+        }
+        case VibeBitPerfectStatusRateUnsupported:
+            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_RATE_UNSUPPORTED, kHz];
+        case VibeBitPerfectStatusSwitchFailed:
+            return STR_SETTINGS_BIT_PERFECT_SWITCH_FAILED;
+        case VibeBitPerfectStatusDepthInsufficient:
+            return STR_SETTINGS_BIT_PERFECT_DEPTH;
+        case VibeBitPerfectStatusVolumeScaled:
+            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_VOLUME,
+                    [formatters decimalString:report.softwareVolume * 100 fractionDigits:0]];
+        case VibeBitPerfectStatusExclusiveRefused:
+            return STR_SETTINGS_BIT_PERFECT_EXCLUSIVE_REFUSED;
+        case VibeBitPerfectStatusSourceLossy:
+            return STR_SETTINGS_BIT_PERFECT_LOSSY;
+        case VibeBitPerfectStatusFXGraphPresent:
+            return [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()];
+    }
+    return @"";
 }
 
 @end

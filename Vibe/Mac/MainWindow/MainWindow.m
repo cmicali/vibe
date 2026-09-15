@@ -376,7 +376,10 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
     frame.size.height = height;
 
-    _pitchPanelShown = AppSettings.sharedInstance.isPitchPanelShown;
+    // Never restored under bit-perfect output, which mints no varispeed for
+    // the fader to drive; the stored choice survives for when the mode goes off.
+    _pitchPanelShown = AppSettings.sharedInstance.isPitchPanelShown
+            && !AppSettings.sharedInstance.bitPerfectOutput;
     frame.size.width = MAX(frame.size.width,
                            [self applyMinWidthForPitchPanelShown:_pitchPanelShown]);
 

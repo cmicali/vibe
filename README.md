@@ -18,6 +18,7 @@ A fast, minimal player for your music files on the Mac. No third-party engine, n
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
 - **Pitch adjust** — an optional SL-1200-style pitch fader
 - **Themes** — restyle the whole player; build your own in Settings and share it as a file
+- **Bit-perfect output** — Settings > General: Vibe sets the DAC to each file's sample rate and bit depth, keeps exclusive use of it while playing, and shows a lock in the header while the track is delivered unchanged
 
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 

@@ -8,11 +8,53 @@
 #import "DebugInternal.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer+Devices.h"
 #import "SettingsRules.h"
 
 #if DEBUG
 
 #pragma mark App side: command execution
+
+static NSString *VibeDebugBitPerfectStatusName(VibeBitPerfectStatus status) {
+    switch (status) {
+        case VibeBitPerfectStatusOff:               return @"off";
+        case VibeBitPerfectStatusIdle:              return @"idle";
+        case VibeBitPerfectStatusActive:            return @"active";
+        case VibeBitPerfectStatusRateUnsupported:   return @"rateUnsupported";
+        case VibeBitPerfectStatusSwitchFailed:      return @"switchFailed";
+        case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
+        case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
+        case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
+        case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
+        case VibeBitPerfectStatusFXGraphPresent:    return @"fxGraphPresent";
+    }
+    return @"unknown";
+}
+
+// The report the header and Settings read, plus the queue-confined ownership
+// behind it — every input to the fold, so a run can say WHY a lock is open.
+static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
+    VibeBitPerfectReport r = player.bitPerfectReport;
+    NSMutableDictionary *d = [@{
+        @"enabled": @(r.enabled),
+        @"status": VibeDebugBitPerfectStatusName(r.status),
+        @"sampleRate": @(r.sampleRate),
+        @"bitsPerChannel": @(r.bitsPerChannel),
+        @"isFloat": @(r.isFloat),
+        @"softwareVolume": @(r.softwareVolume),
+        @"eligibleDevice": @(r.eligibleDevice),
+        @"hasTrack": @(r.hasTrack),
+        @"fxGraph": @(r.fxGraph),
+        @"rateExact": @(r.rateExact),
+        @"switched": @(r.switched),
+        @"depthOK": @(r.depthOK),
+        @"hogWanted": @(r.hogWanted),
+        @"exclusive": @(r.exclusive),
+        @"sourceLossless": @(r.sourceLossless),
+    } mutableCopy];
+    [d addEntriesFromDictionary:[player debugBitPerfectOwnership]];
+    return d;
+}
 
 static NSString *VibeDebugDisplayStateName(TrackDisplayState state) {
     switch (state) {
@@ -44,6 +86,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"shortDelaySend": @(player.fx.shortDelaySendEnabled),
         @"delayTapBPM": @(player.fx.delayTapBPM),
         @"outputDeviceId": @(player.currentlyActiveAudioDeviceId),
+        @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
+        @"bitPerfect": VibeDebugBitPerfectDictionary(player),
         // The flag asked; this is what actually happened. They differ when
         // enableManualRenderingMode fails and the output device opens
         // anyway — which no other signal would reveal.

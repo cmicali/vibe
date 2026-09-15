@@ -7,6 +7,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioFileConverter.h"
+#import "AudioPlayer.h"
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
@@ -314,6 +315,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
     [self.mainPlayerController saveLastPlaylist];
+    // Bit-perfect output: put a changed device format back and release the
+    // hog. The player is never deallocated at quit, so this is the edge.
+    [self.mainPlayerController.audioPlayer prepareForTermination];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.
