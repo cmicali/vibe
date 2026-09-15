@@ -236,8 +236,11 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAirPlay));
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWired));
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWireless));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeRemoteScreen));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeRemoteStreaming));
+    // kAudioDeviceTransportTypeRemoteScreen / RemoteStreaming, spelled as
+    // their codes: CI's older SDK does not declare them, and the rule refuses
+    // them through its default branch either way.
+    XCTAssertFalse(VibeBitPerfectDeviceEligible('rscr'));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible('rstr'));
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAggregate));
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
 }
