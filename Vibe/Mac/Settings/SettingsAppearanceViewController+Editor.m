@@ -347,17 +347,6 @@ static NSArray<NSString *> *GlyphList(NSString *const _Nonnull *names, size_t co
     return NO;
 }
 
-- (NSString *)glyphForButtonImageKey:(NSString *)key {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if ([key isEqualToString:kVibeThemeImagePlaylistButtonDark]) {
-        return theme.playlistButtonGlyph;
-    }
-    if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
-        return theme.nextButtonGlyph;
-    }
-    return theme.playButtonGlyph;
-}
-
 // A play pick writes both of the pair — the pause glyph from the pair table
 // — so the two states never draw the same glyph.
 - (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
@@ -386,7 +375,7 @@ static NSArray<NSString *> *GlyphList(NSString *const _Nonnull *names, size_t co
         [self selectValue:kGlyphChoiceCustomImage in:popUp];
         return;
     }
-    NSString *glyph = [self glyphForButtonImageKey:key];
+    NSString *glyph = [self glyphForImageKey:key];
     [self selectValue:glyph in:popUp];
     if (popUp.indexOfSelectedItem < 0) {
         NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:VibeNotLocalized(glyph)
@@ -637,6 +626,7 @@ static NSString *PartnerImageKey(NSString *key) {
     for (NSArray *column in playlistColumns) {
         NSString *base = column[0];
         NSSwitch *toggle = [self switchWithAction:@selector(togglePlaylistColor:)];
+        toggle.identifier = base; // how the action finds the column, like the image buttons
         _playlistColorSwitches[base] = toggle;
         SettingsRowView *pairRow = [SettingsRowView rowWithTitle:column[2]
                 control:[self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance]];
@@ -1057,12 +1047,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 - (void)togglePlaylistColor:(NSSwitch *)sender {
-    for (NSString *base in _playlistColorSwitches) {
-        if (_playlistColorSwitches[base] == sender) {
-            [AppSettings.sharedInstance.currentTheme
-                    setPlaylistColorEnabled:(sender.state == NSControlStateValueOn) forBase:base];
-        }
-    }
+    [AppSettings.sharedInstance.currentTheme
+            setPlaylistColorEnabled:(sender.state == NSControlStateValueOn) forBase:sender.identifier];
     [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
     [self resolveLayoutStateFromSettings]; // the pair's row reveals with it
 }

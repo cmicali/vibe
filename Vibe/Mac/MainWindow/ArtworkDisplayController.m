@@ -172,9 +172,6 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
     ArtworkRenderRequest       *_queuedRenderRequest;
     BOOL                        _renderInFlight;
     BOOL                        _initialized;
-    // The first sample always publishes, so the buttons never keep their
-    // built-in guess past the first image.
-    BOOL                        _transportBackdropSettled;
 }
 
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView {
@@ -184,6 +181,10 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
         _headerTintView = contentView.headerTintView;
         _playlistTintView = contentView.playlistTintView;
         _dominantColorByArt = [NSMapTable weakToStrongObjectsMapTable];
+        // The content view's own seed for the factory placeholder, so the
+        // first sample publishes exactly when it differs from what the
+        // buttons already draw.
+        _transportBackdropIsDark = YES;
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _artworkRenderQueue = dispatch_queue_create("com.vibe.artwork.render", attributes);
@@ -547,11 +548,10 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 }
 
 - (void)setTransportBackdropIsDark:(BOOL)dark {
-    if (_transportBackdropIsDark == dark && _transportBackdropSettled) {
+    if (_transportBackdropIsDark == dark) {
         return;
     }
     _transportBackdropIsDark = dark;
-    _transportBackdropSettled = YES;
     if (self.transportBackdropDidChangeHandler) {
         self.transportBackdropDidChangeHandler();
     }

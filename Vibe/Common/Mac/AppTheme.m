@@ -254,6 +254,14 @@ static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, 
     }
 }
 
+// A playlist column's switch, then its pair: playlist.numberColorEnabled
+// beside playlist.numberColorDark/Light.
+static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group, NSString *jsonBase) {
+    [rows addObject:Field(PlaylistColorEnabledKey(base), group,
+                          [jsonBase stringByAppendingString:@"Enabled"], @NO, BoolField())];
+    AddColorPair(rows, base, group, jsonBase);
+}
+
 static NSArray<NSDictionary *> *FieldSpecs(void) {
     static NSArray<NSDictionary *> *specs;
     static dispatch_once_t once;
@@ -353,17 +361,10 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
         [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
-        // The four text columns: a switch, then its pair — playlist.numberColorEnabled,
-        // playlist.numberColorDark/Light, the record base less its playlist prefix.
-        for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
-                                 kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration]) {
-            NSString *column = [base substringFromIndex:@"playlist".length];
-            NSString *jsonBase = [[column substringToIndex:1].lowercaseString
-                                  stringByAppendingString:[column substringFromIndex:1]];
-            [rows addObject:Field(PlaylistColorEnabledKey(base), playlist,
-                                  [jsonBase stringByAppendingString:@"Enabled"], @NO, BoolField())];
-            AddColorPair(rows, base, playlist, jsonBase);
-        }
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistNumber, playlist, @"numberColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistTitle, playlist, @"titleColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor");
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
         specs = [rows copy];
@@ -1344,16 +1345,6 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     [self storeSanitized:reference forKey:[self imageKeyForKey:key]];
 }
 
-- (NSString *)defaultArtworkForDark:(BOOL)isDark {
-    return [self imageReferenceForKey:isDark ? kVibeThemeImageDefaultArtworkDark
-                                             : kVibeThemeImageDefaultArtworkLight];
-}
-
-- (void)setDefaultArtwork:(NSString *)v forDark:(BOOL)isDark {
-    [self setImageReference:v forKey:isDark ? kVibeThemeImageDefaultArtworkDark
-                                            : kVibeThemeImageDefaultArtworkLight];
-}
-
 - (NSImage *)customImageForKey:(NSString *)key {
     NSString *reference = [self imageReferenceForKey:key];
     if (reference.length == 0 || [AppTheme referenceIsMissing:reference]) {
@@ -1363,8 +1354,8 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
 }
 
 - (NSImage *)resolvedDefaultArtworkImage {
-    return [AppTheme imageForDefaultArtworkDark:[self defaultArtworkForDark:YES]
-                                           light:[self defaultArtworkForDark:NO]];
+    return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
+                                           light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
 }
 
 - (BOOL)showPlaylistArtworkColumn { return [self boolForKey:kFieldShowPlaylistArtworkColumn]; }

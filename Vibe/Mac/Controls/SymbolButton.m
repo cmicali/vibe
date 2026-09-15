@@ -33,9 +33,6 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     CGFloat _renderedPointSize;
     NSFontWeight _renderedWeight;
     CGFloat _renderedScale;
-    NSImage *_renderedImage; // likewise for _imageLayer
-    CGFloat _renderedImagePointSize;
-    CGFloat _renderedImageScale;
     BOOL _hovering;    // the cursor is inside the button
     BOOL _mouseDown;   // a press that began inside us is in progress
 }
@@ -117,53 +114,19 @@ static const CGFloat kGlyphFractionOfPointSize = 0.8;
     [CATransaction commit];
 }
 
-// Rasterizes the custom image at the backing scale, aspect-fit into the box
-// a glyph of the configured point size fills, and centers it. The same
-// skip-if-unchanged rule as the symbol's mask.
+// The custom image as the layer's own contents — AppKit draws an NSImage set
+// there at the layer's contentsScale from its best rep — aspect-fit by the
+// layer's gravity into the box a glyph of the configured point size fills,
+// and centered.
 - (void)updateImageLayer {
     _imageLayer.hidden = (_image == nil);
+    _imageLayer.contents = _image;
     if (!_image) {
-        _imageLayer.contents = nil;
-        _renderedImage = nil;
         return;
     }
     CGFloat scale = self.window.backingScaleFactor;
-    if (scale <= 0) {
-        scale = 2;
-    }
+    _imageLayer.contentsScale = scale > 0 ? scale : 2;
     CGFloat box = round(_symbolPointSize * kGlyphFractionOfPointSize);
-    if (_imageLayer.contents && _renderedImage == _image &&
-        _renderedImagePointSize == _symbolPointSize && _renderedImageScale == scale) {
-        [self centerLayer:_imageLayer size:NSMakeSize(box, box)];
-        return;
-    }
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
-            initWithBitmapDataPlanes:NULL
-                          pixelsWide:(NSInteger)ceil(box * scale)
-                          pixelsHigh:(NSInteger)ceil(box * scale)
-                       bitsPerSample:8
-                     samplesPerPixel:4
-                            hasAlpha:YES
-                            isPlanar:NO
-                      colorSpaceName:NSDeviceRGBColorSpace
-                         bytesPerRow:0
-                        bitsPerPixel:0];
-    rep.size = NSMakeSize(box, box);
-    NSSize source = _image.size;
-    CGFloat fit = (source.width > 0 && source.height > 0)
-            ? MIN(box / source.width, box / source.height) : 1;
-    NSRect target = NSMakeRect((box - source.width * fit) / 2, (box - source.height * fit) / 2,
-                               source.width * fit, source.height * fit);
-    [NSGraphicsContext saveGraphicsState];
-    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
-    [_image drawInRect:target fromRect:NSZeroRect
-             operation:NSCompositingOperationSourceOver fraction:1];
-    [NSGraphicsContext restoreGraphicsState];
-    _imageLayer.contentsScale = scale;
-    _imageLayer.contents = (__bridge id)rep.CGImage;
-    _renderedImage = _image;
-    _renderedImagePointSize = _symbolPointSize;
-    _renderedImageScale = scale;
     [self centerLayer:_imageLayer size:NSMakeSize(box, box)];
 }
 

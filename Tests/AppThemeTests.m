@@ -600,9 +600,9 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertNil(theme.requiredWindowAppearance, @"%@", identifier);
 
         if ([artworked containsObject:identifier]) {
-            XCTAssertEqualObjects([theme defaultArtworkForDark:YES],
+            XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
                     ([NSString stringWithFormat:@"bundled:%@_dark.png", identifier]));
-            XCTAssertEqualObjects([theme defaultArtworkForDark:NO],
+            XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
                     ([NSString stringWithFormat:@"bundled:%@_light.png", identifier]));
         }
     }
@@ -683,17 +683,17 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
 - (void)testDefaultArtworkSanitizesByShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:
             @{@"defaultArtworkDark": @"bundled:signal_workshop_dark.png"}];
-    XCTAssertEqualObjects([theme defaultArtworkForDark:YES],
+    XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
             @"bundled:signal_workshop_dark.png");
-    [theme setDefaultArtwork:@"custom:0123456789abcdef0123456789abcdef01234567.png"
-                      forDark:NO];
+    [theme setImageReference:@"custom:0123456789abcdef0123456789abcdef01234567.png"
+                       forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
     // Wrong shapes drop to the default.
     for (NSString *bad in @[@"vinyl_red", @"bundled:Vinyl.png", @"bundled:../etc.png",
                             @"bundled:signal_workshop.webp", @"custom:short.png",
                             @"custom:0123456789abcdef0123456789abcdef01234567.gif"]) {
-        [theme setDefaultArtwork:bad forDark:YES];
+        [theme setImageReference:bad forKey:kVibeThemeImageDefaultArtworkDark];
         XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"%@", bad);
     }
     XCTAssertNotNil([AppTheme imageForReference:nil]);
@@ -701,10 +701,10 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     // Single mode reads and writes the dark slot from either side; the light
     // half lies dormant, so a mode flip round-trips.
     theme.mode = @"single";
-    [theme setDefaultArtwork:@"bundled:signal_workshop_light.png" forDark:NO];
+    [theme setImageReference:@"bundled:signal_workshop_light.png" forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"],
             @"bundled:signal_workshop_light.png");
-    XCTAssertEqualObjects([theme defaultArtworkForDark:NO],
+    XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
             @"bundled:signal_workshop_light.png");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");

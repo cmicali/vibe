@@ -333,12 +333,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // the write behind every picker. The no-artwork placeholder is the one
 // paired field, one per appearance like every color pair, and single mode
 // reads and writes its dark slot from either side — the color pairs' rule —
-// while the light half lies dormant, so a mode flip round-trips; the
-// side-named accessors below are that pair by side.
+// while the light half lies dormant, so a mode flip round-trips.
 - (NSString *)imageReferenceForKey:(NSString *)key;
 - (void)setImageReference:(NSString *)reference forKey:(NSString *)key;
-- (NSString *)defaultArtworkForDark:(BOOL)isDark;
-- (void)setDefaultArtwork:(NSString *)value forDark:(BOOL)isDark;
 // The image a slot's reference resolves to when it names a present custom or
 // bundled image, else nil — the app icon and the buttons fall back to their
 // own factory (the bundle's icon, the glyph), never to the record image.
