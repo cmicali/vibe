@@ -82,6 +82,11 @@ NS_ASSUME_NONNULL_BEGIN
 // guard would otherwise keep the old image up.
 - (void)refreshDefaultArtwork;
 
+// Re-decides the Dock tile from the theme's dockIcon choice and what the
+// header shows: the installed art crop, or the app icon. The AppIcon live
+// effect calls it after the icon itself has landed.
+- (void)applyDockIcon;
+
 @end
 
 NS_ASSUME_NONNULL_END

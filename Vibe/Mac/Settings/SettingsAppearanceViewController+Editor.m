@@ -10,26 +10,56 @@
 #import "AppSettings+Mac.h"
 #import "Fonts.h"
 #import "NSImage+Util.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 
-static const CGFloat kAlbumArtPreviewSize = 64;
-// The two corner badges over an artwork preview — the clear ✕ and the
+static const CGFloat kImagePreviewSize = 64;
+// The two corner badges over an image preview — the clear ✕ and the
 // missing-image (!) — sized as one pair. The box carries a little more than
 // the glyph, which is the inset they sit at; scaling both by the same factor
 // keeps that. SF Symbols quantize a point size to whole points, so the glyph
 // lands near, not exactly on, the box's own ratio.
-static const CGFloat kAlbumArtBadgeSize = 22.5;       // 18 * 1.25
-static const CGFloat kAlbumArtBadgePointSize = 16.25; // NSFont.systemFontSize * 1.25
+static const CGFloat kImageBadgeSize = 22.5;       // 18 * 1.25
+static const CGFloat kImageBadgePointSize = 16.25; // NSFont.systemFontSize * 1.25
 // Both badges sit fully INSIDE the preview, at this inset from its corners.
 // They stay inside deliberately: a subview hanging past its superview's bounds
 // is not hit-tested, which would cost the (!) its tooltip and the ✕ most of its
 // click target.
-static const CGFloat kAlbumArtBadgeInset = 1.5;
+static const CGFloat kImageBadgeInset = 1.5;
 
 // A color well's binding to one side of its theme pair; see wellForDark:base:effect:.
 static NSString *const kWellBase = @"base";
 static NSString *const kWellEffect = @"effect";
 static NSString *const kWellDark = @"dark";
+
+// The transport buttons' glyph popups' last item: a custom image in place of
+// any glyph. Not a symbol-name shape, so it can never reach a glyph field.
+static NSString *const kGlyphChoiceCustomImage = @"custom-image";
+// Marks the item a refresh inserts for a stored glyph the popup does not
+// list — a JSON-authored one — so the next refresh can retire it.
+static const NSInteger kTransientGlyphItemTag = 1;
+
+// The live effect an image field's edit requests: the placeholder repaints
+// the header and the playlist rows, the app icon re-decides the Dock, a
+// button image redresses the transport row.
+static VibeSettingsLiveEffect EffectForImageKey(NSString *key) {
+    if ([key isEqualToString:kVibeThemeImageAppIcon]) {
+        return VibeSettingsLiveEffectAppIcon;
+    }
+    if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
+            || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
+        return VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
+    }
+    return VibeSettingsLiveEffectTransportButtons;
+}
+
+static NSArray<NSString *> *GlyphList(NSString *const _Nonnull *names, size_t count) {
+    NSMutableArray *list = [NSMutableArray arrayWithCapacity:count];
+    for (size_t i = 0; i < count; i++) {
+        [list addObject:names[i]];
+    }
+    return list;
+}
 
 // TRAP: the editor page's document view must be FLIPPED. An unflipped one
 // puts the document's top at its maxY — a moving target — while the clip view
@@ -144,27 +174,30 @@ static NSString *const kWellDark = @"dark";
     return cluster;
 }
 
-// One side of the Default artwork pair: a preview of that side's resolved
-// placeholder as the click target (click picks a custom image), with a
-// hover-revealed clear badge over its corner while a custom image is set.
-// The badge is a real button so the walker can address it by its undrawn
-// title. System Settings appearance-picker shape.
-- (NSView *)albumArtClusterForDark:(BOOL)isDark {
-    NSButton *preview = [NSButton buttonWithImage:[AppTheme imageForDefaultArtwork:@""]
-                                           target:self action:@selector(chooseAlbumArt:)];
+// One image field's picker: a preview of what the slot resolves to as the
+// click target (click picks a custom image), with a hover-revealed clear
+// badge over its corner while a custom image is set. The badge is a real
+// button so the walker can address it by its undrawn title. System Settings
+// appearance-picker shape. The field key rides both buttons' identifiers,
+// which is how their shared actions find the slot.
+- (NSView *)imageClusterForKey:(NSString *)key {
+    NSButton *preview = [NSButton buttonWithImage:[AppTheme imageForReference:@""]
+                                           target:self action:@selector(chooseImage:)];
     preview.bordered = NO;
     preview.title = @""; // the factory's "Button" would name it in the walker
+    preview.identifier = key;
     preview.wantsLayer = YES;
     preview.layer.cornerRadius = 6;
     preview.layer.masksToBounds = YES;
     ((NSButtonCell *)preview.cell).imageScaling = NSImageScaleProportionallyUpOrDown;
     NSButton *clear = [NSButton buttonWithImage:[NSImage symbolNamed:@"xmark.circle.fill"
-            pointSize:kAlbumArtBadgePointSize weight:NSFontWeightRegular
+            pointSize:kImageBadgePointSize weight:NSFontWeightRegular
               palette:@[NSColor.whiteColor, [NSColor colorWithWhite:0 alpha:0.6]]
-            accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_CLEAR]
-                                         target:self action:@selector(clearCustomArtwork:)];
+            accessibilityDescription:STR_SETTINGS_THEME_IMAGE_CLEAR]
+                                         target:self action:@selector(clearCustomImage:)];
     clear.bordered = NO;
-    clear.title = STR_SETTINGS_THEME_ALBUM_ART_CLEAR; // image-only: named, never drawn
+    clear.title = STR_SETTINGS_THEME_IMAGE_CLEAR; // image-only: named, never drawn
+    clear.identifier = key;
     clear.imagePosition = NSImageOnly;
     clear.hidden = YES;
     // The missing-image badge mirrors that clear badge across the preview, and
@@ -174,11 +207,11 @@ static NSString *const kWellDark = @"dark";
     // and a button would promise one to VoiceOver.
     NSImageView *missing = [NSImageView imageViewWithImage:[NSImage
             symbolNamed:@"exclamationmark.circle.fill"
-              pointSize:kAlbumArtBadgePointSize weight:NSFontWeightRegular
+              pointSize:kImageBadgePointSize weight:NSFontWeightRegular
                 palette:@[NSColor.whiteColor, NSColor.systemRedColor]
-            accessibilityDescription:STR_SETTINGS_THEME_ALBUM_ART_MISSING]];
-    missing.toolTip = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
-    missing.accessibilityLabel = STR_SETTINGS_THEME_ALBUM_ART_MISSING;
+            accessibilityDescription:STR_SETTINGS_THEME_IMAGE_MISSING]];
+    missing.toolTip = STR_SETTINGS_THEME_IMAGE_MISSING;
+    missing.accessibilityLabel = STR_SETTINGS_THEME_IMAGE_MISSING;
     missing.hidden = YES;
     NSView *cluster = [[NSView alloc] initWithFrame:NSZeroRect];
     cluster.translatesAutoresizingMaskIntoConstraints = NO;
@@ -189,29 +222,29 @@ static NSString *const kWellDark = @"dark";
     [cluster addSubview:clear];
     [cluster addSubview:missing];
     [NSLayoutConstraint activateConstraints:@[
-        [cluster.widthAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
-        [cluster.heightAnchor constraintEqualToConstant:kAlbumArtPreviewSize],
+        [cluster.widthAnchor constraintEqualToConstant:kImagePreviewSize],
+        [cluster.heightAnchor constraintEqualToConstant:kImagePreviewSize],
         [preview.leadingAnchor constraintEqualToAnchor:cluster.leadingAnchor],
         [preview.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor],
         [preview.topAnchor constraintEqualToAnchor:cluster.topAnchor],
         [preview.bottomAnchor constraintEqualToAnchor:cluster.bottomAnchor],
         // Pinned to the glyph's size: the undrawn title still feeds the
         // button's intrinsic width, which stretched it across the preview.
-        [clear.widthAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
-        [clear.heightAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+        [clear.widthAnchor constraintEqualToConstant:kImageBadgeSize],
+        [clear.heightAnchor constraintEqualToConstant:kImageBadgeSize],
         [clear.topAnchor constraintEqualToAnchor:cluster.topAnchor
-                                        constant:kAlbumArtBadgeInset],
+                                        constant:kImageBadgeInset],
         [clear.trailingAnchor constraintEqualToAnchor:cluster.trailingAnchor
-                                             constant:-kAlbumArtBadgeInset],
-        [missing.widthAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
-        [missing.heightAnchor constraintEqualToConstant:kAlbumArtBadgeSize],
+                                             constant:-kImageBadgeInset],
+        [missing.widthAnchor constraintEqualToConstant:kImageBadgeSize],
+        [missing.heightAnchor constraintEqualToConstant:kImageBadgeSize],
         [missing.topAnchor constraintEqualToAnchor:cluster.topAnchor
-                                          constant:kAlbumArtBadgeInset],
+                                          constant:kImageBadgeInset],
         [missing.leadingAnchor constraintEqualToAnchor:cluster.leadingAnchor
-                                              constant:kAlbumArtBadgeInset],
+                                              constant:kImageBadgeInset],
     ]];
-    // The controller owns the hover tracking; userInfo names the side, since
-    // both clusters share one owner. ActiveInActiveApp, not ActiveInKeyWindow:
+    // The controller owns the hover tracking; userInfo names the field, since
+    // every cluster shares one owner. ActiveInActiveApp, not ActiveInKeyWindow:
     // the font or color panel is often key while this page is edited, and the
     // badge must still appear. Posted debug events cannot fire it — the window
     // server drives tracking areas — so a scripted clear needs a real hover
@@ -219,17 +252,141 @@ static NSString *const kWellDark = @"dark";
     [cluster addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
             options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp
                     | NSTrackingInVisibleRect
-            owner:self userInfo:@{@"artClearForDark": @(isDark)}]];
-    if (isDark) {
-        _artDarkPreviewButton = preview;
-        _artDarkClearButton = clear;
-        _artDarkMissingBadge = missing;
-    } else {
-        _artLightPreviewButton = preview;
-        _artLightClearButton = clear;
-        _artLightMissingBadge = missing;
+            owner:self userInfo:@{@"imageField": key}]];
+    if (!_imagePreviews) {
+        _imagePreviews = [NSMutableDictionary dictionary];
+        _imageClearBadges = [NSMutableDictionary dictionary];
+        _imageMissingBadges = [NSMutableDictionary dictionary];
     }
+    _imagePreviews[key] = preview;
+    _imageClearBadges[key] = clear;
+    _imageMissingBadges[key] = missing;
     return cluster;
+}
+
+// One transport button's three editor rows — the glyph popup, the color pair
+// a glyph is drawn in, and the custom image that replaces the glyph — keyed
+// by the button's image field, which its popup and rows are looked up by.
+// The color and image rows swap on whether an image is set
+// (resolveLayoutStateFromSettings): a glyph has a color, a picture has its own.
+- (NSArray<SettingsRowView *> *)buttonRowsForImageKey:(NSString *)imageKey
+                                                title:(NSString *)title
+                                           colorTitle:(NSString *)colorTitle
+                                           imageTitle:(NSString *)imageTitle
+                                            colorBase:(NSString *)colorBase
+                                               glyphs:(NSArray<NSString *> *)glyphs
+                                         imageControl:(NSView *)imageControl {
+    NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                               action:@selector(buttonGlyphChanged:)];
+    popUp.identifier = imageKey;
+    // The symbol names are identifiers — what SF Symbols calls them — shown
+    // beside the glyph itself rather than given thirty display names apiece.
+    for (NSString *glyph in glyphs) {
+        [self addItem:VibeNotLocalized(glyph) value:glyph to:popUp];
+        popUp.lastItem.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
+    }
+    [popUp.menu addItem:NSMenuItem.separatorItem];
+    [self addItem:STR_SETTINGS_THEME_BUTTON_CUSTOM_IMAGE value:kGlyphChoiceCustomImage to:popUp];
+    SettingsRowView *colorRow = [SettingsRowView rowWithTitle:colorTitle
+            control:[self darkLightPairForBase:colorBase effect:VibeSettingsLiveEffectTransportButtons]];
+    SettingsRowView *imageRow = [SettingsRowView rowWithTitle:imageTitle control:imageControl];
+    if (!_glyphPopUps) {
+        _glyphPopUps = [NSMutableDictionary dictionary];
+        _buttonColorRows = [NSMutableDictionary dictionary];
+        _buttonImageRows = [NSMutableDictionary dictionary];
+    }
+    _glyphPopUps[imageKey] = popUp;
+    _buttonColorRows[imageKey] = colorRow;
+    _buttonImageRows[imageKey] = imageRow;
+    return @[[SettingsRowView rowWithTitle:title control:popUp], colorRow, imageRow];
+}
+
+#pragma mark - Transport buttons: the theme's fields by button
+
+// The play button's Custom image choice governs both of its states' slots;
+// every other button has one.
+- (NSArray<NSString *> *)imageKeysForButtonImageKey:(NSString *)key {
+    return [key isEqualToString:kVibeThemeImagePlayButton]
+            ? @[kVibeThemeImagePlayButton, kVibeThemeImagePauseButton] : @[key];
+}
+
+- (BOOL)buttonHasImageForKey:(NSString *)key {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    for (NSString *imageKey in [self imageKeysForButtonImageKey:key]) {
+        if ([theme imageReferenceForKey:imageKey].length) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (NSString *)glyphForButtonImageKey:(NSString *)key {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if ([key isEqualToString:kVibeThemeImagePlaylistButton]) {
+        return theme.playlistButtonGlyph;
+    }
+    if ([key isEqualToString:kVibeThemeImageNextButton]) {
+        return theme.nextButtonGlyph;
+    }
+    return theme.playButtonGlyph;
+}
+
+// A play pick writes both of the pair — the pause glyph from the pair table
+// — so the two states never draw the same glyph.
+- (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if ([key isEqualToString:kVibeThemeImagePlaylistButton]) {
+        theme.playlistButtonGlyph = glyph;
+    } else if ([key isEqualToString:kVibeThemeImageNextButton]) {
+        theme.nextButtonGlyph = glyph;
+    } else {
+        theme.playButtonGlyph = glyph;
+        theme.pauseButtonGlyph = VibePauseGlyphForPlayGlyph(glyph);
+    }
+}
+
+// The popup's selection from the theme: Custom image while the button has
+// one, else its glyph — inserting a transient item for a stored glyph the
+// menu does not list, a JSON-authored one, so the popup never shows nothing.
+- (void)selectGlyphChoiceForButtonImageKey:(NSString *)key {
+    NSPopUpButton *popUp = _glyphPopUps[key];
+    for (NSMenuItem *item in [popUp.itemArray copy]) {
+        if (item.tag == kTransientGlyphItemTag) {
+            [popUp.menu removeItem:item];
+        }
+    }
+    if ([self buttonHasImageForKey:key]) {
+        [self selectValue:kGlyphChoiceCustomImage in:popUp];
+        return;
+    }
+    NSString *glyph = [self glyphForButtonImageKey:key];
+    [self selectValue:glyph in:popUp];
+    if (popUp.indexOfSelectedItem < 0) {
+        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:VibeNotLocalized(glyph)
+                                                      action:NULL keyEquivalent:@""];
+        item.representedObject = glyph;
+        item.tag = kTransientGlyphItemTag;
+        item.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
+        [popUp.menu insertItem:item atIndex:0];
+        [popUp selectItem:item];
+    }
+}
+
+// What a slot's preview shows: the placeholder pair its resolved image (the
+// factory record when unset), the app icon whatever the application holds —
+// the composed custom icon or the bundle's, since the AppIcon effect has
+// already landed by refresh time — and a button its picture alone, its row
+// being hidden while it has none.
+- (NSImage *)previewImageForKey:(NSString *)key {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if ([key isEqualToString:kVibeThemeImageAppIcon]) {
+        return NSApp.applicationIconImage;
+    }
+    if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
+            || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
+        return [AppTheme imageForReference:[theme imageReferenceForKey:key]];
+    }
+    return [theme customImageForKey:key];
 }
 
 - (void)buildEditorPage {
@@ -247,11 +404,54 @@ static NSString *const kWellDark = @"dark";
     [self addItem:STR_SETTINGS_THEME_MODE_DUAL value:SETTINGS_VALUE_THEME_MODE_DUAL to:_modePopUp];
     [self addItem:STR_SETTINGS_THEME_MODE_SINGLE value:SETTINGS_VALUE_THEME_MODE_SINGLE to:_modePopUp];
 
+    NSView *appIconCluster = [self imageClusterForKey:kVibeThemeImageAppIcon];
+    _dockIconPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(dockIconChanged:)];
+    [self addItem:STR_SETTINGS_THEME_DOCK_ICON_ALBUM_ART value:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART to:_dockIconPopUp];
+    [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
+    _customCornerRadiusSwitch = [self switchWithAction:@selector(toggleCustomCornerRadius:)];
+
     // Default artwork follows the color pairs: one preview per appearance
     // under Light & Dark Modes, collapsing to the dark-keyed one — the single
     // slot's home — under Single Mode.
-    NSStackView *artPair = [self darkLightPairWithDark:[self albumArtClusterForDark:YES]
-                                                 light:[self albumArtClusterForDark:NO]];
+    NSStackView *artPair = [self darkLightPairWithDark:
+            [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
+            light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
+
+    // The three transport buttons, each a glyph popup with a color pair, or
+    // a custom image; the play button's picture is a play/pause pair, one
+    // per state, captioned like the color pairs.
+    NSArray<SettingsRowView *> *playlistButtonRows = [self
+            buttonRowsForImageKey:kVibeThemeImagePlaylistButton
+                            title:STR_SETTINGS_THEME_BUTTON_PLAYLIST
+                       colorTitle:STR_SETTINGS_THEME_BUTTON_PLAYLIST_COLOR
+                       imageTitle:STR_SETTINGS_THEME_BUTTON_PLAYLIST_IMAGE
+                        colorBase:kVibeThemeColorPlaylistButton
+                           glyphs:GlyphList(kVibePlaylistButtonGlyphs, kVibePlaylistButtonGlyphCount)
+                     imageControl:[self imageClusterForKey:kVibeThemeImagePlaylistButton]];
+    NSMutableArray<NSString *> *playGlyphs = [NSMutableArray array];
+    for (size_t i = 0; i < kVibePlayPauseGlyphPairCount; i++) {
+        [playGlyphs addObject:kVibePlayPauseGlyphPairs[i][0]];
+    }
+    NSArray<SettingsRowView *> *playButtonRows = [self
+            buttonRowsForImageKey:kVibeThemeImagePlayButton
+                            title:STR_SETTINGS_THEME_BUTTON_PLAY
+                       colorTitle:STR_SETTINGS_THEME_BUTTON_PLAY_COLOR
+                       imageTitle:STR_SETTINGS_THEME_BUTTON_PLAY_IMAGE
+                        colorBase:kVibeThemeColorPlayButton
+                           glyphs:playGlyphs
+                     imageControl:[self wellPair:[self imageClusterForKey:kVibeThemeImagePlayButton]
+                                         caption:STR_TRANSPORT_PLAY
+                                            well:[self imageClusterForKey:kVibeThemeImagePauseButton]
+                                         caption:STR_TRANSPORT_PAUSE]];
+    NSArray<SettingsRowView *> *nextButtonRows = [self
+            buttonRowsForImageKey:kVibeThemeImageNextButton
+                            title:STR_SETTINGS_THEME_BUTTON_NEXT
+                       colorTitle:STR_SETTINGS_THEME_BUTTON_NEXT_COLOR
+                       imageTitle:STR_SETTINGS_THEME_BUTTON_NEXT_IMAGE
+                        colorBase:kVibeThemeColorNextButton
+                           glyphs:GlyphList(kVibeNextButtonGlyphs, kVibeNextButtonGlyphCount)
+                     imageControl:[self imageClusterForKey:kVibeThemeImageNextButton]];
+    _buttonGradientSwitch = [self switchWithAction:@selector(toggleButtonGradient:)];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
@@ -398,21 +598,29 @@ static NSString *const kWellDark = @"dark";
         // must not keep the between-rows hairline the section stamps on it.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
             _backgroundColorsRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
             _windowTintDarkRow,
             _windowTintLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CUSTOM_CORNER_RADIUS control:_customCornerRadiusSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:[@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
+        ] arrayByAddingObjectsFromArray:[[[playlistButtonRows
+            arrayByAddingObjectsFromArray:playButtonRows]
+            arrayByAddingObjectsFromArray:nextButtonRows]
+            arrayByAddingObjectsFromArray:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:titleFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE control:titleColors],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
-        ]],
+        ]]]],
         _infoSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
@@ -534,6 +742,13 @@ static NSString *const kWellDark = @"dark";
     _playlistTintLightRow.hidden = !customPlaylistTint || single;
     _playlistBackgroundColorsRow.hidden = ![theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    // A button dressed in a picture has no glyph color to edit, and one
+    // drawing a glyph has no picture to show.
+    for (NSString *key in _glyphPopUps) {
+        BOOL hasImage = [self buttonHasImageForKey:key];
+        _buttonColorRows[key].hidden = hasImage;
+        _buttonImageRows[key].hidden = !hasImage;
+    }
     [self applyEditorVisibility];
 }
 
@@ -576,14 +791,20 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
 
     [self selectValue:theme.mode in:_modePopUp];
+    [self selectValue:theme.dockIcon in:_dockIconPopUp];
     [self selectValue:theme.windowBackgroundStyle in:_backgroundPopUp];
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     for (NSColorWell *well in _wellBindings) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
         well.color = [theme displayColorForBase:binding[kWellBase] dark:[binding[kWellDark] boolValue]];
     }
+    _customCornerRadiusSwitch.state = StateForBOOL(theme.customCornerRadius);
     _cornerRadiusSlider.doubleValue = theme.windowCornerRadius;
     [self refreshCornerRadiusValue];
+    for (NSString *key in _glyphPopUps) {
+        [self selectGlyphChoiceForButtonImageKey:key];
+    }
+    _buttonGradientSwitch.state = StateForBOOL(theme.buttonGradient);
 
     _fileInfoSwitch.state = StateForBOOL(theme.showFileInfo);
     BOOL remaining = theme.showRemainingTime;
@@ -599,16 +820,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
-    _artDarkPreviewButton.image =
-            [AppTheme imageForDefaultArtwork:[theme defaultArtworkForDark:YES]];
-    _artLightPreviewButton.image =
-            [AppTheme imageForDefaultArtwork:[theme defaultArtworkForDark:NO]];
-    _artDarkClearButton.hidden = YES;
-    _artLightClearButton.hidden = YES;
-    _artDarkMissingBadge.hidden =
-            ![AppTheme defaultArtworkIsMissing:[theme defaultArtworkForDark:YES]];
-    _artLightMissingBadge.hidden =
-            ![AppTheme defaultArtworkIsMissing:[theme defaultArtworkForDark:NO]];
+    for (NSString *key in AppTheme.imageFieldKeys) {
+        _imagePreviews[key].image = [self previewImageForKey:key];
+        _imageClearBadges[key].hidden = YES;
+        _imageMissingBadges[key].hidden =
+                ![AppTheme referenceIsMissing:[theme imageReferenceForKey:key]];
+    }
     _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
     [self selectValue:theme.playlistBackgroundStyle in:_playlistBackgroundPopUp];
     [self selectValue:theme.playlistTint in:_playlistTintPopUp];
@@ -631,6 +848,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         // Key notation and key colors additionally require Show key.
         _keyNotationPopUp.enabled = info && showKey;
         _keyColorsSwitch.enabled = info && showKey;
+        // The slider governs nothing while the window draws the standard radius.
+        _cornerRadiusSlider.enabled = theme.customCornerRadius;
     }
     if (builtIn) {
         [self closeEditorPanels];
@@ -732,10 +951,22 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
 }
 
+- (void)dockIconChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.dockIcon = _dockIconPopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
+}
+
+- (void)toggleCustomCornerRadius:(id)sender {
+    AppSettings.sharedInstance.currentTheme.customCornerRadius =
+            (_customCornerRadiusSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+    [self refreshFromSettings]; // the slider enables with it
+}
+
 - (void)cornerRadiusChanged:(id)sender {
-    // A magnetic detent at the factory radius — the reset, without a button:
-    // dragging near the default snaps onto it. The sanitize gate rounds to
-    // whole points; the knob re-syncs to what actually landed.
+    // A magnetic detent at the standard radius — the reset, without a button:
+    // dragging near it snaps onto it. The sanitize gate rounds to whole
+    // points; the knob re-syncs to what actually landed.
     double radius = _cornerRadiusSlider.doubleValue;
     if (fabs(radius - kVibeThemeCornerRadiusDefault) < 1.5) {
         radius = kVibeThemeCornerRadiusDefault;
@@ -751,40 +982,39 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             (long)lround(AppSettings.sharedInstance.currentTheme.windowCornerRadius)];
 }
 
-#pragma mark - Editor: default artwork
+#pragma mark - Editor: images
 
 // The clear badge shows only while there is something to clear: a non-empty
-// value in the hovered side's slot, on an editable page. Read live — the
-// value, the page and the enable state can all have changed since the last
-// hover.
+// reference in the hovered slot, on an editable page. Read live — the value,
+// the page and the enable state can all have changed since the last hover.
 - (void)mouseEntered:(NSEvent *)event {
-    NSNumber *side = event.trackingArea.userInfo[@"artClearForDark"];
-    if (side == nil) {
+    NSString *key = event.trackingArea.userInfo[@"imageField"];
+    if (!key) {
         return;
     }
-    NSButton *preview = side.boolValue ? _artDarkPreviewButton : _artLightPreviewButton;
-    NSButton *clear = side.boolValue ? _artDarkClearButton : _artLightClearButton;
-    clear.hidden = !preview.enabled || [AppSettings.sharedInstance.currentTheme
-            defaultArtworkForDark:side.boolValue].length == 0;
+    _imageClearBadges[key].hidden = !_imagePreviews[key].enabled
+            || [AppSettings.sharedInstance.currentTheme imageReferenceForKey:key].length == 0;
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    NSNumber *side = event.trackingArea.userInfo[@"artClearForDark"];
-    if (side != nil) {
-        (side.boolValue ? _artDarkClearButton : _artLightClearButton).hidden = YES;
+    NSString *key = event.trackingArea.userInfo[@"imageField"];
+    if (key) {
+        _imageClearBadges[key].hidden = YES;
     }
 }
 
-- (void)clearCustomArtwork:(id)sender {
-    [AppSettings.sharedInstance.currentTheme setDefaultArtwork:@""
-            forDark:sender == _artDarkClearButton];
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
-            | VibeSettingsLiveEffectPlaylistAppearance];
+- (void)clearCustomImage:(NSButton *)sender {
+    NSString *key = sender.identifier;
+    [AppSettings.sharedInstance.currentTheme setImageReference:@"" forKey:key];
+    [self themeFieldDidChange:EffectForImageKey(key)];
     [self refreshFromSettings]; // also hides the badge — the cursor is still over it
 }
 
-- (void)chooseAlbumArt:(id)sender {
-    BOOL isDark = sender == _artDarkPreviewButton;
+- (void)chooseImage:(NSButton *)sender {
+    [self chooseImageForKey:sender.identifier];
+}
+
+- (void)chooseImageForKey:(NSString *)key {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
     panel.allowsMultipleSelection = NO;
@@ -795,6 +1025,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     NSString *target = AppSettings.sharedInstance.activeThemeIdentifier;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result != NSModalResponseOK || !panel.URL) {
+            // A glyph popup left on Custom image… re-selects its glyph.
+            [self refreshFromSettings];
             return;
         }
         if (![AppSettings.sharedInstance.activeThemeIdentifier isEqualToString:target]) {
@@ -808,7 +1040,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         // rejects an oversized image, but only once the bytes exist, and a
         // mistakenly picked huge file must not be pulled into memory to be
         // told it is too big.
-        NSString *stored = [AppTheme storeCustomArtworkData:
+        NSString *stored = [AppTheme storeCustomImageData:
                 [NSData dataWithContentsOfURL:panel.URL
                                       options:NSDataReadingMappedIfSafe
                                         error:NULL] error:&error];
@@ -820,11 +1052,38 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
             return;
         }
-        [AppSettings.sharedInstance.currentTheme setDefaultArtwork:stored forDark:isDark];
-        [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay
-                | VibeSettingsLiveEffectPlaylistAppearance];
+        [AppSettings.sharedInstance.currentTheme setImageReference:stored forKey:key];
+        [self themeFieldDidChange:EffectForImageKey(key)];
         [self refreshFromSettings];
     }];
+}
+
+#pragma mark - Editor: transport buttons
+
+// A glyph pick retires the button's picture — the picture wins over the
+// glyph while set, so leaving it would make the pick a no-op; Custom image…
+// opens the panel for the button's (first) slot and, cancelled, refreshes
+// the popup back to the glyph.
+- (void)buttonGlyphChanged:(NSPopUpButton *)sender {
+    NSString *key = sender.identifier;
+    NSString *choice = sender.selectedItem.representedObject;
+    if ([choice isEqualToString:kGlyphChoiceCustomImage]) {
+        [self chooseImageForKey:key];
+        return;
+    }
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [self setGlyph:choice forButtonImageKey:key];
+    for (NSString *imageKey in [self imageKeysForButtonImageKey:key]) {
+        [theme setImageReference:@"" forKey:imageKey];
+    }
+    [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];
+    [self refreshFromSettings];
+}
+
+- (void)toggleButtonGradient:(id)sender {
+    AppSettings.sharedInstance.currentTheme.buttonGradient =
+            (_buttonGradientSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];
 }
 
 #pragma mark - Editor: info display

@@ -50,10 +50,25 @@ static NSString *const kFieldPlaylistFontFace = @"playlistFontFace";
 static NSString *const kFieldPlaylistFontSize = @"playlistFontSize";
 static NSString *const kFieldPlaylistDurationFontFace = @"playlistDurationFontFace";
 static NSString *const kFieldPlaylistDurationFontSize = @"playlistDurationFontSize";
-NSString *const kFieldDefaultArtworkDark  = @"defaultArtworkDark";
-NSString *const kFieldDefaultArtworkLight = @"defaultArtworkLight";
 static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkColumn";
 static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
+static NSString *const kFieldCustomCornerRadius = @"customCornerRadius";
+static NSString *const kFieldDockIcon = @"dockIcon";
+static NSString *const kFieldButtonGradient = @"buttonGradient";
+static NSString *const kFieldPlaylistButtonGlyph = @"playlistButtonGlyph";
+static NSString *const kFieldPlayButtonGlyph = @"playButtonGlyph";
+static NSString *const kFieldPauseButtonGlyph = @"pauseButtonGlyph";
+static NSString *const kFieldNextButtonGlyph = @"nextButtonGlyph";
+
+// The image fields' keys, exported: the editor's previews, the archive and
+// the sweep address a slot by these.
+NSString *const kVibeThemeImageDefaultArtworkDark  = @"defaultArtworkDark";
+NSString *const kVibeThemeImageDefaultArtworkLight = @"defaultArtworkLight";
+NSString *const kVibeThemeImageAppIcon = @"appIcon";
+NSString *const kVibeThemeImagePlaylistButton = @"playlistButtonImage";
+NSString *const kVibeThemeImagePlayButton = @"playButtonImage";
+NSString *const kVibeThemeImagePauseButton = @"pauseButtonImage";
+NSString *const kVibeThemeImageNextButton = @"nextButtonImage";
 
 // The color pairs' base names; Dark/Light is appended per appearance.
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
@@ -68,6 +83,9 @@ NSString *const kVibeThemeColorTime = @"timeColor";
 NSString *const kVibeThemeColorPlaylistBackground = @"playlistBackgroundColor";
 NSString *const kVibeThemeColorPlaylistPlayingRow = @"playlistPlayingRowColor";
 NSString *const kVibeThemeColorPlaylistSelectedRow = @"playlistSelectedRowColor";
+NSString *const kVibeThemeColorPlaylistButton = @"playlistButtonColor";
+NSString *const kVibeThemeColorPlayButton = @"playButtonColor";
+NSString *const kVibeThemeColorNextButton = @"nextButtonColor";
 
 static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     if (![raw isKindOfClass:NSString.class]) {
@@ -92,6 +110,7 @@ static NSString *const kSpecGroup = @"group";
 static NSString *const kSpecJSONKey = @"json";
 static NSString *const kSpecDefault = @"default";
 static NSString *const kSpecColorBase = @"colorBase";
+static NSString *const kSpecArchiveEntry = @"archiveEntry";
 static NSString *const kSpecSanitize = @"sanitize";
 
 // The kinds — the one gate's rules. A raw value comes out normalized, clamped
@@ -131,15 +150,17 @@ static FieldSanitizer ColorField(void) {
     };
 }
 
-// The two shapes a default-artwork value takes. custom: names a container
-// file by its content hash — which is what makes imageForDefaultArtwork:'s
-// lifetime cache safe: a changed image is a new key. bundled: names an image
-// shipped beside the built-in theme JSONs in Resources/Themes/, immutable for
-// a build, so the same cache holds it. "" is the factory record image.
-static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value) {
-    if (value.length == 0) {
-        return NO;
-    }
+static BOOL VibeMatchesShape(NSString *_Nullable value, NSRegularExpression *shape) {
+    return value.length > 0 && [shape numberOfMatchesInString:value options:0
+                                                         range:NSMakeRange(0, value.length)] == 1;
+}
+
+// The two shapes an image reference takes. custom: names a container file by
+// its content hash — which is what makes imageForReference:'s lifetime cache
+// safe: a changed image is a new key. bundled: names an image shipped beside
+// the built-in theme JSONs in Resources/Themes/, immutable for a build, so
+// the same cache holds it. "" is the slot's factory image.
+static BOOL VibeIsValidImageReference(NSString *_Nullable value) {
     static NSRegularExpression *shape;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -147,14 +168,30 @@ static BOOL VibeIsValidDefaultArtworkValue(NSString *_Nullable value) {
                 @"^(custom:[0-9a-f]{40}|bundled:[a-z0-9_]+)\\.(png|jpg)$"
                 options:0 error:NULL];
     });
-    return [shape numberOfMatchesInString:value options:0
-                                    range:NSMakeRange(0, value.length)] == 1;
+    return VibeMatchesShape(value, shape);
 }
 
-static FieldSanitizer ArtworkField(void) {
+static FieldSanitizer ImageField(void) {
     return ^id(id raw) {
         NSString *value = TrimmedCappedString(raw);
-        return VibeIsValidDefaultArtworkValue(value) ? value : nil;
+        return VibeIsValidImageReference(value) ? value : nil;
+    };
+}
+
+// An SF Symbol name's shape — lowercase letters, digits and dots — and
+// nothing about whether this macOS has the symbol: the draw site falls back
+// to the factory glyph for a name it cannot resolve, the way an uninstalled
+// font face resolves, so a JSON may name any symbol.
+static FieldSanitizer SymbolNameField(void) {
+    return ^id(id raw) {
+        static NSRegularExpression *shape;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            shape = [NSRegularExpression regularExpressionWithPattern:@"^[a-z0-9.]{1,64}$"
+                                                              options:0 error:NULL];
+        });
+        NSString *value = TrimmedCappedString(raw);
+        return VibeMatchesShape(value, shape) ? value : nil;
     };
 }
 
@@ -164,6 +201,15 @@ static NSMutableDictionary *Field(NSString *key, NSString *group, NSString *json
         kSpecKey: key, kSpecGroup: group, kSpecJSONKey: jsonKey, kSpecSanitize: [sanitize copy],
     }];
     spec[kSpecDefault] = defaultValue;
+    return spec;
+}
+
+// An image field: "" by default, and the slot-named archive entry its bytes
+// travel as (AppTheme+Archive). The JSON key is the record key — every image
+// field sits under the group its surface belongs to with no scope to drop.
+static NSMutableDictionary *ImageFieldSpec(NSString *key, NSString *group, NSString *archiveEntry) {
+    NSMutableDictionary *spec = Field(key, group, key, @"", ImageField());
+    spec[kSpecArchiveEntry] = archiveEntry;
     return spec;
 }
 
@@ -199,12 +245,34 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         // fraction would draw a radius no surface can display. Rounding in
         // the gate heals imports and pre-round stored records alike; the
         // slider merely re-syncs to what landed.
+        [rows addObject:Field(kFieldCustomCornerRadius, window, @"customCornerRadius", @NO, BoolField())];
         [rows addObject:Field(kFieldWindowCornerRadius, window, @"cornerRadius",
                               @(kVibeThemeCornerRadiusDefault),
                               NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
+        [rows addObject:ImageFieldSpec(kVibeThemeImageAppIcon, window, @"app_icon")];
+        [rows addObject:Field(kFieldDockIcon, window, @"dockIcon", SETTINGS_VALUE_DOCK_ICON_ALBUM_ART,
+                              LadderField(VibeNormalizedDockIcon))];
 
-        [rows addObject:Field(kFieldDefaultArtworkDark, player, @"defaultArtworkDark", @"", ArtworkField())];
-        [rows addObject:Field(kFieldDefaultArtworkLight, player, @"defaultArtworkLight", @"", ArtworkField())];
+        // The placeholder pair's entry names predate the other image fields
+        // and are what every exported archive already carries.
+        [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkDark, player, @"artwork_default_front")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkLight, player, @"artwork_default_back")];
+        [rows addObject:Field(kFieldPlaylistButtonGlyph, player, @"playlistButtonGlyph",
+                              kVibeThemePlaylistButtonGlyphDefault, SymbolNameField())];
+        AddColorPair(rows, kVibeThemeColorPlaylistButton, player, @"playlistButtonColor");
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlaylistButton, player, @"button_playlist")];
+        [rows addObject:Field(kFieldPlayButtonGlyph, player, @"playButtonGlyph",
+                              kVibeThemePlayButtonGlyphDefault, SymbolNameField())];
+        [rows addObject:Field(kFieldPauseButtonGlyph, player, @"pauseButtonGlyph",
+                              kVibeThemePauseButtonGlyphDefault, SymbolNameField())];
+        AddColorPair(rows, kVibeThemeColorPlayButton, player, @"playButtonColor");
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlayButton, player, @"button_play")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePauseButton, player, @"button_pause")];
+        [rows addObject:Field(kFieldNextButtonGlyph, player, @"nextButtonGlyph",
+                              kVibeThemeNextButtonGlyphDefault, SymbolNameField())];
+        AddColorPair(rows, kVibeThemeColorNextButton, player, @"nextButtonColor");
+        [rows addObject:ImageFieldSpec(kVibeThemeImageNextButton, player, @"button_next")];
+        [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient", @YES, BoolField())];
         // The font clamps are narrow on purpose: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
         [rows addObject:Field(kFieldTitleFontSize, player, @"titleFontSize",
@@ -287,6 +355,24 @@ static NSDictionary<NSString *, id> *FieldDefaults(void) {
 
 static NSArray<NSString *> *KnownFieldKeys(void) {
     return [FieldSpecs() valueForKey:kSpecKey];
+}
+
+// The image fields in the table's order, and their archive entry stems by
+// key — both derived, so a field cannot name a file without an entry to
+// travel as.
+static NSArray<NSString *> *ImageFieldKeys(void) {
+    static NSArray<NSString *> *keys;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray *found = [NSMutableArray array];
+        for (NSDictionary *spec in FieldSpecs()) {
+            if (spec[kSpecArchiveEntry]) {
+                [found addObject:spec[kSpecKey]];
+            }
+        }
+        keys = [found copy];
+    });
+    return keys;
 }
 
 static id _Nullable SanitizedFieldValue(NSString *key, id _Nullable raw) {
@@ -395,6 +481,14 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
+    // The transport buttons sit over the album art's darkened lower edge, not
+    // the window chrome, so their factory white holds in both appearances;
+    // 0.55 is SymbolButton's resting strength.
+    if ([base isEqualToString:kVibeThemeColorPlaylistButton]
+            || [base isEqualToString:kVibeThemeColorPlayButton]
+            || [base isEqualToString:kVibeThemeColorNextButton]) {
+        return [NSColor colorWithWhite:1 alpha:0.55];
+    }
     if ([base isEqualToString:kVibeThemeColorWaveformPlayed]) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.75]
                       : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
@@ -491,9 +585,19 @@ static void VibeLoadBuiltInThemes(void) {
     return builtInNames[identifier];
 }
 
-#pragma mark Default artwork
+#pragma mark Images
 
-static NSString *VibeCustomArtworkDirectory(void) {
++ (NSArray<NSString *> *)imageFieldKeys {
+    return ImageFieldKeys();
+}
+
++ (NSString *)archiveEntryStemForImageKey:(NSString *)key {
+    return FieldSpecsByKey()[key][kSpecArchiveEntry];
+}
+
+// The container directory keeps its original name: it is where every
+// existing install's images already are.
+static NSString *VibeCustomImageDirectory(void) {
 #if DEBUG
     // A test seam: the host-less suite is unsandboxed, so without a redirect
     // it would write into the developer's real ~/Library. make test always
@@ -517,32 +621,32 @@ static NSString *VibeCustomArtworkDirectory(void) {
 
 // The file name after either prefix — the archive entry's base name, the
 // container file, the bundled resource — or nil for "" and anything else.
-static NSString *_Nullable VibeArtworkFileName(NSString *_Nullable value) {
+static NSString *_Nullable VibeImageFileName(NSString *_Nullable reference) {
     for (NSString *prefix in @[@"custom:", @"bundled:"]) {
-        if ([value hasPrefix:prefix]) {
-            return [value substringFromIndex:prefix.length];
+        if ([reference hasPrefix:prefix]) {
+            return [reference substringFromIndex:prefix.length];
         }
     }
     return nil;
 }
 
-// The container path a custom: value names, or nil for any other value.
-static NSString *_Nullable VibeCustomArtworkPath(NSString *_Nullable value) {
-    if (![value hasPrefix:@"custom:"]) {
+// The container path a custom: reference names, or nil for any other value.
+static NSString *_Nullable VibeCustomImagePath(NSString *_Nullable reference) {
+    if (![reference hasPrefix:@"custom:"]) {
         return nil;
     }
-    return [VibeCustomArtworkDirectory() stringByAppendingPathComponent:VibeArtworkFileName(value)];
+    return [VibeCustomImageDirectory() stringByAppendingPathComponent:VibeImageFileName(reference)];
 }
 
-// The Resources/Themes URL a bundled: value names, or nil for any other value
-// and for a name THIS build ships no image for — which is what lets an
+// The Resources/Themes URL a bundled: reference names, or nil for any other
+// value and for a name THIS build ships no image for — which is what lets an
 // archive's own copy stand in. Callers pass a sanitized value: the shape gate
 // is what keeps a crafted name out of the bundle lookup.
-static NSURL *_Nullable VibeBundledArtworkURL(NSString *_Nullable value) {
-    if (![value hasPrefix:@"bundled:"]) {
+static NSURL *_Nullable VibeBundledImageURL(NSString *_Nullable reference) {
+    if (![reference hasPrefix:@"bundled:"]) {
         return nil;
     }
-    NSString *file = VibeArtworkFileName(value);
+    NSString *file = VibeImageFileName(reference);
     return [[NSBundle bundleForClass:AppTheme.class]
             URLForResource:file.stringByDeletingPathExtension
              withExtension:file.pathExtension subdirectory:@"Themes"];
@@ -550,13 +654,12 @@ static NSURL *_Nullable VibeBundledArtworkURL(NSString *_Nullable value) {
 
 // JPEG or PNG by magic, square by pixel counts, bounded in bytes and pixels.
 // Returns the extension, or nil with the failed expectation in outReason.
-static const NSUInteger kArtworkByteCap = 8 * 1024 * 1024;
-static const NSInteger kArtworkPixelCap = 4096;
-static const NSInteger kArtworkPixelFloor = 64;
+static const NSInteger kImagePixelCap = 4096;
+static const NSInteger kImagePixelFloor = 64;
 
-static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReason) {
+static NSString *VibeValidatedImageExtension(NSData *data, NSString **outReason) {
     *outReason = nil;
-    if (data.length == 0 || data.length > kArtworkByteCap) {
+    if (data.length == 0 || data.length > kVibeThemeImageByteCap) {
         *outReason = @"the image is empty or over 8 MB";
         return nil;
     }
@@ -572,26 +675,26 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     }
     CGSize pixels = VibeEncodedImagePixelSize(data);
     NSInteger width = (NSInteger)pixels.width;
-    if (width < kArtworkPixelFloor || width > kArtworkPixelCap || pixels.width != pixels.height) {
+    if (width < kImagePixelFloor || width > kImagePixelCap || pixels.width != pixels.height) {
         *outReason = @"the image must be square, between 64 and 4096 pixels";
         return nil;
     }
     return ext;
 }
 
-+ (BOOL)defaultArtworkIsMissing:(NSString *)value {
-    if (!VibeIsValidDefaultArtworkValue(value)) {
++ (BOOL)referenceIsMissing:(NSString *)reference {
+    if (!VibeIsValidImageReference(reference)) {
         return NO;
     }
-    if ([value hasPrefix:@"bundled:"]) {
-        return VibeBundledArtworkURL(value) == nil;
+    if ([reference hasPrefix:@"bundled:"]) {
+        return VibeBundledImageURL(reference) == nil;
     }
-    return ![NSFileManager.defaultManager fileExistsAtPath:VibeCustomArtworkPath(value)];
+    return ![NSFileManager.defaultManager fileExistsAtPath:VibeCustomImagePath(reference)];
 }
 
-+ (NSString *)storeCustomArtworkData:(NSData *)data error:(NSError **)error {
++ (NSString *)storeCustomImageData:(NSData *)data error:(NSError **)error {
     NSString *reason = nil;
-    NSString *ext = VibeValidatedArtworkExtension(data, &reason);
+    NSString *ext = VibeValidatedImageExtension(data, &reason);
     if (!ext) {
         if (error) {
             *error = [NSError errorWithDomain:@"AppTheme" code:3
@@ -600,7 +703,7 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
         return nil;
     }
     NSString *hex = [data sha1Hex];
-    NSString *directory = VibeCustomArtworkDirectory();
+    NSString *directory = VibeCustomImageDirectory();
     [NSFileManager.defaultManager createDirectoryAtPath:directory
             withIntermediateDirectories:YES attributes:nil error:NULL];
     NSString *file = [NSString stringWithFormat:@"%@.%@", hex, ext];
@@ -616,24 +719,24 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     return [@"custom:" stringByAppendingString:file];
 }
 
-+ (NSSet<NSString *> *)customArtworkFilesInRecord:(NSDictionary<NSString *, id> *)record {
++ (NSSet<NSString *> *)customImageFilesInRecord:(NSDictionary<NSString *, id> *)record {
     NSMutableSet<NSString *> *files = [NSMutableSet set];
-    for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
+    for (NSString *key in ImageFieldKeys()) {
         NSString *value = [record[key] isKindOfClass:NSString.class] ? record[key] : nil;
         if ([value hasPrefix:@"custom:"]) {
-            [files addObject:VibeArtworkFileName(value)];
+            [files addObject:VibeImageFileName(value)];
         }
     }
     return files;
 }
 
-+ (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records {
++ (void)removeCustomImageFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records {
     NSMutableSet<NSString *> *referenced = [NSMutableSet set];
     for (NSDictionary *record in records) {
-        [referenced unionSet:[self customArtworkFilesInRecord:record]];
+        [referenced unionSet:[self customImageFilesInRecord:record]];
     }
     NSFileManager *manager = NSFileManager.defaultManager;
-    NSString *directory = VibeCustomArtworkDirectory();
+    NSString *directory = VibeCustomImageDirectory();
     for (NSString *file in [manager contentsOfDirectoryAtPath:directory error:NULL]) {
         if (![referenced containsObject:file]) {
             [manager removeItemAtPath:[directory stringByAppendingPathComponent:file]
@@ -642,28 +745,28 @@ static NSString *VibeValidatedArtworkExtension(NSData *data, NSString **outReaso
     }
 }
 
-// The bytes a bundled: value names in this build's Resources/Themes, or a
-// custom: value in the container; nil for "", a name nothing holds, and
-// any other value. The one read behind the image cache and the archive.
-+ (NSData *)dataForDefaultArtwork:(NSString *)value {
-    NSURL *bundled = VibeBundledArtworkURL(value);
+// The bytes a bundled: reference names in this build's Resources/Themes, or
+// a custom: one in the container; nil for "", a name nothing holds, and any
+// other value. The one read behind the image cache and the archive.
++ (NSData *)dataForReference:(NSString *)reference {
+    NSURL *bundled = VibeBundledImageURL(reference);
     if (bundled) {
         return [NSData dataWithContentsOfURL:bundled];
     }
-    NSString *path = VibeCustomArtworkPath(value);
+    NSString *path = VibeCustomImagePath(reference);
     return path ? [NSData dataWithContentsOfFile:path] : nil;
 }
 
-static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
+static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
     static NSMutableDictionary<NSString *, NSImage *> *cache;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ cache = [NSMutableDictionary dictionary]; });
     return cache;
 }
 
-+ (NSImage *)imageForDefaultArtwork:(NSString *)value {
-    NSMutableDictionary<NSString *, NSImage *> *cache = ArtworkImageCache();
-    NSString *key = VibeIsValidDefaultArtworkValue(value) ? value : @"";
++ (NSImage *)imageForReference:(NSString *)reference {
+    NSMutableDictionary<NSString *, NSImage *> *cache = ImageCache();
+    NSString *key = VibeIsValidImageReference(reference) ? reference : @"";
     @synchronized (cache) {
         NSImage *cached = cache[key];
         if (cached) {
@@ -672,12 +775,13 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
     }
     // The read and the bounded decode (Common/PlatformImage.h — 10-100ms) run
     // OUTSIDE the lock, so a first decode never stalls every other consumer
-    // of the cache behind it. The draw sites are the header panel and the
-    // editor's previews, and a 4096px original must never be materialized
-    // into a lifetime-cached full bitmap. The synchronous once-per-key cost
-    // on the calling thread is deliberate: the sites need an image to draw
-    // NOW, and the lifetime cache makes it a one-time price.
-    NSData *data = [self dataForDefaultArtwork:key];
+    // of the cache behind it. The draw sites are the header panel, the dock
+    // tile, the transport buttons and the editor's previews, and a 4096px
+    // original must never be materialized into a lifetime-cached full
+    // bitmap. The synchronous once-per-key cost on the calling thread is
+    // deliberate: the sites need an image to draw NOW, and the lifetime
+    // cache makes it a one-time price.
+    NSData *data = [self dataForReference:key];
     // The mac's display-art bound (Common/PlatformImage.h): the header
     // draws at most ~525px, so the 1024px cross-platform bound would pin a
     // bitmap 2.5x larger than anything on screen for the app's lifetime.
@@ -688,7 +792,7 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
         // content-hash-named, so re-storing the same image later reuses the
         // name that is now poisoned, and the theme would keep drawing the
         // factory record until the next launch.
-        return [self imageForDefaultArtwork:@""];
+        return [self imageForReference:@""];
     }
     // The factory record image; the blank square is for the host-less
     // test bundle, which carries no asset catalog.
@@ -703,15 +807,15 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
             return raced;
         }
         if ([key hasPrefix:@"custom:"]) {
-            // A theme's live set is at most two custom images (dark +
-            // light); auditioned predecessors would otherwise stay pinned by
+            // A theme's live set is at most one custom image per image
+            // field; auditioned predecessors would otherwise stay pinned by
             // their content-hash keys. A custom-referencing composite goes
             // with the entries it wraps.
             NSUInteger customs = 0;
             for (NSString *held in cache) {
                 customs += [held hasPrefix:@"custom:"] ? 1 : 0;
             }
-            if (customs >= 2) {
+            if (customs >= ImageFieldKeys().count) {
                 for (NSString *stale in [cache.allKeys copy]) {
                     if ([stale hasPrefix:@"custom:"] || ([stale hasPrefix:@"dual|"]
                             && [stale containsString:@"custom:"])) {
@@ -732,14 +836,14 @@ static NSMutableDictionary<NSString *, NSImage *> *ArtworkImageCache(void) {
 // unchanged placeholder; same-valued sides skip the wrapper entirely, which
 // keeps a single-mode theme (and the factory look) a plain image.
 + (NSImage *)imageForDefaultArtworkDark:(NSString *)darkValue light:(NSString *)lightValue {
-    NSImage *dark = [self imageForDefaultArtwork:darkValue];
-    NSImage *light = [self imageForDefaultArtwork:lightValue];
+    NSImage *dark = [self imageForReference:darkValue];
+    NSImage *light = [self imageForReference:lightValue];
     if (dark == light) {
         return dark;
     }
     // "dual|" cannot collide with a stored value: "|" fails the value shape.
     NSString *key = [NSString stringWithFormat:@"dual|%@|%@", darkValue ?: @"", lightValue ?: @""];
-    NSMutableDictionary<NSString *, NSImage *> *cache = ArtworkImageCache();
+    NSMutableDictionary<NSString *, NSImage *> *cache = ImageCache();
     @synchronized (cache) {
         NSImage *cached = cache[key];
         if (cached) {
@@ -835,14 +939,14 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 // before the parser sees it.
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
-// The two artwork fields as WRITTEN in a theme JSON — trimmed, not
-// sanitized — so a bare entry name an archive references survives here
-// where the record's gate has already dropped it. Empty and absent are
-// omitted; a root or group that is not an object reads as absent.
-+ (NSDictionary<NSString *, NSString *> *)rawDefaultArtworkReferencesInJSONData:(NSData *)json {
+// The image fields as WRITTEN in a theme JSON — trimmed, not sanitized — so
+// a bare entry name an archive references survives here where the record's
+// gate has already dropped it. Empty and absent are omitted; a root or group
+// that is not an object reads as absent.
++ (NSDictionary<NSString *, NSString *> *)rawImageReferencesInJSONData:(NSData *)json {
     NSDictionary *root = [NSJSONSerialization JSONObjectWithData:json options:0 error:NULL];
     NSMutableDictionary<NSString *, NSString *> *references = [NSMutableDictionary dictionary];
-    for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
+    for (NSString *key in ImageFieldKeys()) {
         NSArray<NSString *> *location = ThemeJSONFieldLocations()[key];
         id group = [root isKindOfClass:NSDictionary.class] ? root[location[0]] : nil;
         NSString *art = TrimmedCappedString(
@@ -900,16 +1004,16 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 }
 
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record name:(NSString *)name {
-    return [self JSONDataForRecord:record name:name artworkNames:nil];
+    return [self JSONDataForRecord:record name:name entryNames:nil];
 }
 
 + (NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
                           name:(NSString *)name
-                  artworkNames:(NSDictionary<NSString *, NSString *> *)artworkNames {
+                    entryNames:(NSDictionary<NSString *, NSString *> *)entryNames {
     NSDictionary *fields = [self sanitizedRecord:record];
-    if (artworkNames.count) {
+    if (entryNames.count) {
         NSMutableDictionary *renamed = [fields mutableCopy];
-        [artworkNames enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *entry, BOOL *stop) {
+        [entryNames enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *entry, BOOL *stop) {
             renamed[key] = entry;
         }];
         fields = renamed;
@@ -963,6 +1067,14 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     [_fields removeAllObjects];
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
+    }
+    // The custom-radius switch postdates the radius: a record naming a
+    // radius with no word on the switch — a stored theme or an exported file
+    // from before it — chose that shape, so it reads as custom rather than
+    // snapping to the standard radius.
+    if (SanitizedFieldValue(kFieldWindowCornerRadius, record[kFieldWindowCornerRadius])
+            && !record[kFieldCustomCornerRadius]) {
+        [self storeSanitized:@YES forKey:kFieldCustomCornerRadius];
     }
 }
 
@@ -1025,6 +1137,31 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (CGFloat)windowCornerRadius { return [self floatForKey:kFieldWindowCornerRadius]; }
 - (void)setWindowCornerRadius:(CGFloat)v { [self storeSanitized:@(v) forKey:kFieldWindowCornerRadius]; }
+
+- (BOOL)customCornerRadius { return [self boolForKey:kFieldCustomCornerRadius]; }
+- (void)setCustomCornerRadius:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldCustomCornerRadius]; }
+
+- (CGFloat)resolvedWindowCornerRadius {
+    return self.customCornerRadius ? self.windowCornerRadius : kVibeThemeCornerRadiusDefault;
+}
+
+- (NSString *)dockIcon { return [self stringForKey:kFieldDockIcon]; }
+- (void)setDockIcon:(NSString *)v { [self storeSanitized:v forKey:kFieldDockIcon]; }
+
+- (BOOL)buttonGradient { return [self boolForKey:kFieldButtonGradient]; }
+- (void)setButtonGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldButtonGradient]; }
+
+- (NSString *)playlistButtonGlyph { return [self stringForKey:kFieldPlaylistButtonGlyph]; }
+- (void)setPlaylistButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistButtonGlyph]; }
+
+- (NSString *)playButtonGlyph { return [self stringForKey:kFieldPlayButtonGlyph]; }
+- (void)setPlayButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldPlayButtonGlyph]; }
+
+- (NSString *)pauseButtonGlyph { return [self stringForKey:kFieldPauseButtonGlyph]; }
+- (void)setPauseButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldPauseButtonGlyph]; }
+
+- (NSString *)nextButtonGlyph { return [self stringForKey:kFieldNextButtonGlyph]; }
+- (void)setNextButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldNextButtonGlyph]; }
 
 - (BOOL)showFileInfo { return [self boolForKey:kFieldShowFileInfo]; }
 - (void)setShowFileInfo:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowFileInfo]; }
@@ -1117,14 +1254,40 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     [self storeSanitized:@(size) forKey:sizeKey];
 }
 
+// The placeholder's light slot is the one image key single mode redirects,
+// the color pairs' rule; every other image field is one slot.
+- (NSString *)imageKeyForKey:(NSString *)key {
+    if (self.isSingleMode && [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
+        return kVibeThemeImageDefaultArtworkDark;
+    }
+    NSAssert([ImageFieldKeys() containsObject:key], @"no image field %@", key);
+    return key;
+}
+
+- (NSString *)imageReferenceForKey:(NSString *)key {
+    return [self stringForKey:[self imageKeyForKey:key]];
+}
+
+- (void)setImageReference:(NSString *)reference forKey:(NSString *)key {
+    [self storeSanitized:reference forKey:[self imageKeyForKey:key]];
+}
+
 - (NSString *)defaultArtworkForDark:(BOOL)isDark {
-    return [self stringForKey:(self.isSingleMode || isDark)
-            ? kFieldDefaultArtworkDark : kFieldDefaultArtworkLight];
+    return [self imageReferenceForKey:isDark ? kVibeThemeImageDefaultArtworkDark
+                                             : kVibeThemeImageDefaultArtworkLight];
 }
 
 - (void)setDefaultArtwork:(NSString *)v forDark:(BOOL)isDark {
-    [self storeSanitized:v forKey:(self.isSingleMode || isDark)
-            ? kFieldDefaultArtworkDark : kFieldDefaultArtworkLight];
+    [self setImageReference:v forKey:isDark ? kVibeThemeImageDefaultArtworkDark
+                                            : kVibeThemeImageDefaultArtworkLight];
+}
+
+- (NSImage *)customImageForKey:(NSString *)key {
+    NSString *reference = [self imageReferenceForKey:key];
+    if (reference.length == 0 || [AppTheme referenceIsMissing:reference]) {
+        return nil;
+    }
+    return [AppTheme imageForReference:reference];
 }
 
 - (NSImage *)resolvedDefaultArtworkImage {

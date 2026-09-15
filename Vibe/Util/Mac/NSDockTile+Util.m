@@ -60,7 +60,11 @@ static NSImageView *VibeInstalledDockIconView(void) {
     if (!VibeDockIconView) {
         return;
     }
-    VibeDockIconView.image = VibeDockAppIcon;
+    // Read live rather than from the install-time capture: a theme's custom
+    // app icon lands in applicationIconImage after the view exists, and
+    // clearing it restores the bundle's. The capture stays the fallback for
+    // the pre-launch nil.
+    VibeDockIconView.image = [NSApp applicationIconImage] ?: VibeDockAppIcon;
     [[NSApp dockTile] display];
 }
 
@@ -176,6 +180,20 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
             [[NSApp dockTile] display];
         });
     });
+}
+
++ (void)setAppIcon:(NSImage *)image {
+    // Composed on the same grid as the artwork tile, so a square picture
+    // reads as an icon beside its Dock neighbors rather than a bare tile;
+    // nil is the property's own reset to the bundle icon (null_resettable).
+    // Memoized on the source: the theme's image cache hands back one instance
+    // per reference, and every theme apply re-requests this.
+    static NSImage *composedFrom = nil, *composed = nil;
+    if (image && image != composedFrom) {
+        composed = CreateMacStyleIconFromImage(image, kVibeDockIconCanvasSize);
+        composedFrom = image;
+    }
+    NSApp.applicationIconImage = image ? composed : nil;
 }
 
 @end

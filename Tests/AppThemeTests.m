@@ -51,7 +51,19 @@
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
-    XCTAssertEqual(theme.windowCornerRadius, 20);
+    XCTAssertEqual(theme.windowCornerRadius, 16);
+    XCTAssertFalse(theme.customCornerRadius);
+    XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
+    XCTAssertEqualObjects(theme.dockIcon, @"album_art");
+    XCTAssertTrue(theme.buttonGradient);
+    XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
+    XCTAssertEqualObjects(theme.playButtonGlyph, @"play.fill");
+    XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.fill");
+    XCTAssertEqualObjects(theme.nextButtonGlyph, @"forward.end.fill");
+    for (NSString *key in AppTheme.imageFieldKeys) {
+        XCTAssertEqualObjects([theme imageReferenceForKey:key], @"", @"%@", key);
+        XCTAssertNil([theme customImageForKey:key], @"%@", key);
+    }
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
     XCTAssertTrue(theme.showPlaylistArtworkColumn);
@@ -74,11 +86,115 @@
 - (void)testDefaultValuedFieldsAreNotStored {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"waveformTheme": @"mono",
-        @"windowCornerRadius": @20,
+        @"customCornerRadius": @NO,
+        @"windowCornerRadius": @16,
         @"showFileInfo": @YES,
         @"titleFontFace": @"",
+        @"dockIcon": @"album_art",
+        @"playButtonGlyph": @"play.fill",
+        @"appIcon": @"",
     }];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
+}
+
+// The custom-radius switch postdates the radius: a record naming a radius
+// with no word on the switch — every stored theme and exported file from
+// before it — chose that shape and keeps it, while one that says off draws
+// the standard radius whatever its slider holds.
+- (void)testARadiusWithoutTheSwitchReadsAsCustom {
+    AppTheme *legacy = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8}];
+    XCTAssertTrue(legacy.customCornerRadius);
+    XCTAssertEqual(legacy.resolvedWindowCornerRadius, 8);
+    XCTAssertEqualObjects(legacy.dictionaryRepresentation,
+                          (@{@"windowCornerRadius": @8, @"customCornerRadius": @YES}));
+
+    AppTheme *off = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8,
+                                                        @"customCornerRadius": @NO}];
+    XCTAssertFalse(off.customCornerRadius);
+    XCTAssertEqual(off.windowCornerRadius, 8, @"the slider keeps its value");
+    XCTAssertEqual(off.resolvedWindowCornerRadius, 16, @"but the window draws the standard one");
+
+    // A setter is not a record: sliding the radius alone does not flip the
+    // switch — the editor's slider is disabled until the switch is on.
+    AppTheme *edited = [[AppTheme alloc] initWithRecord:nil];
+    edited.windowCornerRadius = 30;
+    XCTAssertFalse(edited.customCornerRadius);
+    XCTAssertEqual(edited.resolvedWindowCornerRadius, 16);
+    edited.customCornerRadius = YES;
+    XCTAssertEqual(edited.resolvedWindowCornerRadius, 30);
+}
+
+- (void)testDockIconSnapsToAlbumArt {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"dockIcon": @"finder"}];
+    XCTAssertEqualObjects(theme.dockIcon, @"album_art");
+    theme.dockIcon = @"app_icon";
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"dockIcon": @"app_icon"});
+}
+
+// A glyph field is free text in the symbol-name shape, like a font face: the
+// record does not know the symbol catalog, and the draw site falls back for
+// a name this macOS lacks. Anything outside the shape drops to the default.
+- (void)testGlyphsKeepTheSymbolNameShape {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
+        @"playlistButtonGlyph": @"  music.note.list ",
+        @"playButtonGlyph": @"play.circle",
+        @"pauseButtonGlyph": @"pause.circle",
+        @"nextButtonGlyph": @"chevron.right.2",
+    }];
+    XCTAssertEqualObjects(theme.playlistButtonGlyph, @"music.note.list");
+    XCTAssertEqualObjects(theme.playButtonGlyph, @"play.circle");
+    XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.circle");
+    XCTAssertEqualObjects(theme.nextButtonGlyph, @"chevron.right.2");
+    XCTAssertEqual(theme.dictionaryRepresentation.count, 4u);
+    for (NSString *bad in @[@"", @"Play.Fill", @"play fill", @"custom-image", @"play/fill"]) {
+        theme.nextButtonGlyph = bad;
+        XCTAssertEqualObjects(theme.nextButtonGlyph, @"forward.end.fill", @"%@", bad);
+    }
+    // Capped like a face, so a runaway name is stored short rather than dropped.
+    theme.nextButtonGlyph = [@"" stringByPaddingToLength:80 withString:@"a" startingAtIndex:0];
+    XCTAssertEqual(theme.nextButtonGlyph.length, 64u);
+    AppTheme *number = [[AppTheme alloc] initWithRecord:@{@"playButtonGlyph": @7}];
+    XCTAssertEqualObjects(number.playButtonGlyph, @"play.fill");
+}
+
+// The seven image fields are one shape and one store: any of them takes a
+// custom: or bundled: reference, every other value drops, and customImageForKey:
+// answers nil for the factory and for a reference whose file is gone — the
+// app icon and the buttons fall back to their own factory, never the record.
+- (void)testEveryImageFieldTakesOneReferenceShape {
+    NSArray<NSString *> *keys = AppTheme.imageFieldKeys;
+    XCTAssertEqualObjects(keys, (@[@"appIcon", @"defaultArtworkDark", @"defaultArtworkLight",
+                                   @"playlistButtonImage", @"playButtonImage",
+                                   @"pauseButtonImage", @"nextButtonImage"]));
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    for (NSString *key in keys) {
+        [theme setImageReference:stored forKey:key];
+        XCTAssertEqualObjects([theme imageReferenceForKey:key], stored, @"%@", key);
+        XCTAssertNotNil([theme customImageForKey:key], @"%@", key);
+        [theme setImageReference:@"vinyl_red" forKey:key];
+        XCTAssertEqualObjects([theme imageReferenceForKey:key], @"", @"%@", key);
+    }
+    [theme setImageReference:stored forKey:@"appIcon"];
+    XCTAssertEqualObjects([AppTheme customImageFilesInRecord:theme.dictionaryRepresentation],
+                          [NSSet setWithObject:[stored substringFromIndex:7]]);
+    [NSFileManager.defaultManager removeItemAtPath:
+            [_artDir stringByAppendingPathComponent:[stored substringFromIndex:7]] error:NULL];
+    XCTAssertTrue([AppTheme referenceIsMissing:stored]);
+    XCTAssertNil([theme customImageForKey:@"appIcon"], @"a missing image is no image");
+    XCTAssertNotNil([AppTheme imageForReference:stored], @"the placeholder's fallback still draws");
+}
+
+// Only the placeholder's light slot follows single mode's dark-slot rule;
+// the app icon and the button images are one slot each.
+- (void)testSingleModeRedirectsOnlyThePlaceholderPair {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
+    NSString *reference = @"custom:0123456789abcdef0123456789abcdef01234567.png";
+    [theme setImageReference:reference forKey:@"defaultArtworkLight"];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"], reference);
+    XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkLight"]);
+    [theme setImageReference:reference forKey:@"playButtonImage"];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"playButtonImage"], reference);
 }
 
 - (void)testSettingBackToTheDefaultEmptiesTheRecord {
@@ -86,7 +202,7 @@
     theme.windowCornerRadius = 8;
     theme.waveformTheme = @"orange";
     XCTAssertEqual(theme.dictionaryRepresentation.count, 2u);
-    theme.windowCornerRadius = 20;
+    theme.windowCornerRadius = 16;
     theme.waveformTheme = @"mono";
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
@@ -102,7 +218,7 @@
         @"windowCornerRadius": @12,
     }];
     XCTAssertEqualObjects(theme.dictionaryRepresentation,
-                          @{@"windowCornerRadius": @12});
+                          (@{@"windowCornerRadius": @12, @"customCornerRadius": @YES}));
 }
 
 - (void)testIdentifiersSnapToTheirLadders {
@@ -220,7 +336,8 @@
                                    kVibeThemeColorWindowBackground, kVibeThemeColorTitle,
                                    kVibeThemeColorArtist, kVibeThemeColorInfo, kVibeThemeColorTime,
                                    kVibeThemeColorPlaylistBackground, kVibeThemeColorPlaylistPlayingRow,
-                                   kVibeThemeColorPlaylistSelectedRow];
+                                   kVibeThemeColorPlaylistSelectedRow, kVibeThemeColorPlaylistButton,
+                                   kVibeThemeColorPlayButton, kVibeThemeColorNextButton];
     for (NSString *base in bases) {
         XCTAssertNotNil([theme displayColorForBase:base dark:YES], @"%@", base);
         XCTAssertNotNil([theme displayColorForBase:base dark:NO], @"%@", base);
@@ -249,7 +366,7 @@
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @4}];
     [theme replaceWithRecord:@{@"waveformTheme": @"orange"}];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"waveformTheme": @"orange"});
-    XCTAssertEqual(theme.windowCornerRadius, 20);
+    XCTAssertEqual(theme.windowCornerRadius, 16);
 }
 
 #pragma mark JSON
@@ -266,7 +383,7 @@
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
     XCTAssertEqualObjects(json[@"waveform"], @{@"theme": @"orange"});
-    XCTAssertEqualObjects(json[@"window"], @{@"cornerRadius": @6});
+    XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
     // version, then name, then the sections, in the file's own byte order.
@@ -281,7 +398,8 @@
     NSError *error = nil;
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
-    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6}));
+    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
+                                   @"customCornerRadius": @YES}));
     XCTAssertEqualObjects(name, @"Exported");
 }
 
@@ -296,7 +414,7 @@
     NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertNil(name);  // a non-string name does not travel
-    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @36});
+    XCTAssertEqualObjects(record, (@{@"windowCornerRadius": @36, @"customCornerRadius": @YES}));
 }
 
 - (void)testJSONImportRefusesJunk {
@@ -505,8 +623,8 @@
         [theme setDefaultArtwork:bad forDark:YES];
         XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"%@", bad);
     }
-    XCTAssertNotNil([AppTheme imageForDefaultArtwork:nil]);
-    XCTAssertNotNil([AppTheme imageForDefaultArtwork:@"never_shipped"]);
+    XCTAssertNotNil([AppTheme imageForReference:nil]);
+    XCTAssertNotNil([AppTheme imageForReference:@"never_shipped"]);
     // Single mode reads and writes the dark slot from either side; the light
     // half lies dormant, so a mode flip round-trips.
     theme.mode = @"single";
@@ -527,25 +645,25 @@ static NSData *SquarePNG(NSInteger side) {
     return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
 }
 
-- (void)testCustomArtworkStoreValidatesAndRoundTripsThroughTheArchive {
+- (void)testCustomImageStoreValidatesAndRoundTripsThroughTheArchive {
     NSError *error = nil;
     // Not square: rejected.
     NSBitmapImageRep *wide = [[NSBitmapImageRep alloc]
             initWithBitmapDataPlanes:NULL pixelsWide:128 pixelsHigh:64
             bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
             colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
-    XCTAssertNil([AppTheme storeCustomArtworkData:
+    XCTAssertNil([AppTheme storeCustomImageData:
             [wide representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
             error:&error]);
     // Too small: rejected. Garbage: rejected.
-    XCTAssertNil([AppTheme storeCustomArtworkData:SquarePNG(32) error:NULL]);
-    XCTAssertNil([AppTheme storeCustomArtworkData:
+    XCTAssertNil([AppTheme storeCustomImageData:SquarePNG(32) error:NULL]);
+    XCTAssertNil([AppTheme storeCustomImageData:
             [@"not an image" dataUsingEncoding:NSUTF8StringEncoding] error:NULL]);
 
     // A valid square stores, resolves, and survives the ZIP round trip.
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(256) error:&error];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(256) error:&error];
     XCTAssertTrue([stored hasPrefix:@"custom:"], @"%@", error);
-    XCTAssertNotNil([AppTheme imageForDefaultArtwork:stored]);
+    XCTAssertNotNil([AppTheme imageForReference:stored]);
 
     NSDictionary *record = @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"};
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Art Theme"];
@@ -564,7 +682,7 @@ static NSData *SquarePNG(NSInteger side) {
     XCTAssertEqualObjects(back, record); // same bytes re-hash to the same reference
 
     // A dual pair with two distinct custom images carries both.
-    NSString *light = [AppTheme storeCustomArtworkData:SquarePNG(128) error:&error];
+    NSString *light = [AppTheme storeCustomImageData:SquarePNG(128) error:&error];
     XCTAssertTrue([light hasPrefix:@"custom:"], @"%@", error);
     NSDictionary *pair = @{@"defaultArtworkDark": stored, @"defaultArtworkLight": light};
     NSDictionary *pairBack = [AppTheme recordFromJSONOrArchiveData:
@@ -637,8 +755,10 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
             [huge dataUsingEncoding:NSUTF8StringEncoding] name:NULL error:NULL],
             @"an over-cap JSON must be refused");
 
-    // Over the archive cap: refused on size alone, before any unzip.
-    NSMutableData *bigZip = [NSMutableData dataWithLength:17 * 1024 * 1024];
+    // Over the archive cap — one image per image field at the store's cap,
+    // plus slack: refused on size alone, before any unzip.
+    NSMutableData *bigZip = [NSMutableData dataWithLength:
+            AppTheme.imageFieldKeys.count * 8 * 1024 * 1024 + 1024 * 1024];
     [bigZip replaceBytesInRange:NSMakeRange(0, 4) withBytes:"PK\x03\x04" length:4];
     XCTAssertNil([AppTheme recordFromJSONOrArchiveData:bigZip name:NULL error:&error],
             @"an over-cap archive must be refused");
@@ -652,7 +772,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
                 @"a %@-byte zip stub must be refused", length);
     }
     // A real zip, truncated at every quarter.
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
     NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultArtworkDark": stored} name:@"Whole"];
     for (NSUInteger cut = 1; cut < 4; cut++) {
         NSData *piece = [zip subdataWithRange:NSMakeRange(0, zip.length * cut / 4)];
@@ -665,7 +785,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 // different: no theme at all is a refusal, a broken theme is a refusal, and a
 // missing image is NOT — the theme imports and falls back to the factory art.
 - (void)testWellFormedArchiveWithBadContentsDegradesPerCase {
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
     NSData *zip = [AppTheme archiveDataForRecord:
             @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"} name:@"Art"];
 
@@ -728,17 +848,39 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
             @"the two sides are different images and must not collapse");
     // And the images survived: each resolves to something other than the
     // factory placeholder every missing reference falls back to.
-    XCTAssertNotEqual([AppTheme imageForDefaultArtwork:back[@"defaultArtworkDark"]],
-            [AppTheme imageForDefaultArtwork:@""]);
+    XCTAssertNotEqual([AppTheme imageForReference:back[@"defaultArtworkDark"]],
+            [AppTheme imageForReference:@""]);
     // Every non-artwork field still round-trips untouched.
     XCTAssertEqualObjects(back[@"waveformTheme"], record[@"waveformTheme"]);
     XCTAssertEqualObjects(back[@"mode"], record[@"mode"]);
 }
 
+// Every image field travels under its own slot name and comes back re-hashed
+// into the container — the app icon and the button images exactly as the
+// placeholder pair does.
+- (void)testEveryImageFieldTravelsInTheArchiveUnderItsSlotName {
+    NSString *icon = [AppTheme storeCustomImageData:SquarePNG(128) error:NULL];
+    NSString *play = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
+    NSString *pause = [AppTheme storeCustomImageData:SquarePNG(80) error:NULL];
+    NSDictionary *record = @{@"appIcon": icon, @"playButtonImage": play,
+                             @"pauseButtonImage": pause, @"nextButtonGlyph": @"chevron.right"};
+    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Icons"];
+    XCTAssertNotNil(zip);
+    NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
+    XCTAssertTrue([bytes containsString:@"app_icon.png"]);
+    XCTAssertTrue([bytes containsString:@"button_play.png"]);
+    XCTAssertTrue([bytes containsString:@"button_pause.png"]);
+    XCTAssertFalse([bytes containsString:@"artwork_default"], @"no entry for an empty slot");
+    NSString *name = nil;
+    NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
+    XCTAssertEqualObjects(name, @"Icons");
+    XCTAssertEqualObjects(back, record, @"same bytes, same hashes, glyph untouched");
+}
+
 // Both sides naming ONE image ship its bytes once: the single-mode and
 // both-sides-alike cases, which would otherwise double a 1MB archive.
 - (void)testOneImageOnBothSidesShipsOneEntry {
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(256) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(256) error:NULL];
     NSData *zip = [AppTheme archiveDataForRecord:
             @{@"defaultArtworkDark": stored, @"defaultArtworkLight": stored} name:@"One"];
     NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
@@ -750,31 +892,31 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     XCTAssertEqualObjects(back[@"defaultArtworkLight"], stored);
 }
 
-// imageForDefaultArtwork: falls back to the factory image for a value it
+// imageForReference: falls back to the factory image for a value it
 // cannot resolve, which is right for drawing and useless for telling the two
 // apart. The editor's warning badge needs that difference.
 - (void)testMissingArtworkIsToldApartFromTheDefault {
     // The factory image and a malformed value are not "missing" — one is the
     // deliberate default, the other the sanitizer's problem and already gone.
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:nil]);
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@""]);
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"nonsense"]);
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"custom:short.png"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:nil]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@""]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"nonsense"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"custom:short.png"]);
 
     // A stored image is present; the same reference is missing once its file
     // goes, which is the case the badge exists for.
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:stored]);
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
+    XCTAssertFalse([AppTheme referenceIsMissing:stored]);
     [NSFileManager.defaultManager removeItemAtPath:
             [@(getenv("VIBE_THEME_ART_DIR")) stringByAppendingPathComponent:
                     [stored substringFromIndex:7]] error:NULL];
-    XCTAssertTrue([AppTheme defaultArtworkIsMissing:stored]);
+    XCTAssertTrue([AppTheme referenceIsMissing:stored]);
     // And it still draws — falling back is what makes the badge necessary.
-    XCTAssertNotNil([AppTheme imageForDefaultArtwork:stored]);
+    XCTAssertNotNil([AppTheme imageForReference:stored]);
 
     // A bundled name this build ships, against one it does not.
-    XCTAssertFalse([AppTheme defaultArtworkIsMissing:@"bundled:signal_workshop_dark.png"]);
-    XCTAssertTrue([AppTheme defaultArtworkIsMissing:@"bundled:not_in_any_build.png"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:signal_workshop_dark.png"]);
+    XCTAssertTrue([AppTheme referenceIsMissing:@"bundled:not_in_any_build.png"]);
 }
 
 // The suite is unsandboxed, so nothing here may reach a standard user
@@ -784,7 +926,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 - (void)testStoredArtworkStaysInTempAndNeverTouchesTheRealLibrary {
     const char *redirect = getenv("VIBE_THEME_ART_DIR");
     XCTAssertTrue(redirect != NULL, @"the load-time guard must redirect every test");
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(96) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
     XCTAssertTrue([stored hasPrefix:@"custom:"]);
 
     NSString *file = [stored substringFromIndex:7];
@@ -854,21 +996,28 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
                     stringByAppendingString:url.lastPathComponent];
             [bundledArt addObject:reference];
             NSError *artError = nil;
-            XCTAssertNotNil([AppTheme storeCustomArtworkData:
+            XCTAssertNotNil([AppTheme storeCustomImageData:
                     [NSData dataWithContentsOfURL:url] error:&artError],
                     @"%@: %@", url.lastPathComponent, artError);
         }
     }
     XCTAssertGreaterThanOrEqual(bundledArt.count, 2u, @"bundled theme artwork missing");
     for (NSString *identifier in [AppTheme builtInThemeIdentifiers]) {
-        for (NSString *key in @[@"defaultArtworkDark", @"defaultArtworkLight"]) {
-            NSString *art = [AppTheme builtInRecordForIdentifier:identifier][key];
+        NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
+        for (NSString *key in AppTheme.imageFieldKeys) {
+            NSString *art = record[key];
             XCTAssertFalse([art hasPrefix:@"custom:"],
                     @"%@: a built-in must name bundled art, not a custom image", identifier);
             if (art.length) {
                 XCTAssertTrue([bundledArt containsObject:art],
                         @"%@: names art the bundle does not carry (%@)", identifier, art);
             }
+        }
+        // A built-in shaping its own corners says so: without the switch the
+        // gate would add it on import, and the round-trip above would drift.
+        if (record[@"windowCornerRadius"]) {
+            XCTAssertEqualObjects(record[@"customCornerRadius"], @YES,
+                    @"%@: sets a radius without customCornerRadius", identifier);
         }
     }
 }
@@ -917,7 +1066,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 static void PutLE(NSMutableData *d, uint64_t v, int n) {
     for (int i = 0; i < n; i++) { uint8_t b = (v >> (8 * i)) & 0xFF; [d appendBytes:&b length:1]; }
 }
-// VibeUnzipData reads no CRC field (and storeCustomArtworkData re-hashes the
+// VibeUnzipData reads no CRC field (and storeCustomImageData re-hashes the
 // image by content), so the entries carry a zero CRC — nothing validates it.
 static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData], ... ]
     NSMutableData *out = [NSMutableData data], *central = [NSMutableData data];
@@ -945,13 +1094,13 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     // 8 MB is rejected without decoding.
     NSMutableData *huge = [NSMutableData dataWithLength:8 * 1024 * 1024 + 1];
     uint8_t jpeg[3] = {0xFF, 0xD8, 0xFF}; [huge replaceBytesInRange:NSMakeRange(0, 3) withBytes:jpeg];
-    XCTAssertNil([AppTheme storeCustomArtworkData:huge error:NULL]);
+    XCTAssertNil([AppTheme storeCustomImageData:huge error:NULL]);
     // Floor already covered (32 px) — the 4096 ceiling is the same expression.
-    XCTAssertNotNil([AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL]);
+    XCTAssertNotNil([AppTheme storeCustomImageData:SquarePNG(64) error:NULL]);
 }
 
 - (void)testArchiveReaderIsSafeOnTruncatedAndGarbageInput {
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(64) error:NULL];
     NSData *zip = [AppTheme archiveDataForRecord:@{@"defaultArtworkDark": stored} name:@"Z"];
     XCTAssertNotNil(zip);
     // Every truncation point must return safely, never read past the buffer.
@@ -965,7 +1114,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 }
 
 - (void)testArchiveReaderHandlesFinderShapedArchives {
-    NSString *stored = [AppTheme storeCustomArtworkData:SquarePNG(64) error:NULL];
+    NSString *stored = [AppTheme storeCustomImageData:SquarePNG(64) error:NULL];
     NSString *file = [stored substringFromIndex:7]; // <sha1>.png
     NSData *image = [NSData dataWithContentsOfFile:
             [_artDir stringByAppendingPathComponent:file]];
@@ -992,8 +1141,8 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 // against — and a name matching no entry drops without taking the theme.
 - (void)testArchiveImportAcceptsHumanNamedCustomReferences {
     NSData *dark = SquarePNG(64), *light = SquarePNG(128);
-    NSString *expectedDark = [AppTheme storeCustomArtworkData:dark error:NULL];
-    NSString *expectedLight = [AppTheme storeCustomArtworkData:light error:NULL];
+    NSString *expectedDark = [AppTheme storeCustomImageData:dark error:NULL];
+    NSString *expectedLight = [AppTheme storeCustomImageData:light error:NULL];
     NSData *themeJSON = [NSJSONSerialization dataWithJSONObject:@{
         @"version": @1, @"name": @"Named",
         @"player": @{@"defaultArtworkDark": @"cover_dark.png",

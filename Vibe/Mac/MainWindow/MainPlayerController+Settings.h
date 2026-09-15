@@ -48,6 +48,12 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectWaveformLevels   = 1UL << 19,
     // Off deletes the container mirror.
     VibeSettingsLiveEffectReopenLastPlaylist = 1UL << 20,
+    // The theme's app icon and its Dock tile choice — the icon into the
+    // application, then the tile re-decided between it and the playing art.
+    VibeSettingsLiveEffectAppIcon          = 1UL << 21,
+    // The three transport buttons' glyph or image and color, and the gradient
+    // behind them.
+    VibeSettingsLiveEffectTransportButtons = 1UL << 22,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the
@@ -59,7 +65,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectWindowChrome
                                            | VibeSettingsLiveEffectFonts
                                            | VibeSettingsLiveEffectPlaylistAppearance
-                                           | VibeSettingsLiveEffectTrackDisplay,
+                                           | VibeSettingsLiveEffectTrackDisplay
+                                           | VibeSettingsLiveEffectAppIcon
+                                           | VibeSettingsLiveEffectTransportButtons,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 

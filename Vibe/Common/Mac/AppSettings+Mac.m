@@ -113,7 +113,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)resetMacThemeState {
     _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
-    [self sweepUnreferencedThemeArtwork];
+    [self sweepUnreferencedThemeImages];
 }
 
 - (void)macApplicationDidFinishLaunching {
@@ -315,7 +315,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     // Dropping the divergence record can drop the last reference to a custom
     // image picked while a built-in was active.
-    [self sweepUnreferencedThemeArtwork];
+    [self sweepUnreferencedThemeImages];
 }
 
 - (void)currentThemeDidChange {
@@ -354,9 +354,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     }
-    if (![[AppTheme customArtworkFilesInRecord:previous]
-            isEqualToSet:[AppTheme customArtworkFilesInRecord:record]]) {
-        [self sweepUnreferencedThemeArtwork];
+    if (![[AppTheme customImageFilesInRecord:previous]
+            isEqualToSet:[AppTheme customImageFilesInRecord:record]]) {
+        [self sweepUnreferencedThemeImages];
     }
 }
 
@@ -398,17 +398,17 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         // nothing, the removed theme itself included.
         [self applyThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
     } else {
-        [self sweepUnreferencedThemeArtwork];
+        [self sweepUnreferencedThemeImages];
     }
 }
 
-// Deletes every stored custom placeholder image no record names any more.
+// Deletes every stored custom image no record names any more.
 // The files are content-hash-named and shared by reference
-// (AppTheme.storeCustomArtworkData:), so each store write that can drop the
+// (AppTheme.storeCustomImageData:), so each store write that can drop the
 // last reference — the field funnel when its artwork keys move, a theme
 // removal, a theme apply (it drops the divergence record), a factory reset —
 // runs this after its write.
-- (void)sweepUnreferencedThemeArtwork {
+- (void)sweepUnreferencedThemeImages {
     NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
     for (NSString *identifier in [self orderedThemeIdentifiers]) {
         [records addObject:[self recordForThemeIdentifier:identifier]];
@@ -422,7 +422,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if (diverged) {
         [records addObject:diverged];
     }
-    [AppTheme removeCustomArtworkFilesUnreferencedByRecords:records];
+    [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {

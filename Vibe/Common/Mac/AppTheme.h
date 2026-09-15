@@ -41,13 +41,32 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS              @"glass"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 
+// What the Dock tile shows while a track with artwork plays: album_art, the
+// default, composes the playing track's cover into the icon grid; app_icon
+// leaves the app icon — the bundle's, or the theme's custom one — up
+// throughout. The About surfaces and the app switcher always show the app
+// icon, whichever this says.
+#define SETTINGS_VALUE_DOCK_ICON_ALBUM_ART                  @"album_art"
+#define SETTINGS_VALUE_DOCK_ICON_APP_ICON                   @"app_icon"
+
+// The transport buttons' factory glyphs, the defaults the theme's four glyph
+// fields carry. The pause glyph pairs with the play one: the editor writes
+// both from one pick (SettingsRules.h's pair table), a JSON can set either.
+#define kVibeThemePlaylistButtonGlyphDefault  @"list.bullet"
+#define kVibeThemePlayButtonGlyphDefault      @"play.fill"
+#define kVibeThemePauseButtonGlyphDefault     @"pause.fill"
+#define kVibeThemeNextButtonGlyphDefault      @"forward.end.fill"
+
 // The corner-radius clamp's ceiling. A macro rather than an exported const
 // because the header panel's right bleed is a compile-time frame sized to it
 // — a static frame that must stay valid for every legal radius rather than
 // follow the live value.
 #define kVibeThemeCornerRadiusMax ((CGFloat)36)
-// The factory radius — the editor's slider detent snaps back to it.
-#define kVibeThemeCornerRadiusDefault ((CGFloat)20)
+// The standard window radius — what a theme without a custom radius draws,
+// and the editor's slider detent. The window is borderless and draws its own
+// shape, so the system's radius is this constant rather than anything AppKit
+// vends; it follows macOS 26's window corners.
+#define kVibeThemeCornerRadiusDefault ((CGFloat)16)
 
 // The font slots' factory sizes — the point size each slot draws at under
 // the Vibe theme, the defaults the field rows carry.
@@ -93,6 +112,29 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorTime;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistBackground;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
+// The three transport buttons' glyph colors, alpha included: the picked
+// color is the button's resting color, and its hover and disabled states
+// derive from it by the factory ratios (SymbolButton). Unset draws the
+// factory white at rest strength.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistButton;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlayButton;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorNextButton;
+
+// The image fields' record keys — every field whose value names a FILE: ""
+// (the default) is the slot's factory image; "custom:<sha1>.<ext>" an image
+// the user picked, copied into the app container; "bundled:<name>.<ext>" an
+// image a built-in theme ships in Resources/Themes/. One shape, one store,
+// one archive form for all seven: the no-artwork placeholder pair, the app
+// icon, and the transport buttons' custom images (the play button has one
+// per state). The keys are the accessor names of the record and are
+// persisted; never renamed.
+FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkDark;
+FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkLight;
+FOUNDATION_EXPORT NSString *const kVibeThemeImageAppIcon;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButton;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlayButton;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePauseButton;
+FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButton;
 
 @interface AppTheme : NSObject
 
@@ -108,36 +150,43 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 // AppSettings overlays the ThemeNames catalog for the localized form.
 + (nullable NSString *)builtInNameForIdentifier:(NSString *)identifier;
 
-#pragma mark Default artwork
+#pragma mark Images
 
-// Never nil: the resolved placeholder for one side's stored value — the
-// container image a custom: names, the Resources/Themes image a bundled:
-// names, or the factory record image for "", an unknown name, or a missing
-// file. Cached for the app's lifetime; custom references are content-hashed,
-// so a changed image is a new key, and a bundled image is immutable per build.
-+ (NSImage *)imageForDefaultArtwork:(nullable NSString *)value;
+// The image fields' keys (kVibeThemeImage*), in the editor's order — what
+// the archive, the sweep and the editor's previews walk.
++ (NSArray<NSString *> *)imageFieldKeys;
 
-// YES when the value names an image that is not there: a container file that
-// has gone, or a bundled name this build does not ship. "" is the factory
-// image and is never missing, nor is a malformed value, which the sanitizer
-// has already dropped. imageForDefaultArtwork: falls back for every one of
-// these, so this is the only way to tell "deliberately the default" apart
+// Never nil: the image a reference resolves to — the container image a
+// custom: names, the Resources/Themes image a bundled: names, or the factory
+// record image for "", an unknown name, or a missing file. Cached for the
+// app's lifetime; custom references are content-hashed, so a changed image
+// is a new key, and a bundled image is immutable per build. The factory
+// fallback is the no-artwork placeholder's; the other slots ask
+// customImageForKey: below, which answers nil for anything but a present
+// custom or bundled image, so their factory is the glyph or the bundle icon.
++ (NSImage *)imageForReference:(nullable NSString *)reference;
+
+// YES when the reference names an image that is not there: a container file
+// that has gone, or a bundled name this build does not ship. "" is the
+// factory image and is never missing, nor is a malformed value, which the
+// sanitizer has already dropped. imageForReference: falls back for every one
+// of these, so this is the only way to tell "deliberately the default" apart
 // from "the chosen image is gone".
-+ (BOOL)defaultArtworkIsMissing:(nullable NSString *)value;
++ (BOOL)referenceIsMissing:(nullable NSString *)reference;
 
 // Validates (JPEG or PNG, square, within pixel and byte caps), copies into
 // the app container, and returns the record value ("custom:<sha1>.<ext>"),
 // or nil with the reason. The bytes are stored as-is, never re-encoded.
-+ (nullable NSString *)storeCustomArtworkData:(NSData *)data
-                                         error:(NSError *_Nullable *_Nullable)error;
++ (nullable NSString *)storeCustomImageData:(NSData *)data
+                                      error:(NSError *_Nullable *_Nullable)error;
 
 // The store's reverse: content-hash naming shares one file between every
 // record referencing the same image, so deletion is a reference sweep rather
 // than something paired with any one edit. Deletes every container image no
-// record in `records` names — the caller (AppSettings.sweepUnreferencedThemeArtwork)
+// record in `records` names — the caller (AppSettings.sweepUnreferencedThemeImages)
 // passes every record that can hold a reference, dormant light halves
-// included, since records carry both artwork keys whatever the mode.
-+ (void)removeCustomArtworkFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
+// included, since records carry every image key whatever the mode.
++ (void)removeCustomImageFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
 
 #pragma mark Names, migration and JSON
 
@@ -200,7 +249,30 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid
-@property (nonatomic) CGFloat windowCornerRadius;           // clamped [0, kVibeThemeCornerRadiusMax]
+// The radius the slider holds, clamped [0, kVibeThemeCornerRadiusMax], and
+// whether the window draws it: off — the default — draws the standard radius
+// (kVibeThemeCornerRadiusDefault) whatever the slider says, on draws the
+// slider's value. A record naming a radius but not the switch reads as
+// custom — the switch postdates the radius, so a stored or exported theme
+// from before it keeps the shape it chose. resolvedWindowCornerRadius is
+// the one the window consumers read.
+@property (nonatomic) CGFloat windowCornerRadius;
+@property (nonatomic) BOOL customCornerRadius;
+@property (readonly, nonatomic) CGFloat resolvedWindowCornerRadius;
+@property (nonatomic, copy) NSString *dockIcon;             // album_art/app_icon
+// The darkening gradient over the album art's lower half, behind the
+// transport buttons. NO leaves the art bare under them.
+@property (nonatomic) BOOL buttonGradient;
+// The transport buttons' SF Symbol names. Trimmed to the symbol-name shape
+// (lowercase letters, digits and dots); a name this macOS has no symbol for
+// draws the factory glyph, the way an uninstalled font face falls back — so
+// a JSON may name any symbol without the record needing to know the
+// catalog. A custom image, when the button's image field names one, wins
+// over the glyph.
+@property (nonatomic, copy) NSString *playlistButtonGlyph;
+@property (nonatomic, copy) NSString *playButtonGlyph;
+@property (nonatomic, copy) NSString *pauseButtonGlyph;
+@property (nonatomic, copy) NSString *nextButtonGlyph;
 @property (nonatomic) BOOL showFileInfo;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
@@ -231,14 +303,20 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 @property (nonatomic, copy) NSString *playlistDurationFontFace;
 @property (nonatomic) CGFloat playlistDurationFontSize;     // clamped [10, 14]
 
-// The no-artwork placeholder, one per appearance like every color pair: ""
-// (the default) is the factory record image; "custom:<sha1>.<ext>" names an
-// image the user picked, copied into the app container; "bundled:<name>.<ext>"
-// names an image a built-in theme ships in Resources/Themes/. Single mode
-// reads and writes the dark slot from either side — the color pairs' rule —
-// while the light half lies dormant, so a mode flip round-trips.
+// The image fields by key (kVibeThemeImage*): the reference as stored, and
+// the write behind every picker. The no-artwork placeholder is the one
+// paired field, one per appearance like every color pair, and single mode
+// reads and writes its dark slot from either side — the color pairs' rule —
+// while the light half lies dormant, so a mode flip round-trips; the
+// side-named accessors below are that pair by side.
+- (NSString *)imageReferenceForKey:(NSString *)key;
+- (void)setImageReference:(NSString *)reference forKey:(NSString *)key;
 - (NSString *)defaultArtworkForDark:(BOOL)isDark;
 - (void)setDefaultArtwork:(NSString *)value forDark:(BOOL)isDark;
+// The image a slot's reference resolves to when it names a present custom or
+// bundled image, else nil — the app icon and the buttons fall back to their
+// own factory (the bundle's icon, the glyph), never to the record image.
+- (nullable NSImage *)customImageForKey:(NSString *)key;
 // This theme's resolved placeholder as ONE image: when the sides differ, a
 // cached dynamic wrapper drawing whichever the current drawing appearance
 // asks for — the dynamic-color pattern for pixels — so consumers need no
@@ -313,9 +391,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 - (VibeColor *)resolvedInfoColor;
 - (VibeColor *)resolvedTimeColor;
 
-// Whether the record names any image the app container holds — the
-// custom:<sha1> files the artwork sweep is keyed on.
-+ (NSSet<NSString *> *)customArtworkFilesInRecord:(nullable NSDictionary<NSString *, id> *)record;
+// The container files the record names — the custom:<sha1> files the image
+// sweep is keyed on, across every image field.
++ (NSSet<NSString *> *)customImageFilesInRecord:(nullable NSDictionary<NSString *, id> *)record;
 
 @end
 

@@ -337,11 +337,11 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             self.dominantColorDidChangeHandler();
         }
         [self refreshTintWashes];
-        [NSDockTile setDockIcon:result.squareImage];
         _displayedArt = request.sourceArt;
         _displayedArtTrack = request.track;
         _displayedArtMetadata = request.metadata;
         _showingDefaultArt = NO;
+        [self applyDockIcon];
     }
 
     _renderInFlight = NO;
@@ -488,6 +488,20 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage) {
         _showingDefaultArt = NO;
         [self showDefaultArtworkInvalidatingRender:NO];
+    }
+}
+
+// The theme's dockIcon choice over what the header shows: the installed
+// crop while a track's art is up and the theme wants it, else the app icon.
+// Runs at every install and default, and from the AppIcon effect, so a
+// switch mid-track re-decides the tile without a track change.
+- (void)applyDockIcon {
+    BOOL wantsArt = [AppSettings.sharedInstance.currentTheme.dockIcon
+            isEqualToString:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART];
+    if (wantsArt && _initialized && !_showingDefaultArt && _artworkView.image) {
+        [NSDockTile setDockIcon:_artworkView.image];
+    } else {
+        [NSDockTile resetToAppIcon];
     }
 }
 

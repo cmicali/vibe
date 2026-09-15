@@ -44,6 +44,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)applyThemedLabelFonts;
 - (void)applyThemedLabelColors;
 
+// Re-resolves the three transport buttons' themed look — glyph or custom
+// image, color — and the gradient behind them; the TransportButtons live
+// effect's body, also run on every appearance change, since the colors are a
+// per-appearance pair landing in non-dynamic layer colors.
+- (void)applyThemedTransportButtons;
+
+// The play button's state, drawn through the theme's play/pause glyph and
+// image pair. The controller's updateUI is the one caller.
+- (void)setPlayButtonShowsPause:(BOOL)showsPause;
+
 // Re-resolves the themed wash over the playlist frost; also runs on every
 // appearance change (updateMaterialForAppearance).
 - (void)applyPlaylistBackground;

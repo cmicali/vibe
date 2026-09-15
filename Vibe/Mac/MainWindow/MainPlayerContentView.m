@@ -199,6 +199,9 @@ API_AVAILABLE(macos(26.0))
     // a second writer of the same alpha. Seeded before the tracking area
     // exists, so it defaults to the setting's own default.
     BOOL _trafficLightsShown;
+    // The play button's state, kept so a theme re-apply can redraw it in the
+    // state the controller last asked for.
+    BOOL _playShowsPause;
     // The codec line's rendered text width, measured at the text edge
     // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
     CGFloat _codecTextWidth;
@@ -239,6 +242,9 @@ API_AVAILABLE(macos(26.0))
                                   _fileMetadataTextField, _bpmTextField ]) {
         field.layer.shadowOpacity = shadowOpacity;
     }
+    // The transport buttons' colors are a per-appearance pair landing in
+    // layer colors, which are not dynamic, so they re-resolve here.
+    [self applyThemedTransportButtons];
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -455,7 +461,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // above them.
 - (void)buildHeaderBackdrop {
     NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
-    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
+    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     if (@available(macOS 26.0, *)) {
         _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
     }
@@ -776,6 +782,50 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _artistTextField.textColor = theme.resolvedArtistColor;
     _totalTimeTextField.textColor = theme.resolvedTimeColor;
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
+}
+
+// A glyph this macOS has a symbol for, else the factory one — the free-text
+// glyph fields' resolve-time fallback, the way Fonts resolves an uninstalled
+// face. A button drawing nothing is never the answer.
+static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
+    return [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] ? glyph : factory;
+}
+
+// One button's whole themed look: its custom image if the slot names one,
+// else its glyph, and the resting color the states derive from.
+static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
+                               NSString *glyph, NSString *factoryGlyph,
+                               NSString *colorBase, BOOL dark) {
+    button.image = [theme customImageForKey:imageKey];
+    button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
+    [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
+}
+
+- (void)applyThemedTransportButtons {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL dark = self.isDark;
+    ApplyThemeToButton(_playlistToggleButton, theme, kVibeThemeImagePlaylistButton,
+                       theme.playlistButtonGlyph, kVibeThemePlaylistButtonGlyphDefault,
+                       kVibeThemeColorPlaylistButton, dark);
+    ApplyThemeToButton(_nextButton, theme, kVibeThemeImageNextButton,
+                       theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
+                       kVibeThemeColorNextButton, dark);
+    [self setPlayButtonShowsPause:_playShowsPause];
+    _albumArtGradientView.hidden = !theme.buttonGradient;
+}
+
+// The play button dresses two states from one theme slot pair: the pause
+// glyph and image while playing, the play ones otherwise. Each image slot
+// falls back to its glyph on its own, so a theme with only a play image
+// still shows a pause glyph while playing rather than the play picture.
+- (void)setPlayButtonShowsPause:(BOOL)showsPause {
+    _playShowsPause = showsPause;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    ApplyThemeToButton(_playButton, theme,
+                       showsPause ? kVibeThemeImagePauseButton : kVibeThemeImagePlayButton,
+                       showsPause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
+                       showsPause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
+                       kVibeThemeColorPlayButton, self.isDark);
 }
 
 // The glass style's unthemed lift: clear in dark, a white brightening wash in

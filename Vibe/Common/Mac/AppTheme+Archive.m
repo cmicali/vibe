@@ -121,12 +121,15 @@ static uint32_t VibeReadLE(const uint8_t *bytes, int width) {
     return value;
 }
 
-// The whole theme archive's ceiling — one JSON plus one image, with slack.
-// Both the pre-parse input gate and the unzip's running inflate budget use it.
-static const NSUInteger kThemeArchiveByteCap = 2 * 8 * 1024 * 1024 + 64 * 1024;
-// A theme archive is one JSON plus at most two images; a Finder zip adds its
-// __MACOSX sidecars. The count is a 16-bit field, and walking 65,535 headers
-// to reject them one by one is itself the attack.
+// The whole theme archive's ceiling — one JSON plus one image per image
+// field, each at the store's byte cap, with slack. Both the pre-parse input
+// gate and the unzip's running inflate budget use it.
+static NSUInteger VibeThemeArchiveByteCap(void) {
+    return AppTheme.imageFieldKeys.count * kVibeThemeImageByteCap + 64 * 1024;
+}
+// A theme archive is one JSON plus at most one image per image field; a
+// Finder zip adds its __MACOSX sidecars. The count is a 16-bit field, and
+// walking 65,535 headers to reject them one by one is itself the attack.
 static const NSUInteger kThemeArchiveEntryCap = 64;
 
 // nil when the data is not a zip this reader can walk. Entries it cannot
@@ -156,8 +159,8 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     }
     // A total budget across all entries, so deflate's ~1000:1 ratio cannot
     // aim thousands of central-directory entries at one small stream and
-    // exhaust memory. One JSON plus one image is all the caller needs.
-    NSUInteger budget = kThemeArchiveByteCap;
+    // exhaust memory. One JSON plus the image slots is all the caller needs.
+    NSUInteger budget = VibeThemeArchiveByteCap();
     NSMutableDictionary *entries = [NSMutableDictionary dictionary];
     for (NSUInteger i = 0; i < count; i++) {
         // Per entry, because everything below it is transient but the name and
@@ -221,43 +224,42 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
 
 + (NSData *)archiveDataForRecord:(NSDictionary<NSString *, id> *)record
                             name:(NSString *)name {
-    // Entries are named by SLOT, not by where the image came from: a built-in
-    // names its image by a bundled filename and a user theme by a content
-    // hash, and neither reads as anything to a person opening the ZIP. Both
-    // sides ride along — the dormant light half of a single-mode theme
-    // included, so a mode flip after re-import still round-trips.
-    NSDictionary<NSString *, NSString *> *slotNames = @{
-        kFieldDefaultArtworkDark:  @"artwork_default_front",
-        kFieldDefaultArtworkLight: @"artwork_default_back",
-    };
+    // Entries are named by SLOT (archiveEntryStemForImageKey:), not by where
+    // the image came from: a built-in names its image by a bundled filename
+    // and a user theme by a content hash, and neither reads as anything to a
+    // person opening the ZIP. Every image field rides along — the dormant
+    // light half of a single-mode theme included, so a mode flip after
+    // re-import still round-trips.
     NSDictionary<NSString *, id> *fields = [self sanitizedRecord:record];
     NSMutableDictionary<NSString *, NSData *> *entries = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSString *> *names = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSString *> *nameForValue = [NSMutableDictionary dictionary];
-    for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
-        NSString *art = fields[key];
-        // Both sides naming ONE image share its entry rather than shipping the
-        // bytes twice — the common single-mode and both-sides-alike cases.
-        if (nameForValue[art]) {
-            names[key] = nameForValue[art];
+    for (NSString *key in self.imageFieldKeys) {
+        NSString *reference = fields[key];
+        // Two fields naming ONE image share its entry rather than shipping
+        // the bytes twice — the common single-mode and both-sides-alike
+        // placeholder cases.
+        if (nameForValue[reference]) {
+            names[key] = nameForValue[reference];
             continue;
         }
-        // A built-in's art ships in THIS build, so the export could name it
+        // A built-in's image ships in THIS build, so the export could name it
         // and stop. It travels anyway: the archive is the portable form, and
         // the build that opens it may not be this one.
-        NSData *image = [self dataForDefaultArtwork:art];
+        NSData *image = [self dataForReference:reference];
         if (!image) {
             continue;
         }
-        NSString *entry = [slotNames[key] stringByAppendingPathExtension:art.pathExtension];
+        NSString *entry = [[self archiveEntryStemForImageKey:key]
+                stringByAppendingPathExtension:reference.pathExtension];
         entries[entry] = image;
         names[key] = entry;
-        nameForValue[art] = entry;
+        nameForValue[reference] = entry;
     }
     if (!entries.count) {
         return nil;
     }
-    entries[@"theme.json"] = [self JSONDataForRecord:record name:name artworkNames:names];
+    entries[@"theme.json"] = [self JSONDataForRecord:record name:name entryNames:names];
     return VibeZipData(entries);
 }
 
@@ -271,15 +273,15 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
                 [[self recordFromJSONData:data name:outName error:error] mutableCopy];
         // JSON alone cannot carry the images: a custom reference that names
         // nothing already stored here is dangling — drop it, keep the theme.
-        for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
-            NSString *art = record[key];
-            if ([art hasPrefix:@"custom:"] && [self defaultArtworkIsMissing:art]) {
+        for (NSString *key in self.imageFieldKeys) {
+            NSString *reference = record[key];
+            if ([reference hasPrefix:@"custom:"] && [self referenceIsMissing:reference]) {
                 [record removeObjectForKey:key];
             }
         }
         return record;
     }
-    if (data.length > kThemeArchiveByteCap) {
+    if (data.length > VibeThemeArchiveByteCap()) {
         if (error) {
             *error = [NSError errorWithDomain:@"AppTheme" code:1 userInfo:nil];
         }
@@ -327,14 +329,13 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
     // way: whatever precedes a colon is dropped. Read from the RAW JSON,
     // because the sanitizer admits only the two prefixed shapes and has
     // already dropped a bare name from the record.
-    NSDictionary<NSString *, NSString *> *references =
-            [self rawDefaultArtworkReferencesInJSONData:json];
-    for (NSString *key in @[kFieldDefaultArtworkDark, kFieldDefaultArtworkLight]) {
-        NSString *art = references[key];
-        if (!art) {
+    NSDictionary<NSString *, NSString *> *references = [self rawImageReferencesInJSONData:json];
+    for (NSString *key in self.imageFieldKeys) {
+        NSString *reference = references[key];
+        if (!reference) {
             continue;
         }
-        NSString *entry = [art componentsSeparatedByString:@":"].lastObject;
+        NSString *entry = [reference componentsSeparatedByString:@":"].lastObject;
         // Re-validated and re-hashed from the bytes, never trusting the name:
         // the stored custom:<sha1> form is the only shape the sanitizer admits
         // for a container image, and it is where EVERY archived image lands —
@@ -344,7 +345,7 @@ static NSDictionary<NSString *, NSData *> *VibeUnzipData(NSData *zip) {
         // the theme still imports — so its reason never lands in the caller's
         // error beside a record.
         NSData *image = byBaseName[entry];
-        NSString *stored = image ? [self storeCustomArtworkData:image error:NULL] : nil;
+        NSString *stored = image ? [self storeCustomImageData:image error:NULL] : nil;
         if (stored) {
             record[key] = stored;
         } else {

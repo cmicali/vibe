@@ -66,12 +66,20 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSSwitch *_waveformGradientSwitch;
     NSSwitch *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
-    NSButton *_artDarkPreviewButton;
-    NSButton *_artDarkClearButton;
-    NSImageView *_artDarkMissingBadge;
-    NSButton *_artLightPreviewButton;
-    NSButton *_artLightClearButton;
-    NSImageView *_artLightMissingBadge;
+    NSPopUpButton *_dockIconPopUp;
+    NSSwitch *_customCornerRadiusSwitch;
+    NSSwitch *_buttonGradientSwitch;
+    // The image fields' preview clusters by field key (kVibeThemeImage*): the
+    // preview button, its hover-revealed clear badge and its missing badge.
+    // One builder, one refresh loop and one hover handler serve all seven.
+    NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
+    NSMutableDictionary<NSString *, NSButton *> *_imageClearBadges;
+    NSMutableDictionary<NSString *, NSImageView *> *_imageMissingBadges;
+    // The transport buttons' rows by the button's image key: the glyph popup,
+    // and the color and image rows that swap on whether an image is set.
+    NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
+    NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
+    NSMutableDictionary<NSString *, SettingsRowView *> *_buttonImageRows;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;

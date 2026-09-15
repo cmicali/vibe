@@ -329,6 +329,7 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
+    [self applyAppIcon];
 
     self.waveformView.delegate = self;
     // The theme's style, not the loose Settings.waveformStyle key — migration
@@ -493,7 +494,7 @@
     // so it can still read isPlaying for an instant after closeFile:, and no
     // later updateUI would fix the icon, since the update timer is paused.
     BOOL showPause = track && self.audioPlayer.isPlaying;
-    self.playButton.symbolName = showPause ? @"pause.fill" : @"play.fill";
+    [self.playerContentView setPlayButtonShowsPause:showPause];
     self.playButton.accessibilityLabel = showPause ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
 
     self.playButton.enabled = self.playlistController.count > 0;

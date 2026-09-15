@@ -33,6 +33,37 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testDockIconNormalizesUnknownsToAlbumArt {
+    XCTAssertEqualObjects(VibeNormalizedDockIcon(@"album_art"), @"album_art");
+    XCTAssertEqualObjects(VibeNormalizedDockIcon(@"app_icon"), @"app_icon");
+    XCTAssertEqualObjects(VibeNormalizedDockIcon(nil), @"album_art");
+    XCTAssertEqualObjects(VibeNormalizedDockIcon(@"App Icon"), @"album_art");
+}
+
+// The editor's glyph menus offer only symbols this macOS draws, and every
+// play pick has a pause partner that is also a real symbol; a play glyph
+// outside the table pairs with the factory pause, never with itself.
+- (void)testGlyphChoicesAreRealSymbolsWithPausePartners {
+    for (size_t i = 0; i < kVibePlaylistButtonGlyphCount; i++) {
+        XCTAssertNotNil([NSImage imageWithSystemSymbolName:kVibePlaylistButtonGlyphs[i]
+                                  accessibilityDescription:nil], @"%@", kVibePlaylistButtonGlyphs[i]);
+    }
+    for (size_t i = 0; i < kVibeNextButtonGlyphCount; i++) {
+        XCTAssertNotNil([NSImage imageWithSystemSymbolName:kVibeNextButtonGlyphs[i]
+                                  accessibilityDescription:nil], @"%@", kVibeNextButtonGlyphs[i]);
+    }
+    for (size_t i = 0; i < kVibePlayPauseGlyphPairCount; i++) {
+        NSString *play = kVibePlayPauseGlyphPairs[i][0], *pause = kVibePlayPauseGlyphPairs[i][1];
+        XCTAssertNotNil([NSImage imageWithSystemSymbolName:play accessibilityDescription:nil], @"%@", play);
+        XCTAssertNotNil([NSImage imageWithSystemSymbolName:pause accessibilityDescription:nil], @"%@", pause);
+        XCTAssertNotEqualObjects(play, pause);
+        XCTAssertEqualObjects(VibePauseGlyphForPlayGlyph(play), pause);
+    }
+    XCTAssertEqualObjects(VibePauseGlyphForPlayGlyph(@"play.fill"), @"pause.fill");
+    XCTAssertEqualObjects(VibePauseGlyphForPlayGlyph(@"hand.raised"), @"pause.fill");
+    XCTAssertEqualObjects(VibePauseGlyphForPlayGlyph(nil), @"pause.fill");
+}
+
 - (void)testWaveformGainClampsAndLandsOnHalfDecibels {
     XCTAssertEqual(VibeNormalizedWaveformGainDB(0), 0);
     XCTAssertEqual(VibeNormalizedWaveformGainDB(3.5), 3.5);
