@@ -426,6 +426,36 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // sweep is keyed on, across every image field.
 + (NSSet<NSString *> *)customImageFilesInRecord:(nullable NSDictionary<NSString *, id> *)record;
 
+#pragma mark Dice
+
+// The editor's two dice. Neither is uniform noise: each rolls a look a
+// person might have picked, over the factory defaults.
+//
+// Settings rolls the main appearance choices — the window and playlist
+// backgrounds and tints (never custom, which is a color), the corner radius,
+// the waveform style, color theme and gradient, the button gradient and
+// glyphs, the playlist columns — and the fonts: one face for the text from
+// randomizableFontFaces, the numeric slots monospace half the time, every
+// size at its factory value. Colors, the column color switches, the Info
+// card, the Dock choice and every image stay as they are. The waveform
+// styles are the caller's, since their registry belongs to the renderer.
+- (void)randomizeSettingsWithWaveformStyles:(NSArray<NSString *> *)styles;
+
+// Colors resets every color pair and rolls one palette from one hue: a
+// pastel of it over the dark appearance, a deeper shade over light, in one
+// of a few schemes — the header labels tinted, the playlist columns tinted
+// with them, a complementary pair across title and artist, an analogous
+// pair reaching the info card and the buttons, or a wash of the hue over
+// the window and playlist tints. A scheme that draws a pair switches on
+// whatever shows it (the custom waveform theme, the custom tints, the
+// column switches); a leftover custom choice from an earlier roll snaps
+// back. Nothing else moves.
+- (void)randomizeColors;
+
+// Three serif, three sans and a monospace face every macOS the app runs on
+// ships — the whole set the settings die draws from.
++ (NSArray<NSString *> *)randomizableFontFaces;
+
 @end
 
 NS_ASSUME_NONNULL_END

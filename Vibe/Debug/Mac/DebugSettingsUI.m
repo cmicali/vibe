@@ -799,7 +799,9 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
     BOOL preview = tokens.count == 3
             && [tokens[1] caseInsensitiveCompare:@"preview"] == NSOrderedSame;
-    if (back || forward || preview) {
+    BOOL randomize = tokens.count == 3
+            && [tokens[1] caseInsensitiveCompare:@"randomize"] == NSOrderedSame;
+    if (back || forward || preview || randomize) {
         NSString *tabsError = nil;
         NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
         if (!tabs) {
@@ -820,6 +822,18 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                         @"windowAppearance":
                                                 AppSettings.sharedInstance.windowAppearanceStyle
                                                         ?: @""});
+            }
+            if (randomize) {
+                BOOL colors = [tokens[2] caseInsensitiveCompare:@"colors"] == NSOrderedSame;
+                if (!colors && [tokens[2] caseInsensitiveCompare:@"settings"] != NSOrderedSame) {
+                    return VibeErrorJSON(@"usage: settings_click randomize <settings|colors>");
+                }
+                if (!pane.canRandomize) {
+                    return VibeErrorJSON(@"randomize is not available here");
+                }
+                colors ? [pane randomizeThemeColors] : [pane randomizeThemeSettings];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"randomize",
+                                        @"action": @"rolled", @"rolled": tokens[2].lowercaseString});
             }
             if (back ? pane.canGoBack : pane.canGoForward) {
                 back ? [pane navigateBack] : [pane navigateForward];

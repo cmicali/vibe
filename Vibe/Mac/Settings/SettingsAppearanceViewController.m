@@ -179,15 +179,51 @@ static const double kWaveformGainDetentDB = 0.75;
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
     }
-    // The editor page retitles the window the way a pane switch would: the
-    // pane sets only its own title, and updateThemeNavigation below re-pushes
-    // the pane-title chain (the host owns the container nesting). The sidebar
-    // label reads the tab ITEM, so it keeps saying Appearance.
-    NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
-    NSString *name = _editorShown ? [AppSettings.sharedInstance displayNameForThemeIdentifier:active] : nil;
+    [self applyEditorTitle];
+}
+
+// The editor page retitles the window the way a pane switch would: the pane
+// sets only its own title, and updateThemeNavigation re-pushes the
+// pane-title chain (the host owns the container nesting). The sidebar label
+// reads the tab ITEM, so it keeps saying Appearance. While the Name field is
+// being edited the title follows the keystrokes; the stored name — deduped
+// or fallback-named on commit — takes over when editing ends.
+- (void)applyEditorTitle {
+    NSString *name = nil;
+    if (_editorShown) {
+        NSString *typed = _nameField.currentEditor ? _nameField.stringValue : nil;
+        name = typed.length ? typed : [AppSettings.sharedInstance
+                displayNameForThemeIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+    }
     self.title = name ? [NSString stringWithFormat:STR_SETTINGS_THEME_EDITOR_TITLE, name]
                       : STR_MENU_VIEW_APPEARANCE;
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+}
+
+- (BOOL)canRandomize {
+    return _editorShown
+            && ![AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+}
+
+// A roll is one edit of the whole theme, so it rides ThemeApply like a
+// theme switch, then the page re-reads every control.
+- (void)randomizeThemeSettings {
+    if (!self.canRandomize) {
+        return;
+    }
+    [AppSettings.sharedInstance.currentTheme
+            randomizeSettingsWithWaveformStyles:[WaveformRendererRegistry availableIdentifiers]];
+    [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (void)randomizeThemeColors {
+    if (!self.canRandomize) {
+        return;
+    }
+    [AppSettings.sharedInstance.currentTheme randomizeColors];
+    [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
 }
 
 - (BOOL)canGoBack {

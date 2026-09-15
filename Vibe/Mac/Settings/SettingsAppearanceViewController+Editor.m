@@ -1276,6 +1276,12 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
 }
 
+- (void)controlTextDidChange:(NSNotification *)notification {
+    if (notification.object == _nameField) {
+        [self applyEditorTitle];
+    }
+}
+
 - (void)controlTextDidEndEditing:(NSNotification *)notification {
     if (notification.object != _nameField) {
         return;

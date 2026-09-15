@@ -1364,6 +1364,162 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
 - (BOOL)showPlaylistDurationColumn { return [self boolForKey:kFieldShowPlaylistDurationColumn]; }
 - (void)setShowPlaylistDurationColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistDurationColumn]; }
 
+#pragma mark Dice
+
+static NSString *const kRandomFontFaces[] = {
+    @"Georgia", @"Baskerville", @"Palatino-Roman",
+    @"HelveticaNeue-Medium", @"AvenirNext-Medium", @"Futura-Medium",
+    @"Menlo-Regular",
+};
+static NSString *const kRandomMonoFontFace = @"Menlo-Regular";
+
+static NSUInteger RandomIndex(NSUInteger count) {
+    return arc4random_uniform((uint32_t)count);
+}
+
+static BOOL RandomChance(uint32_t percent) {
+    return arc4random_uniform(100) < percent;
+}
+
+static id RandomPick(NSArray *choices) {
+    return choices[RandomIndex(choices.count)];
+}
+
++ (NSArray<NSString *> *)randomizableFontFaces {
+    NSMutableArray *faces = [NSMutableArray array];
+    for (size_t i = 0; i < sizeof(kRandomFontFaces) / sizeof(kRandomFontFaces[0]); i++) {
+        [faces addObject:kRandomFontFaces[i]];
+    }
+    return faces;
+}
+
+- (void)randomizeSettingsWithWaveformStyles:(NSArray<NSString *> *)styles {
+    self.windowBackgroundStyle = RandomPick(@[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
+                                              SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
+                                              SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]);
+    self.windowTint = RandomPick(@[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK]);
+    self.customCornerRadius = RandomChance(50);
+    self.windowCornerRadius = [RandomPick(@[@0, @8, @12, @16, @20, @28, @36]) doubleValue];
+    if (styles.count) {
+        self.waveformStyle = RandomPick(styles);
+    }
+    self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
+                                      SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
+    self.waveformGradient = RandomChance(50);
+    self.buttonGradient = RandomChance(60);
+    self.playlistButtonGlyph = kVibePlaylistButtonGlyphs[RandomIndex(kVibePlaylistButtonGlyphCount)];
+    NSUInteger pair = RandomIndex(kVibePlayPauseGlyphPairCount);
+    self.playButtonGlyph = kVibePlayPauseGlyphPairs[pair][0];
+    self.pauseButtonGlyph = kVibePlayPauseGlyphPairs[pair][1];
+    self.nextButtonGlyph = kVibeNextButtonGlyphs[RandomIndex(kVibeNextButtonGlyphCount)];
+    self.playlistBackgroundStyle = RandomPick(@[SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS,
+                                                SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID,
+                                                SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR]);
+    self.playlistTint = RandomPick(@[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK]);
+    self.showPlaylistArtworkColumn = RandomChance(75);
+    self.showPlaylistDurationColumn = RandomChance(75);
+    // One face for the text, at the factory sizes; the small numeric slots
+    // go monospace half the time, the way the built-ins pair a text face
+    // with a numbers face.
+    NSString *face = kRandomFontFaces[RandomIndex(sizeof(kRandomFontFaces) / sizeof(kRandomFontFaces[0]))];
+    NSString *numbers = RandomChance(50) ? kRandomMonoFontFace : face;
+    [self setFontFace:face size:kVibeThemeTitleFontBaseSize forSlot:VibeFontSlotTitle];
+    [self setFontFace:face size:kVibeThemeArtistFontBaseSize forSlot:VibeFontSlotArtist];
+    [self setFontFace:face size:kVibeThemePlaylistFontBaseSize forSlot:VibeFontSlotPlaylist];
+    [self setFontFace:numbers size:kVibeThemeInfoFontBaseSize forSlot:VibeFontSlotInfo];
+    [self setFontFace:numbers size:kVibeThemePlaylistDurationFontBaseSize forSlot:VibeFontSlotPlaylistDuration];
+}
+
+// One hue as a color for each side: a bright pastel over the dark
+// appearance, a deeper shade over light, so a roll reads on both. The hue
+// wraps, so a complement or a neighbor is plain addition.
+static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
+    hue = fmod(hue + 1, 1);
+    return dark ? [NSColor colorWithHue:hue saturation:0.55 brightness:0.95 alpha:alpha]
+                : [NSColor colorWithHue:hue saturation:0.75 brightness:0.55 alpha:alpha];
+}
+
+- (void)setHue:(CGFloat)hue alpha:(CGFloat)alpha forBase:(NSString *)base {
+    [self setColor:HueColor(hue, YES, alpha) forBase:base dark:YES];
+    [self setColor:HueColor(hue, NO, alpha) forBase:base dark:NO];
+}
+
+- (void)randomizeColors {
+    // A fresh palette every roll, over the defaults: every pair back to
+    // unset, every column switch off, and a custom choice an earlier roll
+    // switched on back to its plain one.
+    for (NSDictionary *spec in FieldSpecs()) {
+        if (spec[kSpecColorBase]) {
+            [_fields removeObjectForKey:spec[kSpecKey]];
+        }
+    }
+    for (NSString *base in PlaylistColorFallbackBases()) {
+        [self setPlaylistColorEnabled:NO forBase:base];
+    }
+    if ([self.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
+        self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    }
+    if ([self.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        self.windowTint = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
+    }
+    if ([self.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
+        self.playlistTint = SETTINGS_VALUE_WINDOW_TINT_MONO;
+    }
+
+    CGFloat hue = RandomIndex(360) / 360.0;
+    switch (RandomIndex(5)) {
+        case 0: // The header labels in the hue, the artist line lighter.
+            [self setHue:hue alpha:1 forBase:kVibeThemeColorTitle];
+            [self setHue:hue alpha:0.7 forBase:kVibeThemeColorArtist];
+            break;
+        case 1: // The same, carried into the playlist's rows and fills.
+            [self setHue:hue alpha:1 forBase:kVibeThemeColorTitle];
+            [self setHue:hue alpha:0.7 forBase:kVibeThemeColorArtist];
+            [self setHue:hue alpha:0.95 forBase:kVibeThemeColorPlaylistTitle];
+            [self setHue:hue alpha:0.6 forBase:kVibeThemeColorPlaylistArtist];
+            [self setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
+            [self setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistArtist];
+            [self setHue:hue alpha:0.18 forBase:kVibeThemeColorPlaylistPlayingRow];
+            [self setHue:hue alpha:0.12 forBase:kVibeThemeColorPlaylistSelectedRow];
+            break;
+        case 2: // A complementary pair: titles in the hue, artists opposite it.
+            [self setHue:hue alpha:1 forBase:kVibeThemeColorTitle];
+            [self setHue:hue + 0.5 alpha:0.75 forBase:kVibeThemeColorArtist];
+            [self setHue:hue alpha:0.95 forBase:kVibeThemeColorPlaylistTitle];
+            [self setHue:hue + 0.5 alpha:0.65 forBase:kVibeThemeColorPlaylistArtist];
+            [self setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
+            [self setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistArtist];
+            self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+            [self setHue:hue alpha:0.85 forBase:kVibeThemeColorWaveformPlayed];
+            [self setHue:hue + 0.5 alpha:0.35 forBase:kVibeThemeColorWaveformUnplayed];
+            break;
+        case 3: // An analogous pair, reaching the info card and the buttons.
+            [self setHue:hue alpha:1 forBase:kVibeThemeColorTitle];
+            [self setHue:hue + 0.08 alpha:0.7 forBase:kVibeThemeColorArtist];
+            [self setHue:hue + 0.08 alpha:0.55 forBase:kVibeThemeColorInfo];
+            [self setHue:hue alpha:0.65 forBase:kVibeThemeColorTime];
+            [self setHue:hue alpha:0.7 forBase:kVibeThemeColorPlaylistButton];
+            [self setHue:hue alpha:0.7 forBase:kVibeThemeColorPlayButton];
+            [self setHue:hue alpha:0.7 forBase:kVibeThemeColorNextButton];
+            self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+            [self setHue:hue alpha:0.8 forBase:kVibeThemeColorWaveformPlayed];
+            [self setHue:hue + 0.08 alpha:0.3 forBase:kVibeThemeColorWaveformUnplayed];
+            break;
+        default: // A wash of the hue over the window and the playlist, labels left plain.
+            self.windowTint = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+            [self setColor:HueColor(hue, YES, 0.35) forBase:kVibeThemeColorWindowTint dark:YES];
+            [self setColor:HueColor(hue, NO, 0.45) forBase:kVibeThemeColorWindowTint dark:NO];
+            self.playlistTint = SETTINGS_VALUE_WINDOW_TINT_CUSTOM;
+            [self setColor:HueColor(hue, YES, 0.25) forBase:kVibeThemeColorPlaylistTint dark:YES];
+            [self setColor:HueColor(hue, NO, 0.35) forBase:kVibeThemeColorPlaylistTint dark:NO];
+            [self setHue:hue alpha:0.2 forBase:kVibeThemeColorPlaylistPlayingRow];
+            self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+            [self setHue:hue alpha:0.8 forBase:kVibeThemeColorWaveformPlayed];
+            [self setHue:hue alpha:0.3 forBase:kVibeThemeColorWaveformUnplayed];
+            break;
+    }
+}
+
 #pragma mark Color pairs
 
 // The transport buttons' pairs are keyed by the art under them, not the

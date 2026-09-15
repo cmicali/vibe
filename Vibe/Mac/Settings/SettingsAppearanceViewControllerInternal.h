@@ -116,6 +116,10 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // with it, because the resolver is the one pass both pages run through.
 - (void)applyEditorVisibility;
 
+// The window title for the page showing: Theme: <name> on the editor — the
+// Name field's live text while it is being edited — Appearance otherwise.
+- (void)applyEditorTitle;
+
 // The pane's themed rows all funnel here after writing their currentTheme
 // field: persist the working record, then request the row's live effect.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect;

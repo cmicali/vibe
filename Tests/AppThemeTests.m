@@ -8,6 +8,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AppTheme.h"
+#import "SettingsRules.h"
 #import "AppTheme+Archive.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -420,6 +421,99 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     XCTAssertEqualObjects(json[@"playlist"], (@{@"numberColorEnabled": @YES, @"numberColorDark": @"#123456"}));
     XCTAssertEqualObjects([AppTheme recordFromJSONData:[AppTheme JSONDataForRecord:record name:@"Columns"]
                                                   name:NULL error:NULL], record);
+}
+
+#pragma mark Dice
+
+- (void)testRandomizableFontFacesAreInstalled {
+    NSArray<NSString *> *faces = AppTheme.randomizableFontFaces;
+    XCTAssertEqual(faces.count, 7);
+    for (NSString *face in faces) {
+        XCTAssertNotNil([NSFont fontWithName:face size:12], @"%@", face);
+    }
+}
+
+// The settings die rolls the appearance choices and the fonts, from the
+// curated set at the factory sizes, and leaves every color, the column
+// switches, the Info card, the Dock choice and the images alone.
+- (void)testRandomizeSettingsRollsTheLookAndLeavesTheRestAlone {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    [theme setTitleColor:VibeColorFromHexString(@"#FF000080") forDark:YES];
+    [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
+    theme.showFileInfo = NO;
+    theme.keyNotation = @"musical";
+    theme.dockIcon = @"app_icon";
+    [theme setImageReference:@"bundled:cupertino_dark.png" forKey:kVibeThemeImagePlayButtonDark];
+    NSArray<NSString *> *styles = @[@"detailed", @"basic"];
+    NSSet<NSString *> *faces = [NSSet setWithArray:AppTheme.randomizableFontFaces];
+    NSSet<NSNumber *> *radii = [NSSet setWithArray:@[@0, @8, @12, @16, @20, @28, @36]];
+    for (int roll = 0; roll < 40; roll++) {
+        [theme randomizeSettingsWithWaveformStyles:styles];
+        XCTAssertEqualObjects(VibeHexStringFromColor([theme titleColorForDark:YES]), @"#FF000080");
+        XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
+        XCTAssertFalse(theme.showFileInfo);
+        XCTAssertEqualObjects(theme.keyNotation, @"musical");
+        XCTAssertEqualObjects(theme.dockIcon, @"app_icon");
+        XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
+                              @"bundled:cupertino_dark.png");
+        XCTAssertTrue([styles containsObject:theme.waveformStyle]);
+        XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
+        XCTAssertNotEqualObjects(theme.windowTint, @"custom");
+        XCTAssertNotEqualObjects(theme.playlistTint, @"custom");
+        XCTAssertTrue([radii containsObject:@(theme.windowCornerRadius)]);
+        XCTAssertEqualObjects(theme.pauseButtonGlyph, VibePauseGlyphForPlayGlyph(theme.playButtonGlyph));
+        XCTAssertTrue([faces containsObject:theme.titleFontFace], @"%@", theme.titleFontFace);
+        XCTAssertEqualObjects(theme.artistFontFace, theme.titleFontFace);
+        XCTAssertEqualObjects(theme.playlistFontFace, theme.titleFontFace);
+        XCTAssertTrue([faces containsObject:theme.infoFontFace], @"%@", theme.infoFontFace);
+        XCTAssertEqual(theme.titleFontSize, kVibeThemeTitleFontBaseSize);
+        XCTAssertEqual(theme.artistFontSize, kVibeThemeArtistFontBaseSize);
+        XCTAssertEqual(theme.infoFontSize, kVibeThemeInfoFontBaseSize);
+        XCTAssertEqual(theme.playlistFontSize, kVibeThemePlaylistFontBaseSize);
+        XCTAssertEqual(theme.playlistDurationFontSize, kVibeThemePlaylistDurationFontBaseSize);
+    }
+}
+
+// The color die starts every roll from unset pairs and paints one hue in a
+// scheme, both sides valid colors, switching on only what shows them; the
+// settings stay put.
+- (void)testRandomizeColorsRollsAPaletteAndLeavesTheSettingsAlone {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    theme.waveformStyle = @"detailed";
+    theme.windowCornerRadius = 8;
+    theme.playlistButtonGlyph = @"list.dash";
+    [theme setFontFace:@"Georgia" size:23 forSlot:VibeFontSlotTitle];
+    [theme setPlaylistBackgroundColor:VibeColorFromHexString(@"#101010F0") forDark:YES];
+    for (int roll = 0; roll < 40; roll++) {
+        [theme randomizeColors];
+        XCTAssertEqualObjects(theme.waveformStyle, @"detailed");
+        XCTAssertEqual(theme.windowCornerRadius, 8);
+        XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.dash");
+        XCTAssertEqualObjects(theme.titleFontFace, @"Georgia");
+        // No scheme paints the playlist cover, so a stale pair is cleared.
+        XCTAssertNil([theme playlistBackgroundColorForDark:YES]);
+        NSUInteger painted = 0;
+        for (NSString *key in theme.dictionaryRepresentation) {
+            if ([key hasSuffix:@"ColorDark"] || [key hasSuffix:@"ColorLight"]) {
+                painted++;
+                XCTAssertNotNil(VibeColorFromHexString(theme.dictionaryRepresentation[key]), @"%@", key);
+            }
+        }
+        XCTAssertGreaterThan(painted, 0u);
+        // A pair is painted on both sides, or on neither.
+        for (NSString *base in @[kVibeThemeColorTitle, kVibeThemeColorArtist, kVibeThemeColorWaveformPlayed,
+                                 kVibeThemeColorWindowTint, kVibeThemeColorPlaylistPlayingRow]) {
+            XCTAssertEqual([theme colorForBase:base dark:YES] != nil, [theme colorForBase:base dark:NO] != nil,
+                           @"%@", base);
+        }
+        // What shows a painted pair is switched on with it, and only then.
+        XCTAssertEqual([theme.waveformTheme isEqualToString:@"custom"],
+                       [theme colorForBase:kVibeThemeColorWaveformPlayed dark:YES] != nil);
+        XCTAssertEqual([theme.windowTint isEqualToString:@"custom"],
+                       [theme colorForBase:kVibeThemeColorWindowTint dark:YES] != nil);
+        XCTAssertEqual([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle],
+                       [theme colorForBase:kVibeThemeColorPlaylistTitle dark:YES] != nil);
+    }
 }
 
 - (void)testRecordRoundTrips {

@@ -28,4 +28,13 @@
 // makes leaving the pane and closing the window one revert.
 - (void)previewAppearanceDark:(BOOL)dark;
 
+// The toolbar's two dice, outside the pane for the same reason: each rolls
+// the active theme (AppTheme's randomizeSettingsWithWaveformStyles: and
+// randomizeColors) and applies the whole result. Only on the editor page
+// over a user theme — a built-in cannot be edited — which canRandomize
+// reports for the control's enablement.
+@property (readonly, nonatomic) BOOL canRandomize;
+- (void)randomizeThemeSettings;
+- (void)randomizeThemeColors;
+
 @end
