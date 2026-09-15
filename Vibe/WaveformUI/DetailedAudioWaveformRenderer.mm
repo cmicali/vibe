@@ -433,7 +433,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels,
+                                                           _wiggle ? count : kVibeWaveformEnergyColumns);
     float gainDB = self.gainDB;
     if (_wiggle) {
         // Keep the shared [min, max] layout so morphs, dips and bakes use one

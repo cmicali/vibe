@@ -31,9 +31,9 @@ static const float kVibeWaveformGainDBPerExponentDoubling = 24.0f;
 
 // fullScaleRMS is the RMS that draws full height at 0 dB:
 // kVibeWaveformFullScaleRMS, or under Settings > Appearance > Waveform >
-// Normalize the track's own loudest energy column, so every track fills the
-// band whatever its master's level and only the gain decides what pegs. The
-// reference scales the level; the gain alone bends the curve.
+// Normalize the track's loudest energy column capped at that fixed reference,
+// so normalization can only raise levels. The reference scales the level;
+// the gain alone bends the curve and can still lower the waveform.
 static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, float gainDB) {
     float gain = powf(10.0f, gainDB / 20.0f);
     float exponent = exp2f(-gainDB / kVibeWaveformGainDBPerExponentDoubling);

@@ -79,18 +79,16 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
             : waveform->getChunkAtIndex(i, count);
 }
 
-// The full-scale reference for one fill: the fixed -9 dBFS RMS, or with
-// Normalize on the track's loudest energy column at the floored resolution,
-// so that column draws full height whatever the master's level. The
-// resolution is the fixed column count rather than the bar count, so a
-// resize cannot move the reference. A silent or still-empty waveform falls
-// back to the constant rather than dividing by zero; its bars are zero
-// either way.
+// Normalize only raises levels: its reference cannot exceed the fixed one.
+// The default resolution keeps bar styles' reference stable across resizing;
+// Wiggle supplies its loop count so its averaged peaks can fill the band.
+// Silence and empty waveforms keep the fixed reference to avoid division by zero.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
-                                                        BOOL normalize) {
+                                                        BOOL normalize,
+                                                        NSUInteger columns = kVibeWaveformEnergyColumns) {
     float loudest = (normalize && waveform)
-            ? sqrtf(waveform->getMaxMeanSquare(kVibeWaveformEnergyColumns)) : 0;
-    return loudest > 0 ? loudest : kVibeWaveformFullScaleRMS;
+            ? sqrtf(waveform->getMaxMeanSquare(columns)) : 0;
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
 // Snap a hover/seek column to the device-pixel grid. A fractional origin or

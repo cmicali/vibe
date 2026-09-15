@@ -40,6 +40,58 @@
 
 #pragma mark - Resize and content transitions
 
+- (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(nullptr, YES), kVibeWaveformFullScaleRMS);
+    for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {
+        AudioWaveformCacheChunk chunk;
+        chunk.set(-rms, rms, rms * rms, 1);
+        AudioWaveform waveform(1, &chunk);
+        float plain = VibeWaveformFullScaleRMSForWaveform(&waveform, NO);
+        float normalized = VibeWaveformFullScaleRMSForWaveform(&waveform, YES);
+        XCTAssertGreaterThan(normalized, 0);
+        XCTAssertLessThanOrEqual(normalized, plain);
+        if (rms == 0 || rms >= kVibeWaveformFullScaleRMS) XCTAssertEqual(normalized, plain);
+        for (float gain : {-12.0f, 0.0f, 12.0f}) {
+            for (float fraction : {0.0f, 0.1f, 0.5f, 1.0f}) {
+                float energy = rms * rms * fraction;
+                float level = VibeWaveformBarLevel(energy, normalized, gain);
+                XCTAssertTrue(std::isfinite(level));
+                XCTAssertGreaterThanOrEqual(level, VibeWaveformBarLevel(energy, plain, gain));
+            }
+        }
+    }
+}
+
+- (void)testWiggleNormalizesTheAveragedLoopsItDraws {
+    std::vector<AudioWaveformCacheChunk> chunks(1024);
+    for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);
+    chunks[511].set(-0.8f, 0.8f, 0.64f, 1); // a loud short slice inside a much quieter loop
+    AudioWaveform waveform(chunks.size(), chunks.data());
+    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
+        CALayer *host = [CALayer layer];
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
+                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+                        layer:host bounds:CGRectMake(0, 0, 512, 80) isDark:YES];
+        for (CGFloat width : {257.0, 512.0, 773.0}) {
+            NSUInteger count = [renderer numBarsForWidth:width];
+            std::vector<float> plain(count * 2), normalized(count * 2);
+            for (float gain : {-12.0f, 0.0f, 12.0f}) {
+                renderer.gainDB = gain;
+                renderer.normalizesLevels = NO;
+                [renderer fillEnvelope:plain.data() barCount:count waveform:&waveform];
+                renderer.normalizesLevels = YES;
+                [renderer fillEnvelope:normalized.data() barCount:count waveform:&waveform];
+                for (NSUInteger i = 0; i < count; i++) {
+                    XCTAssertGreaterThanOrEqual(normalized[i * 2 + 1], plain[i * 2 + 1]);
+                }
+                if (gain == 0) {
+                    XCTAssertEqualWithAccuracy(*std::max_element(normalized.begin(), normalized.end()), 1, 1e-6);
+                }
+            }
+        }
+    }
+}
+
 - (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
     XCTAssertTrue([identifiers containsObject:@"wiggle"]);
