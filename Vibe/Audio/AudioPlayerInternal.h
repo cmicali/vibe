@@ -183,19 +183,21 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioDeviceID           _changedFormatDeviceID;
     AudioStreamID           _changedFormatStreamID;
     AudioStreamBasicDescription _formatBeforeChange;
-    // The device whose software volume is listened to, from its first
-    // prepare until it is left, and the listener block that is the HAL's
-    // handle for the removal. kAudioObjectUnknown while none is watched.
-    AudioDeviceID           _volumeWatchedDeviceID;
+    // The device the last prepare set up, from that prepare until it is
+    // left: its first output stream, the physical format asked of it, and
+    // the listener on its software volume that is the HAL's handle for the
+    // removal. kAudioObjectUnknown while none. The report reads the stream's
+    // physical format, the volume and the system default live against these.
+    AudioDeviceID           _preparedDeviceID;
+    AudioStreamID           _preparedStreamID;
+    AudioStreamBasicDescription _preparedFormat;
     AudioObjectPropertyListenerBlock _volumeListener;
     // A settlement waiting for the outgoing audio to go silent before it may
     // stop the engine for a format switch; run once by completeRetiredFadePair:
     // when _activeRetiredOutputCount reaches zero.
     dispatch_block_t        _parkedSettlement;
-    // The last prepare's facts, folded and published for the shell's readout:
-    // _bitPerfectFacts is queue-confined, _bitPerfectReport its copy under
-    // _stateLock.
-    VibeBitPerfectReport    _bitPerfectFacts;
+    // The published report, under _stateLock; computed from its owners at
+    // every publication, nothing cached.
     VibeBitPerfectReport    _bitPerfectReport;
 #endif
 

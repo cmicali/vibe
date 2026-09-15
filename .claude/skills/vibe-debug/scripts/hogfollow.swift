@@ -1,7 +1,13 @@
-// Does hogging the system default output device move the default, and does
-// AVAudioEngine's output unit follow the default away from the device it was
-// explicitly bound to? Then: does a re-bind stick while the hog is held, and
-// what happens on release? Usage: hogfollow <deviceID>
+// The measurement behind "the system default output device is never hogged"
+// (Audio/Mac/Devices/CLAUDE.md; docs/future/bit-perfect-output.md, Q8). Run
+// it against the device that IS the default: hogfollow <deviceID>.
+//
+// Phase 1, engine running: does hogging the default move the default, and
+// does AVAudioEngine's output unit follow it off the device it was bound to?
+// Does a re-bind stick while the hog is held, and what does the release do?
+// Phase 2, engine stopped: after a hog and a re-bind, does the first start
+// apply a pending follow (ending stopped), does a second start stick, and
+// does prepare() before the start absorb it?
 import AVFoundation
 import CoreAudio
 import Foundation
@@ -52,28 +58,48 @@ func poll(_ what: String, _ seconds: Double) {
         line(what)
     }
 }
+func start(_ label: String) {
+    do { try engine.start(); print("\(stamp()) \(label): start ok") }
+    catch { print("\(stamp()) \(label): start FAILED \(error)") }
+}
 let player = AVAudioPlayerNode()
 engine.attach(player)
 engine.connect(player, to: engine.mainMixerNode, format: nil)
 print("me \(getpid()); device \(device); default at start \(systemDefault())")
 print("bind: \(bind())")
-try! engine.start()
-line("started")
-poll("idle", 1.0)
-print("---- hog \(device) while running: \(writeHog(getpid()))")
-poll("after hog", 3.0)
-print("---- re-bind: \(bind())")
-poll("after re-bind", 3.0)
-print("---- release: \(writeHog(-1))")
-poll("after release", 3.0)
-print("---- hog again with the engine STOPPED, then re-bind, then start")
-engine.stop()
+start("initial")
+poll("idle", 0.75)
+
+print("==== phase 1: hog while running")
 print("hog: \(writeHog(getpid()))")
-poll("stopped+hogged", 1.5)
+poll("after hog", 2.0)
 print("re-bind: \(bind())")
-try! engine.start()
-poll("started hogged", 3.0)
-print("---- release while running")
+poll("after re-bind", 2.0)
 print("release: \(writeHog(-1))")
-poll("after release 2", 2.0)
+poll("after release", 1.5)
+engine.stop()
+
+print("==== phase 2: hog while stopped, re-bind, first and second start")
+print("hog: \(writeHog(getpid()))")
+poll("hogged, stopped", 0.75)
+print("re-bind: \(bind())")
+start("first start after hog")
+poll("after first start", 2.0)
+print("re-bind again: \(bind())")
+start("second start")
+poll("after second start", 2.0)
+print("release: \(writeHog(-1))")
+poll("released", 1.0)
+engine.stop()
+
+print("==== phase 2b: hog while stopped, re-bind, prepare(), then start")
+print("hog: \(writeHog(getpid()))")
+poll("hogged, stopped", 0.75)
+print("re-bind: \(bind())")
+engine.prepare()
+line("after prepare")
+start("start after prepare")
+poll("after start", 2.0)
+print("release: \(writeHog(-1))")
+poll("released", 0.75)
 engine.stop()

@@ -205,10 +205,10 @@ static NSString *VibeSampleRateText(double sampleRate) {
         case VibeBitPerfectStatusIdle:
             return STR_SETTINGS_BIT_PERFECT_IDLE;
         case VibeBitPerfectStatusActive: {
-            NSString *shape = report.exclusive ? STR_SETTINGS_BIT_PERFECT_FORMAT_EXCLUSIVE
+            NSString *formatString = report.exclusive ? STR_SETTINGS_BIT_PERFECT_FORMAT_EXCLUSIVE
                     : report.systemDefault ? STR_SETTINGS_BIT_PERFECT_FORMAT_SHARED_DEFAULT
                     : STR_SETTINGS_BIT_PERFECT_FORMAT;
-            NSString *format = [NSString stringWithFormat:shape,
+            NSString *format = [NSString stringWithFormat:formatString,
                     VibeSampleRateText(report.sampleRate),
                     [formatters decimalString:report.bitsPerChannel fractionDigits:0]];
             return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_ACTIVE, format];

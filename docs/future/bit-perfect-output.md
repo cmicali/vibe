@@ -391,7 +391,7 @@ the default to another device the moment a process hogs the current one, and AVA
 output unit is a *default* output unit: it follows the default whenever it moves, whatever
 `kAudioOutputUnitProperty_CurrentDevice` was set to — during the hog write, or at a later
 `start` — and follows it back when the release moves the default home. Measured with
-`hogfollow.swift` and `hogstart.swift` (vibe-debug skill). Re-binding the unit and `prepare`-ing
+`hogfollow.swift` (vibe-debug skill; phase 1 is the running engine, phase 2 the stopped one). Re-binding the unit and `prepare`-ing
 after the take held in the standalone experiment but not in the app: a 5 s stall in `start`,
 the unit on the other device afterwards, and after a switch away the audio on the wrong device.
 Decision: the system default output device is never hogged (`VibeBitPerfectShouldHog`'s second

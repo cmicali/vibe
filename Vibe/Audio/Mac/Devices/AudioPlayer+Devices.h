@@ -22,9 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioPlayer (BitPerfect)
 
 // The newest published report — a locked snapshot, no queue hop, like
-// outputAudioActive. Recomputed at every settlement, hog edge, mode toggle,
-// playback-state publication and volume move, and announced through
-// audioPlayerDidChangeBitPerfectReport: when it differs.
+// outputAudioActive. Recomputed from its owners at every settlement, hog
+// edge, mode toggle, playback-state publication, volume move and default
+// change, and announced through audioPlayerDidChangeBitPerfectReport: when
+// it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
 
 @end
@@ -67,7 +68,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
 // the settlement's park predicate, which decides BEFORE the request is
-// consumed. NO whenever the mode cannot apply.
+// consumed, and the gapless splice's gate, since a splice cannot switch. NO
+// whenever the mode cannot apply.
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
 
 // Whether the mixer feeds the output node at a rate other than `rate`, so
@@ -79,20 +81,19 @@ NS_ASSUME_NONNULL_BEGIN
 // engine — the callers guarantee nothing is audible — writes one physical
 // format, waits (bounded) for the nominal rate to read back, and rewires the
 // master bus at the device's rate. Remembers the device's format before the
-// first change so it can be put back. It writes the report's facts; the
-// state publication every caller makes next publishes them.
+// first change so it can be put back, and records the prepared device,
+// stream and format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
 // Hog for the bound device, when the mode, an eligible device, no FX graph
-// and VibeBitPerfectShouldHog (not virtual, not the system default output
-// device — the trap at the rule) all hold. Idempotent through the HAL read; a rebuild on
-// the device already hogged keeps the hog.
+// and VibeBitPerfectShouldHog all hold. Idempotent through the HAL read; a
+// rebuild on the device already hogged keeps the hog.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
 
-// Listens to the device's software volume until told to stop with
-// kAudioObjectUnknown; a move re-reads it into the facts and republishes.
-- (void)watchVolumeOnQueueOfDevice:(AudioDeviceID)deviceID;
+// The prepared device, with a listener on its software volume that
+// republishes on a move; kAudioObjectUnknown forgets it.
+- (void)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID;
 
 // Writes the remembered format back to the device it was read from when one
 // is owed, and clears the slot either way — a vanished device fails the write
@@ -100,16 +101,16 @@ NS_ASSUME_NONNULL_BEGIN
 // the call returns.
 - (void)restoreOutputFormatOnQueue;
 
-// The device as it was found, then let go: the restore, the volume watch
-// dropped and the hog released. Mode off, the vanished-device abandon and
+// The device as it was found, then let go: the restore, the prepared device
+// forgotten and the hog released. Mode off, the vanished-device abandon and
 // quit all take it; a switch away from the device keeps its own order.
 - (void)leaveOutputDeviceOnQueue;
 
-// Folds the queue-side facts against the live state and publishes the copy
-// the shell reads, announcing it to the delegate when it differs. Its edges
-// are refreshOutputAudioActiveOnQueue (every state publication and fade
-// completion), the committed device id, the two hog edges, the mode toggle
-// and the volume watch.
+// Computes the report from its owners and publishes the copy the shell
+// reads, announcing it to the delegate when it differs. Its edges are
+// refreshOutputAudioActiveOnQueue (every state publication and fade
+// completion), the end of a device switch, the two hog edges, the mode
+// toggle, a volume move and a system-default change.
 - (void)publishBitPerfectReportOnQueue;
 
 // The parked settlement's re-entry, called by completeRetiredFadePair: when

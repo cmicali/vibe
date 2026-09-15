@@ -54,6 +54,11 @@
                                                  prefetchedFile.processingFormat.channelCount)) {
         return;
     }
+#if TARGET_OS_OSX
+    if ([self outputNeedsSwitchOnQueueForFile:prefetchedFile]) {
+        return; // bit-perfect: the next file wants another device format, which only a settlement can set
+    }
+#endif
     uint64_t openGeneration = ++_gaplessOpenGeneration;
     NSString *path = track.url.path;
     _gaplessOpenPath = path;
@@ -109,6 +114,15 @@
                                  _gaplessFile.processingFormat.channelCount)) {
         return;
     }
+#if TARGET_OS_OSX
+    // A splice keeps the device's format, so the next file must want the one
+    // the current file set; a 16-bit → 24-bit boundary on an integer DAC
+    // takes the settlement, which switches. The promote publishes the new
+    // file, and the report reads its source facts from the current file.
+    if ([self outputNeedsSwitchOnQueueForFile:_gaplessFile]) {
+        return;
+    }
+#endif
     [self scheduleFile:_gaplessFile onNode:_node fromFrame:0];
     [self setGaplessQueuedOnQueue:YES];
 }

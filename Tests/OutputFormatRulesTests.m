@@ -99,6 +99,18 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 32, YES), PCM(96000, 32, NO)));
 }
 
+// A float source is the same representation as a float output, whatever its
+// storage width says; an integer output of any depth is a conversion.
+- (void)testFloatSourceIsSatisfiedOnlyByFloatAtLeastAsWide {
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 32, YES), PCM(44100, 32, YES)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 32, NO), PCM(44100, 32, YES)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 32, YES)));
+    // The float flag's bit is also ALAC's 16-bit depth flag: not a float source.
+    XCTAssertFalse(VibeSourceIsFloat(Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_16BitSourceData, 44100)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 16, NO),
+            Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_16BitSourceData, 44100)));
+}
+
 - (void)testIntegerDepthMustReachTheSource {
     XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 16, NO)));
     XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 24, NO)));
@@ -196,6 +208,20 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 24, NO), PCM(96000, 32, NO)));
 }
 
+- (void)testFloatSourcePrefersFloatAndTakesI32OnlyWithoutOne {
+    AudioStreamRangedDescription list[20];
+    UInt32 n = (UInt32)USBDACList(list);
+    AudioStreamBasicDescription chosen = {0};
+    XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 32, YES), 44100, list, n, &chosen));
+    XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
+    XCTAssertEqual(chosen.mBitsPerChannel, 32u);
+    XCTAssertFalse(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES)));
+    list[n++] = RangedFormat(44100, 32, YES);
+    XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 32, YES), 44100, list, n, &chosen));
+    XCTAssertTrue(VibePhysicalFormatIsFloat(chosen));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES)));
+}
+
 - (void)testFloatOnlyDevicesChooseFloat32 {
     AudioStreamRangedDescription speakers[8];
     UInt32 n = (UInt32)FloatListForRates(kSpeakerRates, 4, speakers);
@@ -260,7 +286,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 static VibeBitPerfectReport Perfect(void) {
     return (VibeBitPerfectReport){
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES, .fxGraph = NO,
-        .rateExact = YES, .switched = YES, .depthOK = YES, .softwareVolume = 1.0f,
+        .rateExact = YES, .formatConfirmed = YES, .depthOK = YES, .softwareVolume = 1.0f,
         .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
     };
 }
@@ -302,7 +328,7 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
     r.depthOK = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusDepthInsufficient);
-    r.switched = NO;
+    r.formatConfirmed = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
     r.rateExact = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusRateUnsupported);

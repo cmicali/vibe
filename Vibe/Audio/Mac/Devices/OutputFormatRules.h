@@ -50,7 +50,7 @@ typedef struct {
     BOOL hasTrack;
     BOOL fxGraph;
     BOOL rateExact;
-    BOOL switched;
+    BOOL formatConfirmed;   // the device has the format that was asked of it
     BOOL depthOK;
     BOOL hogWanted;
     BOOL exclusive;
@@ -69,7 +69,7 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.softwareVolume == b.softwareVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.fxGraph == b.fxGraph && a.rateExact == b.rateExact
-            && a.switched == b.switched && a.depthOK == b.depthOK
+            && a.formatConfirmed == b.formatConfirmed && a.depthOK == b.depthOK
             && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
             && a.sourceLossless == b.sourceLossless && a.systemDefault == b.systemDefault;
 }
@@ -98,18 +98,28 @@ static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
     return VibeSourceBitDepth(source) > 0;
 }
 
+// Physical formats are always PCM. A source is asked the PCM question only
+// when it is PCM: the ALAC and FLAC depth flags reuse the same low bits.
 static inline BOOL VibePhysicalFormatIsFloat(AudioStreamBasicDescription format) {
     return (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0;
 }
 
-// YES when `physical` delivers `source` unchanged: same rate, and float32 or
-// an integer depth >= the source's. The report's depth check, not the
-// chooser's preference. A lossy source (depth 0) is satisfied by anything at
-// its rate.
+static inline BOOL VibeSourceIsFloat(AudioStreamBasicDescription source) {
+    return source.mFormatID == kAudioFormatLinearPCM && VibePhysicalFormatIsFloat(source);
+}
+
+// YES when `physical` delivers `source` unchanged: same rate, and the same
+// representation at no less width — a float source needs a float output at
+// least as wide, an integer source an integer depth >= its own or float32's
+// 24-bit significand. The report's depth check, not the chooser's
+// preference. A lossy source (depth 0) is satisfied by anything at its rate.
 static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physical,
                                                AudioStreamBasicDescription source) {
     if (physical.mSampleRate != source.mSampleRate) {
         return NO;
+    }
+    if (VibeSourceIsFloat(source)) {
+        return VibePhysicalFormatIsFloat(physical) && physical.mBitsPerChannel >= source.mBitsPerChannel;
     }
     UInt32 depth = VibeSourceBitDepth(source);
     if (VibePhysicalFormatIsFloat(physical)) {
@@ -146,14 +156,9 @@ static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
 // Whether a device is hogged at all: everything but virtual, which has no
 // DAC behind it and is what the loopback verification records from — and
 // never the system default output device. TRAP: hogging the default makes
-// coreaudiod move the default to another device, and AVAudioEngine's output
-// unit follows the default whenever it moves, off the device it was bound
-// to, at a moment of its own choosing (during the hog write, or at a later
-// engine start); the release moves the default back and the unit follows
-// again. Measured with hogfollow.swift and hogstart.swift in the vibe-debug
-// skill; re-binding the unit and preparing the engine after the take did not
-// close the race. So on the default device the samples still arrive
-// unchanged, but other apps keep the device and their sounds can mix in.
+// coreaudiod move the default elsewhere and AVAudioEngine's output unit
+// follow it, off the device it was bound to, at a moment of its own
+// choosing; the measurements are Q8 of docs/future/bit-perfect-output.md.
 static inline BOOL VibeBitPerfectShouldHog(UInt32 transportType, BOOL isSystemDefault) {
     return transportType != kAudioDeviceTransportTypeVirtual && !isSystemDefault;
 }
@@ -201,8 +206,10 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
 
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
 // source's (a lossy source takes 24), else the smallest integer depth above
-// it, else float32. Returns NO when nothing is at `rate`; the caller compares
-// the choice against what the device has before writing.
+// it, else float32 — and for a float source the float format first, since
+// no integer depth delivers one unchanged. Returns NO when nothing is at
+// `rate`; the caller compares the choice against what the device has before
+// writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
@@ -240,7 +247,8 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    *chosen = haveInteger ? integerPick : floatPick;
+    BOOL preferFloat = VibeSourceIsFloat(source) ? haveFloat : !haveInteger;
+    *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }
 
@@ -265,7 +273,7 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (!r.rateExact) {
         return VibeBitPerfectStatusRateUnsupported;
     }
-    if (!r.switched) {
+    if (!r.formatConfirmed) {
         return VibeBitPerfectStatusSwitchFailed;
     }
     if (!r.depthOK) {

@@ -75,6 +75,8 @@ With the crossfade at the minimum and the prefetched file matching the current c
 
 The current segment's completion then means "boundary passed", not "playback stopped": `promoteGaplessOnQueue` republishes the queued file as current *in place* — no node stop, no fade, no graph mutation, `_segmentGeneration` deliberately not bumped — with a zero-or-negative `_segmentStartFrame` (`playerTime.sampleTime` is monotonic across queued segments), and fires `didAutoAdvanceFromTrack:toTrack:` so the controller advances the playlist *without* calling `play:`. **A track's end fires exactly one of `didFinishPlaying:` or the auto-advance callback, never both.**
 
+On macOS the arm has one more gate: under bit-perfect output the next file must want the device format the current file set (`outputNeedsSwitchOnQueueForFile:`), because a splice cannot switch it — a boundary that needs a switch takes the settlement (`Mac/Devices/CLAUDE.md`).
+
 **ALWAYS: every `[node stop]` of the current node drops its queued segment**, so every such site — seek, idle-stop repark, device switch, the retire in `playOnQueue:`, stop, the failure resets — clears the armed flag first (`setGaplessQueuedOnQueue:`), and the sites that reschedule the same file re-arm afterwards. When the playlist's *next* changes under an armed splice, `prefetchOnQueue:` unqueues by rescheduling the current remainder through the seek path — the only click-free way to drop a queued segment. Raising the crossfade setting mid-track unqueues the same way; lowering it re-arms.
 
 Because a promote can land between a main-thread action and its queue block, intent is snapshotted: `seekToPosition:` and `finishCurrentTrack` capture the current track at dispatch and drop the request if the boundary advanced it.
