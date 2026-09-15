@@ -609,18 +609,19 @@ static NSArray<NSString *> *GlyphList(NSString *const _Nonnull *names, size_t co
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CUSTOM_CORNER_RADIUS control:_customCornerRadiusSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:[@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
-        ] arrayByAddingObjectsFromArray:[[[playlistButtonRows
-            arrayByAddingObjectsFromArray:playButtonRows]
-            arrayByAddingObjectsFromArray:nextButtonRows]
-            arrayByAddingObjectsFromArray:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:
+            [[[playlistButtonRows arrayByAddingObjectsFromArray:playButtonRows]
+              arrayByAddingObjectsFromArray:nextButtonRows]
+              arrayByAddingObjectsFromArray:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch],
+        ]]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:titleFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE control:titleColors],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
-        ]]]],
+        ]],
         _infoSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
