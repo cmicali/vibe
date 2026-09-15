@@ -30,7 +30,7 @@ static const CGFloat kCupertinoBarWidth = 1;
 // ±level rather than the peak envelope: every bar is centered on the midline
 // and its height is the column's energy, the level Sonic Cirrus draws.
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
         float level = VibeWaveformBarLevel(

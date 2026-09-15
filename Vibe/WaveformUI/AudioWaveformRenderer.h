@@ -80,14 +80,13 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
 }
 
 // Normalize only raises levels: its reference cannot exceed the fixed one.
-// The default resolution keeps bar styles' reference stable across resizing;
-// Wiggle supplies its loop count so its averaged peaks can fill the band.
+// Match the drawn energy windows, including the finer styles' 1/1024 floor.
 // Silence and empty waveforms keep the fixed reference to avoid division by zero.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
                                                         BOOL normalize,
-                                                        NSUInteger columns = kVibeWaveformEnergyColumns) {
+                                                        NSUInteger count) {
     float loudest = (normalize && waveform)
-            ? sqrtf(waveform->getMaxMeanSquare(columns)) : 0;
+            ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
