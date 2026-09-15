@@ -36,10 +36,9 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 
-static const CGFloat kThemeListRowHeight = 22;
 // Ten rows: the two group headers, the built-ins, and room for a handful of
 // the user's own before it scrolls.
-static const CGFloat kThemeListHeight = 10 * kThemeListRowHeight;
+static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 // The gain slider's magnetic detent: within this many dB of 0 snaps onto the
@@ -92,21 +91,16 @@ static const double kWaveformGainDetentDB = 0.75;
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
     _themeTable = [[NSTableView alloc] initWithFrame:NSZeroRect];
-    _themeTable.headerView = nil;
     _themeTable.allowsMultipleSelection = NO;
     _themeTable.allowsEmptySelection = NO;
     _themeTable.dataSource = self;
     _themeTable.delegate = self;
-    _themeTable.rowHeight = kThemeListRowHeight;
     _themeTable.target = self;
     _themeTable.doubleAction = @selector(editTheme:);
     [_themeTable addTableColumn:[[NSTableColumn alloc] initWithIdentifier:kThemeCellIdentifier]];
     [_themeTable registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
-    scrollView.documentView = _themeTable;
-    scrollView.hasVerticalScroller = YES;
-    scrollView.borderType = NSBezelBorder;
-    [scrollView.heightAnchor constraintEqualToConstant:kThemeListHeight].active = YES;
+    SettingsRowView *listRow = [SettingsRowView rowWithTableView:_themeTable
+                                                        rowCount:kThemeListRowCount];
 
     NSPopUpButton *addButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
     [addButton addItemWithTitle:STR_SETTINGS_THEME_ADD];
@@ -162,20 +156,16 @@ static const double kWaveformGainDetentDB = 0.75;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_listWaveformPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE
-                                  caption:STR_SETTINGS_WAVEFORM_NORMALIZE_CAPTION
-                                  control:_waveformNormalizeSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN
-                                  caption:STR_SETTINGS_WAVEFORM_GAIN_CAPTION
-                                  control:gainCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE control:_waveformNormalizeSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN control:gainCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
-            [SettingsRowView rowWithContentView:scrollView],
+            listRow,
             buttonRow,
         ]],
     ];
-    // The buttons act on the list right above them; the hairline the section
-    // stamps between rows reads as a divider between two unrelated ones.
+    // The sunk list's edge is the divider above the buttons; the hairline the
+    // section stamps would double it.
     buttonRow.showsTopSeparator = NO;
 }
 
@@ -384,44 +374,37 @@ static const double kWaveformGainDetentDB = 0.75;
         return [self groupCellInTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:kThemeCellIdentifier owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
-        cell.identifier = kThemeCellIdentifier;
-        NSImageView *check = [[NSImageView alloc] initWithFrame:NSZeroRect];
-        check.translatesAutoresizingMaskIntoConstraints = NO;
+    // The active theme is the selected row, always accent-colored (the row
+    // view below), so the cell carries nothing but the name.
+    NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
+                                                        inTableView:tableView];
+    if (!cell.textField) {
         NSTextField *label = [NSTextField labelWithString:@""];
         label.translatesAutoresizingMaskIntoConstraints = NO;
         label.lineBreakMode = NSLineBreakByTruncatingTail;
-        [cell addSubview:check];
         [cell addSubview:label];
-        cell.imageView = check;
         cell.textField = label;
         [NSLayoutConstraint activateConstraints:@[
-            [check.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
-            [check.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-            [check.widthAnchor constraintEqualToConstant:16],
-            [label.leadingAnchor constraintEqualToAnchor:check.trailingAnchor constant:6],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
+                                                            constant:-kSettingsRowInset],
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }
-    BOOL isActive = [identifier isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier];
-    cell.imageView.image = isActive
-            ? [NSImage imageWithSystemSymbolName:@"checkmark" accessibilityDescription:nil]
-            : nil;
     cell.textField.stringValue =
             [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
     return cell;
 }
 
-// A header row: the label alone, at the card's own left margin so the themes
-// under it read as indented beneath their group.
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    return [SettingsAccentRowView new];
+}
+
+// A header row: the label alone, small and secondary above the names.
 - (NSTableCellView *)groupCellInTableView:(NSTableView *)tableView title:(NSString *)title {
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:kThemeGroupCellIdentifier owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
-        cell.identifier = kThemeGroupCellIdentifier;
+    NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeGroupCellIdentifier
+                                                        inTableView:tableView];
+    if (!cell.textField) {
         NSTextField *label = [NSTextField labelWithString:@""];
         label.translatesAutoresizingMaskIntoConstraints = NO;
         label.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
@@ -431,8 +414,9 @@ static const double kWaveformGainDetentDB = 0.75;
         [cell addSubview:label];
         cell.textField = label;
         [NSLayoutConstraint activateConstraints:@[
-            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
+                                                            constant:-kSettingsRowInset],
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }

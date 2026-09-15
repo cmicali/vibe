@@ -131,19 +131,6 @@ static const CGFloat kSettingsSidebarWidth = 200;
 @property (readonly, nonatomic) NSTableView *tableView;
 @end
 
-// System Settings shows the accent-colored selection whether or not the
-// sidebar has focus; a stock source list dims to gray when it does not.
-@interface SettingsSidebarRowView : NSTableRowView
-@end
-
-@implementation SettingsSidebarRowView
-
-- (BOOL)isEmphasized {
-    return YES;
-}
-
-@end
-
 // The icon flips white through backgroundStyle — the row view pushes it the
 // moment its selection moves, mouse-down tracking included. Re-tinting from
 // tableViewSelectionDidChange: left the pressed row mis-tinted for the whole
@@ -225,7 +212,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
 }
 
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
-    return [SettingsSidebarRowView new];
+    return [SettingsAccentRowView new];
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
@@ -442,6 +429,12 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
         NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"SettingsToolbar"];
         toolbar.delegate = self;
         toolbar.allowsUserCustomization = NO;
+        // Icon only: with labels allowed, the unified toolbar reserves a label
+        // row under its items whether or not any item shows one — 66 points
+        // against System Settings' 52 — and the Appearance pane's toggle
+        // printed "Appearance" under itself in it. The label stays on the
+        // item for accessibility.
+        toolbar.displayMode = NSToolbarDisplayModeIconOnly;
         window.toolbar = toolbar;
         window.toolbarStyle = NSWindowToolbarStyleUnified;
         // The System Settings look: the page title sits beside the navigation

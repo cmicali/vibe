@@ -65,9 +65,10 @@ static const CGFloat kPanePadding = 20;
 + (void)settleSharedSizeForPanes:(NSArray<__kindof NSViewController *> *)panes;
 
 // The System Settings inline dropdown — borderless, the value beside an
-// always-drawn chevron badge, no hover treatment (the reference has none),
-// value hugging the row's trailing edge; width caps a runaway title. Pass
-// NULL for a popup whose items carry their own targets.
+// always-drawn chevron badge that grows into a rounded bezel around the value
+// while the mouse is over it, value hugging the row's trailing edge; width
+// caps a runaway title. Pass NULL for a popup whose items carry their own
+// targets.
 - (NSPopUpButton *)popUpButtonWithWidth:(CGFloat)width action:(nullable SEL)action;
 
 // One popup item: title shown, stable identifier on representedObject — the
