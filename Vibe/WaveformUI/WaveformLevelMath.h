@@ -35,8 +35,11 @@ static const float kVibeWaveformGainDBPerExponentDoubling = 24.0f;
 // band whatever its master's level and only the gain decides what pegs. The
 // reference scales the level; the gain alone bends the curve.
 static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, float gainDB) {
+    float level = sqrtf(fmaxf(meanSquare, 0.0f)) / fullScaleRMS;
+    if (gainDB == 0) {
+        return fminf(level, 1.0f);
+    }
     float gain = powf(10.0f, gainDB / 20.0f);
     float exponent = exp2f(-gainDB / kVibeWaveformGainDBPerExponentDoubling);
-    float level = sqrtf(fmaxf(meanSquare, 0.0f)) / fullScaleRMS * gain;
-    return fminf(powf(level, exponent), 1.0f);
+    return fminf(powf(level * gain, exponent), 1.0f);
 }

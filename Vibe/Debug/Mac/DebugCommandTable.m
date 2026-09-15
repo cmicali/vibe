@@ -361,10 +361,15 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
                 });
             }),
-            VibeDebugCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                double bodyPoints = 0;
-                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
-                    return VibeErrorJSON(@"usage: set_window_width <body-points>");
+            VibeDebugCmd(@"set_window_width <body-points> [height-points] [seconds]", 15, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                double bodyPoints = 0, height = controller.window.frame.size.height, seconds = 0;
+                if (tokens.count < 2 || tokens.count > 4 || !VibeParseDouble(tokens[1], &bodyPoints)
+                        || (tokens.count > 2 && !VibeParseDouble(tokens[2], &height))
+                        || (tokens.count > 3 && !VibeParseDouble(tokens[3], &seconds))
+                        || !isfinite(bodyPoints) || bodyPoints <= 0 || bodyPoints > 10000
+                        || !isfinite(height) || height <= 0 || height > 10000
+                        || !isfinite(seconds) || seconds < 0 || seconds > 10) {
+                    return VibeErrorJSON(@"usage: set_window_width <body-points> [height-points] [seconds 0..10]");
                 }
                 // The window is freely resizable and its width comes back from
                 // the frame autosave, so a screenshot run that wants a
@@ -376,6 +381,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 MainWindow *window = (MainWindow *)controller.window;
                 CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
                 NSRect frame = window.frame;
+                NSRect initial = frame;
+                frame.size.height = MAX(window.minSize.height, height);
+                frame.origin.y = NSMaxY(initial) - frame.size.height;
                 // It grows to the right like a resize-handle drag, floored by
                 // the window's own minSize, which already carries the panel,
                 // then is pulled back on screen: a window hanging off the
@@ -385,12 +393,36 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
                     frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
                 }
-                [window setFrame:frame display:YES];
-                return VibeJSONString(@{
-                    @"ok": @YES,
-                    @"frame": NSStringFromRect(window.frame),
-                    @"bodyWidth": @(window.frame.size.width - panel),
-                });
+                NSString *(^reply)(void) = ^{
+                    return VibeJSONString(@{
+                        @"ok": @YES, @"frame": NSStringFromRect(window.frame),
+                        @"bodyWidth": @(window.frame.size.width - panel),
+                    });
+                };
+                if (seconds == 0) {
+                    [window setFrame:frame display:YES];
+                    return reply();
+                }
+                // Public AppKit frame changes, one per run-loop turn at 60 Hz.
+                // This exercises layout and rendering, not an NSEvent tracking loop.
+                NSUInteger steps = (NSUInteger)ceil(seconds * 60);
+                __block NSUInteger step = 0;
+                NSTimer *timer = [NSTimer timerWithTimeInterval:seconds / steps repeats:YES block:^(NSTimer *timer) {
+                    CGFloat t = (CGFloat)++step / steps;
+                    NSRect next = NSMakeRect(initial.origin.x + (frame.origin.x - initial.origin.x) * t,
+                                             initial.origin.y + (frame.origin.y - initial.origin.y) * t,
+                                             initial.size.width + (frame.size.width - initial.size.width) * t,
+                                             initial.size.height + (frame.size.height - initial.size.height) * t);
+                    VibeSignpostBegin(window_resize);
+                    [window setFrame:next display:YES];
+                    VibeSignpostEnd(window_resize);
+                    if (step == steps) {
+                        [timer invalidate];
+                        VibeWriteDebugResponse(commandId, reply());
+                    }
+                }];
+                [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+                return nil;
             }),
             VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
