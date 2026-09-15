@@ -83,48 +83,6 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     return line;
 }
 
-// Detailed's fillEnvelope:, one sampling for the live target fill and the
-// envelope bake, which must stay pixel-identical: the bar's peak envelope
-// rescaled so the energy decides the size and the min/max keep the shape (and
-// its asymmetry on DC-offset material). Both the energy and the scale's
-// reference extent come from the kVibeWaveformEnergyColumns-floored COLUMN,
-// not the bar: the column's loudest bar lands exactly on the energy envelope
-// and finer bars keep their relative peak texture below it — the dips between
-// transients that distinguish the oversampling styles. Normalizing each bar's
-// own extent to the level instead flattened every bar in a column to the same
-// height, which drew x4 and x8 as plain Detailed with extra rects.
-//
-// The caller carries the last column between bars: at the oversampling
-// counts the column advances only every count/1024 bars, and the fills run
-// at 10 Hz through a decode — x8's 8192 bars would otherwise re-combine and
-// re-sqrt every column eight times per fill.
-typedef struct {
-    NSUInteger index; // NSNotFound before the first bar
-    float extent, level;
-} VibeEnergyColumn;
-
-static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger i, NSUInteger count,
-                                            VibeEnergyColumn *column,
-                                            float fullScaleRMS, float gainDB,
-                                            float *outMin, float *outMax) {
-    AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-    NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
-    if (column->index != columnIndex) {
-        AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
-                ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
-        column->index = columnIndex;
-        column->extent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
-        column->level = VibeWaveformBarLevel(c.getMeanSquare(), fullScaleRMS, gainDB);
-    }
-    // A count that is not a multiple of the column count lets a bar straddle
-    // two columns and carry a peak its mapped column lacks; the wider extent
-    // keeps that bar on the envelope rather than past it.
-    float extent = fmaxf(column->extent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
-    float scale = extent > 0 ? column->level / extent : 0;
-    *outMin = m.getMin() * scale;
-    *outMax = m.getMax() * scale;
-}
-
 // This family's resting levels live in the theme colors' own alpha
 // (WaveformTheme.h) — the White pair carries what used to be this file's
 // kWaveformOpacity — so the renderer owns only the ramp SHAPE below, scaled
@@ -153,9 +111,6 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
     // than a line drawn over it.
     CALayer *_hoverColumn;
 
-    // The samples are a normalized, interleaved energy-scaled [min, max]
-    // envelope per bar, and rebuildMaskPaths is the rebuild callback.
-    WaveformMorphEngine *_morph;
     // rebuildMaskPaths' rect scratch, kept across the 60 Hz morph so the bars
     // reach the path through one CGPathAddRects call: appending 4,096 rects
     // one at a time regrew the path's buffer on the way, and that regrowth was
@@ -188,10 +143,6 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
     return width / (CGFloat)count;
-}
-
-- (CGFloat)barXForIndex:(NSUInteger)index width:(CGFloat)width barCount:(NSUInteger)count barWidth:(CGFloat)barWidth {
-    return barWidth * (CGFloat)index;
 }
 
 // Matches the drawn band: bars reach at most ±kBarAmplitudeOfHalfHeight times half the
@@ -434,41 +385,39 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
-    float gainDB = self.gainDB;
     if (_wiggle) {
-        // Keep the shared [min, max] layout so morphs, dips and bakes use one
-        // buffer contract. At the loop cap the unused halves cost only 12 KB
-        // across the morph engine's three vectors.
-        for (NSUInteger i = 0; i < count; i++) {
-            out[i * 2] = 0;
-            out[i * 2 + 1] = VibeWaveformBarLevel(
-                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
-                    fullScaleRMS, gainDB);
-        }
+        // Preserve the shared [min, max] layout for morphs, dips and bakes.
+        [self fillEnergyLevels:out + 1 count:count stride:2 waveform:waveform];
+        for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
-    VibeEnergyColumn column = {NSNotFound, 0, 0};
+    // Scale each bar by its energy column's peak extent to preserve DC-offset
+    // asymmetry and fine texture. Cache columns across oversampled bars.
+    NSUInteger lastColumnIndex = NSNotFound;
+    float columnExtent = 0, columnLevel = 0;
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
+    float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
-        VibeEnergyScaledEnvelope(waveform, i, count, &column, fullScaleRMS, gainDB,
-                                 &out[i * 2], &out[i * 2 + 1]);
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
+        if (lastColumnIndex != columnIndex) {
+            AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
+                    ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
+            lastColumnIndex = columnIndex;
+            columnExtent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+            columnLevel = VibeWaveformBarLevel(c.getMeanSquare(), fullScaleRMS, gainDB);
+        }
+        // A bar straddling two columns may carry a peak its mapped column
+        // lacks; the wider extent keeps it on the envelope rather than past it.
+        float extent = fmaxf(columnExtent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
+        float scale = extent > 0 ? columnLevel / extent : 0;
+        out[i * 2] = m.getMin() * scale;
+        out[i * 2 + 1] = m.getMax() * scale;
     }
-}
-
-- (void)levelMappingDidChange {
-    [_morph invalidateTarget];
-}
-
-- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
-}
-
-- (void)settleMorphImmediately {
-    [_morph settleImmediately];
 }
 
 - (void)backingScaleDidChange {
-    [_morph rebuildNow];
+    [super backingScaleDidChange];
     // Re-snap the hover column to the new device-pixel grid.
     [self setHoverHighlightX:self.hoverHighlightX];
 }
@@ -481,6 +430,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
     CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
+    CGFloat barPitch = size.width / (CGFloat)count;
     for (NSUInteger i = 0; i < count; i++) {
         // y-up: adding the negative min preserves DC-offset asymmetry.
         CGFloat top = midY + samples[i * 2 + 1] * vscale;
@@ -489,7 +439,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
             top = round(top * scale) / scale;
             bottom = round(bottom * scale) / scale;
         }
-        CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
+        CGFloat x = barPitch * (CGFloat)i;
         rects[i] = CGRectMake(x, bottom, barWidth, MAX(top - bottom, minimumHeight));
     }
 }

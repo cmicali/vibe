@@ -35,8 +35,11 @@ static const float kVibeWaveformGainDBPerExponentDoubling = 24.0f;
 // so normalization can only raise levels. The reference scales the level;
 // the gain alone bends the curve and can still lower the waveform.
 static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, float gainDB) {
+    float level = sqrtf(fmaxf(meanSquare, 0.0f)) / fullScaleRMS;
+    if (gainDB == 0) {
+        return fminf(level, 1.0f);
+    }
     float gain = powf(10.0f, gainDB / 20.0f);
     float exponent = exp2f(-gainDB / kVibeWaveformGainDBPerExponentDoubling);
-    float level = sqrtf(fmaxf(meanSquare, 0.0f)) / fullScaleRMS * gain;
-    return fminf(powf(level, exponent), 1.0f);
+    return fminf(powf(level * gain, exponent), 1.0f);
 }

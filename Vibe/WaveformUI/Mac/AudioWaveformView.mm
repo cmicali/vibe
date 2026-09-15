@@ -116,14 +116,18 @@ static const CGFloat kWaveformDragHysteresis = 4;
 }
 
 - (void)drawWaveform {
+    VibeSignpostBegin(waveform_update);
     [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
+    VibeSignpostEnd(waveform_update);
 }
 
 - (void)updateRendererProgress {
+    VibeSignpostBegin(waveform_progress);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
+    VibeSignpostEnd(waveform_progress);
 }
 
 - (void)mouseDown:(NSEvent *)event {

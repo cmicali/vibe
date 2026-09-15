@@ -52,6 +52,13 @@ NS_ASSUME_NONNULL_BEGIN
 // waveform's album-art theme.
 @property (nonatomic, copy) void (^dominantColorDidChangeHandler)(void);
 
+// Whether the band of the installed image the transport row sits over reads
+// as dark — sampled from the very image on screen, the placeholder included,
+// so the buttons pick their color from what is under them rather than from
+// the appearance. Fires with every install and default; the receiver drops
+// an unchanged answer.
+@property (nonatomic, copy) void (^transportBackdropDidChangeHandler)(BOOL dark);
+
 // Reflects the track's art; a nil track shows the default. New art replaces
 // old art directly, and while a track's art is still unresolved the previous
 // track's art stays on screen, so the default never flashes between tracks. It
@@ -65,11 +72,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showPlaceholderForSlowLoad;
 
 // Re-derives the header and playlist washes from the theme and the stored art
-// color. A wash depends on the appearance — a deep wash in dark mode, a
-// pastel one in light — but not on key-window state: its strength is constant
-// whether or not the window is active. That is why each is a plain view's
-// background rather than the glass's own tintColor; see the .m. Call it on
-// appearance changes.
+// color, and — while the placeholder is up — the transport contrast under
+// the buttons, since the placeholder's pixels follow the appearance. A wash
+// depends on the appearance — a deep wash in dark mode, a pastel one in
+// light — but not on key-window state: its strength is constant whether or
+// not the window is active. That is why each is a plain view's background
+// rather than the glass's own tintColor; see the .m. Call it on appearance
+// changes.
 - (void)refreshTintWashes;
 
 // Demotes the previous track's full-resolution art — both the decoded bitmap
@@ -81,6 +90,11 @@ NS_ASSUME_NONNULL_BEGIN
 // theme's default artwork changed, and showDefaultArtwork's already-showing
 // guard would otherwise keep the old image up.
 - (void)refreshDefaultArtwork;
+
+// Re-decides the Dock tile from the theme's dockIcon choice and what the
+// header shows: the installed art crop, or the app icon. The AppIcon live
+// effect calls it after the icon itself has landed.
+- (void)applyDockIcon;
 
 @end
 

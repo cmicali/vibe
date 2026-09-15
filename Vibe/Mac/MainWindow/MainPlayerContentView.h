@@ -36,6 +36,12 @@ NS_ASSUME_NONNULL_BEGIN
 // the window mask and backdrop are the controller's (applyWindowChrome).
 - (void)applyCornerRadius:(CGFloat)radius;
 
+// Shows or hides the header glass panel for the theme's window background:
+// present under glass and solid, gone under clear, where the window's own
+// backdrop is the whole look. The controller's applyWindowBackground runs it
+// beside the solid cover.
+- (void)applyWindowBackgroundStyle;
+
 // Re-resolve the header labels' themed fonts and colors, split so a
 // color-only edit does not reset fonts (which would force the title's
 // shrink-to-fit — TrackDisplayController owns the fit — and a text
@@ -43,6 +49,21 @@ NS_ASSUME_NONNULL_BEGIN
 // their attributed strings.
 - (void)applyThemedLabelFonts;
 - (void)applyThemedLabelColors;
+
+// Re-resolves the three transport buttons' themed look — glyph or custom
+// image, color — and the gradient behind them; the TransportButtons live
+// effect's body.
+- (void)applyThemedTransportButtons;
+
+// Which side of the buttons' color pair draws: the pair is keyed Dark/Light
+// by what is UNDER the buttons, not by the appearance. The artwork controller
+// samples the installed image's lower band and pushes the answer here; with
+// the gradient on the backdrop is always dark, whatever the art.
+- (void)setTransportBackdropDark:(BOOL)dark;
+
+// The play button's state, drawn through the theme's play/pause glyph and
+// image pair. The controller's updateUI is the one caller.
+- (void)setPlayButtonShowsPause:(BOOL)showsPause;
 
 // Re-resolves the themed wash over the playlist frost; also runs on every
 // appearance change (updateMaterialForAppearance).

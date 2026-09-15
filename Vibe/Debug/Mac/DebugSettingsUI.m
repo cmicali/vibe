@@ -786,6 +786,23 @@ NSString *VibeDebugSettingsDump(void) {
     if (window.attachedSheet) {
         reply[@"sheet"] = window.attachedSheet.className;
     }
+    // The toolbar's segmented controls — the navigation pill, the dice and
+    // undo, the preview toggle — by item identifier, each segment's enabled
+    // flag: the toolbar is outside the pane, so this is the only view of
+    // whether an edit reached the arrow.
+    NSMutableDictionary *toolbar = [NSMutableDictionary dictionary];
+    for (NSToolbarItem *item in window.toolbar.items) {
+        if (![item.view isKindOfClass:NSSegmentedControl.class]) {
+            continue;
+        }
+        NSSegmentedControl *control = (NSSegmentedControl *)item.view;
+        NSMutableArray *segments = [NSMutableArray array];
+        for (NSInteger i = 0; i < control.segmentCount; i++) {
+            [segments addObject:@([control isEnabledForSegment:i])];
+        }
+        toolbar[item.itemIdentifier] = segments;
+    }
+    reply[@"toolbar"] = toolbar;
     return VibeJSONString(reply);
 }
 
@@ -799,7 +816,10 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             && [tokens[1] caseInsensitiveCompare:@"forward"] == NSOrderedSame;
     BOOL preview = tokens.count == 3
             && [tokens[1] caseInsensitiveCompare:@"preview"] == NSOrderedSame;
-    if (back || forward || preview) {
+    BOOL randomize = tokens.count == 3
+            && [tokens[1] caseInsensitiveCompare:@"randomize"] == NSOrderedSame;
+    BOOL undo = tokens.count == 2 && [tokens[1] caseInsensitiveCompare:@"undo"] == NSOrderedSame;
+    if (back || forward || preview || randomize || undo) {
         NSString *tabsError = nil;
         NSTabViewController *tabs = VibeSettingsTabs(&tabsError);
         if (!tabs) {
@@ -820,6 +840,25 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                         @"windowAppearance":
                                                 AppSettings.sharedInstance.windowAppearanceStyle
                                                         ?: @""});
+            }
+            if (undo) {
+                if (!pane.canUndoEdit) {
+                    return VibeErrorJSON(@"undo is not available here");
+                }
+                [pane undoEdit];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone"});
+            }
+            if (randomize) {
+                BOOL colors = [tokens[2] caseInsensitiveCompare:@"colors"] == NSOrderedSame;
+                if (!colors && [tokens[2] caseInsensitiveCompare:@"settings"] != NSOrderedSame) {
+                    return VibeErrorJSON(@"usage: settings_click randomize <settings|colors>");
+                }
+                if (!pane.canRandomize) {
+                    return VibeErrorJSON(@"randomize is not available here");
+                }
+                colors ? [pane randomizeThemeColors] : [pane randomizeThemeSettings];
+                return VibeJSONString(@{@"ok": @YES, @"control": @"randomize",
+                                        @"action": @"rolled", @"rolled": tokens[2].lowercaseString});
             }
             if (back ? pane.canGoBack : pane.canGoForward) {
                 back ? [pane navigateBack] : [pane navigateForward];
@@ -885,6 +924,21 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             return VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(slider.action));
         }
         return VibeClickReply(element, @"set");
+    }
+    if ([element.kind isEqualToString:@"field"]) {
+        // Typed and committed: the field editor takes the text, then first
+        // responder moves off it — what Tab does — so the delegate's
+        // controlTextDidEndEditing: runs as for a real commit.
+        NSTextField *field = (NSTextField *)element.view;
+        if (!value) {
+            return VibeErrorJSON(@"'%@' is a field and needs text", element.name);
+        }
+        if (![field.window makeFirstResponder:field] || !field.currentEditor) {
+            return VibeErrorJSON(@"'%@' did not take focus", element.name);
+        }
+        field.currentEditor.string = value;
+        [field.window makeFirstResponder:nil];
+        return VibeClickReply(element, @"committed");
     }
     if ([element.kind isEqualToString:@"colorwell"]) {
         // The value is the same #RRGGBB the dump reports, so the pane's

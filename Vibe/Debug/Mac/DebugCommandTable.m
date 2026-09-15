@@ -87,7 +87,7 @@ static NSString *VibeThemeIdentifierMatching(NSString *query) {
     return nil;
 }
 
-static void VibeSetWindowBodyWidth(MainWindow *window, CGFloat bodyPoints) {
+static NSRect VibeWindowFrameForBodyWidth(MainWindow *window, CGFloat bodyPoints) {
     CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
     NSRect frame = window.frame;
     frame.size.width = MAX(window.minSize.width, bodyPoints + panel);
@@ -95,7 +95,7 @@ static void VibeSetWindowBodyWidth(MainWindow *window, CGFloat bodyPoints) {
     if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
         frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
     }
-    [window setFrame:frame display:YES];
+    return frame;
 }
 
 static double VibeProcessCPUSeconds(void) {
@@ -381,19 +381,52 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
                 });
             }),
-            VibeDebugCmd(@"set_window_width <body-points>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                double bodyPoints = 0;
-                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
-                    return VibeErrorJSON(@"usage: set_window_width <body-points>");
+            VibeDebugCmd(@"set_window_width <body-points> [height-points] [seconds]", 15, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                double bodyPoints = 0, height = controller.window.frame.size.height, seconds = 0;
+                if (tokens.count < 2 || tokens.count > 4 || !VibeParseDouble(tokens[1], &bodyPoints)
+                        || (tokens.count > 2 && !VibeParseDouble(tokens[2], &height))
+                        || (tokens.count > 3 && !VibeParseDouble(tokens[3], &seconds))
+                        || !isfinite(bodyPoints) || bodyPoints <= 0 || bodyPoints > 10000
+                        || !isfinite(height) || height <= 0 || height > 10000
+                        || !isfinite(seconds) || seconds < 0 || seconds > 10) {
+                    return VibeErrorJSON(@"usage: set_window_width <body-points> [height-points] [seconds 0..10]");
                 }
                 MainWindow *window = (MainWindow *)controller.window;
-                VibeSetWindowBodyWidth(window, bodyPoints);
                 CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
-                return VibeJSONString(@{
-                    @"ok": @YES,
-                    @"frame": NSStringFromRect(window.frame),
-                    @"bodyWidth": @(window.frame.size.width - panel),
-                });
+                NSRect initial = window.frame;
+                NSRect frame = VibeWindowFrameForBodyWidth(window, bodyPoints);
+                frame.size.height = MAX(window.minSize.height, height);
+                frame.origin.y = NSMaxY(initial) - frame.size.height;
+                NSString *(^reply)(void) = ^{
+                    return VibeJSONString(@{
+                        @"ok": @YES, @"frame": NSStringFromRect(window.frame),
+                        @"bodyWidth": @(window.frame.size.width - panel),
+                    });
+                };
+                if (seconds == 0) {
+                    [window setFrame:frame display:YES];
+                    return reply();
+                }
+                // Public AppKit frame changes, one per run-loop turn at 60 Hz.
+                // This exercises layout and rendering, not an NSEvent tracking loop.
+                NSUInteger steps = (NSUInteger)ceil(seconds * 60);
+                __block NSUInteger step = 0;
+                NSTimer *timer = [NSTimer timerWithTimeInterval:seconds / steps repeats:YES block:^(NSTimer *timer) {
+                    CGFloat t = (CGFloat)++step / steps;
+                    NSRect next = NSMakeRect(initial.origin.x + (frame.origin.x - initial.origin.x) * t,
+                                             initial.origin.y + (frame.origin.y - initial.origin.y) * t,
+                                             initial.size.width + (frame.size.width - initial.size.width) * t,
+                                             initial.size.height + (frame.size.height - initial.size.height) * t);
+                    VibeSignpostBegin(window_resize);
+                    [window setFrame:next display:YES];
+                    VibeSignpostEnd(window_resize);
+                    if (step == steps) {
+                        [timer invalidate];
+                        VibeWriteDebugResponse(commandId, reply());
+                    }
+                }];
+                [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+                return nil;
             }),
             VibeDebugCmd(@"measure_resize <min-width> <max-width> <frames>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 static BOOL measuring = NO;
@@ -409,7 +442,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 measuring = YES;
                 MainWindow *window = (MainWindow *)controller.window;
                 NSRect originalFrame = window.frame;
-                VibeSetWindowBodyWidth(window, minWidth);
+                [window setFrame:VibeWindowFrameForBodyWidth(window, minWidth) display:YES];
                 // Warm the first layout, then measure at display cadence without
                 // a command/response file round-trip on every frame.
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -422,7 +455,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         double phase = (double)index / (frames - 1);
                         double width = minWidth + (maxWidth - minWidth) * (1 - fabs(2 * phase - 1));
                         CFTimeInterval frameStart = CACurrentMediaTime();
-                        VibeSetWindowBodyWidth(window, width);
+                        [window setFrame:VibeWindowFrameForBodyWidth(window, width) display:YES];
                         [durations addObject:@((CACurrentMediaTime() - frameStart) * 1000)];
                         if (++index < frames) return;
                         [timer invalidate];
@@ -430,7 +463,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                             double cpu = VibeProcessCPUSeconds() - cpuStart;
                             double elapsed = CACurrentMediaTime() - start;
-                            NSDictionary *work = VibeWorkTallyEndWindow();
+                            NSDictionary *work = VibeWorkTallyTakeWindow();
                             NSArray<NSNumber *> *sorted = [durations sortedArrayUsingSelector:@selector(compare:)];
                             double total = 0;
                             for (NSNumber *duration in durations) total += duration.doubleValue;

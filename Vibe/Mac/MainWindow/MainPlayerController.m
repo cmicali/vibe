@@ -285,6 +285,11 @@
         strongSelf.waveformView.artworkThemeColor = strongSelf->_artworkController.dominantArtColor;
         [strongSelf refreshWaveformTheme];
     };
+    // The transport buttons pick their light or dark color from the art
+    // under them, which the controller samples at every install.
+    _artworkController.transportBackdropDidChangeHandler = ^(BOOL dark) {
+        [weakControllerForArt.playerContentView setTransportBackdropDark:dark];
+    };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.
     self.playerContentView.appearanceChangedHandler = ^{
@@ -329,6 +334,7 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
+    [self applyAppIcon];
 
     self.waveformView.delegate = self;
     // The theme's style, not the loose Settings.waveformStyle key — migration
@@ -493,7 +499,7 @@
     // so it can still read isPlaying for an instant after closeFile:, and no
     // later updateUI would fix the icon, since the update timer is paused.
     BOOL showPause = track && self.audioPlayer.isPlaying;
-    self.playButton.symbolName = showPause ? @"pause.fill" : @"play.fill";
+    [self.playerContentView setPlayButtonShowsPause:showPause];
     self.playButton.accessibilityLabel = showPause ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
 
     self.playButton.enabled = self.playlistController.count > 0;
