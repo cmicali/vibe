@@ -662,7 +662,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // rebuilds the chain in place without a click.
 - (void)ensureVarispeedOnQueue {
 #if TARGET_OS_OSX
-    if ([self chainOmitsVarispeed]) {
+    if (_bitPerfectWanted && !self.fx) {
         if (_varispeed) {
             [self detachNodeAfterFailedConnect:_varispeed];
             _varispeed = nil;

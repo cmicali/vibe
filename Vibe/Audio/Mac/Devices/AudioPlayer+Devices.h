@@ -15,11 +15,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The shell-facing half of bit-perfect output: what the header glyph, the
-// Settings caption and dump_state read. It sits here rather than in
-// AudioPlayer.h because the report is OutputFormatRules.h's type, which only
-// this platform's tree has.
-@interface AudioPlayer (BitPerfect)
+// Only the entry points used outside AudioPlayer+Devices.m. The report is
+// platform-specific, so it belongs here rather than in AudioPlayer.h.
+@interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
 
 // The newest published report — a locked snapshot, no queue hop, like
 // outputAudioActive. Recomputed from its owners at every settlement, hog
@@ -27,17 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
 // change, and announced through audioPlayerDidChangeBitPerfectReport: when
 // it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
-
-@end
-
-@interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
-
-// The AudioDeviceID the output unit is currently bound to.
-- (AudioDeviceID)activeOutputDeviceID;
-
-// A raw bind of the engine's output unit to deviceID, with no graph rebuild
-// or restore.
-- (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
 
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
@@ -47,34 +34,15 @@ NS_ASSUME_NONNULL_BEGIN
 // _queue.
 - (void)resolvePendingSavedOutputDeviceOnQueue;
 
-// Rebinds the engine to a new output device, restoring the current track, the
-// position and the play or pause state. Runs on _queue.
-- (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID;
-
-// Parks a playing track as Paused when the last output device has vanished.
-// Runs on _queue.
-- (void)parkPlaybackForMissingOutputDeviceOnQueue;
-
 // The AVAudioEngineConfigurationChangeNotification handler. The observer that
 // AudioPlayer's init installs dispatches it onto _queue.
 - (void)handleEngineConfigurationChange;
-
-@end
-
-// Bit-perfect output's queue-side mechanism, split from (DevicesInternal) so
-// each category's header block matches its implementation block. All on
-// _queue.
-@interface AudioPlayer (BitPerfectMechanism)
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
 // the settlement's park predicate, which decides BEFORE the request is
 // consumed, and the gapless splice's gate, since a splice cannot switch. NO
 // whenever the mode cannot apply.
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
-
-// Whether the mixer feeds the output node at a rate other than `rate`, so
-// the output unit resamples. The device switch and the settlement both ask.
-- (BOOL)masterBusRateDiffersFrom:(double)rate;
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
 // and when the device's format or the master bus's rate differs, stops the
@@ -93,21 +61,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)releaseExclusiveOutputOnQueue;
 #endif
 
-// The prepared device, with a listener on its software volume that
-// republishes on a move; kAudioObjectUnknown forgets it.
-- (void)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID;
-
-// Writes the remembered format back to the device it was read from when one
-// is owed, and clears the slot either way — a vanished device fails the write
-// and is simply forgotten. No read-back wait: the HAL owns the change once
-// the call returns.
-- (void)restoreOutputFormatOnQueue;
-
-// The device as it was found, then let go: the restore, the prepared device
-// forgotten and the hog released. Mode off, the vanished-device abandon and
-// quit all take it; a switch away from the device keeps its own order.
-- (void)leaveOutputDeviceOnQueue;
-
 // Computes the report from its owners and publishes the copy the shell
 // reads, announcing it to the delegate when it differs. Its edges are
 // refreshOutputAudioActiveOnQueue (every state publication and fade
@@ -118,16 +71,6 @@ NS_ASSUME_NONNULL_BEGIN
 // The parked settlement's re-entry, called by completeRetiredFadePair: when
 // the last counted fade is silent.
 - (void)runParkedSettlementOnQueue;
-
-// The chosen device vanished: drops the mode, the hog and the owed format
-// without touching a device that is gone. The two fallback sites call it
-// before falling back to System Output.
-- (void)abandonBitPerfectForVanishedDeviceOnQueue;
-
-// Whether the chain is built without a varispeed — the mode's pruning follows
-// the switch, so a run with it on never mints one. The retire path and the
-// device restore both ask.
-- (BOOL)chainOmitsVarispeed;
 
 @end
 

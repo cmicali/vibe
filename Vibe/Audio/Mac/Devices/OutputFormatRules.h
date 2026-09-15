@@ -247,11 +247,8 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
         if (candidate.mBitsPerChannel < depth) {
             continue; // never below the source
         }
-        // Equal wins outright; otherwise the smallest above.
-        if (!haveInteger
-                || (candidate.mBitsPerChannel == depth && integerPick.mBitsPerChannel != depth)
-                || (integerPick.mBitsPerChannel != depth
-                    && candidate.mBitsPerChannel < integerPick.mBitsPerChannel)) {
+        // Candidates below the source were excluded, so the smallest wins.
+        if (!haveInteger || candidate.mBitsPerChannel < integerPick.mBitsPerChannel) {
             integerPick = candidate;
             haveInteger = YES;
         }

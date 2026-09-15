@@ -20,14 +20,10 @@
 // node rendered, and the varispeed merely consumes them faster or slower.
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
     @try {
+        // Bit-perfect output mints no varispeed: connect straight to the mixer.
+        [_engine connect:node to:(self.varispeed ?: _engine.mainMixerNode) format:format];
         if (self.varispeed) {
-            [_engine connect:node to:self.varispeed format:format];
             [_engine connect:self.varispeed to:_engine.mainMixerNode format:format];
-        }
-        else {
-            // Bit-perfect output on macOS mints no varispeed: node -> mixer,
-            // and the rate write below is a message to nil.
-            [_engine connect:node to:_engine.mainMixerNode format:format];
         }
     }
     @catch (NSException *exception) {

@@ -182,7 +182,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // The one device whose format this run changed and has not yet put back,
     // its first output stream, and the physical format it had before the
     // first change. kAudioObjectUnknown when nothing is owed;
-    // restoreOutputFormatOnQueue clears all three.
+    // leaveOutputDeviceOnQueue clears all three.
     AudioDeviceID           _changedFormatDeviceID;
     AudioStreamID           _changedFormatStreamID;
     AudioStreamBasicDescription _formatBeforeChange;

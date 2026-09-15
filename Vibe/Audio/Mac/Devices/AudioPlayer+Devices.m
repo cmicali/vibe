@@ -25,17 +25,6 @@ static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
-@interface AudioPlayer (DeviceQueueMutation)
-// The checked mutation shared by explicit selection, automatic fallback and
-// deferred launch binding. Runs on _queue.
-- (BOOL)setOutputDeviceOnQueue:(NSInteger)outputDeviceID;
-- (void)scheduleSystemOutputBindRetryOnQueue;
-// configureOutputDeviceOnQueue:'s body, run with _rebindDeviceID naming the
-// destination so the bit-perfect mechanism prepares and hogs that device
-// rather than the requested one, which is committed only afterwards.
-- (BOOL)rebindOutputOnQueueToDevice:(AudioDeviceID)deviceID;
-@end
-
 #pragma mark - Output devices (internal surface + device-change observing)
 
 @implementation AudioPlayer (DevicesInternal)
@@ -285,11 +274,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     [self configureOutputDeviceOnQueue:deviceID];
 }
 
-@end
-
-#pragma mark - Output devices (queue-side mutation, declared at the top of this file)
-
-@implementation AudioPlayer (DeviceQueueMutation)
+#pragma mark - Output device mutation
 
 - (void)scheduleSystemOutputBindRetryOnQueue {
     if (_systemOutputBindRetryScheduled) {
@@ -507,126 +492,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     });
 }
 
-@end
-
-#pragma mark - Output devices (public API, declared in AudioPlayer.h)
-
-@implementation AudioPlayer (Devices)
-
-- (void)setOutputDevice:(NSInteger)outputDeviceID {
-    dispatch_async(_queue, ^{
-        // System Output is a policy intent, so it supersedes a saved concrete
-        // device even when no output currently exists. Clear before binding to
-        // fence a resolver completion already queued behind this selection.
-        if (outputDeviceID == -1) {
-            self->_pendingSavedDeviceUID = nil;
-            self->_pendingSavedDeviceName = nil;
-        }
-
-        BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
-        if (didBind && outputDeviceID >= 0) {
-            // A concrete choice owns the intent only once the HAL accepted it.
-            // On failure, Settings still names the saved launch preference, so
-            // keep the in-memory pending intent aligned with it.
-            self->_pendingSavedDeviceUID = nil;
-            self->_pendingSavedDeviceName = nil;
-        }
-        // Persistence itself is setOutputDeviceOnQueue:'s, which announces every
-        // committed outcome — the two -1 failures that still commit the policy
-        // (a HAL read failure, and no output device existing at all) included.
-        // A failed graph reconfiguration is the one case that commits nothing:
-        // the engine did not move, so neither the requested id nor Settings may
-        // claim it did.
-    });
-}
-
-#pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
-
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
-    dispatch_async(_queue, ^{
-        self->_bitPerfectWanted = bitPerfectOutput;
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        self->_exclusiveOutputWanted = exclusiveOutput;
-#endif
-        if (bitPerfectOutput && self.fx) {
-            // Inert until relaunch: the graph is not a pass-through, so
-            // switching the device for it would be theater.
-            [self publishBitPerfectReportOnQueue];
-            return;
-        }
-        NSInteger requested = self.currentlyRequestedAudioDeviceId;
-        if (requested >= 0) {
-            // Rebind even during an open: a warm engine would otherwise skip
-            // acquiring exclusive access when the incoming file settles.
-            // The rebuild restores a loaded track at its current position;
-            // an in-flight open keeps its request and starts when it settles.
-            [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
-        }
-        else if (!bitPerfectOutput) {
-            [self leaveOutputDeviceOnQueue];
-        }
-        [self publishBitPerfectReportOnQueue];
-    });
-}
-
-- (void)prepareForTermination {
-    [self runSyncOnQueue:^{
-        [self->_engine stop];
-        [self leaveOutputDeviceOnQueue];
-    }];
-}
-
-#pragma mark - Debug
-
-#if DEBUG
-// Debug-only, declared in AudioPlayer+Debug.h: dump_state's outputDeviceId is
-// the one caller. The queue hop is the point — activeOutputDeviceID reads the
-// engine's output node, and the command channel calls this from main, while
-// every other engine touch in the app runs on _queue.
-- (NSInteger)currentlyActiveAudioDeviceId {
-    __block AudioDeviceID deviceID = kAudioObjectUnknown;
-    [self runSyncOnQueue:^{
-        deviceID = [self activeOutputDeviceID];
-    }];
-    return (NSInteger)deviceID;
-}
-
-- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership {
-    __block AudioDeviceID hogged = kAudioObjectUnknown;
-    __block AudioDeviceID owed = kAudioObjectUnknown;
-    __block AudioDeviceID prepared = kAudioObjectUnknown;
-    __block BOOL varispeed = NO;
-    __block double mixerOutputRate = 0, outputNodeInputRate = 0, outputNodeOutputRate = 0;
-    [self runSyncOnQueue:^{
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        hogged = self->_hoggedDeviceID;
-#endif
-        owed = self->_changedFormatDeviceID;
-        prepared = self->_preparedDeviceID;
-        varispeed = (self.varispeed != nil);
-        // The three rates that decide whether the graph resamples: the mixer
-        // must feed the output node at the device's own rate.
-        mixerOutputRate = [self->_engine.mainMixerNode outputFormatForBus:0].sampleRate;
-        outputNodeInputRate = [self->_engine.outputNode inputFormatForBus:0].sampleRate;
-        outputNodeOutputRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
-    }];
-    return @{
-        @"hoggedDeviceId": @(hogged == kAudioObjectUnknown ? -1 : (NSInteger)hogged),
-        @"restoreOwedToDeviceId": @(owed == kAudioObjectUnknown ? -1 : (NSInteger)owed),
-        @"preparedDeviceId": @(prepared == kAudioObjectUnknown ? -1 : (NSInteger)prepared),
-        @"varispeedPresent": @(varispeed),
-        @"mixerOutputRate": @(mixerOutputRate),
-        @"outputNodeInputRate": @(outputNodeInputRate),
-        @"outputNodeOutputRate": @(outputNodeOutputRate),
-    };
-}
-#endif
-
-@end
-
-#pragma mark - Bit-perfect output (shell-facing report)
-
-@implementation AudioPlayer (BitPerfect)
+#pragma mark - Bit-perfect output
 
 - (VibeBitPerfectReport)bitPerfectReport {
     os_unfair_lock_lock(&_stateLock);
@@ -635,11 +501,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     return report;
 }
 
-@end
-
 #pragma mark - Bit-perfect output (queue-side mechanism)
-
-@implementation AudioPlayer (BitPerfectMechanism)
 
 // The chosen device when it is one the mode may drive, else nil: the one
 // eligibility fold, shared by the report and the mechanism. During a device
@@ -672,12 +534,6 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
 #endif
     return [self eligibleRequestedDeviceOnQueue];
-}
-
-// The mode's pruning follows the switch, not the device, so a run with the
-// switch on never mints a varispeed.
-- (BOOL)chainOmitsVarispeed {
-    return _bitPerfectWanted && !self.fx;
 }
 
 // Reads the device and resolves the format the rules want for `file`: the
@@ -873,26 +729,24 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
 }
 
+// Restore the original format, forget the prepared device and release it.
+// A vanished device fails the write and is forgotten; no read-back wait is
+// needed because the HAL owns the change once the call returns.
 - (void)leaveOutputDeviceOnQueue {
-    [self restoreOutputFormatOnQueue];
+    if (_changedFormatDeviceID != kAudioObjectUnknown) {
+        if ([CoreAudioUtil setPhysicalFormat:_formatBeforeChange forStream:_changedFormatStreamID]) {
+            LogInfo(@"bit-perfect: device %u restored to %.0f Hz %@%u", _changedFormatDeviceID,
+                    _formatBeforeChange.mSampleRate, VibePhysicalFormatIsFloat(_formatBeforeChange) ? @"f" : @"i",
+                    (unsigned)_formatBeforeChange.mBitsPerChannel);
+        }
+        _changedFormatDeviceID = kAudioObjectUnknown;
+        _changedFormatStreamID = kAudioObjectUnknown;
+        memset(&_formatBeforeChange, 0, sizeof(_formatBeforeChange));
+    }
     [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
 #endif
-}
-
-- (void)restoreOutputFormatOnQueue {
-    if (_changedFormatDeviceID == kAudioObjectUnknown) {
-        return;
-    }
-    if ([CoreAudioUtil setPhysicalFormat:_formatBeforeChange forStream:_changedFormatStreamID]) {
-        LogInfo(@"bit-perfect: device %u restored to %.0f Hz %@%u", _changedFormatDeviceID,
-                _formatBeforeChange.mSampleRate, VibePhysicalFormatIsFloat(_formatBeforeChange) ? @"f" : @"i",
-                (unsigned)_formatBeforeChange.mBitsPerChannel);
-    }
-    _changedFormatDeviceID = kAudioObjectUnknown;
-    _changedFormatStreamID = kAudioObjectUnknown;
-    memset(&_formatBeforeChange, 0, sizeof(_formatBeforeChange));
 }
 
 // Computes the report from its owners — the mode, the graph, the chosen
@@ -959,5 +813,120 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     _parkedSettlement = nil;
     parked();
 }
+
+@end
+
+#pragma mark - Output devices (public API, declared in AudioPlayer.h)
+
+@implementation AudioPlayer (Devices)
+
+- (void)setOutputDevice:(NSInteger)outputDeviceID {
+    dispatch_async(_queue, ^{
+        // System Output is a policy intent, so it supersedes a saved concrete
+        // device even when no output currently exists. Clear before binding to
+        // fence a resolver completion already queued behind this selection.
+        if (outputDeviceID == -1) {
+            self->_pendingSavedDeviceUID = nil;
+            self->_pendingSavedDeviceName = nil;
+        }
+
+        BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
+        if (didBind && outputDeviceID >= 0) {
+            // A concrete choice owns the intent only once the HAL accepted it.
+            // On failure, Settings still names the saved launch preference, so
+            // keep the in-memory pending intent aligned with it.
+            self->_pendingSavedDeviceUID = nil;
+            self->_pendingSavedDeviceName = nil;
+        }
+        // Persistence itself is setOutputDeviceOnQueue:'s, which announces every
+        // committed outcome — the two -1 failures that still commit the policy
+        // (a HAL read failure, and no output device existing at all) included.
+        // A failed graph reconfiguration is the one case that commits nothing:
+        // the engine did not move, so neither the requested id nor Settings may
+        // claim it did.
+    });
+}
+
+#pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
+
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
+    dispatch_async(_queue, ^{
+        self->_bitPerfectWanted = bitPerfectOutput;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        self->_exclusiveOutputWanted = exclusiveOutput;
+#endif
+        if (bitPerfectOutput && self.fx) {
+            // Inert until relaunch: the graph is not a pass-through, so
+            // switching the device for it would be theater.
+            [self publishBitPerfectReportOnQueue];
+            return;
+        }
+        NSInteger requested = self.currentlyRequestedAudioDeviceId;
+        if (requested >= 0) {
+            // Rebind even during an open: a warm engine would otherwise skip
+            // acquiring exclusive access when the incoming file settles.
+            // The rebuild restores a loaded track at its current position;
+            // an in-flight open keeps its request and starts when it settles.
+            [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
+        }
+        else if (!bitPerfectOutput) {
+            [self leaveOutputDeviceOnQueue];
+        }
+        [self publishBitPerfectReportOnQueue];
+    });
+}
+
+- (void)prepareForTermination {
+    [self runSyncOnQueue:^{
+        [self->_engine stop];
+        [self leaveOutputDeviceOnQueue];
+    }];
+}
+
+#pragma mark - Debug
+
+#if DEBUG
+// Debug-only, declared in AudioPlayer+Debug.h: dump_state's outputDeviceId is
+// the one caller. The queue hop is the point — activeOutputDeviceID reads the
+// engine's output node, and the command channel calls this from main, while
+// every other engine touch in the app runs on _queue.
+- (NSInteger)currentlyActiveAudioDeviceId {
+    __block AudioDeviceID deviceID = kAudioObjectUnknown;
+    [self runSyncOnQueue:^{
+        deviceID = [self activeOutputDeviceID];
+    }];
+    return (NSInteger)deviceID;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership {
+    __block AudioDeviceID hogged = kAudioObjectUnknown;
+    __block AudioDeviceID owed = kAudioObjectUnknown;
+    __block AudioDeviceID prepared = kAudioObjectUnknown;
+    __block BOOL varispeed = NO;
+    __block double mixerOutputRate = 0, outputNodeInputRate = 0, outputNodeOutputRate = 0;
+    [self runSyncOnQueue:^{
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        hogged = self->_hoggedDeviceID;
+#endif
+        owed = self->_changedFormatDeviceID;
+        prepared = self->_preparedDeviceID;
+        varispeed = (self.varispeed != nil);
+        // The three rates that decide whether the graph resamples: the mixer
+        // must feed the output node at the device's own rate.
+        mixerOutputRate = [self->_engine.mainMixerNode outputFormatForBus:0].sampleRate;
+        outputNodeInputRate = [self->_engine.outputNode inputFormatForBus:0].sampleRate;
+        outputNodeOutputRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
+    }];
+    return @{
+        @"hoggedDeviceId": @(hogged == kAudioObjectUnknown ? -1 : (NSInteger)hogged),
+        @"restoreOwedToDeviceId": @(owed == kAudioObjectUnknown ? -1 : (NSInteger)owed),
+        @"preparedDeviceId": @(prepared == kAudioObjectUnknown ? -1 : (NSInteger)prepared),
+        @"varispeedPresent": @(varispeed),
+        @"mixerOutputRate": @(mixerOutputRate),
+        @"outputNodeInputRate": @(outputNodeInputRate),
+        @"outputNodeOutputRate": @(outputNodeOutputRate),
+    };
+}
+#endif
 
 @end
