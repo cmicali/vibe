@@ -144,14 +144,16 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
 // The theme editor's undo. currentThemeDidChange pushes the record each
-// edit of a USER theme replaced — a drag's ticks, which move the same keys
-// within two seconds of each other, coalesce onto the first tick's entry —
-// fifty deep; a theme apply drops the stack, so an undo never lands on
-// another theme, and a built-in's edits are divergence rather than the
-// theme's and are not recorded. undoThemeEdit puts the top entry back into
-// the working record and persists it without recording; the caller
-// requests ThemeApply. The image sweep keeps a custom image a stacked
-// record still names, so an undo can put a cleared picture back.
+// edit of a USER theme replaced — a continuous gesture's ticks (the
+// continuous form below), moving the same keys within two seconds of each
+// other, coalesce onto the first tick's entry, while discrete edits never
+// do, so two menu picks of one field are two undos — fifty deep; a theme
+// apply drops the stack, so an undo never lands on another theme, and a
+// built-in's edits are divergence rather than the theme's and are not
+// recorded. undoThemeEdit puts the top entry back into the working record
+// and persists it without recording; the caller requests ThemeApply. The
+// image sweep keeps a custom image a stacked record still names, so an
+// undo can put a cleared picture back.
 @property (readonly, nonatomic) BOOL canUndoThemeEdit;
 - (void)undoThemeEdit;
 
@@ -164,8 +166,12 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // writing the field. The working record lands in the active user theme's own
 // record; diverging from a read-only built-in, it lands in its own key
 // instead, so a casual toggle survives relaunch without dirtying the
-// built-in, and re-applying the theme resets it.
+// built-in, and re-applying the theme resets it. A continuous control —
+// the corner-radius slider, a color well tracking its panel — reports each
+// tick with continuous:YES, which is what lets undo fold the gesture into
+// one entry; the bare form is a discrete edit.
 - (void)currentThemeDidChange;
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous;
 
 // User-theme CRUD. Every mutation refuses a built-in identifier; names are
 // deduped against every display name. addUserThemeWithRecord returns the

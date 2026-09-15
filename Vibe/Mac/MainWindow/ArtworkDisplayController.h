@@ -72,11 +72,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showPlaceholderForSlowLoad;
 
 // Re-derives the header and playlist washes from the theme and the stored art
-// color. A wash depends on the appearance — a deep wash in dark mode, a
-// pastel one in light — but not on key-window state: its strength is constant
-// whether or not the window is active. That is why each is a plain view's
-// background rather than the glass's own tintColor; see the .m. Call it on
-// appearance changes.
+// color, and — while the placeholder is up — the transport contrast under
+// the buttons, since the placeholder's pixels follow the appearance. A wash
+// depends on the appearance — a deep wash in dark mode, a pastel one in
+// light — but not on key-window state: its strength is constant whether or
+// not the window is active. That is why each is a plain view's background
+// rather than the glass's own tintColor; see the .m. Call it on appearance
+// changes.
 - (void)refreshTintWashes;
 
 // Demotes the previous track's full-resolution art — both the decoded bitmap

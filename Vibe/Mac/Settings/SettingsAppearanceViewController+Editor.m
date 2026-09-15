@@ -1019,7 +1019,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     NSDictionary *binding = [_wellBindings objectForKey:sender];
     [AppSettings.sharedInstance.currentTheme setColor:sender.color forBase:binding[kWellBase]
                                                  dark:[binding[kWellDark] boolValue]];
-    [self themeFieldDidChange:(VibeSettingsLiveEffect)[binding[kWellEffect] unsignedIntegerValue]];
+    [self themeFieldDidChange:(VibeSettingsLiveEffect)[binding[kWellEffect] unsignedIntegerValue]
+                   continuous:YES];
 }
 
 // The one gesture behind every popup that reveals color rows — the two
@@ -1087,7 +1088,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     AppSettings.sharedInstance.currentTheme.windowCornerRadius = radius;
     _cornerRadiusSlider.doubleValue = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
     [self refreshCornerRadiusValue];
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome continuous:YES];
 }
 
 - (void)refreshCornerRadiusValue {

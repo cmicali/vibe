@@ -205,10 +205,12 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
 // exactly the waveform-contrast failure the clamps exist to prevent. The
 // window's appearance is set before any of those callbacks, so it is never
 // stale.
+- (NSAppearance *)windowAppearance {
+    return _headerTintView.window.effectiveAppearance ?: _headerTintView.effectiveAppearance;
+}
+
 - (BOOL)isDarkAppearance {
-    NSAppearance *appearance = _headerTintView.window.effectiveAppearance
-            ?: _headerTintView.effectiveAppearance;
-    return appearance.isDark;
+    return self.windowAppearance.isDark;
 }
 
 - (NSColor *)dominantArtColor {
@@ -273,6 +275,20 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
             [self resolvedWashForTint:theme.playlistTint
                           customColor:[theme playlistTintColorForDark:dark]
                                isDark:dark]);
+    // The placeholder pair is ONE dynamic image whose pixels follow the
+    // drawing appearance (AppTheme.imageForDefaultArtworkDark:light:), so
+    // the same pointer samples dark under Dark Aqua and light under Aqua:
+    // its lower band is read under the window's appearance — what the art
+    // view draws with — and again here on every flip. A track's crop is
+    // sampled once on the render worker instead; its pixels are fixed.
+    if (_showingDefaultArt) {
+        NSImage *placeholder = _artworkView.image;
+        __block BOOL bandIsDark = YES;
+        [self.windowAppearance performAsCurrentDrawingAppearance:^{
+            bandIsDark = VibeImageLowerBandIsDark(placeholder, kTransportBandFraction);
+        }];
+        [self publishTransportBackdropDark:bandIsDark];
+    }
 }
 
 // Produces the square display bitmap and its dominant color together off-main.
@@ -343,6 +359,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                                           _artworkTargetArt)) {
         _pendingArt = nil;
         _artworkView.image = result.squareImage;
+        _showingDefaultArt = NO;
         _dominantArtColor = result.dominantColor;
         if (self.dominantColorDidChangeHandler) {
             self.dominantColorDidChangeHandler();
@@ -351,7 +368,6 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         _displayedArt = request.sourceArt;
         _displayedArtTrack = request.track;
         _displayedArtMetadata = request.metadata;
-        _showingDefaultArt = NO;
         [self applyDockIcon];
         [self publishTransportBackdropDark:result.lowerBandIsDark];
     }
@@ -527,26 +543,16 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         return;
     }
     _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
+    _showingDefaultArt = YES;
     _dominantArtColor = nil;
     if (self.dominantColorDidChangeHandler) {
         self.dominantColorDidChangeHandler();
     }
-    [self refreshTintWashes];
+    [self refreshTintWashes]; // samples the placeholder's transport contrast too
     [NSDockTile resetToAppIcon];
     _displayedArt = nil;
     _displayedArtTrack = nil;
     _displayedArtMetadata = nil;
-    _showingDefaultArt = YES;
-    // Sampled on main, once per placeholder instance: the placeholder is a
-    // lifetime-cached decode, so the answer is constant per pointer, and a
-    // placeholder swap has no worker to ride.
-    static NSImage *sampled = nil;
-    static BOOL sampledDark = YES;
-    if (_artworkView.image != sampled) {
-        sampled = _artworkView.image;
-        sampledDark = VibeImageLowerBandIsDark(sampled, kTransportBandFraction);
-    }
-    [self publishTransportBackdropDark:sampledDark];
 }
 
 - (void)publishTransportBackdropDark:(BOOL)dark {

@@ -321,6 +321,10 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (void)currentThemeDidChange {
+    [self currentThemeDidChangeContinuous:NO];
+}
+
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous {
     if (!_currentTheme) {
         return;
     }
@@ -334,7 +338,8 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     // container.
     NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
     if (![AppTheme isBuiltInIdentifier:active] && !_themeUndoRestoring) {
-        [self pushThemeUndoEntry:[self recordForThemeIdentifier:active] replacedBy:record];
+        [self pushThemeUndoEntry:[self recordForThemeIdentifier:active] replacedBy:record
+                      continuous:continuous];
     }
     if ([AppTheme isBuiltInIdentifier:active]) {
         previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
@@ -433,9 +438,12 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 // The record an edit replaced goes on the stack — unless nothing changed,
-// or the same keys moved within two seconds of the last push, which is a
-// drag whose first tick already pushed the record before it.
-- (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record {
+// or this is a continuous gesture's tick moving the same keys within two
+// seconds of the last push, whose first tick already pushed the record
+// before it. Time alone cannot tell a drag from two quick menu picks of one
+// field, which are two edits; the writer says which it is.
+- (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record
+                continuous:(BOOL)continuous {
     if ([before isEqualToDictionary:record]) {
         return;
     }
@@ -446,7 +454,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         }
     }
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    if (_themeUndoChangedKeys && [changed isEqualToSet:_themeUndoChangedKeys]
+    if (continuous && _themeUndoChangedKeys && [changed isEqualToSet:_themeUndoChangedKeys]
             && now - _themeUndoPushTime < 2) {
         _themeUndoPushTime = now;
         return;

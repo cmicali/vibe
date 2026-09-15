@@ -340,9 +340,16 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
-// field: persist the working record, then request the row's live effect.
+// field: persist the working record, then request the row's live effect. A
+// continuous control's tick — the corner-radius slider, a color well
+// tracking its panel — says so, and the store folds the gesture into one
+// undo entry.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect {
-    [AppSettings.sharedInstance currentThemeDidChange];
+    [self themeFieldDidChange:effect continuous:NO];
+}
+
+- (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
+    [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
     [self.playerController applySettingsLiveEffects:effect];
 }
 

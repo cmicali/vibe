@@ -103,16 +103,16 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
-// The custom-radius switch postdates the radius: a record naming a radius
-// with no word on the switch — every stored theme and exported file from
-// before it — chose that shape and keeps it, while one that says off draws
-// the standard radius whatever its slider holds.
+// The custom-radius switch's default is whether a radius is stored: a
+// record naming a radius with no word on the switch — every stored theme and
+// exported file from before it — chose that shape and keeps it, while one
+// that says off draws the standard radius whatever its slider holds.
 - (void)testARadiusWithoutTheSwitchReadsAsCustom {
     AppTheme *legacy = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8}];
     XCTAssertTrue(legacy.customCornerRadius);
     XCTAssertEqual(legacy.resolvedWindowCornerRadius, 8);
-    XCTAssertEqualObjects(legacy.dictionaryRepresentation,
-                          (@{@"windowCornerRadius": @8, @"customCornerRadius": @YES}));
+    XCTAssertEqualObjects(legacy.dictionaryRepresentation, @{@"windowCornerRadius": @8},
+                          @"custom beside a radius is the default, so it is not stored");
 
     AppTheme *off = [[AppTheme alloc] initWithRecord:@{@"windowCornerRadius": @8,
                                                         @"customCornerRadius": @NO}];
@@ -120,14 +120,54 @@
     XCTAssertEqual(off.windowCornerRadius, 8, @"the slider keeps its value");
     XCTAssertEqual(off.resolvedWindowCornerRadius, 16, @"but the window draws the standard one");
 
-    // A setter is not a record: sliding the radius alone does not flip the
-    // switch — the editor's slider is disabled until the switch is on.
+    // Sliding the radius alone therefore reads as custom too — one rule for
+    // a setter and a record — and the switch on beside it is still default.
     AppTheme *edited = [[AppTheme alloc] initWithRecord:nil];
     edited.windowCornerRadius = 30;
-    XCTAssertFalse(edited.customCornerRadius);
-    XCTAssertEqual(edited.resolvedWindowCornerRadius, 16);
-    edited.customCornerRadius = YES;
+    XCTAssertTrue(edited.customCornerRadius);
     XCTAssertEqual(edited.resolvedWindowCornerRadius, 30);
+    edited.customCornerRadius = YES;
+    XCTAssertEqualObjects(edited.dictionaryRepresentation, @{@"windowCornerRadius": @30});
+    // On with the standard radius is the one shape that stores the switch on.
+    AppTheme *standard = [[AppTheme alloc] initWithRecord:nil];
+    standard.customCornerRadius = YES;
+    XCTAssertEqualObjects(standard.dictionaryRepresentation, @{@"customCornerRadius": @YES});
+    XCTAssertEqual(standard.resolvedWindowCornerRadius, 16);
+}
+
+// The editor's sequence — set a radius, then switch custom off — used to
+// store the switch as a false that the sparse rule dropped for equalling
+// the constant default, leaving a bare radius that read back as custom:
+// off did not survive a reload, an export or an undo. Every round trip the
+// record takes has to keep it.
+- (void)testSwitchingCustomRadiusOffSurvivesEveryRoundTrip {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    theme.customCornerRadius = YES;
+    theme.windowCornerRadius = 8;
+    theme.customCornerRadius = NO;
+    NSDictionary *record = @{@"windowCornerRadius": @8, @"customCornerRadius": @NO};
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, record);
+    XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
+
+    // Stored and reloaded.
+    AppTheme *reloaded = [[AppTheme alloc] initWithRecord:theme.dictionaryRepresentation];
+    XCTAssertFalse(reloaded.customCornerRadius);
+    XCTAssertEqual(reloaded.resolvedWindowCornerRadius, 16);
+    XCTAssertEqualObjects(reloaded.dictionaryRepresentation, record);
+    XCTAssertEqualObjects([AppTheme sanitizedRecord:record], record);
+
+    // Exported and imported.
+    NSData *json = [AppTheme JSONDataForRecord:record name:@"Off"];
+    NSDictionary *file = [NSJSONSerialization JSONObjectWithData:json options:0 error:NULL];
+    XCTAssertEqualObjects(file[@"window"], (@{@"cornerRadius": @8, @"customCornerRadius": @NO}));
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:json name:NULL error:NULL], record);
+
+    // Back on drops the key again, and clearing the radius clears both.
+    theme.customCornerRadius = YES;
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"windowCornerRadius": @8});
+    theme.customCornerRadius = NO;
+    theme.windowCornerRadius = 16;
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
 - (void)testDockIconSnapsToAlbumArt {
@@ -237,8 +277,7 @@
         @"futureField": @"whatever",
         @"windowCornerRadius": @12,
     }];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation,
-                          (@{@"windowCornerRadius": @12, @"customCornerRadius": @YES}));
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, @{@"windowCornerRadius": @12});
 }
 
 - (void)testIdentifiersSnapToTheirLadders {
@@ -551,7 +590,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
     XCTAssertEqualObjects(json[@"waveform"], @{@"theme": @"orange"});
-    XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
+    XCTAssertEqualObjects(json[@"window"], @{@"cornerRadius": @6});
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
     // version, then name, then the sections, in the file's own byte order.
@@ -566,8 +605,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSError *error = nil;
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
-    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
-                                   @"customCornerRadius": @YES}));
+    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6}));
     XCTAssertEqualObjects(name, @"Exported");
 }
 
@@ -582,7 +620,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSDictionary *record = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
     XCTAssertNil(name);  // a non-string name does not travel
-    XCTAssertEqualObjects(record, (@{@"windowCornerRadius": @36, @"customCornerRadius": @YES}));
+    XCTAssertEqualObjects(record, @{@"windowCornerRadius": @36});
 }
 
 - (void)testJSONImportRefusesJunk {
@@ -1181,11 +1219,12 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
                         @"%@: names art the bundle does not carry (%@)", identifier, art);
             }
         }
-        // A built-in shaping its own corners says so: without the switch the
-        // gate would add it on import, and the round-trip above would drift.
+        // A built-in shaping its own corners says it by the radius alone:
+        // custom is the default beside a radius, so a spelled-out switch on
+        // would drop on import and the round-trip above would drift.
         if (record[@"windowCornerRadius"]) {
-            XCTAssertEqualObjects(record[@"customCornerRadius"], @YES,
-                    @"%@: sets a radius without customCornerRadius", identifier);
+            XCTAssertTrue([[[AppTheme alloc] initWithRecord:record] customCornerRadius],
+                    @"%@: a built-in's radius must draw", identifier);
         }
     }
 }
@@ -1383,6 +1422,51 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings applyThemeWithIdentifier:identifier];
     [settings removeUserThemeWithIdentifier:identifier fallingBackTo:nil];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
+    [settings resetToDefaults];
+}
+
+// Undo keeps discrete edits apart — two picks of one menu are two undos —
+// and folds a continuous gesture's ticks into one; a restore lands in the
+// stored entry, not only the working record, so an off custom-radius switch
+// survives it like every other field.
+- (void)testUndoKeepsDiscreteEditsApartAndFoldsAGesture {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings resetToDefaults];
+    NSString *identifier = [settings addUserThemeWithRecord:@{} name:@"Undo"];
+    [settings applyThemeWithIdentifier:identifier];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+
+    settings.currentTheme.playButtonGlyph = @"play";
+    [settings currentThemeDidChange];
+    settings.currentTheme.playButtonGlyph = @"play.circle";
+    [settings currentThemeDidChange];
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects(settings.currentTheme.playButtonGlyph, @"play");
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:identifier][@"playButtonGlyph"], @"play");
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects(settings.currentTheme.playButtonGlyph, @"play.fill");
+    XCTAssertFalse(settings.canUndoThemeEdit);
+
+    for (NSNumber *radius in @[@8, @9, @10]) {
+        settings.currentTheme.windowCornerRadius = radius.doubleValue;
+        [settings currentThemeDidChangeContinuous:YES];
+    }
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, 10);
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, 16, @"one drag, one undo");
+    XCTAssertFalse(settings.canUndoThemeEdit);
+
+    settings.currentTheme.windowCornerRadius = 8;
+    [settings currentThemeDidChangeContinuous:YES];
+    settings.currentTheme.customCornerRadius = NO;
+    [settings currentThemeDidChange];
+    settings.currentTheme.waveformTheme = @"orange";
+    [settings currentThemeDidChange];
+    [settings undoThemeEdit];
+    XCTAssertFalse(settings.currentTheme.customCornerRadius);
+    XCTAssertEqual(settings.currentTheme.resolvedWindowCornerRadius, 16);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:identifier],
+                          (@{@"windowCornerRadius": @8, @"customCornerRadius": @NO}));
     [settings resetToDefaults];
 }
 

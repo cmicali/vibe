@@ -304,11 +304,14 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         // Whole points: the editor's px readout is integral, so a stored
         // fraction would draw a radius no surface can display. Rounding in
         // the gate heals imports and pre-round stored records alike; the
-        // slider merely re-syncs to what landed.
-        [rows addObject:Field(kFieldCustomCornerRadius, window, @"customCornerRadius", @NO, BoolField())];
+        // slider merely re-syncs to what landed. The switch's row follows
+        // the radius's: its default is whether a radius is stored
+        // (defaultForKey:), so a record's radius must land before its
+        // switch is judged against it.
         [rows addObject:Field(kFieldWindowCornerRadius, window, @"cornerRadius",
                               @(kVibeThemeCornerRadiusDefault),
                               NumberField(kCornerRadiusMin, kVibeThemeCornerRadiusMax, YES))];
+        [rows addObject:Field(kFieldCustomCornerRadius, window, @"customCornerRadius", @NO, BoolField())];
         [rows addObject:ImageFieldSpec(kVibeThemeImageAppIcon, window, @"app_icon")];
         [rows addObject:Field(kFieldDockIcon, window, @"dockIcon", SETTINGS_VALUE_DOCK_ICON_ALBUM_ART,
                               LadderField(VibeNormalizedDockIcon))];
@@ -1179,14 +1182,6 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     for (NSString *key in KnownFieldKeys()) {
         [self storeSanitized:record[key] forKey:key];
     }
-    // The custom-radius switch postdates the radius: a record naming a
-    // radius with no word on the switch — a stored theme or an exported file
-    // from before it — chose that shape, so it reads as custom rather than
-    // snapping to the standard radius.
-    if (SanitizedFieldValue(kFieldWindowCornerRadius, record[kFieldWindowCornerRadius])
-            && !record[kFieldCustomCornerRadius]) {
-        [self storeSanitized:@YES forKey:kFieldCustomCornerRadius];
-    }
 }
 
 + (NSDictionary<NSString *, id> *)sanitizedRecord:(NSDictionary<NSString *, id> *)record {
@@ -1201,23 +1196,42 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 // record stays sparse whatever a setter or file hands it.
 - (void)storeSanitized:(id)raw forKey:(NSString *)key {
     id value = SanitizedFieldValue(key, raw);
-    if (!value || [value isEqual:FieldDefaults()[key]]) {
+    if (!value || [value isEqual:[self defaultForKey:key]]) {
         [_fields removeObjectForKey:key];
     } else {
         _fields[key] = value;
     }
+    if ([key isEqualToString:kFieldWindowCornerRadius]) {
+        // The switch's default moved with the radius; re-judge what it holds
+        // against the new one, so the record stays sparse.
+        [self storeSanitized:@(self.customCornerRadius) forKey:kFieldCustomCornerRadius];
+    }
+}
+
+// The custom-radius switch's default is whether a radius is stored, the
+// rest of the fields' a constant. A record naming a radius with no word on
+// the switch — a stored theme or an exported file from before the switch
+// existed — chose that shape, so it reads as custom; only an explicit off
+// beside a radius is worth a key, and it survives every round trip because
+// the sparse rule compares against THIS default rather than a constant NO
+// that an off beside a radius would equal and vanish into.
+- (id)defaultForKey:(NSString *)key {
+    if ([key isEqualToString:kFieldCustomCornerRadius]) {
+        return @(_fields[kFieldWindowCornerRadius] != nil);
+    }
+    return FieldDefaults()[key];
 }
 
 - (NSString *)stringForKey:(NSString *)key {
-    return _fields[key] ?: FieldDefaults()[key];
+    return _fields[key] ?: [self defaultForKey:key];
 }
 
 - (CGFloat)floatForKey:(NSString *)key {
-    return [(NSNumber *)(_fields[key] ?: FieldDefaults()[key]) doubleValue];
+    return [(NSNumber *)(_fields[key] ?: [self defaultForKey:key]) doubleValue];
 }
 
 - (BOOL)boolForKey:(NSString *)key {
-    return [(NSNumber *)(_fields[key] ?: FieldDefaults()[key]) boolValue];
+    return [(NSNumber *)(_fields[key] ?: [self defaultForKey:key]) boolValue];
 }
 
 #pragma mark Scalar fields
@@ -1437,8 +1451,10 @@ static id RandomPick(NSArray *choices) {
     NSArray *tints = @[SETTINGS_VALUE_WINDOW_TINT_MONO, SETTINGS_VALUE_WINDOW_TINT_ARTWORK];
     self.windowBackgroundStyle = RandomPick(backgrounds);
     self.windowTint = RandomPick(tints);
-    self.customCornerRadius = RandomChance(50);
+    // Radius first: a stored radius reads as custom until the switch says
+    // otherwise, so the switch's roll is the one that has to land last.
     self.windowCornerRadius = [RandomPick(@[@0, @8, @12, @16, @20, @28, @36]) doubleValue];
+    self.customCornerRadius = RandomChance(50);
     if (styles.count) {
         self.waveformStyle = RandomPick(styles);
     }

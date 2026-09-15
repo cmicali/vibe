@@ -124,6 +124,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // The pane's themed rows all funnel here after writing their currentTheme
 // field: persist the working record, then request the row's live effect.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect;
+- (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous;
 
 // The waveform style popup, built once per surface: the editor's Style row
 // and the list page's shortcut are twins, and the shared action re-selects
