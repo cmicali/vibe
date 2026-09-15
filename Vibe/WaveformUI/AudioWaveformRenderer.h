@@ -153,9 +153,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 @property (strong) CALayer* parentLayer;
 
-// Stable, never-localized key for this renderer: the NSUserDefaults value, the
-// AudioWaveformView registry key, and the stem of the menu item's identifier.
-// displayName is the localized name and must never be used as a key.
+// Wiggle's loop count can use an unzoomed reference width while its geometry
+// spans the drawn width. Zero follows the drawn width; other styles ignore it.
+@property (nonatomic) CGFloat samplingWidth;
+
+// Metadata for the class's default registry entry. Variants may share a class;
+// persist and compare the resolved registry identifier, never this class key.
+// displayName is localized and must never be used as a key.
 + (NSString *)styleIdentifier;
 
 // Localized, user-visible name. Display only.

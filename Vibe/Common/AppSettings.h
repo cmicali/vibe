@@ -26,8 +26,8 @@
 // per-appearance color pairs, whose nil means "unset, use the fallback".
 NS_ASSUME_NONNULL_BEGIN
 
-// A renderer's stable styleIdentifier, never its localized display name — see
-// AudioWaveformRenderer.h. Both platforms render waveforms and both offer the
+// A stable WaveformRendererRegistry identifier, never a class key or localized
+// display name. Both platforms render waveforms and both offer the
 // picker, so this one is shared.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
 

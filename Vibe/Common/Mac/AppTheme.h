@@ -191,7 +191,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 // Setters sanitize exactly like initWithRecord:, so the UI cannot store what
 // a file load would refuse.
 
-@property (nonatomic, copy) NSString *waveformStyle;        // renderer styleIdentifier
+@property (nonatomic, copy) NSString *waveformStyle;        // WaveformRendererRegistry identifier
 @property (nonatomic, copy) NSString *mode;                 // single/dual color sets
 @property (readonly, nonatomic) BOOL isSingleMode;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom

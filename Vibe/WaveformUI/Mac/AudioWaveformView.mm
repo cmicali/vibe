@@ -66,7 +66,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return; // unchanged style: keep the live layer tree and its state
     }
     _styleIdentifier = style;
-    _currentWaveformRenderer = [WaveformRendererRegistry rendererForIdentifier:style
+    _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
             layer:self.layer bounds:self.bounds isDark:self.isDark];
     [self applyLevelSettings];
     [self applyResolvedTheme];
@@ -350,8 +350,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default; the registry owns
         // the chain.
-        [self setWaveformStyle:[WaveformRendererRegistry
-                resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle]];
+        [self setWaveformStyle:AppSettings.sharedInstance.currentTheme.waveformStyle];
     }
     [self drawWaveform];
 }

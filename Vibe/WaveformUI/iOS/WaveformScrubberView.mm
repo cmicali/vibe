@@ -312,7 +312,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // The renderer reads parentLayer.bounds, so the host must be at virtual
     // size before it exists.
     _rendererHost.bounds = [self virtualBounds];
-    _renderer = [WaveformRendererRegistry rendererForIdentifier:style layer:_rendererHost
+    _renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style layer:_rendererHost
                                                         bounds:[self virtualBounds] isDark:self.isDark];
     [self applyLevelSettings];
     [self applyResolvedTheme];
@@ -419,6 +419,7 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
 }
 
 - (void)drawWaveform {
+    _renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
     [_renderer updateWaveform:[self virtualBounds] progress:_progress waveform:self.waveform.waveform];
     [self applyScrollAndProgress];
 }

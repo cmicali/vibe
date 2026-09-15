@@ -43,7 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 // them to their new heights.
 - (void)refreshWaveformLevels;
 
-// Styles are identified by the renderer's stable styleIdentifier
+// Styles are identified by their stable WaveformRendererRegistry key
 // (WaveformRendererRegistry), never its localized display name.
 - (void)setWaveformStyle:(NSString *)identifier;
 

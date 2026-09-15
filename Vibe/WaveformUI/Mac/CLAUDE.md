@@ -23,6 +23,7 @@ While the cursor is over a loaded waveform, the waveform's own column under the 
 The view only routes the cursor's x to the renderer, through `setHoverHighlightX:`, where a negative value clears the highlight — **because the two renderer families need opposite mechanisms**:
 
 - The **Detailed** family adds a flat full-alpha column layer inside `_waveformContainer`, so the shared bar mask clips it to the envelope for free. It is a couple of points wide, since one bar is sub-point at 1024 bars or more.
+- **Wiggle / Wiggle MC** use the same masked column but span a complete loop, including its curved ends, so the highlight does not flicker into dots between the vertical strokes. Played progress and seeks stay continuous.
 - **Sonic Cirrus**, whose bars are discrete layers with gaps, snaps to a bar index and recolors that bar's two layers instead — a fixed-width column there could land in a gap and light nothing.
 - **Cupertino Basic** has no bars to light: the pill grows while hovered — Apple Music's own affordance — and a hairline column inside the capsule tracks the x.
 

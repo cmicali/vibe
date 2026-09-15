@@ -1,5 +1,5 @@
 //
-// The renderer registry: styleIdentifier → renderer, plus the style
+// The renderer registry: persisted identifier → renderer, plus the style
 // resolution fallback chain. One home, shared by the macOS view and the iOS
 // scrubber, so the two platforms cannot drift on which styles exist or how an
 // unknown persisted identifier falls back.
@@ -17,8 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 // All registered style identifiers. Order is unspecified.
 + (NSArray<NSString *> *)availableIdentifiers;
 
-// Builds the resolved style, including variants that share a renderer class.
-+ (AudioWaveformRenderer *)rendererForIdentifier:(nullable NSString *)identifier
+// Builds an identifier returned by resolveStyleIdentifier:, including variants
+// that share a class. Resolve once, then store and construct that same choice.
++ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 // Localized display name, falling back to the identifier itself.

@@ -32,37 +32,36 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 static const CGFloat kHoverHighlightWidth = 1.5;
 
 static const CGFloat kWiggleStrokeWidth = 1.5;
+static const CGFloat kWigglePitch = 8;
+static const NSUInteger kWiggleMaxLoops = 1024;
+
+static CGFloat VibeWiggleVScale(CGFloat height, BOOL centered) {
+    return MAX(0, VibeBarVScale(height) * 2 - kWiggleStrokeWidth) / (centered ? 2 : 1);
+}
 
 // Keep the centerline: expanding every curve into a filled outline makes
 // resizing and morph frames pay for a second, much larger path.
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL hasWaveform, BOOL centered) CF_RETURNS_RETAINED;
+                                  BOOL centered) CF_RETURNS_RETAINED;
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL hasWaveform, BOOL centered) {
+                                  BOOL centered) {
     CGMutablePathRef line = CGPathCreateMutable();
     CGFloat stroke = kWiggleStrokeWidth;
-    CGFloat amplitude = MAX(0, VibeBarVScale(size.height) * 2 - stroke);
+    CGFloat amplitude = VibeWiggleVScale(size.height, centered);
     if (count == 0 || size.width <= stroke || amplitude == 0) return line;
-    if (!hasWaveform) {
-        BOOL collapsed = YES;
-        for (NSUInteger i = 0; i < count; i++) {
-            if (samples[i * 2 + 1] > 0) { collapsed = NO; break; }
-        }
-        if (collapsed) return line;
-    }
     CGFloat baseline = centered ? size.height / 2
             : size.height / 2 - VibeBarVScale(size.height) + stroke / 2;
     CGFloat pitch = (size.width - stroke) / count;
     CGFloat radiusX = pitch / 4;
     const CGFloat kCircleControl = 0.5522847498;
-    CGFloat bottom = baseline - (centered ? clampRange(samples[1], 0, 1) * amplitude / 2 : 0);
+    CGFloat bottom = baseline - (centered ? clampRange(samples[1], 0, 1) * amplitude : 0);
     CGPathMoveToPoint(line, NULL, stroke / 2, bottom);
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat x = stroke / 2 + i * pitch;
         CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
-        CGFloat top = baseline + height * (centered ? 0.5 : 1);
+        CGFloat top = baseline + height;
         CGFloat nextBottom = baseline - (centered
-                ? clampRange(samples[MIN(i + 1, count - 1) * 2 + 1], 0, 1) * amplitude / 2 : 0);
+                ? clampRange(samples[MIN(i + 1, count - 1) * 2 + 1], 0, 1) * amplitude : 0);
         CGFloat radiusY = MIN(radiusX, (top - bottom) / 2);
         CGFloat cx = radiusX * kCircleControl, cy = radiusY * kCircleControl;
         CGPathAddCurveToPoint(line, NULL, x + cx, bottom,
@@ -182,8 +181,9 @@ static const CGFloat kDetailedBarPitch = 0.5;
 static const NSUInteger kDetailedMaxBars = 8192;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / (_wiggle ? 8 : kDetailedBarPitch));
-    return clampRange(count, (NSUInteger)2, _wiggle ? (NSUInteger)1024 : kDetailedMaxBars);
+    if (_wiggle && self.samplingWidth > 0) width = self.samplingWidth;
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / (_wiggle ? kWigglePitch : kDetailedBarPitch));
+    return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kDetailedMaxBars);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -212,11 +212,15 @@ static const NSUInteger kDetailedMaxBars = 8192;
                        wiggle:(BOOL)wiggle centered:(BOOL)centered {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
+        NSAssert(!wiggle || self.class == DetailedAudioWaveformRenderer.class,
+                 @"Wiggle variants require DetailedAudioWaveformRenderer's geometry hooks");
         _wiggle = wiggle;
         _wiggleCentered = centered;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
-                initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height) * (wiggle && !centered ? 2 : 1); }
+                initWithVScale:^CGFloat(CGFloat height) {
+                    return wiggle ? VibeWiggleVScale(height, centered) : VibeBarVScale(height);
+                }
                        rebuild:^{ [weakSelf rebuildMaskPaths]; }];
         _morph.samplesPerBar = 2; // interleaved [min, max] per bar
         [self setupGradientLayers];
@@ -364,6 +368,17 @@ static const NSUInteger kDetailedMaxBars = 8192;
 // The polymorphic hook — Basic overrides this with its block-quantized
 // column; the snap itself is the shared rule (VibeSnappedColumnRect).
 - (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale {
+    if (_wiggle) {
+        CGFloat width = MAX(0, bounds.size.width - kWiggleStrokeWidth);
+        NSUInteger count = [self numBarsForWidth:bounds.size.width];
+        NSUInteger index = (NSUInteger)VibeBlockIndexForX(x - kWiggleStrokeWidth / 2,
+                                                          width, (NSInteger)count);
+        CGFloat pitch = width / count;
+        // Include the stroke at both valleys, then expand to whole pixels.
+        CGFloat left = floor(index * pitch * scale) / scale;
+        CGFloat right = ceil(((index + 1) * pitch + kWiggleStrokeWidth) * scale) / scale;
+        return CGRectMake(left, 0, right - left, bounds.size.height);
+    }
     return VibeSnappedColumnRect(x, kHoverHighlightWidth,
                                  bounds.size.width, bounds.size.height, scale);
 }
@@ -418,17 +433,22 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    VibeEnergyColumn column = {NSNotFound, 0, 0};
     float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
-    for (NSUInteger i = 0; i < count; i++) {
-        if (_wiggle) {
+    if (_wiggle) {
+        // Keep the shared [min, max] layout so morphs, dips and bakes use one
+        // buffer contract. At the loop cap the unused halves cost only 12 KB
+        // across the morph engine's three vectors.
+        for (NSUInteger i = 0; i < count; i++) {
             out[i * 2] = 0;
             out[i * 2 + 1] = VibeWaveformBarLevel(
                     VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
                     fullScaleRMS, gainDB);
-            continue;
         }
+        return;
+    }
+    VibeEnergyColumn column = {NSNotFound, 0, 0};
+    for (NSUInteger i = 0; i < count; i++) {
         VibeEnergyScaledEnvelope(waveform, i, count, &column, fullScaleRMS, gainDB,
                                  &out[i * 2], &out[i * 2 + 1]);
     }
@@ -464,8 +484,17 @@ static const NSUInteger kDetailedMaxBars = 8192;
     }
     VibeSignpostBegin(waveform_path);
     CGPathRef path;
+    float opacity = 1;
     if (_wiggle) {
-        path = VibeNewWigglePath(_morph.size, samples.data(), count, _morph.barMinHeight > 0, _wiggleCentered);
+        if (_morph.barMinHeight == 0) {
+            float peak = 0;
+            for (NSUInteger i = 0; i < count; i++) peak = MAX(peak, samples[i * 2 + 1]);
+            // Fade as the last loops flatten below their pitch; otherwise
+            // their connected baseline stays solid until the final snap.
+            opacity = MIN(1, peak * VibeWiggleVScale(_morph.size.height, _wiggleCentered) / kWigglePitch);
+        }
+        path = opacity > 0 ? VibeNewWigglePath(_morph.size, samples.data(), count, _wiggleCentered)
+                           : CGPathCreateMutable();
     } else {
         CGSize maskSize = _morph.size;
         CGFloat width = maskSize.width;
@@ -499,6 +528,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _barMask.path = path;
+    _barMask.opacity = opacity;
     [CATransaction commit];
     CGPathRelease(path);
     VibeSignpostEnd(waveform_path);
@@ -544,7 +574,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGContextScaleCTM(ctx, scale, scale);
 
     if (_wiggle) {
-        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, YES, _wiggleCentered);
+        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, _wiggleCentered);
         CGContextAddPath(ctx, path);
         CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
         CGContextSetLineWidth(ctx, kWiggleStrokeWidth);

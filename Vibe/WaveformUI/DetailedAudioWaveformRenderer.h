@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
 
 // Wiggle shares the envelope's layers, progress, morph and bitmap bake.
+// wiggle:YES is valid only on this class, not on its bar-style subclasses.
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
                        wiggle:(BOOL)wiggle centered:(BOOL)centered;
 
@@ -50,8 +51,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
 
 // The played-fill and hover presentation. Continuous here — the clip edge is
-// the playhead and the hover column a fixed-width slice — while Basic
-// overrides both to whole-block quantization, matching Sonic Cirrus's
+// the playhead; Wiggle highlights a whole loop, other Detailed styles a thin
+// slice. Basic overrides both to whole-block quantization, matching Sonic Cirrus's
 // discrete bars; the seek itself stays continuous in every style.
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width;
 - (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale;

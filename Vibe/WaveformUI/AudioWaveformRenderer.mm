@@ -54,7 +54,7 @@
 }
 
 // Abstract. Both are declared nonnull, and styleIdentifier is used as a
-// dictionary key by AudioWaveformView's registry, so a subclass that forgets
+// dictionary key by WaveformRendererRegistry, so a subclass that forgets
 // to override would otherwise raise deep inside -setup with nothing naming the
 // culprit. Assert here, where the class is known, and return a marker that
 // keeps a Release build registering something rather than crashing.

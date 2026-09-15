@@ -12,6 +12,9 @@
 #import "OversamplingDetailedAudioWaveformRenderer.h"
 #import "VibeStrings.h"
 
+static NSString *const kWiggleMCIdentifier = @"wiggle";
+static NSString *const kWiggleIdentifier = @"wiggle_centered";
+
 @implementation WaveformRendererRegistry
 
 + (NSDictionary<NSString *, Class> *)renderersByIdentifier {
@@ -38,8 +41,8 @@
             }
             registry[identifier] = renderer;
         }
-        registry[@"wiggle"] = DetailedAudioWaveformRenderer.class;
-        registry[@"wiggle_centered"] = DetailedAudioWaveformRenderer.class;
+        registry[kWiggleMCIdentifier] = DetailedAudioWaveformRenderer.class;
+        registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -49,20 +52,20 @@
     return [self renderersByIdentifier].allKeys;
 }
 
-+ (AudioWaveformRenderer *)rendererForIdentifier:(NSString *)identifier
++ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
-    NSString *style = [self resolveStyleIdentifier:identifier];
-    Class renderer = [self renderersByIdentifier][style];
-    BOOL centered = [style isEqualToString:@"wiggle_centered"];
-    if (centered || [style isEqualToString:@"wiggle"]) {
+    Class renderer = [self renderersByIdentifier][identifier];
+    NSAssert(renderer, @"Resolve the waveform style before constructing its renderer");
+    BOOL centered = [identifier isEqualToString:kWiggleIdentifier];
+    if (centered || [identifier isEqualToString:kWiggleMCIdentifier]) {
         return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES centered:centered];
     }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:@"wiggle"]) return STR_WAVEFORM_STYLE_WIGGLE;
-    if ([identifier isEqualToString:@"wiggle_centered"]) return STR_WAVEFORM_STYLE_WIGGLE_CENTERED;
+    if ([identifier isEqualToString:kWiggleMCIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
+    if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE_CENTERED;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 

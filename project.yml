@@ -634,6 +634,13 @@ targets:
       - path: Vibe/Util/Mac/NSImage+Util.m
       - path: Vibe/WaveformUI/WaveformTheme.m
       - path: Vibe/WaveformUI/WaveformMorphEngine.mm
+      - path: Vibe/WaveformUI/AudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/BasicAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/CupertinoWaveformRenderer.mm
+      - path: Vibe/WaveformUI/DetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/OversamplingDetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/SonicCirrusWaveformRenderer.mm
+      - path: Vibe/WaveformUI/WaveformRendererRegistry.mm
       - path: Vibe/Debug/VibeWorkTally.m
     settings:
       base:

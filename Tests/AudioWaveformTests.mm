@@ -8,6 +8,10 @@
 
 #import "AudioWaveform.h"
 #import "WaveformMorphEngine.h"
+#import "WaveformRendererRegistry.h"
+#import "DetailedAudioWaveformRenderer.h"
+#import "AppSettings.h"
+#import "VibeStrings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -35,6 +39,71 @@
 }
 
 #pragma mark - Resize and content transitions
+
+- (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
+    NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
+    XCTAssertTrue([identifiers containsObject:@"wiggle"]);
+    XCTAssertTrue([identifiers containsObject:@"wiggle_centered"]);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle"], STR_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE_CENTERED);
+    XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
+    XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
+    for (NSString *identifier in @[@"detailed", @"wiggle", @"wiggle_centered"]) {
+        CALayer *host = [CALayer layer];
+        host.bounds = CGRectMake(0, 0, 512, 80);
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
+                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+                        layer:host bounds:host.bounds isDark:YES];
+        BOOL wiggle = ![identifier isEqualToString:@"detailed"];
+        XCTAssertEqual(renderer.class, DetailedAudioWaveformRenderer.class);
+        XCTAssertEqual([renderer numBarsForWidth:512], wiggle ? 64u : 1024u);
+        renderer.samplingWidth = 512;
+        XCTAssertEqual([renderer numBarsForWidth:2048], wiggle ? 64u : 4096u,
+                       @"Zoom must preserve Wiggle's loops without reducing Detailed's resolution");
+        renderer.samplingWidth = 768;
+        XCTAssertEqual([renderer numBarsForWidth:2048], wiggle ? 96u : 4096u);
+    }
+}
+
+- (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
+    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
+        CALayer *host = [CALayer layer];
+        host.bounds = CGRectMake(0, 0, 512, 80);
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
+                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+                        layer:host bounds:host.bounds isDark:YES];
+        CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
+        CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
+        CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
+        XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
+        XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
+        XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
+        XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
+        XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
+    }
+}
+
+- (void)testWiggleCollapseFadesTheBaselineButKeepsLoadedQuietAudioVisible {
+    AudioWaveformCacheChunk quiet;
+    quiet.set(-0.014f, 0.014f, 0.000196f, 1);
+    AudioWaveform waveform(1, &quiet);
+    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
+        CALayer *host = [CALayer layer];
+        host.bounds = CGRectMake(0, 0, 512, 80);
+        AudioWaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+                layer:host bounds:host.bounds isDark:YES];
+        [renderer updateWaveform:host.bounds progress:0 waveform:&waveform];
+        [renderer settleMorphImmediately];
+        CAShapeLayer *mask = (CAShapeLayer *)host.sublayers.firstObject.mask;
+        XCTAssertEqual(mask.opacity, 1);
+        [renderer updateWaveform:host.bounds progress:0 waveform:nullptr];
+        [renderer backingScaleDidChange]; // redraw the displayed samples without advancing a timer
+        XCTAssertGreaterThan(mask.opacity, 0);
+        XCTAssertLessThan(mask.opacity, 1);
+        [renderer settleMorphImmediately];
+        XCTAssertEqual(mask.opacity, 0);
+    }
+}
 
 - (void)testSettledResizeDrawsOnceWithoutStartingAnAnimation {
     __block NSUInteger rebuilds = 0, fills = 0;
