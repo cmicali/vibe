@@ -79,18 +79,15 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
             : waveform->getChunkAtIndex(i, count);
 }
 
-// The full-scale reference for one fill: the fixed -9 dBFS RMS, or with
-// Normalize on the track's loudest energy column at the floored resolution,
-// so that column draws full height whatever the master's level. The
-// resolution is the fixed column count rather than the bar count, so a
-// resize cannot move the reference. A silent or still-empty waveform falls
-// back to the constant rather than dividing by zero; its bars are zero
-// either way.
+// Normalize only raises levels: its reference cannot exceed the fixed one.
+// Match the drawn energy windows, including the finer styles' 1/1024 floor.
+// Silence and empty waveforms keep the fixed reference to avoid division by zero.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
-                                                        BOOL normalize) {
+                                                        BOOL normalize,
+                                                        NSUInteger count) {
     float loudest = (normalize && waveform)
-            ? sqrtf(waveform->getMaxMeanSquare(kVibeWaveformEnergyColumns)) : 0;
-    return loudest > 0 ? loudest : kVibeWaveformFullScaleRMS;
+            ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
 // Snap a hover/seek column to the device-pixel grid. A fractional origin or
@@ -155,9 +152,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 @property (strong) CALayer* parentLayer;
 
-// Stable, never-localized key for this renderer: the NSUserDefaults value, the
-// AudioWaveformView registry key, and the stem of the menu item's identifier.
-// displayName is the localized name and must never be used as a key.
+// Wiggle's loop count can use an unzoomed reference width while its geometry
+// spans the drawn width. Zero follows the drawn width; other styles ignore it.
+@property (nonatomic) CGFloat samplingWidth;
+
+// Metadata for the class's default registry entry. Variants may share a class;
+// persist and compare the resolved registry identifier, never this class key.
+// displayName is localized and must never be used as a key.
 + (NSString *)styleIdentifier;
 
 // Localized, user-visible name. Display only.

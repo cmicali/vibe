@@ -48,7 +48,7 @@
 
 - (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
                waveform:(AudioWaveform *)waveform {
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
         out[i * stride] = VibeWaveformBarLevel(
@@ -58,7 +58,7 @@
 }
 
 // Abstract. Both are declared nonnull, and styleIdentifier is used as a
-// dictionary key by AudioWaveformView's registry, so a subclass that forgets
+// dictionary key by WaveformRendererRegistry, so a subclass that forgets
 // to override would otherwise raise deep inside -setup with nothing naming the
 // culprit. Assert here, where the class is known, and return a marker that
 // keeps a Release build registering something rather than crashing.
