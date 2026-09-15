@@ -294,6 +294,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive;
 
+// macOS only, main-thread delivery, only when bitPerfectReport changed. The
+// report settles asynchronously after every toggle, play, pause, device
+// switch and volume move, so a caller that reads it right after a setter
+// sees the previous one; this is the edge to redraw from.
+- (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer;
+
 @end
 
 NS_ASSUME_NONNULL_END

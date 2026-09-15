@@ -54,6 +54,14 @@ NS_ASSUME_NONNULL_BEGIN
 // The HAL's software volume for the device's output ('vmvc'). A device with
 // none answers YES with *volume = 1.0: nothing scales its samples.
 + (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID;
+// A listener on that volume, delivered on queue. The block is the handle:
+// the remove must be given the same block object, queue and device.
++ (BOOL)addVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
+                               queue:(dispatch_queue_t)queue
+                         forDeviceID:(AudioDeviceID)deviceID;
++ (void)removeVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
+                                  queue:(dispatch_queue_t)queue
+                            forDeviceID:(AudioDeviceID)deviceID;
 
 // kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value
 // written and TOGGLES ownership — if this process owns it, a set releases it.

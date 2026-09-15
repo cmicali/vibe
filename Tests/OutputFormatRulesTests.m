@@ -245,10 +245,12 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
 }
 
-- (void)testOnlyVirtualIsNeverHogged {
-    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeVirtual));
-    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeUSB));
-    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeBuiltIn));
+- (void)testVirtualAndTheSystemDefaultAreNeverHogged {
+    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeVirtual, NO));
+    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeUSB, NO));
+    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeBuiltIn, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeUSB, YES));
+    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeBuiltIn, YES));
 }
 
 #pragma mark - The fold
@@ -265,6 +267,27 @@ static VibeBitPerfectReport Perfect(void) {
 
 - (void)testEverythingPerfectIsActive {
     XCTAssertEqual(VibeBitPerfectFold(Perfect()), VibeBitPerfectStatusActive);
+}
+
+// The shell is told about a report only when it differs, so every field the
+// shell renders must count — the volume is the one a user moves mid-track.
+- (void)testReportEqualityCountsEveryRenderedField {
+    XCTAssertTrue(VibeBitPerfectReportsEqual(Perfect(), Perfect()));
+    VibeBitPerfectReport r = Perfect();
+    r.softwareVolume = 0.5f;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.sampleRate = 96000;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.exclusive = NO;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.status = VibeBitPerfectStatusIdle;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.systemDefault = YES;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
 }
 
 // One assertion per adjacent pair of the priority order, so a reorder fails:

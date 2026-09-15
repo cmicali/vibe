@@ -567,17 +567,25 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     return nil;
 }
 
-- (NSTabViewItem *)appearanceTabItem {
+- (NSTabViewItem *)tabItemWithIdentifier:(NSString *)identifier {
     for (NSTabViewItem *item in _tabs.tabViewItems) {
-        if ([item.identifier isEqualToString:@"appearance"]) {
+        if ([item.identifier isEqualToString:identifier]) {
             return item;
         }
     }
     return nil;
 }
 
+- (NSTabViewItem *)appearanceTabItem {
+    return [self tabItemWithIdentifier:@"appearance"];
+}
+
 - (SettingsAppearanceViewController *)appearancePane {
     return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
+}
+
+- (SettingsGeneralViewController *)generalPane {
+    return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"general"].viewController;
 }
 
 - (BOOL)appearancePaneIsSelected {

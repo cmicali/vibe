@@ -250,6 +250,12 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
     return VibeWriteDeviceProperty(stream, kAudioStreamPropertyPhysicalFormat, &format, sizeof(format));
 }
 
+static const AudioObjectPropertyAddress kVibeVirtualMainVolumeAddress = {
+    kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+    kAudioObjectPropertyScopeOutput,
+    kAudioObjectPropertyElementMain
+};
+
 + (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID {
     if (!volume) {
         return NO;
@@ -258,14 +264,30 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
     if (deviceID == kAudioObjectUnknown) {
         return NO;
     }
-    AudioObjectPropertyAddress addr = { kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
-                                        kAudioObjectPropertyScopeOutput,
-                                        kAudioObjectPropertyElementMain };
-    if (!AudioObjectHasProperty(deviceID, &addr)) {
+    if (!AudioObjectHasProperty(deviceID, &kVibeVirtualMainVolumeAddress)) {
         return YES; // no software volume at all: nothing scales the samples
     }
     return VibeReadDeviceProperty(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
                                   kAudioObjectPropertyScopeOutput, volume, sizeof(*volume));
+}
+
++ (BOOL)addVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
+                               queue:(dispatch_queue_t)queue
+                         forDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown || !AudioObjectHasProperty(deviceID, &kVibeVirtualMainVolumeAddress)) {
+        return NO;
+    }
+    OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeVirtualMainVolumeAddress, queue, listener);
+    if (status != noErr) {
+        LogWarn(@"CoreAudioUtil: volume listener on %u failed (OSStatus %d)", deviceID, (int)status);
+    }
+    return status == noErr;
+}
+
++ (void)removeVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
+                                  queue:(dispatch_queue_t)queue
+                            forDeviceID:(AudioDeviceID)deviceID {
+    AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeVirtualMainVolumeAddress, queue, listener);
 }
 
 static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {

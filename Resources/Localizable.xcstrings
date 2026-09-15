@@ -46399,6 +46399,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect.format_shared_default": {
+      "comment": "The output format bit-perfect output settled on, on a device the app deliberately does not take exclusive use of because it is the system's output device, so other apps' sounds can still mix in: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@-bit · shared, because it is the system output device"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect.idle": {
       "comment": "Settings, General pane: caption under the bit-perfect output switch while it is on and playback is stopped or paused.",
       "localizations": {

@@ -169,6 +169,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // The setting's queue-side intent, carried by setBitPerfectOutput: like
     // _levelsWanted.
     BOOL                    _bitPerfectWanted;
+    // The device configureOutputDeviceOnQueue: is rebinding the engine to,
+    // for the duration of that call, else kAudioObjectUnknown. The mode's
+    // device is this when set, otherwise the requested id — which the switch
+    // commits only after the rebuild, and a failed switch never.
+    AudioDeviceID           _rebindDeviceID;
     // The device this process currently hogs, or kAudioObjectUnknown.
     AudioDeviceID           _hoggedDeviceID;
     // The one device whose format this run changed and has not yet put back,
@@ -178,6 +183,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioDeviceID           _changedFormatDeviceID;
     AudioStreamID           _changedFormatStreamID;
     AudioStreamBasicDescription _formatBeforeChange;
+    // The device whose software volume is listened to, from its first
+    // prepare until it is left, and the listener block that is the HAL's
+    // handle for the removal. kAudioObjectUnknown while none is watched.
+    AudioDeviceID           _volumeWatchedDeviceID;
+    AudioObjectPropertyListenerBlock _volumeListener;
     // A settlement waiting for the outgoing audio to go silent before it may
     // stop the engine for a format switch; run once by completeRetiredFadePair:
     // when _activeRetiredOutputCount reaches zero.

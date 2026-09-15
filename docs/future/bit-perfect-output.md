@@ -386,6 +386,19 @@ both at the new rate means AVAudioEngine re-derived the last connection by itsel
 what today's different-rate device switches rely on; a stale mixer rate means Phase 2 also
 reconnects `mainMixerNode → outputNode` at the new rate while stopped.
 
+**Q8 (found in review, 2026-09-15). Hogging the system default output device.** coreaudiod moves
+the default to another device the moment a process hogs the current one, and AVAudioEngine's
+output unit is a *default* output unit: it follows the default whenever it moves, whatever
+`kAudioOutputUnitProperty_CurrentDevice` was set to — during the hog write, or at a later
+`start` — and follows it back when the release moves the default home. Measured with
+`hogfollow.swift` and `hogstart.swift` (vibe-debug skill). Re-binding the unit and `prepare`-ing
+after the take held in the standalone experiment but not in the app: a 5 s stall in `start`,
+the unit on the other device afterwards, and after a switch away the audio on the wrong device.
+Decision: the system default output device is never hogged (`VibeBitPerfectShouldHog`'s second
+argument); bits still arrive unchanged, the caption says "shared, because it is the system
+output device", and exclusivity means picking another system output in Sound settings. Open
+to revisit if a supported way to pin AVAudioEngine's output unit turns up.
+
 **Q7. A real DAC.** When a USB DAC is attached (not at planning time): repeat Q1 for the
 switch time and Q3 for hog, read its `AvailablePhysicalFormats` (expect `i16`/`i24`/`i32`
 rows per rate), and confirm the depth rule picks the highest integer depth and the report

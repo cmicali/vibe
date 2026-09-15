@@ -126,8 +126,13 @@ static const CGFloat kOutputPopUpWidth = 280;
 // The switch follows the Output popup beside it: enabled only while the
 // chosen device is one the mode can drive (OutputFormatRules.h), with the
 // caption saying why otherwise. On, the caption is the player's own report —
-// the same sentence the header's open lock shows on hover.
+// the same sentence the header's open lock shows on hover — and the report
+// settles asynchronously, so the toggle's own call shows the previous one
+// until the player controller's report-change call corrects it.
 - (void)refreshBitPerfectRow {
+    if (!self.viewLoaded) {
+        return;
+    }
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];

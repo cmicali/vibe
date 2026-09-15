@@ -22,8 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioPlayer (BitPerfect)
 
 // The newest published report — a locked snapshot, no queue hop, like
-// outputAudioActive. Recomputed at every settlement, hog edge, mode toggle and
-// playback-state publication.
+// outputAudioActive. Recomputed at every settlement, hog edge, mode toggle,
+// playback-state publication and volume move, and announced through
+// audioPlayerDidChangeBitPerfectReport: when it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
 
 @end
@@ -83,9 +84,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
 // Hog for the bound device, when the mode, an eligible device, no FX graph
-// and a non-virtual transport all hold. Idempotent through the HAL read.
+// and VibeBitPerfectShouldHog (not virtual, not the system default output
+// device — the trap at the rule) all hold. Idempotent through the HAL read; a rebuild on
+// the device already hogged keeps the hog.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
+
+// Listens to the device's software volume until told to stop with
+// kAudioObjectUnknown; a move re-reads it into the facts and republishes.
+- (void)watchVolumeOnQueueOfDevice:(AudioDeviceID)deviceID;
 
 // Writes the remembered format back to the device it was read from when one
 // is owed, and clears the slot either way — a vanished device fails the write
@@ -93,10 +100,16 @@ NS_ASSUME_NONNULL_BEGIN
 // the call returns.
 - (void)restoreOutputFormatOnQueue;
 
+// The device as it was found, then let go: the restore, the volume watch
+// dropped and the hog released. Mode off, the vanished-device abandon and
+// quit all take it; a switch away from the device keeps its own order.
+- (void)leaveOutputDeviceOnQueue;
+
 // Folds the queue-side facts against the live state and publishes the copy
-// the shell reads. Its edges are refreshOutputAudioActiveOnQueue (every
-// state publication and fade completion), the committed device id, the two
-// hog edges and the mode toggle.
+// the shell reads, announcing it to the delegate when it differs. Its edges
+// are refreshOutputAudioActiveOnQueue (every state publication and fade
+// completion), the committed device id, the two hog edges, the mode toggle
+// and the volume watch.
 - (void)publishBitPerfectReportOnQueue;
 
 // The parked settlement's re-entry, called by completeRetiredFadePair: when

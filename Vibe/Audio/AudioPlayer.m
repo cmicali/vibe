@@ -642,14 +642,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                                              segmentWasQueued);
     [self unpublishNodeOnQueue];   // oldNode above is the handle the retire uses
 
-    // oldVarispeed above is the retire's; the incoming node gets a fresh one
-    // — or none under bit-perfect output — and finishPlayOnQueueWithFile:
-    // connects through it.
+    // oldVarispeed above is the retire's. The incoming chain is minted at the
+    // settlement, where it is connected — not here, because macOS's
+    // bit-perfect mode can toggle while the open is in flight.
     _varispeed = nil;
-    [self ensureVarispeedOnQueue];
 
     // The retire fades the outgoing side out while the incoming node fades in
-    // concurrently on the new varispeed, in finishPlayOnQueueWithFile: — an
+    // concurrently on its own chain, in finishPlayOnQueueWithFile: — an
     // audible, true crossfade.
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 }
@@ -657,9 +656,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // Makes _varispeed what the chain wants: one, minted here alone, or none
 // under macOS's bit-perfect output — a resampler at ratio 1.0 is still a
 // resampler, so none is minted rather than trusted, and a stale one is
-// dropped. The retire path calls it with the slot cleared; the device restore
-// calls it on the current track's slot with the engine stopped, which is how
-// a mode toggle rebuilds the chain in place without a click.
+// dropped. The settlement calls it with the slot the retire cleared, right
+// before the incoming node is connected; the device restore calls it on the
+// current track's slot with the engine stopped, which is how a mode toggle
+// rebuilds the chain in place without a click.
 - (void)ensureVarispeedOnQueue {
 #if TARGET_OS_OSX
     if ([self chainOmitsVarispeed]) {
@@ -799,6 +799,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // ran — so the switch may stop the engine, which it does itself.
     [self prepareOutputOnQueueForFile:file];
 #endif
+    [self ensureVarispeedOnQueue]; // the chain as the mode wants it NOW, not at submission
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
     if (!node) {
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -954,7 +955,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment
                               playPath:nil];
     [self clearGaplessOnQueue]; // any queued segment died with the node
-    // Detach the varispeed that playOnQueue: attached for the failed track.
+    // Detach the varispeed the settlement minted for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
     // stopOnQueue arrives here with it already nil. The detach must not throw,
     // because this can run right after a failed connect left it

@@ -1,6 +1,6 @@
 # Unreleased
 
-* mac: Added Settings > General > Bit-perfect output — the chosen device follows each file's sample rate and bit depth, Vibe holds exclusive use of it while playing and puts it back on quit; FX, the pitch fader and the crossfade are off while it is on, and the header shows a lock while a track is delivered unchanged
+* mac: Added Settings > General > Bit-perfect output — the chosen device follows each file's sample rate and bit depth, Vibe holds exclusive use of it while playing (unless it is the system output device, which macOS would reroute every other app away from) and puts it back on quit; FX, the pitch fader and the crossfade are off while it is on, and the header shows a lock while a track is delivered unchanged
 
 # v1.12
 

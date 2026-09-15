@@ -7,6 +7,7 @@
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+NowPlaying.h"
 
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer+Devices.h"
@@ -24,6 +25,8 @@
 #import "DownloadProgressMonitor.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
+#import "SettingsGeneralViewController.h"
+#import "SettingsWindowController.h"
 #import "TrackDisplayController.h"
 #import "VibeStrings.h"
 
@@ -352,8 +355,16 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
         }
     }
-    // The bit-perfect report follows the device; updateUI does not run here.
+}
+
+// The one edge the two report readouts redraw from: the header's lock glyph
+// with its tooltip, and the Settings caption while the General pane exists.
+// The player publishes the report on its own queue after every toggle,
+// play, pause, stop, device switch and volume move, so nothing may read it
+// right after a setter and expect the new one.
+- (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer {
     [self updateFXIndicators];
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshBitPerfectRow];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

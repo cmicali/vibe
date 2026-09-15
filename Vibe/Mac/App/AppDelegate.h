@@ -6,10 +6,14 @@
 #import <Cocoa/Cocoa.h>
 
 @class MainPlayerController;
+@class SettingsWindowController;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
 @property (nonatomic, strong) MainPlayerController *mainPlayerController;
+// nil until Settings is first shown; the player controller reaches through
+// it to the one pane that shows live playback state.
+@property (nonatomic, readonly) SettingsWindowController *settingsWindowController;
 
 - (IBAction)openDocument:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;

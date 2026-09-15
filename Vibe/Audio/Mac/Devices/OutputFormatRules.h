@@ -55,9 +55,24 @@ typedef struct {
     BOOL hogWanted;
     BOOL exclusive;
     BOOL sourceLossless;
+    // Not a fold input: why hogWanted is NO on a device that would otherwise
+    // be hogged, for the caption to say so.
+    BOOL systemDefault;
 } VibeBitPerfectReport;
 
 static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
+
+// Every field, so a publication that changed nothing is not announced.
+static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPerfectReport b) {
+    return a.status == b.status && a.sampleRate == b.sampleRate
+            && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
+            && a.softwareVolume == b.softwareVolume && a.enabled == b.enabled
+            && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
+            && a.fxGraph == b.fxGraph && a.rateExact == b.rateExact
+            && a.switched == b.switched && a.depthOK == b.depthOK
+            && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
+            && a.sourceLossless == b.sourceLossless && a.systemDefault == b.systemDefault;
+}
 
 // PCM: mBitsPerChannel. ALAC and FLAC: the kAppleLosslessFormatFlag_*
 // source-depth flags, or 24 assumed when the flags say nothing. Lossy and
@@ -128,10 +143,19 @@ static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
     }
 }
 
-// Whether a transport is hogged at all: everything but virtual, which has no
-// DAC behind it and is what the loopback verification records from.
-static inline BOOL VibeBitPerfectShouldHog(UInt32 transportType) {
-    return transportType != kAudioDeviceTransportTypeVirtual;
+// Whether a device is hogged at all: everything but virtual, which has no
+// DAC behind it and is what the loopback verification records from — and
+// never the system default output device. TRAP: hogging the default makes
+// coreaudiod move the default to another device, and AVAudioEngine's output
+// unit follows the default whenever it moves, off the device it was bound
+// to, at a moment of its own choosing (during the hog write, or at a later
+// engine start); the release moves the default back and the unit follows
+// again. Measured with hogfollow.swift and hogstart.swift in the vibe-debug
+// skill; re-binding the unit and preparing the engine after the take did not
+// close the race. So on the default device the samples still arrive
+// unchanged, but other apps keep the device and their sounds can mix in.
+static inline BOOL VibeBitPerfectShouldHog(UInt32 transportType, BOOL isSystemDefault) {
+    return transportType != kAudioDeviceTransportTypeVirtual && !isSystemDefault;
 }
 
 static inline BOOL VibeRangedFormatOffersRate(AudioStreamRangedDescription format, double rate) {
