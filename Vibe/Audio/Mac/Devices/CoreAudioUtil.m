@@ -24,9 +24,6 @@ static BOOL VibeReadDeviceProperty(AudioObjectID object, AudioObjectPropertySele
         return NO;
     }
     AudioObjectPropertyAddress addr = { selector, scope, kAudioObjectPropertyElementMain };
-    if (!AudioObjectHasProperty(object, &addr)) {
-        return NO;
-    }
     UInt32 ioSize = size;
     return AudioObjectGetPropertyData(object, &addr, 0, NULL, &ioSize, value) == noErr
             && ioSize == size;
@@ -101,9 +98,6 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
             kAudioObjectPropertyScopeGlobal,
             kAudioObjectPropertyElementMain
     };
-    if (!AudioObjectHasProperty(deviceID, &addr)) {
-        return NO;
-    }
     CFStringRef value = NULL;
     UInt32 size = sizeof(value);
     OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &value);
@@ -135,9 +129,6 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
             kAudioObjectPropertyScopeOutput,
             kAudioObjectPropertyElementMain
     };
-    if (!AudioObjectHasProperty(deviceID, &addr)) {
-        return NO;
-    }
     UInt32 size = 0;
     if (AudioObjectGetPropertyDataSize(deviceID, &addr, 0, NULL, &size) != noErr) {
         return NO;
@@ -201,8 +192,7 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
                                                kAudioObjectPropertyScopeOutput,
                                                kAudioObjectPropertyElementMain };
     UInt32 size = 0;
-    if (!AudioObjectHasProperty(deviceID, &streamsAddr)
-            || AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, NULL, &size) != noErr
+    if (AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, NULL, &size) != noErr
             || size < sizeof(AudioStreamID)) {
         return NO;
     }
@@ -224,8 +214,7 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
                                                  kAudioObjectPropertyScopeGlobal,
                                                  kAudioObjectPropertyElementMain };
     UInt32 availableSize = 0;
-    if (AudioObjectHasProperty(first, &availableAddr)
-            && AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
+    if (AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
             && availableSize >= sizeof(AudioStreamRangedDescription)) {
         AudioStreamRangedDescription *formats = (AudioStreamRangedDescription *)malloc(availableSize);
         if (formats && AudioObjectGetPropertyData(first, &availableAddr, 0, NULL,

@@ -754,6 +754,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)finishPlayOnQueueWithFile:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+    // Reject late deliveries before querying the device or replacing a parked
+    // settlement. An obsolete open must not displace the current one's block.
+    if (![_pendingRequest isCurrentRequest:openId]) {
+        return;
+    }
 #if TARGET_OS_OSX
     // Bit-perfect output: a format switch stops the engine, which would cut a
     // still-fading outgoing node mid-waveform. Park until the outgoing audio

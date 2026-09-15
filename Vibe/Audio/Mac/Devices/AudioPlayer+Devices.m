@@ -706,7 +706,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     if (_preparedDeviceID == deviceID) {
         return;
     }
-    if (_preparedDeviceID != kAudioObjectUnknown) {
+    if (_volumeListener) {
         [CoreAudioUtil removeVirtualMainVolumeListener:_volumeListener queue:_queue
                                            forDeviceID:_preparedDeviceID];
         _volumeListener = nil;
@@ -851,10 +851,17 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
     dispatch_async(_queue, ^{
+        BOOL changed = self->_bitPerfectWanted != bitPerfectOutput;
         self->_bitPerfectWanted = bitPerfectOutput;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        changed |= bitPerfectOutput && self->_exclusiveOutputWanted != exclusiveOutput;
         self->_exclusiveOutputWanted = exclusiveOutput;
 #endif
+        // Reapplying settings must not interrupt playback. An exclusive
+        // preference saved while bit-perfect is off cannot affect the graph.
+        if (!changed) {
+            return;
+        }
         if (bitPerfectOutput && self.fx) {
             // Inert until relaunch: the graph is not a pass-through, so
             // switching the device for it would be theater.
