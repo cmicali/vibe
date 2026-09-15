@@ -555,27 +555,23 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             return;
         }
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
-        if (requested >= 0 && self->_file) {
-            // A device switch onto the same device: stop, rebuild the chain
-            // with or without the varispeed, prepare (on) and restore at
-            // position. With no track loaded there is nothing to rebuild; the
-            // next settlement prepares and the next engine start hogs.
+        if (requested >= 0) {
+            // Rebind even during an open: a warm engine would otherwise skip
+            // acquiring exclusive access when the incoming file settles.
+            // The rebuild restores a loaded track at its current position;
+            // an in-flight open keeps its request and starts when it settles.
             [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
         }
         else if (!bitPerfectOutput) {
             [self leaveOutputDeviceOnQueue];
         }
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        else if (!exclusiveOutput) {
-            [self releaseExclusiveOutputOnQueue];
-        }
-#endif
         [self publishBitPerfectReportOnQueue];
     });
 }
 
 - (void)prepareForTermination {
     [self runSyncOnQueue:^{
+        [self->_engine stop];
         [self leaveOutputDeviceOnQueue];
     }];
 }
