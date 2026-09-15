@@ -20,9 +20,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     // layout.
     std::vector<float> _displayedSamples;
     std::vector<float> _targetSamples;
-    // targetScratchWithCount:'s reusable buffer. It is swapped with
-    // _targetSamples when the target moves, and then holds the stale target
-    // until the next call overwrites it.
+    // Swapped with _targetSamples when the target moves; holds the stale
+    // target until the next fill overwrites it.
     std::vector<float> _scratchSamples;
     CGSize _size;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
@@ -79,26 +78,19 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     _lastTargetIdentity = identity;
     _lastTargetCount = count;
     _targetInvalidated = NO;
-    std::vector<float> &target = [self targetScratchWithCount:count];
+    _scratchSamples.resize(count);
     if (identity) {
         VibeSignpostBegin(waveform_target);
-        fill(target);
+        fill(_scratchSamples);
         VibeSignpostEnd(waveform_target);
     } else {
-        std::fill(target.begin(), target.end(), 0.0f);
+        std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
     }
     [self commitTargetForSize:size hasWaveform:(identity != NULL) animate:animate];
 }
 
 - (void)invalidateTarget {
     _targetInvalidated = YES;
-}
-
-- (std::vector<float> &)targetScratchWithCount:(NSUInteger)count {
-    if (_scratchSamples.size() != count) {
-        _scratchSamples.resize(count); // new elements value-init to 0
-    }
-    return _scratchSamples;
 }
 
 - (const std::vector<float> &)displayedSamples {

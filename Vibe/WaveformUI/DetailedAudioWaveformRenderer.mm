@@ -24,9 +24,10 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 }
 
 // Live masks and background bitmap bakes share geometry, not mutable scratch.
-static void VibeFillBarRects(CGRect *rects, const float *samples, NSUInteger count,
-                             CGSize size, CGFloat barWidth, CGFloat minHeight,
-                             CGFloat scale, BOOL settled) {
+static CGPathRef VibeCreateBarPath(std::vector<CGRect> &rects, const float *samples, NSUInteger count,
+                                    CGSize size, CGFloat barWidth, CGFloat minHeight,
+                                    CGFloat scale, BOOL settled) {
+    rects.resize(count);
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
     CGFloat barPitch = size.width / (CGFloat)count;
@@ -41,6 +42,9 @@ static void VibeFillBarRects(CGRect *rects, const float *samples, NSUInteger cou
         rects[i] = CGRectMake(barPitch * (CGFloat)i, bottom, barWidth,
                                MAX(top - bottom, minHeight));
     }
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRects(path, NULL, rects.data(), count);
+    return path;
 }
 
 // The width of the hover highlight column. A single bar is sub-point wide at
@@ -50,48 +54,6 @@ static void VibeFillBarRects(CGRect *rects, const float *samples, NSUInteger cou
 // setHoverHighlightX:. A fractional width leaves a half-lit edge pixel, so the
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
-
-// Detailed's fillEnvelope:, one sampling for the live target fill and the
-// envelope bake, which must stay pixel-identical: the bar's peak envelope
-// rescaled so the energy decides the size and the min/max keep the shape (and
-// its asymmetry on DC-offset material). Both the energy and the scale's
-// reference extent come from the kVibeWaveformEnergyColumns-floored COLUMN,
-// not the bar: the column's loudest bar lands exactly on the energy envelope
-// and finer bars keep their relative peak texture below it — the dips between
-// transients that distinguish the oversampling styles. Normalizing each bar's
-// own extent to the level instead flattened every bar in a column to the same
-// height, which drew x4 and x8 as plain Detailed with extra rects.
-//
-// The caller carries the last column between bars: at the oversampling
-// counts the column advances only every count/1024 bars, and the fills run
-// at 10 Hz through a decode — x8's 8192 bars would otherwise re-combine and
-// re-sqrt every column eight times per fill.
-typedef struct {
-    NSUInteger index; // NSNotFound before the first bar
-    float extent, level;
-} VibeEnergyColumn;
-
-static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger i, NSUInteger count,
-                                            VibeEnergyColumn *column,
-                                            float fullScaleRMS, float gainDB,
-                                            float *outMin, float *outMax) {
-    AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
-    NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
-    if (column->index != columnIndex) {
-        AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
-                ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
-        column->index = columnIndex;
-        column->extent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
-        column->level = VibeWaveformBarLevel(c.getMeanSquare(), fullScaleRMS, gainDB);
-    }
-    // A count that is not a multiple of the column count lets a bar straddle
-    // two columns and carry a peak its mapped column lacks; the wider extent
-    // keeps that bar on the envelope rather than past it.
-    float extent = fmaxf(column->extent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
-    float scale = extent > 0 ? column->level / extent : 0;
-    *outMin = m.getMin() * scale;
-    *outMax = m.getMax() * scale;
-}
 
 // This family's resting levels live in the theme colors' own alpha
 // (WaveformTheme.h) — the White pair carries what used to be this file's
@@ -363,12 +325,31 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    VibeEnergyColumn column = {NSNotFound, 0, 0};
+    // Scale each bar's min/max by its energy COLUMN's peak extent, preserving
+    // DC-offset asymmetry and the fine texture that distinguishes x2/x4/x8.
+    // Using the bar's own extent flattened every bar in a column to one height.
+    // Cache the column across bars: x8 would otherwise combine and sqrt it
+    // eight times per fill, with fills arriving at 10 Hz during decode.
+    NSUInteger lastColumnIndex = NSNotFound;
+    float columnExtent = 0, columnLevel = 0;
     float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
-        VibeEnergyScaledEnvelope(waveform, i, count, &column, fullScaleRMS, gainDB,
-                                 &out[i * 2], &out[i * 2 + 1]);
+        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        NSUInteger columnIndex = VibeWaveformEnergyColumnIndexForBar(i, count);
+        if (lastColumnIndex != columnIndex) {
+            AudioWaveformCacheChunk c = count > kVibeWaveformEnergyColumns
+                    ? VibeWaveformEnergyColumnForBar(waveform, i, count) : m;
+            lastColumnIndex = columnIndex;
+            columnExtent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+            columnLevel = VibeWaveformBarLevel(c.getMeanSquare(), fullScaleRMS, gainDB);
+        }
+        // A bar straddling two columns may carry a peak its mapped column
+        // lacks; the wider extent keeps it on the envelope rather than past it.
+        float extent = fmaxf(columnExtent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
+        float scale = extent > 0 ? columnLevel / extent : 0;
+        out[i * 2] = m.getMin() * scale;
+        out[i * 2 + 1] = m.getMax() * scale;
     }
 }
 
@@ -389,12 +370,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
         return;
     }
     VibeSignpostBegin(waveform_path);
-    _barRects.resize(count);
-    VibeFillBarRects(_barRects.data(), samples.data(), count, _morph.size,
-                     [self barWidthForWidth:_morph.size.width barCount:count],
-                     _morph.barMinHeight, VibeBackingScaleForLayer(self.parentLayer), _morph.isSettled);
-    CGMutablePathRef path = CGPathCreateMutable();
-    CGPathAddRects(path, NULL, _barRects.data(), count);
+    CGPathRef path = VibeCreateBarPath(_barRects, samples.data(), count, _morph.size,
+            [self barWidthForWidth:_morph.size.width barCount:count],
+            _morph.barMinHeight, VibeBackingScaleForLayer(self.parentLayer), _morph.isSettled);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _barMask.path = path;
@@ -443,11 +421,9 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGContextScaleCTM(ctx, scale, scale);
 
     // A local scratch, not _barRects: this runs on any queue.
-    std::vector<CGRect> rects(count);
-    VibeFillBarRects(rects.data(), (const float *)samples.bytes, count, size,
-                     [self barWidthForWidth:size.width barCount:count], 1, scale, YES);
-    CGMutablePathRef path = CGPathCreateMutable();
-    CGPathAddRects(path, NULL, rects.data(), count);
+    std::vector<CGRect> rects;
+    CGPathRef path = VibeCreateBarPath(rects, (const float *)samples.bytes, count, size,
+            [self barWidthForWidth:size.width barCount:count], 1, scale, YES);
     CGContextAddPath(ctx, path);
     CGContextClip(ctx);
     CGPathRelease(path);

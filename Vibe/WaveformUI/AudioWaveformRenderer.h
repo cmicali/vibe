@@ -138,24 +138,15 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // branch on it for non-palette decisions.
 @property (strong) WaveformTheme *theme;
 
-// The last played bar index that updateProgress: painted. Layer-array
-// renderers — SonicCirrusWaveformRenderer, which owns the bar-layer machinery
-// — use it to repaint only the bars between the old and new progress boundary
-// rather than every bar. Set it to -1 to force a full repaint, as after the
-// played and unplayed colors change in updateColors:.
-@property (assign) NSInteger lastProgressBoundary;
-
 // Settings > Appearance > Waveform's Normalize and Gain, handed over by the
 // view as the theme is; the init defaults — off, 0 dB — are the plain
 // mapping. Every fill measures its bars against
 // VibeWaveformFullScaleRMSForWaveform and passes the gain to
-// VibeWaveformBarLevel. Either setter reaches levelMappingDidChange, which
-// invalidates the optional morph engine's target, so a
-// change refills from the same waveform and the bars ease to their new
+// VibeWaveformBarLevel. Either setter invalidates the optional morph engine's
+// target, so a change refills from the same waveform and the bars ease to their new
 // heights rather than staying where the last fill put them.
 @property (nonatomic) BOOL normalizesLevels;
 @property (nonatomic) float gainDB;
-- (void)levelMappingDidChange;
 
 // One energy level per bar. Stride permits interleaved envelopes without a
 // temporary sample buffer; the caller supplies their sign and symmetry.

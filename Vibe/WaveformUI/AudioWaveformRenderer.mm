@@ -16,9 +16,6 @@
         self.parentLayer = parentLayer;
         self.isDark = isDark;
         self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
-        // A sentinel, forcing the first updateProgress: to paint every layer's
-        // played or unplayed color rather than only the boundary delta.
-        self.lastProgressBoundary = -1;
         _hoverHighlightX = -1;
     }
     return self;
@@ -38,7 +35,7 @@
         return;
     }
     _normalizesLevels = normalizes;
-    [self levelMappingDidChange];
+    [_morph invalidateTarget];
 }
 
 - (void)setGainDB:(float)gainDB {
@@ -46,10 +43,6 @@
         return;
     }
     _gainDB = gainDB;
-    [self levelMappingDidChange];
-}
-
-- (void)levelMappingDidChange {
     [_morph invalidateTarget];
 }
 
@@ -81,10 +74,6 @@
 
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
-    // The colors have changed, so the cached played and unplayed colors on
-    // every layer are stale. Force the next updateProgress: to repaint
-    // everything.
-    self.lastProgressBoundary = -1;
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {

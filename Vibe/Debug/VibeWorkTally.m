@@ -16,9 +16,7 @@
 // is two threads a few hundred times a window; an unfair lock is the cheapest
 // thing that is actually correct here.
 static os_unfair_lock gTallyLock = OS_UNFAIR_LOCK_INIT;
-static NSMutableDictionary<NSString *, NSNumber *> *gCounts;
-static NSMutableDictionary<NSString *, NSNumber *> *gNanos;
-static NSMutableDictionary<NSString *, NSNumber *> *gMaxNanos;
+static NSMutableDictionary<NSString *, NSMutableDictionary<NSString *, NSNumber *> *> *gWork;
 static NSString *gLabel;
 static uint64_t gWindowStart;
 
@@ -26,19 +24,19 @@ void VibeWorkTallyBeginWindow(const char *label) {
     os_unfair_lock_lock(&gTallyLock);
     gLabel = @(label);
     gWindowStart = VibeMonotonicNanos();
-    gCounts = [NSMutableDictionary dictionary];
-    gNanos = [NSMutableDictionary dictionary];
-    gMaxNanos = [NSMutableDictionary dictionary];
+    gWork = [NSMutableDictionary dictionary];
     os_unfair_lock_unlock(&gTallyLock);
 }
 
 void VibeWorkTallyAdd(const char *name, uint64_t nanos) {
     os_unfair_lock_lock(&gTallyLock);
-    if (gCounts) {
+    if (gWork) {
         NSString *key = @(name);
-        gCounts[key] = @(gCounts[key].unsignedIntegerValue + 1);
-        gNanos[key] = @(gNanos[key].unsignedLongLongValue + nanos);
-        gMaxNanos[key] = @(MAX(gMaxNanos[key].unsignedLongLongValue, nanos));
+        NSMutableDictionary *entry = gWork[key];
+        if (!entry) gWork[key] = entry = [NSMutableDictionary dictionary];
+        entry[@"count"] = @([entry[@"count"] unsignedIntegerValue] + 1);
+        entry[@"nanos"] = @([entry[@"nanos"] unsignedLongLongValue] + nanos);
+        entry[@"maxNanos"] = @(MAX([entry[@"maxNanos"] unsignedLongLongValue], nanos));
     }
     os_unfair_lock_unlock(&gTallyLock);
 }
@@ -46,24 +44,21 @@ void VibeWorkTallyAdd(const char *name, uint64_t nanos) {
 NSDictionary *VibeWorkTallyTakeWindow(void) {
     os_unfair_lock_lock(&gTallyLock);
     NSString *label = gLabel;
-    NSDictionary *counts = gCounts;
-    NSDictionary *nanos = gNanos;
-    NSDictionary *maxNanos = gMaxNanos;
+    NSDictionary *entries = gWork;
     uint64_t elapsed = gWindowStart > 0 ? VibeMonotonicNanos() - gWindowStart : 0;
     gLabel = nil;
-    gCounts = nil;
-    gNanos = nil;
-    gMaxNanos = nil;
+    gWork = nil;
     gWindowStart = 0;
     os_unfair_lock_unlock(&gTallyLock);
 
     NSMutableDictionary *work = [NSMutableDictionary dictionary];
-    for (NSString *key in counts) {
-        work[key] = @{@"count": counts[key],
-                      @"totalMs": @([nanos[key] unsignedLongLongValue] / 1e6),
-                      @"maxMs": @([maxNanos[key] unsignedLongLongValue] / 1e6)};
+    for (NSString *key in entries) {
+        NSDictionary *entry = entries[key];
+        work[key] = @{@"count": entry[@"count"],
+                      @"totalMs": @([entry[@"nanos"] unsignedLongLongValue] / 1e6),
+                      @"maxMs": @([entry[@"maxNanos"] unsignedLongLongValue] / 1e6)};
     }
-    return @{@"active": @(counts != nil), @"label": label ?: @"",
+    return @{@"active": @(entries != nil), @"label": label ?: @"",
              @"elapsedMs": @(elapsed / 1e6), @"work": work};
 }
 

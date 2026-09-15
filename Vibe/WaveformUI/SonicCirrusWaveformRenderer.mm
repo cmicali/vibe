@@ -36,6 +36,7 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     // since the Detailed family draws gradient and mask layers, so the layer
     // machinery lives here rather than in the base class.
     NSMutableArray<CALayer*>* _layers;
+    NSInteger _lastProgressBoundary; // -1 forces a full repaint after a color change
 
     VibeColor* _playedColorTop;
     VibeColor* _unPlayedColorTop;
@@ -102,9 +103,8 @@ static const CGFloat kPlayedBottomAlphaRatio = 0.8;
 static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateColors:(BOOL)isDark {
-    // super sets lastProgressBoundary to -1, so that the next updateProgress:
-    // repaints every bar with the new colors.
     [super updateColors:isDark];
+    _lastProgressBoundary = -1;
     // Tops are the theme colors as-is; each bottom is its paler mirror — the
     // played one blended toward white, both at their ratio of the side's
     // level.
@@ -129,7 +129,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 // The played and unplayed pair a bar index should show right now, ignoring any
 // hover.
 - (VibeColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
-    BOOL played = (self.lastProgressBoundary >= 0 && index < self.lastProgressBoundary);
+    BOOL played = (_lastProgressBoundary >= 0 && index < _lastProgressBoundary);
     if (top) {
         return played ? _playedColorTop : _unPlayedColorTop;
     }
@@ -177,9 +177,9 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         return;
     }
     VibeSignpostBegin(waveform_layers);
-    if (self.lastProgressBoundary > 0 && have > 0) {
-        self.lastProgressBoundary = VibeBlockBoundaryForProgress(
-                (CGFloat)self.lastProgressBoundary / (CGFloat)have, (NSInteger)count);
+    if (_lastProgressBoundary > 0 && have > 0) {
+        _lastProgressBoundary = VibeBlockBoundaryForProgress(
+                (CGFloat)_lastProgressBoundary / (CGFloat)have, (NSInteger)count);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -231,7 +231,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     NSInteger count = (NSInteger)(_layers.count / 2);
     NSInteger newBoundary = VibeBlockBoundaryForProgress(progress, count);
 
-    NSInteger oldBoundary = self.lastProgressBoundary;
+    NSInteger oldBoundary = _lastProgressBoundary;
     NSInteger start, end;
     if (oldBoundary < 0) {
         // The sentinel after updateColors:, so repaint everything.
@@ -249,7 +249,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [self setLayerColor:colorTop atIndex:(NSUInteger)(i * 2)];
         [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
     }
-    self.lastProgressBoundary = newBoundary;
+    _lastProgressBoundary = newBoundary;
     // The playhead crossing the hovered bar, or a full repaint after
     // updateColors:, has just painted over the highlight. Restore it.
     if (_hoverBarIndex >= start && _hoverBarIndex < end) {
