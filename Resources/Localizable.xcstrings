@@ -27344,7 +27344,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.album_art": {
-      "comment": "Theme editor, Player group: row beside the artwork preview pair (one per appearance under Light & Dark Modes, one under Single Mode) showing the placeholder image used when a track has no artwork; clicking a preview opens a file panel to pick a square JPEG or PNG.",
+      "comment": "Theme editor, Transport group: row beside the artwork preview pair (one per appearance under Light & Dark Modes, one under Single Mode) showing the placeholder image used when a track has no artwork; clicking a preview opens a file panel to pick a square JPEG or PNG.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29762,7 +29762,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_gradient": {
-      "comment": "Theme editor, Player group: switch showing or hiding the dark gradient shaded over the album art's lower edge behind the transport buttons.",
+      "comment": "Theme editor, Transport group: switch showing or hiding the dark gradient shaded over the album art's lower edge behind the transport buttons.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39619,187 +39619,559 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.waveform_gradient": {
-      "comment": "Settings, theme editor, Waveform group: switch enabling the vertical gradient shading on the waveform bars; off draws them in flat color.",
+    "settings.appearance.theme.waveform_color": {
+      "comment": "Settings, theme editor, Player group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Градиент"
+            "value": "Цвят на вълновата форма"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Přechod"
+            "value": "Barva vlnového průběhu"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Farveforløb"
+            "value": "Bølgeformsfarve"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verlauf"
+            "value": "Wellenform-Farbe"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Διαβάθμιση"
+            "value": "Χρώμα κυματομορφής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradient"
+            "value": "Waveform color"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Degradado"
+            "value": "Color de la forma de onda"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Liukuväri"
+            "value": "Aaltomuodon väri"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dégradé"
+            "value": "Couleur de la forme d’onde"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradijent"
+            "value": "Boja valnog oblika"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Színátmenet"
+            "value": "Hullámforma színe"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradien"
+            "value": "Warna bentuk gelombang"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sfumatura"
+            "value": "Colore della forma d’onda"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "グラデーション"
+            "value": "波形のカラー"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "그라디언트"
+            "value": "파형 색상"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradering"
+            "value": "Bølgeformfarge"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verloop"
+            "value": "Golfvormkleur"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradient"
+            "value": "Kolor przebiegu fali"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradiente"
+            "value": "Cor da forma de onda"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradiente"
+            "value": "Cor da forma de onda"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradient"
+            "value": "Culoarea formei de undă"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Градиент"
+            "value": "Цвет волны"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prechod"
+            "value": "Farba vlnového priebehu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Övertoning"
+            "value": "Vågformsfärg"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การไล่ระดับสี"
+            "value": "สีคลื่นเสียง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gradyan"
+            "value": "Dalga formu rengi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Градієнт"
+            "value": "Колір хвилі"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chuyển sắc"
+            "value": "Màu dạng sóng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "渐变"
+            "value": "波形颜色"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "漸層"
+            "value": "波形顏色"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.waveform_gradient": {
+      "comment": "Settings, theme editor, Player group: switch enabling the vertical gradient shading on the waveform bars; off draws them in flat color.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Градиент на вълновата форма"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přechod vlnového průběhu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeformsforløb"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wellenform-Verlauf"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Διαβάθμιση κυματομορφής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waveform gradient"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Degradado de la forma de onda"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aaltomuodon liukuväri"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dégradé de la forme d’onde"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradijent valnog oblika"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hullámforma színátmenete"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradien bentuk gelombang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sfumatura della forma d’onda"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形のグラデーション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파형 그라디언트"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeformgradering"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Golfvormverloop"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradient przebiegu fali"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradiente da forma de onda"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradiente da forma de onda"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gradientul formei de undă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Градиент волны"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prechod vlnového priebehu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vågformsövertoning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การไล่ระดับสีคลื่นเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalga formu gradyanı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Градієнт хвилі"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển sắc dạng sóng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形渐变"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形漸層"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.waveform_style": {
+      "comment": "Settings, theme editor, Player group: row beside the dropdown choosing the waveform drawing style — the same choice as the Appearance pane's Style row, named in full here because the row sits among the player's other rows.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стил на вълновата форма"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Styl vlnového průběhu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeformsstil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wellenform-Stil"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Στιλ κυματομορφής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waveform style"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estilo de la forma de onda"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aaltomuodon tyyli"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Style de la forme d’onde"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stil valnog oblika"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hullámforma stílusa"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gaya bentuk gelombang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stile della forma d’onda"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形のスタイル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파형 스타일"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bølgeformstil"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Golfvormstijl"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Styl przebiegu fali"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estilo da forma de onda"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estilo da forma de onda"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stilul formei de undă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стиль волны"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Štýl vlnového priebehu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vågformsstil"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สไตล์คลื่นเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalga formu stili"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стиль хвилі"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kiểu dạng sóng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形样式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波形樣式"
           }
         }
       },
@@ -43526,7 +43898,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_section": {
-      "comment": "Settings, Appearance pane: heading above the group of waveform rows — style, color theme, custom colors and drag behavior.",
+      "comment": "Settings, Appearance pane: heading above the group of waveform rows — style, normalize and gain.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -44450,192 +44822,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "橙色"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.appearance.waveform_theme_label": {
-      "comment": "Settings, Appearance pane, Waveform group: row beside the dropdown choosing the waveform's color palette (as opposed to its drawing style).",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвят"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Barva"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farve"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farbe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Χρώμα"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Color"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Color"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Väri"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couleur"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boja"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Szín"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Warna"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Colore"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "カラー"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "색상"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farge"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kleur"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kolor"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cor"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Culoare"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цвет"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Farba"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Färg"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สี"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Renk"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Колір"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Màu"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "颜色"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顏色"
           }
         }
       },

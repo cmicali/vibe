@@ -654,6 +654,13 @@ static NSString *PartnerImageKey(NSString *key) {
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
     ]];
 
+    NSMutableArray<SettingsRowView *> *transportRows =
+        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
+    [transportRows addObjectsFromArray:playlistButtonRows];
+    [transportRows addObjectsFromArray:playButtonRows];
+    [transportRows addObjectsFromArray:nextButtonRows];
+    [transportRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch]];
+
     NSArray<NSView *> *sections = @[
         // The pair swaps visibility — exactly one shows — so the second row
         // must not keep the between-rows hairline the section stamps on it.
@@ -672,26 +679,18 @@ static NSString *PartnerImageKey(NSString *key) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CUSTOM_CORNER_RADIUS control:_customCornerRadiusSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],
             _customDarkRow,
             _customLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
-        ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:
-            [[[playlistButtonRows arrayByAddingObjectsFromArray:playButtonRows]
-              arrayByAddingObjectsFromArray:nextButtonRows]
-              arrayByAddingObjectsFromArray:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch],
-        ]]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_MAIN control:titleFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TITLE control:titleColors],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
         ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows],
         _infoSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
