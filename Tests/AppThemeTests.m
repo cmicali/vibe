@@ -638,7 +638,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"signal_workshop"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"field", @"signal_workshop",
+                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"signal_workshop",
                               @"sonic_cirrus", @"technical", @"technical_bars"]));
 }
 
