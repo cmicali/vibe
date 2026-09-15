@@ -672,6 +672,13 @@ static NSString *PartnerImageKey(NSString *key) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CUSTOM_CORNER_RADIUS control:_customCornerRadiusSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
+            _customDarkRow,
+            _customLightRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
+        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:
             [[[playlistButtonRows arrayByAddingObjectsFromArray:playButtonRows]
               arrayByAddingObjectsFromArray:nextButtonRows]
@@ -686,13 +693,6 @@ static NSString *PartnerImageKey(NSString *key) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
         ]],
         _infoSection,
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_waveformPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_THEME_LABEL control:_waveformThemePopUp],
-            _customDarkRow,
-            _customLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
                     control:_playlistBackgroundPopUp],
