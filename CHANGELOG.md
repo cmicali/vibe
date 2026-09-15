@@ -1,7 +1,10 @@
 # v1.12
 
 * mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file
-* mac: Added Settings > General > Load last playlist on launch — the playlist is saved on quit and comes back at launch, paused on the last track
+* mac: Added Settings > General > Load last playlist on launch
+* mac: Added ability for themes to customize transport controls and app icon
+* mac: Settings UI improvement
+* Fixed audio now bit-perfect when low-cut FX is disabled (was slightly colored before)
 
 # v1.11
 
