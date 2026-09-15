@@ -9,17 +9,22 @@
 // the file's own rate means nothing between the decoder and the device
 // changed a bit — no resampling, no gain, no varispeed, no FX.
 //
-//   swift verify-bit-perfect.swift <audio-file> <seconds> [device-name] [--force-volume]
+//   swift verify-bit-perfect.swift <audio-file> <seconds> [device-name] [--force-volume] [--set-rate]
 //
-// Start it BEFORE `--debug-cmd open <file>` (it waits up to 15 s for audio to
-// appear) or during playback; the alignment search handles a capture that
-// starts mid-file. The device's software volume must read 1.0, or the HAL
-// scales the samples before they reach the device: the script refuses
-// otherwise, unless --force-volume, which sets it to 1.0 for the run and puts
-// the old value back at exit. Prints one JSON line: {captureRate, fileRate,
-// alignedAtFrame, comparedFrames, mismatches, maxAbsError, exact}.
+// Start it BEFORE `--debug-cmd open <file>` (it waits up to 15 s for the
+// device to reach the file's rate and then for audio) or during playback; the
+// alignment search handles a capture that starts mid-file. Every volume slot
+// the device has must read 1.0, or the samples are scaled before they loop
+// back: the script refuses otherwise, unless --force-volume, which holds them
+// at 1.0 for the run and puts the old values back at exit. --set-rate puts
+// the device at the file's rate itself (and back), for measuring the
+// everyday chain with Vibe's mode off. Prints one JSON line: `exact` is the
+// verdict, `mismatches`/`comparedFrames` the evidence, and when it is not
+// exact `approxAlignedAtFrame`/`approxMaxError` say whether the audio is
+// there but changed, with `capturePeak`/`referencePeak` sizing a gain.
 //
 
+import AudioToolbox
 import AVFoundation
 import CoreAudio
 import Foundation
@@ -72,49 +77,29 @@ func nominalRate(_ device: AudioDeviceID) -> Double {
     return rate
 }
 
-let virtualMainVolume: AudioObjectPropertySelector = 0x766d7663 // 'vmvc', kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+// A device volume, by slot: the HAL's software volume ('vmvc', the "virtual
+// main" volume) and the device's own scalars (kAudioDevicePropertyVolumeScalar)
+// on the main element and each output channel. Either scales the samples
+// before they loop back — BlackHole applies its scalars itself — so the oracle
+// holds every slot it finds at 1.0.
+typealias VolumeSlot = (selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement)
+let volumeSlots: [VolumeSlot] = [
+    (kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioObjectPropertyElementMain),
+    (kAudioDevicePropertyVolumeScalar, kAudioObjectPropertyElementMain),
+    (kAudioDevicePropertyVolumeScalar, 1),
+    (kAudioDevicePropertyVolumeScalar, 2),
+]
 
-func softwareVolume(_ device: AudioDeviceID) -> Float32? {
-    var address = property(virtualMainVolume, kAudioObjectPropertyScopeOutput)
+func readVolume(_ device: AudioDeviceID, _ slot: VolumeSlot) -> Float32? {
+    var address = AudioObjectPropertyAddress(mSelector: slot.selector, mScope: kAudioObjectPropertyScopeOutput, mElement: slot.element)
     guard AudioObjectHasProperty(device, &address) else { return nil }
-    var volume: Float32 = 1
-    var size = UInt32(MemoryLayout<Float32>.size)
-    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &volume) == noErr else { return nil }
-    return volume
-}
-
-func setSoftwareVolume(_ device: AudioDeviceID, _ volume: Float32) -> Bool {
-    var address = property(virtualMainVolume, kAudioObjectPropertyScopeOutput)
-    var value = volume
-    return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value) == noErr
-}
-
-// The device's own volume scalars (kAudioDevicePropertyVolumeScalar) on the
-// main element and each output channel: a driver that applies these itself —
-// BlackHole does — scales the samples before they loop back, so the oracle
-// has to hold them at 1.0 too.
-func volumeScalarElements(_ device: AudioDeviceID) -> [AudioObjectPropertyElement] {
-    var elements: [AudioObjectPropertyElement] = []
-    for element in [kAudioObjectPropertyElementMain, 1, 2] {
-        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                                 mScope: kAudioObjectPropertyScopeOutput, mElement: element)
-        if AudioObjectHasProperty(device, &address) { elements.append(element) }
-    }
-    return elements
-}
-
-func volumeScalar(_ device: AudioDeviceID, _ element: AudioObjectPropertyElement) -> Float32? {
-    var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                             mScope: kAudioObjectPropertyScopeOutput, mElement: element)
     var value: Float32 = 1
     var size = UInt32(MemoryLayout<Float32>.size)
-    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr else { return nil }
-    return value
+    return AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr ? value : nil
 }
 
-func setVolumeScalar(_ device: AudioDeviceID, _ element: AudioObjectPropertyElement, _ volume: Float32) -> Bool {
-    var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                             mScope: kAudioObjectPropertyScopeOutput, mElement: element)
+func writeVolume(_ device: AudioDeviceID, _ slot: VolumeSlot, _ volume: Float32) -> Bool {
+    var address = AudioObjectPropertyAddress(mSelector: slot.selector, mScope: kAudioObjectPropertyScopeOutput, mElement: slot.element)
     var value = volume
     return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value) == noErr
 }
@@ -122,27 +107,16 @@ func setVolumeScalar(_ device: AudioDeviceID, _ element: AudioObjectPropertyElem
 // MARK: - Setup
 
 guard let device = deviceNamed(deviceName) else { fail("no output device named \(deviceName)") }
-var restoreVolume: Float32? = nil
-if let volume = softwareVolume(device), volume < 0.999 {
-    if forceVolume {
-        guard setSoftwareVolume(device, 1.0) else { fail("could not set \(deviceName)'s software volume") }
-        restoreVolume = volume
-    } else {
-        fail("\(deviceName)'s software volume is \(volume); set it to 100% in Audio MIDI Setup or pass --force-volume")
+var restoreVolumes: [(VolumeSlot, Float32)] = []
+for slot in volumeSlots {
+    guard let volume = readVolume(device, slot), volume < 0.999 else { continue }
+    guard forceVolume else {
+        fail("\(deviceName)'s volume is \(volume) (slot \(slot.element)); set it to 100% in Audio MIDI Setup or pass --force-volume")
     }
-}
-var restoreScalars: [(AudioObjectPropertyElement, Float32)] = []
-for element in volumeScalarElements(device) {
-    guard let volume = volumeScalar(device, element), volume < 0.999 else { continue }
-    if forceVolume {
-        if setVolumeScalar(device, element, 1.0) { restoreScalars.append((element, volume)) }
-    } else {
-        fail("\(deviceName)'s volume scalar on element \(element) is \(volume); set it to 100% or pass --force-volume")
-    }
+    if writeVolume(device, slot, 1.0) { restoreVolumes.append((slot, volume)) }
 }
 defer {
-    if let volume = restoreVolume { _ = setSoftwareVolume(device, volume) }
-    for (element, volume) in restoreScalars { _ = setVolumeScalar(device, element, volume) }
+    for (slot, volume) in restoreVolumes { _ = writeVolume(device, slot, volume) }
 }
 
 let reference: AVAudioFile
@@ -286,31 +260,13 @@ guard let firstAudible = capture[0].firstIndex(where: { abs($0) > 1e-3 }) else {
 }
 let windowStart = min(firstAudible + Int(captureRate * 0.05), captureLength - 64)
 let window = 64
-var alignedAt = -1
-if captureRate == fileRate && windowStart + window <= captureLength {
+// Where the capture's window sits inside the reference, every sample within
+// `tolerance`: 0 is the verdict, a loose pass the diagnosis when it fails.
+func align(tolerance: Float) -> (index: Int, maxError: Float)? {
+    guard captureRate == fileRate, windowStart + window <= captureLength else { return nil }
     let needle = Array(capture[0][windowStart..<(windowStart + window)])
     let ref0 = referenceData[0]
     let limit = Int(referenceLength) - window
-    var j = 0
-    while j <= limit {
-        if ref0[j] == needle[0] {
-            var k = 1
-            while k < window && ref0[j + k] == needle[k] { k += 1 }
-            if k == window { alignedAt = j; break }
-        }
-        j += 1
-    }
-}
-// Diagnostics for a failed exact alignment: a tolerant search says whether
-// the audio is there but scaled or dithered, and the peak ratio says by how
-// much.
-var approxAlignedAt = -1
-var approxMaxError: Float = 0
-if alignedAt < 0 && captureRate == fileRate && windowStart + window <= captureLength {
-    let needle = Array(capture[0][windowStart..<(windowStart + window)])
-    let ref0 = referenceData[0]
-    let limit = Int(referenceLength) - window
-    let tolerance: Float = 0.002
     var j = 0
     outer: while j <= limit {
         var worst: Float = 0
@@ -319,11 +275,16 @@ if alignedAt < 0 && captureRate == fileRate && windowStart + window <= captureLe
             if d > tolerance { j += 1; continue outer }
             worst = max(worst, d)
         }
-        approxAlignedAt = j
-        approxMaxError = worst
-        break
+        return (j, worst)
     }
+    return nil
 }
+let exact = align(tolerance: 0)
+let alignedAt = exact?.index ?? -1
+let approx = exact == nil ? align(tolerance: 0.002) : nil
+let approxAlignedAt = approx?.index ?? -1
+let approxMaxError = approx?.maxError ?? 0
+
 let capturePeak = capture[0].map { abs($0) }.max() ?? 0
 let referencePeak = (0..<Int(referenceLength)).reduce(Float(0)) { max($0, abs(referenceData[0][$1])) }
 
@@ -358,7 +319,7 @@ let result: [String: Any] = [
     "approxMaxError": Double(approxMaxError),
     "capturePeak": Double(capturePeak),
     "referencePeak": Double(referencePeak),
-    "forcedScalars": restoreScalars.map { "\($0.0)=\($0.1)" },
+    "forcedVolumeSlots": restoreVolumes.count,
 ]
 let json = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
 print(String(data: json, encoding: .utf8)!)

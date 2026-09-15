@@ -309,17 +309,35 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)installMasterBusOnQueue {
     if (_fx) {
         [_fx installInEngine:_engine];
+        // TRAP: this is the only rebuild edge that re-reconciles the level
+        // tap. This method is what the iOS media-services rebuild re-runs, so
+        // a tap installed outside applyLevelTapOnQueue dies with the old
+        // engine and never comes back — no error, no log, the bars simply
+        // stop moving. Reconciling here also re-reads the sample rate, which
+        // a reset is free to change.
+        [self applyLevelTapOnQueue];
     }
     else {
-        [_engine connect:_engine.mainMixerNode to:_engine.outputNode
-                  format:[_engine.mainMixerNode outputFormatForBus:0]];
+        // At the device's own rate, which a fresh engine's output node
+        // already reports: the mixer's default is 44.1 kHz whatever the
+        // device, and the output unit would silently resample the difference.
+        double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+        [self wireMasterBusOnQueueAtRate:(rate > 0 ? rate : [_engine.mainMixerNode outputFormatForBus:0].sampleRate)];
     }
-    // TRAP: this is the only rebuild edge that re-reconciles the level tap.
-    // This method is what the iOS media-services rebuild re-runs, so a tap
-    // installed outside applyLevelTapOnQueue dies with the old engine and
-    // never comes back — no error, no log, the bars simply stop moving.
-    // Reconciling here also re-reads the sample rate, which a reset is free
-    // to change.
+}
+
+// The FX-less master bus: mainMixer -> output at `rate`, on a stopped engine.
+// The level tap sits on that bus, so it is removed first and reconciled back
+// through the one funnel. installMasterBusOnQueue wires it once per engine,
+// and macOS's bit-perfect rate switch rewires it whenever the device's rate
+// moves.
+- (void)wireMasterBusOnQueueAtRate:(double)rate {
+    AVAudioFormat *mixerFormat = [_engine.mainMixerNode outputFormatForBus:0];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
+                                                                          channels:mixerFormat.channelCount ?: 2];
+    [_levelTap remove];
+    _levelTap = nil;
+    [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
     [self applyLevelTapOnQueue];
 }
 
@@ -624,17 +642,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                                              segmentWasQueued);
     [self unpublishNodeOnQueue];   // oldNode above is the handle the retire uses
 
-    AVAudioUnitVarispeed *newVarispeed = nil;
-#if TARGET_OS_OSX
-    // Bit-perfect output prunes the chain to node -> mixer: a resampler at
-    // ratio 1.0 is still a resampler, so none is minted rather than trusted.
-    if (![self chainOmitsVarispeed])
-#endif
-    {
-        newVarispeed = [[AVAudioUnitVarispeed alloc] init];
-        [_engine attachNode:newVarispeed];
-    }
-    _varispeed = newVarispeed; // finishPlayOnQueueWithFile: connects its incoming node through this
+    // oldVarispeed above is the retire's; the incoming node gets a fresh one
+    // — or none under bit-perfect output — and finishPlayOnQueueWithFile:
+    // connects through it.
+    _varispeed = nil;
+    [self ensureVarispeedOnQueue];
 
     // The retire fades the outgoing side out while the incoming node fades in
     // concurrently on the new varispeed, in finishPlayOnQueueWithFile: — an
@@ -642,24 +654,28 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 }
 
+// Makes _varispeed what the chain wants: one, minted here alone, or none
+// under macOS's bit-perfect output — a resampler at ratio 1.0 is still a
+// resampler, so none is minted rather than trusted, and a stale one is
+// dropped. The retire path calls it with the slot cleared; the device restore
+// calls it on the current track's slot with the engine stopped, which is how
+// a mode toggle rebuilds the chain in place without a click.
+- (void)ensureVarispeedOnQueue {
 #if TARGET_OS_OSX
-// The device restore's chain reshape: the mode toggled on mid-track drops the
-// track's varispeed, toggled off mints one. The engine is stopped, so neither
-// clicks; the restore then reconnects through connectNode:throughVarispeedWithFormat:.
-- (void)reshapeChainForBitPerfectOnQueue {
     if ([self chainOmitsVarispeed]) {
         if (_varispeed) {
             [self detachNodeAfterFailedConnect:_varispeed];
             _varispeed = nil;
         }
+        return;
     }
-    else if (!_varispeed) {
+#endif
+    if (!_varispeed) {
         AVAudioUnitVarispeed *varispeed = [[AVAudioUnitVarispeed alloc] init];
         [_engine attachNode:varispeed];
         _varispeed = varispeed;
     }
 }
-#endif
 
 // Detach the previous play from its path claim and cancel any still-abortable
 // materialization. If AVAudioFile has already blocked in the OS, the
@@ -780,11 +796,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 #if TARGET_OS_OSX
     // Nothing is audible now — either nothing was counted, or the park above
-    // ran — so the switch may stop the engine. prepare publishes the report
-    // either way.
-    if ([self outputNeedsSwitchOnQueueForFile:file]) {
-        [_engine stop];
-    }
+    // ran — so the switch may stop the engine, which it does itself.
     [self prepareOutputOnQueueForFile:file];
 #endif
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];

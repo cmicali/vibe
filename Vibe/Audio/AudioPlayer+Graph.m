@@ -25,9 +25,9 @@
             [_engine connect:self.varispeed to:_engine.mainMixerNode format:format];
         }
         else {
-            // Bit-perfect output on macOS mints no varispeed: node -> mixer.
+            // Bit-perfect output on macOS mints no varispeed: node -> mixer,
+            // and the rate write below is a message to nil.
             [_engine connect:node to:_engine.mainMixerNode format:format];
-            return YES;
         }
     }
     @catch (NSException *exception) {

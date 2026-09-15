@@ -32,19 +32,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 - (void)scheduleSystemOutputBindRetryOnQueue;
 @end
 
-@interface AudioPlayer (BitPerfectResolution)
-// The chosen device when the mode can apply to it, else nil. Runs on _queue.
-- (nullable AudioDevice *)bitPerfectDeviceOnQueue;
-// Reads the device and resolves the format the rules want for file; see the
-// implementation. Runs on _queue.
-- (BOOL)resolveOutputFormatOnQueueForFile:(AVAudioFile *)file
-                                   device:(AudioDevice *)device
-                                   stream:(AudioStreamID *)stream
-                                  current:(AudioStreamBasicDescription *)current
-                                   chosen:(AudioStreamBasicDescription *)chosen
-                               targetRate:(double *)targetRate;
-@end
-
 #pragma mark - Output devices (internal surface + device-change observing)
 
 @implementation AudioPlayer (DevicesInternal)
@@ -226,6 +213,16 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
                 @"Could not switch audio output device", nil)];
         return NO;
     }
+    // The FX-less master bus follows the device's rate, as at install: a
+    // different-rate device would otherwise leave the mixer at the old one and
+    // the output unit resampling every track (Audio/CLAUDE.md). The FX graph's
+    // connections cannot be rewired here and keep their install-time rate.
+    if (!self.fx) {
+        double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+        if (rate > 0 && [self masterBusRateDiffersFrom:rate]) {
+            [self wireMasterBusOnQueueAtRate:rate];
+        }
+    }
 
     if (shouldRestore) {
         // Reuse the already-open handle rather than reopening the URL. A
@@ -244,7 +241,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         // The restore reconnects through whatever chain the mode wants now:
         // the mode toggled on mid-track drops the track's varispeed, toggled
         // off mints one, and the engine is stopped so neither clicks.
-        [self reshapeChainForBitPerfectOnQueue];
+        [self ensureVarispeedOnQueue];
         [self prepareOutputOnQueueForFile:file];
         AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
         if (!node) {
@@ -536,10 +533,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             return;
         }
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
-        if (requested >= 0) {
+        if (requested >= 0 && self->_file) {
             // A device switch onto the same device: stop, rebuild the chain
             // with or without the varispeed, prepare (on) and restore at
-            // position.
+            // position. With no track loaded there is nothing to rebuild; the
+            // next settlement prepares and the next engine start hogs.
             [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
         }
         [self publishBitPerfectReportOnQueue];
@@ -609,12 +607,22 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 @end
 
-#pragma mark - Bit-perfect output (resolution, declared at the top of this file)
+#pragma mark - Bit-perfect output (queue-side mechanism)
 
-@implementation AudioPlayer (BitPerfectResolution)
+@implementation AudioPlayer (BitPerfectMechanism)
 
-// The chosen device when the mode can apply to it, else nil. The three
-// reasons it cannot — off, the FX graph, an ineligible or unknown device —
+// The chosen device when it is one the mode may drive, else nil: the one
+// eligibility fold, shared by the report and the mechanism.
+- (nullable AudioDevice *)eligibleRequestedDeviceOnQueue {
+    NSInteger requested = self.currentlyRequestedAudioDeviceId;
+    if (requested < 0) {
+        return nil;
+    }
+    AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
+    return (device && VibeBitPerfectDeviceEligible(device.transportType)) ? device : nil;
+}
+
+// The device the mode can apply to right now, else nil. Off and the FX graph
 // are the report's own early outs; manual rendering is the debug pump's.
 - (nullable AudioDevice *)bitPerfectDeviceOnQueue {
     if (!_bitPerfectWanted || self.fx) {
@@ -625,21 +633,19 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         return nil;
     }
 #endif
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    if (requested < 0) {
-        return nil;
-    }
-    AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
-    if (!device || !VibeBitPerfectDeviceEligible(device.transportType)) {
-        return nil;
-    }
-    return device;
+    return [self eligibleRequestedDeviceOnQueue];
 }
 
-// Reads the device and resolves the format the rules want for `file`. YES
-// with the stream, the current physical format and the choice filled in;
-// targetRate is 0 when the device offers neither the file's rate nor a
-// multiple, in which case chosen == current.
+// The mode's pruning follows the switch, not the device, so a run with the
+// switch on never mints a varispeed.
+- (BOOL)chainOmitsVarispeed {
+    return _bitPerfectWanted && !self.fx;
+}
+
+// Reads the device and resolves the format the rules want for `file`: the
+// stream, what it has now and what it should have. chosen == current when the
+// device offers neither the file's rate nor a multiple (targetRate 0), or
+// nothing at the target rate.
 - (BOOL)resolveOutputFormatOnQueueForFile:(AVAudioFile *)file
                                    device:(AudioDevice *)device
                                    stream:(AudioStreamID *)stream
@@ -655,33 +661,18 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
     AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
     *targetRate = VibeBitPerfectTargetRate(source.mSampleRate, formats, count);
-    *chosen = *current;
-    if (*targetRate > 0
-            && !VibeBitPerfectChooseFormat(*current, source, *targetRate, formats, count, chosen)) {
+    if (*targetRate == 0 || !VibeBitPerfectChooseFormat(source, *targetRate, formats, count, chosen)) {
         *chosen = *current;
     }
     free(formats);
     return YES;
 }
 
-@end
-
-#pragma mark - Bit-perfect output (queue-side mechanism)
-
-@implementation AudioPlayer (BitPerfectMechanism)
-
-// The mode's pruning follows the switch, not the device, so a run with the
-// switch on never mints a varispeed.
-- (BOOL)chainOmitsVarispeed {
-    return _bitPerfectWanted && !self.fx;
-}
-
 // The mixer feeds the output node at whatever rate the connection was made
-// at — 44.1 kHz on a fresh engine, whatever the device — and the output unit
-// resamples the difference. Bit-perfect needs that connection at the device's
-// own rate, so it is part of "does the output need a switch".
+// at, and the output unit resamples the difference; bit-perfect needs that
+// connection at the device's own rate, so a stale one counts as a switch.
 - (BOOL)masterBusRateDiffersFrom:(double)rate {
-    return self.fx == nil && [_engine.mainMixerNode outputFormatForBus:0].sampleRate != rate;
+    return [_engine.mainMixerNode outputFormatForBus:0].sampleRate != rate;
 }
 
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file {
@@ -700,44 +691,24 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             || [self masterBusRateDiffersFrom:chosen.mSampleRate];
 }
 
-// Reconnects mainMixer -> output at the device's rate with the engine
-// stopped. The level tap sits on that bus, so it is removed first and
-// reconciled back through the one funnel afterwards.
-- (void)reconnectMasterBusOnQueueAtRate:(double)rate {
-    if (![self masterBusRateDiffersFrom:rate]) {
-        return;
-    }
-    NSAssert(!_engine.isRunning, @"the master bus reconnect needs the engine stopped");
-    AVAudioFormat *mixerFormat = [_engine.mainMixerNode outputFormatForBus:0];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
-                                                                          channels:mixerFormat.channelCount ?: 2];
-    [_levelTap remove];
-    _levelTap = nil;
-    [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
-    [self applyLevelTapOnQueue];
-    LogInfo(@"bit-perfect: master bus reconnected at %.0f Hz", rate);
-}
-
 // The chosen device vanished: the mode cannot follow the fallback onto System
-// Output, and the device it owed a format to is gone. The shell reads the
-// report's enabled flag going false on the -1 announcement and persists it.
+// Output. The off path verbatim — the device may already be gone, and then
+// the restore's write fails and is forgotten. The shell reads the report's
+// enabled flag going false on the -1 announcement and persists it.
 - (void)abandonBitPerfectForVanishedDeviceOnQueue {
     if (!_bitPerfectWanted) {
         return;
     }
     LogInfo(@"bit-perfect: the chosen device vanished; turning the mode off");
     _bitPerfectWanted = NO;
-    _hoggedDeviceID = kAudioObjectUnknown;
-    _changedFormatDeviceID = kAudioObjectUnknown;
-    _changedFormatStreamID = kAudioObjectUnknown;
-    [self publishBitPerfectReportOnQueue];
+    [self restoreOutputFormatOnQueue];
+    [self releaseExclusiveOutputOnQueue];
 }
 
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     if (!device) {
-        [self publishBitPerfectReportOnQueue];
-        return;
+        return; // the state publication that follows every caller publishes the report
     }
     AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
     AudioStreamID stream = kAudioObjectUnknown;
@@ -748,12 +719,17 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         LogWarn(@"bit-perfect: could not read the output stream of %@", device.name);
         _bitPerfectFacts.rateExact = NO;
         _bitPerfectFacts.switched = NO;
-        [self publishBitPerfectReportOnQueue];
         return;
     }
+    BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
+    if (formatDiffers || [self masterBusRateDiffersFrom:chosen.mSampleRate]) {
+        // Nothing is audible by construction — the settlement parked until the
+        // outgoing fades completed, and the device restore stopped the engine
+        // itself — so the switch may stop it.
+        [_engine stop];
+    }
     BOOL switched = YES;
-    if (!VibePhysicalFormatsEquivalent(chosen, current)) {
-        NSAssert(!_engine.isRunning, @"a format switch needs the engine stopped");
+    if (formatDiffers) {
         // Remember what the device had before OUR first change. A slot already
         // naming this device keeps its older memory: the restore should land
         // on what the user had, not on the previous track's rate.
@@ -781,15 +757,12 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
                 (NSProcessInfo.processInfo.systemUptime - started) * 1000,
                 switched ? @"" : @" (not confirmed)");
         // What the device actually has now, not what was asked for.
-        AudioStreamRangedDescription *formats = NULL;
-        UInt32 count = 0;
-        if ([CoreAudioUtil readOutputStream:&stream physicalFormat:&current
-                           availableFormats:&formats count:&count
-                                forDeviceID:(AudioDeviceID)device.deviceId]) {
-            free(formats);
-        }
+        [CoreAudioUtil readPhysicalFormat:&current forStream:stream];
     }
-    [self reconnectMasterBusOnQueueAtRate:current.mSampleRate];
+    if ([self masterBusRateDiffersFrom:current.mSampleRate]) {
+        [self wireMasterBusOnQueueAtRate:current.mSampleRate];
+        LogInfo(@"bit-perfect: master bus reconnected at %.0f Hz", current.mSampleRate);
+    }
     Float32 volume = 1.0f;
     [CoreAudioUtil readVirtualMainVolume:&volume forDeviceID:(AudioDeviceID)device.deviceId];
 
@@ -802,7 +775,6 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     _bitPerfectFacts.depthOK = VibePhysicalFormatSatisfies(current, source);
     _bitPerfectFacts.hogWanted = VibeBitPerfectShouldHog(device.transportType);
     _bitPerfectFacts.sourceLossless = VibeSourceIsLossless(source);
-    [self publishBitPerfectReportOnQueue];
 }
 
 - (void)acquireExclusiveOutputOnQueue {
@@ -848,19 +820,19 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     memset(&_formatBeforeChange, 0, sizeof(_formatBeforeChange));
 }
 
+// Folds the queue-side facts against the live state and publishes the copy
+// the shell reads. Its edges: every state publication and fade completion
+// (refreshOutputAudioActiveOnQueue), the committed device id, the two hog
+// edges and the mode toggle.
 - (void)publishBitPerfectReportOnQueue {
     VibeBitPerfectReport report = _bitPerfectFacts;
     report.enabled = _bitPerfectWanted;
     report.fxGraph = (self.fx != nil);
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    AudioDevice *device = requested >= 0
-            ? [[AudioDeviceManager sharedInstance] outputDeviceForId:requested] : nil;
-    report.eligibleDevice = device
-            && VibeBitPerfectDeviceEligible(device.transportType);
+    report.eligibleDevice = ([self eligibleRequestedDeviceOnQueue] != nil);
     report.exclusive = (_hoggedDeviceID != kAudioObjectUnknown);
     os_unfair_lock_lock(&_stateLock);
     report.hasTrack = (_state == VibePlayerStatePlaying);
-    report.status = VibeBitPerfectFoldReport(report);
+    report.status = VibeBitPerfectFold(report);
     _bitPerfectReport = report;
     os_unfair_lock_unlock(&_stateLock);
 }

@@ -64,16 +64,22 @@ NS_ASSUME_NONNULL_BEGIN
 // _queue.
 @interface AudioPlayer (BitPerfectMechanism)
 
-// Whether prepareOutputOnQueueForFile: would write a format — the settlement's
-// park predicate. NO whenever the mode cannot apply.
+// Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
+// the settlement's park predicate, which decides BEFORE the request is
+// consumed. NO whenever the mode cannot apply.
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
 
-// Runs with the engine STOPPED when a switch is needed — the caller stops it,
-// because only the caller knows nothing is audible. Reads the bound device's
-// capabilities, applies the rate and depth rules, writes one physical format,
-// waits (bounded) for the nominal rate to read back, and publishes the
-// report. Remembers the device's format before the first change so it can be
-// put back.
+// Whether the mixer feeds the output node at a rate other than `rate`, so
+// the output unit resamples. The device switch and the settlement both ask.
+- (BOOL)masterBusRateDiffersFrom:(double)rate;
+
+// Reads the bound device's capabilities, applies the rate and depth rules,
+// and when the device's format or the master bus's rate differs, stops the
+// engine — the callers guarantee nothing is audible — writes one physical
+// format, waits (bounded) for the nominal rate to read back, and rewires the
+// master bus at the device's rate. Remembers the device's format before the
+// first change so it can be put back. It writes the report's facts; the
+// state publication every caller makes next publishes them.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
 // Hog for the bound device, when the mode, an eligible device, no FX graph
@@ -88,7 +94,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)restoreOutputFormatOnQueue;
 
 // Folds the queue-side facts against the live state and publishes the copy
-// the shell reads.
+// the shell reads. Its edges are refreshOutputAudioActiveOnQueue (every
+// state publication and fade completion), the committed device id, the two
+// hog edges and the mode toggle.
 - (void)publishBitPerfectReportOnQueue;
 
 // The parked settlement's re-entry, called by completeRetiredFadePair: when

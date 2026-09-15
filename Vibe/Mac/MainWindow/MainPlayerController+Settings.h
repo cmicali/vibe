@@ -49,11 +49,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // Off deletes the container mirror.
     VibeSettingsLiveEffectReopenLastPlaylist = 1UL << 20,
     // Bit-perfect output: pushes the mode to the player, resets the pitch to
-    // 0 and hides the fader while on, and re-renders the header's lock. A
-    // writer requests it together with FXControls and Crossfade, whose
-    // branches — reading audioFXAllowed and effectiveCrossfadeMilliseconds —
-    // are what withdraw the FX and drop the crossfade, exactly as the FX
-    // switch and the crossfade popup do themselves.
+    // 0 and hides the fader while on, and re-renders the header's lock. Never
+    // requested alone — BitPerfectApply below.
     VibeSettingsLiveEffectBitPerfect       = 1UL << 21,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
@@ -67,6 +64,13 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectFonts
                                            | VibeSettingsLiveEffectPlaylistAppearance
                                            | VibeSettingsLiveEffectTrackDisplay,
+    // Every write of bitPerfectOutput requests this: the FX and crossfade
+    // branches, reading audioFXAllowed and effectiveCrossfadeMilliseconds, are
+    // what withdraw the FX and drop the crossfade — the same path the FX
+    // switch and the crossfade popup take themselves.
+    VibeSettingsLiveEffectBitPerfectApply  = VibeSettingsLiveEffectBitPerfect
+                                           | VibeSettingsLiveEffectFXControls
+                                           | VibeSettingsLiveEffectCrossfade,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 

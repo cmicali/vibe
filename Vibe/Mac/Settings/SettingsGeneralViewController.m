@@ -145,21 +145,14 @@ static const CGFloat kOutputPopUpWidth = 280;
     else {
         caption = STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
     }
-    if (![_bitPerfectRow.captionLabel.stringValue isEqualToString:caption]) {
-        _bitPerfectRow.captionLabel.stringValue = caption;
+    if ([_bitPerfectRow setCaption:caption]) {
         [self paneContentDidChange];
     }
 }
 
 - (void)toggleBitPerfect:(id)sender {
     AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
-    // FXControls and Crossfade ride along: their branches, reading the derived
-    // audioFXAllowed and effectiveCrossfadeMilliseconds, are what withdraw the
-    // FX and drop the crossfade — the same path the FX switch and the
-    // crossfade popup take themselves.
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
-                                                  | VibeSettingsLiveEffectFXControls
-                                                  | VibeSettingsLiveEffectCrossfade];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
     [self refreshBitPerfectRow];
     [self refreshOutputPopUp]; // the popup grays ineligible devices out while on
 }

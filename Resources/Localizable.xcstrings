@@ -46376,24 +46376,24 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.format": {
-      "comment": "The output format bit-perfect output settled on: %1$@ is the sample rate in kHz, %2$@ the word length in bits.",
+      "comment": "The output format bit-perfect output settled on: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ kHz · %2$@-bit"
+            "value": "%1$@ · %2$@-bit"
           }
         }
       },
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.format_exclusive": {
-      "comment": "The output format bit-perfect output settled on, with the app holding exclusive use of the device: %1$@ is the sample rate in kHz, %2$@ the word length in bits.",
+      "comment": "The output format bit-perfect output settled on, with the app holding exclusive use of the device: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ kHz · %2$@-bit · exclusive"
+            "value": "%1$@ · %2$@-bit · exclusive"
           }
         }
       },
@@ -46436,12 +46436,12 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.rate_unsupported": {
-      "comment": "Bit-perfect output status: the device cannot run at the file's sample rate, so the audio is resampled. %@ is the rate the device is running at, in kHz.",
+      "comment": "Bit-perfect output status: the device cannot run at the file's sample rate, so the audio is resampled. %@ is the rate the device is running at, already formatted with its unit (e.g. '88.2 kHz').",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The device does not offer this file's sample rate; playing at %@ kHz"
+            "value": "The device does not offer this file's sample rate; playing at %@"
           }
         }
       },

@@ -47,6 +47,12 @@ NS_ASSUME_NONNULL_BEGIN
 // theme, and the title is what the debug walker addresses the row by.
 - (void)setRowTitle:(NSString *)title;
 
+// Recaption in place: creates the caption label on first use, hides it and
+// returns the title to the row's center for an empty caption, and answers
+// whether anything visible changed — the caller remeasures the pane only
+// then. The bit-perfect and FX rows change their captions live.
+- (BOOL)setCaption:(nullable NSString *)caption;
+
 // Set by the section on every row but its first, so a hidden row takes its
 // separator with it.
 @property (nonatomic) BOOL showsTopSeparator;

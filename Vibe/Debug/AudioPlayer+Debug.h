@@ -31,9 +31,11 @@
 // in the app runs — the command channel calls this from main.
 - (NSInteger)currentlyActiveAudioDeviceId;
 
-// Bit-perfect output's queue-confined ownership, for dump_state:
-// {hoggedDeviceId, restoreOwedToDeviceId, varispeedPresent}, -1 for none.
-// Implemented in AudioPlayer+Devices.m beside the mechanism; one queue hop.
+// Bit-perfect output's queue-confined ownership and the engine's three
+// connection rates, for dump_state: {hoggedDeviceId, restoreOwedToDeviceId,
+// varispeedPresent, mixerOutputRate, outputNodeInputRate,
+// outputNodeOutputRate}, -1 for no device. Implemented in AudioPlayer+Devices.m
+// beside the mechanism; one queue hop.
 - (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership;
 #endif
 

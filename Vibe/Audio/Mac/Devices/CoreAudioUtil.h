@@ -34,10 +34,10 @@ NS_ASSUME_NONNULL_BEGIN
 // device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID;
 
-// The device's nominal sample rate. A set is applied asynchronously by the
-// HAL, so a caller that needs the new rate to be in effect reads it back.
+// The device's nominal sample rate: a physical-format write is applied
+// asynchronously by the HAL, so a caller that needs the new rate to be in
+// effect reads this back.
 + (BOOL)readNominalSampleRate:(Float64 *)rate forDeviceID:(AudioDeviceID)deviceID;
-+ (BOOL)setNominalSampleRate:(Float64)rate forDeviceID:(AudioDeviceID)deviceID;
 
 // The device's first output stream: its id, its current physical format and
 // the formats it offers. availableFormats is malloc'd and owned by the caller
@@ -48,18 +48,19 @@ NS_ASSUME_NONNULL_BEGIN
                    count:(UInt32 *)count
              forDeviceID:(AudioDeviceID)deviceID;
 // kAudioStreamPropertyPhysicalFormat, which carries rate and depth together.
++ (BOOL)readPhysicalFormat:(AudioStreamBasicDescription *)format forStream:(AudioStreamID)stream;
 + (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream;
 
 // The HAL's software volume for the device's output ('vmvc'). A device with
 // none answers YES with *volume = 1.0: nothing scales its samples.
 + (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID;
 
-// kAudioDevicePropertyHogMode: the pid holding exclusive access, -1 when free.
-+ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID;
-// TRAP: setting hog mode ignores the value written and TOGGLES ownership —
-// if this process owns it, a set releases it. So this reads first and writes
-// only when the owner has to change, which makes it idempotent. YES means the
-// device is in the requested state on return.
+// kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value
+// written and TOGGLES ownership — if this process owns it, a set releases it.
+// So this reads first and writes only when the owner has to change, which
+// makes it idempotent. YES means the device is in the requested state on
+// return; "owned by this process" is the whole state, so a release while
+// another process holds it is already true.
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID;
 
 @end

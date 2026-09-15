@@ -329,13 +329,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
 - (void)createEngineAndMasterBusOnQueue;
-#if TARGET_OS_OSX
-// Drops or mints the current track's varispeed to match what bit-perfect
-// output wants now, for the device restore that reconnects the track with
-// the engine stopped. Lives in AudioPlayer.m because _varispeed is written
+// The FX-less master bus at a rate, tap removed and reconciled back; the
+// engine init and macOS's bit-perfect rate switch both wire through it.
+- (void)wireMasterBusOnQueueAtRate:(double)rate;
+// Makes _varispeed what the chain wants — one, or none under macOS's
+// bit-perfect output. Lives in AudioPlayer.m because _varispeed is written
 // there alone.
-- (void)reshapeChainForBitPerfectOnQueue;
-#endif
+- (void)ensureVarispeedOnQueue;
 // The permitted partial writers of the published playback state; the full
 // model, and why there are exactly three of them, is at publishPlaybackState:
 // in AudioPlayer.m. Both return the node they unpublished, for the caller to

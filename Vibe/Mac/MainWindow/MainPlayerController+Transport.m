@@ -189,24 +189,31 @@ static double SkipBaseBars(void) {
 // One sentence per status, shared by the header's tooltip and the Settings
 // caption so the two cannot disagree about why. Every string is English-only
 // until release (docs/future/bit-perfect-output.md).
+// The rate spelled the way the codec line spells it (AudioTrackMetadata's
+// fileInfoLine), so the two never disagree about a unit.
+static NSString *VibeSampleRateText(double sampleRate) {
+    return [NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
+            [[Formatters sharedInstance] decimalString:sampleRate / 1000 fractionDigits:1]];
+}
+
 - (NSString *)bitPerfectStatusText {
     VibeBitPerfectReport report = self.audioPlayer.bitPerfectReport;
     Formatters *formatters = [Formatters sharedInstance];
-    NSString *kHz = [formatters decimalString:report.sampleRate / 1000 fractionDigits:1];
     switch (report.status) {
         case VibeBitPerfectStatusOff:
             return STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
         case VibeBitPerfectStatusIdle:
             return STR_SETTINGS_BIT_PERFECT_IDLE;
         case VibeBitPerfectStatusActive: {
-            NSString *bits = [NSString stringWithFormat:@"%u", (unsigned)report.bitsPerChannel];
             NSString *format = [NSString stringWithFormat:
                     report.exclusive ? STR_SETTINGS_BIT_PERFECT_FORMAT_EXCLUSIVE : STR_SETTINGS_BIT_PERFECT_FORMAT,
-                    kHz, bits];
+                    VibeSampleRateText(report.sampleRate),
+                    [formatters decimalString:report.bitsPerChannel fractionDigits:0]];
             return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_ACTIVE, format];
         }
         case VibeBitPerfectStatusRateUnsupported:
-            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_RATE_UNSUPPORTED, kHz];
+            return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_RATE_UNSUPPORTED,
+                    VibeSampleRateText(report.sampleRate)];
         case VibeBitPerfectStatusSwitchFailed:
             return STR_SETTINGS_BIT_PERFECT_SWITCH_FAILED;
         case VibeBitPerfectStatusDepthInsufficient:

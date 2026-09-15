@@ -72,10 +72,10 @@ fi
 # lengths a DAC is asked for, so a loopback can prove each arrives unchanged
 # (verify-bit-perfect.swift). Deterministic content, known rate and depth.
 mkdir -p "$OUT/rates"
-have rates/tone-44100-16.wav || afconvert -f WAVE -d LEI16@44100 "$OUT/tone-long.wav" "$OUT/rates/tone-44100-16.wav"
-have rates/tone-48000-16.wav || afconvert -f WAVE -d LEI16@48000 "$OUT/tone-long.wav" "$OUT/rates/tone-48000-16.wav"
-have rates/tone-88200-24.wav || afconvert -f WAVE -d LEI24@88200 "$OUT/tone-long.wav" "$OUT/rates/tone-88200-24.wav"
-have rates/tone-96000-24.wav || afconvert -f WAVE -d LEI24@96000 "$OUT/tone-long.wav" "$OUT/rates/tone-96000-24.wav"
+for spec in 44100-16 48000-16 88200-24 96000-24; do
+    have "rates/tone-$spec.wav" \
+        || afconvert -f WAVE -d "LEI${spec#*-}@${spec%-*}" "$OUT/tone-long.wav" "$OUT/rates/tone-$spec.wav"
+done
 have rates/tone-96000-24.flac || afconvert -f flac -d flac "$OUT/rates/tone-96000-24.wav" "$OUT/rates/tone-96000-24.flac"
 
 # Kick/hat drum loop at an exact tempo: gen_bpm_wav <path> <bpm> <seconds>.

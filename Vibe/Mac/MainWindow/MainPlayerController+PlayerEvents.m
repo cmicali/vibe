@@ -339,9 +339,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         if (AppSettings.sharedInstance.bitPerfectOutput && !audioPlayer.bitPerfectReport.enabled) {
             LogInfo(@"bit-perfect: output fell back to System Output; persisting the mode off");
             AppSettings.sharedInstance.bitPerfectOutput = NO;
-            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
-                                          | VibeSettingsLiveEffectFXControls
-                                          | VibeSettingsLiveEffectCrossfade];
+            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
         }
     }
     else {

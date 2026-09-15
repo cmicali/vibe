@@ -48,6 +48,55 @@ static const CGFloat kHeaderCardGap = 6;
 
 @implementation SettingsRowView {
     SettingsFillView *_separator;
+    // The caption's layout, built on first use by setCaption: — the control
+    // cluster it must clear, the title-centered constraint that holds while
+    // there is no caption, and the caption's own constraints while there is.
+    NSStackView *_cluster;
+    NSLayoutConstraint *_titleCenteredConstraint;
+    NSArray<NSLayoutConstraint *> *_captionConstraints;
+}
+
+- (BOOL)setCaption:(NSString *)caption {
+    NSString *text = caption ?: @"";
+    if (!_titleLabel) {
+        return NO;
+    }
+    if (text.length == 0) {
+        if (!_captionLabel || _captionLabel.hidden) {
+            return NO;
+        }
+        _captionLabel.hidden = YES;
+        [NSLayoutConstraint deactivateConstraints:_captionConstraints];
+        _titleCenteredConstraint.active = YES;
+        return YES;
+    }
+    if (!_captionLabel) {
+        NSTextField *captionLabel = [NSTextField wrappingLabelWithString:text];
+        captionLabel.selectable = NO;
+        captionLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        captionLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+        captionLabel.textColor = NSColor.secondaryLabelColor;
+        captionLabel.hidden = YES;
+        [self addSubview:captionLabel];
+        _captionLabel = captionLabel;
+        _captionConstraints = @[
+            [_titleLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:kRowPaddingV],
+            [captionLabel.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor constant:2],
+            [captionLabel.leadingAnchor constraintEqualToAnchor:_titleLabel.leadingAnchor],
+            [captionLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_cluster.leadingAnchor
+                                                                  constant:-kRowTitleControlGap],
+            [captionLabel.bottomAnchor constraintLessThanOrEqualToAnchor:self.bottomAnchor
+                                                                constant:-kRowPaddingV],
+        ];
+    }
+    BOOL changed = _captionLabel.hidden || ![_captionLabel.stringValue isEqualToString:text];
+    _captionLabel.stringValue = text;
+    if (_captionLabel.hidden) {
+        _captionLabel.hidden = NO;
+        _titleCenteredConstraint.active = NO;
+        [NSLayoutConstraint activateConstraints:_captionConstraints];
+    }
+    return changed;
 }
 
 + (instancetype)rowWithTitle:(NSString *)title control:(NSView *)control {
@@ -95,27 +144,12 @@ static const CGFloat kHeaderCardGap = 6;
             [titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:cluster.leadingAnchor
                                                                 constant:-kRowTitleControlGap],
         ]];
-        if (caption.length) {
-            NSTextField *captionLabel = [NSTextField wrappingLabelWithString:caption];
-            captionLabel.selectable = NO;
-            captionLabel.translatesAutoresizingMaskIntoConstraints = NO;
-            captionLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-            captionLabel.textColor = NSColor.secondaryLabelColor;
-            [row addSubview:captionLabel];
-            row->_captionLabel = captionLabel;
-            [NSLayoutConstraint activateConstraints:@[
-                [titleLabel.topAnchor constraintEqualToAnchor:row.topAnchor constant:kRowPaddingV],
-                [captionLabel.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:2],
-                [captionLabel.leadingAnchor constraintEqualToAnchor:titleLabel.leadingAnchor],
-                [captionLabel.trailingAnchor constraintLessThanOrEqualToAnchor:cluster.leadingAnchor
-                                                                      constant:-kRowTitleControlGap],
-                [captionLabel.bottomAnchor constraintLessThanOrEqualToAnchor:row.bottomAnchor
-                                                                    constant:-kRowPaddingV],
-            ]];
-        }
-        else {
-            [titleLabel.centerYAnchor constraintEqualToAnchor:row.centerYAnchor].active = YES;
-        }
+        row->_cluster = cluster;
+        // The two layouts the caption switches between: title centered alone,
+        // or title pinned to the top with the caption beneath it.
+        row->_titleCenteredConstraint = [titleLabel.centerYAnchor constraintEqualToAnchor:row.centerYAnchor];
+        row->_titleCenteredConstraint.active = YES;
+        [row setCaption:caption];
     }
     return row;
 }

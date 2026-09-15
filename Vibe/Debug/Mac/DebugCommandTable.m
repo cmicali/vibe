@@ -359,9 +359,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     return VibeErrorJSON(@"usage: set_bit_perfect <on|off>");
                 }
                 AppSettings.sharedInstance.bitPerfectOutput = on;
-                [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect
-                                                   | VibeSettingsLiveEffectFXControls
-                                                   | VibeSettingsLiveEffectCrossfade];
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
                 return VibeJSONString(@{
                     @"ok": @YES,
                     @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),

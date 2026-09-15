@@ -59,15 +59,10 @@ typedef struct {
 
 static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
 
-static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
-    return source.mFormatID == kAudioFormatLinearPCM
-            || source.mFormatID == kAudioFormatAppleLossless
-            || source.mFormatID == kAudioFormatFLAC;
-}
-
 // PCM: mBitsPerChannel. ALAC and FLAC: the kAppleLosslessFormatFlag_*
 // source-depth flags, or 24 assumed when the flags say nothing. Lossy and
-// unknown: 0, meaning "no native depth to honor".
+// unknown: 0, meaning "no native depth to honor" — which is also what makes a
+// source lossless below, so the two cannot list different formats.
 static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
     if (source.mFormatID == kAudioFormatLinearPCM) {
         return source.mBitsPerChannel;
@@ -82,6 +77,10 @@ static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
         }
     }
     return 0;
+}
+
+static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
+    return VibeSourceBitDepth(source) > 0;
 }
 
 static inline BOOL VibePhysicalFormatIsFloat(AudioStreamBasicDescription format) {
@@ -178,11 +177,9 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
 
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
 // source's (a lossy source takes 24), else the smallest integer depth above
-// it, else float32. `current` is returned unchanged when it is already the
-// answer, so an unneeded write never happens. Returns NO when nothing is at
-// `rate`.
-static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription current,
-                                              AudioStreamBasicDescription source,
+// it, else float32. Returns NO when nothing is at `rate`; the caller compares
+// the choice against what the device has before writing.
+static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count,
@@ -219,57 +216,45 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription curren
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    AudioStreamBasicDescription pick = haveInteger ? integerPick : floatPick;
-    *chosen = VibePhysicalFormatsEquivalent(pick, current) ? current : pick;
+    *chosen = haveInteger ? integerPick : floatPick;
     return YES;
 }
 
-// The fold, in priority order, so two breakers never race for the caption:
-// Off > FXGraphPresent > Idle > RateUnsupported > SwitchFailed >
-// DepthInsufficient > VolumeScaled > ExclusiveRefused > SourceLossy > Active.
-// FXGraphPresent sits second because the mode is inert in such a run —
-// nothing below it was even attempted. SourceLossy is last before Active
-// because it is the only status that says the chain is perfect and the file
-// is not. There is no pitch input: under the mode there is no varispeed to
-// have a pitch.
-static inline VibeBitPerfectStatus VibeBitPerfectFold(BOOL enabled, BOOL eligibleDevice,
-                                                      BOOL hasTrack, BOOL fxGraph,
-                                                      BOOL rateExact, BOOL switched,
-                                                      BOOL depthOK, float softwareVolume,
-                                                      BOOL hogWanted, BOOL hogHeld,
-                                                      BOOL sourceLossless) {
-    if (!enabled || !eligibleDevice) {
+// The fold over the report's inputs, in priority order, so two breakers never
+// race for the caption: Off > FXGraphPresent > Idle > RateUnsupported >
+// SwitchFailed > DepthInsufficient > VolumeScaled > ExclusiveRefused >
+// SourceLossy > Active. FXGraphPresent sits second because the mode is inert
+// in such a run — nothing below it was even attempted. SourceLossy is last
+// before Active because it is the only status that says the chain is perfect
+// and the file is not. There is no pitch input: under the mode there is no
+// varispeed to have a pitch.
+static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
+    if (!r.enabled || !r.eligibleDevice) {
         return VibeBitPerfectStatusOff;
     }
-    if (fxGraph) {
+    if (r.fxGraph) {
         return VibeBitPerfectStatusFXGraphPresent;
     }
-    if (!hasTrack) {
+    if (!r.hasTrack) {
         return VibeBitPerfectStatusIdle;
     }
-    if (!rateExact) {
+    if (!r.rateExact) {
         return VibeBitPerfectStatusRateUnsupported;
     }
-    if (!switched) {
+    if (!r.switched) {
         return VibeBitPerfectStatusSwitchFailed;
     }
-    if (!depthOK) {
+    if (!r.depthOK) {
         return VibeBitPerfectStatusDepthInsufficient;
     }
-    if (softwareVolume < 1.0f) {
+    if (r.softwareVolume < 1.0f) {
         return VibeBitPerfectStatusVolumeScaled;
     }
-    if (hogWanted && !hogHeld) {
+    if (r.hogWanted && !r.exclusive) {
         return VibeBitPerfectStatusExclusiveRefused;
     }
-    if (!sourceLossless) {
+    if (!r.sourceLossless) {
         return VibeBitPerfectStatusSourceLossy;
     }
     return VibeBitPerfectStatusActive;
-}
-
-static inline VibeBitPerfectStatus VibeBitPerfectFoldReport(VibeBitPerfectReport r) {
-    return VibeBitPerfectFold(r.enabled, r.eligibleDevice, r.hasTrack, r.fxGraph, r.rateExact,
-                              r.switched, r.depthOK, r.softwareVolume, r.hogWanted, r.exclusive,
-                              r.sourceLossless);
 }
