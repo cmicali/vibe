@@ -597,9 +597,11 @@ static NSArray<NSString *> *GlyphList(NSString *const _Nonnull *names, size_t co
         // The pair swaps visibility — exactly one shows — so the second row
         // must not keep the between-rows hairline the section stamps on it.
         [SettingsSectionView sectionWithRows:@[_builtInRow, _nameRow]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_ICON_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
             _backgroundColorsRow,
