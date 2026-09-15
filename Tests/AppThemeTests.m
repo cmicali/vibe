@@ -56,6 +56,7 @@
     XCTAssertFalse(theme.customCornerRadius);
     XCTAssertEqual(theme.resolvedWindowCornerRadius, 16);
     XCTAssertEqualObjects(theme.dockIcon, @"album_art");
+    XCTAssertTrue(theme.appIconShape);
     XCTAssertTrue(theme.buttonGradient);
     XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
     XCTAssertEqualObjects(theme.playButtonGlyph, @"play.fill");

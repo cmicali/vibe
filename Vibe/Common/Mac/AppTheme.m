@@ -54,6 +54,7 @@ static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkCo
 static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
 static NSString *const kFieldCustomCornerRadius = @"customCornerRadius";
 static NSString *const kFieldDockIcon = @"dockIcon";
+static NSString *const kFieldAppIconShape = @"appIconShape";
 static NSString *const kFieldButtonGradient = @"buttonGradient";
 static NSString *const kFieldPlaylistButtonGlyph = @"playlistButtonGlyph";
 static NSString *const kFieldPlayButtonGlyph = @"playButtonGlyph";
@@ -290,6 +291,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:ImageFieldSpec(kVibeThemeImageAppIcon, window, @"app_icon")];
         [rows addObject:Field(kFieldDockIcon, window, @"dockIcon", SETTINGS_VALUE_DOCK_ICON_ALBUM_ART,
                               LadderField(VibeNormalizedDockIcon))];
+        [rows addObject:Field(kFieldAppIconShape, window, @"appIconShape", @YES, BoolField())];
 
         // The placeholder pair's entry names predate the other image fields
         // and are what every exported archive already carries.
@@ -1220,6 +1222,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)dockIcon { return [self stringForKey:kFieldDockIcon]; }
 - (void)setDockIcon:(NSString *)v { [self storeSanitized:v forKey:kFieldDockIcon]; }
+
+- (BOOL)appIconShape { return [self boolForKey:kFieldAppIconShape]; }
+- (void)setAppIconShape:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldAppIconShape]; }
 
 - (BOOL)buttonGradient { return [self boolForKey:kFieldButtonGradient]; }
 - (void)setButtonGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldButtonGradient]; }

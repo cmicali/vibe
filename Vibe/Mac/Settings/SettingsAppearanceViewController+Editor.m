@@ -451,6 +451,7 @@ static NSString *PartnerImageKey(NSString *key) {
     _dockIconPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(dockIconChanged:)];
     [self addItem:STR_SETTINGS_THEME_DOCK_ICON_ALBUM_ART value:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART to:_dockIconPopUp];
     [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
+    _appIconShapeSwitch = [self switchWithAction:@selector(toggleAppIconShape:)];
     _customCornerRadiusSwitch = [self switchWithAction:@selector(toggleCustomCornerRadius:)];
 
     // Default artwork follows the color pairs: one preview per appearance
@@ -704,6 +705,7 @@ static NSString *PartnerImageKey(NSString *key) {
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ICON_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON control:appIconCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DOCK_ICON control:_dockIconPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APP_ICON_SHAPE control:_appIconShapeSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
@@ -879,6 +881,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
     [self selectValue:theme.mode in:_modePopUp];
     [self selectValue:theme.dockIcon in:_dockIconPopUp];
+    _appIconShapeSwitch.state = StateForBOOL(theme.appIconShape);
     [self selectValue:theme.windowBackgroundStyle in:_backgroundPopUp];
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     for (NSColorWell *well in _wellBindings) {
@@ -1039,6 +1042,11 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self chooseFromPopUp:_windowTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
                     wells:@[_windowTintDarkRow, _windowTintLightRow] effect:VibeSettingsLiveEffectWindowTint
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
+}
+
+- (void)toggleAppIconShape:(id)sender {
+    AppSettings.sharedInstance.currentTheme.appIconShape = (_appIconShapeSwitch.state == NSControlStateValueOn);
+    [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
 }
 
 - (void)dockIconChanged:(id)sender {

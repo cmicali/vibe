@@ -19,15 +19,16 @@ NS_ASSUME_NONNULL_BEGIN
 // holds at the time, so a custom app icon reads through.
 + (void)resetToAppIcon;
 
-// Composes the artwork onto the icon grid off-main and installs it in the
-// tile; a later call, or a reset, wins over a slower composition.
-+ (void)setDockIcon:(NSImage *)image;
+// Installs the artwork in the tile — composed onto the icon grid off-main
+// when shaped, the picture itself when not; a later call, or a reset, wins
+// over a slower composition.
++ (void)setDockIcon:(NSImage *)image shaped:(BOOL)shaped;
 
 // The app's icon everywhere the system draws one — the Dock (while the tile
-// shows it), the app switcher, the About surfaces: a square image composed
-// onto the icon grid like the artwork tile, or nil for the bundle's own
-// icon. Synchronous, so a caller can reset the tile right after.
-+ (void)setAppIcon:(nullable NSImage *)image;
+// shows it), the app switcher, the About surfaces: a square image, composed
+// onto the icon grid like the artwork tile when shaped, or nil for the
+// bundle's own icon. Synchronous, so a caller can reset the tile right after.
++ (void)setAppIcon:(nullable NSImage *)image shaped:(BOOL)shaped;
 
 @end
 

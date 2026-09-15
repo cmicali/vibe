@@ -76,6 +76,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSSwitch *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
     NSPopUpButton *_dockIconPopUp;
+    NSSwitch *_appIconShapeSwitch;
     NSSwitch *_customCornerRadiusSwitch;
     NSSwitch *_buttonGradientSwitch;
     // The image fields' preview clusters by field key (kVibeThemeImage*): the

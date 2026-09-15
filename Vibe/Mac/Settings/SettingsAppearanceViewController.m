@@ -264,7 +264,8 @@ static const double kWaveformGainDetentDB = 0.75;
         }
     }
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    if ([changed isEqualToSet:_undoLastChangedKeys] && now - _undoLastPushTime < 2) {
+    if (_undoLastChangedKeys && [changed isEqualToSet:_undoLastChangedKeys]
+            && now - _undoLastPushTime < 2) {
         _undoLastPushTime = now;
         return;
     }

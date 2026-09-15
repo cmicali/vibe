@@ -289,8 +289,8 @@
 // it and the playing art — the AppIcon live effect's whole body, and the
 // launch-time apply. The icon lands first, since the tile reads it live.
 - (void)applyAppIcon {
-    [NSDockTile setAppIcon:[AppSettings.sharedInstance.currentTheme
-            customImageForKey:kVibeThemeImageAppIcon]];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [NSDockTile setAppIcon:[theme customImageForKey:kVibeThemeImageAppIcon] shaped:theme.appIconShape];
     [self->_artworkController applyDockIcon];
 }
 

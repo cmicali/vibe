@@ -123,6 +123,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"windowCornerRadius": @(theme.resolvedWindowCornerRadius),
             @"customCornerRadius": @(theme.customCornerRadius),
             @"dockIcon": theme.dockIcon,
+            @"appIconShape": @(theme.appIconShape),
             @"appIcon": [theme imageReferenceForKey:kVibeThemeImageAppIcon],
             @"buttonGradient": @(theme.buttonGradient),
             @"playlistNumberColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistNumber]),

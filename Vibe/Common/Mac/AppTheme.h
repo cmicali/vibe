@@ -286,6 +286,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) BOOL customCornerRadius;
 @property (readonly, nonatomic) CGFloat resolvedWindowCornerRadius;
 @property (nonatomic, copy) NSString *dockIcon;             // album_art/app_icon
+// Whether the Dock's album art and a custom app icon are shaped the way
+// macOS shapes an app icon — composed onto the icon grid, rounded and
+// inset — or shown as the picture they are. YES, the default, is the look
+// the Dock has always had.
+@property (nonatomic) BOOL appIconShape;
 // The darkening gradient over the album art's lower half, behind the
 // transport buttons. NO leaves the art bare under them.
 @property (nonatomic) BOOL buttonGradient;
