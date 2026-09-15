@@ -164,8 +164,10 @@
 - (void)testEveryImageFieldTakesOneReferenceShape {
     NSArray<NSString *> *keys = AppTheme.imageFieldKeys;
     XCTAssertEqualObjects(keys, (@[@"appIcon", @"defaultArtworkDark", @"defaultArtworkLight",
-                                   @"playlistButtonImage", @"playButtonImage",
-                                   @"pauseButtonImage", @"nextButtonImage"]));
+                                   @"playlistButtonImageDark", @"playlistButtonImageLight",
+                                   @"playButtonImageDark", @"playButtonImageLight",
+                                   @"pauseButtonImageDark", @"pauseButtonImageLight",
+                                   @"nextButtonImageDark", @"nextButtonImageLight"]));
     NSString *stored = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     for (NSString *key in keys) {
@@ -185,16 +187,28 @@
     XCTAssertNotNil([AppTheme imageForReference:stored], @"the placeholder's fallback still draws");
 }
 
-// Only the placeholder's light slot follows single mode's dark-slot rule;
-// the app icon and the button images are one slot each.
+// Only the placeholder's light slot follows single mode's dark-slot rule.
+// The buttons' image and color pairs are keyed by the art under them, not
+// the appearance, so both of their sides stay live under single mode.
 - (void)testSingleModeRedirectsOnlyThePlaceholderPair {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{@"mode": @"single"}];
     NSString *reference = @"custom:0123456789abcdef0123456789abcdef01234567.png";
     [theme setImageReference:reference forKey:@"defaultArtworkLight"];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"], reference);
     XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkLight"]);
-    [theme setImageReference:reference forKey:@"playButtonImage"];
-    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"playButtonImage"], reference);
+    [theme setImageReference:reference forKey:@"playButtonImageLight"];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"playButtonImageLight"], reference);
+    XCTAssertNil(theme.dictionaryRepresentation[@"playButtonImageDark"]);
+    [theme setColor:VibeColorFromHexString(@"#112233") forBase:kVibeThemeColorNextButton dark:NO];
+    [theme setColor:VibeColorFromHexString(@"#445566") forBase:kVibeThemeColorNextButton dark:YES];
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorNextButton dark:NO]),
+                          @"#112233");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorNextButton dark:YES]),
+                          @"#445566");
+    // While an appearance-keyed pair still collapses beside them.
+    [theme setColor:VibeColorFromHexString(@"#778899") forBase:kVibeThemeColorTitle dark:NO];
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"titleColorDark"], @"#778899");
+    XCTAssertNil(theme.dictionaryRepresentation[@"titleColorLight"]);
 }
 
 - (void)testSettingBackToTheDefaultEmptiesTheRecord {
@@ -862,14 +876,14 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     NSString *icon = [AppTheme storeCustomImageData:SquarePNG(128) error:NULL];
     NSString *play = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
     NSString *pause = [AppTheme storeCustomImageData:SquarePNG(80) error:NULL];
-    NSDictionary *record = @{@"appIcon": icon, @"playButtonImage": play,
-                             @"pauseButtonImage": pause, @"nextButtonGlyph": @"chevron.right"};
+    NSDictionary *record = @{@"appIcon": icon, @"playButtonImageDark": play,
+                             @"pauseButtonImageLight": pause, @"nextButtonGlyph": @"chevron.right"};
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Icons"];
     XCTAssertNotNil(zip);
     NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
     XCTAssertTrue([bytes containsString:@"app_icon.png"]);
-    XCTAssertTrue([bytes containsString:@"button_play.png"]);
-    XCTAssertTrue([bytes containsString:@"button_pause.png"]);
+    XCTAssertTrue([bytes containsString:@"button_play_dark.png"]);
+    XCTAssertTrue([bytes containsString:@"button_pause_light.png"]);
     XCTAssertFalse([bytes containsString:@"artwork_default"], @"no entry for an empty slot");
     NSString *name = nil;
     NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];

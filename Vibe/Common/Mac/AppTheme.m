@@ -65,10 +65,14 @@ static NSString *const kFieldNextButtonGlyph = @"nextButtonGlyph";
 NSString *const kVibeThemeImageDefaultArtworkDark  = @"defaultArtworkDark";
 NSString *const kVibeThemeImageDefaultArtworkLight = @"defaultArtworkLight";
 NSString *const kVibeThemeImageAppIcon = @"appIcon";
-NSString *const kVibeThemeImagePlaylistButton = @"playlistButtonImage";
-NSString *const kVibeThemeImagePlayButton = @"playButtonImage";
-NSString *const kVibeThemeImagePauseButton = @"pauseButtonImage";
-NSString *const kVibeThemeImageNextButton = @"nextButtonImage";
+NSString *const kVibeThemeImagePlaylistButtonDark = @"playlistButtonImageDark";
+NSString *const kVibeThemeImagePlaylistButtonLight = @"playlistButtonImageLight";
+NSString *const kVibeThemeImagePlayButtonDark = @"playButtonImageDark";
+NSString *const kVibeThemeImagePlayButtonLight = @"playButtonImageLight";
+NSString *const kVibeThemeImagePauseButtonDark = @"pauseButtonImageDark";
+NSString *const kVibeThemeImagePauseButtonLight = @"pauseButtonImageLight";
+NSString *const kVibeThemeImageNextButtonDark = @"nextButtonImageDark";
+NSString *const kVibeThemeImageNextButtonLight = @"nextButtonImageLight";
 
 // The color pairs' base names; Dark/Light is appended per appearance.
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
@@ -260,18 +264,22 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldPlaylistButtonGlyph, player, @"playlistButtonGlyph",
                               kVibeThemePlaylistButtonGlyphDefault, SymbolNameField())];
         AddColorPair(rows, kVibeThemeColorPlaylistButton, player, @"playlistButtonColor");
-        [rows addObject:ImageFieldSpec(kVibeThemeImagePlaylistButton, player, @"button_playlist")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlaylistButtonDark, player, @"button_playlist_dark")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlaylistButtonLight, player, @"button_playlist_light")];
         [rows addObject:Field(kFieldPlayButtonGlyph, player, @"playButtonGlyph",
                               kVibeThemePlayButtonGlyphDefault, SymbolNameField())];
         [rows addObject:Field(kFieldPauseButtonGlyph, player, @"pauseButtonGlyph",
                               kVibeThemePauseButtonGlyphDefault, SymbolNameField())];
         AddColorPair(rows, kVibeThemeColorPlayButton, player, @"playButtonColor");
-        [rows addObject:ImageFieldSpec(kVibeThemeImagePlayButton, player, @"button_play")];
-        [rows addObject:ImageFieldSpec(kVibeThemeImagePauseButton, player, @"button_pause")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlayButtonDark, player, @"button_play_dark")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePlayButtonLight, player, @"button_play_light")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePauseButtonDark, player, @"button_pause_dark")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImagePauseButtonLight, player, @"button_pause_light")];
         [rows addObject:Field(kFieldNextButtonGlyph, player, @"nextButtonGlyph",
                               kVibeThemeNextButtonGlyphDefault, SymbolNameField())];
         AddColorPair(rows, kVibeThemeColorNextButton, player, @"nextButtonColor");
-        [rows addObject:ImageFieldSpec(kVibeThemeImageNextButton, player, @"button_next")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonDark, player, @"button_next_dark")];
+        [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonLight, player, @"button_next_light")];
         [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient", @YES, BoolField())];
         // The font clamps are narrow on purpose: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
@@ -1304,8 +1312,21 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
 
 #pragma mark Color pairs
 
+// The transport buttons' pairs are keyed by the art under them, not the
+// appearance, so single mode — one color per APPEARANCE — leaves both sides
+// live; every other pair collapses to its dark slot.
+static BOOL VibeIsArtKeyedColorBase(NSString *base) {
+    return [base isEqualToString:kVibeThemeColorPlaylistButton]
+            || [base isEqualToString:kVibeThemeColorPlayButton]
+            || [base isEqualToString:kVibeThemeColorNextButton];
+}
+
+- (NSString *)colorKeyForBase:(NSString *)base dark:(BOOL)isDark {
+    return ColorFieldKey(base, (self.isSingleMode && !VibeIsArtKeyedColorBase(base)) ? YES : isDark);
+}
+
 - (VibeColor *)colorForBase:(NSString *)base dark:(BOOL)isDark {
-    NSString *hex = _fields[ColorFieldKey(base, self.isSingleMode ? YES : isDark)];
+    NSString *hex = _fields[[self colorKeyForBase:base dark:isDark]];
     if (!hex) {
         return nil;
     }
@@ -1329,14 +1350,14 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
 // Single mode has ONE color per field, used whatever the appearance is. The
 // dark-keyed half is its canonical slot: reads and writes from either side
 // land there, and the light-keyed halves lie dormant — preserved, so a theme
-// flipped to single and back to dual keeps its second palette.
+// flipped to single and back to dual keeps its second palette. The
+// art-keyed button pairs are the exception (colorKeyForBase:dark:).
 - (BOOL)isSingleMode {
     return [self.mode isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE];
 }
 
 - (void)setColor:(VibeColor *)color forBase:(NSString *)base dark:(BOOL)isDark {
-    [self storeSanitized:VibeHexStringFromColor(color)
-                  forKey:ColorFieldKey(base, self.isSingleMode ? YES : isDark)];
+    [self storeSanitized:VibeHexStringFromColor(color) forKey:[self colorKeyForBase:base dark:isDark]];
 }
 
 - (NSAppearance *)requiredWindowAppearance {

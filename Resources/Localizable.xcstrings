@@ -30134,72 +30134,72 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_next_image": {
-      "comment": "Theme editor, Player group: row beside the next-track button's custom image preview; shown once a custom image replaces the symbol.",
+      "comment": "Theme editor, Transport group: row beside the next-track button's custom image previews, one drawn over dark artwork and one over light; shown once a custom image replaces the symbol.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Изображение на бутона „Следваща“"
+            "value": "Изображения на бутона „Следваща“"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obrázek tlačítka Další"
+            "value": "Obrázky tlačítka Další"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Billede på næste-knap"
+            "value": "Billeder på næste-knap"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bild der Weiter-Taste"
+            "value": "Bilder der Weiter-Taste"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Εικόνα κουμπιού «Επόμενο»"
+            "value": "Εικόνες κουμπιού «Επόμενο»"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Next button image"
+            "value": "Next button images"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagen del botón de siguiente"
+            "value": "Imágenes del botón de siguiente"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Seuraava-painikkeen kuva"
+            "value": "Seuraava-painikkeen kuvat"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image du bouton Suivant"
+            "value": "Images du bouton Suivant"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Slika gumba „Sljedeće”"
+            "value": "Slike gumba „Sljedeće”"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Következő gomb képe"
+            "value": "Következő gomb képei"
           }
         },
         "id": {
@@ -30211,7 +30211,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immagine del pulsante Successivo"
+            "value": "Immagini del pulsante Successivo"
           }
         },
         "ja": {
@@ -30229,55 +30229,55 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bilde på neste-knapp"
+            "value": "Bilder på neste-knapp"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afbeelding volgende-knop"
+            "value": "Afbeeldingen volgende-knop"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obraz przycisku Następny"
+            "value": "Obrazy przycisku Następny"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagem do botão de próxima"
+            "value": "Imagens do botão de próxima"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagem do botão de seguinte"
+            "value": "Imagens do botão de seguinte"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imaginea butonului Următor"
+            "value": "Imaginile butonului Următor"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Изображение кнопки «Далее»"
+            "value": "Изображения кнопки «Далее»"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obrázok tlačidla Ďalej"
+            "value": "Obrázky tlačidla Ďalej"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nästa-knappens bild"
+            "value": "Nästa-knappens bilder"
           }
         },
         "th": {
@@ -30289,7 +30289,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sonraki düğmesi görseli"
+            "value": "Sonraki düğmesi görselleri"
           }
         },
         "uk": {
@@ -30314,6 +30314,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "下一首按鈕圖片"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.button_pause_image": {
+      "comment": "Theme editor, Transport group: row beside the pause state's two custom image previews, one drawn over dark artwork and one over light; shown with the play images once a custom image replaces the symbols.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изображения на бутона за пауза"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrázky tlačítka pozastavení"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Billeder på pause-knap"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder der Pausetaste"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εικόνες κουμπιού παύσης"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause button images"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes del botón de pausa"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taukopainikkeen kuvat"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images du bouton Pause"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slike gumba za pauzu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szünet gomb képei"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gambar tombol jeda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immagini del pulsante Pausa"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一時停止ボタンの画像"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일시 정지 버튼 이미지"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder på pause-knapp"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbeeldingen pauzeknop"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrazy przycisku wstrzymania"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagens do botão de pausa"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagens do botão de pausa"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imaginile butonului de pauză"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изображения кнопки паузы"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrázky tlačidla pozastavenia"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausknappens bilder"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "รูปภาพปุ่มหยุดพัก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duraklat düğmesi görselleri"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зображення кнопки паузи"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hình ảnh nút tạm dừng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停按钮图片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停按鈕圖片"
           }
         }
       },
@@ -30692,7 +30878,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_play_image": {
-      "comment": "Theme editor, Player group: row beside the play/pause button's two custom image previews, captioned Play and Pause; shown once a custom image replaces the symbols.",
+      "comment": "Theme editor, Transport group: row beside the play state's two custom image previews, one drawn over dark artwork and one over light; shown once a custom image replaces the symbols.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31250,72 +31436,72 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_playlist_image": {
-      "comment": "Theme editor, Player group: row beside the playlist button's custom image preview; shown once a custom image replaces the symbol.",
+      "comment": "Theme editor, Transport group: row beside the playlist button's custom image previews, one drawn over dark artwork and one over light; shown once a custom image replaces the symbol.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Изображение на бутона за плейлиста"
+            "value": "Изображения на бутона за плейлиста"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obrázek tlačítka playlistu"
+            "value": "Obrázky tlačítka playlistu"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Billede på spilleliste-knap"
+            "value": "Billeder på spilleliste-knap"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bild der Wiedergabelisten-Taste"
+            "value": "Bilder der Wiedergabelisten-Taste"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Εικόνα κουμπιού λίστας αναπαραγωγής"
+            "value": "Εικόνες κουμπιού λίστας αναπαραγωγής"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playlist button image"
+            "value": "Playlist button images"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagen del botón de lista de reproducción"
+            "value": "Imágenes del botón de lista de reproducción"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soittolistapainikkeen kuva"
+            "value": "Soittolistapainikkeen kuvat"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image du bouton de liste de lecture"
+            "value": "Images du bouton de liste de lecture"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Slika gumba popisa pjesama"
+            "value": "Slike gumba popisa pjesama"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lejátszási lista gomb képe"
+            "value": "Lejátszási lista gomb képei"
           }
         },
         "id": {
@@ -31327,7 +31513,7 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immagine del pulsante playlist"
+            "value": "Immagini del pulsante playlist"
           }
         },
         "ja": {
@@ -31345,55 +31531,55 @@
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bilde på spilleliste-knapp"
+            "value": "Bilder på spilleliste-knapp"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Afbeelding afspeellijstknop"
+            "value": "Afbeeldingen afspeellijstknop"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obraz przycisku playlisty"
+            "value": "Obrazy przycisku playlisty"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagem do botão da playlist"
+            "value": "Imagens do botão da playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imagem do botão da lista de reprodução"
+            "value": "Imagens do botão da lista de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imaginea butonului playlistului"
+            "value": "Imaginile butonului playlistului"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Изображение кнопки плейлиста"
+            "value": "Изображения кнопки плейлиста"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obrázok tlačidla playlistu"
+            "value": "Obrázky tlačidla playlistu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spellisteknappens bild"
+            "value": "Spellisteknappens bilder"
           }
         },
         "th": {
@@ -31405,7 +31591,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalma listesi düğmesi görseli"
+            "value": "Çalma listesi düğmesi görselleri"
           }
         },
         "uk": {

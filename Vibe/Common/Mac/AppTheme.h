@@ -30,7 +30,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // whatever appearance the window has. single keeps ONE color per field and
 // always uses it, whatever the system or Vibe's own appearance setting says;
 // the window's chrome still follows the appearance, only the theme's colors
-// stop caring.
+// stop caring. The transport buttons' pairs are keyed by the art under them
+// rather than the appearance, so they stay two-sided under either mode.
 #define SETTINGS_VALUE_THEME_MODE_SINGLE                    @"single"
 #define SETTINGS_VALUE_THEME_MODE_DUAL                      @"dual"
 
@@ -114,8 +115,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 // The three transport buttons' glyph colors, alpha included: the picked
 // color is the button's resting color, and its hover and disabled states
-// derive from it by the factory ratios (SymbolButton). Unset draws the
-// factory white at rest strength.
+// derive from it by the factory ratios (SymbolButton). Unset draws white at
+// rest strength over dark artwork and black over light. These pairs are
+// keyed by the art UNDER the buttons, not the appearance, and are the one
+// exception to single mode: both sides stay live under it.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistButton;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlayButton;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorNextButton;
@@ -124,17 +127,26 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorNextButton;
 // (the default) is the slot's factory image; "custom:<sha1>.<ext>" an image
 // the user picked, copied into the app container; "bundled:<name>.<ext>" an
 // image a built-in theme ships in Resources/Themes/. One shape, one store,
-// one archive form for all seven: the no-artwork placeholder pair, the app
-// icon, and the transport buttons' custom images (the play button has one
-// per state). The keys are the accessor names of the record and are
+// one archive form for all eleven: the no-artwork placeholder pair, the app
+// icon, and the transport buttons' custom image pairs (the play button has
+// a pair per state). The keys are the accessor names of the record and are
 // persisted; never renamed.
 FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkDark;
 FOUNDATION_EXPORT NSString *const kVibeThemeImageDefaultArtworkLight;
 FOUNDATION_EXPORT NSString *const kVibeThemeImageAppIcon;
-FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButton;
-FOUNDATION_EXPORT NSString *const kVibeThemeImagePlayButton;
-FOUNDATION_EXPORT NSString *const kVibeThemeImagePauseButton;
-FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButton;
+// A transport button's images come as a pair like its colors — Dark over
+// dark artwork, Light over light — and, like its colors, the pair is keyed
+// by the art under the buttons rather than the appearance, so it never
+// collapses under single mode. An unset side draws the other side's image
+// before falling back to the glyph, so one picked image dresses both.
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButtonDark;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlaylistButtonLight;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlayButtonDark;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePlayButtonLight;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePauseButtonDark;
+FOUNDATION_EXPORT NSString *const kVibeThemeImagePauseButtonLight;
+FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonDark;
+FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 
 @interface AppTheme : NSObject
 

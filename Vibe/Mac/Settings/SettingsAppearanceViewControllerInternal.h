@@ -75,11 +75,12 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
     NSMutableDictionary<NSString *, NSButton *> *_imageClearBadges;
     NSMutableDictionary<NSString *, NSImageView *> *_imageMissingBadges;
-    // The transport buttons' rows by the button's image key: the glyph popup,
-    // and the color and image rows that swap on whether an image is set.
+    // The transport buttons' rows by the button's dark image key: the glyph
+    // popup, and the color row and image rows that swap on whether an image
+    // is set (the play button has an image row per state).
     NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
-    NSMutableDictionary<NSString *, SettingsRowView *> *_buttonImageRows;
+    NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
     NSSwitch *_playlistDurationSwitch;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;

@@ -793,12 +793,17 @@ static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
     return [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] ? glyph : factory;
 }
 
-// One button's whole themed look: its custom image if the slot names one,
-// else its glyph, and the resting color the states derive from.
-static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
+// One button's whole themed look: its custom image for the art under it —
+// the other side's image when that side is unset, so one picked image
+// dresses both — else its glyph, and the resting color the states derive
+// from.
+static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme,
+                               NSString *darkImageKey, NSString *lightImageKey,
                                NSString *glyph, NSString *factoryGlyph,
                                NSString *colorBase, BOOL dark) {
-    button.image = [theme customImageForKey:imageKey];
+    NSString *firstKey = dark ? darkImageKey : lightImageKey;
+    NSString *otherKey = dark ? lightImageKey : darkImageKey;
+    button.image = [theme customImageForKey:firstKey] ?: [theme customImageForKey:otherKey];
     button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
@@ -813,10 +818,12 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
 - (void)applyThemedTransportButtons {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL dark = self.transportBackdropIsDark;
-    ApplyThemeToButton(_playlistToggleButton, theme, kVibeThemeImagePlaylistButton,
+    ApplyThemeToButton(_playlistToggleButton, theme,
+                       kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight,
                        theme.playlistButtonGlyph, kVibeThemePlaylistButtonGlyphDefault,
                        kVibeThemeColorPlaylistButton, dark);
-    ApplyThemeToButton(_nextButton, theme, kVibeThemeImageNextButton,
+    ApplyThemeToButton(_nextButton, theme,
+                       kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight,
                        theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
                        kVibeThemeColorNextButton, dark);
     [self setPlayButtonShowsPause:_playShowsPause];
@@ -839,7 +846,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     _playShowsPause = showsPause;
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     ApplyThemeToButton(_playButton, theme,
-                       showsPause ? kVibeThemeImagePauseButton : kVibeThemeImagePlayButton,
+                       showsPause ? kVibeThemeImagePauseButtonDark : kVibeThemeImagePlayButtonDark,
+                       showsPause ? kVibeThemeImagePauseButtonLight : kVibeThemeImagePlayButtonLight,
                        showsPause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
                        showsPause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
                        kVibeThemeColorPlayButton, self.transportBackdropIsDark);
