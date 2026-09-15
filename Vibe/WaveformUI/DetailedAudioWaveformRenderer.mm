@@ -54,14 +54,14 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     CGFloat pitch = (size.width - stroke) / count;
     CGFloat radiusX = pitch / 4;
     const CGFloat kCircleControl = 0.5522847498;
-    CGFloat bottom = baseline - (centered ? clampRange(samples[1], 0, 1) * amplitude : 0);
+    CGFloat bottom = baseline;
     CGPathMoveToPoint(line, NULL, stroke / 2, bottom);
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat x = stroke / 2 + i * pitch;
         CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
         CGFloat top = baseline + height;
-        CGFloat nextBottom = baseline - (centered
-                ? clampRange(samples[MIN(i + 1, count - 1) * 2 + 1], 0, 1) * amplitude : 0);
+        CGFloat nextBottom = baseline - (centered && i + 1 < count
+                ? clampRange(samples[(i + 1) * 2 + 1], 0, 1) * amplitude : 0);
         CGFloat radiusY = MIN(radiusX, (top - bottom) / 2);
         CGFloat cx = radiusX * kCircleControl, cy = radiusY * kCircleControl;
         CGPathAddCurveToPoint(line, NULL, x + cx, bottom,
