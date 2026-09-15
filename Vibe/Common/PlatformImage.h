@@ -57,4 +57,12 @@ FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
 // UIImage itself (UIImage+DominantColor).
 FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
+// Whether the bottom `fraction` of the image reads as dark — the mean
+// relative luminance of that band under the midpoint — so a control drawn
+// over it can pick its light or dark color from the picture rather than from
+// the appearance. Same fixed 32x32 downsample as the dominant color. YES for
+// an image that cannot be rasterized, which is the safer of the two guesses
+// for light controls.
+FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction);
+
 NS_ASSUME_NONNULL_END

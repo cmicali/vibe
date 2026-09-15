@@ -38,6 +38,12 @@
     if (effects & VibeSettingsLiveEffectTrafficLights) {
         [self applyTrafficLights];
     }
+    if (effects & VibeSettingsLiveEffectAppIcon) {
+        [self applyAppIcon];
+    }
+    if (effects & VibeSettingsLiveEffectTransportButtons) {
+        [self.playerContentView applyThemedTransportButtons];
+    }
     if (effects & VibeSettingsLiveEffectPitchRange) {
         [self applyPitchRange];
     }

@@ -632,6 +632,7 @@ targets:
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
+      - path: Vibe/Util/Mac/NSView+DarkMode.m  # AppTheme's dynamic colors resolve through its appearance fold
       - path: Vibe/WaveformUI/WaveformTheme.m
     settings:
       base:

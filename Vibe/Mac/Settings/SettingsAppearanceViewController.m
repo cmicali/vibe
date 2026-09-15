@@ -179,16 +179,69 @@ static const double kWaveformGainDetentDB = 0.75;
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
     }
-    // The editor page retitles the window the way a pane switch would: the
-    // pane sets only its own title, and updateThemeNavigation below re-pushes
-    // the pane-title chain (the host owns the container nesting). The sidebar
-    // label reads the tab ITEM, so it keeps saying Appearance.
-    NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
-    self.title = _editorShown
-            ? ([AppSettings.sharedInstance displayNameForThemeIdentifier:active]
-                    ?: STR_MENU_VIEW_APPEARANCE)
-            : STR_MENU_VIEW_APPEARANCE;
+    [self applyEditorTitle];
+}
+
+// The editor page retitles the window the way a pane switch would: the pane
+// sets only its own title, and updateThemeNavigation re-pushes the
+// pane-title chain (the host owns the container nesting). The sidebar label
+// reads the tab ITEM, so it keeps saying Appearance. While the Name field is
+// being edited the title follows the keystrokes; the stored name — deduped
+// or fallback-named on commit — takes over when editing ends.
+- (void)applyEditorTitle {
+    NSString *name = nil;
+    if (_editorShown) {
+        NSString *typed = _nameField.currentEditor ? _nameField.stringValue : nil;
+        name = typed.length ? typed : [AppSettings.sharedInstance
+                displayNameForThemeIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+    }
+    self.title = name ? [NSString stringWithFormat:STR_SETTINGS_THEME_EDITOR_TITLE, name]
+                      : STR_MENU_VIEW_APPEARANCE;
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
+}
+
+- (BOOL)canRandomize {
+    return _editorShown
+            && ![AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+}
+
+// A roll is one edit of the whole theme, so it rides ThemeApply like a
+// theme switch, then the page re-reads every control.
+- (void)randomizeThemeSettings {
+    if (!self.canRandomize) {
+        return;
+    }
+    [AppSettings.sharedInstance.currentTheme
+            randomizeSettingsWithWaveformStyles:[WaveformRendererRegistry availableIdentifiers]];
+    [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (void)randomizeThemeColors {
+    if (!self.canRandomize) {
+        return;
+    }
+    [AppSettings.sharedInstance.currentTheme randomizeColors];
+    [self themeFieldDidChange:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+#pragma mark - Undo
+
+// The stack is the store's (AppSettings.canUndoThemeEdit), pushed by the
+// same funnel every edit persists through; the page only decides when the
+// arrow is live and applies the restored theme whole.
+- (BOOL)canUndoEdit {
+    return self.canRandomize && AppSettings.sharedInstance.canUndoThemeEdit;
+}
+
+- (void)undoEdit {
+    if (!self.canUndoEdit) {
+        return;
+    }
+    [AppSettings.sharedInstance undoThemeEdit];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
 }
 
 - (BOOL)canGoBack {
@@ -287,10 +340,20 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 // The pane's themed rows all funnel here after writing their currentTheme
-// field: persist the working record, then request the row's live effect.
+// field: persist the working record, then request the row's live effect. A
+// continuous control's tick — the corner-radius slider, a color well
+// tracking its panel — says so, and the store folds the gesture into one
+// undo entry.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect {
-    [AppSettings.sharedInstance currentThemeDidChange];
+    [self themeFieldDidChange:effect continuous:NO];
+}
+
+- (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
+    [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
     [self.playerController applySettingsLiveEffects:effect];
+    // The undo arrow follows the stack this edit just pushed onto — the
+    // toolbar alone, so a drag's ticks never re-read the page under it.
+    [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
 #pragma mark - Waveform style, on both pages
@@ -613,22 +676,22 @@ static const double kWaveformGainDetentDB = 0.75;
         return;
     }
     NSString *name = [AppSettings.sharedInstance displayNameForThemeIdentifier:selected] ?: selected;
-    // A default-artwork image travels beside the JSON, so those themes export
-    // as a ZIP; everything else stays a plain JSON file. WHICH it is comes from
-    // the record's own references, because the images themselves are read only
-    // once the user has confirmed the save — a theme's artwork runs to
-    // megabytes, and a cancelled panel must not have paid for it.
+    // An image — the placeholder, the app icon, a button's — travels beside
+    // the JSON, so those themes export as a ZIP; everything else stays a plain
+    // JSON file. WHICH it is comes from the record's own references, because
+    // the images themselves are read only once the user has confirmed the
+    // save — a theme's images run to megabytes, and a cancelled panel must
+    // not have paid for them.
     NSDictionary *record = [AppSettings.sharedInstance recordForThemeIdentifier:selected];
-    AppTheme *exported = [[AppTheme alloc] initWithRecord:record];
-    BOOL carriesArtwork = NO;
-    for (NSNumber *dark in @[@YES, @NO]) {
-        NSString *art = [exported defaultArtworkForDark:dark.boolValue];
-        carriesArtwork = carriesArtwork ||
-                (art.length > 0 && ![AppTheme defaultArtworkIsMissing:art]);
+    BOOL carriesImages = NO;
+    for (NSString *key in AppTheme.imageFieldKeys) {
+        NSString *reference = [record[key] isKindOfClass:NSString.class] ? record[key] : nil;
+        carriesImages = carriesImages ||
+                (reference.length > 0 && ![AppTheme referenceIsMissing:reference]);
     }
-    NSString *extension = carriesArtwork ? @"zip" : @"json";
+    NSString *extension = carriesImages ? @"zip" : @"json";
     NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.allowedContentTypes = @[carriesArtwork ? UTTypeZIP : UTTypeJSON];
+    panel.allowedContentTypes = @[carriesImages ? UTTypeZIP : UTTypeJSON];
     panel.nameFieldStringValue = [name stringByAppendingPathExtension:extension]
             ?: [@"theme" stringByAppendingPathExtension:extension];
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
@@ -636,9 +699,9 @@ static const double kWaveformGainDetentDB = 0.75;
             return;
         }
         // The archive can still come back nil — an image deleted while the
-        // panel was up — and the theme is worth more than its artwork, so the
+        // panel was up — and the theme is worth more than its images, so the
         // JSON goes out rather than nothing.
-        NSData *payload = carriesArtwork ? [AppTheme archiveDataForRecord:record name:name] : nil;
+        NSData *payload = carriesImages ? [AppTheme archiveDataForRecord:record name:name] : nil;
         payload = payload ?: [AppTheme JSONDataForRecord:record name:name];
         NSError *error = nil;
         if (payload && [payload writeToURL:panel.URL options:NSDataWritingAtomic error:&error]) {

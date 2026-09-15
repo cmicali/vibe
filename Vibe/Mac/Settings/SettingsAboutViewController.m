@@ -28,6 +28,9 @@ static const CGFloat kAboutIconSize = 96;
 @end
 
 @implementation SettingsAboutViewController {
+    // Re-read on every refresh: a theme's custom app icon lands in
+    // NSApp.applicationIconImage while this pane may already be built.
+    NSButton *_iconButton;
     NSTextField *_filesOpenedValue;
     NSTextField *_foldersOpenedValue;
     NSTextField *_audioPlayedValue;
@@ -74,6 +77,7 @@ static const CGFloat kAboutIconSize = 96;
     icon.imageScaling = NSImageScaleProportionallyUpOrDown;
     icon.accessibilityLabel = [NSString stringWithFormat:STR_MENU_APP_ABOUT, VibeAppName()];
     icon.translatesAutoresizingMaskIntoConstraints = NO;
+    _iconButton = icon;
     [NSLayoutConstraint activateConstraints:@[
         [icon.widthAnchor constraintEqualToConstant:kAboutIconSize],
         [icon.heightAnchor constraintEqualToConstant:kAboutIconSize],
@@ -117,6 +121,7 @@ static const CGFloat kAboutIconSize = 96;
 }
 
 - (void)refreshFromSettings {
+    _iconButton.image = NSApp.applicationIconImage;
     AppStats *stats = AppStats.sharedInstance;
     Formatters *formatters = Formatters.sharedInstance;
     _filesOpenedValue.stringValue = [formatters countString:stats.totalFilesOpened];

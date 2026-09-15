@@ -65,6 +65,11 @@ NS_ASSUME_NONNULL_BEGIN
 // hover fade. Same two callers, so the setting is read in one place.
 - (void)applyTrafficLights;
 
+// Pushes the theme's app icon — the bundle's, or its custom image — into the
+// application and re-decides the Dock tile from the theme's dockIcon choice.
+// Used at construction and by the AppIcon live effect.
+- (void)applyAppIcon;
+
 // The themed window shape and background — the WindowChrome live effect's
 // whole body. applyWindowBackground alone is the appearance-flip half: the
 // overlay's color pair resolves per appearance and its layer color is not

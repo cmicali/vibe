@@ -27,6 +27,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
     NSTabViewController *_tabs;
     NSSegmentedControl *_navigationControl;
     NSSegmentedControl *_appearanceToggle;
+    NSSegmentedControl *_randomizeControl;
 }
 @end
 
@@ -499,15 +500,17 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 
 static NSToolbarItemIdentifier const kThemeNavigationItemIdentifier = @"theme_navigation";
 static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appearance_toggle";
+static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomize";
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
-             NSToolbarFlexibleSpaceItemIdentifier, kAppearanceToggleItemIdentifier];
+             NSToolbarFlexibleSpaceItemIdentifier, kRandomizeItemIdentifier,
+             kAppearanceToggleItemIdentifier];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    // The appearance toggle is deliberately absent: it exists only while the
-    // Appearance pane is selected, inserted and removed by
+    // The dice and the appearance toggle are deliberately absent: they exist
+    // only while the Appearance pane is selected, inserted and removed by
     // updateThemeNavigation.
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kThemeNavigationItemIdentifier,
              NSToolbarFlexibleSpaceItemIdentifier];
@@ -515,6 +518,30 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
+    if ([itemIdentifier isEqualToString:kRandomizeItemIdentifier]) {
+        // The theme editor's dice, beside the preview toggle: the die rolls
+        // the settings, the palette the colors, and the arrow undoes the
+        // last edit — the pane's own model, as everything in this toolbar
+        // is. Enabled only on the editor page over a user theme
+        // (updateThemeNavigation).
+        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
+                [NSImage imageWithSystemSymbolName:@"dice"
+                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS],
+                [NSImage imageWithSystemSymbolName:@"paintpalette"
+                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS],
+                [NSImage imageWithSystemSymbolName:@"arrow.uturn.backward"
+                          accessibilityDescription:STR_MENU_EDIT_UNDO]]
+                trackingMode:NSSegmentSwitchTrackingMomentary
+                      target:self action:@selector(randomizeTheme:)];
+        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS forSegment:0];
+        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_COLORS forSegment:1];
+        [control setToolTip:STR_MENU_EDIT_UNDO forSegment:2];
+        _randomizeControl = control;
+        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.view = control;
+        item.label = STR_SETTINGS_THEME_RANDOMIZE;
+        return item;
+    }
     if ([itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier]) {
         // The Appearance pane's fast light/dark preview, trailing in the
         // titlebar: a dual-mode theme keeps a palette per appearance, and
@@ -601,22 +628,27 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
     }
     [_navigationControl setEnabled:(selected && pane.canGoBack) forSegment:0];
     [_navigationControl setEnabled:(selected && pane.canGoForward) forSegment:1];
-    // The toggle exists only on this pane — both its pages — and is inserted
-    // and removed rather than hidden, which reaches every macOS the app runs
-    // on; NSToolbarItem.hidden needs macOS 15. The delegate also vends
-    // non-inserted copies during allowed-item enumeration, so a stored item
-    // reference is not reliably the one on screen.
+    // The dice and the toggle exist only on this pane — both its pages — and
+    // are inserted and removed rather than hidden, which reaches every macOS
+    // the app runs on; NSToolbarItem.hidden needs macOS 15. The delegate also
+    // vends non-inserted copies during allowed-item enumeration, so a stored
+    // item reference is not reliably the one on screen. Trailing, dice first.
     NSToolbar *toolbar = self.window.toolbar;
-    NSUInteger index = [toolbar.items indexOfObjectPassingTest:
-            ^BOOL(NSToolbarItem *item, NSUInteger i, BOOL *stop) {
-        return [item.itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier];
-    }];
-    if (selected && index == NSNotFound) {
-        [toolbar insertItemWithItemIdentifier:kAppearanceToggleItemIdentifier
-                                      atIndex:(NSInteger)toolbar.items.count];
-    } else if (!selected && index != NSNotFound) {
-        [toolbar removeItemAtIndex:(NSInteger)index];
+    for (NSToolbarItemIdentifier identifier in @[kRandomizeItemIdentifier, kAppearanceToggleItemIdentifier]) {
+        NSUInteger index = [toolbar.items indexOfObjectPassingTest:
+                ^BOOL(NSToolbarItem *item, NSUInteger i, BOOL *stop) {
+            return [item.itemIdentifier isEqualToString:identifier];
+        }];
+        if (selected && index == NSNotFound) {
+            [toolbar insertItemWithItemIdentifier:identifier atIndex:(NSInteger)toolbar.items.count];
+        } else if (!selected && index != NSNotFound) {
+            [toolbar removeItemAtIndex:(NSInteger)index];
+        }
     }
+    BOOL canRandomize = selected && pane.canRandomize;
+    [_randomizeControl setEnabled:canRandomize forSegment:0];
+    [_randomizeControl setEnabled:canRandomize forSegment:1];
+    [_randomizeControl setEnabled:(selected && pane.canUndoEdit) forSegment:2];
     // windowAppearance owns the style-to-appearance ladder, preview and a
     // single-mode theme's pin folded in; its nil (Auto) shows the side the
     // system is on right now.
@@ -630,6 +662,15 @@ static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appeara
 // the toolbar does.
 - (void)toggleAppearancePreview:(id)sender {
     [[self appearancePane] previewAppearanceDark:(_appearanceToggle.selectedSegment == 1)];
+}
+
+- (void)randomizeTheme:(NSSegmentedControl *)sender {
+    SettingsAppearanceViewController *pane = [self appearancePane];
+    switch (sender.selectedSegment) {
+        case 0: [pane randomizeThemeSettings]; break;
+        case 1: [pane randomizeThemeColors]; break;
+        default: [pane undoEdit]; break;
+    }
 }
 
 - (void)navigateThemeEditor:(NSSegmentedControl *)sender {

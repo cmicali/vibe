@@ -113,7 +113,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)resetMacThemeState {
     _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
-    [self sweepUnreferencedThemeArtwork];
+    [self sweepUnreferencedThemeImages];
 }
 
 - (void)macApplicationDidFinishLaunching {
@@ -313,12 +313,18 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
+    [_themeUndoStack removeAllObjects];
+    _themeUndoChangedKeys = nil;
     // Dropping the divergence record can drop the last reference to a custom
     // image picked while a built-in was active.
-    [self sweepUnreferencedThemeArtwork];
+    [self sweepUnreferencedThemeImages];
 }
 
 - (void)currentThemeDidChange {
+    [self currentThemeDidChangeContinuous:NO];
+}
+
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous {
     if (!_currentTheme) {
         return;
     }
@@ -331,6 +337,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     // and a color drag, which changes no reference, never lists the
     // container.
     NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    // The stored entry this write replaces — nil for a built-in — is what
+    // undo puts back, name included.
+    NSDictionary *replaced = [self storedUserThemeWithIdentifier:active];
     if ([AppTheme isBuiltInIdentifier:active]) {
         previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
         // A built-in stays pristine; the working record carries the
@@ -354,9 +363,13 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     }
-    if (![[AppTheme customArtworkFilesInRecord:previous]
-            isEqualToSet:[AppTheme customArtworkFilesInRecord:record]]) {
-        [self sweepUnreferencedThemeArtwork];
+    if (replaced && !_themeUndoRestoring) {
+        [self pushThemeUndoEntry:replaced replacedBy:[self storedUserThemeWithIdentifier:active]
+                      continuous:continuous];
+    }
+    if (![[AppTheme customImageFilesInRecord:previous]
+            isEqualToSet:[AppTheme customImageFilesInRecord:record]]) {
+        [self sweepUnreferencedThemeImages];
     }
 }
 
@@ -398,17 +411,17 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         // nothing, the removed theme itself included.
         [self applyThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
     } else {
-        [self sweepUnreferencedThemeArtwork];
+        [self sweepUnreferencedThemeImages];
     }
 }
 
-// Deletes every stored custom placeholder image no record names any more.
+// Deletes every stored custom image no record names any more.
 // The files are content-hash-named and shared by reference
-// (AppTheme.storeCustomArtworkData:), so each store write that can drop the
+// (AppTheme.storeCustomImageData:), so each store write that can drop the
 // last reference — the field funnel when its artwork keys move, a theme
 // removal, a theme apply (it drops the divergence record), a factory reset —
 // runs this after its write.
-- (void)sweepUnreferencedThemeArtwork {
+- (void)sweepUnreferencedThemeImages {
     NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
     for (NSString *identifier in [self orderedThemeIdentifiers]) {
         [records addObject:[self recordForThemeIdentifier:identifier]];
@@ -422,7 +435,66 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     if (diverged) {
         [records addObject:diverged];
     }
-    [AppTheme removeCustomArtworkFilesUnreferencedByRecords:records];
+    // The editor's undo stack: a record there can put a cleared image back.
+    [records addObjectsFromArray:_themeUndoStack];
+    [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
+}
+
+// The stored entry an edit replaced — its fields and its name — goes on the
+// stack, unless nothing changed, or this is a continuous gesture's tick
+// moving the same keys within two seconds of the last push, whose first
+// tick already pushed the entry before it. Time alone cannot tell a drag
+// from two quick menu picks of one field, which are two edits; the writer
+// says which it is.
+- (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record
+                continuous:(BOOL)continuous {
+    if ([before isEqualToDictionary:record]) {
+        return;
+    }
+    NSMutableSet<NSString *> *changed = [NSMutableSet set];
+    for (NSString *key in [[NSSet setWithArray:before.allKeys] setByAddingObjectsFromArray:record.allKeys]) {
+        if (![before[key] isEqual:record[key]]) {
+            [changed addObject:key];
+        }
+    }
+    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
+    if (continuous && _themeUndoChangedKeys && [changed isEqualToSet:_themeUndoChangedKeys]
+            && now - _themeUndoPushTime < 2) {
+        _themeUndoPushTime = now;
+        return;
+    }
+    if (!_themeUndoStack) {
+        _themeUndoStack = [NSMutableArray array];
+    }
+    [_themeUndoStack addObject:before];
+    if (_themeUndoStack.count > 50) {
+        [_themeUndoStack removeObjectAtIndex:0];
+    }
+    _themeUndoChangedKeys = changed;
+    _themeUndoPushTime = now;
+}
+
+- (BOOL)canUndoThemeEdit {
+    return _themeUndoStack.count > 0;
+}
+
+- (void)undoThemeEdit {
+    NSDictionary *entry = _themeUndoStack.lastObject;
+    if (!entry) {
+        return;
+    }
+    [_themeUndoStack removeLastObject];
+    // The restore is not itself an edit, and the next edit starts a fresh
+    // entry rather than coalescing onto the one just popped. The name goes
+    // back through the rename path, which keeps its validation; the fields
+    // through the working record, which reads only the keys it knows.
+    _themeUndoChangedKeys = nil;
+    _themeUndoRestoring = YES;
+    [self renameUserThemeWithIdentifier:self.activeThemeIdentifier
+                                 toName:entry[kVibeThemeRecordNameKey]];
+    [self.currentTheme replaceWithRecord:entry];
+    [self currentThemeDidChange];
+    _themeUndoRestoring = NO;
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {
@@ -439,10 +511,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         NSString *deduped = [AppTheme dedupedThemeName:name
                                               fallback:STR_THEME_NAME_CUSTOM
                                          existingNames:otherNames];
-        NSMutableDictionary *entry = [themes[i] mutableCopy];
+        NSDictionary *replaced = themes[i];
+        NSMutableDictionary *entry = [replaced mutableCopy];
         entry[kVibeThemeRecordNameKey] = deduped;
         themes[i] = entry;
         [self persistUserThemes:themes];
+        // A committed rename of the theme being edited is an edit of it.
+        if ([identifier isEqualToString:self.activeThemeIdentifier] && !_themeUndoRestoring) {
+            [self pushThemeUndoEntry:replaced replacedBy:entry continuous:NO];
+        }
         return;
     }
 }

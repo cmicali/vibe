@@ -66,13 +66,27 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSSwitch *_waveformGradientSwitch;
     NSSwitch *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
-    NSButton *_artDarkPreviewButton;
-    NSButton *_artDarkClearButton;
-    NSImageView *_artDarkMissingBadge;
-    NSButton *_artLightPreviewButton;
-    NSButton *_artLightClearButton;
-    NSImageView *_artLightMissingBadge;
+    NSPopUpButton *_dockIconPopUp;
+    NSSwitch *_appIconShapeSwitch;
+    NSSwitch *_customCornerRadiusSwitch;
+    NSSwitch *_buttonGradientSwitch;
+    // The image fields' preview clusters by field key (kVibeThemeImage*): the
+    // preview button, its hover-revealed clear badge and its missing badge.
+    // One builder, one refresh loop and one hover handler serve all seven.
+    NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
+    NSMutableDictionary<NSString *, NSButton *> *_imageClearBadges;
+    NSMutableDictionary<NSString *, NSImageView *> *_imageMissingBadges;
+    // The transport buttons' rows by the button's dark image key: the glyph
+    // popup, and the color row and image rows that swap on whether an image
+    // is set (the play button has an image row per state).
+    NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
+    NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
+    NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
     NSSwitch *_playlistDurationSwitch;
+    // The playlist columns' text colors by pair base (kVibeThemeColorPlaylist*
+    // text bases): the switch, and the well-pair row it reveals.
+    NSMutableDictionary<NSString *, NSSwitch *> *_playlistColorSwitches;
+    NSMutableDictionary<NSString *, SettingsRowView *> *_playlistColorRows;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
     // Every themed color well → the pair's base key, its side and the effect
@@ -103,9 +117,14 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // with it, because the resolver is the one pass both pages run through.
 - (void)applyEditorVisibility;
 
+// The window title for the page showing: Theme: <name> on the editor — the
+// Name field's live text while it is being edited — Appearance otherwise.
+- (void)applyEditorTitle;
+
 // The pane's themed rows all funnel here after writing their currentTheme
 // field: persist the working record, then request the row's live effect.
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect;
+- (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous;
 
 // The waveform style popup, built once per surface: the editor's Style row
 // and the list page's shortcut are twins, and the shared action re-selects

@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The Appearance pane's editor page: the scrolled stack of themed rows that
-//  swaps in over the theme list, its color wells, the default-artwork pickers
+//  swaps in over the theme list, its color wells, the image pickers
 //  and the font panel. It edits whatever theme is active — the list's
 //  selection IS activation — so nothing is handed over on the page swap; the
 //  class file owns the list page, the swap itself and the theme file actions.

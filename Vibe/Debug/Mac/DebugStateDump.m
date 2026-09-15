@@ -6,6 +6,7 @@
 //
 
 #import "DebugInternal.h"
+#import "PlatformColor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "SettingsRules.h"
@@ -74,6 +75,9 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"fileMetadata": controller.trackDisplay.fileMetadataTextField.stringValue ?: @"",
             @"timeLabelsHidden": @(controller.trackDisplay.currentTimeTextField.isHidden),
             @"playButtonEnabled": @(controller.playButton.isEnabled),
+            // The pair side the transport backdrop picked, as the color it
+            // resolved to — the only outside view of the placeholder sample.
+            @"playButtonColor": VibeHexStringFromColor(controller.playButton.symbolNormalColor) ?: @"",
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
             @"converting": @(controller.fileConverter.isConverting),
@@ -120,7 +124,20 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
             @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
             @"themeCount": @(AppSettings.sharedInstance.orderedThemeIdentifiers.count),
-            @"windowCornerRadius": @(theme.windowCornerRadius),
+            @"windowCornerRadius": @(theme.resolvedWindowCornerRadius),
+            @"customCornerRadius": @(theme.customCornerRadius),
+            @"dockIcon": theme.dockIcon,
+            @"appIconShape": @(theme.appIconShape),
+            @"appIcon": [theme imageReferenceForKey:kVibeThemeImageAppIcon],
+            @"buttonGradient": @(theme.buttonGradient),
+            @"playlistNumberColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistNumber]),
+            @"playlistTitleColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]),
+            @"playlistArtistColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistArtist]),
+            @"playlistDurationColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistDuration]),
+            @"playlistButtonGlyph": theme.playlistButtonGlyph,
+            @"playButtonGlyph": theme.playButtonGlyph,
+            @"pauseButtonGlyph": theme.pauseButtonGlyph,
+            @"nextButtonGlyph": theme.nextButtonGlyph,
             @"windowBackgroundStyle": theme.windowBackgroundStyle,
             @"playlistBackgroundStyle": theme.playlistBackgroundStyle,
             @"titleFont": [NSString stringWithFormat:@"%@ %g",
