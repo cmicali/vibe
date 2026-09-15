@@ -57,6 +57,18 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             "build/DerivedData/Build/Products/${{ matrix.configuration }}/Vibe.app"
 
+      # Keep the optional removal path buildable in the shipping configuration.
+      - name: Build without exclusive output
+        if: matrix.configuration == 'Release'
+        run: |
+          xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
+            -derivedDataPath build/DerivedData VIBE_ENABLE_EXCLUSIVE_OUTPUT=0 build
+          nm build/DerivedData/Build/Products/Release/Vibe.app/Contents/MacOS/Vibe > /tmp/vibe-symbols.txt
+          if grep -Eq 'setHogOwnedByThisProcess|acquireExclusiveOutputOnQueue|releaseExclusiveOutputOnQueue|toggleExclusiveOutput' /tmp/vibe-symbols.txt; then
+            echo 'Exclusive output methods survived the disabled build'
+            exit 1
+          fi
+
   # A job of its own rather than a step on the build matrix: the suite is
   # Debug-only, so hanging it off a two-configuration matrix would either run
   # it twice or run it in a leg where it doesn't belong. Separate also means it

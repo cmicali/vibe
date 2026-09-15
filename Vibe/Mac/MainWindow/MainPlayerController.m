@@ -144,7 +144,8 @@
     self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
     // The mode is wanted from the first play; the saved device binds
     // asynchronously and the report follows it.
-    [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput];
+    [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
+                         exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput];
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];

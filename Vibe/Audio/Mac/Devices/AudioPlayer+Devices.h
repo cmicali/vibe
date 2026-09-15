@@ -85,11 +85,13 @@ NS_ASSUME_NONNULL_BEGIN
 // stream and format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
-// Hog for the bound device, when the mode, an eligible device, no FX graph
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+// Hog for the bound device, when both settings, an eligible device, no FX graph
 // and VibeBitPerfectShouldHog all hold. Idempotent through the HAL read; a
 // rebuild on the device already hogged keeps the hog.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
+#endif
 
 // The prepared device, with a listener on its software volume that
 // republishes on a move; kAudioObjectUnknown forgets it.

@@ -345,20 +345,18 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         [_engine detachNode:oldNode];
     }
 
-    // Leaving a device puts it back and lets it go. A rebuild on the device
-    // already held — the bit-perfect mode toggle, the configuration-change
-    // recovery — keeps its remembered format, its volume watch and its hog:
-    // the device is still ours, and a hog write costs hundreds of
-    // milliseconds, synchronous on this queue.
-    if (_changedFormatDeviceID != kAudioObjectUnknown && _changedFormatDeviceID != deviceID) {
-        [self restoreOutputFormatOnQueue];
+    // Restore and release only after the engine stopped. Restoring a hogged
+    // device's format under a running engine can strand its next start in
+    // CoreAudio (error 35). A same-device recovery keeps the format and hog
+    // while their settings still want them.
+    if (!_bitPerfectWanted || (_preparedDeviceID != kAudioObjectUnknown && _preparedDeviceID != deviceID)) {
+        [self leaveOutputDeviceOnQueue];
     }
-    if (_preparedDeviceID != deviceID) {
-        [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
-    }
-    if (_hoggedDeviceID != deviceID) {
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    else if (!_exclusiveOutputWanted) {
         [self releaseExclusiveOutputOnQueue];
     }
+#endif
 
     if (![self setOutputUnitDevice:deviceID]) {
         [self resetToStoppedStateOnQueue];
@@ -544,13 +542,13 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 #pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
 
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput {
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
     dispatch_async(_queue, ^{
         self->_bitPerfectWanted = bitPerfectOutput;
-        if (!bitPerfectOutput) {
-            [self leaveOutputDeviceOnQueue];   // the device as it was found
-        }
-        else if (self.fx) {
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        self->_exclusiveOutputWanted = exclusiveOutput;
+#endif
+        if (bitPerfectOutput && self.fx) {
             // Inert until relaunch: the graph is not a pass-through, so
             // switching the device for it would be theater.
             [self publishBitPerfectReportOnQueue];
@@ -564,6 +562,14 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             // next settlement prepares and the next engine start hogs.
             [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
         }
+        else if (!bitPerfectOutput) {
+            [self leaveOutputDeviceOnQueue];
+        }
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        else if (!exclusiveOutput) {
+            [self releaseExclusiveOutputOnQueue];
+        }
+#endif
         [self publishBitPerfectReportOnQueue];
     });
 }
@@ -596,7 +602,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     __block BOOL varispeed = NO;
     __block double mixerOutputRate = 0, outputNodeInputRate = 0, outputNodeOutputRate = 0;
     [self runSyncOnQueue:^{
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         hogged = self->_hoggedDeviceID;
+#endif
         owed = self->_changedFormatDeviceID;
         prepared = self->_preparedDeviceID;
         varispeed = (self.varispeed != nil);
@@ -797,6 +805,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
 }
 
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // Read live, as the report reads it: a resume from pause runs no prepare,
 // and the default can have moved during the pause.
 - (void)acquireExclusiveOutputOnQueue {
@@ -805,7 +814,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         return;
     }
     AudioDeviceID deviceID = (AudioDeviceID)device.deviceId;
-    if (!VibeBitPerfectShouldHog(device.transportType, deviceID == [CoreAudioUtil systemDefaultOutputDeviceID])) {
+    if (!VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType,
+                                 deviceID == [CoreAudioUtil systemDefaultOutputDeviceID])) {
         return;
     }
     if (_hoggedDeviceID == deviceID) {
@@ -833,6 +843,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     _hoggedDeviceID = kAudioObjectUnknown;
     [self publishBitPerfectReportOnQueue];
 }
+
+#endif
 
 // The prepared device changes: the old volume listener goes and a new one
 // comes, because the fold reads the volume and the user moves it mid-track.
@@ -868,7 +880,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 - (void)leaveOutputDeviceOnQueue {
     [self restoreOutputFormatOnQueue];
     [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
+#endif
 }
 
 - (void)restoreOutputFormatOnQueue {
@@ -898,7 +912,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     VibeBitPerfectReport report = {0};
     report.enabled = _bitPerfectWanted;
     report.fxGraph = (self.fx != nil);
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     report.exclusive = (_hoggedDeviceID != kAudioObjectUnknown);
+#endif
     AudioDevice *device = [self eligibleRequestedDeviceOnQueue];
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -909,7 +925,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         report.isFloat = VibePhysicalFormatIsFloat(physical);
         report.formatConfirmed = VibePhysicalFormatsEquivalent(physical, _preparedFormat);
         report.systemDefault = (_preparedDeviceID == [CoreAudioUtil systemDefaultOutputDeviceID]);
-        report.hogWanted = VibeBitPerfectShouldHog(device.transportType, report.systemDefault);
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        report.hogWanted = VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType, report.systemDefault);
+#endif
         [CoreAudioUtil readVirtualMainVolume:&report.softwareVolume forDeviceID:_preparedDeviceID];
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
         if (file) {

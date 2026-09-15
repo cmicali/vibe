@@ -94,6 +94,8 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: c17
     GCC_NO_COMMON_BLOCKS: YES
+    # Set to 0 to omit exclusive output controls and CoreAudio hog access.
+    VIBE_ENABLE_EXCLUSIVE_OUTPUT: 1
     # Warnings are errors everywhere: the warning set was audited to zero
     # (2026-08-21) and neither xcodebuild nor the analyze gate would otherwise
     # fail on a compiler warning — the analyze script's filter deliberately
@@ -123,6 +125,7 @@ settings:
       GCC_OPTIMIZATION_LEVEL: 0
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
+        - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
@@ -133,6 +136,7 @@ settings:
       # NDEBUG is used in TagLib
       GCC_PREPROCESSOR_DEFINITIONS:
         - "NDEBUG=1"
+        - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
 

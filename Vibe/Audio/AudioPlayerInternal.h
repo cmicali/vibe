@@ -166,16 +166,19 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     BOOL                    _systemOutputBindRetryScheduled;
 
     // ---- Bit-perfect output, owned by AudioPlayer+Devices.m.
-    // The setting's queue-side intent, carried by setBitPerfectOutput: like
-    // _levelsWanted.
+    // The settings' queue-side intent, delivered together by
+    // setBitPerfectOutput:exclusiveOutput:.
     BOOL                    _bitPerfectWanted;
     // The device configureOutputDeviceOnQueue: is rebinding the engine to,
     // for the duration of that call, else kAudioObjectUnknown. The mode's
     // device is this when set, otherwise the requested id — which the switch
     // commits only after the rebuild, and a failed switch never.
     AudioDeviceID           _rebindDeviceID;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    BOOL                    _exclusiveOutputWanted;
     // The device this process currently hogs, or kAudioObjectUnknown.
     AudioDeviceID           _hoggedDeviceID;
+#endif
     // The one device whose format this run changed and has not yet put back,
     // its first output stream, and the physical format it had before the
     // first change. kAudioObjectUnknown when nothing is owed;

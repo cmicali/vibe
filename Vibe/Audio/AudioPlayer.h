@@ -225,16 +225,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setOutputDevice:(NSInteger)outputDeviceID;
 
 // Bit-perfect output. While on, each track's settlement sets the chosen
-// device to the file's rate and word length, the engine hogs the device while
-// it runs, and the chain is pruned to player node -> mixer -> output: no
-// varispeed is minted. The shell owns the rest of the pruning (no FX, the
+// device to the file's rate and word length, and the chain is pruned to
+// player node -> mixer -> output, without varispeed. The shell owns the
+// rest of the pruning (no FX, the
 // crossfade at the declick minimum, the pitch fader gone) and only ever turns
 // this on for an eligible device — explicitly chosen, on a transport that
 // carries bits unchanged (OutputFormatRules.h). Either direction restores the
 // current track in place, as a device switch onto the same device; off also
 // puts the device's format back and releases the hog. Main thread, like every
 // other transport-facing setter; the work lands on the player queue.
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput;
+// Both preferences land together. Exclusive access is optional and only
+// applies while bit-perfect output is on; the build flag can remove it.
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput;
 
 // Restores any device format this run changed and releases the hog,
 // synchronously on the player queue. The app delegate's

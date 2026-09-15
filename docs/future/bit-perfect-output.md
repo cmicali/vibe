@@ -6,6 +6,8 @@ against, and are kept as the record of what was there; the code as landed is des
 `Vibe/Audio/Mac/Devices/CLAUDE.md`. What follows first is what the spike and the build
 answered, then the plan as it was executed.
 
+**Follow-up:** Exclusive output is now a separate switch below Bit-perfect output, off by default. `VIBE_ENABLE_EXCLUSIVE_OUTPUT=0` removes only exclusive device access and its control; rate/depth matching and graph pruning remain. The original plan below predates this split.
+
 ## The answers (2026-09-15, this Mac, macOS 27.0, Xcode 26 SDK)
 
 - **Q1, the write and the wait.** One `kAudioStreamPropertyPhysicalFormat` write moves the

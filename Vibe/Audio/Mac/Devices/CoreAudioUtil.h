@@ -63,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
                                   queue:(dispatch_queue_t)queue
                             forDeviceID:(AudioDeviceID)deviceID;
 
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value
 // written and TOGGLES ownership — if this process owns it, a set releases it.
 // So this reads first and writes only when the owner has to change, which
@@ -70,6 +71,7 @@ NS_ASSUME_NONNULL_BEGIN
 // return; "owned by this process" is the whole state, so a release while
 // another process holds it is already true.
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID;
+#endif
 
 @end
 

@@ -64,7 +64,7 @@
         // The header's lock and the Settings caption redraw from
         // audioPlayerDidChangeBitPerfectReport: once this lands on the
         // player queue; reading the report here would show the previous one.
-        [self.audioPlayer setBitPerfectOutput:bitPerfect];
+        [self.audioPlayer setBitPerfectOutput:bitPerfect exclusiveOutput:settings.exclusiveOutput];
     }
     if (effects & VibeSettingsLiveEffectUIUpdateRate) {
         [self syncUITimerRate];

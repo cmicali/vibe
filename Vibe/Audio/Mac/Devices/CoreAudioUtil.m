@@ -290,6 +290,7 @@ static const AudioObjectPropertyAddress kVibeVirtualMainVolumeAddress = {
     AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeVirtualMainVolumeAddress, queue, listener);
 }
 
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {
     *owner = -1;
     return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,
@@ -318,5 +319,6 @@ static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {
     }
     return owned ? owner == me : owner != me;
 }
+#endif
 
 @end

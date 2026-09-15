@@ -33,6 +33,7 @@
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_BIT_PERFECT_OUTPUT                  @"AudioPlayer.bitPerfectOutput"
+#define SETTING_EXCLUSIVE_OUTPUT                    @"AudioPlayer.exclusiveOutput"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -100,6 +101,9 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
             SETTING_BIT_PERFECT_OUTPUT:             @(NO),
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            SETTING_EXCLUSIVE_OUTPUT:               @(NO),
+#endif
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
@@ -636,6 +640,20 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 - (void)setBitPerfectOutput:(BOOL)enabled {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_BIT_PERFECT_OUTPUT];
 }
+
+- (BOOL)exclusiveOutput {
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_EXCLUSIVE_OUTPUT];
+#else
+    return NO;
+#endif
+}
+
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+- (void)setExclusiveOutput:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_EXCLUSIVE_OUTPUT];
+}
+#endif
 
 - (BOOL)audioFXAllowed {
     return self.audioFXEnabled && !self.bitPerfectOutput;

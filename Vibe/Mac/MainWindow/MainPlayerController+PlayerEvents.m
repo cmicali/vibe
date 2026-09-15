@@ -364,7 +364,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // right after a setter and expect the new one.
 - (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer {
     [self updateFXIndicators];
-    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshBitPerfectRow];
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshBitPerfectRows];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

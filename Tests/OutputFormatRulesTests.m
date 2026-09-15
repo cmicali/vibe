@@ -288,12 +288,14 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
 }
 
-- (void)testVirtualAndTheSystemDefaultAreNeverHogged {
-    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeVirtual, NO));
-    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeUSB, NO));
-    XCTAssertTrue(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeBuiltIn, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeUSB, YES));
-    XCTAssertFalse(VibeBitPerfectShouldHog(kAudioDeviceTransportTypeBuiltIn, YES));
+- (void)testExclusiveOutputRequiresOptInAndAnEligibleNonDefaultPhysicalDevice {
+    XCTAssertFalse(VibeBitPerfectShouldHog(NO, kAudioDeviceTransportTypeUSB, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBluetooth, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, NO));
+    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, NO));
+    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBuiltIn, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, YES));
+    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBuiltIn, YES));
 }
 
 #pragma mark - The fold
@@ -360,7 +362,7 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(off), VibeBitPerfectStatusOff);
 }
 
-- (void)testAnUnhoggedVirtualDeviceCanStillBeActive {
+- (void)testSharedOutputCanStillBeActive {
     VibeBitPerfectReport r = Perfect();
     r.hogWanted = NO;
     r.exclusive = NO;

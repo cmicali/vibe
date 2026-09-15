@@ -12,7 +12,7 @@
 // deferred at all. Shorter while the device is hogged for bit-perfect output,
 // because until the stop nothing else on the Mac can use it.
 static const NSTimeInterval kEngineIdleStopDelaySeconds = 10.0;
-#if TARGET_OS_OSX
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
 static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
 #endif
 
@@ -28,7 +28,7 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
     _engineIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
-#if TARGET_OS_OSX
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
             [self acquireExclusiveOutputOnQueue]; // bit-perfect: hog rides the running engine
 #endif
             NSError *startError = nil;
@@ -59,7 +59,7 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;
     NSTimeInterval delay = kEngineIdleStopDelaySeconds;
-#if TARGET_OS_OSX
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
     if (_hoggedDeviceID != kAudioObjectUnknown) {
         delay = kEngineIdleStopDelayHoggedSeconds;
     }
@@ -77,7 +77,7 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
         // because the in-flight open's finish path wants a warm engine.
         if (state == VibePlayerStateStopped) {
             [strongSelf->_engine stop];
-#if TARGET_OS_OSX
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
             [strongSelf releaseExclusiveOutputOnQueue];
 #endif
         }
@@ -97,7 +97,7 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
             AVAudioFile *file = strongSelf->_file;
             [node stop];
             [strongSelf->_engine stop];
-#if TARGET_OS_OSX
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
             [strongSelf releaseExclusiveOutputOnQueue];
 #endif
             double sampleRate = file.processingFormat.sampleRate;

@@ -46316,7 +46316,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect": {
-      "comment": "Settings, General pane, Audio group: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file, and the app keeps exclusive use of the device while playing.",
+      "comment": "Settings, General pane, Audio group: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file.",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -46345,7 +46345,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sets the device to each file's sample rate and bit depth, and keeps other apps off it while playing"
+            "value": "Sets the device to each file's sample rate and bit depth"
           }
         }
       },
@@ -46381,7 +46381,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ · %2$@-bit"
+            "value": "%1$@ · %2$@-bit · shared"
           }
         }
       },
@@ -47036,6 +47036,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設音樂播放器："
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output": {
+      "comment": "Settings, General pane: optional exclusive device access beneath Bit-perfect output.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exclusive output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.caption": {
+      "comment": "Settings: exclusive output explanation. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps other apps from using the output device while playing"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.needs_bit_perfect": {
+      "comment": "Settings: why the exclusive output switch is disabled. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on bit-perfect output to enable exclusive output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.needs_device": {
+      "comment": "Settings: exclusive output is unavailable for virtual devices and the system output device. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a physical device other than the system output to enable exclusive output"
           }
         }
       },

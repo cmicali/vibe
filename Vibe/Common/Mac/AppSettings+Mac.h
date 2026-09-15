@@ -273,14 +273,23 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // chain is pruned to the exact one — no FX (this outranks audioFXEnabled at
 // every gate, and the next launch builds no FX graph), no varispeed, the
 // crossfade at the declick minimum, the pitch fader gone — and each track's
-// settlement sets the chosen device to the file's rate and word length and
-// hogs it while the engine runs. The shell only ever turns it on for an
-// eligible device (OutputFormatRules.h): the General pane disables the switch
+// settlement sets the chosen device to the file's rate and word length.
+// The shell only turns it on for an eligible device (OutputFormatRules.h):
+// the General pane disables the switch
 // otherwise, the Output menu grays ineligible devices out while it is on, and
 // the device-vanished fallback turns it off. A writer requests
 // VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade.
 - (BOOL)bitPerfectOutput;
 - (void)setBitPerfectOutput:(BOOL)enabled;
+
+// Optional exclusive access while bit-perfect output is on, default NO.
+// The system output and virtual devices remain shared. Compiled-out builds
+// always read NO, even if an earlier build stored YES. Writers request
+// VibeSettingsLiveEffectBitPerfect; the FX and crossfade choices do not move.
+- (BOOL)exclusiveOutput;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+- (void)setExclusiveOutput:(BOOL)enabled;
+#endif
 
 // The one answer to "do FX exist for the user": audioFXEnabled and not
 // bitPerfectOutput. Every gate reads this — the launch-time graph choice,
