@@ -16,6 +16,8 @@
 
 #if DEBUG
 
+#import <sys/resource.h>
+
 #pragma mark Command table
 
 // The undo and redo verbs. A conversion's file moves settle after the manager
@@ -83,6 +85,24 @@ static NSString *VibeThemeIdentifierMatching(NSString *query) {
         }
     }
     return nil;
+}
+
+static void VibeSetWindowBodyWidth(MainWindow *window, CGFloat bodyPoints) {
+    CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
+    NSRect frame = window.frame;
+    frame.size.width = MAX(window.minSize.width, bodyPoints + panel);
+    NSRect screenRect = window.screen.visibleFrame;
+    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
+        frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
+    }
+    [window setFrame:frame display:YES];
+}
+
+static double VibeProcessCPUSeconds(void) {
+    struct rusage usage = {0};
+    getrusage(RUSAGE_SELF, &usage);
+    return usage.ru_utime.tv_sec + usage.ru_stime.tv_sec
+            + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
 }
 
 // The command set. Dispatch, the unknown-command usage reply and the client's
@@ -366,31 +386,67 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &bodyPoints)) {
                     return VibeErrorJSON(@"usage: set_window_width <body-points>");
                 }
-                // The window is freely resizable and its width comes back from
-                // the frame autosave, so a screenshot run that wants a
-                // reproducible size must set one. The argument is the body
-                // width: the player without the pitch panel's slice, which is
-                // what MainPlayerContentView lays out at and what
-                // kMainWindowContentWidth names. The number therefore means
-                // the same thing whether or not the panel happens to be out.
                 MainWindow *window = (MainWindow *)controller.window;
+                VibeSetWindowBodyWidth(window, bodyPoints);
                 CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
-                NSRect frame = window.frame;
-                // It grows to the right like a resize-handle drag, floored by
-                // the window's own minSize, which already carries the panel,
-                // then is pulled back on screen: a window hanging off the
-                // right edge captures clipped.
-                frame.size.width = MAX(window.minSize.width, bodyPoints + panel);
-                NSRect screenRect = window.screen.visibleFrame;
-                if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
-                    frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
-                }
-                [window setFrame:frame display:YES];
                 return VibeJSONString(@{
                     @"ok": @YES,
                     @"frame": NSStringFromRect(window.frame),
                     @"bodyWidth": @(window.frame.size.width - panel),
                 });
+            }),
+            VibeDebugCmd(@"measure_resize <min-width> <max-width> <frames>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                static BOOL measuring = NO;
+                double minWidth = 0, maxWidth = 0;
+                NSUInteger frames = 0;
+                if (tokens.count != 4 || !VibeParseDouble(tokens[1], &minWidth)
+                        || !VibeParseDouble(tokens[2], &maxWidth)
+                        || !VibeParseNonnegativeInteger(tokens[3], &frames)
+                        || minWidth <= 0 || maxWidth <= minWidth || frames < 30 || frames > 600) {
+                    return VibeErrorJSON(@"usage: measure_resize <min-width> <max-width> <frames 30-600>");
+                }
+                if (measuring) return VibeErrorJSON(@"a resize measurement is already running");
+                measuring = YES;
+                MainWindow *window = (MainWindow *)controller.window;
+                NSRect originalFrame = window.frame;
+                VibeSetWindowBodyWidth(window, minWidth);
+                // Warm the first layout, then measure at display cadence without
+                // a command/response file round-trip on every frame.
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    NSMutableArray<NSNumber *> *durations = [NSMutableArray arrayWithCapacity:frames];
+                    double cpuStart = VibeProcessCPUSeconds();
+                    CFTimeInterval start = CACurrentMediaTime();
+                    __block NSUInteger index = 0;
+                    VibeWorkTallyBegin("resize");
+                    NSTimer *timer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+                        double phase = (double)index / (frames - 1);
+                        double width = minWidth + (maxWidth - minWidth) * (1 - fabs(2 * phase - 1));
+                        CFTimeInterval frameStart = CACurrentMediaTime();
+                        VibeSetWindowBodyWidth(window, width);
+                        [durations addObject:@((CACurrentMediaTime() - frameStart) * 1000)];
+                        if (++index < frames) return;
+                        [timer invalidate];
+                        // Include the final compositor commit and morph tail.
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            double cpu = VibeProcessCPUSeconds() - cpuStart;
+                            double elapsed = CACurrentMediaTime() - start;
+                            NSDictionary *work = VibeWorkTallyEndWindow();
+                            NSArray<NSNumber *> *sorted = [durations sortedArrayUsingSelector:@selector(compare:)];
+                            double total = 0;
+                            for (NSNumber *duration in durations) total += duration.doubleValue;
+                            [window setFrame:originalFrame display:YES];
+                            measuring = NO;
+                            VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                                @"ok": @YES, @"frames": @(frames), @"elapsedSeconds": @(elapsed),
+                                @"cpuSeconds": @(cpu), @"frameMeanMS": @(total / frames),
+                                @"frameP95MS": sorted[(frames - 1) * 95 / 100], @"frameMaxMS": sorted.lastObject,
+                                @"work": work,
+                            }));
+                        });
+                    }];
+                    [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+                });
+                return nil;
             }),
             VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);

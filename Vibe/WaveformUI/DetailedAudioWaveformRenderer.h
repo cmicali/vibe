@@ -12,7 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Wiggle shares the envelope's layers, progress, morph and bitmap bake.
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                       wiggle:(BOOL)wiggle;
+                       wiggle:(BOOL)wiggle centered:(BOOL)centered;
 
 // The subclass hooks. The Oversampling x2, x4 and x8 variants override the
 // count, and Basic overrides the count, geometry and gradient hooks below.

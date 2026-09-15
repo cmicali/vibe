@@ -40,7 +40,7 @@ void VibeWorkTallyAdd(const char *name, uint64_t nanos) {
     os_unfair_lock_unlock(&gTallyLock);
 }
 
-void VibeWorkTallyEndWindow(void) {
+NSDictionary *VibeWorkTallyEndWindow(void) {
     os_unfair_lock_lock(&gTallyLock);
     NSString *label = gLabel;
     NSDictionary *counts = gCounts;
@@ -53,7 +53,7 @@ void VibeWorkTallyEndWindow(void) {
     os_unfair_lock_unlock(&gTallyLock);
 
     if (!counts) {
-        return;
+        return @{};
     }
     // Slowest total first: the ordering the reader wants is "what did this
     // window spend its main thread on", and a pure count sorts to the bottom
@@ -74,6 +74,7 @@ void VibeWorkTallyEndWindow(void) {
     }
     LogInfo(@"[tally] %@ over %.1fms: %@", label, elapsed / 1e6,
             rows.count ? [rows componentsJoinedByString:@", "] : @"(nothing)");
+    return @{@"label": label, @"elapsedNanos": @(elapsed), @"counts": counts, @"nanos": nanos};
 }
 
 #endif

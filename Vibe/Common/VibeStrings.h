@@ -184,7 +184,8 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Waveform styles
 
 #define STR_WAVEFORM_STYLE_BASIC           NSLS(@"waveform.style.basic",           @"Basic",                    @"Waveform style name: the simplest bar rendering.")
-#define STR_WAVEFORM_STYLE_WIGGLE          NSLS(@"waveform.style.wiggle",          @"Wiggle",                   @"Waveform style name: a continuous thin line forming rounded upright loops. Keep the style name Wiggle in every language.")
+#define STR_WAVEFORM_STYLE_WIGGLE          NSLS(@"waveform.style.wiggle",          @"Wiggle MC",                @"Waveform style name: rounded loops on a bottom baseline. Keep the name Wiggle MC in every language.")
+#define STR_WAVEFORM_STYLE_WIGGLE_CENTERED NSLS(@"waveform.style.wiggle_centered", @"Wiggle",                   @"Waveform style name: a continuous rounded line centered vertically around the midline. Keep the name Wiggle in every language.")
 #define STR_WAVEFORM_STYLE_CUPERTINO       NSLS(@"waveform.style.cupertino",       @"Cupertino",                @"Waveform style name: thin bars mirrored about the midline, in the Apple Podcasts style. The city's name — transliterate rather than translate it.")
 #define STR_WAVEFORM_STYLE_CUPERTINO_BASIC NSLS(@"waveform.style.cupertino_basic", @"Cupertino Basic",          @"Waveform style name: a rounded progress pill in the Apple Music style, the plainer of the two Cupertino styles. Transliterate the city's name; render 'Basic' the way the 'Basic' style's name is rendered, so the two read as a pair.")
 #define STR_WAVEFORM_STYLE_DETAILED        NSLS(@"waveform.style.detailed",        @"Detailed",                 @"Waveform style name: a higher-resolution bar rendering.")

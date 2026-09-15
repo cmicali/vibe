@@ -35,9 +35,10 @@ void VibeWorkTallyBeginWindow(const char *label);
 // Callable from any queue.
 void VibeWorkTallyAdd(const char *name, uint64_t nanos);
 
-// Logs the table, slowest total first, and closes the window. A no-op when no
-// window is open, so the tail timer that usually calls it cannot double-log.
-void VibeWorkTallyEndWindow(void);
+// Logs and returns the table (label, elapsedNanos, counts, nanos), then closes
+// the window. Returns an empty dictionary when no window is open, so a tail
+// timer cannot double-log. The command channel can return the same measurements.
+NSDictionary *VibeWorkTallyEndWindow(void);
 
 __END_DECLS
 

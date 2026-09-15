@@ -633,6 +633,8 @@ targets:
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
       - path: Vibe/WaveformUI/WaveformTheme.m
+      - path: Vibe/WaveformUI/WaveformMorphEngine.mm
+      - path: Vibe/Debug/VibeWorkTally.m
     settings:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -669,8 +671,7 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
-          # WaveformZoomMath.h only: header-only, so nothing from the rendering
-          # half is compiled in here.
+          # Waveform math, themes and the host-less morph engine.
           - "$(SRCROOT)/Vibe/WaveformUI"
           - "$(SRCROOT)/Vibe/Debug"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"

@@ -31,13 +31,16 @@ static inline CGFloat VibeBarVScale(CGFloat height) {
 // column never actually reaches full brightness.
 static const CGFloat kHoverHighlightWidth = 1.5;
 
-// One filled stroke path for both the live mask and the settled bitmap.
+static const CGFloat kWiggleStrokeWidth = 1.5;
+
+// Keep the centerline: expanding every curve into a filled outline makes
+// resizing and morph frames pay for a second, much larger path.
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL hasWaveform) CF_RETURNS_RETAINED;
+                                  BOOL hasWaveform, BOOL centered) CF_RETURNS_RETAINED;
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL hasWaveform) {
+                                  BOOL hasWaveform, BOOL centered) {
     CGMutablePathRef line = CGPathCreateMutable();
-    CGFloat stroke = 1.5;
+    CGFloat stroke = kWiggleStrokeWidth;
     CGFloat amplitude = MAX(0, VibeBarVScale(size.height) * 2 - stroke);
     if (count == 0 || size.width <= stroke || amplitude == 0) return line;
     if (!hasWaveform) {
@@ -47,34 +50,38 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
         }
         if (collapsed) return line;
     }
-    CGFloat baseline = size.height / 2 - VibeBarVScale(size.height) + stroke / 2;
+    CGFloat baseline = centered ? size.height / 2
+            : size.height / 2 - VibeBarVScale(size.height) + stroke / 2;
     CGFloat pitch = (size.width - stroke) / count;
     CGFloat radiusX = pitch / 4;
     const CGFloat kCircleControl = 0.5522847498;
-    CGPathMoveToPoint(line, NULL, stroke / 2, baseline);
+    CGFloat bottom = baseline - (centered ? clampRange(samples[1], 0, 1) * amplitude / 2 : 0);
+    CGPathMoveToPoint(line, NULL, stroke / 2, bottom);
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat x = stroke / 2 + i * pitch;
         CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
-        CGFloat top = baseline + height;
-        CGFloat radiusY = MIN(radiusX, height / 2);
+        CGFloat top = baseline + height * (centered ? 0.5 : 1);
+        CGFloat nextBottom = baseline - (centered
+                ? clampRange(samples[MIN(i + 1, count - 1) * 2 + 1], 0, 1) * amplitude / 2 : 0);
+        CGFloat radiusY = MIN(radiusX, (top - bottom) / 2);
         CGFloat cx = radiusX * kCircleControl, cy = radiusY * kCircleControl;
-        CGPathAddCurveToPoint(line, NULL, x + cx, baseline,
-                             x + radiusX, baseline + radiusY - cy,
-                             x + radiusX, baseline + radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + cx, bottom,
+                             x + radiusX, bottom + radiusY - cy,
+                             x + radiusX, bottom + radiusY);
         CGPathAddLineToPoint(line, NULL, x + radiusX, top - radiusY);
         CGPathAddCurveToPoint(line, NULL, x + radiusX, top - radiusY + cy,
                              x + 2 * radiusX - cx, top, x + 2 * radiusX, top);
+        radiusY = MIN(radiusX, (top - nextBottom) / 2);
+        cy = radiusY * kCircleControl;
         CGPathAddCurveToPoint(line, NULL, x + 2 * radiusX + cx, top,
                              x + 3 * radiusX, top - radiusY + cy,
                              x + 3 * radiusX, top - radiusY);
-        CGPathAddLineToPoint(line, NULL, x + 3 * radiusX, baseline + radiusY);
-        CGPathAddCurveToPoint(line, NULL, x + 3 * radiusX, baseline + radiusY - cy,
-                             x + pitch - cx, baseline, x + pitch, baseline);
+        CGPathAddLineToPoint(line, NULL, x + 3 * radiusX, nextBottom + radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + 3 * radiusX, nextBottom + radiusY - cy,
+                             x + pitch - cx, nextBottom, x + pitch, nextBottom);
+        bottom = nextBottom;
     }
-    CGPathRef path = CGPathCreateCopyByStrokingPath(line, NULL, stroke,
-                                                 kCGLineCapRound, kCGLineJoinRound, 0);
-    CGPathRelease(line);
-    return path;
+    return line;
 }
 
 // Detailed's fillEnvelope:, one sampling for the live target fill and the
@@ -127,6 +134,7 @@ static inline void VibeEnergyScaledEnvelope(AudioWaveform *waveform, NSUInteger 
 
 @implementation DetailedAudioWaveformRenderer {
     BOOL _wiggle;
+    BOOL _wiggleCentered;
     // One bar-shaped mask clips the whole gradient stack. Masking the two
     // gradients separately would rasterize the identical bar path twice per
     // morph frame, a full-view alpha pass each, and ship the 4,096-element
@@ -197,17 +205,18 @@ static const NSUInteger kDetailedMaxBars = 8192;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
-    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO];
+    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO centered:NO];
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                       wiggle:(BOOL)wiggle {
+                       wiggle:(BOOL)wiggle centered:(BOOL)centered {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
         _wiggle = wiggle;
+        _wiggleCentered = centered;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
-                initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height) * (wiggle ? 2 : 1); }
+                initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height) * (wiggle && !centered ? 2 : 1); }
                        rebuild:^{ [weakSelf rebuildMaskPaths]; }];
         _morph.samplesPerBar = 2; // interleaved [min, max] per bar
         [self setupGradientLayers];
@@ -231,7 +240,13 @@ static const NSUInteger kDetailedMaxBars = 8192;
     _waveformContainer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null]};
     _waveformContainer.contentsScale = scale;
     _barMask = [CAShapeLayer layer];
-    _barMask.fillColor = [VibeColor whiteColor].CGColor;
+    _barMask.fillColor = _wiggle ? nil : [VibeColor whiteColor].CGColor;
+    if (_wiggle) {
+        _barMask.strokeColor = [VibeColor whiteColor].CGColor;
+        _barMask.lineWidth = kWiggleStrokeWidth;
+        _barMask.lineCap = kCALineCapRound;
+        _barMask.lineJoin = kCALineJoinRound;
+    }
     _barMask.contentsScale = scale;
     _waveformContainer.mask = _barMask;
     [self.parentLayer addSublayer:_waveformContainer];
@@ -450,7 +465,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     VibeSignpostBegin(waveform_path);
     CGPathRef path;
     if (_wiggle) {
-        path = VibeNewWigglePath(_morph.size, samples.data(), count, _morph.barMinHeight > 0);
+        path = VibeNewWigglePath(_morph.size, samples.data(), count, _morph.barMinHeight > 0, _wiggleCentered);
     } else {
         CGSize maskSize = _morph.size;
         CGFloat width = maskSize.width;
@@ -529,10 +544,16 @@ static const NSUInteger kDetailedMaxBars = 8192;
     CGContextScaleCTM(ctx, scale, scale);
 
     if (_wiggle) {
-        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, YES);
+        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, YES, _wiggleCentered);
         CGContextAddPath(ctx, path);
-        CGContextClip(ctx);
+        CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
+        CGContextSetLineWidth(ctx, kWiggleStrokeWidth);
+        CGContextSetLineCap(ctx, kCGLineCapRound);
+        CGContextSetLineJoin(ctx, kCGLineJoinRound);
+        CGContextStrokePath(ctx);
         CGPathRelease(path);
+        // The gradient colors the stroke's coverage, including antialiasing.
+        CGContextSetBlendMode(ctx, kCGBlendModeSourceIn);
     } else {
         // rebuildMaskPaths' settled branch: pixel-rounded bar edges and the
         // 1-point hairline floor a loaded waveform draws with.

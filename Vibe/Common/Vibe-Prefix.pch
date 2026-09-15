@@ -138,7 +138,7 @@ static inline uint64_t VibeMonotonicNanos(void) {
 __BEGIN_DECLS
 extern void VibeWorkTallyAdd(const char *name, uint64_t nanos);
 extern void VibeWorkTallyBeginWindow(const char *label);
-extern void VibeWorkTallyEndWindow(void);
+extern NSDictionary *VibeWorkTallyEndWindow(void);
 __END_DECLS
 
 #define VibeWorkTallyBegin(label)  VibeWorkTallyBeginWindow(label)

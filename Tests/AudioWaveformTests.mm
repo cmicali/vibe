@@ -1,12 +1,13 @@
 //
 // AudioWaveform: the chunk-combining math every renderer reads through, the
 // NaN sanitizing that keeps corrupt decodes out of the cache, and the shared
-// mono downmix.
+// mono downmix, plus the host-less resize/content morph transitions.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "AudioWaveform.h"
+#import "WaveformMorphEngine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,6 +32,79 @@
 
 - (AudioWaveform *)waveform {
     return new AudioWaveform(_source.size(), _source.data());
+}
+
+#pragma mark - Resize and content transitions
+
+- (void)testSettledResizeDrawsOnceWithoutStartingAnAnimation {
+    __block NSUInteger rebuilds = 0, fills = 0;
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; }
+            rebuild:^{ rebuilds++; }];
+    void (^fill)(std::vector<float> &) = ^(std::vector<float> &samples) {
+        fills++;
+        for (NSUInteger i = 0; i < samples.size(); i++) samples[i] = (float)(i + 1) / samples.size();
+    };
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:fill];
+    [morph settleImmediately];
+    rebuilds = fills = 0;
+    for (NSUInteger count = 61; count <= 100; count++) {
+        [morph updateTargetForSize:CGSizeMake(count * 10, 80) identity:(__bridge const void *)self count:count fill:fill];
+        XCTAssertTrue(morph.isSettled);
+        XCTAssertEqual([morph displayedSamples].size(), count);
+        XCTAssertEqualWithAccuracy([morph displayedSamples][0], 1.0f / count, 1e-6);
+        XCTAssertEqual([morph displayedSamples].back(), 1.0f);
+    }
+    XCTAssertEqual(rebuilds, 40u);
+    XCTAssertEqual(fills, 40u);
+    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    XCTAssertEqual(rebuilds, 41u);
+    XCTAssertEqual(fills, 40u, @"Height alone must not reread the waveform");
+    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    XCTAssertEqual(rebuilds, 41u, @"An unchanged draw must do no work");
+}
+
+- (void)testResizePreservesAGainMorphAndItsPairedSamples {
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; } rebuild:^{}];
+    morph.samplesPerBar = 2;
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+                         fill:^(std::vector<float> &samples) { samples = {-0.2f, 0.4f, -0.6f, 0.8f}; }];
+    XCTAssertFalse(morph.isSettled, @"New audio still grows into view");
+    [morph settleImmediately];
+    [morph invalidateTarget];
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+                         fill:^(std::vector<float> &samples) { samples = {-0.1f, 0.2f, -0.3f, 0.4f}; }];
+    XCTAssertFalse(morph.isSettled, @"Gain still eases with an unchanged waveform identity");
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:8
+                         fill:^(std::vector<float> &samples) { samples.assign(8, 0.1f); }];
+    XCTAssertFalse(morph.isSettled);
+    const std::vector<float> carried = {-0.2f, 0.4f, -0.2f, 0.4f, -0.6f, 0.8f, -0.6f, 0.8f};
+    XCTAssertTrue([morph displayedSamples] == carried);
+    [morph settleImmediately];
+    XCTAssertTrue([morph displayedSamples] == std::vector<float>(8, 0.1f));
+    [morph dipDisplayedSamplesFromFraction:0 toFraction:0.25];
+    XCTAssertFalse(morph.isSettled, @"The conversion sweep still animates");
+    [morph settleImmediately];
+}
+
+- (void)testSilentWaveformAndEmptyStateRemainDistinctAfterResize {
+    __block NSUInteger rebuilds = 0;
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; }
+            rebuild:^{ rebuilds++; }];
+    void (^silence)(std::vector<float> &) = ^(std::vector<float> &samples) {
+        std::fill(samples.begin(), samples.end(), 0.0f);
+    };
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:silence];
+    [morph settleImmediately];
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:90 fill:silence];
+    XCTAssertTrue(morph.isSettled);
+    XCTAssertEqual(morph.barMinHeight, 1);
+    rebuilds = 0;
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:NULL count:90 fill:silence];
+    XCTAssertEqual(morph.barMinHeight, 0);
+    XCTAssertEqual(rebuilds, 1u);
 }
 
 #pragma mark - getMaxMeanSquare

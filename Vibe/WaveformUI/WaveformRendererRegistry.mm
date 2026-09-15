@@ -39,6 +39,7 @@
             registry[identifier] = renderer;
         }
         registry[@"wiggle"] = DetailedAudioWaveformRenderer.class;
+        registry[@"wiggle_centered"] = DetailedAudioWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -52,14 +53,16 @@
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     NSString *style = [self resolveStyleIdentifier:identifier];
     Class renderer = [self renderersByIdentifier][style];
-    if ([style isEqualToString:@"wiggle"]) {
-        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES];
+    BOOL centered = [style isEqualToString:@"wiggle_centered"];
+    if (centered || [style isEqualToString:@"wiggle"]) {
+        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES centered:centered];
     }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"wiggle"]) return STR_WAVEFORM_STYLE_WIGGLE;
+    if ([identifier isEqualToString:@"wiggle_centered"]) return STR_WAVEFORM_STYLE_WIGGLE_CENTERED;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 
