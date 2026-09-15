@@ -308,18 +308,19 @@ static const NSUInteger kDetailedMaxBars = 8192;
     [_waveformContainer removeFromSuperlayer];
 }
 
-- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors {
+- (NSArray *)gradientCGColorsForColor:(VibeColor *)color {
+    NSArray<VibeColor *> *colors = [self gradientColorsForColor:color isDark:self.isDark];
     NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:colors.count];
     for (VibeColor *color in colors) {
         [cgColors addObject:(id)color.CGColor];
     }
-    layer.colors = cgColors;
+    return cgColors;
 }
 
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
-    [self setGradientLayerColors:_playedGradient colors:[self gradientColorsForColor:self.theme.playedColor isDark:isDark]];
-    [self setGradientLayerColors:_unplayedGradient colors:[self gradientColorsForColor:self.theme.unplayedColor isDark:isDark]];
+    _playedGradient.colors = [self gradientCGColorsForColor:self.theme.playedColor];
+    _unplayedGradient.colors = [self gradientCGColorsForColor:self.theme.unplayedColor];
     // Full alpha and no vertical fade. The played gradient's own top is the
     // ceiling everywhere else, so this reads as lit at every bar height.
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
@@ -472,6 +473,27 @@ static const NSUInteger kDetailedMaxBars = 8192;
     [self setHoverHighlightX:self.hoverHighlightX];
 }
 
+// The live mask reuses its scratch; bitmap workers supply their own. A zero
+// scale keeps morph frames between pixels instead of rounding their motion.
+- (void)fillBarRects:(std::vector<CGRect> &)rects size:(CGSize)size samples:(const float *)samples
+      minimumHeight:(CGFloat)minimumHeight scale:(CGFloat)scale {
+    NSUInteger count = rects.size();
+    CGFloat midY = size.height / 2;
+    CGFloat vscale = VibeBarVScale(size.height);
+    CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
+    for (NSUInteger i = 0; i < count; i++) {
+        // y-up: adding the negative min preserves DC-offset asymmetry.
+        CGFloat top = midY + samples[i * 2 + 1] * vscale;
+        CGFloat bottom = midY + samples[i * 2] * vscale;
+        if (scale > 0) {
+            top = round(top * scale) / scale;
+            bottom = round(bottom * scale) / scale;
+        }
+        CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
+        rects[i] = CGRectMake(x, bottom, barWidth, MAX(top - bottom, minimumHeight));
+    }
+}
+
 // Builds the bar path for the currently displayed samples and sets it on the
 // shared mask. It is the morph engine's rebuild callback. Pixel-rounding is
 // reserved for the settled state, because mid-morph it would quantize the
@@ -496,31 +518,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
         path = opacity > 0 ? VibeNewWigglePath(_morph.size, samples.data(), count, _wiggleCentered)
                            : CGPathCreateMutable();
     } else {
-        CGSize maskSize = _morph.size;
-        CGFloat width = maskSize.width;
-        CGFloat midY = maskSize.height / 2;
-        CGFloat vscale = VibeBarVScale(maskSize.height);
-        CGFloat barWidth = [self barWidthForWidth:width barCount:count];
-        // Hairline floor vs. collapse-to-nothing — policy on the engine, shared
-        // with the Sonic Cirrus family.
-        CGFloat minHeight = _morph.barMinHeight;
-        BOOL settled = _morph.isSettled;
-        CGFloat scale = VibeBackingScaleForLayer(self.parentLayer);
         _barRects.resize(count);
-        for (NSUInteger i = 0; i < count; i++) {
-            // y-up layer coords: the bar's top comes from the positive peak (max),
-            // the bottom from the negative peak (min). Subtracting instead draws
-            // the envelope vertically mirrored (visible on DC-offset material).
-            CGFloat top = midY + samples[i * 2 + 1] * vscale;
-            CGFloat bottom = midY + samples[i * 2] * vscale;
-            if (settled) {
-                top = round(top * scale) / scale;
-                bottom = round(bottom * scale) / scale;
-            }
-            CGFloat height = MAX(top - bottom, minHeight);
-            CGFloat x = [self barXForIndex:i width:width barCount:count barWidth:barWidth];
-            _barRects[i] = CGRectMake(x, bottom, barWidth, height);
-        }
+        [self fillBarRects:_barRects size:_morph.size samples:samples.data()
+            minimumHeight:_morph.barMinHeight
+                    scale:_morph.isSettled ? VibeBackingScaleForLayer(self.parentLayer) : 0];
         CGMutablePathRef bars = CGPathCreateMutable();
         CGPathAddRects(bars, NULL, _barRects.data(), count);
         path = bars;
@@ -548,16 +549,16 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
     return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self gradientColorsForColor:self.theme.playedColor isDark:self.isDark]];
+                                   stops:[self gradientCGColorsForColor:self.theme.playedColor]];
 }
 
 - (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
     return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self gradientColorsForColor:self.theme.unplayedColor isDark:self.isDark]];
+                                   stops:[self gradientCGColorsForColor:self.theme.unplayedColor]];
 }
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples
-                                stops:(NSArray<VibeColor *> *)stops {
+                                stops:(NSArray *)stops {
     NSUInteger count = samples.length / (2 * sizeof(float));
     size_t pixelWidth = (size_t)llround(size.width * scale);
     size_t pixelHeight = (size_t)llround(size.height * scale);
@@ -585,26 +586,10 @@ static const NSUInteger kDetailedMaxBars = 8192;
         // The gradient colors the stroke's coverage, including antialiasing.
         CGContextSetBlendMode(ctx, kCGBlendModeSourceIn);
     } else {
-        // rebuildMaskPaths' settled branch: pixel-rounded bar edges and the
-        // 1-point hairline floor a loaded waveform draws with.
-        const float *s = (const float *)samples.bytes;
-        CGFloat midY = size.height / 2;
-        CGFloat vscale = VibeBarVScale(size.height);
-        CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
-        // A local scratch, not _barRects: this runs on any queue.
         std::vector<CGRect> rects(count);
-        for (NSUInteger i = 0; i < count; i++) {
-            CGFloat top = round((midY + s[i * 2 + 1] * vscale) * scale) / scale;
-            CGFloat bottom = round((midY + s[i * 2] * vscale) * scale) / scale;
-            CGFloat height = MAX(top - bottom, 1);
-            CGFloat x = [self barXForIndex:i width:size.width barCount:count barWidth:barWidth];
-            rects[i] = CGRectMake(x, bottom, barWidth, height);
-        }
-        CGMutablePathRef path = CGPathCreateMutable();
-        CGPathAddRects(path, NULL, rects.data(), count);
-        CGContextAddPath(ctx, path);
+        [self fillBarRects:rects size:size samples:(const float *)samples.bytes minimumHeight:1 scale:scale];
+        CGContextAddRects(ctx, rects.data(), count);
         CGContextClip(ctx);
-        CGPathRelease(path);
     }
 
     // configureGradient:'s band-pinned fade. This family's fade only — Basic
@@ -612,11 +597,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     // stops are the caller's theme-derived ramp, resting levels already in
     // their alphas, same as the live layers': the two must stay
     // pixel-identical.
-    NSMutableArray *cgColors = [[NSMutableArray alloc] initWithCapacity:stops.count];
-    for (VibeColor *color in stops) {
-        [cgColors addObject:(__bridge id)color.CGColor];
-    }
-    CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)cgColors, NULL);
+    CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)stops, NULL);
     CGFloat topY = size.height * (1 + kBarAmplitudeOfHalfHeight) / 2;
     CGFloat bottomY = size.height * (1 - kBarAmplitudeOfHalfHeight) / 2;
     CGContextDrawLinearGradient(ctx, gradient, CGPointMake(0, topY), CGPointMake(0, bottomY),

@@ -38,6 +38,13 @@
     return new AudioWaveform(_source.size(), _source.data());
 }
 
+- (AudioWaveformRenderer *)rendererForStyle:(NSString *)identifier {
+    CALayer *host = [CALayer layer];
+    host.bounds = CGRectMake(0, 0, 512, 80);
+    return [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+            layer:host bounds:host.bounds isDark:YES];
+}
+
 #pragma mark - Resize and content transitions
 
 - (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
@@ -70,10 +77,7 @@
     for (NSString *identifier in [WaveformRendererRegistry availableIdentifiers]) {
         // These two draw individual layers; the next test covers their geometry.
         if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"]) continue;
-        CALayer *host = [CALayer layer];
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
-                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
-                        layer:host bounds:CGRectMake(0, 0, 512, 80) isDark:YES];
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
         XCTAssertTrue([renderer isKindOfClass:DetailedAudioWaveformRenderer.class], @"%@", identifier);
         for (CGFloat width : {257.0, 512.0, 773.0}) {
             NSUInteger count = [renderer numBarsForWidth:width];
@@ -102,9 +106,8 @@
     chunks[511].set(-0.8f, 0.8f, 0.64f, 1);
     AudioWaveform waveform(chunks.size(), chunks.data());
     for (NSString *identifier in @[@"sonic_cirrus", @"cupertino_basic"]) {
-        CALayer *host = [CALayer layer];
-        AudioWaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
-                layer:host bounds:CGRectMake(0, 0, 512, 80) isDark:YES];
+        AudioWaveformRenderer *renderer = [self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
         for (CGFloat width : {257.0, 512.0, 773.0}) {
             host.bounds = CGRectMake(0, 0, width, 80);
             for (float gain : {-12.0f, 0.0f, 12.0f}) {
@@ -143,11 +146,7 @@
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     for (NSString *identifier in @[@"detailed", @"wiggle", @"wiggle_centered"]) {
-        CALayer *host = [CALayer layer];
-        host.bounds = CGRectMake(0, 0, 512, 80);
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
-                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
-                        layer:host bounds:host.bounds isDark:YES];
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
         BOOL wiggle = ![identifier isEqualToString:@"detailed"];
         XCTAssertEqual(renderer.class, DetailedAudioWaveformRenderer.class);
         XCTAssertEqual([renderer numBarsForWidth:512], wiggle ? 64u : 1024u);
@@ -161,11 +160,8 @@
 
 - (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
     for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
-        CALayer *host = [CALayer layer];
-        host.bounds = CGRectMake(0, 0, 512, 80);
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)
-                [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
-                        layer:host bounds:host.bounds isDark:YES];
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
         CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
         CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
         CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
@@ -182,10 +178,8 @@
     quiet.set(-0.014f, 0.014f, 0.000196f, 1);
     AudioWaveform waveform(1, &quiet);
     for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
-        CALayer *host = [CALayer layer];
-        host.bounds = CGRectMake(0, 0, 512, 80);
-        AudioWaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
-                layer:host bounds:host.bounds isDark:YES];
+        AudioWaveformRenderer *renderer = [self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
         [renderer updateWaveform:host.bounds progress:0 waveform:&waveform];
         [renderer settleMorphImmediately];
         CAShapeLayer *mask = (CAShapeLayer *)host.sublayers.firstObject.mask;

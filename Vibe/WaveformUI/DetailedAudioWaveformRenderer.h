@@ -48,8 +48,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)configureGradient:(CAGradientLayer *)gradient;
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark;
 
-- (void)setGradientLayerColors:(CAGradientLayer*)layer colors:(NSArray<VibeColor*>*)colors;
-
 // The played-fill and hover presentation. Continuous here — the clip edge is
 // the playhead; Wiggle highlights a whole loop, other Detailed styles a thin
 // slice. Basic overrides both to whole-block quantization, matching Sonic Cirrus's
