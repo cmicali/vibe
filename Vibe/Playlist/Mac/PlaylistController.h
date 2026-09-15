@@ -66,8 +66,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Staleness counter for work stamped against the current row set — the
 // shell's removal-undo and reorder-undo registrations. It follows the model's
-// own replace-all announcement (playlistDidReplaceAllTracks:, which both
-// replaceAllWithURLs: and clear fire), so ANY path that replaces the list
+// own structureGeneration (advanced before playlistDidReplaceAllTracks:,
+// which both replaceAllWithURLs: and clear fire), so ANY path that replaces the list
 // bumps it — there is no call-site discipline to forget. Appends, swaps,
 // removals and inserts leave it alone: they never invalidate a stamped row
 // number wholesale, because a stamped registration only runs after every
@@ -118,9 +118,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)previous;
 
 // The gapless auto-advance's bookkeeping half: the player has already spliced
-// into the next track, so advance the index and scroll without starting a
-// play. Row repaint rides the currentIndexDidChange observer, as with next.
-- (BOOL)advanceToNextTrackWithoutPlaying;
+// into the next track. The model checks both identities before advancing;
+// success scrolls without starting a play. Row repaint rides the ordinary
+// currentIndexDidChange observer; a stale boundary changes nothing.
+- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack;
+
+// The model's forward-survivor query for the shell's removal decision.
+- (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
 
 // The playlist-boundary predicates: the single source of truth for whether
 // there is a track after or before the current one. They are shared by next

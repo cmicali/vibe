@@ -36,6 +36,7 @@
 // The empty state of all three collections, so a replacement and a clear
 // cannot rebuild one and forget another.
 - (void)resetStorage {
+    _structureGeneration++;
     _tracks = [NSMutableArray new];
     [self resetIndexes];
 }
@@ -71,6 +72,37 @@
 
 - (AudioTrack *)trackAtIndex:(NSUInteger)index {
     return index < _tracks.count ? _tracks[index] : nil;
+}
+
+- (NSIndexSet *)indexesOfTracks:(NSArray<AudioTrack *> *)tracks {
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    for (AudioTrack *track in tracks) {
+        NSInteger row = [self getIndexForTrack:track];
+        if (row >= 0) {
+            [rows addIndex:(NSUInteger)row];
+        }
+    }
+    return rows;
+}
+
+- (AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes {
+    if (indexes.count == 0 || indexes.lastIndex >= _tracks.count
+            || ![indexes containsIndex:_currentIndex]) {
+        return nil;
+    }
+    NSUInteger successor = _currentIndex + 1;
+    while ([indexes containsIndex:successor]) {
+        successor++;
+    }
+    return [self trackAtIndex:successor];
+}
+
+- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {
+    if (finishedTrack != self.currentTrack || !self.hasNextTrack
+            || startedTrack != [self trackAtIndex:_currentIndex + 1]) {
+        return NO;
+    }
+    return [self next];
 }
 
 - (AudioTrack *)currentTrack {

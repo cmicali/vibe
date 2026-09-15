@@ -12,6 +12,7 @@
 #import "AppTheme+Archive.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AppSettingsInternal.h"
 #import "PlatformColor.h"
 
 @interface AppThemeTests : XCTestCase
@@ -20,6 +21,7 @@
 @implementation AppThemeTests {
     NSString *_artDir;
     NSString *_suiteArtDir;
+    AppSettings *_editingSettings;
 }
 
 // A directory per test, so one test's stored images cannot be found by the
@@ -33,6 +35,7 @@
 }
 
 - (void)tearDown {
+    [_editingSettings resetToDefaults];
     [NSFileManager.defaultManager removeItemAtPath:_artDir error:NULL];
     // TRAP: restore, never unsetenv. The suite is unsandboxed, so an unset
     // path resolves to the developer's real ~/Library — and the file lands
@@ -1450,6 +1453,252 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
 }
 
 #pragma mark Store CRUD (AppSettings)
+
+- (AppSettings *)editingSettings {
+    _editingSettings = AppSettings.sharedInstance;
+    [_editingSettings resetToDefaults];
+    NSString *identifier = [_editingSettings addUserThemeWithRecord:@{} name:@"Editing"];
+    [_editingSettings applyThemeWithIdentifier:identifier];
+    return _editingSettings;
+}
+
+- (void)testUserThemeEditsPersistAndUndoRestoresTheSameWorkingObject {
+    AppSettings *settings = self.editingSettings;
+    AppTheme *working = settings.currentTheme;
+    working.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    XCTAssertTrue(settings.canUndoThemeEdit);
+    AppSettings *reloaded = [AppSettings new];
+    XCTAssertEqualObjects(reloaded.activeThemeIdentifier, settings.activeThemeIdentifier);
+    XCTAssertFalse(reloaded.currentTheme.showFileInfo);
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme, working);
+    XCTAssertTrue(working.showFileInfo);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:settings.activeThemeIdentifier], @{});
+    XCTAssertTrue([AppSettings new].currentTheme.showFileInfo);
+}
+
+- (void)testThemeDragCoalescesFromTheFirstEditAndExtendsItsQuietPeriod {
+    AppSettings *settings = self.editingSettings;
+    for (NSUInteger i = 0; i < 4; i++) {
+        settings.currentTheme.windowCornerRadius = 20 + i;
+        [settings currentThemeDidChangeContinuous:YES atTime:100 + i * 1.5];
+    }
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, kVibeThemeCornerRadiusDefault);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+}
+
+- (void)testThemeDragAtTwoSecondsStartsAnotherUndoEntry {
+    AppSettings *settings = self.editingSettings;
+    settings.currentTheme.windowCornerRadius = 20;
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    settings.currentTheme.windowCornerRadius = 24;
+    [settings currentThemeDidChangeContinuous:YES atTime:102];
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, 20);
+    XCTAssertTrue(settings.canUndoThemeEdit);
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, kVibeThemeCornerRadiusDefault);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+}
+
+- (void)testDifferentThemeFieldsNeverCoalesce {
+    AppSettings *settings = self.editingSettings;
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    settings.currentTheme.showBPM = NO;
+    [settings currentThemeDidChangeContinuous:YES atTime:100.1];
+    [settings undoThemeEdit];
+    XCTAssertTrue(settings.currentTheme.showBPM);
+    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    [settings undoThemeEdit];
+    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+}
+
+- (void)testUnchangedThemeWriteDoesNotCreateOrExtendAnUndoEntry {
+    AppSettings *settings = self.editingSettings;
+    [settings currentThemeDidChangeContinuous:YES atTime:99];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    settings.currentTheme.windowCornerRadius = 20;
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    [settings currentThemeDidChangeContinuous:YES atTime:101.9];
+    settings.currentTheme.windowCornerRadius = 24;
+    [settings currentThemeDidChangeContinuous:YES atTime:102];
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, 20);
+    XCTAssertTrue(settings.canUndoThemeEdit);
+}
+
+- (void)testEditingAfterUndoStartsFreshHistory {
+    AppSettings *settings = self.editingSettings;
+    settings.currentTheme.windowCornerRadius = 20;
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    settings.currentTheme.windowCornerRadius = 24;
+    [settings currentThemeDidChangeContinuous:YES atTime:103];
+    [settings undoThemeEdit];
+    settings.currentTheme.windowCornerRadius = 28;
+    [settings currentThemeDidChangeContinuous:YES atTime:103.1];
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, 20);
+    [settings undoThemeEdit];
+    XCTAssertEqual(settings.currentTheme.windowCornerRadius, kVibeThemeCornerRadiusDefault);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+}
+
+- (void)testThemeHistoryKeepsOnlyFiftyEdits {
+    AppSettings *settings = self.editingSettings;
+    for (NSUInteger i = 0; i < 55; i++) {
+        settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+        [settings currentThemeDidChangeContinuous:YES atTime:100 + i * 3];
+    }
+    for (NSUInteger i = 0; i < 50; i++) {
+        XCTAssertTrue(settings.canUndoThemeEdit);
+        [settings undoThemeEdit];
+    }
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertFalse(settings.currentTheme.showFileInfo); // five edits remain
+    [settings undoThemeEdit];
+    XCTAssertFalse(settings.currentTheme.showFileInfo);
+}
+
+- (void)testApplyingAnotherThemeClearsUndoWithoutChangingTheOldRecord {
+    AppSettings *settings = self.editingSettings;
+    NSString *edited = settings.activeThemeIdentifier;
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    [settings applyThemeWithIdentifier:@"vibe"];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    [settings undoThemeEdit];
+    XCTAssertTrue(settings.currentTheme.showFileInfo);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:edited][@"showFileInfo"], @NO);
+}
+
+- (void)testBuiltInDivergencePersistsWithoutUndoAndReapplyClearsIt {
+    AppSettings *settings = self.editingSettings;
+    [settings applyThemeWithIdentifier:@"vibe"];
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertFalse([AppSettings new].currentTheme.showFileInfo);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:@"vibe"], @{});
+    [settings applyThemeWithIdentifier:@"vibe"];
+    XCTAssertTrue([AppSettings new].currentTheme.showFileInfo);
+}
+
+- (void)testDuplicateAndRenamePreserveRecordsAndDeduplicateNames {
+    AppSettings *settings = self.editingSettings;
+    NSString *original = settings.activeThemeIdentifier;
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    NSString *duplicate = [settings duplicateThemeWithIdentifier:original];
+    XCTAssertNotEqualObjects(duplicate, original);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:duplicate],
+                          [settings recordForThemeIdentifier:original]);
+    XCTAssertNotEqualObjects([settings displayNameForThemeIdentifier:duplicate], @"Editing");
+    [settings renameUserThemeWithIdentifier:duplicate toName:@"  Renamed  "];
+    XCTAssertEqualObjects([[AppSettings new] displayNameForThemeIdentifier:duplicate], @"Renamed");
+    [settings renameUserThemeWithIdentifier:duplicate toName:@"Editing"];
+    XCTAssertNotEqualObjects([settings displayNameForThemeIdentifier:duplicate], @"Editing");
+    XCTAssertEqualObjects(settings.activeThemeIdentifier, original);
+    XCTAssertNil([settings duplicateThemeWithIdentifier:@"missing"]);
+}
+
+- (void)testBuiltInsRefuseRenameAndRemovalButCanBeDuplicated {
+    AppSettings *settings = self.editingSettings;
+    NSString *name = [settings displayNameForThemeIdentifier:@"vibe"];
+    [settings renameUserThemeWithIdentifier:@"vibe" toName:@"Changed"];
+    [settings removeUserThemeWithIdentifier:@"vibe" fallingBackTo:nil];
+    XCTAssertEqualObjects([settings displayNameForThemeIdentifier:@"vibe"], name);
+    XCTAssertTrue([settings.orderedThemeIdentifiers containsObject:@"vibe"]);
+    NSString *duplicate = [settings duplicateThemeWithIdentifier:@"vibe"];
+    XCTAssertNotNil(duplicate);
+    XCTAssertFalse([AppTheme isBuiltInIdentifier:duplicate]);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:duplicate], @{});
+}
+
+- (void)testRemovingAnActiveThemeUsesOnlyASurvivingFallback {
+    AppSettings *settings = self.editingSettings;
+    NSString *first = settings.activeThemeIdentifier;
+    NSString *second = [settings addUserThemeWithRecord:@{@"showFileInfo": @NO} name:@"Second"];
+    [settings removeUserThemeWithIdentifier:first fallingBackTo:second];
+    XCTAssertEqualObjects(settings.activeThemeIdentifier, second);
+    XCTAssertFalse(settings.currentTheme.showFileInfo);
+    [settings removeUserThemeWithIdentifier:second fallingBackTo:second];
+    XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
+    XCTAssertTrue(settings.currentTheme.showFileInfo);
+}
+
+- (NSString *)installEditingImageInSettings:(AppSettings *)settings {
+    NSString *reference = [AppTheme storeCustomImageData:SquarePNG(64) error:NULL];
+    XCTAssertNotNil(reference);
+    [settings.currentTheme setImageReference:reference forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChange];
+    [settings applyThemeWithIdentifier:settings.activeThemeIdentifier]; // begin with clean history
+    return [_artDir stringByAppendingPathComponent:[reference substringFromIndex:7]];
+}
+
+- (void)testClearedThemeImageSurvivesUntilUndoHistoryIsDiscarded {
+    AppSettings *settings = self.editingSettings;
+    NSString *path = [self installEditingImageInSettings:settings];
+    NSString *reference = [settings.currentTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark], reference);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChangeContinuous:YES atTime:103];
+    [settings applyThemeWithIdentifier:settings.activeThemeIdentifier];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
+}
+
+- (void)testHistoryEvictionSweepsImagesEvenWhenOnlyDisplayFlagsChange {
+    AppSettings *settings = self.editingSettings;
+    NSString *path = [self installEditingImageInSettings:settings];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChangeContinuous:YES atTime:100];
+    for (NSUInteger i = 0; i < 49; i++) {
+        settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+        [settings currentThemeDidChangeContinuous:YES atTime:103 + i * 3];
+    }
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
+    settings.currentTheme.showFileInfo = !settings.currentTheme.showFileInfo;
+    [settings currentThemeDidChangeContinuous:YES atTime:250];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
+}
+
+- (void)testFactoryResetRetiresThemeUndoImagesAndAppearancePreview {
+    AppSettings *settings = self.editingSettings;
+    NSString *path = [self installEditingImageInSettings:settings];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChange];
+    settings.windowAppearancePreviewStyle = @"light";
+    XCTAssertTrue(settings.canUndoThemeEdit);
+    [settings resetToDefaults];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertNil(settings.windowAppearancePreviewStyle);
+    XCTAssertNil(settings.windowAppearance);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, @{});
+}
+
+- (void)testRenameEvictionSweepsImagesFromUndoHistory {
+    AppSettings *settings = self.editingSettings;
+    NSString *path = [self installEditingImageInSettings:settings];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChange];
+    for (NSUInteger i = 0; i < 50; i++) {
+        XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
+        [settings renameUserThemeWithIdentifier:settings.activeThemeIdentifier
+                                        toName:[NSString stringWithFormat:@"Name %lu", i]];
+    }
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
+}
 
 - (void)testResetToDefaultsClearsTheUserThemesCache {
     AppSettings *settings = AppSettings.sharedInstance;

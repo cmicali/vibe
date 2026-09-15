@@ -65,6 +65,9 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 // See the preset declarations in the header: an out-of-list persisted value
 // reads as the nearest preset, so display and behavior cannot disagree.
 static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
+    // Clamp before subtracting: external defaults can contain integer extremes.
+    if (value <= presets[0]) return presets[0];
+    if (value >= presets[count - 1]) return presets[count - 1];
     NSInteger best = presets[0];
     for (size_t i = 1; i < count; i++) {
         if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
@@ -113,6 +116,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 - (void)resetMacThemeState {
     _storedUserThemesCache = nil; // the disk keys were just removed
     [_currentTheme replaceWithRecord:nil];
+    [self clearThemeUndo];
+    _windowAppearancePreviewStyle = nil;
     [self sweepUnreferencedThemeImages];
 }
 
@@ -313,8 +318,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
-    [_themeUndoStack removeAllObjects];
-    _themeUndoChangedKeys = nil;
+    [self clearThemeUndo];
     // Dropping the divergence record can drop the last reference to a custom
     // image picked while a built-in was active.
     [self sweepUnreferencedThemeImages];
@@ -325,6 +329,10 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (void)currentThemeDidChangeContinuous:(BOOL)continuous {
+    [self currentThemeDidChangeContinuous:continuous atTime:NSDate.timeIntervalSinceReferenceDate];
+}
+
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous atTime:(NSTimeInterval)time {
     if (!_currentTheme) {
         return;
     }
@@ -363,11 +371,10 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     }
-    if (replaced && !_themeUndoRestoring) {
-        [self pushThemeUndoEntry:replaced replacedBy:[self storedUserThemeWithIdentifier:active]
-                      continuous:continuous];
-    }
-    if (![[AppTheme customImageFilesInRecord:previous]
+    BOOL retiredUndoImages = replaced && !_themeUndoRestoring
+            && [self pushThemeUndoEntry:replaced replacedBy:[self storedUserThemeWithIdentifier:active]
+                            continuous:continuous atTime:time];
+    if (retiredUndoImages || ![[AppTheme customImageFilesInRecord:previous]
             isEqualToSet:[AppTheme customImageFilesInRecord:record]]) {
         [self sweepUnreferencedThemeImages];
     }
@@ -440,16 +447,22 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
 }
 
+- (void)clearThemeUndo {
+    [_themeUndoStack removeAllObjects];
+    _themeUndoChangedKeys = nil;
+}
+
 // The stored entry an edit replaced — its fields and its name — goes on the
 // stack, unless nothing changed, or this is a continuous gesture's tick
 // moving the same keys within two seconds of the last push, whose first
 // tick already pushed the entry before it. Time alone cannot tell a drag
 // from two quick menu picks of one field, which are two edits; the writer
 // says which it is.
-- (void)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record
-                continuous:(BOOL)continuous {
+// Returns YES when the cap retired image references that need sweeping.
+- (BOOL)pushThemeUndoEntry:(NSDictionary *)before replacedBy:(NSDictionary *)record
+                continuous:(BOOL)continuous atTime:(NSTimeInterval)now {
     if ([before isEqualToDictionary:record]) {
-        return;
+        return NO;
     }
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
     for (NSString *key in [[NSSet setWithArray:before.allKeys] setByAddingObjectsFromArray:record.allKeys]) {
@@ -457,21 +470,23 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
             [changed addObject:key];
         }
     }
-    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
     if (continuous && _themeUndoChangedKeys && [changed isEqualToSet:_themeUndoChangedKeys]
             && now - _themeUndoPushTime < 2) {
         _themeUndoPushTime = now;
-        return;
+        return NO;
     }
     if (!_themeUndoStack) {
         _themeUndoStack = [NSMutableArray array];
     }
     [_themeUndoStack addObject:before];
+    BOOL retiredImages = NO;
     if (_themeUndoStack.count > 50) {
+        retiredImages = [AppTheme customImageFilesInRecord:_themeUndoStack.firstObject].count > 0;
         [_themeUndoStack removeObjectAtIndex:0];
     }
     _themeUndoChangedKeys = changed;
     _themeUndoPushTime = now;
+    return retiredImages;
 }
 
 - (BOOL)canUndoThemeEdit {
@@ -518,7 +533,10 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         // A committed rename of the theme being edited is an edit of it.
         if ([identifier isEqualToString:self.activeThemeIdentifier] && !_themeUndoRestoring) {
-            [self pushThemeUndoEntry:replaced replacedBy:entry continuous:NO];
+            if ([self pushThemeUndoEntry:replaced replacedBy:entry continuous:NO
+                                   atTime:NSDate.timeIntervalSinceReferenceDate]) {
+                [self sweepUnreferencedThemeImages];
+            }
         }
         return;
     }

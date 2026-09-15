@@ -13,6 +13,7 @@
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
+#import "PlaybackDeliveryRules.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -188,7 +189,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // a playlist emptied since (both sides nil, and so equal) must not read
         // as that case and leave the clock running.
         AudioTrack *playlistTrack = self.playlistController.currentTrack;
-        if (!playlistTrack || audioPlayer.currentTrack != playlistTrack) {
+        if (VibePlaybackStaleFinishStopsStats(playlistTrack, audioPlayer.currentTrack)) {
             [[AppStats sharedInstance] playbackStopped];
         }
         return;
@@ -211,8 +212,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // nothing has spliced, because successorPrefetchTrack parked nothing to
     // arm. Both reads of the setting are load-bearing: this one decides from
     // the playlist alone, so an unparked successor never reaches it.
-    BOOL advances = self.playlistController.hasNextTrack &&
-            !AppSettings.sharedInstance.pauseAtTrackEnd;
+    BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(self.playlistController.hasNextTrack,
+                                                       AppSettings.sharedInstance.pauseAtTrackEnd);
     if (advances) {
         [self next:self];
     }
@@ -255,8 +256,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // next: plays the real successor and replaces the spliced audio. The guard
     // above already proved the finished track current, which is the staleness
     // precondition the track-end handler leaves to its caller.
-    NSUInteger nextIndex = self.playlistController.currentIndex + 1;
-    if (startedTrack != [self.playlistController trackAtIndex:nextIndex]) {
+    if (![self.playlistController advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         BOOL advanced = [self advanceOrParkAtTrackEnd];
         // Advancing submits the real successor and retires the mismatched
         // segment. With no advance, reload the finished row parked so the
@@ -266,7 +266,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         }
         return;
     }
-    [self.playlistController advanceToNextTrackWithoutPlaying];
     // The whole per-track refresh — metadata, waveform, duration cache,
     // recents, prefetch of the new next (which re-arms the splice), stats and
     // the UI timer — is exactly a start's. The advance above satisfies the
@@ -275,7 +274,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain] && error.code == VibeAudioErrorNotPlaying) {
+    if (VibePlayErrorIsBenign(error)) {
         // A play-pause toggle raced a track ending, or nothing is loaded. It
         // is harmless, so ignore it silently rather than popping a modal alert.
         return;
@@ -284,8 +283,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Play-path errors carry the failing track's URL. A delivery can race a
     // re-drop's track change, so an error for a departed track is dropped
     // outright — the new track's own callbacks own the UI from here.
-    NSURL *failedURL = error.userInfo[kVibeAudioErrorTrackURLKey];
-    if (failedURL && ![failedURL isEqual:self.playlistController.currentTrack.url]) {
+    if (!VibePlayErrorMatchesCurrentURL(error, self.playlistController.currentTrack.url)) {
         return;
     }
     // Only a Stopped player takes the play-failure path below. That serves two
@@ -344,8 +342,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A real track carries the usual identity guard. Nil is the promised settle
     // after a seek with nothing playable loaded; accept it only while the player
     // is still stopped, not after a new load or play has superseded it.
-    if ((track && track != self.playlistController.currentTrack)
-            || (!track && !audioPlayer.isStopped)) {
+    if (!VibePlaybackSeekSettlementIsCurrent(track, self.playlistController.currentTrack,
+                                             audioPlayer.isStopped)) {
         return;
     }
     [self updatePlaybackUI];
