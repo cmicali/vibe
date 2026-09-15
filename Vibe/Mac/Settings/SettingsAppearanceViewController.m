@@ -184,10 +184,9 @@ static const double kWaveformGainDetentDB = 0.75;
     // the pane-title chain (the host owns the container nesting). The sidebar
     // label reads the tab ITEM, so it keeps saying Appearance.
     NSString *active = AppSettings.sharedInstance.activeThemeIdentifier;
-    self.title = _editorShown
-            ? ([AppSettings.sharedInstance displayNameForThemeIdentifier:active]
-                    ?: STR_MENU_VIEW_APPEARANCE)
-            : STR_MENU_VIEW_APPEARANCE;
+    NSString *name = _editorShown ? [AppSettings.sharedInstance displayNameForThemeIdentifier:active] : nil;
+    self.title = name ? [NSString stringWithFormat:STR_SETTINGS_THEME_EDITOR_TITLE, name]
+                      : STR_MENU_VIEW_APPEARANCE;
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 

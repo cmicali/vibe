@@ -619,6 +619,32 @@ static NSString *PartnerImageKey(NSString *key) {
     _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
 
+    // A switch row per playlist column, each revealing its pair's row below
+    // it — in column order, the number column first.
+    _playlistColorSwitches = [NSMutableDictionary dictionary];
+    _playlistColorRows = [NSMutableDictionary dictionary];
+    NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];
+    NSArray<NSArray *> *playlistColumns = @[
+        @[kVibeThemeColorPlaylistNumber, STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR_CUSTOM,
+          STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
+        @[kVibeThemeColorPlaylistTitle, STR_SETTINGS_THEME_PLAYLIST_TITLE_COLOR_CUSTOM,
+          STR_SETTINGS_THEME_PLAYLIST_TITLE_COLOR],
+        @[kVibeThemeColorPlaylistArtist, STR_SETTINGS_THEME_PLAYLIST_ARTIST_COLOR_CUSTOM,
+          STR_SETTINGS_THEME_PLAYLIST_ARTIST_COLOR],
+        @[kVibeThemeColorPlaylistDuration, STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR_CUSTOM,
+          STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
+    ];
+    for (NSArray *column in playlistColumns) {
+        NSString *base = column[0];
+        NSSwitch *toggle = [self switchWithAction:@selector(togglePlaylistColor:)];
+        _playlistColorSwitches[base] = toggle;
+        SettingsRowView *pairRow = [SettingsRowView rowWithTitle:column[2]
+                control:[self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance]];
+        _playlistColorRows[base] = pairRow;
+        [playlistColorRows addObject:[SettingsRowView rowWithTitle:column[1] control:toggle]];
+        [playlistColorRows addObject:pairRow];
+    }
+
     NSStackView *playingRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
                                                         effect:VibeSettingsLiveEffectPlaylistRowFills];
     NSStackView *selectedRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
@@ -653,6 +679,26 @@ static NSString *PartnerImageKey(NSString *key) {
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
     ]];
+
+    NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
+                control:_playlistBackgroundPopUp],
+        _playlistBackgroundColorsRow,
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_TINT
+                control:_playlistTintPopUp],
+        _playlistTintDarkRow,
+        _playlistTintLightRow,
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
+                control:playlistDurationFontCluster],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
+                control:_playlistArtworkSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
+                control:_playlistDurationSwitch],
+    ]];
+    [playlistRows addObjectsFromArray:playlistColorRows];
+    [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW control:playingRowColors]];
+    [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW control:selectedRowColors]];
 
     NSMutableArray<SettingsRowView *> *transportRows =
         [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
@@ -692,24 +738,7 @@ static NSString *PartnerImageKey(NSString *key) {
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows],
         _infoSection,
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND
-                    control:_playlistBackgroundPopUp],
-            _playlistBackgroundColorsRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_TINT
-                    control:_playlistTintPopUp],
-            _playlistTintDarkRow,
-            _playlistTintLightRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
-                    control:playlistDurationFontCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
-                    control:_playlistArtworkSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
-                    control:_playlistDurationSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW control:playingRowColors],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW control:selectedRowColors],
-        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
     _nameRow.showsTopSeparator = NO;
@@ -805,6 +834,9 @@ static NSString *PartnerImageKey(NSString *key) {
     _playlistTintLightRow.hidden = !customPlaylistTint || single;
     _playlistBackgroundColorsRow.hidden = ![theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    for (NSString *base in _playlistColorRows) {
+        _playlistColorRows[base].hidden = ![theme playlistColorEnabledForBase:base];
+    }
     // A button dressed in a picture has no glyph color to edit, and one
     // drawing a glyph has no picture to show.
     for (NSString *key in _glyphPopUps) {
@@ -892,6 +924,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
                 ![AppTheme referenceIsMissing:[theme imageReferenceForKey:key]];
     }
     _playlistDurationSwitch.state = StateForBOOL(theme.showPlaylistDurationColumn);
+    for (NSString *base in _playlistColorSwitches) {
+        _playlistColorSwitches[base].state = StateForBOOL([theme playlistColorEnabledForBase:base]);
+    }
     [self selectValue:theme.playlistBackgroundStyle in:_playlistBackgroundPopUp];
     [self selectValue:theme.playlistTint in:_playlistTintPopUp];
 
@@ -1019,6 +1054,17 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 - (void)dockIconChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.dockIcon = _dockIconPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
+}
+
+- (void)togglePlaylistColor:(NSSwitch *)sender {
+    for (NSString *base in _playlistColorSwitches) {
+        if (_playlistColorSwitches[base] == sender) {
+            [AppSettings.sharedInstance.currentTheme
+                    setPlaylistColorEnabled:(sender.state == NSControlStateValueOn) forBase:base];
+        }
+    }
+    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
+    [self resolveLayoutStateFromSettings]; // the pair's row reveals with it
 }
 
 - (void)toggleCustomCornerRadius:(id)sender {

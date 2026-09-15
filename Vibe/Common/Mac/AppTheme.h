@@ -126,6 +126,16 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistButton;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlayButton;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorNextButton;
+// The playlist's four text columns, each behind its own switch
+// (playlistColorEnabledForBase:). Off — the default — the column draws the
+// label pair it always drew: the title column the title pair, the number,
+// artist and duration columns the artist pair. On, it draws its own pair,
+// an unset side falling back to that same label pair; the pair is kept
+// while the switch is off, so toggling round-trips a pick.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistNumber;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTitle;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistArtist;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistDuration;
 
 // The image fields' record keys — every field whose value names a FILE: ""
 // (the default) is the slot's factory image; "custom:<sha1>.<ext>" an image
@@ -406,6 +416,14 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 - (VibeColor *)resolvedArtistColor;
 - (VibeColor *)resolvedInfoColor;
 - (VibeColor *)resolvedTimeColor;
+
+// The playlist columns' switches and resolution, by the four
+// kVibeThemeColorPlaylist* text bases: the column's own pair when its switch
+// is on, else the label pair it inherits — one dynamic color either way,
+// captured like the four above.
+- (BOOL)playlistColorEnabledForBase:(NSString *)base;
+- (void)setPlaylistColorEnabled:(BOOL)enabled forBase:(NSString *)base;
+- (VibeColor *)resolvedPlaylistColorForBase:(NSString *)base;
 
 // The container files the record names — the custom:<sha1> files the image
 // sweep is keyed on, across every image field.

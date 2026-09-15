@@ -82,6 +82,10 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
     NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
     NSSwitch *_playlistDurationSwitch;
+    // The playlist columns' text colors by pair base (kVibeThemeColorPlaylist*
+    // text bases): the switch, and the well-pair row it reveals.
+    NSMutableDictionary<NSString *, NSSwitch *> *_playlistColorSwitches;
+    NSMutableDictionary<NSString *, SettingsRowView *> *_playlistColorRows;
     // Every Dark/Light well pair, for the fixed-theme collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
     // Every themed color well → the pair's base key, its side and the effect

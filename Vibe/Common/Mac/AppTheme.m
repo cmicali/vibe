@@ -90,6 +90,32 @@ NSString *const kVibeThemeColorPlaylistSelectedRow = @"playlistSelectedRowColor"
 NSString *const kVibeThemeColorPlaylistButton = @"playlistButtonColor";
 NSString *const kVibeThemeColorPlayButton = @"playButtonColor";
 NSString *const kVibeThemeColorNextButton = @"nextButtonColor";
+NSString *const kVibeThemeColorPlaylistNumber = @"playlistNumberColor";
+NSString *const kVibeThemeColorPlaylistTitle = @"playlistTitleColor";
+NSString *const kVibeThemeColorPlaylistArtist = @"playlistArtistColor";
+NSString *const kVibeThemeColorPlaylistDuration = @"playlistDurationColor";
+
+// The playlist columns' pairs, in column order, each mapped to the label
+// pair it inherits while its switch is off or a side is unset. nil for
+// every other base, which is how the fallback code tells a column apart.
+static NSDictionary<NSString *, NSString *> *PlaylistColorFallbackBases(void) {
+    static NSDictionary<NSString *, NSString *> *bases;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        bases = @{
+            kVibeThemeColorPlaylistNumber: kVibeThemeColorArtist,
+            kVibeThemeColorPlaylistTitle: kVibeThemeColorTitle,
+            kVibeThemeColorPlaylistArtist: kVibeThemeColorArtist,
+            kVibeThemeColorPlaylistDuration: kVibeThemeColorArtist,
+        };
+    });
+    return bases;
+}
+
+// The switch's record key beside its pair: playlistNumberColorEnabled.
+static NSString *PlaylistColorEnabledKey(NSString *base) {
+    return [base stringByAppendingString:@"Enabled"];
+}
 
 static NSString *_Nullable TrimmedCappedString(id _Nullable raw) {
     if (![raw isKindOfClass:NSString.class]) {
@@ -327,6 +353,17 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
         [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
+        // The four text columns: a switch, then its pair — playlist.numberColorEnabled,
+        // playlist.numberColorDark/Light, the record base less its playlist prefix.
+        for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
+                                 kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration]) {
+            NSString *column = [base substringFromIndex:@"playlist".length];
+            NSString *jsonBase = [[column substringToIndex:1].lowercaseString
+                                  stringByAppendingString:[column substringFromIndex:1]];
+            [rows addObject:Field(PlaylistColorEnabledKey(base), playlist,
+                                  [jsonBase stringByAppendingString:@"Enabled"], @NO, BoolField())];
+            AddColorPair(rows, base, playlist, jsonBase);
+        }
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
         specs = [rows copy];
@@ -517,7 +554,33 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
 - (VibeColor *)resolvedTimeColor { return [self resolvedColorForBase:kVibeThemeColorTime]; }
 
 - (VibeColor *)displayColorForBase:(NSString *)base dark:(BOOL)isDark {
-    return [self colorForBase:base dark:isDark] ?: DefaultColorForBase(base, isDark);
+    VibeColor *color = [self colorForBase:base dark:isDark];
+    if (color) {
+        return color;
+    }
+    // A playlist column's unset side shows what it draws: the label pair it
+    // inherits, itself an override or that pair's semantic fallback.
+    NSString *inherited = PlaylistColorFallbackBases()[base];
+    return inherited ? [self displayColorForBase:inherited dark:isDark]
+                     : DefaultColorForBase(base, isDark);
+}
+
+- (BOOL)playlistColorEnabledForBase:(NSString *)base {
+    return [self boolForKey:PlaylistColorEnabledKey(base)];
+}
+
+- (void)setPlaylistColorEnabled:(BOOL)enabled forBase:(NSString *)base {
+    [self storeSanitized:@(enabled) forKey:PlaylistColorEnabledKey(base)];
+}
+
+- (VibeColor *)resolvedPlaylistColorForBase:(NSString *)base {
+    NSString *inherited = PlaylistColorFallbackBases()[base];
+    NSCAssert(inherited, @"not a playlist column pair: %@", base);
+    VibeColor *fallback = [self resolvedColorForBase:inherited];
+    if (![self playlistColorEnabledForBase:base]) {
+        return fallback;
+    }
+    return DynamicColor([self colorForBase:base dark:YES], [self colorForBase:base dark:NO], fallback);
 }
 
 #pragma mark Built-ins

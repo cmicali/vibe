@@ -16,7 +16,7 @@ An evicted embedded thumbnail returns the placeholder without decoding in the ce
 
 Row backgrounds belong to `PlaylistRowView`, not to AppKit. **`drawSelectionInRect:` does not call super**, which replaces the system `selectedContentBackgroundColor` accent-blue fill with the theme's selected-row color — falling back to the neutral white or black wash at about 9% — and the playing row draws the theme's playing-row color (same fallback) from `drawBackgroundInRect:`, skipping it when the row is also selected, which already drew. The overrides are read per draw; rows draw on state changes and scroll-in, and the record lookup is cheap.
 
-The cell text is themed the same way: `ensureCellAttributes` resolves the theme's title/artist colors (one label-color set spans the header and the playlist — the artist color also covers both numeric columns) and the playlist font slot, and is **invalidated by the `PlaylistAppearance` effect** (`+invalidateCellAttributes` + `reloadData`) rather than cached forever.
+The cell text is themed the same way: `ensureCellAttributes` asks the theme for each column's color (`resolvedPlaylistColorForBase:` — one label-color set spans the header and the playlist, the title color every title and the artist color the artist run and both numeric columns, until a column's own switched-on pair takes over; `Common/Mac/CLAUDE.md`) and the playlist font slot, and is **invalidated by the `PlaylistAppearance` effect** (`+invalidateCellAttributes` + `reloadData`) rather than cached forever.
 
 `rowViewForRow:` sets `playingRow`, and `refreshRowViewPlayingStates` re-stamps it across the visible rows on every `currentIndex` change, because `reloadDataForRowIndexes:` rebuilds cell views but keeps row views.
 

@@ -74,6 +74,10 @@
     XCTAssertTrue(theme.showBPM);
     XCTAssertTrue(theme.showKey);
     XCTAssertFalse(theme.keyColorsEnabled);
+    for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
+                             kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration]) {
+        XCTAssertFalse([theme playlistColorEnabledForBase:base], @"%@", base);
+    }
     XCTAssertEqualObjects(theme.keyNotation, @"camelot");
     XCTAssertEqualObjects(theme.titleFontFace, @"");
     XCTAssertEqual(theme.titleFontSize, 23);
@@ -356,7 +360,9 @@
                                    kVibeThemeColorArtist, kVibeThemeColorInfo, kVibeThemeColorTime,
                                    kVibeThemeColorPlaylistBackground, kVibeThemeColorPlaylistPlayingRow,
                                    kVibeThemeColorPlaylistSelectedRow, kVibeThemeColorPlaylistButton,
-                                   kVibeThemeColorPlayButton, kVibeThemeColorNextButton];
+                                   kVibeThemeColorPlayButton, kVibeThemeColorNextButton,
+                                   kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
+                                   kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration];
     for (NSString *base in bases) {
         XCTAssertNotNil([theme displayColorForBase:base dark:YES], @"%@", base);
         XCTAssertNotNil([theme displayColorForBase:base dark:NO], @"%@", base);
@@ -366,6 +372,54 @@
                               @"#12345680", @"%@", base);
     }
     XCTAssertEqual(theme.dictionaryRepresentation.count, bases.count);
+}
+
+static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
+    __block NSString *hex;
+    [[NSAppearance appearanceNamed:name] performAsCurrentDrawingAppearance:^{
+        hex = VibeHexStringFromColor([color colorUsingColorSpace:NSColorSpace.sRGBColorSpace]);
+    }];
+    return hex;
+}
+
+// A playlist column draws the label pair it always drew until its switch is
+// on; its wells show that inheritance, an override of the label pair
+// included, and the pair it holds survives the switch going off.
+- (void)testPlaylistColumnColorsInheritTheLabelPairsUntilSwitchedOn {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    XCTAssertEqualObjects([theme displayColorForBase:kVibeThemeColorPlaylistTitle dark:YES],
+                          [theme displayColorForBase:kVibeThemeColorTitle dark:YES]);
+    XCTAssertEqualObjects([theme displayColorForBase:kVibeThemeColorPlaylistNumber dark:NO],
+                          [theme displayColorForBase:kVibeThemeColorArtist dark:NO]);
+    [theme setTitleColor:VibeColorFromHexString(@"#FF0000") forDark:YES];
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistTitle dark:YES]),
+                          @"#FF0000");
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
+                                          NSAppearanceNameDarkAqua), @"#FF0000");
+
+    // A pair set while the switch is off is held, not drawn.
+    [theme setColor:VibeColorFromHexString(@"#00FF00") forBase:kVibeThemeColorPlaylistTitle dark:YES];
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
+                                          NSAppearanceNameDarkAqua), @"#FF0000");
+    [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
+                                          NSAppearanceNameDarkAqua), @"#00FF00");
+    // The unset light side of an enabled pair still inherits.
+    [theme setTitleColor:VibeColorFromHexString(@"#0000FF") forDark:NO];
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle],
+                                          NSAppearanceNameAqua), @"#0000FF");
+    [theme setPlaylistColorEnabled:NO forBase:kVibeThemeColorPlaylistTitle];
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme colorForBase:kVibeThemeColorPlaylistTitle dark:YES]),
+                          @"#00FF00");
+
+    // The switch and the pair travel under the playlist section, the base
+    // less its playlist prefix.
+    NSDictionary *record = @{@"playlistNumberColorEnabled": @YES, @"playlistNumberColorDark": @"#123456"};
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:
+            [AppTheme JSONDataForRecord:record name:@"Columns"] options:0 error:NULL];
+    XCTAssertEqualObjects(json[@"playlist"], (@{@"numberColorEnabled": @YES, @"numberColorDark": @"#123456"}));
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:[AppTheme JSONDataForRecord:record name:@"Columns"]
+                                                  name:NULL error:NULL], record);
 }
 
 - (void)testRecordRoundTrips {
