@@ -46352,12 +46352,12 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.depth": {
-      "comment": "Bit-perfect output status: the file carries more bits per sample than the device can take, so the audio is truncated.",
+      "comment": "Bit-perfect output status: the file carries more bits per sample than the decoder or the device can pass on, so the audio is truncated. The decoder is 32-bit float, which carries 24 integer bits.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The device's word length is shorter than this file's"
+            "value": "This file's word length is longer than the playback path carries"
           }
         }
       },

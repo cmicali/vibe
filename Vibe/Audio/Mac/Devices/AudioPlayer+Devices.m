@@ -273,10 +273,13 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     // Idempotence while paused. A Paused rebuild deliberately leaves the
     // engine stopped, so the isRunning check above cannot attest to graph
     // health for it, and without this every notification while paused re-ran a
-    // full rebuild. A node present and the right device bound means the graph
-    // is intact, and the resume starts the engine, just as after a normal idle
-    // stop.
-    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID) {
+    // full rebuild. A node present, the right device bound and the device
+    // still at the format the mode set means the graph is intact, and the
+    // resume starts the engine, just as after a normal idle stop. A format
+    // another process moved during the pause is what this notification
+    // often IS, and the rebuild's prepare sets it back.
+    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID
+            && !(_file && [self outputNeedsSwitchOnQueueForFile:_file])) {
         return;
     }
     [self configureOutputDeviceOnQueue:deviceID];
@@ -912,7 +915,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
-            report.depthOK = VibePhysicalFormatSatisfies(physical, source);
+            report.depthOK = VibePhysicalFormatSatisfies(physical, source,
+                                                         *file.processingFormat.streamDescription);
             report.sourceLossless = VibeSourceIsLossless(source);
         }
     }

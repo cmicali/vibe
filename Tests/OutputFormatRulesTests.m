@@ -26,6 +26,11 @@ static AudioStreamBasicDescription Compressed(UInt32 formatID, UInt32 flags, dou
     return d;
 }
 
+// AVAudioFile's processing format: float32 at the file's rate.
+static AudioStreamBasicDescription Decode(double rate) {
+    return PCM(rate, 32, YES);
+}
+
 static AudioStreamRangedDescription RangedFormat(double rate, UInt32 bits, BOOL isFloat) {
     AudioStreamRangedDescription r;
     r.mFormat = PCM(rate, bits, isFloat);
@@ -94,35 +99,47 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 #pragma mark - Satisfaction
 
 - (void)testFloat32SatisfiesUpTo24Bits {
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 32, YES), PCM(44100, 16, NO)));
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(96000, 32, YES), PCM(96000, 24, NO)));
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 32, YES), PCM(96000, 32, NO)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 32, YES), PCM(44100, 16, NO), Decode(44100)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(96000, 32, YES), PCM(96000, 24, NO), Decode(96000)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 32, YES), PCM(96000, 32, NO), Decode(96000)));
 }
 
 // A float source is the same representation as a float output, whatever its
 // storage width says; an integer output of any depth is a conversion.
 - (void)testFloatSourceIsSatisfiedOnlyByFloatAtLeastAsWide {
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 32, YES), PCM(44100, 32, YES)));
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 32, NO), PCM(44100, 32, YES)));
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 32, YES)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 32, YES), PCM(44100, 32, YES), Decode(44100)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 32, NO), PCM(44100, 32, YES), Decode(44100)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 32, YES), Decode(44100)));
     // The float flag's bit is also ALAC's 16-bit depth flag: not a float source.
     XCTAssertFalse(VibeSourceIsFloat(Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_16BitSourceData, 44100)));
     XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 16, NO),
-            Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_16BitSourceData, 44100)));
+            Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_16BitSourceData, 44100), Decode(44100)));
 }
 
 - (void)testIntegerDepthMustReachTheSource {
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 16, NO)));
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 24, NO)));
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 16, NO), PCM(44100, 24, NO)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 16, NO), Decode(44100)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 24, NO), PCM(44100, 24, NO), Decode(44100)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(44100, 16, NO), PCM(44100, 24, NO), Decode(44100)));
+}
+
+// The decode is float32 whatever the device: a 32-bit integer source loses
+// its low bits there (measured), so an i32 device does not make it Active;
+// a float64 decode would carry it, and a 24-bit source is carried by both.
+- (void)testTheDecodeMustCarryTheSourceToo {
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 32, NO), PCM(96000, 32, NO), Decode(96000)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 32, NO),
+            Compressed(kAudioFormatFLAC, kAppleLosslessFormatFlag_32BitSourceData, 96000), Decode(96000)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(96000, 32, NO), PCM(96000, 32, NO), PCM(96000, 64, YES)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(96000, 32, NO), PCM(96000, 24, NO), Decode(96000)));
+    XCTAssertFalse(VibePCMFormatCarries(PCM(96000, 16, YES), PCM(96000, 16, NO))); // no such float carries anything
 }
 
 - (void)testRateMismatchNeverSatisfies {
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(48000, 32, YES), PCM(44100, 16, NO)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(48000, 32, YES), PCM(44100, 16, NO), Decode(44100)));
 }
 
 - (void)testLossySourceIsSatisfiedByAnythingAtItsRate {
-    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 16, NO), Compressed(kAudioFormatMPEGLayer3, 0, 44100)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(PCM(44100, 16, NO), Compressed(kAudioFormatMPEGLayer3, 0, 44100), Decode(44100)));
 }
 
 #pragma mark - The rate rule
@@ -205,7 +222,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     // Nothing >= 32 is offered: the rule refuses to go below the source, so the
     // caller falls back to what the device has and reports DepthInsufficient.
     XCTAssertFalse(VibeBitPerfectChooseFormat(PCM(96000, 32, NO), 96000, dac, n, &chosen));
-    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 24, NO), PCM(96000, 32, NO)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(PCM(96000, 24, NO), PCM(96000, 32, NO), Decode(96000)));
 }
 
 - (void)testFloatSourcePrefersFloatAndTakesI32OnlyWithoutOne {
@@ -215,11 +232,11 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 32, YES), 44100, list, n, &chosen));
     XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 32u);
-    XCTAssertFalse(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES)));
+    XCTAssertFalse(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES), Decode(44100)));
     list[n++] = RangedFormat(44100, 32, YES);
     XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 32, YES), 44100, list, n, &chosen));
     XCTAssertTrue(VibePhysicalFormatIsFloat(chosen));
-    XCTAssertTrue(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES)));
+    XCTAssertTrue(VibePhysicalFormatSatisfies(chosen, PCM(44100, 32, YES), Decode(44100)));
 }
 
 - (void)testFloatOnlyDevicesChooseFloat32 {

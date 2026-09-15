@@ -108,24 +108,35 @@ static inline BOOL VibeSourceIsFloat(AudioStreamBasicDescription source) {
     return source.mFormatID == kAudioFormatLinearPCM && VibePhysicalFormatIsFloat(source);
 }
 
-// YES when `physical` delivers `source` unchanged: same rate, and the same
-// representation at no less width — a float source needs a float output at
-// least as wide, an integer source an integer depth >= its own or float32's
-// 24-bit significand. The report's depth check, not the chooser's
-// preference. A lossy source (depth 0) is satisfied by anything at its rate.
-static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physical,
-                                               AudioStreamBasicDescription source) {
-    if (physical.mSampleRate != source.mSampleRate) {
-        return NO;
-    }
+// Whether one PCM format carries `source`'s samples unchanged: the same
+// representation at no less width — a float source needs a float format at
+// least as wide, an integer source an integer depth >= its own or a float
+// significand that holds it (float32's is 24 bits, float64's 53). A lossy
+// source (depth 0) is carried by anything.
+static inline BOOL VibePCMFormatCarries(AudioStreamBasicDescription pcm,
+                                        AudioStreamBasicDescription source) {
     if (VibeSourceIsFloat(source)) {
-        return VibePhysicalFormatIsFloat(physical) && physical.mBitsPerChannel >= source.mBitsPerChannel;
+        return VibePhysicalFormatIsFloat(pcm) && pcm.mBitsPerChannel >= source.mBitsPerChannel;
     }
-    UInt32 depth = VibeSourceBitDepth(source);
-    if (VibePhysicalFormatIsFloat(physical)) {
-        return depth <= 24; // float32's significand
+    UInt32 carried = pcm.mBitsPerChannel;
+    if (VibePhysicalFormatIsFloat(pcm)) {
+        carried = (pcm.mBitsPerChannel == 32) ? 24 : (pcm.mBitsPerChannel == 64) ? 53 : 0;
     }
-    return physical.mBitsPerChannel >= depth;
+    return carried >= VibeSourceBitDepth(source);
+}
+
+// YES when the path delivers `source` unchanged: the device at the source's
+// rate, and both the decode's processing format (AVAudioFile decodes to
+// float32, so a 32-bit integer source is never delivered in full, whatever
+// the device offers — measured: 24,641,537 came out 24,641,536) and the
+// device's physical format carry it. The report's depth check, not the
+// chooser's preference.
+static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physical,
+                                               AudioStreamBasicDescription source,
+                                               AudioStreamBasicDescription processing) {
+    return physical.mSampleRate == source.mSampleRate
+            && VibePCMFormatCarries(processing, source)
+            && VibePCMFormatCarries(physical, source);
 }
 
 // Whether the mode may drive a chosen device: its transport carries bits
