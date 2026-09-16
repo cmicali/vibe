@@ -18,6 +18,8 @@ Anything that needs the app running — transport, FX, menus, drag-and-drop, lay
 
 `ArtworkDisplayController` runs its real single-render/latest-request scheduler in `AudioTrackTests` with held renderer completions and a publication sink; the sink keeps views and the Dock out of the suite. Header time formatting lives in `Formatters`, and `TrackDisplayRules` gates label updates. `OpenBurstCoalescerTests` exercises launch priority through the production launch method; `PlaylistFileTests` round-trips the private session with temporary files and isolated defaults, replacing only the write when proving failure cleanup.
 
+`OutputFormatRulesTests` also runs `AudioDeviceManager` with injected enumeration and retry scheduling: real serial refreshes, immutable snapshots, saved-device waiters and main-thread observers, with no HAL registration. `CoreAudioUtil.releaseDeviceObligation:attempt:isAbsent:` is the shared format-restore/exclusive-release retry loop; controlled attempts and real manager snapshots test retained versus retired cleanup obligations. Engine rebinding and actual device property I/O remain live tests.
+
 The test target deliberately links an incomplete `AudioTrackMetadata` decoy because the real implementation is ObjC++/TagLib. Its real-parser constructor raises; loader fixtures must use the copy-capable duck fake, and any newly required selector must be added deliberately rather than treating the decoy as production metadata.
 
 ## Rules that are easy to get wrong

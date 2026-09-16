@@ -18,6 +18,13 @@ NS_ASSUME_NONNULL_BEGIN
 // code must use the tri-state form below instead.
 + (AudioDeviceID)systemDefaultOutputDeviceID;
 
+// Restore/release a recorded device change, retrying a transient failure once.
+// A failed operation keeps the slot unless a published snapshot proves removal.
+// Callers run on their owning queue; supplied operations are synchronous.
++ (BOOL)releaseDeviceObligation:(AudioDeviceID *)deviceID
+                       attempt:(BOOL (^)(void))attempt
+                      isAbsent:(BOOL (^)(AudioDeviceID deviceID))isAbsent;
+
 // Each method returns whether the HAL read succeeded separately from its
 // answer. A successful default read may answer kAudioObjectUnknown, a
 // successful UID read may answer nil when that optional property is absent,

@@ -62,26 +62,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     });
 }
 
-// Where a deferred launch bind may land. Stopped always, and Loading only
-// while the engine is not running — which is the case that matters: launching
-// by double-clicking a file starts an open within milliseconds of the async
-// init, so a Stopped-only rule lets the FIRST track play through the system
-// default and moves to the saved device only at the next track boundary. At
-// launch nothing is rendering, so configureOutputDeviceOnQueue: rebinds with
-// shouldRestore == NO and the in-flight open starts itself on the new device.
-//
-// TRAP: an ordinary mid-session track change is ALSO Loading, with the
-// outgoing node still fading out on a running engine. Rebinding there stops
-// the engine under that fade and clicks, which is why the engine check is
-// part of the rule rather than a comment about launch. Playing and Paused stay
-// excluded outright: a failed bind there tears down live playback.
-static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunning) {
-    if (state == VibePlayerStateStopped) {
-        return YES;
-    }
-    return state == VibePlayerStateLoading && !engineRunning;
-}
-
 - (void)resolvePendingSavedOutputDeviceOnQueue {
     NSString *savedUID = _pendingSavedDeviceUID;
     NSString *savedName = _pendingSavedDeviceName;
@@ -89,7 +69,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     // won the race with HAL setup, leave the saved intent pending; the next
     // idle transition or device/default refresh can try again.
     if ((savedUID.length == 0 && savedName.length == 0)
-            || !VibeCanBindSavedOutputDevice(_state, _engine.isRunning)
+            || !VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
+                                             _state == VibePlayerStateLoading, _engine.isRunning)
             || _pendingSavedDeviceLookupInFlight) {
         return;
     }
@@ -108,11 +89,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             // A user selection queued after this lookup began owns the intent
             // and clears these fields. It must never be overwritten by a late
             // launch-time answer.
-            if (![strongSelf->_pendingSavedDeviceUID isEqualToString:savedUID]
-                    || ![strongSelf->_pendingSavedDeviceName isEqualToString:savedName]
+            if (!VibeSavedOutputDeviceRequestIsCurrent(savedUID, savedName,
+                            strongSelf->_pendingSavedDeviceUID, strongSelf->_pendingSavedDeviceName)
                     || !device
-                    || !VibeCanBindSavedOutputDevice(strongSelf->_state,
-                                                     strongSelf->_engine.isRunning)) {
+                    || !VibeCanBindSavedOutputDevice(strongSelf->_state == VibePlayerStateStopped,
+                            strongSelf->_state == VibePlayerStateLoading, strongSelf->_engine.isRunning)) {
                 strongSelf->_pendingSavedDeviceLookupInFlight = NO;
                 return;
             }
@@ -744,13 +725,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
     // Retry once for a transient failure. The HAL helper reads before writing,
     // so a failed read-back after a successful release cannot toggle it back on.
-    for (NSUInteger attempt = 0; attempt < 2; attempt++) {
-        if ([CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:_hoggedDeviceID]
-                || [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:_hoggedDeviceID]) {
-            _hoggedDeviceID = kAudioObjectUnknown;
-            break;
-        }
-    }
+    [CoreAudioUtil releaseDeviceObligation:&_hoggedDeviceID attempt:^BOOL{
+        return [CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:self->_hoggedDeviceID];
+    } isAbsent:^BOOL(AudioDeviceID deviceID) {
+        return [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:deviceID];
+    }];
     if (_hoggedDeviceID != kAudioObjectUnknown) {
         LogWarn(@"bit-perfect: release still owed to device %u", _hoggedDeviceID);
     }
@@ -864,18 +843,18 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     if (_changedFormatDeviceID == kAudioObjectUnknown) {
         return;
     }
-    BOOL restored = NO;
-    for (NSUInteger attempt = 0; attempt < 2; attempt++) {
-        if ([CoreAudioUtil setPhysicalFormat:_formatBeforeChange forStream:_changedFormatStreamID]) {
-            LogInfo(@"bit-perfect: device %u restored to %.0f Hz %@%u", _changedFormatDeviceID,
-                    _formatBeforeChange.mSampleRate, VibePhysicalFormatIsFloat(_formatBeforeChange) ? @"f" : @"i",
-                    (unsigned)_formatBeforeChange.mBitsPerChannel);
-            restored = YES;
-            break;
+    BOOL cleared = [CoreAudioUtil releaseDeviceObligation:&_changedFormatDeviceID attempt:^BOOL{
+        BOOL restored = [CoreAudioUtil setPhysicalFormat:self->_formatBeforeChange forStream:self->_changedFormatStreamID];
+        if (restored) {
+            LogInfo(@"bit-perfect: device %u restored to %.0f Hz %@%u", self->_changedFormatDeviceID,
+                    self->_formatBeforeChange.mSampleRate, VibePhysicalFormatIsFloat(self->_formatBeforeChange) ? @"f" : @"i",
+                    (unsigned)self->_formatBeforeChange.mBitsPerChannel);
         }
-    }
-    if (restored || [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:_changedFormatDeviceID]) {
-        _changedFormatDeviceID = kAudioObjectUnknown;
+        return restored;
+    } isAbsent:^BOOL(AudioDeviceID deviceID) {
+        return [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:deviceID];
+    }];
+    if (cleared) {
         _changedFormatStreamID = kAudioObjectUnknown;
         memset(&_formatBeforeChange, 0, sizeof(_formatBeforeChange));
     }
