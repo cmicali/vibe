@@ -181,12 +181,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
 #if DEBUG
         _manualPump = pump;
-        if (_manualPump) {
-            __weak VibeManualRenderPump *weakPump = _manualPump;
-            [_fx debugSetScheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
-                [weakPump scheduleAfter:seconds block:block];
-            }];
-        }
 #endif
         _retiredFades = [NSMutableArray array];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
@@ -306,15 +300,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
 #endif
 
-    if (_engine.isInManualRenderingMode) {
-        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:_engine.manualRenderingFormat];
-    }
 #if DEBUG
     if (manualRendering) {
+        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:_engine.manualRenderingFormat];
         // Rebind before installing FX: its scheduled sweeps use this queue.
         // Rebuilds keep the same clock and cancel the old timer in attach.
         if (!_manualPump) _manualPump = [[VibeManualRenderPump alloc] initWithFormat:_engine.manualRenderingFormat automatic:YES];
         [_manualPump attachToEngine:_engine queue:_queue];
+        [_fx debugSetManualRenderPump:_manualPump];
         LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
     }
 #endif
@@ -1372,21 +1365,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (void)debugSetCapture:(void (^)(AVAudioPCMBuffer *))capture {
     [self runSyncOnQueue:^{ self->_manualPump.capture = capture; }];
 }
-- (NSDictionary *)debugRenderState {
-    __block NSDictionary *state;
-    [self runSyncOnQueue:^{ state = @{@"running": @(self->_engine.isRunning),
-        @"frames": @(self->_manualPump.renderedFrames), @"varispeed": @(self->_varispeed != nil),
-        @"nodeVolume": @(self->_node.volume), @"latency": @(self->_node.outputPresentationLatency), @"varispeedLatency": @(self->_varispeed.latency), @"mixerRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate),
-        @"nodes": @(self->_engine.attachedNodes.count), @"retired": @(self->_retiredFades.count)}; }];
-    return state;
-}
 - (void)debugShutdown {
     self.delegate = nil;
     [self runSyncOnQueue:^{
-        [self preemptRampsOnQueue];
-        self->_segmentGeneration++;
-        [self cancelPlayOpenOnQueue];
-        [self prefetchOnQueue:nil];
+        [self stopOnQueue];
         [self->_manualPump cancel];
         [self->_engine stop];
     }];
@@ -1414,7 +1396,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
-                   @"retiredFades": @(self->_retiredFades.count)};
+                   @"retiredFades": @(self->_retiredFades.count),
+                   @"running": @(self->_engine.isRunning),
+                   @"frames": @(self->_manualPump.renderedFrames),
+                   @"varispeed": @(self->_varispeed != nil),
+                   @"nodeVolume": @(self->_node.volume),
+                   @"latency": @(self->_node.outputPresentationLatency),
+                   @"varispeedLatency": @(self->_varispeed.latency),
+                   @"mixerRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate)};
     }];
     return counts;
 }

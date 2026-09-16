@@ -5,7 +5,7 @@
 
 #import "AudioFX.h"
 #if DEBUG
-#import "AudioPlayer+Debug.h"
+#import "VibeManualRenderPump.h"
 #endif
 #import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
 #import "FadeMath.h"
@@ -140,7 +140,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 
 @implementation AudioFX {
 #if DEBUG
-    void (^_debugScheduler)(NSTimeInterval, dispatch_block_t);
+    __weak VibeManualRenderPump *_manualPump;
 #endif
     // The player's serial engine queue, shared rather than owned. All graph
     // and parameter mutation runs here, as every other engine touch in the app
@@ -183,11 +183,11 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 }
 
 #if DEBUG
-- (void)debugSetScheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler { _debugScheduler = [scheduler copy]; }
+- (void)debugSetManualRenderPump:(VibeManualRenderPump *)pump { _manualPump = pump; }
 #endif
 - (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block {
 #if DEBUG
-    if (_debugScheduler) { _debugScheduler(seconds, block); return; }
+    if (_manualPump) { [_manualPump scheduleAfter:seconds block:block]; return; }
 #endif
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), _queue, block);
 }

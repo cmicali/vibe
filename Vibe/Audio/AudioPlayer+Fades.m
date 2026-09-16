@@ -105,22 +105,17 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
     if (![_retiredFades containsObject:fade]) {
         return; // Preempted: stop, pause, parked play or reset owns teardown.
     }
-    // Registered fades are crossfade-length by construction (retireNode:), so
-    // this is always the equal-power side of a crossfade; see FadeMath.h.
-    fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
-    if (step >= totalSteps) {
-        __weak AudioPlayer *weakSelf = self;
-        [self scheduleAfterSeconds:kNodeVolumeSettleSeconds block:^{
-            AudioPlayer *strongSelf = weakSelf;
-            if (strongSelf && [strongSelf->_retiredFades containsObject:fade]) {
-                [strongSelf->_retiredFades removeObject:fade];
-                [strongSelf completeRetiredFadePair:fade];
-            }
-        }];
+    // The last write reaches zero; the next step runs after the node's own
+    // volume smoothing has settled. The same membership check cancels either.
+    if (step > totalSteps) {
+        [_retiredFades removeObject:fade];
+        [self completeRetiredFadePair:fade];
         return;
     }
+    fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
+    NSTimeInterval delay = step == totalSteps ? kNodeVolumeSettleSeconds : stepMicroseconds / 1000000.0;
     __weak AudioPlayer *weakSelf = self;
-    [self scheduleAfterSeconds:stepMicroseconds / 1000000.0 block:^{
+    [self scheduleAfterSeconds:delay block:^{
         [weakSelf stepRetiredFadeAsync:fade step:step + 1 from:start totalSteps:totalSteps stepMicroseconds:stepMicroseconds];
     }];
 }

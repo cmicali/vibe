@@ -10,21 +10,15 @@
 #if DEBUG
 
 #import "AudioPlayer.h"
-#import "AudioFX.h"
 #import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AudioFX (RenderDebug)
-- (void)debugSetScheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
-@end
-
 @interface AudioPlayer (Debug)
 - (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate;
 - (nullable AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error;
 - (void)debugSetCapture:(void (^ _Nullable)(AVAudioPCMBuffer *buffer))capture;
-- (NSDictionary *)debugRenderState;
 - (void)debugShutdown;
 
 
@@ -59,7 +53,9 @@ NS_ASSUME_NONNULL_BEGIN
 // lock-free.
 - (BOOL)manualRenderingActive;
 
-// {attachedNodes, retiredFades} for dump_health and check_consistency. A track
+// Engine snapshot for dump_health, check_consistency and the render tests:
+// node/fade counts, running state, rendered frames, pitch-unit presence,
+// volume, presentation latency and mixer rate. A track
 // change that failed to retire its node pair leaks them, which nothing else
 // observes — and since a soak run is thousands of track changes, unbounded
 // growth is the signal. The two are reported together because they fail apart:

@@ -174,7 +174,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player = [[AudioPlayer alloc] initForManualRendering:format enableFX:fx automatic:automatic delegate:self];
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
-    XCTAssertEqualWithAccuracy([_player.debugRenderState[@"mixerRate"] doubleValue], rate, 0);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"mixerRate"] doubleValue], rate, 0);
     [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO];
 }
 - (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
@@ -219,7 +219,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             d[f*_channels+c]-=rf>=0 && (NSUInteger)rf<reference.length/sizeof(float)/_channels ? r[rf*_channels+c] : 0;
         }
         [self attach:difference name:@"difference"];
-        XCTAttachment *trace=[XCTAttachment attachmentWithString:[NSString stringWithFormat:@"%@\n%@\n%@",result,_events,_player.debugRenderState]];
+        XCTAttachment *trace=[XCTAttachment attachmentWithString:[NSString stringWithFormat:@"%@\n%@\n%@",result,_events,_player.debugEngineCounts]];
         trace.name=@"render-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
     }
     XCTAssertTrue([result[@"pass"] boolValue], @"%@",result);
@@ -259,7 +259,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             NSData *reference=[self sourcePCM:url bits:bits.unsignedIntegerValue]; [self play:url paused:NO position:0];
             NSData *capture=[self renderSeconds:2.1];
             [self assertReference:reference capture:capture skip:(NSUInteger)(_rate*0.05) tolerance:0];
-            XCTAssertFalse([_player.debugRenderState[@"varispeed"] boolValue]);
+            XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
             XCTAssertEqual([self count:@"finish"],1u);
         }
     }
@@ -320,7 +320,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     double position=_player.position; NSUInteger sourceFrame=(NSUInteger)llround(position*_rate);
     NSData *silence=[self renderSeconds:6.1];
     XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,silence.length/8)),0);
-    XCTAssertFalse([_player.debugRenderState[@"running"] boolValue]);
+    XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
     XCTAssertEqualWithAccuracy(_player.position,position,0);
     XCTAssertEqual([self count:@"finish"],0u);
     [_player resume];
@@ -539,9 +539,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [_player setBitPerfectOutput:YES exclusiveOutput:NO];
     // A new play settles on the mode's chain even without a HAL destination.
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
-    XCTAssertFalse([_player.debugRenderState[@"varispeed"] boolValue]);
+    XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
     [_player setBitPerfectOutput:NO exclusiveOutput:NO]; [self render:2048];
-    XCTAssertTrue([_player.debugRenderState[@"varispeed"] boolValue]);
+    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
     XCTAssertFalse(_player.bitPerfectReport.enabled);
 }
 - (void)testFailedAndEmptyOpenRecover {
@@ -563,8 +563,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self play:[self fixture:i%2?@"noise-48000-24-2.wav":@"noise-48000-24-1.wav"] paused:NO position:0];
         [self render:512]; [_player pause]; [_player resume]; [_player seekToPosition:0.25];
         [self render:2048]; [_player stop]; [self render:2048];
-        XCTAssertEqual([self count:@"finish"],0u); XCTAssertLessThanOrEqual([_player.debugRenderState[@"nodes"] unsignedIntegerValue],4u);
-        XCTAssertEqual([_player.debugRenderState[@"retired"] unsignedIntegerValue],0u);
+        XCTAssertEqual([self count:@"finish"],0u); XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue],4u);
+        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
 - (void)testRealTimerPumpAndFade {
@@ -616,7 +616,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         NSUInteger middle=(NSUInteger)(duration*0.5*_rate);
         XCTAssertEqualWithAccuracy(p[middle*2],0.25/sqrt(2),0.025);
         XCTAssertEqualWithAccuracy(p[middle*2+1],0.25/sqrt(2),0.025);
-        XCTAssertEqual([_player.debugRenderState[@"retired"] unsignedIntegerValue],0u);
+        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
         [_player play:a]; [self settleUntil:^BOOL { return [self count:@"start"]==3; }]; [self render:4800];
         [_player play:b]; [self settleUntil:^BOOL { return [self count:@"start"]==4; }]; [self render:4800];
         [_player pause]; NSData *paused=[self renderSeconds:0.1];
@@ -659,7 +659,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 
 - (void)record:(NSString *)event track:(AudioTrack *)track {
-    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugRenderState?:@{}}];
+    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugEngineCounts?:@{}}];
 }
 - (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
 - (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
