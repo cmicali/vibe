@@ -138,14 +138,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
 
-// Points a row at a different file, returning the fresh AudioTrack now in it,
-// or nil when index is out of range. Mints a new track rather than
-// reassigning the old one's url: AudioTrack memoizes its cache key, and a
-// track carrying the old key would file the new file's waveform and metadata
-// under the old entries. Duration, detected BPM, and detected key carry
-// across — same audio.
-// Playback is untouched; a caller replacing the playing row restarts it.
-- (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
+// Replaces every occurrence of this file only while the captured row still
+// belongs to this playlist, returning the affected rows. Each gets a fresh
+// AudioTrack and cache key, carrying duration and analyzed BPM/key across.
+// Playback is untouched; the shell restarts a replaced playing row.
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;
 
 // Takes the rows out of the list, returning the exact objects removed in
 // ascending row order, or nil when the set is empty or out of range. Survivors

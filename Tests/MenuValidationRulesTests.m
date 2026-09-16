@@ -106,4 +106,65 @@
                    VibeWindowSizePresetDefault);
 }
 
+
+- (void)testSelectionCommandsRequireVisibleSelectionInTheKeyWindow {
+    for (NSInteger key = 0; key < 2; key++) for (NSInteger shown = 0; shown < 2; shown++) {
+        for (NSInteger row = -1; row < 2; row++) {
+            BOOL visible = VibeMenuHasVisibleSelection(key, shown, row);
+            XCTAssertEqual(visible, key && shown && row >= 0);
+            XCTAssertEqual(VibeTransportMenuEnabled(kVibeMenuPlaySelected, YES, YES, visible, YES, NO), visible);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES), visible);
+        }
+    }
+}
+
+- (void)testTransportBoundariesAndStoppedSkips {
+    XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuNextTrack, NO, YES, YES, YES, NO));
+    XCTAssertTrue(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, NO, YES, NO, YES, YES));
+    XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, YES, NO, YES, YES, NO));
+    for (NSString *identifier in @[kVibeMenuSkipForward, kVibeMenuSkipForwardMore,
+            kVibeMenuSkipForwardMost, kVibeMenuSkipBack, kVibeMenuSkipBackMore, kVibeMenuSkipBackMost]) {
+        XCTAssertTrue(VibeTransportMenuEnabled(identifier, NO, NO, NO, YES, NO));
+        XCTAssertFalse(VibeTransportMenuEnabled(identifier, YES, YES, YES, YES, YES));
+        XCTAssertFalse(VibeTransportMenuEnabled(identifier, YES, YES, YES, NO, NO));
+    }
+    XCTAssertFalse(VibeTransportMenuEnabled(@"unknown", YES, YES, YES, YES, NO));
+}
+
+- (void)testFileMenuTitlesAndKeyWindowGate {
+    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuPlay, 1, YES), STR_TRANSPORT_PAUSE);
+    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuPlay, 1, NO), STR_TRANSPORT_PLAY);
+    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuClose, 2, NO), STR_MENU_FILE_CLOSE_ALL);
+    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuClose, 1, NO), STR_MENU_FILE_CLOSE);
+    for (NSUInteger count = 0; count < 3; count++) {
+        XCTAssertEqual(VibeFileMenuEnabled(kVibeMenuPlay, count, NO, NO), count > 0);
+        XCTAssertEqual(VibeFileMenuEnabled(kVibeMenuClose, count, YES, YES), count > 0);
+        XCTAssertFalse(VibeFileMenuEnabled(kVibeMenuSavePlaylist, count, NO, YES));
+        XCTAssertEqual(VibeFileMenuEnabled(kVibeMenuSavePlaylist, count, YES, NO), count > 0);
+    }
+    XCTAssertFalse(VibeFileMenuEnabled(kVibeMenuShowInFinder, 1, YES, NO));
+    XCTAssertTrue(VibeFileMenuEnabled(kVibeMenuShowInFinder, 1, NO, YES));
+    XCTAssertFalse(VibeFileMenuEnabled(@"unknown", 1, YES, YES));
+}
+
+- (void)testUndoRedoAvailabilityAndCopyHaveIndependentInputs {
+    for (NSInteger busy = 0; busy < 2; busy++) for (NSInteger undo = 0; undo < 2; undo++) {
+        for (NSInteger redo = 0; redo < 2; redo++) {
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditUndo, busy, undo, redo, NO, NO, NO), !busy && undo);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRedo, busy, undo, redo, NO, NO, NO), !busy && redo);
+        }
+    }
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, YES, YES, YES, YES, NO));
+    XCTAssertTrue(VibeEditMenuEnabled(kVibeMenuEditCopyName, YES, NO, NO, NO, YES, NO));
+    XCTAssertFalse(VibeEditMenuEnabled(@"unknown", NO, YES, YES, YES, YES, YES));
+}
+
+- (void)testConvertCancelTitleAndActionReturnToIdleTogether {
+    for (NSNumber *busy in @[@NO, @YES, @NO]) {
+        XCTAssertEqualObjects(VibeConvertMenuTitle(busy.boolValue), busy.boolValue ? STR_MENU_CONVERT_CANCEL : STR_MENU_CONVERT_TO_FLAC);
+        XCTAssertEqualObjects(NSStringFromSelector(VibeConvertMenuAction(busy.boolValue)),
+                busy.boolValue ? @"cancelConversion:" : @"convertCurrentTrackToFLAC:");
+    }
+}
+
 @end

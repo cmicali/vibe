@@ -14,6 +14,7 @@
 #import "AppSettings+Mac.h"
 #import "AppSettingsInternal.h"
 #import "PlatformColor.h"
+#import "SettingsAppearanceViewController+Editor.h"
 
 @interface AppThemeTests : XCTestCase
 @end
@@ -1802,5 +1803,91 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings resetToDefaults];
 }
 
+
+
+- (void)testGlyphSelectionClearsOnlyItsImagesAndPairsPlayPause {
+    NSArray *buttons = @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImageNextButtonDark, kVibeThemeImagePlayButtonDark];
+    for (NSString *button in buttons) {
+        AppTheme *theme = [[AppTheme alloc] initWithRecord:@{}];
+        for (NSString *other in buttons) for (NSString *slot in [AppTheme imageKeysForButton:other]) {
+            [theme setImageReference:@"bundled:cupertino_dark.png" forKey:slot];
+        }
+        NSString *glyph = [button isEqualToString:kVibeThemeImagePlayButtonDark] ? @"play.circle.fill" : @"star.fill";
+        [theme setGlyph:glyph forButtonImageKey:button];
+        for (NSString *other in buttons) for (NSString *slot in [AppTheme imageKeysForButton:other]) {
+            XCTAssertEqual([theme imageReferenceForKey:slot].length > 0, ![other isEqual:button]);
+        }
+        if ([button isEqualToString:kVibeThemeImagePlayButtonDark]) {
+            XCTAssertEqualObjects(theme.playButtonGlyph, glyph);
+            XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.circle.fill");
+        } else if ([button isEqualToString:kVibeThemeImageNextButtonDark]) {
+            XCTAssertEqualObjects(theme.nextButtonGlyph, glyph);
+        } else {
+            XCTAssertEqualObjects(theme.playlistButtonGlyph, glyph);
+        }
+    }
+}
+
+- (void)testGlyphSelectionIsOneUndoableEditIncludingItsRetiredImage {
+    AppSettings *settings = self.editingSettings;
+    NSString *reference = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
+    [settings.currentTheme setImageReference:reference forKey:kVibeThemeImagePauseButtonLight];
+    [settings currentThemeDidChange];
+    NSDictionary *before = settings.currentTheme.dictionaryRepresentation;
+    [settings.currentTheme setGlyph:@"play.circle.fill" forButtonImageKey:kVibeThemeImagePlayButtonDark];
+    [settings currentThemeDidChange];
+    XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImagePauseButtonLight], @"");
+    XCTAssertFalse([AppTheme referenceIsMissing:reference]);
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, before);
+}
+
+- (void)testSupersededOrBuiltInImagePickerDoesNotEvenReadThePickedData {
+    AppSettings *settings = self.editingSettings;
+    NSString *original = settings.activeThemeIdentifier;
+    NSString *other = [settings addUserThemeWithRecord:@{} name:@"Other"];
+    [settings applyThemeWithIdentifier:other];
+    __block NSUInteger reads = 0;
+    NSData *(^data)(void) = ^{ reads++; return SquarePNG(96); };
+    NSError *error = nil;
+    XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageAppIcon themeIdentifier:original data:data error:&error]);
+    XCTAssertNil(error);
+    [settings applyThemeWithIdentifier:kVibeThemeIdentifierVibe];
+    XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageAppIcon themeIdentifier:kVibeThemeIdentifierVibe data:data error:&error]);
+    XCTAssertEqual(reads, 0u);
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertEqual(settings.currentTheme.dictionaryRepresentation.count, 0u);
+}
+
+- (void)testImagePickerInstallsOnlyItsSlotAndInvalidDataLeavesThemeUntouched {
+    AppSettings *settings = self.editingSettings;
+    NSString *identifier = settings.activeThemeIdentifier;
+    NSError *error = nil;
+    XCTAssertTrue([settings setCurrentThemeImageForKey:kVibeThemeImageNextButtonLight themeIdentifier:identifier
+            data:^{ return SquarePNG(96); } error:&error]);
+    [settings currentThemeDidChange];
+    XCTAssertNil(error);
+    XCTAssertTrue([[settings.currentTheme imageReferenceForKey:kVibeThemeImageNextButtonLight] hasPrefix:@"custom:"]);
+    XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImageNextButtonDark], @"");
+    NSDictionary *before = settings.currentTheme.dictionaryRepresentation;
+    XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageNextButtonLight themeIdentifier:identifier
+            data:^{ return [@"not an image" dataUsingEncoding:NSUTF8StringEncoding]; } error:&error]);
+    XCTAssertNotNil(error);
+    XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, before);
+    [settings undoThemeEdit];
+    XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImageNextButtonLight], @"");
+}
+
+- (void)testImageEditsRequestTheirOwnLiveEffects {
+    XCTAssertEqual(VibeThemeImageEditEffect(kVibeThemeImageAppIcon), VibeSettingsLiveEffectAppIcon);
+    for (NSString *key in @[kVibeThemeImageDefaultArtworkDark, kVibeThemeImageDefaultArtworkLight]) {
+        XCTAssertEqual(VibeThemeImageEditEffect(key), VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance);
+    }
+    for (NSString *button in @[kVibeThemeImagePlayButtonDark, kVibeThemeImageNextButtonDark, kVibeThemeImagePlaylistButtonDark]) {
+        for (NSString *key in [AppTheme imageKeysForButton:button]) {
+            XCTAssertEqual(VibeThemeImageEditEffect(key), VibeSettingsLiveEffectTransportButtons);
+        }
+    }
+}
 
 @end

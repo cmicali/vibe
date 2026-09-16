@@ -312,6 +312,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (BOOL)useFolderArt;
 - (void)setUseFolderArt:(BOOL)use;
 
+// Binds an asynchronous picker to its original editable theme. The data
+// provider is not called for a superseded pick. Caller persists through
+// currentThemeDidChange and then requests the image field's live effect.
+- (BOOL)setCurrentThemeImageForKey:(NSString *)key
+                 themeIdentifier:(NSString *)identifier
+                            data:(NSData * _Nullable (^)(void))data
+                           error:(NSError * _Nullable * _Nullable)error;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -10,6 +10,8 @@
 //
 
 #import "SettingsAppearanceViewController.h"
+#import "MainPlayerController+Settings.h"
+#import "AppTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -32,5 +34,16 @@ NS_ASSUME_NONNULL_BEGIN
 // editor's, and the pass ends in the class file's applyEditorVisibility.
 
 @end
+
+static inline VibeSettingsLiveEffect VibeThemeImageEditEffect(NSString *key) {
+    if ([key isEqualToString:kVibeThemeImageAppIcon]) {
+        return VibeSettingsLiveEffectAppIcon;
+    }
+    if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
+            || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
+        return VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
+    }
+    return VibeSettingsLiveEffectTransportButtons;
+}
 
 NS_ASSUME_NONNULL_END

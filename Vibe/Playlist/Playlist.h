@@ -137,6 +137,10 @@ NS_ASSUME_NONNULL_BEGIN
 // across — same audio.
 - (nullable AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
 
+// Replaces every occurrence of this file only while the captured row still
+// belongs to this playlist. Returns the affected rows; transport is the shell's.
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;
+
 // Removes every row in indexes, returning the exact removed objects in
 // ascending row order, or nil when indexes is empty or any member is out of
 // range — in which case nothing changes and no event is sent. Survivors keep

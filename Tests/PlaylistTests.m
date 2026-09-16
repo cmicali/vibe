@@ -965,4 +965,38 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqual(observer.events.count, 0u);
 }
 
+
+- (void)testConversionReplacesAllDuplicateURLsWithFreshRowsAndPreservesCursor {
+    NSURL *source = [NSURL fileURLWithPath:@"/tests/source.wav"];
+    NSURL *output = [NSURL fileURLWithPath:@"/tests/source.flac"];
+    NSURL *other = [NSURL fileURLWithPath:@"/tests/other.wav"];
+    Playlist *playlist = Playlist.new;
+    [playlist replaceAllWithURLs:@[source, other, source]];
+    playlist.currentIndex = 2;
+    NSArray *before = playlist.tracks;
+    RecordingObserver *observer = RecordingObserver.new;
+    playlist.observer = observer;
+    NSIndexSet *rows = [playlist replaceTracksMatchingTrack:before[0] withURL:output];
+    XCTAssertEqualObjects(RowsString(rows), @"0,2");
+    XCTAssertEqual(playlist.currentIndex, 2u);
+    XCTAssertEqualObjects(playlist.currentTrack.url, output);
+    XCTAssertNotEqual([playlist trackAtIndex:0], before[0]);
+    XCTAssertNotEqual([playlist trackAtIndex:2], before[2]);
+    XCTAssertEqual([playlist trackAtIndex:1], before[1]);
+    XCTAssertEqual([playlist indexesOfTracksWithURL:source].count, 0u);
+    XCTAssertEqualObjects([playlist indexesOfTracksWithURL:output], rows);
+    XCTAssertEqualObjects(observer.events, (@[@"replace 0", @"replace 2"]));
+}
+
+- (void)testConversionCompletionForDepartedIdentityDoesNotReplaceSameURLNewRows {
+    NSURL *source = [NSURL fileURLWithPath:@"/tests/source.wav"];
+    Playlist *playlist = Playlist.new;
+    [playlist replaceAllWithURLs:@[source]];
+    AudioTrack *departed = playlist.currentTrack;
+    [playlist replaceAllWithURLs:@[source, source]];
+    NSArray *before = playlist.tracks;
+    XCTAssertEqual([playlist replaceTracksMatchingTrack:departed withURL:[NSURL fileURLWithPath:@"/tests/output.flac"]].count, 0u);
+    XCTAssertEqualObjects(playlist.tracks, before);
+}
+
 @end
