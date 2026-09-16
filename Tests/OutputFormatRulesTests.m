@@ -354,7 +354,7 @@ static VibeBitPerfectReport Perfect(void) {
     return (VibeBitPerfectReport){
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES, .fxGraph = NO,
         .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
-        .depthOK = YES, .softwareVolume = 1.0f,
+        .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f,
         .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
     };
 }
@@ -384,6 +384,9 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertTrue(VibeBitPerfectReportsEqual(Perfect(), Perfect()));
     VibeBitPerfectReport r = Perfect();
     r.softwareVolume = 0.5f;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.balance = 0;
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
     r = Perfect();
     r.sampleRate = 96000;
@@ -443,6 +446,16 @@ static VibeBitPerfectReport Perfect(void) {
     VibeBitPerfectReport off = Perfect();
     off.enabled = NO;
     XCTAssertEqual(VibeBitPerfectFold(off), VibeBitPerfectStatusOff);
+}
+
+- (void)testBalanceAwayFromCenterPreventsActiveAtFullVolume {
+    VibeBitPerfectReport r = Perfect();
+    for (NSNumber *balance in @[@0.0f, @0.25f, @0.75f, @1.0f]) {
+        r.balance = balance.floatValue;
+        XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
+    }
+    r.balance = 0.5f;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusActive);
 }
 
 - (void)testSharedOutputCanStillBeActive {

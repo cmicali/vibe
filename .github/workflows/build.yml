@@ -64,7 +64,7 @@ jobs:
           xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
             -derivedDataPath build/DerivedData VIBE_ENABLE_EXCLUSIVE_OUTPUT=0 build
           nm build/DerivedData/Build/Products/Release/Vibe.app/Contents/MacOS/Vibe > /tmp/vibe-symbols.txt
-          if grep -Eq 'setHogOwnedByThisProcess|acquireExclusiveOutputOnQueue|releaseExclusiveOutputOnQueue|toggleExclusiveOutput' /tmp/vibe-symbols.txt; then
+          if grep -Eq 'readHogOwner|setHogOwnedByThisProcess|acquireExclusiveOutputOnQueue|releaseExclusiveOutputOnQueue|toggleExclusiveOutput' /tmp/vibe-symbols.txt; then
             echo 'Exclusive output methods survived the disabled build'
             exit 1
           fi

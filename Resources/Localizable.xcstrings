@@ -52105,6 +52105,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect.balance": {
+      "comment": "Bit-perfect output is scaling one channel because the system balance is not centered",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System balance is not centered — center it for bit-perfect output."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect.caption_off": {
       "comment": "Settings, General pane: caption under the bit-perfect output switch while it is off, explaining what turning it on does. No trailing period.",
       "localizations": {
@@ -52142,12 +52154,12 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.exclusive_refused": {
-      "comment": "Bit-perfect output status: the app could not take exclusive use of the device because another app already holds it.",
+      "comment": "Bit-perfect output status: exclusive access could not be confirmed, for example because another app holds the device or a device property read failed.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Another app has exclusive use of the device"
+            "value": "Could not obtain exclusive use of the device"
           }
         }
       },
@@ -52250,12 +52262,12 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.switch_failed": {
-      "comment": "Bit-perfect output status: the device was asked for the file's sample rate but did not confirm it in time.",
+      "comment": "Bit-perfect output status: the output route, format or volume/balance/mute settings could not be confirmed.",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The device did not accept the sample rate change"
+            "value": "Could not confirm the device's audio settings"
           }
         }
       },

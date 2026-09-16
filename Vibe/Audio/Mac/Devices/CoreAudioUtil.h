@@ -8,7 +8,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Raw HAL property accessors, one property read or write per method. Device
+// Raw HAL property accessors. Device
 // enumeration, AudioDevice model lookup and device-change notifications live
 // in AudioDeviceManager.
 @interface CoreAudioUtil : NSObject
@@ -51,13 +51,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readPhysicalFormat:(AudioStreamBasicDescription *)format forStream:(AudioStreamID)stream;
 + (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream;
 
-// The HAL's software volume for the device's output ('vmvc'). A device with
-// none answers YES with *volume = 1.0. Mute is read separately below.
-+ (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID;
-// Optional output mute; a device with no mute control answers NO in *muted.
-+ (BOOL)readOutputMute:(BOOL *)muted forDeviceID:(AudioDeviceID)deviceID;
+// Optional output controls. Missing controls mean unity volume, centered
+// balance (0.5), or unmuted; a failed read of a present control returns NO.
++ (BOOL)readOutputVolume:(Float32 *)volume balance:(Float32 *)balance mute:(BOOL *)muted
+            forDeviceID:(AudioDeviceID)deviceID;
 // One listener for the output's main-element properties, delivered on queue.
-// The caller filters addresses for volume/mute. The block is the handle:
+// The caller filters addresses for volume/balance/mute. The block is the handle:
 // removal must use the same block object, queue and device.
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
@@ -73,6 +72,7 @@ NS_ASSUME_NONNULL_BEGIN
 // makes it idempotent. YES means the device is in the requested state on
 // return; "owned by this process" is the whole state, so a release while
 // another process holds it is already true.
++ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID;
 #endif
 

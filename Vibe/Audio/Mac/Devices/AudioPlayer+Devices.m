@@ -672,29 +672,31 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// Read live, as the report reads it: a resume from pause runs no prepare,
-// and the default can have moved during the pause.
+// The engine is stopped at both ownership edges. Read the default live: a
+// failed read cannot establish that this device is safe to take exclusively.
 - (void)acquireExclusiveOutputOnQueue {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
-    if (!device) {
+    AudioDeviceID deviceID = device ? (AudioDeviceID)device.deviceId : kAudioObjectUnknown;
+    AudioDeviceID systemDefault = kAudioObjectUnknown;
+    if (!device || !_exclusiveOutputWanted
+            || ![CoreAudioUtil readSystemDefaultOutputDeviceID:&systemDefault]
+            || !VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType,
+                                        deviceID == systemDefault)) {
+        [self releaseExclusiveOutputOnQueue];
         return;
     }
-    AudioDeviceID deviceID = (AudioDeviceID)device.deviceId;
-    if (!VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType,
-                                 deviceID == [CoreAudioUtil systemDefaultOutputDeviceID])) {
-        return;
+    if (_hoggedDeviceID != deviceID) {
+        [self releaseExclusiveOutputOnQueue];
+        if (_hoggedDeviceID != kAudioObjectUnknown) {
+            return; // never overwrite an outstanding release with a second device
+        }
     }
-    if (_hoggedDeviceID == deviceID) {
-        return;
-    }
-    NSTimeInterval started = NSProcessInfo.processInfo.systemUptime;
-    if ([CoreAudioUtil setHogOwnedByThisProcess:YES forDeviceID:deviceID]) {
-        _hoggedDeviceID = deviceID;
-        LogInfo(@"bit-perfect: exclusive access to %@ in %.0f ms", device.name,
-                (NSProcessInfo.processInfo.systemUptime - started) * 1000);
-    }
-    else {
-        LogWarn(@"bit-perfect: could not take exclusive access to %@", device.name);
+    // A successful write followed by a failed read-back may still own the
+    // device. Record the cleanup obligation BEFORE asking the HAL to take it.
+    _hoggedDeviceID = deviceID;
+    if (![CoreAudioUtil setHogOwnedByThisProcess:YES forDeviceID:deviceID]) {
+        LogWarn(@"bit-perfect: could not confirm exclusive access to %@", device.name);
+        [self releaseExclusiveOutputOnQueue];
     }
     [self publishBitPerfectReportOnQueue];
 }
@@ -703,17 +705,25 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     if (_hoggedDeviceID == kAudioObjectUnknown) {
         return;
     }
-    if (![CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:_hoggedDeviceID]) {
-        LogWarn(@"bit-perfect: could not release exclusive access to device %u", _hoggedDeviceID);
+    // Retry once for a transient failure. The HAL helper reads before writing,
+    // so a failed read-back after a successful release cannot toggle it back on.
+    for (NSUInteger attempt = 0; attempt < 2; attempt++) {
+        if ([CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:_hoggedDeviceID]
+                || [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:_hoggedDeviceID]) {
+            _hoggedDeviceID = kAudioObjectUnknown;
+            break;
+        }
     }
-    _hoggedDeviceID = kAudioObjectUnknown;
+    if (_hoggedDeviceID != kAudioObjectUnknown) {
+        LogWarn(@"bit-perfect: release still owed to device %u", _hoggedDeviceID);
+    }
     [self publishBitPerfectReportOnQueue];
 }
 
 #endif
 
-// The prepared device changes: replace the volume/mute listener, because
-// either control can silence or scale the output mid-track.
+// The prepared device changes: replace the volume/balance/mute listener, because
+// these controls can silence or scale the output mid-track.
 // kAudioObjectUnknown forgets the device. The block is copied before the
 // add, because the HAL keys the removal on the block object it was handed.
 - (void)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID {
@@ -738,6 +748,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             for (UInt32 i = 0; i < count; i++) {
                 AudioObjectPropertySelector selector = addresses[i].mSelector;
                 if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+                        || selector == kAudioDevicePropertyStereoPan
                         || selector == kAudioDevicePropertyMute
                         || selector == kAudioObjectPropertySelectorWildcard) {
                     [strongSelf publishBitPerfectReportOnQueue];
@@ -773,7 +784,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 // Computes the report from its owners — the mode, the graph, the chosen
 // device, the hog, the current file, and the prepared device's physical
-// format, volume, mute and default-ness read live — and publishes the copy the
+// format, volume, balance, mute and default-ness read live — and publishes the copy the
 // shell reads, announcing it to the delegate when it differs. Held while a
 // device switch is rebuilding; configureOutputDeviceOnQueue: publishes once
 // at its end.
@@ -784,9 +795,6 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     VibeBitPerfectReport report = {0};
     report.enabled = _bitPerfectWanted;
     report.fxGraph = (self.fx != nil);
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    report.exclusive = (_hoggedDeviceID != kAudioObjectUnknown);
-#endif
     AudioDevice *device = [self eligibleRequestedDeviceOnQueue];
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -800,10 +808,13 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         report.systemDefault = (_preparedDeviceID == [CoreAudioUtil systemDefaultOutputDeviceID]);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         report.hogWanted = VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType, report.systemDefault);
+        pid_t owner = -1;
+        report.exclusive = _hoggedDeviceID == _preparedDeviceID
+                && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();
 #endif
-        report.formatConfirmed &= [CoreAudioUtil readVirtualMainVolume:&report.softwareVolume
-                                                           forDeviceID:_preparedDeviceID];
-        report.formatConfirmed &= [CoreAudioUtil readOutputMute:&report.muted forDeviceID:_preparedDeviceID];
+        report.formatConfirmed &= [CoreAudioUtil readOutputVolume:&report.softwareVolume
+                                                          balance:&report.balance mute:&report.muted
+                                                      forDeviceID:_preparedDeviceID];
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;

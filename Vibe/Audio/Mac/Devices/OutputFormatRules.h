@@ -28,7 +28,7 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
     VibeBitPerfectStatusMuted,
-    // Software volume below 1.0.
+    // Software volume below 1.0 or balance away from center.
     VibeBitPerfectStatusVolumeScaled,
     // Hog held by another process.
     VibeBitPerfectStatusExclusiveRefused,
@@ -47,6 +47,7 @@ typedef struct {
     UInt32 bitsPerChannel;  // the physical format's; 32 for float
     BOOL isFloat;
     float softwareVolume;
+    float balance;         // 0 = left, 0.5 = center, 1 = right
     // The fold's inputs.
     BOOL enabled;
     BOOL eligibleDevice;
@@ -71,7 +72,7 @@ static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
 static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPerfectReport b) {
     return a.status == b.status && a.sampleRate == b.sampleRate
             && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
-            && a.softwareVolume == b.softwareVolume && a.enabled == b.enabled
+            && a.softwareVolume == b.softwareVolume && a.balance == b.balance && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.fxGraph == b.fxGraph && a.rateExact == b.rateExact
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
@@ -308,7 +309,7 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (r.muted) {
         return VibeBitPerfectStatusMuted;
     }
-    if (r.softwareVolume < 1.0f) {
+    if (r.softwareVolume < 1.0f || r.balance != 0.5f) {
         return VibeBitPerfectStatusVolumeScaled;
     }
     if (r.hogWanted && !r.exclusive) {

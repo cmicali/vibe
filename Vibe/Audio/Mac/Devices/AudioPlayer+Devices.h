@@ -21,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The newest published report — a locked snapshot, no queue hop, like
 // outputAudioActive. Recomputed from its owners at every settlement, hog
-// edge, mode toggle, playback-state publication, volume move and default
+// edge, mode toggle, playback-state publication, volume/balance/mute change and default
 // change, and announced through audioPlayerDidChangeBitPerfectReport: when
 // it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
@@ -65,7 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
 // reads, announcing it to the delegate when it differs. Its edges are
 // refreshOutputAudioActiveOnQueue (every state publication and fade
 // completion), the end of a device switch, the two hog edges, the mode
-// toggle, a volume move and a system-default change.
+// toggle, a volume/balance/mute change and a system-default change.
 - (void)publishBitPerfectReportOnQueue;
 
 // The parked settlement's re-entry, called by completeRetiredFadePair: when
