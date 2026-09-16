@@ -6,10 +6,7 @@
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayerInternal.h"
 
-// How long the engine may sit idle before it is stopped to release the output
-// device. Long enough to absorb even a slow next-track open, short enough to
-// let go promptly when playback really ends; see the header for why it is
-// deferred at all.
+// Give the next track time to open before releasing the idle engine.
 static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 
 @implementation AudioPlayer (Engine)
@@ -24,6 +21,9 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
     _engineIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            [self acquireExclusiveOutputOnQueue]; // gates itself on both settings
+#endif
             NSError *startError = nil;
             if (![_engine startAndReturnError:&startError]) {
                 if (outError) {
@@ -52,7 +52,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEngineIdleStopDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+    [self scheduleAfterSeconds:kEngineIdleStopDelaySeconds block:^{
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_engineIdleStopGeneration) {
             return;
@@ -64,6 +64,9 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
         // because the in-flight open's finish path wants a warm engine.
         if (state == VibePlayerStateStopped) {
             [strongSelf->_engine stop];
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            [strongSelf releaseExclusiveOutputOnQueue];
+#endif
         }
         else if (state == VibePlayerStatePaused && strongSelf->_node && strongSelf->_file) {
             // TRAP: the paused node still carries its scheduled segment, and
@@ -81,6 +84,9 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
             AVAudioFile *file = strongSelf->_file;
             [node stop];
             [strongSelf->_engine stop];
+#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            [strongSelf releaseExclusiveOutputOnQueue];
+#endif
             double sampleRate = file.processingFormat.sampleRate;
             AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
             [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
@@ -88,7 +94,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
                                 segmentStart:startFrame position:position];
             [strongSelf maybeArmGaplessOnQueue];
         }
-    });
+    }];
 }
 
 @end

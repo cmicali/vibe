@@ -10,8 +10,9 @@
 # trigger; set VIBE_AUDIBLE=1 to use real hardware and hear playback, or
 # VIBE_AUDIBLE=silent for real hardware with the mixer muted (--silent only).
 # --no-audio-hw also suppresses the system Now Playing publish, because
-# registering as the active media app takes the AirPods on its own. Testing
-# the Now Playing integration therefore needs VIBE_AUDIBLE=1 or =silent.
+# registering as the active media app takes the AirPods on its own.
+# Now Playing stays suppressed on hardware too unless VIBE_NOW_PLAYING=1.
+# Testing it needs that opt-in plus VIBE_AUDIBLE=1 or =silent.
 # Set VIBE_LANGUAGE=de (a catalog code) to launch
 # the app in that language via -AppleLanguages — per-launch only, no prefs
 # reset needed.
@@ -95,6 +96,7 @@ for _ in 1 2 3 4 5 6; do
         # plist array: (de). bash 3.2 + set -u dies on "${ARGS[@]}" when the
         # array is empty, hence the ${ARGS[@]+...} idiom.
         ARGS=()
+        [ "${VIBE_NOW_PLAYING:-0}" != "1" ] && ARGS+=(--no-now-playing)
         [ -n "${VIBE_LANGUAGE:-}" ] && ARGS+=(-AppleLanguages "(${VIBE_LANGUAGE})")
         case "${VIBE_AUDIBLE:-}" in
             "")     ARGS+=(--no-audio-hw --silent) ;;

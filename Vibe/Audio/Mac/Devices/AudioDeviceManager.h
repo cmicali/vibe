@@ -22,6 +22,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (AudioDeviceManager *)sharedInstance;
 
+// Controlled enumeration keeps the production queue, snapshot, waiter and
+// retry policy. Nil enumerator uses HAL and registers process-lifetime listeners;
+// an injected enumerator supplies changes through refreshOutputDevicesWithCompletion:.
+- (instancetype)initWithEnumerator:(NSArray<AudioDevice *> * _Nullable (^_Nullable)(BOOL acceptPartial))enumerator
+                     retryScheduler:(void (^_Nullable)(NSTimeInterval delay, dispatch_block_t retry))scheduler;
+// Completion runs on the refresh queue, after publication and resolution waiters.
+- (void)refreshOutputDevicesWithCompletion:(void (^)(BOOL published))completion;
+
 // Observers are held weakly; add/remove may be called from any thread.
 - (void)addObserver:(id<AudioDeviceManagerObserver>)observer;
 - (void)removeObserver:(id<AudioDeviceManagerObserver>)observer;

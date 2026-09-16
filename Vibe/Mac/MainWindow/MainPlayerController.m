@@ -16,7 +16,6 @@
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
 #import "AudioPlayer.h"
-#import "PlaybackDeliveryRules.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -28,6 +27,7 @@
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
+#import "PlaybackDeliveryRules.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "MainWindow.h"
@@ -47,8 +47,8 @@
 #import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
-#import "AppStats.h"
 #import "TrackCommands.h"
+#import "OpenRequestCoordinator.h"
 #import "VibeStrings.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -74,7 +74,7 @@
     // that a timer armed by playlist A and firing after a re-drop cannot start
     // playlist B's load while B's first track is still opening. Only
     // scheduleDeferredMetadataLoad, cancelDeferredMetadataLoad and
-    // startPendingMetadataLoad write it.
+    // startPendingMetadataLoadForGeneration: write it.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
     TransportKeyMonitor*        _keyMonitor;
@@ -140,9 +140,13 @@
     // the player's serial queue or this pre-first-paint path.
     self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:AppSettings.sharedInstance.audioOutputDeviceUID
                                                          name:AppSettings.sharedInstance.audioOutputDeviceName
-                                                     enableFX:AppSettings.sharedInstance.audioFXEnabled
+                                                     enableFX:AppSettings.sharedInstance.audioFXAllowed
                                                      delegate:self];
-    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
+    // The mode is wanted from the first play; the saved device binds
+    // asynchronously and the report follows it.
+    [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
+                         exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput];
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];
@@ -704,7 +708,7 @@
 // didFinishPlaying:'s stale-track guard drops any end-of-track callback
 // already in flight.
 - (IBAction)closeFile:(nullable id)sender {
-    [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
+    [OpenRequestCoordinator.sharedCoordinator invalidate];
     [self teardownDownloadMonitor];
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
@@ -868,10 +872,12 @@ static NSURL *VibeLastPlaylistURL(void) {
     // model will slide into its place. When everything after the current row
     // is going too, the cursor moves BACK onto a previous row, and removal
     // must not replay backward. The intent resolves after every transport
-    // command already submitted to the player queue; the two short-circuits
-    // are what keep every other edit off that round trip.
+    // command already submitted to the player queue; the model's query keeps
+    // every other edit off that round trip.
+    VibePendingPlaybackIntent intent;
     BOOL continuesPlaying = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows] != nil
-            && [self.audioPlayer playingIntentAfterPendingCommands];
+            && [self.audioPlayer getPlaybackIntent:&intent forTrack:nil]
+            && !intent.paused;
 
     // A removal is a plain list edit, so it is undoable like one: undo
     // restores the exact objects to their rows — identity, metadata and
@@ -923,9 +929,7 @@ static NSURL *VibeLastPlaylistURL(void) {
     // the last track always parks, because removal must not replay backward.
     BOOL startPaused = !continuesPlaying;
     if (startPaused) {
-        // The new submission drops any pending stop or pause callback for the
-        // removed track, so settle its app-side lifecycle before superseding it.
-        [[AppStats sharedInstance] playbackStopped];
+        // A slow parked open must not keep the UI tick running.
         [self pauseUIUpdateTimer];
     }
     [playlist playStartPaused:startPaused];

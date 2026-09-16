@@ -23,19 +23,22 @@ V="$APP/Contents/MacOS/Vibe"      # the binary is its own CLI client (same sandb
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'   # info/debug are never persisted; full path, zsh has a `log` builtin
 ```
 
-Every verb with its arguments and reply schema is `references/mac-verbs.md`; the channel's unknown-command reply is the authoritative list. Prefer the channel to lldb, CGEvents, or AppleScript: no permissions, no frontmost requirement, no pausing.
+Run the opt-in bit-perfect acceptance matrix with `make test-bit-perfect`; setup, coverage and evidence are in `references/test-audio.md`. Live acceptance is excluded from regular tests and CI. Both `test-bit-perfect` and the hardware-free `test-audio` run the same comparator self-tests. `make build-test-blackhole` builds its required multichannel/failure driver fixtures; installation requires macOS administrator authentication.
+
+Every verb with its arguments and reply schema, including bit-perfect reports and loopback verification, is `references/mac-verbs.md`; the channel's unknown-command reply is the authoritative list. Prefer the channel to lldb, CGEvents, or AppleScript: no permissions, no frontmost requirement, no pausing.
 
 **Audio flags, and what each run proves.** `launch.sh` passes both debug-only argv flags by default:
 
 - `--no-audio-hw`: manual rendering with a real-time-paced pump. No CoreAudio device is opened, so a run cannot trigger AirPods auto-switching; playback, position, waveform, and FX behave normally. `dump_state.player.manualRendering` is what actually happened (`enableManualRenderingMode` can fail, and the engine then opens the device as usual) — **trust `manualRendering`, not `noAudioHw`**.
 - `--silent`: zeroes the main mixer but opens and drives the real output device — real-HAL behavior without noise (device switching, config-change notifications, output-latency timing).
 - `VIBE_AUDIBLE=1` uses real hardware audibly; `VIBE_AUDIBLE=silent` is `--silent` alone.
+- Test launches also pass `--no-now-playing` by default, suppressing media focus and remote commands without changing the audio graph. Set `VIBE_NOW_PLAYING=1` only to verify media integration; loopback captures must keep suppression so they do not pull AirPods off another device.
 
 Which run proves what:
 
 - **Equalizer bars.** `--silent` zeroes the signal above the tap, so a healthy default run draws dots. Functional EQ checks off hardware need a manual launch with only `--no-audio-hw`. `dump_equalizer` reports the launch flags — check them before calling flat bars a defect. Counters and bounds: `references/equalizer-counters.md`.
 - **Start latency.** TRAP: never measure it under `--no-audio-hw`. The pump is not a clock: a file whose sample rate differs from the render format can sit at position 0 for seconds. Use `VIBE_AUDIBLE=silent`; the answer is then exact without instrumentation, since `position` is rendered audio and at poll time `T` with position `P` playback began at `T - P`. `player.state` is the pending *intent* (`playing` during a cloud open that has not landed), so time an open by position movement, never the state string.
-- **Now Playing, media keys, Control Center, Bluetooth transport.** `--no-audio-hw` suppresses the publish outright, since registering as the active media app alone pulls AirPods over; `dump_now_playing` then reports `hasInfo: 0` — correct, not a bug. Launch with `VIBE_AUDIBLE=1`, and expect it to take the AirPods.
+- **Now Playing, media keys, Control Center, Bluetooth transport.** `--no-audio-hw` and `--no-now-playing` suppress the publish outright, since registering as the active media app alone pulls AirPods over; `dump_now_playing` then reports `hasInfo: 0` — correct, not a bug. Launch with `VIBE_NOW_PLAYING=1 VIBE_AUDIBLE=1`, and expect it to take the AirPods.
 
 **Launching by hand.**
 
@@ -156,6 +159,6 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) drives this channel 
 - `references/settings-window.md` — the five settings verbs' replies, control naming, the kind table. Read when driving a Settings pane.
 - `references/equalizer-counters.md` — `dump_equalizer`'s schema and bounds, `set_equalizer_mode`. Read when judging the equalizer bars.
 - `references/screenshots-and-logs.md` — how the snapshot picks a window and what it cannot render, real capture and pixel probes, on-device `--log-stderr`. Read when a screenshot looks wrong or a log must come off a phone.
-- `references/test-audio.md` — the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`. Read before picking a file for a test.
+- `references/test-audio.md` — `make test-audio`, loopback/device checks, the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`. Read before picking a file for a test.
 - `references/os-input.md` — CGEvents through the window server for hover, focus, and drop targets. Read when an explicit gesture test needs OS input on an isolated test desktop.
 - `references/build-provenance.md` — the launch-time provenance block and how the git fields reach the binary. Read when a log must be tied to a build.

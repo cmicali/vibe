@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
+#import "PlaybackIntent.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -89,8 +90,7 @@ NS_ASSUME_NONNULL_BEGIN
                               name:(NSString *)deviceName
                           enableFX:(BOOL)enableFX
                           delegate:(id <AudioPlayerDelegate>)delegate
-              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
-        NS_DESIGNATED_INITIALIZER;
+              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
@@ -112,12 +112,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pause;
 - (void)resume;
 
-// Action-only coordination read for a structural replacement. Unlike the
-// lock-only UI predicates below, this waits for transport commands already
-// submitted to the player queue, including a pause fade which has begun but
-// not completed. Do not poll it; main-thread actions call it once before
-// committing the model edit that must preserve that ordered intent.
-- (BOOL)playingIntentAfterPendingCommands;
+// Action-only queue barrier for a structural replacement. Includes Loading's
+// pending seek and pause intent, and unfinished seek/pause fades. Returns NO if
+// stopped or a non-nil requested row is no longer current; leaves intent untouched.
+// Do not poll it: ordinary UI reads remain lock-only.
+- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable AudioTrack *)track;
 
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.
@@ -198,7 +197,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Published transport state: exactly one of these three is true. During
 // Loading, isPlaying/isPaused reflect whether the open will land playing or
 // parked. A pause keeps reporting playing through its short fade. An action
-// that must order after pending transport uses playingIntentAfterPendingCommands.
+// that must order after pending transport uses getPlaybackIntent:forTrack:.
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;
@@ -223,6 +222,26 @@ NS_ASSUME_NONNULL_BEGIN
 // IDs do not survive a reboot, so persistence goes by UID and name; see
 // initWithDeviceUID:.
 - (void)setOutputDevice:(NSInteger)outputDeviceID;
+
+// Bit-perfect output. While on, each track's settlement sets the chosen
+// device to the file's rate and word length, and the chain is pruned to
+// player node -> mixer -> output, without varispeed. The shell owns the
+// rest of the pruning (no FX, the
+// crossfade at the declick minimum, the pitch fader gone) and only ever turns
+// this on for an eligible device — explicitly chosen, on a transport that
+// carries bits unchanged (OutputFormatRules.h). Either direction restores the
+// current track in place, as a device switch onto the same device; off also
+// puts the device's format back and releases the hog. Main thread, like every
+// other transport-facing setter; the work lands on the player queue.
+// Both preferences land together. Exclusive access is optional and only
+// applies while bit-perfect output is on; the build flag can remove it.
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput;
+
+// Restores any device format this run changed and releases the hog,
+// synchronously on the player queue. The app delegate's
+// applicationWillTerminate: is the one caller: the player is never
+// deallocated at quit, so this is the edge that keeps the restore promise.
+- (void)prepareForTermination;
 
 @end
 #endif
@@ -275,6 +294,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 // and inactive. Read outputAudioActive for the current value when refreshing.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive;
+
+// macOS only, main-thread delivery, only when bitPerfectReport changed. The
+// report settles asynchronously after every toggle, play, pause, device
+// switch and volume move, so a caller that reads it right after a setter
+// sees the previous one; this is the edge to redraw from.
+- (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer;
 
 @end
 

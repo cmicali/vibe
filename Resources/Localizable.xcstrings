@@ -52081,6 +52081,210 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect": {
+      "comment": "Settings, General pane, Audio group: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bit-perfect output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.active": {
+      "comment": "Settings, General pane: caption under the bit-perfect output switch while the current track is delivered bit-perfect. %@ is the format, e.g. '96.0 kHz · 24-bit · exclusive'.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active: %@"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.balance": {
+      "comment": "Bit-perfect output is scaling one channel because the system balance is not centered",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System balance is not centered, center it for bit-perfect output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.caption_off": {
+      "comment": "Settings, General pane: caption under the bit-perfect output switch while it is off, explaining what turning it on does. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sets the device to each file's sample rate and bit depth"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.channels": {
+      "comment": "Bit-perfect output status: the decoded file, mixer or output device has a different channel count, so unchanged delivery of every channel is not verified.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The playback path changes this file's channel count"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.depth": {
+      "comment": "Bit-perfect output status: the file carries more bits per sample than the decoder or the device can pass on, so the audio is truncated. The decoder is 32-bit float, which carries 24 integer bits.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File's bit depth is greater than the device can play"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.exclusive_refused": {
+      "comment": "Bit-perfect output status: exclusive access could not be confirmed, for example because another app holds the device or a device property read failed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not obtain exclusive use of the device"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.format": {
+      "comment": "The output format bit-perfect output settled on: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@-bit · shared"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.format_exclusive": {
+      "comment": "The output format bit-perfect output settled on, with the app holding exclusive use of the device: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@-bit · exclusive"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.format_shared_default": {
+      "comment": "The output format bit-perfect output settled on, on a device the app deliberately does not take exclusive use of because it is the system's output device, so other apps' sounds can still mix in: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@-bit · shared (system output device)"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.idle": {
+      "comment": "Settings, General pane: caption under the bit-perfect output switch while it is on and playback is stopped or paused.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On. Nothing is playing."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.lossy": {
+      "comment": "Bit-perfect output status: the file is a lossy format (MP3, AAC), so bit-perfect delivery applies to the decoded audio, not to a lossless original.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File is lossy, but bits out of the decoder are delivered unchanged"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.muted": {
+      "comment": "Bit-perfect output status: the device's separate mute control is on, even if its volume still reads 100 percent.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The output device is muted"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.needs_device": {
+      "comment": "Settings, General pane: caption under the disabled bit-perfect output switch while the output is System Output or a Bluetooth, AirPlay or other device the mode cannot drive. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a wired device"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.rate_unsupported": {
+      "comment": "Bit-perfect output status: the device cannot run at the file's sample rate, so the audio is resampled. %@ is the rate the device is running at, already formatted with its unit (e.g. '88.2 kHz').",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device does not support file's sample rate; playing at %@"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.switch_failed": {
+      "comment": "Bit-perfect output status: the output route, format or volume/balance/mute settings could not be confirmed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to get device's audio settings"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.volume": {
+      "comment": "Bit-perfect output status: macOS is scaling the audio in software because the device's volume is below full. %@ is the volume as a whole-number percentage; %% is a literal percent sign.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The device's volume is %@%%, set it to 100%% for bit-perfect output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.default_player.is": {
       "comment": "Settings, General pane, 'Default music player' row: disabled button title replacing 'Set … as default' once the app already holds every audio type. %@ is the app name.",
       "localizations": {
@@ -52634,6 +52838,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "預設音樂播放器："
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output": {
+      "comment": "Settings, General pane: optional exclusive device access beneath Bit-perfect output.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exclusive output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.caption": {
+      "comment": "Settings: exclusive output explanation. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stops other apps from using the output device while playing"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.needs_bit_perfect": {
+      "comment": "Settings: why the exclusive output switch is disabled. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable bit-perfect output"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.exclusive_output.needs_device": {
+      "comment": "Settings: exclusive output is unavailable for virtual devices and the system output device. No trailing period.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a wired device other than system output"
           }
         }
       },
@@ -57656,6 +57908,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "重新開啟 %@ 後生效。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.playback.off_while_bit_perfect": {
+      "comment": "Settings, Playback pane: caption under the disabled audio-FX switch and the disabled crossfade dropdown while bit-perfect output (Settings > General) is on, which turns both off.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off while bit-perfect output is on"
           }
         }
       },

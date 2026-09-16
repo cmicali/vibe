@@ -31,6 +31,7 @@
 // sees the other's, so this one import is conditional.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
+#import <AudioToolbox/AudioToolbox.h>
 #endif
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayer+Fades.h"
@@ -164,6 +165,49 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // fails. It stays set through that retry so a persistent failure cannot
     // create a polling loop.
     BOOL                    _systemOutputBindRetryScheduled;
+
+    // ---- Bit-perfect output, owned by AudioPlayer+Devices.m.
+    // The settings' queue-side intent, delivered together by
+    // setBitPerfectOutput:exclusiveOutput:.
+    BOOL                    _bitPerfectWanted;
+    // The device configureOutputDeviceOnQueue: is rebinding the engine to,
+    // for the duration of that call, else kAudioObjectUnknown. The mode's
+    // device is this when set, otherwise the requested id — which the switch
+    // commits only after the rebuild, and a failed switch never.
+    AudioDeviceID           _rebindDeviceID;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    BOOL                    _exclusiveOutputWanted;
+    // Possible ownership, or kAudioObjectUnknown. Retained until release is
+    // confirmed, even after a failed take; never overwritten by another device.
+    AudioDeviceID           _hoggedDeviceID;
+#endif
+    // The one device whose format this run changed and has not yet put back,
+    // its first output stream, and the physical format it had before the
+    // first change. kAudioObjectUnknown when nothing is owed;
+    // restoreOutputFormatOnQueue clears all three after success or confirmed
+    // removal; another device cannot replace an outstanding restore.
+    AudioDeviceID           _changedFormatDeviceID;
+    AudioStreamID           _changedFormatStreamID;
+    AudioStreamBasicDescription _formatBeforeChange;
+    // The device the last prepare set up, from that prepare until it is
+    // left: its first output stream, the physical format asked of it, and
+    // the listener on its volume/balance/mute that is the HAL's handle for the
+    // removal. kAudioObjectUnknown while none. The report reads the stream's
+    // physical format, volume, balance, mute and system default live against these.
+    AudioDeviceID           _preparedDeviceID;
+    AudioStreamID           _preparedStreamID;
+    AudioStreamBasicDescription _preparedFormat;
+    AudioObjectPropertyListenerBlock _outputLevelListener;
+    AUEventListenerRef      _outputDeviceListener;
+    // The original non-bit-perfect connection, restored when leaving the mode.
+    AVAudioFormat           *_masterBusFormatBeforeBitPerfect;
+    // A settlement waiting for the outgoing audio to go silent before it may
+    // stop the engine for a format switch; delivered once by
+    // completeRetiredFadePair: when _activeRetiredOutputCount reaches zero.
+    dispatch_block_t        _settlementWaiter;
+    // The published report, under _stateLock; computed from its owners at
+    // every publication, nothing cached.
+    VibeBitPerfectReport    _bitPerfectReport;
 #endif
 
     // ---- The fades, owned by AudioPlayer+Fades.m.
@@ -172,12 +216,16 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // them through preemptRetiredFadesOnQueue, so an outgoing track cannot stay
     // audible for up to the full crossfade; declick-length retires never register.
     NSMutableArray<VibeRetiredFade *> *_retiredFades;
-    // A pause fade is in flight. Queue-confined. A second playPause during the
-    // fade-out cancels the pending pause and ramps back up rather than pausing
-    // twice. The fade's completion clears it, and runs on preemption too, as
-    // does preemptRampsOnQueue eagerly. The iOS config-change recovery must
-    // yield to a pending pause, which owns the transport.
+    // A pause fade or an internal seek carrying its pause is in flight.
+    // Queue-confined. A second playPause during the fade-out cancels the
+    // pending pause and ramps back up rather than pausing
+    // twice. Its current completion or preemptRampsOnQueue clears it.
+    // The iOS config-change recovery yields to this transport intent.
     BOOL                    _pausePending;
+    // Queue-confined seek target during its fade, or -1. Intent readers must
+    // preserve it before replacing the node; rendered position still lags it.
+    NSTimeInterval          _pendingSeekPosition;
+    uint64_t                _seekRampGeneration; // the latest seek, independent of later pause/resume ramps
 
     // ---- The equalizer indicator's level tap.
     // The public levelsEnabled's intent, carried onto the queue by its setter
@@ -299,6 +347,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Wires the master bus on a fresh engine: the FX segment, or, with FX
 // disabled, the mixer straight to the output. The rebuild's second half.
 - (void)installMasterBusOnQueue;
+// The audio-time clock for fades, sweeps, drains and the idle stop: the debug
+// pump's under manual rendering, else dispatch_after on _queue. Wall-clock
+// deadlines (the open timeout, the system-output bind retry) use dispatch_after
+// directly, because rendered frames must not advance them.
+- (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block;
 // Reconciles tap demand. Also called after a successful engine start so a
 // temporary unusable-format failure can recover without toggling demand.
 - (void)applyLevelTapOnQueue;
@@ -306,6 +359,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
 - (void)createEngineAndMasterBusOnQueue;
+// Makes _varispeed what the chain wants — one, or none under macOS's
+// bit-perfect output. Lives in AudioPlayer.m because _varispeed is written
+// there alone.
+- (void)ensureVarispeedOnQueue;
 // The permitted partial writers of the published playback state; the full
 // model, and why there are exactly three of them, is at publishPlaybackState:
 // in AudioPlayer.m. Both return the node they unpublished, for the caller to

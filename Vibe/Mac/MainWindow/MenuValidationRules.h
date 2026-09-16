@@ -26,8 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // Not this controller's to validate.
     VibeMenuValidationDomainUnknown = 0,
-    // Window and preference checkmarks. Never disabled: a preference is not an
-    // action, and there is nothing for it to be unavailable for.
+    // Window and preference checkmarks. Never disabled — a preference is not
+    // an action, and there is nothing for it to be unavailable for — with one
+    // exception: Show Pitch Control, unavailable while bit-perfect output
+    // mints no varispeed for the fader to drive.
     VibeMenuValidationDomainViewToggle,
     // The width presets, checkmarked against the body's current width.
     VibeMenuValidationDomainWindowSize,

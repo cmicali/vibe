@@ -8,8 +8,10 @@
 #import "PlaylistController.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"
+#import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
+#import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
@@ -18,6 +20,7 @@
 #import "MainMenuBuilder.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
+#import "PitchControlPanel.h"
 #import "TrackDisplayController.h"
 
 @implementation MainPlayerController (Settings)
@@ -54,7 +57,26 @@
         [self applyReopenLastPlaylist];
     }
     if (effects & VibeSettingsLiveEffectCrossfade) {
-        self.audioPlayer.crossfadeMilliseconds = settings.crossfadeMilliseconds;
+        self.audioPlayer.crossfadeMilliseconds = settings.effectiveCrossfadeMilliseconds;
+    }
+    if (effects & VibeSettingsLiveEffectBitPerfect) {
+        BOOL bitPerfect = settings.bitPerfectOutput;
+        if (bitPerfect) {
+            // No varispeed under the mode: reset both the player and its
+            // readout, then withdraw the panel through the one toggle, which
+            // pins the siblings for the animation.
+            self.audioPlayer.pitch = 0;
+            _pitchPanel.pitch = 0;
+            if (((MainWindow *)self.window).isPitchPanelShown) {
+                [self togglePitchPanel:nil];
+            }
+            [self updateRateDependentUI];
+            [self updateNowPlaying];
+        }
+        // The header's lock and the Settings caption redraw from
+        // audioPlayerDidChangeBitPerfectReport: once this lands on the
+        // player queue; reading the report here would show the previous one.
+        [self.audioPlayer setBitPerfectOutput:bitPerfect exclusiveOutput:settings.exclusiveOutput];
     }
     if (effects & VibeSettingsLiveEffectUIUpdateRate) {
         [self syncUITimerRate];
@@ -120,7 +142,7 @@
         [MainMenuBuilder applyConvertMenuVisibility];
     }
     if (effects & VibeSettingsLiveEffectFXControls) {
-        if (!settings.audioFXEnabled) {
+        if (!settings.audioFXAllowed) {
             self.lowKillBoostActive = NO;
             self.lowKillActive = NO;
             self.reverbSendActive = NO;

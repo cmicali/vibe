@@ -94,6 +94,8 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: c17
     GCC_NO_COMMON_BLOCKS: YES
+    # Set to 0 to omit exclusive output controls and CoreAudio hog access.
+    VIBE_ENABLE_EXCLUSIVE_OUTPUT: 1
     # Warnings are errors everywhere: the warning set was audited to zero
     # (2026-08-21) and neither xcodebuild nor the analyze gate would otherwise
     # fail on a compiler warning — the analyze script's filter deliberately
@@ -123,6 +125,7 @@ settings:
       GCC_OPTIMIZATION_LEVEL: 0
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
+        - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
@@ -133,6 +136,7 @@ settings:
       # NDEBUG is used in TagLib
       GCC_PREPROCESSOR_DEFINITIONS:
         - "NDEBUG=1"
+        - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
 
@@ -581,6 +585,7 @@ targets:
           - "**/.DS_Store"
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
+          - "AudioPlayerRenderTests.m"         # Dedicated hardware-free engine suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -619,6 +624,9 @@ targets:
       - path: Vibe/System/DownloadProgressSourceAdapters.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
+      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
+      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
@@ -650,7 +658,7 @@ targets:
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
       - path: Vibe/Debug/VibeWorkTally.m
     settings:
-      base:
+      base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeTests
         GENERATE_INFOPLIST_FILE: YES
@@ -706,7 +714,70 @@ targets:
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AVFAudioWaveformLoader reads (and its tests write) files
 
+  # Real AVAudioEngine rendering, with no test host or output device.
+  VibeAudioTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/AudioPlayerRenderTests.m
+      - path: Tests/TestFilesystemGuard.m
+      - path: Vibe/Audio/AudioPlayer.m
+      - path: Vibe/Audio/AudioPlayer+State.m
+      - path: Vibe/Audio/AudioPlayer+Engine.m
+      - path: Vibe/Audio/AudioPlayer+Fades.m
+      - path: Vibe/Audio/AudioPlayer+Gapless.m
+      - path: Vibe/Audio/AudioPlayer+Graph.m
+      - path: Vibe/Audio/AudioPlayer+Seek.m
+      - path: Vibe/Audio/FX/AudioFX.m
+      - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Audio/AudioFileFormat.m
+      - path: Vibe/Audio/AudioError.m
+      - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Audio/Loading/AudioWorkScheduler.m
+      - path: Vibe/Audio/Loading/CloudTransferRegistry.m
+      - path: Vibe/Audio/PlaybackRequestCoordinator.m
+      - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
+      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
+      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/Levels/AudioLevelTap.m
+      - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
+      - path: Vibe/Audio/Levels/AudioLevelPublisher.m
+      - path: Vibe/Debug/VibeManualRenderPump.m
+      - path: Vibe/Debug/VibeWorkTally.m
+      - path: Vibe/System/CloudFileMaterializer.m
+      - path: Vibe/System/DownloadProgressMonitor.m
+      - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/Formatters.m
+      - path: Vibe/Playlist/PlaylistFile.m
+      - path: Vibe/Common/PlayableExtensions.m
+      - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      - path: Vibe/Util/Categories/NSURL+FileIdentity.m
+      - path: Vibe/Util/Categories/NSURL+Hash.m
+    settings:
+      base:
+        <<: *hostless-test-settings
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
+    dependencies:
+      - sdk: AppKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: Accelerate.framework
+
 schemes:
+  VibeAudioTests:
+    build:
+      targets:
+        VibeAudioTests: [test]
+    test:
+      config: Debug
+      targets:
+        - VibeAudioTests
+      environmentVariables:
+        VIBE_AUDIO_FIXTURES: "$(SRCROOT)/build/audio-fixtures"
   VibeiOS:
     build:
       parallelizeBuild: true

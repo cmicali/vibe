@@ -136,6 +136,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 @end
 
 @implementation AudioFX {
+    void (^_scheduler)(NSTimeInterval, dispatch_block_t);
     // The player's serial engine queue, shared rather than owned. All graph
     // and parameter mutation runs here, as every other engine touch in the app
     // does.
@@ -176,10 +177,12 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     float                   _delayTapBPM;
 }
 
-- (instancetype)initWithQueue:(dispatch_queue_t)queue {
+- (instancetype)initWithQueue:(dispatch_queue_t)queue
+                    scheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler {
     self = [super init];
     if (self) {
         _queue = queue;
+        _scheduler = [scheduler copy];
         _stateLock = OS_UNFAIR_LOCK_INIT;
     }
     return self;
@@ -515,7 +518,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         return;
     }
     __weak AudioFX *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLowKillSweepStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    _scheduler(kLowKillSweepStepMicroseconds / 1000000.0, ^{
         [weakSelf stepLowKillRamp:step + 1 from:start to:target generation:generation];
     });
 }
@@ -595,7 +598,7 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     }
     gate.outputVolume = VibeFadeVolumeOverSteps(start, target, step, steps);
     __weak AudioFX *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    _scheduler(stepMicroseconds / 1000000.0, ^{
         [weakSelf stepSendGateRamp:gate step:step + 1 of:steps stepMicroseconds:stepMicroseconds from:start to:target generation:generation counter:counter completion:completion];
     });
 }

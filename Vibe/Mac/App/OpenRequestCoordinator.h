@@ -28,6 +28,9 @@ typedef void (^OpenRequestDelivery)(NSArray<NSURL *> *files, NSUInteger folderCo
 // The app's coordinator. -init makes an independent one, for tests.
 + (instancetype)sharedCoordinator;
 
+// Closing the playlist supersedes pending walks and buffered append results.
+- (void)invalidate;
+
 // append == NO starts a new generation and invalidates every older token.
 - (OpenRequestToken *)beginRequestAppending:(BOOL)append
                                    delivery:(OpenRequestDelivery)delivery;

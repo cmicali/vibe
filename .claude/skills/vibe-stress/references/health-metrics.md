@@ -52,3 +52,6 @@ Every process metric is checked against an external tool, and they agree: `threa
 `fileDescriptors` is the one that was wrong: `proc_pidinfo(PROC_PIDLISTFDS)` with a null buffer answers the descriptor *table* size, which grows with peak concurrency and never shrinks — 420 reported against 41 actual — so a burst of parallel opens read as a permanent leak while a real fd leak was indistinguishable from a concurrency spike. `VibeOpenFileDescriptorCount` fetches the listing for real, which is what let the limits come down to 64 in flight and 8 at rest. An fd leak is a live hazard here: a failed `AVAudioFile` open against an empty file strands its descriptor.
 
 `heap Vibe` gives per-class live instance counts from outside the process, the attribution `dump_health`'s process-level numbers deliberately leave out.
+
+
+**Sanitizers need their own live-allocation counter.** A standalone 30,000-open `AVAudioFile` probe reported 139 GB in the ASan zone's `size_in_use` against 0.5 MB from `__sanitizer_get_current_allocated_bytes`: the zone counts freed allocations too. TSan has the opposite problem — its zone reports zero against 2.4 MB actually live. The health oracle uses the sanitizer allocator API for either zone, keeping the ordinary zone counters for CoreAudio's separate allocators. Otherwise ASan reports fictitious leaks and TSan hides real ones.

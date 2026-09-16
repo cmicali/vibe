@@ -10,9 +10,17 @@
 #if DEBUG
 
 #import "AudioPlayer.h"
+#import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface AudioPlayer (Debug)
+- (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate;
+- (nullable AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error;
+- (void)debugSetCapture:(void (^ _Nullable)(AVAudioPCMBuffer *buffer))capture;
+- (void)debugShutdown;
+
 
 // The player's own copy of the loading configuration, for dump_audio_loading's
 // three-way comparison against the materialization coordinator's and the
@@ -30,6 +38,13 @@
 // macOS-only layer. Reads the engine on _queue, where every other engine touch
 // in the app runs — the command channel calls this from main.
 - (NSInteger)currentlyActiveAudioDeviceId;
+
+// Bit-perfect output's queue-confined ownership and the engine's three
+// connection rates, for dump_state: {hoggedDeviceId, restoreOwedToDeviceId,
+// varispeedPresent, mixerOutputRate, outputNodeInputRate,
+// outputNodeOutputRate}, -1 for no device. Implemented in AudioPlayer+Devices.m
+// beside the mechanism; one queue hop.
+- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership;
 #endif
 
 // Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone
@@ -38,7 +53,9 @@
 // lock-free.
 - (BOOL)manualRenderingActive;
 
-// {attachedNodes, retiredFades} for dump_health and check_consistency. A track
+// Engine snapshot for dump_health, check_consistency and the render tests:
+// node/fade counts, running state, rendered frames, pitch-unit presence,
+// volume, presentation latency and mixer rate. A track
 // change that failed to retire its node pair leaks them, which nothing else
 // observes — and since a soak run is thousands of track changes, unbounded
 // growth is the signal. The two are reported together because they fail apart:
@@ -63,5 +80,7 @@
 - (NSDictionary<NSString *, id> *)debugEqualizerState;
 
 @end
+
+NS_ASSUME_NONNULL_END
 
 #endif

@@ -20,8 +20,11 @@
 // node rendered, and the varispeed merely consumes them faster or slower.
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format {
     @try {
-        [_engine connect:node to:self.varispeed format:format];
-        [_engine connect:self.varispeed to:_engine.mainMixerNode format:format];
+        // Bit-perfect output mints no varispeed: connect straight to the mixer.
+        [_engine connect:node to:(self.varispeed ?: _engine.mainMixerNode) format:format];
+        if (self.varispeed) {
+            [_engine connect:self.varispeed to:_engine.mainMixerNode format:format];
+        }
     }
     @catch (NSException *exception) {
         LogError(@"AudioPlayer: engine connect failed for format %@: %@", format, exception);
@@ -33,8 +36,15 @@
     os_unfair_lock_lock(&_stateLock);
     float pitch = _pitch;
     os_unfair_lock_unlock(&_stateLock);
-    self.varispeed.rate = 1.0f + pitch / 100.0f;
+    [self applyPitchToVarispeedOnQueue:pitch];
     return YES;
+}
+
+// The one mapping from the published pitch to the varispeed: a ratio, and
+// bypass at zero, because even a ratio of 1.0 is not a pass-through.
+- (void)applyPitchToVarispeedOnQueue:(float)pitch {
+    self.varispeed.rate = 1.0f + pitch / 100.0f;
+    self.varispeed.bypass = pitch == 0;
 }
 
 // A detach that cannot throw. After a failed connect, a node can be in a state
@@ -79,19 +89,33 @@
 #if DEBUG
     // DataPlayedBack never fires under --no-audio-hw's manual rendering:
     // "played back" is computed against the output device's timeline, which
-    // doesn't exist. DataRendered is the same moment at manual mode's zero
-    // output latency, and without it track end — and so auto-advance — never
-    // fires.
+    // doesn't exist. DataRendered plus the downstream presentation latency
+    // below drains the complete signal before track-end teardown.
     if (_engine.isInManualRenderingMode) {
         completionType = AVAudioPlayerNodeCompletionDataRendered;
     }
 #endif
     __weak AudioPlayer *weakSelf = self;
+#if DEBUG
+    __weak AVAudioPlayerNode *weakNode = node;
+#endif
     AVAudioPlayerNodeCompletionHandler finalCompletion =
             ^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_queue, ^{
+#if DEBUG
+                // DataRendered belongs to the source node. Downstream units
+                // can still hold its final samples (even bypassed varispeed
+                // reports latency). Drain that pipeline before tearing it down.
+                NSTimeInterval latency = weakNode.outputPresentationLatency;
+                if (strongSelf->_engine.isInManualRenderingMode && latency > 0) {
+                    [strongSelf scheduleAfterSeconds:latency block:^{
+                        [strongSelf segmentDidCompleteWithGeneration:gen];
+                    }];
+                    return;
+                }
+#endif
                 [strongSelf segmentDidCompleteWithGeneration:gen];
             });
         }

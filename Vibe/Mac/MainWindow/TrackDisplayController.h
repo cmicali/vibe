@@ -28,15 +28,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Which performance effects are currently on, for the header's FX indicators,
-// drawn inline at the head of the codec line; see renderFXState:. It mirrors
-// the AudioFX flags, since the display controller reads no player state itself.
+// The deck state riding the codec line — which performance effects are on,
+// and whether bit-perfect output is delivering the track — drawn inline at
+// the head of the line; see renderFXState:. It mirrors the AudioFX flags and
+// the player's bit-perfect report, since the display controller reads no
+// player state itself.
 typedef struct {
     BOOL lowKill;       // Q — low-kill high-pass
     BOOL lowKillBoost;  // W — doubles Q's cutoff (renders as the filled dial)
     BOOL reverb;        // E
     BOOL delay;         // R — 1/8-note echo
     BOOL shortDelay;    // T — 1/16-note echo
+    // 0 = mode off (no glyph), 1 = mode on but not delivering (open lock; the
+    // reason is the tooltip, renderBitPerfectToolTip:), 2 = delivering
+    // (closed lock).
+    NSInteger bitPerfect;
 } VibeFXDisplayState;
 
 // Main thread only.
@@ -75,6 +81,10 @@ typedef struct {
 // renders only in Track; the loading, empty and error states keep showing
 // --:--.
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state;
+
+// The codec line's hover text: the one sentence explaining an open lock, or
+// nil for none. The whole line is the hover target — it is one label.
+- (void)renderBitPerfectToolTip:(nullable NSString *)toolTip;
 
 // The BPM line under the codec label, which also carries the musical key. It
 // takes the pitch-scaled display value, since the caller owns both the

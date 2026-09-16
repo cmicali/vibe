@@ -249,7 +249,7 @@ static unichar VibeBareKeyChar(NSString *chars) {
         return nil;
     }
     if ([chars isEqualToString:@"p"]) {
-        [controller togglePitchPanel:nil];
+        [controller togglePitchPanel:nil]; // refuses the reveal under bit-perfect output
         return nil;
     }
     // The playlist keys, dead while the playlist is collapsed: the table keeps
@@ -287,7 +287,7 @@ static unichar VibeBareKeyChar(NSString *chars) {
     // that branch already yields.
     NSInteger effectKey = VibeEffectKeyForChars(chars);
     if (effectKey >= 0 && controller.audioPlayer.fx != nil
-            && AppSettings.sharedInstance.audioFXEnabled) {
+            && AppSettings.sharedInstance.audioFXAllowed) {
         if (!event.isARepeat) {
             BOOL wasActive = [self effectActive:effectKey controller:controller];
             _effectKeyIsDown[effectKey] = YES;

@@ -247,6 +247,9 @@
     MainWindow *window = (MainWindow *)self.window;
     BOOL show = !window.isPitchPanelShown;
     if (show) {
+        if (!AppSettings.sharedInstance.pitchControlAllowed) {
+            return; // the one gate: the menu item, the P key and the debug verb all land here
+        }
         // Sync the fader with the player before the reveal; it is cheap either
         // way.
         _pitchPanel.pitch = self.audioPlayer.pitch;

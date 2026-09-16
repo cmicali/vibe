@@ -54,6 +54,11 @@
                                                  prefetchedFile.processingFormat.channelCount)) {
         return;
     }
+#if TARGET_OS_OSX
+    if ([self outputNeedsSwitchOnQueueForFile:prefetchedFile unknownNeedsSwitch:YES]) {
+        return; // bit-perfect: the next file wants another device format, which only a settlement can set
+    }
+#endif
     uint64_t openGeneration = ++_gaplessOpenGeneration;
     NSString *path = track.url.path;
     _gaplessOpenPath = path;
@@ -109,6 +114,16 @@
                                  _gaplessFile.processingFormat.channelCount)) {
         return;
     }
+#if TARGET_OS_OSX
+    // A splice keeps the device's format, so the next file must want the one
+    // the current file set; a 16-bit → 24-bit boundary on an integer DAC
+    // takes the settlement, which switches. The promote publishes the new
+    // file, and the report reads its source facts from the current file. NO
+    // with the mode off.
+    if ([self outputNeedsSwitchOnQueueForFile:_gaplessFile unknownNeedsSwitch:YES]) {
+        return;
+    }
+#endif
     [self scheduleFile:_gaplessFile onNode:_node fromFrame:0];
     [self setGaplessQueuedOnQueue:YES];
 }
@@ -185,7 +200,7 @@
     [self clearGaplessOnQueue];
     if (wasQueued) {
         // The stale segment stays physically queued until the seek's stop
-        // lands (a queue hop plus the fade). A boundary inside that window
+        // lands after the fade. A boundary inside that window
         // must not finish the track — finishPlaybackOnQueue would bare-stop
         // the node just as the wrong file starts sounding, a blip plus a
         // click — so stale it now; the seek replays the current remainder
@@ -194,7 +209,10 @@
         // the user raced against the retarget must survive it rather than
         // being silently cancelled the way a user seek cancels one.
         _segmentGeneration++;
-        [self seekToPosition:self.position restoringPreemptedPause:YES];
+        // An unfinished seek already drops the splice and owns the position.
+        if (_pendingSeekPosition < 0) {
+            [self seekOnQueueToPosition:self.position restoringPreemptedPause:YES];
+        }
     }
 }
 

@@ -138,8 +138,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
 
-// Replaces every occurrence of this file only while the captured row still
-// belongs to this playlist, returning the affected rows. Each gets a fresh
+// Replaces every row still holding this file, even if the captured row left
+// during conversion, returning the affected rows. Each gets a fresh
 // AudioTrack and cache key, carrying duration and analyzed BPM/key across.
 // Playback is untouched; the shell restarts a replaced playing row.
 - (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;

@@ -7,6 +7,10 @@
 #import "AudioPlayerInternal.h"
 #import "FadeMath.h"
 
+// AVAudioPlayerNode smooths volume writes over 20 ms. A zero parameter is
+// not yet zero output: teardown at the last write cuts that ramp mid-sample.
+static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
+
 // The stepping loop every ramp below funnels into. Private: callers pick an
 // entry point named for what they are fading, never these nine parameters.
 @interface AudioPlayer (FadesPrivate)
@@ -28,11 +32,8 @@
 
 @implementation AudioPlayer (Fades)
 
-// The single way to preempt the generation-tagged ramps. Clearing
-// _pausePending belongs with the bump: the preempted pause fade's completion
-// also clears it, but up to one fade step (1 ms) later, and a playPause
-// inside that window would take the "cancel pending pause" path and ramp the
-// preemptor's node to full instead of pausing it.
+// Cancel the old pause intent with its ramp. Only a current completion may
+// clear it later; an internal splice-removal seek explicitly carries it forward.
 - (uint64_t)preemptRampsOnQueue {
     _pausePending = NO;
     return ++_rampGeneration;
@@ -43,8 +44,8 @@
 // picks the curve by fade length — log at the declick minimum, equal power for
 // crossfade-length fades — matching the registered stepper, so both sides of a
 // crossfade ride the same curve. A preempted ramp still runs its completion,
-// so completion-side bookkeeping is not lost (the pause fade's _pausePending
-// clear, the seek's reschedule and didFinishSeeking settle); those completions
+// so completion-side bookkeeping is not lost (the seek's reschedule and
+// didFinishSeeking settlement); those completions
 // re-check the generation themselves and yield to the preemptor.
 - (void)stepRampAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target totalSteps:(int)totalSteps stepMicroseconds:(uint64_t)stepMicroseconds fadeMilliseconds:(uint64_t)fadeMilliseconds preemptable:(BOOL)preemptable generation:(uint64_t)generation completion:(dispatch_block_t)completion {
     if (preemptable && generation != _rampGeneration) {
@@ -56,14 +57,15 @@
     node.volume = VibeFadeVolumeForFadeLength(fadeMilliseconds, start, target, step, totalSteps);
     if (step >= totalSteps) {
         if (completion) {
-            completion();
+            if (target == 0) [self scheduleAfterSeconds:kNodeVolumeSettleSeconds block:completion];
+            else completion();
         }
         return;
     }
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:stepMicroseconds / 1000000.0 block:^{
         [weakSelf stepRampAsync:node step:step + 1 from:start to:target totalSteps:totalSteps stepMicroseconds:stepMicroseconds fadeMilliseconds:fadeMilliseconds preemptable:preemptable generation:generation completion:completion];
-    });
+    }];
 }
 
 - (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
@@ -100,18 +102,19 @@
     if (![_retiredFades containsObject:fade]) {
         return; // Preempted: stop, pause, parked play or reset owns teardown.
     }
-    // Registered fades are crossfade-length by construction (retireNode:), so
-    // this is always the equal-power side of a crossfade; see FadeMath.h.
-    fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
-    if (step >= totalSteps) {
+    // The last write reaches zero; the next step runs after the node's own
+    // volume smoothing has settled. The same membership check cancels either.
+    if (step > totalSteps) {
         [_retiredFades removeObject:fade];
         [self completeRetiredFadePair:fade];
         return;
     }
+    fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
+    NSTimeInterval delay = step == totalSteps ? kNodeVolumeSettleSeconds : stepMicroseconds / 1000000.0;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:delay block:^{
         [weakSelf stepRetiredFadeAsync:fade step:step + 1 from:start totalSteps:totalSteps stepMicroseconds:stepMicroseconds];
-    });
+    }];
 }
 
 - (void)completeRetiredFadePair:(VibeRetiredFade *)fade {
@@ -125,6 +128,15 @@
         _activeRetiredOutputCount--;
     }
     [self refreshOutputAudioActiveOnQueue];
+#if TARGET_OS_OSX
+    // The outgoing audio is silent: a settlement parked for a bit-perfect
+    // format switch may stop the engine now.
+    if (_settlementWaiter && _activeRetiredOutputCount == 0) {
+        dispatch_block_t waiter = _settlementWaiter;
+        _settlementWaiter = nil;
+        waiter();
+    }
+#endif
 }
 
 // Stops and detaches a retired pair, exactly once per pair: the caller owns it

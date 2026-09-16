@@ -1,0 +1,695 @@
+#import <XCTest/XCTest.h>
+#import "AudioPlayer+Debug.h"
+#import "AudioPlayer+Seek.h"
+#import "AudioTrack.h"
+#import "AudioPlayer+Devices.h"
+#import "AudioFX.h"
+#import "VibeManualRenderPump.h"
+#include <float.h>
+
+// Independent Apple AAC decodes can differ by a few float rounding bits.
+// Lossless paths still require exact samples; AAC stays below -126 dBFS.
+static const float kVibeAACDecodeTolerance = 4 * FLT_EPSILON;
+
+// Interleaved float PCM keeps the oracle independent of AVAudioEngine's buffers.
+static NSMutableData *PCM(AVAudioPCMBuffer *buffer) {
+    NSUInteger channels = buffer.format.channelCount;
+    NSMutableData *data = [NSMutableData dataWithLength:buffer.frameLength * channels * sizeof(float)];
+    float *out = data.mutableBytes;
+    for (NSUInteger f = 0; f < buffer.frameLength; f++)
+        for (NSUInteger c = 0; c < channels; c++) out[f * channels + c] = buffer.floatChannelData[c][f];
+    return data;
+}
+
+// One alignment, every remaining source frame, every channel. The only skipped
+// source interval is the explicitly requested startup declick. No gain fit,
+// resampling, moving alignment, or overlap-only pass can conceal a defect.
+static NSDictionary *ComparePCM(NSData *reference, NSData *capture, NSUInteger channels,
+                                NSUInteger skip, float tolerance) {
+    if (!channels || reference.length % (sizeof(float) * channels)
+            || capture.length % (sizeof(float) * channels))
+        return @{@"pass": @NO, @"reason": @"Incomplete channel frames"};
+    NSUInteger sourceFrames = reference.length / (sizeof(float) * channels);
+    NSUInteger outputFrames = capture.length / (sizeof(float) * channels);
+    const float *r = reference.bytes, *a = capture.bytes;
+    if (skip + 32 >= sourceFrames || outputFrames < sourceFrames - skip)
+        return @{@"pass": @NO, @"reason": @"Incomplete capture", @"sourceFrames": @(sourceFrames), @"outputFrames": @(outputFrames)};
+    NSInteger aligned = -1;
+    for (NSUInteger start = 0; start + 32 <= outputFrames && start <= skip + 4096; start++) {
+        BOOL matches = YES;
+        for (NSUInteger i = 0; i < 32 * channels; i++) {
+            if (!isfinite(a[start * channels + i]) || fabsf(r[skip * channels + i] - a[start * channels + i]) > tolerance) { matches = NO; break; }
+        }
+        if (matches) { aligned = (NSInteger)start; break; }
+    }
+    if (aligned < 0) return @{@"pass": @NO, @"reason": @"No marker alignment"};
+    NSUInteger count = sourceFrames - skip;
+    if ((NSUInteger)aligned + count > outputFrames)
+        return @{@"pass": @NO, @"reason": @"Truncated after alignment", @"aligned": @(aligned)};
+    NSUInteger mismatches = 0, first = NSNotFound;
+    double peak = 0, squared = 0;
+    for (NSUInteger i = 0; i < count * channels; i++) {
+        float actual = a[(NSUInteger)aligned * channels + i];
+        double error = fabs((double)actual - r[skip * channels + i]);
+        if (!isfinite(r[skip * channels + i]) || !isfinite(actual) || error > tolerance) {
+            if (!mismatches) first = i / channels + skip;
+            mismatches++;
+        }
+        peak = MAX(peak, error); squared += error * error;
+    }
+    NSUInteger unexpected = 0;
+    for (NSUInteger i = ((NSUInteger)aligned + count) * channels; i < outputFrames * channels; i++)
+        if (!isfinite(a[i]) || fabsf(a[i]) > tolerance) unexpected++;
+    return @{@"pass": @(mismatches == 0 && unexpected == 0), @"unexpectedSamples": @(unexpected), @"mismatchedSamples": @(mismatches), @"firstBadFrame": @(first),
+             @"maxError": @(peak), @"rmsError": @(sqrt(squared / (count * channels))),
+             @"comparedFrames": @(count), @"aligned": @(aligned), @"sourceSkip": @(skip)};
+}
+
+static double RMS(NSData *data, NSUInteger channels, NSUInteger channel, NSRange frames) {
+    const float *p = data.bytes; double energy = 0;
+    if (NSMaxRange(frames) * channels * sizeof(float) > data.length || frames.length == 0) return NAN;
+    for (NSUInteger f = frames.location; f < NSMaxRange(frames); f++) energy += (double)p[f*channels+channel] * p[f*channels+channel];
+    return sqrt(energy / frames.length);
+}
+static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channel, double rate, double frequency, NSRange frames) {
+    const float *p = data.bytes; double real = 0, imaginary = 0;
+    for (NSUInteger f = frames.location; f < NSMaxRange(frames); f++) {
+        double phase = 2 * M_PI * frequency * f / rate;
+        real += p[f*channels+channel] * cos(phase); imaginary += p[f*channels+channel] * sin(phase);
+    }
+    return 2 * hypot(real, imaginary) / frames.length;
+}
+
+@interface AudioPlayerRenderTests : XCTestCase <AudioPlayerDelegate>
+@end
+@implementation AudioPlayerRenderTests {
+    AudioPlayer *_player;
+    NSMutableArray<NSDictionary *> *_events;
+    NSError *_playError;
+    NSURL *_temporary;
+    double _rate;
+    NSUInteger _channels;
+    NSUInteger _blockSize;
+    NSMutableData *_capture;
+    NSArray<AudioTrack *> *_chain;
+    NSUInteger _nextPrefetch;
+}
+- (void)setUp {
+    [super setUp]; self.continueAfterFailure = NO;
+    _events = [NSMutableArray array]; _blockSize = 256;
+    _temporary = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
+    [NSFileManager.defaultManager createDirectoryAtURL:_temporary withIntermediateDirectories:YES attributes:nil error:NULL];
+}
+- (void)tearDown {
+    if (self.testRun.failureCount && _capture.length) {
+        [self attach:_capture name:@"last-render"];
+        XCTAttachment *trace=[XCTAttachment attachmentWithString:_events.description];
+        trace.name=@"transport-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
+    }
+    [_player debugShutdown]; _player = nil;
+    [NSFileManager.defaultManager removeItemAtURL:_temporary error:NULL];
+    [super tearDown];
+}
+- (NSURL *)fixture:(NSString *)name {
+    NSString *root = NSProcessInfo.processInfo.environment[@"VIBE_AUDIO_FIXTURES"];
+    XCTAssertNotNil(root, @"Run make test-audio or the VibeAudioTests scheme");
+    return [NSURL fileURLWithPath:[root stringByAppendingPathComponent:name]];
+}
+- (AVAudioPCMBuffer *)read:(NSURL *)url {
+    NSError *error = nil;
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
+    XCTAssertNotNil(file, @"%@: %@", url, error);
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:(AVAudioFrameCount)file.length];
+    AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
+    NSUInteger total = 0;
+    while (total < (NSUInteger)file.length) {
+        XCTAssertTrue([file readIntoBuffer:chunk frameCount:(AVAudioFrameCount)MIN(4096, file.length-total) error:&error], @"%@", error);
+        XCTAssertGreaterThan(chunk.frameLength,0u,@"Premature EOF: %@",url);
+        for (AVAudioChannelCount c=0;c<file.processingFormat.channelCount;c++)
+            memcpy(buffer.floatChannelData[c]+total,chunk.floatChannelData[c],chunk.frameLength*sizeof(float));
+        total += chunk.frameLength;
+    }
+    buffer.frameLength=(AVAudioFrameCount)total;
+    return buffer;
+}
+- (NSURL *)write:(NSData *)data rate:(double)rate channels:(NSUInteger)channels name:(NSString *)name {
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:(AVAudioFrameCount)(data.length / channels / sizeof(float))];
+    buffer.frameLength = buffer.frameCapacity;
+    const float *p = data.bytes;
+    for (NSUInteger f=0;f<buffer.frameLength;f++) for (NSUInteger c=0;c<channels;c++) buffer.floatChannelData[c][f]=p[f*channels+c];
+    NSURL *url = [_temporary URLByAppendingPathComponent:name];
+    NSError *error = nil;
+    NSMutableDictionary *settings=[format.settings mutableCopy];
+    settings[AVLinearPCMIsNonInterleaved]=@NO;
+    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    return url;
+}
+// The generator emits a fixed 44-byte RIFF header. Read those bytes directly
+// for the lossless matrix so AVAudioFile is not its own decode oracle.
+- (NSData *)sourcePCM:(NSURL *)url bits:(NSUInteger)bits {
+    NSData *wav=[NSData dataWithContentsOfURL:url];
+    XCTAssertGreaterThan(wav.length,44u);
+    XCTAssertEqual(memcmp(wav.bytes,"RIFF",4),0);
+    const uint8_t *bytes=(const uint8_t *)wav.bytes+44;
+    NSUInteger width=bits/8, count=(wav.length-44)/width;
+    NSMutableData *pcm=[NSMutableData dataWithLength:count*sizeof(float)];
+    float *out=pcm.mutableBytes;
+    for (NSUInteger i=0;i<count;i++) {
+        if (bits==32) memcpy(out+i,bytes+i*4,4); // float32 fixtures, little endian host
+        else {
+            uint32_t value=0;
+            for(NSUInteger b=0;b<width;b++) value|=(uint32_t)bytes[i*width+b]<<(b*8);
+            int32_t signedValue=(value & (1u<<(bits-1))) ? (int32_t)value-(1<<bits) : (int32_t)value;
+            out[i]=(float)signedValue/(float)(1u<<(bits-1));
+        }
+    }
+    XCTAssertEqualObjects(pcm,PCM([self read:url]),@"Lossless decode %@",url.lastPathComponent);
+    return pcm;
+}
+- (NSUInteger)count:(NSString *)event {
+    NSUInteger count=0; for (NSDictionary *entry in _events) if ([entry[@"event"] isEqual:event]) count++; return count;
+}
+- (void)settleUntil:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    while (!condition() && deadline.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
+    XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
+}
+- (void)startPlayerAt:(double)rate channels:(NSUInteger)channels fx:(BOOL)fx bitPerfect:(BOOL)bitPerfect automatic:(BOOL)automatic {
+    [_player debugShutdown]; _player = nil; [_events removeAllObjects]; _playError = nil; _chain = nil;
+    _rate=rate; _channels=channels; _capture=[NSMutableData data];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels];
+    _player = [[AudioPlayer alloc] initForManualRendering:format enableFX:fx automatic:automatic delegate:self];
+    [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
+    XCTAssertTrue(_player.manualRenderingActive);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"mixerRate"] doubleValue], rate, 0);
+    [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO];
+}
+- (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
+    AudioTrack *track = [AudioTrack withURL:url];
+    NSUInteger before = [self count:@"start"];
+    [_player play:track atPosition:position startPaused:paused];
+    [self settleUntil:^BOOL { return [self count:@"start"] > before || self->_playError; }];
+    XCTAssertNil(_playError);
+    return track;
+}
+- (void)render:(NSUInteger)frames {
+    while (frames) {
+        AVAudioFrameCount count = (AVAudioFrameCount)MIN(frames, _blockSize);
+        NSError *error = nil;
+        AVAudioPCMBuffer *buffer = [_player debugRenderFrames:count error:&error];
+        XCTAssertNotNil(buffer, @"%@", error);
+        XCTAssertEqual(buffer.frameLength, count);
+        [_capture appendData:PCM(buffer)];
+        frames-=count;
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.00001]];
+        if (_chain && _nextPrefetch < _chain.count) {
+            [self settleUntil:^BOOL { return self->_nextPrefetch >= self->_chain.count || self->_player.gaplessArmed || self->_playError; }];
+        }
+    }
+}
+- (NSData *)renderSeconds:(double)seconds {
+    [_capture setLength:0]; [self render:(NSUInteger)llround(seconds*_rate)]; return [_capture copy];
+}
+- (void)attach:(NSData *)data name:(NSString *)name {
+    NSURL *url=[self write:data rate:_rate channels:_channels name:[name stringByAppendingPathExtension:@"wav"]];
+    XCTAttachment *attachment=[XCTAttachment attachmentWithContentsOfFileAtURL:url];
+    attachment.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:attachment];
+}
+- (void)assertReference:(NSData *)reference capture:(NSData *)capture skip:(NSUInteger)skip tolerance:(float)tolerance {
+    NSDictionary *result=ComparePCM(reference,capture,_channels,skip,tolerance);
+    if (![result[@"pass"] boolValue]) {
+        [self attach:reference name:@"reference"]; [self attach:capture name:@"capture"];
+        NSMutableData *difference=[capture mutableCopy]; float *d=difference.mutableBytes; const float *r=reference.bytes;
+        NSInteger delta=[result[@"aligned"] integerValue]-(NSInteger)skip;
+        for (NSUInteger f=0;f<capture.length/sizeof(float)/_channels;f++) for(NSUInteger c=0;c<_channels;c++) {
+            NSInteger rf=(NSInteger)f-delta;
+            d[f*_channels+c]-=rf>=0 && (NSUInteger)rf<reference.length/sizeof(float)/_channels ? r[rf*_channels+c] : 0;
+        }
+        [self attach:difference name:@"difference"];
+        XCTAttachment *trace=[XCTAttachment attachmentWithString:[NSString stringWithFormat:@"%@\n%@\n%@",result,_events,_player.debugEngineCounts]];
+        trace.name=@"render-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
+    }
+    XCTAssertTrue([result[@"pass"] boolValue], @"%@",result);
+}
+- (void)assertFinite:(NSData *)data peak:(float)peak {
+    const float *p=data.bytes;
+    for (NSUInteger i=0;i<data.length/sizeof(float);i++) { XCTAssertTrue(isfinite(p[i])); XCTAssertLessThanOrEqual(fabsf(p[i]),peak); }
+}
+
+- (void)testOracleRejectsCorruption {
+    _channels=2;
+    NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    XCTAssertTrue([ComparePCM(reference,reference,2,0,0)[@"pass"] boolValue]);
+    for (NSString *mutation in @[@"drop",@"duplicate",@"swap",@"polarity",@"gain",@"clip",@"truncate",@"silence",@"nan",@"lsb",@"shortMatch",@"tail",@"partialFrame"]) {
+        NSMutableData *bad=[reference mutableCopy]; float *p=bad.mutableBytes;
+        NSUInteger samples=bad.length/sizeof(float), at=24000;
+        if ([mutation isEqual:@"drop"]) [bad replaceBytesInRange:NSMakeRange(at*4,8) withBytes:NULL length:0];
+        else if ([mutation isEqual:@"duplicate"]) { float pair[2]={p[at],p[at+1]}; [bad replaceBytesInRange:NSMakeRange(at*4,0) withBytes:pair length:8]; }
+        else if ([mutation isEqual:@"truncate"]) [bad setLength:bad.length-8];
+        else if ([mutation isEqual:@"shortMatch"]) [bad setLength:128*8];
+        else if ([mutation isEqual:@"tail"]) [bad appendData:[reference subdataWithRange:NSMakeRange(0,8)]];
+        else if ([mutation isEqual:@"partialFrame"]) [bad setLength:bad.length+1];
+        else if ([mutation isEqual:@"swap"]) for (NSUInteger i=at;i<samples;i+=2) { float v=p[i];p[i]=p[i+1];p[i+1]=v; }
+        else if ([mutation isEqual:@"polarity"]) for(NSUInteger i=at;i<samples;i++) p[i]=-p[i];
+        else if ([mutation isEqual:@"gain"]) for(NSUInteger i=at;i<samples;i++) p[i]*=0.999f;
+        else if ([mutation isEqual:@"clip"]) for(NSUInteger i=at;i<samples;i++) p[i]=fmaxf(-0.1f,fminf(0.1f,p[i]));
+        else if ([mutation isEqual:@"silence"]) memset(p+at,0,(samples-at)*4);
+        else if ([mutation isEqual:@"nan"]) p[at]=NAN;
+        else p[at]+=1.0f/8388608;
+        XCTAssertFalse([ComparePCM(reference,bad,2,0,0)[@"pass"] boolValue],@"%@ escaped",mutation);
+    }
+}
+- (void)testBitPerfectRateDepthAndChannelMatrix {
+    for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000])
+    for (NSNumber *bits in @[@16,@24,@32]) for (NSNumber *channels in @[@1,@2]) {
+        @autoreleasepool {
+            [self startPlayerAt:rate.doubleValue channels:channels.unsignedIntegerValue fx:NO bitPerfect:YES automatic:NO];
+            NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-%@-%@.wav",rate,bits,channels]];
+            NSData *reference=[self sourcePCM:url bits:bits.unsignedIntegerValue]; [self play:url paused:NO position:0];
+            NSData *capture=[self renderSeconds:2.1];
+            [self assertReference:reference capture:capture skip:(NSUInteger)(_rate*0.05) tolerance:0];
+            XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            XCTAssertEqual([self count:@"finish"],1u);
+        }
+    }
+}
+- (void)testRegularPlaybackAndInactiveFXAreTransparent {
+    for (NSNumber *fx in @[@NO,@YES]) for (NSNumber *rate in @[@44100,@48000,@96000]) {
+        [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:NO automatic:NO];
+        NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
+        NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:(NSUInteger)(_rate*0.05) tolerance:fx.boolValue ? 1e-10f : 0];
+    }
+}
+- (void)testLosslessContainersAndExtensionAliases {
+    NSData *original=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    for (NSString *name in @[@"lossless.flac",@"lossless.m4a",@"lossless.aiff",@"alias.aif",@"alias.wave",@"alias.bwf"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSURL *url=[self fixture:name]; NSData *decoded=PCM([self read:url]);
+        XCTAssertEqualObjects(original,decoded,@"Lossless fixture %@",name);
+        [self play:url paused:NO position:0];
+        [self assertReference:original capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+    }
+}
+- (void)checkLossy:(NSString *)name tolerance:(float)tolerance {
+    NSURL *url=[self fixture:name];
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:url.path],@"Optional encoder fixture %@ unavailable; install ffmpeg and regenerate",name);
+    AVAudioPCMBuffer *decoded=[self read:url];
+    [self startPlayerAt:decoded.format.sampleRate channels:decoded.format.channelCount fx:NO bitPerfect:YES automatic:NO];
+    [self play:url paused:NO position:0];
+    [self assertReference:PCM(decoded) capture:[self renderSeconds:decoded.frameLength/_rate+0.1] skip:(NSUInteger)(_rate*0.05) tolerance:tolerance];
+}
+- (void)testAACContainer { [self checkLossy:@"lossy.m4a" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testAACElementary { [self checkLossy:@"lossy.aac" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testMP4 { [self checkLossy:@"alias.mp4" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testMP3CBR { [self checkLossy:@"cbr.mp3" tolerance:0]; }
+- (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
+- (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
+- (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
+- (void)testFloatLimitsSilenceAndInteger32Precision {
+    for (NSString *name in @[@"limits.wav",@"silence.wav",@"integer32.wav"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        AVAudioPCMBuffer *source=[self read:[self fixture:name]];
+        [self play:[self fixture:name] paused:NO position:0];
+        NSData *capture=[self renderSeconds:source.frameLength/_rate+0.1];
+        if ([name isEqual:@"silence.wav"]) XCTAssertEqual(RMS(capture,2,0,NSMakeRange(0,capture.length/8)),0);
+        else [self assertReference:PCM(source) capture:capture skip:2400 tolerance:0];
+        [self assertFinite:capture peak:1];
+    }
+    // Float32's precision is an explicit limit; decoded equality above does
+    // not claim the integer source's low bits survive the AVAudioFile boundary.
+    volatile int32_t sample=16777217; float converted=(float)sample;
+    XCTAssertNotEqual((int32_t)converted,(int32_t)sample);
+}
+- (void)testPauseResumeAndIdleRestart {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+    [self play:url paused:NO position:0]; [self render:24000];
+    [_player pause]; [self render:2048]; XCTAssertTrue(_player.isPaused);
+    double position=_player.position; NSUInteger sourceFrame=(NSUInteger)llround(position*_rate);
+    NSData *silence=[self renderSeconds:6.1];
+    XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,silence.length/8)),0);
+    XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
+    XCTAssertEqualWithAccuracy(_player.position,position,0);
+    XCTAssertEqual([self count:@"finish"],0u);
+    [_player resume];
+    NSData *tail=[reference subdataWithRange:NSMakeRange(sourceFrame*8,reference.length-sourceFrame*8)];
+    [self assertReference:tail capture:[self renderSeconds:2.1-position] skip:2400 tolerance:0];
+    XCTAssertEqual([self count:@"resume"],1u);
+}
+- (void)testStopRestartAndSameTrackReplay {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+    AudioTrack *track=[self play:url paused:NO position:0]; [self render:12000];
+    [_player stop]; [self render:2048]; XCTAssertTrue(_player.isStopped);
+    XCTAssertNil(_player.currentTrack); XCTAssertEqual([self count:@"finish"],0u);
+    NSData *silence=[self renderSeconds:0.1]; XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,4800)),0);
+    NSUInteger starts=[self count:@"start"]; [_player play:track];
+    [self settleUntil:^BOOL { return [self count:@"start"]>starts; }];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+}
+- (void)testSeekPlayingPausedAndNearEnd {
+    for (NSNumber *paused in @[@NO,@YES]) for (NSNumber *target in @[@0.125,@1.5,@1.95]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+        [self play:url paused:paused.boolValue position:0.5];
+        if (!paused.boolValue) [self render:4096];
+        [_capture setLength:0]; [_player seekToPosition:target.doubleValue]; [self render:2048];
+        XCTAssertEqual([self count:@"seek"],1u);
+        if (paused.boolValue) {
+            XCTAssertTrue(_player.isPaused); XCTAssertEqualWithAccuracy(_player.position,target.doubleValue,1/_rate);
+            [_player resume];
+            NSUInteger start=(NSUInteger)llround(target.doubleValue*_rate);
+            NSData *tail=[reference subdataWithRange:NSMakeRange(start*8,reference.length-start*8)];
+            [self assertReference:tail capture:[self renderSeconds:2.1-target.doubleValue] skip:MIN(2400,tail.length/8-480) tolerance:0];
+        } else {
+            // The first 2048 frames include the fade and seek landing; retain
+            // them so the source marker cannot drift around missing audio.
+            [self render:(NSUInteger)((2.1-target.doubleValue)*_rate)];
+            NSUInteger start=(NSUInteger)llround(target.doubleValue*_rate);
+            NSData *tail=[reference subdataWithRange:NSMakeRange(start*8,reference.length-start*8)];
+            [self assertReference:tail capture:_capture skip:MIN(2400,tail.length/8-480) tolerance:0];
+        }
+        XCTAssertEqual([self count:@"finish"],1u);
+    }
+}
+- (void)testGaplessSplitSignalAcrossRenderBlocks {
+    NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    for (NSNumber *block in @[@63,@256,@1024,@4096]) for (NSNumber *mode in @[@NO,@YES]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO]; _blockSize=block.unsignedIntegerValue;
+        NSMutableArray *tracks=[NSMutableArray array]; NSUInteger start=0;
+        for (NSNumber *end in @[@20003,@48001,@72007,@96000]) {
+            NSData *part=[reference subdataWithRange:NSMakeRange(start*8,(end.unsignedIntegerValue-start)*8)];
+            NSURL *url=[self write:part rate:48000 channels:2 name:[NSString stringWithFormat:@"split-%lu.wav",(unsigned long)start]];
+            [tracks addObject:[AudioTrack withURL:url]]; start=end.unsignedIntegerValue;
+        }
+        _chain=tracks; _nextPrefetch=1;
+        [_player play:tracks[0]];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        XCTAssertEqual([self count:@"advance"],3u); XCTAssertEqual([self count:@"finish"],1u);
+        XCTAssertEqualObjects(_player.currentTrack,tracks.lastObject);
+        XCTAssertEqualWithAccuracy(_player.duration,(96000-72007)/48000.0,0);
+    }
+}
+- (void)testGaplessShortSuccessorAndFormatMismatch {
+    NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    for (NSNumber *length in @[@1,@63,@255,@257]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSUInteger split=96000-length.unsignedIntegerValue;
+        NSURL *first=[self write:[reference subdataWithRange:NSMakeRange(0,split*8)] rate:48000 channels:2 name:@"first.wav"];
+        NSURL *second=[self write:[reference subdataWithRange:NSMakeRange(split*8,length.unsignedIntegerValue*8)] rate:48000 channels:2 name:@"second.wav"];
+        [self play:first paused:NO position:0]; [_player prefetchTrack:[AudioTrack withURL:second]];
+        [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        XCTAssertEqual([self count:@"advance"],1u); XCTAssertEqual([self count:@"finish"],1u);
+    }
+    for (NSString *next in @[@"noise-44100-24-2.wav",@"noise-48000-24-1.wav"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+        [_player prefetchTrack:[AudioTrack withURL:[self fixture:next]]];
+        [self renderSeconds:2.1]; XCTAssertFalse(_player.gaplessArmed);
+        XCTAssertEqual([self count:@"advance"],0u); XCTAssertEqual([self count:@"finish"],1u);
+    }
+}
+- (void)testArmedSuccessorCancellation {
+    for (NSString *action in @[@"stop",@"seek",@"cancel",@"replace",@"crossfade",@"replay",@"pause"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSURL *url=[self fixture:@"noise-48000-24-2.wav"];
+        AudioTrack *current=[self play:url paused:NO position:0];
+        AudioTrack *next=[AudioTrack withURL:[self fixture:@"1000.wav"]];
+        [_player prefetchTrack:next]; [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        [self render:12000];
+        if ([action isEqual:@"stop"]) [_player stop];
+        else if ([action isEqual:@"seek"]) { [_player prefetchTrack:nil]; [_player seekToPosition:1]; }
+        else if ([action isEqual:@"cancel"]) [_player prefetchTrack:nil];
+        else if ([action isEqual:@"replace"]) [_player prefetchTrack:[AudioTrack withURL:[self fixture:@"silence.wav"]]];
+        else if ([action isEqual:@"crossfade"]) _player.crossfadeMilliseconds=500;
+        else if ([action isEqual:@"replay"]) [_player play:current];
+        else { [_player pause]; [self render:2048]; [_player prefetchTrack:nil]; [_player resume]; }
+        [self renderSeconds:2.2];
+        XCTAssertNotEqualObjects(_player.currentTrack,next,@"%@",action);
+        for (NSDictionary *event in _events) XCTAssertFalse([event[@"track"] isEqual:next.url.path],@"%@ leaked successor",action);
+        [self assertFinite:_capture peak:0.51];
+        XCTAssertLessThan(ToneAmplitude(_capture,2,0,48000,1000,NSMakeRange(48000,48000)),0.01);
+    }
+}
+- (void)testMeterTapDoesNotChangeSamples {
+    for (NSNumber *fx in @[@NO,@YES]) {
+        [self startPlayerAt:48000 channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
+        NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+        [self play:url paused:NO position:0]; [self render:16000];
+        _player.levelsEnabled=YES; [self render:16000];
+        _player.levelsEnabled=NO; [self render:68800];
+        [self assertReference:reference capture:_capture skip:2400 tolerance:fx.boolValue?1e-10f:0];
+    }
+}
+- (void)testLowKillResponseAndReturnToTransparency {
+    for (NSString *tone in @[@"20.wav",@"100.wav",@"1000.wav",@"8000.wav"]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        [self play:[self fixture:tone] paused:NO position:0];
+        NSData *dry=[self renderSeconds:0.5];
+        _player.fx.lowKillEnabled=YES;
+        NSData *cut=[self renderSeconds:0.5];
+        double gain=RMS(cut,2,0,NSMakeRange(12000,12000))/RMS(dry,2,0,NSMakeRange(12000,12000));
+        if ([tone isEqual:@"20.wav"]) XCTAssertLessThan(gain,0.02);
+        if ([tone isEqual:@"8000.wav"]) XCTAssertEqualWithAccuracy(gain,1,0.02);
+        _player.fx.lowKillBoostActive=YES; NSData *boost=[self renderSeconds:0.5];
+        if ([tone isEqual:@"100.wav"]) XCTAssertLessThan(RMS(boost,2,0,NSMakeRange(12000,12000)),RMS(cut,2,0,NSMakeRange(12000,12000)));
+        _player.fx.lowKillEnabled=NO; [self renderSeconds:0.5]; XCTAssertFalse(_player.fx.lowKillBoostActive);
+        NSData *restored=[self renderSeconds:0.5];
+        XCTAssertEqualWithAccuracy(RMS(restored,2,0,NSMakeRange(0,24000)),RMS(dry,2,0,NSMakeRange(12000,12000)),0.00001);
+    }
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+    [self play:url paused:NO position:0]; _player.fx.lowKillEnabled=YES; [self render:12000];
+    _player.fx.lowKillEnabled=NO; [self render:60000];
+    NSData *rest=[reference subdataWithRange:NSMakeRange(72000*8,24000*8)];
+    [self assertReference:rest capture:[self renderSeconds:0.6] skip:0 tolerance:1e-10f];
+}
+- (void)testDelayTimingStereoAndDecay {
+    for (NSNumber *shortDelay in @[@NO,@YES]) for (NSNumber *bpm in @[@120,@160]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.fx.delayTapBPM=bpm.floatValue;
+        if (shortDelay.boolValue) _player.fx.shortDelaySendEnabled=YES; else _player.fx.delaySendEnabled=YES;
+        [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+        NSData *output=[self renderSeconds:3]; [self assertFinite:output peak:1];
+        NSUInteger tap=(NSUInteger)llround(48000*60.0/bpm.doubleValue*(shortDelay.boolValue?0.25:0.5));
+        NSUInteger impulse=12000;
+        double left=RMS(output,2,0,NSMakeRange(impulse+tap,256));
+        double right=RMS(output,2,1,NSMakeRange(impulse+tap,256));
+        XCTAssertGreaterThan(left,right*1.9); XCTAssertGreaterThan(left,0.00001);
+        XCTAssertGreaterThan(RMS(output,2,1,NSMakeRange(impulse+2*tap,256)),RMS(output,2,0,NSMakeRange(impulse+2*tap,256))*1.9);
+        XCTAssertLessThan(RMS(output,2,0,NSMakeRange(impulse+5*tap,256)),left);
+        _player.fx.delaySendEnabled=NO; _player.fx.shortDelaySendEnabled=NO;
+        NSData *tail=[self renderSeconds:4]; [self assertFinite:tail peak:1];
+        XCTAssertLessThan(RMS(tail,2,0,NSMakeRange(3*48000,48000)),0.0001);
+    }
+}
+- (void)testReverbTailAndRapidFXChanges {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    _player.fx.reverbSendEnabled=YES; [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+    NSData *first=[self renderSeconds:0.6];
+    _player.fx.reverbSendEnabled=NO; NSData *tail=[self renderSeconds:5];
+    XCTAssertGreaterThan(RMS(first,2,0,NSMakeRange(24000,4800)),0.000001);
+    XCTAssertGreaterThan(RMS(tail,2,0,NSMakeRange(0,4800)),0.000001);
+    XCTAssertLessThan(RMS(tail,2,0,NSMakeRange(4*48000,48000)),RMS(tail,2,0,NSMakeRange(0,48000)));
+    for (int i=0;i<20;i++) {
+        _player.fx.lowKillEnabled=i%2; _player.fx.reverbSendEnabled=i%2;
+        _player.fx.delaySendEnabled=i%2; _player.fx.shortDelaySendEnabled=!(i%2); _player.fx.delayTapBPM=80+i*7;
+        [self render:127];
+    }
+    _player.fx.lowKillEnabled=NO; _player.fx.reverbSendEnabled=NO; _player.fx.delaySendEnabled=NO; _player.fx.shortDelaySendEnabled=NO;
+    [self assertFinite:[self renderSeconds:1] peak:1];
+}
+- (void)testPitchFrequencyDurationAndReset {
+    for (NSNumber *pitch in @[@(-8),@8]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _player.pitch=pitch.floatValue;
+        [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+        NSData *data=[self renderSeconds:1]; double ratio=1+pitch.doubleValue/100;
+        XCTAssertEqualWithAccuracy(ToneAmplitude(data,2,0,48000,1000*ratio,NSMakeRange(12000,24000)),0.25,0.002);
+        XCTAssertEqualWithAccuracy(_player.position,ratio,0.02);
+        [self render:(NSUInteger)(48000*(4/ratio-1+0.1))]; XCTAssertEqual([self count:@"finish"],1u);
+    }
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+    _player.pitch=4;
+    NSData *shifted=[self renderSeconds:0.5];
+    XCTAssertEqualWithAccuracy(ToneAmplitude(shifted,2,0,48000,1040,NSMakeRange(12000,12000)),0.25,0.002);
+    _player.pitch=0;
+    NSData *restored=[self renderSeconds:0.5];
+    XCTAssertEqualWithAccuracy(ToneAmplitude(restored,2,0,48000,1000,NSMakeRange(12000,12000)),0.25,0.002);
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
+    [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+}
+- (void)testSampleRateConversionQuality {
+    for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@48000,@96000],@[@48000,@32000],@[@44100,@48000],@[@96000,@44100]]) {
+        NSNumber *rate=rates[1];
+        NSString *tone=[NSString stringWithFormat:@"tone-%@.wav",rates[0]];
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self play:[self fixture:tone] paused:NO position:0]; NSData *data=[self renderSeconds:1];
+        NSRange window=NSMakeRange((NSUInteger)(_rate*0.25),(NSUInteger)(_rate*0.5));
+        double amplitude=ToneAmplitude(data,2,0,_rate,1000,window);
+        XCTAssertLessThan(fabs(20*log10(amplitude/0.25)),0.01);
+        XCTAssertEqualWithAccuracy(_player.position,1,0.02);
+        double signal=amplitude/sqrt(2), rms=RMS(data,2,0,window);
+        XCTAssertLessThan(fabs(rms-signal),0.00001);
+        [self render:(NSUInteger)(_rate*3.1)]; XCTAssertEqual([self count:@"finish"],1u);
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self play:[self fixture:@"23000.wav"] paused:NO position:0]; data=[self renderSeconds:1];
+        if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
+    }
+}
+- (void)testFormatChangesAndModeToggles {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    for (NSString *file in @[@"noise-44100-16-1.wav",@"noise-96000-24-2.wav",@"noise-48000-32-1.wav",@"noise-48000-24-2.wav"]) {
+        [self play:[self fixture:file] paused:NO position:0]; [self assertFinite:[self renderSeconds:0.1] peak:0.6];
+    }
+    [_player setBitPerfectOutput:YES exclusiveOutput:NO];
+    // A new play settles on the mode's chain even without a HAL destination.
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO]; [self render:2048];
+    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+    XCTAssertFalse(_player.bitPerfectReport.enabled);
+}
+- (void)testFailedAndEmptyOpenRecover {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *empty=[_temporary URLByAppendingPathComponent:@"empty.wav"];
+    [[NSData data] writeToURL:empty atomically:YES];
+    for (NSURL *url in @[empty,[_temporary URLByAppendingPathComponent:@"missing.wav"]]) {
+        _playError=nil; [_player play:[AudioTrack withURL:url]];
+        [self settleUntil:^BOOL { return self->_playError!=nil; }];
+        XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],0u);
+        _playError=nil; [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+        XCTAssertGreaterThan(RMS([self renderSeconds:0.1],2,0,NSMakeRange(960,3840)),0.1);
+        [_player stop]; [self render:2048];
+    }
+}
+- (void)testRepeatedTransportAndResourceBound {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    for (int i=0;i<40;i++) {
+        [self play:[self fixture:i%2?@"noise-48000-24-2.wav":@"noise-48000-24-1.wav"] paused:NO position:0];
+        [self render:512]; [_player pause]; [_player resume]; [_player seekToPosition:0.25];
+        [self render:2048]; [_player stop]; [self render:2048];
+        XCTAssertEqual([self count:@"finish"],0u); XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue],4u);
+        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
+    }
+}
+- (void)testRealTimerPumpAndFade {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:YES];
+    NSMutableData *captured=[NSMutableData data];
+    [_player debugSetCapture:^(AVAudioPCMBuffer *buffer) { [captured appendData:PCM(buffer)]; }];
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    [self settleUntil:^BOOL { return self->_player.position>0.1; }];
+    [_player pause]; [self settleUntil:^BOOL { return self->_player.isPaused; }];
+    [_player debugSetCapture:nil];
+    XCTAssertGreaterThan(captured.length,4800u*8); [self assertFinite:captured peak:0.251];
+    XCTAssertEqual([self count:@"finish"],0u);
+}
+- (void)testStartupAndStopEnvelopesAreBounded {
+    for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000]) {
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSMutableData *constant=[NSMutableData dataWithLength:(NSUInteger)_rate*2*4];
+        float *values=constant.mutableBytes; for(NSUInteger i=0;i<constant.length/4;i++) values[i]=0.25;
+        NSURL *url=[self write:constant rate:_rate channels:2 name:@"constant.wav"];
+        [self play:url paused:NO position:0]; NSData *start=[self renderSeconds:0.1]; const float *s=start.bytes;
+        NSUInteger end=start.length/8, settled=(NSUInteger)(_rate*0.05);
+        XCTAssertLessThan(s[0],0.01f);
+        for(NSUInteger i=1;i<end;i++) { XCTAssertGreaterThanOrEqual(s[i*2]+1e-7f,s[(i-1)*2]); XCTAssertLessThan(fabsf(s[i*2]-s[(i-1)*2]),0.002f); }
+        for(NSUInteger i=settled;i<end;i++) XCTAssertEqual(s[i*2],0.25f);
+        [_player stop]; NSData *stop=[self renderSeconds:0.1]; const float *e=stop.bytes;
+        for(NSUInteger i=settled;i<end;i++) XCTAssertEqual(e[i*2],0);
+        // The node is retired only after its ramp; no full-amplitude discontinuity.
+        float worst=0; for(NSUInteger i=1;i<end;i++) worst=MAX(worst,fabsf(e[i*2]-e[(i-1)*2]));
+        XCTAssertLessThan(worst,0.02f,@"%@ Hz",rate);
+    }
+}
+- (void)testCrossfadePowerAndInterruption {
+    for (NSNumber *milliseconds in @[@500,@2000]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        _player.crossfadeMilliseconds=milliseconds.integerValue;
+        NSMutableData *left=[NSMutableData dataWithLength:4*48000*8], *right=[left mutableCopy];
+        float *l=left.mutableBytes,*r=right.mutableBytes;
+        for(NSUInteger f=0;f<4*48000;f++) { l[f*2]=0.25; r[f*2+1]=0.25; }
+        AudioTrack *a=[AudioTrack withURL:[self write:left rate:48000 channels:2 name:@"left.wav"]];
+        AudioTrack *b=[AudioTrack withURL:[self write:right rate:48000 channels:2 name:@"right.wav"]];
+        [_player play:a]; [self settleUntil:^BOOL { return [self count:@"start"]==1; }]; [self render:4800];
+        [_player play:b]; [self settleUntil:^BOOL { return [self count:@"start"]==2; }];
+        double duration=milliseconds.doubleValue/1000;
+        NSData *mix=[self renderSeconds:duration+0.1]; const float *p=mix.bytes;
+        for(NSUInteger f=(NSUInteger)(0.1*_rate);f<(NSUInteger)((duration-0.05)*_rate);f+=128) {
+            double power=pow(p[f*2]/0.25,2)+pow(p[f*2+1]/0.25,2);
+            XCTAssertEqualWithAccuracy(power,1,0.06);
+        }
+        NSUInteger middle=(NSUInteger)(duration*0.5*_rate);
+        XCTAssertEqualWithAccuracy(p[middle*2],0.25/sqrt(2),0.025);
+        XCTAssertEqualWithAccuracy(p[middle*2+1],0.25/sqrt(2),0.025);
+        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
+        [_player play:a]; [self settleUntil:^BOOL { return [self count:@"start"]==3; }]; [self render:4800];
+        [_player play:b]; [self settleUntil:^BOOL { return [self count:@"start"]==4; }]; [self render:4800];
+        [_player pause]; NSData *paused=[self renderSeconds:0.1];
+        XCTAssertEqual(RMS(paused,2,0,NSMakeRange(2400,2400)),0);
+        XCTAssertEqual(RMS(paused,2,1,NSMakeRange(2400,2400)),0);
+        XCTAssertEqual([self count:@"finish"],0u);
+    }
+}
+- (void)testTruncatedPCMAndBoundaryLengths {
+    NSURL *source=[self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference=PCM([self read:source]);
+    for(NSNumber *length in @[@1,@255,@256,@257,@4095,@4096,@4097]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSURL *url=[self write:[reference subdataWithRange:NSMakeRange(0,length.unsignedIntegerValue*8)] rate:48000 channels:2 name:@"boundary.wav"];
+        [self play:url paused:NO position:0]; [self render:length.unsignedIntegerValue+4096];
+        XCTAssertEqual([self count:@"finish"],1u); XCTAssertTrue(_player.isStopped);
+        [self assertFinite:_capture peak:0.251];
+    }
+    NSMutableData *truncated=[[NSData dataWithContentsOfURL:source] mutableCopy];
+    [truncated setLength:truncated.length/2]; NSURL *url=[_temporary URLByAppendingPathComponent:@"truncated.wav"];
+    [truncated writeToURL:url atomically:YES];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    [_player play:[AudioTrack withURL:url]];
+    [self settleUntil:^BOOL { return [self count:@"start"] || self->_playError; }];
+    if (!_playError) { [self renderSeconds:2.1]; XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],1u); }
+    _playError=nil; [self play:source paused:NO position:0];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+}
+- (void)testPausedLoadStaysSilentAndPendingCommandsSettle {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"];
+    [self play:url paused:YES position:0.25];
+    XCTAssertEqual(RMS([self renderSeconds:0.1],2,0,NSMakeRange(0,4800)),0);
+    XCTAssertTrue(_player.isPaused);
+    [_player resume]; [_player pause]; [_player resume]; [self render:4096];
+    XCTAssertTrue(_player.isPlaying); XCTAssertEqual([self count:@"finish"],0u);
+    [_player stop]; [_player play:[AudioTrack withURL:url]]; [_player stop]; [self render:2048];
+    [self settleUntil:^BOOL { return self->_player.isStopped; }];
+    XCTAssertEqual(RMS([self renderSeconds:0.1],2,0,NSMakeRange(0,4800)),0);
+}
+
+- (void)record:(NSString *)event track:(AudioTrack *)track {
+    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugEngineCounts?:@{}}];
+}
+- (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
+- (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
+    [self record:@"start" track:t];
+    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
+}
+- (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(AudioTrack *)t { [self record:@"finish" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didAutoAdvanceFromTrack:(AudioTrack *)a toTrack:(AudioTrack *)b {
+    [self record:@"advance" track:b];
+    _nextPrefetch++;
+    if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
+}
+- (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
+- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d {}
+- (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
+@end

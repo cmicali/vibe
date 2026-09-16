@@ -23,6 +23,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)connectNode:(AVAudioPlayerNode *)node throughVarispeedWithFormat:(AVAudioFormat *)format;
 - (void)detachNodeAfterFailedConnect:(AVAudioNode *)node;
+// Pitch in percent to the varispeed's rate and bypass; a no-op with none.
+- (void)applyPitchToVarispeedOnQueue:(float)pitch;
 
 // The two cleanup paths are shared by a submitted play and device restore,
 // but error ownership is not. They reset to Stopped and never notify the

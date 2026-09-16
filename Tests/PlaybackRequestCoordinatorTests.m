@@ -112,21 +112,26 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testStaleWorkersCannotMutateOrConsumeANewerRequest {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
+    XCTAssertFalse([state isCurrentRequest:0]);
     AudioTrack *first = FakeTrack();
     AudioTrack *second = FakeTrack();
     uint64_t oldIdentifier = [state beginWithTrack:first path:@"/first.flac"
                                             intent:VibePendingPlaybackIntentMake(0, NO)
                              submittedPlayIdentifier:1];
+    XCTAssertTrue([state isCurrentRequest:oldIdentifier]);
     uint64_t currentIdentifier = [state beginWithTrack:second path:@"/second.flac"
                                                 intent:VibePendingPlaybackIntentMake(4, YES)
                                  submittedPlayIdentifier:2];
 
+    XCTAssertFalse([state isCurrentRequest:oldIdentifier]);
+    XCTAssertTrue([state isCurrentRequest:currentIdentifier]);
     XCTAssertNil([state markSlowForRequest:oldIdentifier]);
     XCTAssertNil([state consumeRequest:oldIdentifier]);
     XCTAssertEqual(state.currentRequest.track, second);
     XCTAssertEqualWithAccuracy(state.currentRequest.intent.position, 4, 0.001);
     XCTAssertTrue(state.currentRequest.intent.paused);
     XCTAssertEqual([state consumeRequest:currentIdentifier].track, second);
+    XCTAssertFalse([state isCurrentRequest:currentIdentifier]);
     XCTAssertNil(state.currentRequest);
 }
 
@@ -239,6 +244,7 @@ static AudioTrack *FakeTrack(void) {
                            submittedPlayIdentifier:1];
     [state invalidate];
 
+    XCTAssertFalse([state isCurrentRequest:identifier]);
     XCTAssertNil([state markSlowForRequest:identifier]);
     XCTAssertNil([state consumeRequest:identifier]);
     XCTAssertNil(state.currentRequest);

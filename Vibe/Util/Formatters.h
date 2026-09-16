@@ -20,6 +20,10 @@
 // Fixed-fraction decimal in the user's locale: "44.1" in en, "44,1" in de.
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits;
 
+// A sample rate in hertz as the codec line and the bit-perfect caption both
+// spell it: "44.1 kHz", one fraction digit, per locale.
+- (NSString *)sampleRateString:(double)hertz;
+
 // Signed percentage for the pitch readout ("+3.2%", "−3.2%", "0.0%"), placed
 // per locale; the minus is U+2212, matching the fader's printed scale.
 - (NSString *)signedPercentString:(double)percent;

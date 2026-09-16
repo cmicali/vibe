@@ -26,6 +26,9 @@
     switch (VibeMenuValidationDomainForIdentifier(menuItem.identifier)) {
         case VibeMenuValidationDomainViewToggle:
             [self applyViewToggleStateToMenuItem:menuItem];
+            if ([menuItem.identifier isEqualToString:kVibeMenuShowPitch]) {
+                return AppSettings.sharedInstance.pitchControlAllowed;
+            }
             return YES;
         case VibeMenuValidationDomainWindowSize:
             [self applyWindowSizeStateToMenuItem:menuItem];
@@ -35,7 +38,7 @@
             // TRAP: hiding a parent does not disable its descendants. The menu
             // builder removes their key equivalents; this also blocks direct
             // menu dispatch while the controls are off.
-            return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXEnabled;
+            return self.audioPlayer.fx != nil && AppSettings.sharedInstance.audioFXAllowed;
         case VibeMenuValidationDomainPitchRange:
             [self applyPitchRangeStateToMenuItem:menuItem];
             return YES;

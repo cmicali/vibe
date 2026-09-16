@@ -7,13 +7,16 @@
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+NowPlaying.h"
 
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer+Devices.h"
+#import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h"
 #import "AppStats.h"
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
-#import "PlaybackDeliveryRules.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -22,6 +25,9 @@
 #import "DownloadProgressMonitor.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
+#import "PlaybackDeliveryRules.h"
+#import "SettingsGeneralViewController.h"
+#import "SettingsWindowController.h"
 #import "TrackDisplayController.h"
 #import "VibeStrings.h"
 
@@ -30,6 +36,15 @@
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive {
     [self syncEqualizerActivity];
+    // Count rendered audio, including outgoing fades, rather than the play
+    // intent that stays true throughout a silent cloud open. Read the current
+    // snapshot: this delivery can be queued behind a newer transport action.
+    if (audioPlayer.outputAudioActive) {
+        [AppStats.sharedInstance playbackStarted];
+    }
+    else {
+        [AppStats.sharedInstance playbackStopped];
+    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
@@ -150,16 +165,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (!self.audioPlayer.isPlaying) {
         [self pauseUIUpdateTimer];
     }
-    else {
-        [[AppStats sharedInstance] playbackStarted];
-    }
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track {
     if (track != self.playlistController.currentTrack) {
         return;
     }
-    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     [self updateUI];
 }
@@ -171,7 +182,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A device-loss error can mask a track the player merely parked as Paused;
     // see audioPlayer:error:. Resuming proves the mask wrong.
     [self clearErrorMask];
-    [[AppStats sharedInstance] playbackStarted];
     [self resumeUIUpdateTimer];
 }
 
@@ -181,17 +191,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // track is still the playlist's current one; otherwise we would skip past
     // the track the user has just chosen.
     if (track && track != [self.playlistController currentTrack]) {
-        // The replacement may still be opening. In that gap the player has no
-        // current track, so the finished track's stats run must stop here;
-        // didStartPlaying: starts a fresh run when the replacement produces
-        // audio. If the replacement is already playing, its identity matches
-        // the playlist and its restarted clock must stay active — which is why
-        // a playlist emptied since (both sides nil, and so equal) must not read
-        // as that case and leave the clock running.
-        AudioTrack *playlistTrack = self.playlistController.currentTrack;
-        if (VibePlaybackStaleFinishStopsStats(playlistTrack, audioPlayer.currentTrack)) {
-            [[AppStats sharedInstance] playbackStopped];
-        }
         return;
     }
     [self advanceOrParkAtTrackEnd];
@@ -201,8 +200,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // Playback allow, park on it otherwise, and return whether it advanced. Callers
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
-    // Folds the finished run.
-    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     // Whether this end advances at all. The end of the playlist must be read
     // from the playlist before next:, because the play it starts is async on
@@ -212,8 +209,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // nothing has spliced, because successorPrefetchTrack parked nothing to
     // arm. Both reads of the setting are load-bearing: this one decides from
     // the playlist alone, so an unparked successor never reaches it.
-    BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(self.playlistController.hasNextTrack,
-                                                       AppSettings.sharedInstance.pauseAtTrackEnd);
+    BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(
+            self.playlistController.hasNextTrack, AppSettings.sharedInstance.pauseAtTrackEnd);
     if (advances) {
         [self next:self];
     }
@@ -299,7 +296,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self startPendingMetadataLoad];
-    [[AppStats sharedInstance] playbackStopped];
     [self pauseUIUpdateTimer];
     // Playback failed, so the duration cached at the last didStartPlaying no
     // longer describes anything the player holds.
@@ -325,6 +321,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (newDeviceIndex == -1) {
         AppSettings.sharedInstance.audioOutputDeviceName = @"";
         AppSettings.sharedInstance.audioOutputDeviceUID = @"";
+        // The one place the app turns bit-perfect output off rather than the
+        // user: the chosen device vanished or was absent at launch, and the player abandoned the mode
+        // before falling back to System Output. The report's enabled flag is
+        // the player's word for it — the launch-time announcement of System
+        // Output, made while the saved device is still binding, leaves the
+        // mode wanted and must not be read as a fallback.
+        if (AppSettings.sharedInstance.bitPerfectOutput && !audioPlayer.bitPerfectReport.enabled) {
+            LogInfo(@"bit-perfect: output fell back to System Output; persisting the mode off");
+            AppSettings.sharedInstance.bitPerfectOutput = NO;
+            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+        }
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -336,6 +343,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
         }
     }
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshOutputDevice];
+}
+
+// The one edge the two report readouts redraw from: the header's lock glyph
+// with its tooltip, and the Settings caption while the General pane exists.
+// The player publishes the report on its own queue after every toggle,
+// play, pause, stop, device switch and volume move, so nothing may read it
+// right after a setter and expect the new one.
+- (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer {
+    [self updateFXIndicators];
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshBitPerfectRows];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

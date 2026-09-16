@@ -988,15 +988,29 @@ static Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     XCTAssertEqualObjects(observer.events, (@[@"replace 0", @"replace 2"]));
 }
 
-- (void)testConversionCompletionForDepartedIdentityDoesNotReplaceSameURLNewRows {
+- (void)testConversionCompletionReplacesSourceRowsAfterPlaylistReplacement {
     NSURL *source = [NSURL fileURLWithPath:@"/tests/source.wav"];
+    NSURL *output = [NSURL fileURLWithPath:@"/tests/output.flac"];
     Playlist *playlist = Playlist.new;
     [playlist replaceAllWithURLs:@[source]];
     AudioTrack *departed = playlist.currentTrack;
     [playlist replaceAllWithURLs:@[source, source]];
-    NSArray *before = playlist.tracks;
-    XCTAssertEqual([playlist replaceTracksMatchingTrack:departed withURL:[NSURL fileURLWithPath:@"/tests/output.flac"]].count, 0u);
-    XCTAssertEqualObjects(playlist.tracks, before);
+    XCTAssertEqualObjects([playlist replaceTracksMatchingTrack:departed withURL:output], RowSetOf(@[@0, @1]));
+    XCTAssertEqual([playlist indexesOfTracksWithURL:source].count, 0u);
+    XCTAssertEqual([playlist indexesOfTracksWithURL:output].count, 2u);
+}
+
+- (void)testConversionCompletionReplacesSurvivingDuplicateAfterOriginalRowRemoval {
+    Playlist *playlist = PlaylistWithFiles(@[@"source.wav", @"other.wav", @"source.wav"]);
+    AudioTrack *departed = playlist.currentTrack;
+    [playlist removeTracksAtIndexes:RowSet(0)];
+    AudioTrack *other = playlist.currentTrack;
+    NSURL *output = [NSURL fileURLWithPath:@"/tests/output.flac"];
+    XCTAssertEqualObjects([playlist replaceTracksMatchingTrack:departed withURL:output], RowSet(1));
+    XCTAssertEqual(playlist.currentTrack, other);
+    XCTAssertEqualObjects([playlist trackAtIndex:1].url, output);
+    // Once all source rows have left, a late completion changes nothing.
+    XCTAssertEqual([playlist replaceTracksMatchingTrack:departed withURL:output].count, 0u);
 }
 
 @end

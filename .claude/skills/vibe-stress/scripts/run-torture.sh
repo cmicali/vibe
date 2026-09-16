@@ -64,12 +64,13 @@ done
 # repeated here rather than inherited. Unset: manual rendering, no output
 # device ever opened. `silent`: the real device with the mixer zeroed, which is
 # the only way to reach the HAL device layer, engine config-change
-# notifications and the Now Playing publish. `1`: audible.
+# notifications. `1`: audible. Media focus needs VIBE_NOW_PLAYING=1 too.
 case "${VIBE_AUDIBLE:-}" in
     "")     AUDIO_FLAGS=(--no-audio-hw --silent) ;;
     silent) AUDIO_FLAGS=(--silent) ;;
     *)      AUDIO_FLAGS=() ;;
 esac
+[ "${VIBE_NOW_PLAYING:-0}" != "1" ] && AUDIO_FLAGS+=(--no-now-playing)
 echo "  audio: ${AUDIO_FLAGS[*]:-real hardware, audible}"
 # macOS ships bash 3.2, where `set -u` treats an EMPTY array expansion as an
 # unbound variable — so the audible case (no flags at all) aborts the script

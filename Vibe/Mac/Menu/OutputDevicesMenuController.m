@@ -4,9 +4,12 @@
 //
 
 #import "OutputDevicesMenuController.h"
+#import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
+#import "OutputFormatRules.h"
 #import "VibeStrings.h"
 
 @interface OutputDevicesMenuController () <AudioDeviceManagerObserver>
@@ -62,6 +65,10 @@
     // overrun the menu's item count.
     NSArray<AudioDevice *> *devices = AudioDeviceManager.sharedInstance.outputDevices;
     NSInteger requestedId = self.audioPlayer.currentlyRequestedAudioDeviceId;
+    // While bit-perfect output is on, the devices it cannot drive gray out —
+    // System Output and every transport off the allowlist — so the mode can
+    // never be moved onto one. The same rule disables the Settings switch.
+    BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
 
     AudioDevice *systemDevice = nil;
     for (AudioDevice *device in devices) {
@@ -87,7 +94,7 @@
             : STR_MENU_OUTPUT_SYSTEM;
     systemItem.tag = -1;
     systemItem.state = StateForBOOL(requestedId == -1);
-    systemItem.enabled = YES;
+    systemItem.enabled = !bitPerfect;
     systemItem.target = self;
     systemItem.action = @selector(changeOutputDevice:);
 
@@ -103,7 +110,8 @@
         item.title = device.name;
         item.tag = device.deviceId;
         item.state = StateForBOOL(requestedId == device.deviceId);
-        item.enabled = YES;
+        item.enabled = !bitPerfect
+                || VibeBitPerfectDeviceEligible(device.transportType);
         item.target = self;
         item.action = @selector(changeOutputDevice:);
         i++;

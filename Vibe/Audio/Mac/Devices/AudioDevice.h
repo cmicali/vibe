@@ -15,7 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithName:(NSString *)name
                          uid:(NSString *)uid
                     deviceId:(NSInteger)deviceId
-             isSystemDefault:(BOOL)isSystemDefault;
+             isSystemDefault:(BOOL)isSystemDefault
+               transportType:(UInt32)transportType;
 
 @property (readonly, copy) NSString *name;
 // Empty for a device without a UID, never a shared sentinel; see the
@@ -23,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, copy) NSString *uid;
 @property (readonly)       NSInteger deviceId;
 @property (readonly)       BOOL isSystemDefault;
+// kAudioDeviceTransportType*, or kAudioDeviceTransportTypeUnknown when the
+// read failed. An optional refinement: it never decides whether the device
+// is listed, only whether bit-perfect output may drive it (OutputFormatRules.h).
+// Identity stays deviceId alone.
+@property (readonly)       UInt32 transportType;
 
 @end
 

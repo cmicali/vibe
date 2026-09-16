@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -64,6 +64,52 @@ test: project check-cloud-scenarios
 	    -enableCodeCoverage YES \
 	    -collect-test-diagnostics never \
 	    test
+
+# One compiled PCM verifier shared by hardware and device-free audio tests.
+build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift
+	@mkdir -p build
+	@swiftc -O $< -o $@
+
+# Live acceptance: launch the Debug app on this explicit loopback first.
+# See vibe-debug/references/test-audio.md for grants and restoration checks.
+.PHONY: build-test-blackhole
+build-test-blackhole:
+	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --blackhole-drivers
+
+AUDIO_DEVICE ?= BlackHole 2ch
+AUDIO_APP ?= $(abspath build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe)
+test-bit-perfect: AUDIO_DEVICE = VibeBlackHole 16ch
+test-bit-perfect: build/verify-bit-perfect
+	@build/verify-bit-perfect --self-test
+	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	@build/verify-bit-perfect --acceptance "$(abspath build/audio-fixtures)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" --require-driver-fixtures $(ARGS)
+
+# The engine suite renders real PCM without opening hardware. ARGS can narrow XCTest.
+AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
+test-audio: project build/verify-bit-perfect
+	@build/verify-bit-perfect --self-test
+	.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	rm -rf $(AUDIO_RESULT_BUNDLE)
+	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
+	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData \
+	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -parallel-testing-enabled NO \
+	    -collect-test-diagnostics never $(ARGS) test
+
+test-audio-summary:
+	scripts/test-summary.sh $(AUDIO_RESULT_BUNDLE)
+
+# Opt-in: launch an idle, unmuted Debug app on AUDIO_DEVICE first (vibe-debug).
+# Regular loopback: ARGS='--set-rate --ordinary'. Device check: bit-perfect off.
+AUDIO_FILE ?= build/audio-fixtures/noise-48000-24-2.wav
+AUDIO_SECONDS ?= 3
+
+test-audio-loopback: build/verify-bit-perfect
+	build/verify-bit-perfect \
+	    "$(AUDIO_FILE)" "$(AUDIO_SECONDS)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
+
+test-audio-device: build/verify-bit-perfect
+	build/verify-bit-perfect --device-check \
+	    "$(AUDIO_FILE)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
 
 # The live cloud suite needs a Debug app and a window, but its trace matching,
 # span assembly, exact-order projection and selector validation are pure Python.

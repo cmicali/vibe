@@ -1285,7 +1285,10 @@ def s7_stand_aside_and_no_stranding(ctx):
                      f"requests instead of reusing the live scan claim")
     if ctx.stats().get("metadataOverlapTransfers"):
         raise Failed("the metadata lane downloaded a file another role was already downloading")
-    wait_for_playlist_resolution(ctx, timeout=60)
+    # The serial scan may still owe a four-second transfer for every row.
+    # Match S5's per-row allowance; 60 seconds cannot cover a 24-row corpus.
+    resolution_timeout = max(60, len(rows) * 4.5 + 10)
+    wait_for_playlist_resolution(ctx, timeout=resolution_timeout)
     wait_for_loading_settlement(ctx)
     settled = ctx.playlist()
     if (settled.get("files", []) != rows

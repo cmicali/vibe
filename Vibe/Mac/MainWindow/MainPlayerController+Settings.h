@@ -54,6 +54,11 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The three transport buttons' glyph or image and color, and the gradient
     // behind them.
     VibeSettingsLiveEffectTransportButtons = 1UL << 22,
+    // Bit-perfect output: pushes the mode to the player, resets the pitch to
+    // 0 and hides the fader while on. Also pushes exclusiveOutput. A change
+    // to bitPerfectOutput uses BitPerfectApply below; exclusiveOutput alone
+    // needs only this effect. The settled report redraws the header and pane.
+    VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the
@@ -68,6 +73,13 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
                                            | VibeSettingsLiveEffectTrackDisplay
                                            | VibeSettingsLiveEffectAppIcon
                                            | VibeSettingsLiveEffectTransportButtons,
+    // Every write of bitPerfectOutput requests this: the FX and crossfade
+    // branches, reading audioFXAllowed and effectiveCrossfadeMilliseconds, are
+    // what withdraw the FX and drop the crossfade — the same path the FX
+    // switch and the crossfade popup take themselves.
+    VibeSettingsLiveEffectBitPerfectApply  = VibeSettingsLiveEffectBitPerfect
+                                           | VibeSettingsLiveEffectFXControls
+                                           | VibeSettingsLiveEffectCrossfade,
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 
