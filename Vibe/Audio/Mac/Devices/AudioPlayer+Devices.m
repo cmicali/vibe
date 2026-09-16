@@ -65,12 +65,11 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 - (void)resolvePendingSavedOutputDeviceOnQueue {
     NSString *savedUID = _pendingSavedDeviceUID;
     NSString *savedName = _pendingSavedDeviceName;
-    // Launch discovery is opportunistic, not a live device switch. If playback
-    // won the race with HAL setup, leave the saved intent pending; the next
-    // idle transition or device/default refresh can try again.
+    // Binding is opportunistic, but an armed mode must also learn about an
+    // absent device if playback won the race with discovery.
     if ((savedUID.length == 0 && savedName.length == 0)
-            || !VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
-                                             _state == VibePlayerStateLoading, _engine.isRunning)
+            || (!_bitPerfectWanted && !VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
+                                             _state == VibePlayerStateLoading, _engine.isRunning))
             || _pendingSavedDeviceLookupInFlight) {
         return;
     }
@@ -90,9 +89,20 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             // and clears these fields. It must never be overwritten by a late
             // launch-time answer.
             if (!VibeSavedOutputDeviceRequestIsCurrent(savedUID, savedName,
-                            strongSelf->_pendingSavedDeviceUID, strongSelf->_pendingSavedDeviceName)
-                    || !device
-                    || !VibeCanBindSavedOutputDevice(strongSelf->_state == VibePlayerStateStopped,
+                            strongSelf->_pendingSavedDeviceUID, strongSelf->_pendingSavedDeviceName)) {
+                strongSelf->_pendingSavedDeviceLookupInFlight = NO;
+                return;
+            }
+            // A nil answer follows a published snapshot, never a discovery
+            // timeout. Clear the intent before rebuilding so state publication
+            // cannot immediately submit the same lookup again.
+            if (!device && strongSelf->_bitPerfectWanted) {
+                strongSelf->_pendingSavedDeviceUID = nil;
+                strongSelf->_pendingSavedDeviceName = nil;
+                [strongSelf abandonBitPerfectForVanishedDeviceOnQueue];
+                [strongSelf setOutputDeviceOnQueue:-1];
+            }
+            if (!device || !VibeCanBindSavedOutputDevice(strongSelf->_state == VibePlayerStateStopped,
                             strongSelf->_state == VibePlayerStateLoading, strongSelf->_engine.isRunning)) {
                 strongSelf->_pendingSavedDeviceLookupInFlight = NO;
                 return;
@@ -683,8 +693,10 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         if (!_masterBusFormatBeforeBitPerfect) {
             _masterBusFormatBeforeBitPerfect = format;
         }
+        AudioStreamBasicDescription description = *format.streamDescription;
+        description.mSampleRate = current.mSampleRate;
         [self reconnectMasterBusOnQueueWithFormat:[[AVAudioFormat alloc]
-                initStandardFormatWithSampleRate:current.mSampleRate channels:format.channelCount ?: 2]];
+                initWithStreamDescription:&description channelLayout:format.channelLayout]];
         LogInfo(@"bit-perfect: master bus reconnected at %.0f Hz", current.mSampleRate);
     }
 }
@@ -804,6 +816,11 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
                 .mArgument.mProperty = { outputUnit, kAudioOutputUnitProperty_CurrentDevice,
                                          kAudioUnitScope_Global, 0 } };
             status = AUEventListenerAddEventType(_outputDeviceListener, NULL, &event);
+            if (status == noErr) {
+                event.mArgument.mProperty.mPropertyID = kAudioOutputUnitProperty_ChannelMap;
+                event.mArgument.mProperty.mScope = kAudioUnitScope_Input;
+                status = AUEventListenerAddEventType(_outputDeviceListener, NULL, &event);
+            }
         }
         if (status != noErr) {
             LogDebug(@"bit-perfect: output device listener failed: %d", (int)status);
@@ -904,7 +921,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        report.formatConfirmed = readFormat && _outputLevelListener != nil
+        report.formatConfirmed = readFormat && _outputLevelListener != nil && _outputDeviceListener != NULL
                 && [self activeOutputDeviceID] == _preparedDeviceID
                 && VibePhysicalFormatsEquivalent(physical, _preparedFormat);
         report.systemDefault = (_preparedDeviceID == [CoreAudioUtil systemDefaultOutputDeviceID]);
@@ -920,15 +937,15 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
-            // Matching rate and depth cannot certify a downmix. Check every
-            // connection, including the mixer and the output unit's two sides.
+            // Keep the mixer one-to-one; wider hardware is transparent only
+            // when the AU's actual map preserves the prepared stream's pair.
             UInt32 channels = source.mChannelsPerFrame;
             report.channelsMatch = channels > 0
                     && file.processingFormat.channelCount == channels
                     && [_engine.mainMixerNode outputFormatForBus:0].channelCount == channels
                     && [_engine.outputNode inputFormatForBus:0].channelCount == channels
-                    && [_engine.outputNode outputFormatForBus:0].channelCount == channels
-                    && physical.mChannelsPerFrame == channels;
+                    && [CoreAudioUtil outputUnit:_engine.outputNode.audioUnit preservesChannels:channels
+                            inStream:_preparedStreamID physicalChannelCount:physical.mChannelsPerFrame];
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
             report.depthOK = VibePhysicalFormatSatisfies(physical, source,
                                                          *file.processingFormat.streamDescription);
@@ -1008,6 +1025,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         // preference saved while bit-perfect is off cannot affect the graph.
         if (!changed) {
             return;
+        }
+        if (bitPerfectOutput) {
+            [self resolvePendingSavedOutputDeviceOnQueue];
         }
         if (self.fx) {
             // Inert until relaunch: the graph is not a pass-through, so

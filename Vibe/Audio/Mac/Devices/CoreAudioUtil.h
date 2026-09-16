@@ -5,6 +5,7 @@
 
 #import <Foundation/Foundation.h>
 #import <CoreAudio/CoreAudio.h>
+#import <AudioToolbox/AudioToolbox.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -57,6 +58,11 @@ NS_ASSUME_NONNULL_BEGIN
 // kAudioStreamPropertyPhysicalFormat, which carries rate and depth together.
 + (BOOL)readPhysicalFormat:(AudioStreamBasicDescription *)format forStream:(AudioStreamID)stream;
 + (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream;
+
+// Read the output AU's live destination-indexed channel map. Source channels
+// must reach the prepared stream in order, with every unused output silent.
++ (BOOL)outputUnit:(AudioUnit)unit preservesChannels:(UInt32)channels
+          inStream:(AudioStreamID)stream physicalChannelCount:(UInt32)physicalChannels;
 
 // Optional output controls. Missing controls mean unity volume, centered
 // balance (0.5), or unmuted; a failed read of a present control returns NO.

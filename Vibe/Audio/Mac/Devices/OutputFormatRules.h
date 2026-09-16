@@ -27,6 +27,22 @@ static inline BOOL VibeSavedOutputDeviceRequestIsCurrent(NSString *uid, NSString
     return [pendingUID isEqualToString:uid] && [pendingName isEqualToString:name];
 }
 
+// The prepared stream owns the selected output channels. Extra device
+// channels are harmless only when the live AU map sends them silence.
+static inline BOOL VibeBitPerfectChannelMapPreservesSource(const SInt32 *map, UInt32 count,
+        UInt32 sourceChannels, UInt32 firstStreamChannel, UInt32 streamChannels) {
+    if (!map || sourceChannels == 0 || firstStreamChannel == 0
+            || sourceChannels > streamChannels || firstStreamChannel > count
+            || streamChannels > count - (firstStreamChannel - 1)) return NO;
+    UInt32 start = firstStreamChannel - 1; // HAL stream channels are one-based
+    for (UInt32 destination = 0; destination < count; destination++) {
+        SInt32 expected = destination >= start && destination - start < sourceChannels
+                ? (SInt32)(destination - start) : -1;
+        if (map[destination] != expected) return NO;
+    }
+    return YES;
+}
+
 typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // The setting is off, or the device is ineligible — defensive: the shell
     // never lets the two coincide.
@@ -69,7 +85,7 @@ typedef struct {
     BOOL fxGraph;
     BOOL rateExact;
     BOOL formatConfirmed;   // the bound device has the requested format; its gain reads succeeded
-    BOOL channelsMatch;     // no channel-count conversion anywhere in the chain
+    BOOL channelsMatch;     // unchanged source channels, verified output routing
     BOOL depthOK;
     BOOL muted;
     BOOL hogWanted;

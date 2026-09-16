@@ -370,6 +370,16 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
                 });
             }),
+            VibeDebugCmd(@"set_saved_output_device <uid> <name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count != 3) {
+                    return VibeErrorJSON(@"usage: set_saved_output_device <uid> <name>");
+                }
+                // Next-launch input only; exercise missing-device restoration
+                // without changing the live binding or editing container prefs.
+                AppSettings.sharedInstance.audioOutputDeviceUID = tokens[1];
+                AppSettings.sharedInstance.audioOutputDeviceName = tokens[2];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
             VibeDebugCmd(@"set_bit_perfect <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // The pane's toggle, minus the pane's eligibility gate: the
                 // mode can be forced on over an ineligible device here, and

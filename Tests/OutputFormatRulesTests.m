@@ -80,6 +80,43 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     if (_deviceChangeHandler) _deviceChangeHandler();
 }
 
+#pragma mark - Output routing
+
+- (void)testStereoCanUseTheFirstPairOfAWiderDevice {
+    const SInt32 quad[] = {0, 1, -1, -1};
+    const SInt32 hdmi[] = {0, 1, -1, -1, -1, -1, -1, -1};
+    XCTAssertTrue(VibeBitPerfectChannelMapPreservesSource(quad, 4, 2, 1, 4));
+    XCTAssertTrue(VibeBitPerfectChannelMapPreservesSource(quad, 4, 2, 1, 2)); // separate stereo streams
+    XCTAssertTrue(VibeBitPerfectChannelMapPreservesSource(hdmi, 8, 2, 1, 8));
+    const SInt32 secondPair[] = {-1, -1, 0, 1};
+    XCTAssertTrue(VibeBitPerfectChannelMapPreservesSource(secondPair, 4, 2, 3, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(secondPair, 4, 2, 1, 2));
+}
+
+- (void)testRoutingRejectsSwapsMissingChannelsAndDuplicatedOutputs {
+    const SInt32 altered[][4] = {{1, 0, -1, -1}, {0, -1, -1, -1},
+                               {0, 1, 0, 1}, {0, 1, 2, 3}, {0, 0, -1, -1}};
+    for (NSUInteger i = 0; i < sizeof(altered) / sizeof(altered[0]); i++) {
+        XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(altered[i], 4, 2, 1, 4));
+    }
+    const SInt32 stereo[] = {0, 1};
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 6, 1, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 1, 1, 2)); // mono duplicated
+}
+
+- (void)testRoutingRequiresACompleteMapAndAStreamContainingEverySourceChannel {
+    const SInt32 stereo[] = {0, 1};
+    XCTAssertTrue(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, 1, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(NULL, 2, 2, 1, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 0, 2, 1, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 0, 1, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, 0, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, 1, 1));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, 2, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, UINT32_MAX, 2));
+    XCTAssertFalse(VibeBitPerfectChannelMapPreservesSource(stereo, 2, 2, 1, UINT32_MAX));
+}
+
 #pragma mark - Source depth
 
 - (void)testPCMDepthIsBitsPerChannel {
@@ -606,14 +643,20 @@ static VibeBitPerfectReport Perfect(void) {
 }
 
 - (void)testAuthoritativeEmptySnapshotCompletesAnUnmatchedLookup {
-    AudioDeviceManager *manager = [self managerWithSnapshot:@[]];
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
     XCTestExpectation *resolved = [self expectationWithDescription:@"no match"];
+    __block NSUInteger deliveries = 0;
     [manager resolveOutputDeviceForUID:@"missing" name:@"DAC" completion:^(AudioDevice *answer) {
         XCTAssertNil(answer);
+        deliveries++;
         [resolved fulfill];
     }];
+    [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqual(deliveries, 0u, @"Unknown discovery must not disable an armed mode");
+    [self refresh:manager snapshot:@[] published:YES];
     [self waitForExpectations:@[resolved] timeout:2];
-    XCTAssertEqual(_deviceRetries.count, 0u);
+    [self refresh:manager snapshot:@[] published:YES];
+    XCTAssertEqual(deliveries, 1u);
 }
 
 - (void)testRecoveryTimerPublishesBeforeMainThreadObserversRun {

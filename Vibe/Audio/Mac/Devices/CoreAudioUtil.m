@@ -4,6 +4,7 @@
 //
 
 #import "CoreAudioUtil.h"
+#import "OutputFormatRules.h"
 #import <CoreAudio/CoreAudio.h>
 #import <AudioToolbox/AudioToolbox.h> // kAudioHardwareServiceDeviceProperty_VirtualMainVolume
 #import <unistd.h>
@@ -168,6 +169,31 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
 }
 
 #pragma mark - Bit-perfect output: transport, rate, physical format, volume, hog
+
++ (BOOL)outputUnit:(AudioUnit)unit preservesChannels:(UInt32)channels
+          inStream:(AudioStreamID)stream physicalChannelCount:(UInt32)physicalChannels {
+    if (!unit || channels == 0) return NO;
+    UInt32 firstChannel = 0;
+    if (!VibeReadDeviceProperty(stream, kAudioStreamPropertyStartingChannel,
+            kAudioObjectPropertyScopeGlobal, &firstChannel, sizeof(firstChannel))) return NO;
+    AudioStreamBasicDescription output = {0};
+    UInt32 size = sizeof(output);
+    if (AudioUnitGetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output,
+            0, &output, &size) != noErr || size != sizeof(output)) return NO;
+    Boolean writable = false;
+    if (AudioUnitGetPropertyInfo(unit, kAudioOutputUnitProperty_ChannelMap,
+            kAudioUnitScope_Input, 0, &size, &writable) != noErr || size == 0
+            || size != (uint64_t)output.mChannelsPerFrame * sizeof(SInt32)) return NO;
+    UInt32 capacity = size;
+    SInt32 *map = malloc(capacity);
+    if (!map) return NO;
+    BOOL preserves = AudioUnitGetProperty(unit, kAudioOutputUnitProperty_ChannelMap,
+            kAudioUnitScope_Input, 0, map, &size) == noErr && size == capacity
+            && VibeBitPerfectChannelMapPreservesSource(map, size / sizeof(*map), channels,
+                                                       firstChannel, physicalChannels);
+    free(map);
+    return preserves;
+}
 
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID {
     if (!transportType) {

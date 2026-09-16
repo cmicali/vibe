@@ -31,7 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 // or Loading while the engine is not running; the rule and its trap are on
 // that function — and playback winning the lookup race leaves the preference
 // pending for the next eligible transition or device/default refresh. Runs on
-// _queue.
+// _queue. A completed missing-device lookup disables an armed bit-perfect
+// mode; an unpublished snapshot never settles that lookup.
 - (void)resolvePendingSavedOutputDeviceOnQueue;
 
 // The AVAudioEngineConfigurationChangeNotification handler. The observer that

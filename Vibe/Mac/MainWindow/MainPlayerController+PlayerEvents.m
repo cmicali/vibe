@@ -322,7 +322,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         AppSettings.sharedInstance.audioOutputDeviceName = @"";
         AppSettings.sharedInstance.audioOutputDeviceUID = @"";
         // The one place the app turns bit-perfect output off rather than the
-        // user: the chosen device vanished and the player abandoned the mode
+        // user: the chosen device vanished or was absent at launch, and the player abandoned the mode
         // before falling back to System Output. The report's enabled flag is
         // the player's word for it — the launch-time announcement of System
         // Output, made while the saved device is still binding, leaves the
