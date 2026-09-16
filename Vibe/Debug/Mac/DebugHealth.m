@@ -15,7 +15,7 @@
 #import <libproc.h>
 #import <malloc/malloc.h>
 #import <sys/time.h>
-#if __has_feature(address_sanitizer)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
 #import <sanitizer/allocator_interface.h>
 #endif
 
@@ -114,10 +114,11 @@ static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
     }
     for (unsigned i = 0; i < count; i++) {
         malloc_zone_t *zone = (malloc_zone_t *)zones[i];
-#if __has_feature(address_sanitizer)
-        // ASan's zone statistics accumulate allocations, including freed
-        // blocks. Its allocator API reports the bytes that are still live.
-        if (zone->zone_name && strcmp(zone->zone_name, "asan") == 0) {
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+        // ASan's zone statistics count freed blocks too; TSan's report zero.
+        // Both allocator APIs report the bytes that are still live.
+        if (zone->zone_name && (strcmp(zone->zone_name, "asan") == 0
+                               || strcmp(zone->zone_name, "tsan") == 0)) {
             *live += __sanitizer_get_current_allocated_bytes();
             *reserved += __sanitizer_get_heap_size();
             continue;
