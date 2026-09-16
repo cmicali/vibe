@@ -54,7 +54,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEngineIdleStopDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+    [self scheduleAfterSeconds:kEngineIdleStopDelaySeconds block:^{
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_engineIdleStopGeneration) {
             return;
@@ -100,7 +100,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
                                 segmentStart:startFrame position:position];
             [strongSelf maybeArmGaplessOnQueue];
         }
-    });
+    }];
 }
 
 @end

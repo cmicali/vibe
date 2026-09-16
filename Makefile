@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress release github-release deploy-web web-set-version appstore-build appstore-upload-signed-build install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq) from the Brewfile.
 setup:
@@ -64,6 +64,35 @@ test: project check-cloud-scenarios
 	    -enableCodeCoverage YES \
 	    -collect-test-diagnostics never \
 	    test
+
+# The engine suite renders real PCM without opening hardware. ARGS can narrow XCTest.
+AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
+test-audio: project
+	swift .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift --self-test
+	.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	rm -rf $(AUDIO_RESULT_BUNDLE)
+	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
+	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/DerivedData \
+	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -parallel-testing-enabled NO \
+	    -collect-test-diagnostics never $(ARGS) test
+
+test-audio-summary:
+	scripts/test-summary.sh $(AUDIO_RESULT_BUNDLE)
+
+# Opt-in: launch an idle, unmuted Debug app on AUDIO_DEVICE first (vibe-debug).
+# Regular loopback: ARGS=--set-rate. Device negotiation: bit-perfect initially off.
+AUDIO_FILE ?= build/audio-fixtures/noise-48000-24-2.wav
+AUDIO_DEVICE ?= BlackHole 2ch
+AUDIO_SECONDS ?= 3
+AUDIO_APP ?= build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe
+
+test-audio-loopback:
+	swift .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift \
+	    "$(AUDIO_FILE)" "$(AUDIO_SECONDS)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
+
+test-audio-device:
+	swift .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift --device-check \
+	    "$(AUDIO_FILE)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
 
 # The live cloud suite needs a Debug app and a window, but its trace matching,
 # span assembly, exact-order projection and selector validation are pure Python.

@@ -33,6 +33,67 @@
 #                                parser with the MP4 art above
 set -euo pipefail
 
+# Analytical fixtures for the real-player render suite. No third-party encoder
+# is required for the core matrix. Optional MPEG fixtures are explicitly skipped
+# by XCTest when ffmpeg is absent, rather than pretending those codecs passed.
+if [ "${1:-}" = "--render-tests" ]; then
+    render_dir="${2:?usage: --render-tests <output-directory>}"
+    mkdir -p "$render_dir"
+    python3 - "$render_dir" <<'AUDIO_PY'
+from pathlib import Path
+import math, struct, sys, json
+out=Path(sys.argv[1])
+def wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False):
+    path=out/name
+    if path.exists(): return
+    state=0x12345678
+    data=bytearray()
+    for n in range(int(rate*seconds)):
+        for c in range(channels):
+            state=(1664525*state+1013904223)&0xffffffff
+            if kind=='noise': value=((state>>8)/8388608-1)*0.25
+            elif kind=='silence': value=0
+            elif kind=='impulse': value=0.5 if n==int(rate*0.25) else 0
+            elif kind=='limits': value=((state>>8)/8388608-1)*0.25 if n<rate//10 else [0,1-2**-23,-1,2**-23,-2**-23][(n+c)%5]
+            elif kind=='sweep': value=0.25*math.sin(2*math.pi*(10*n/rate+(rate*0.45-10)*(n/rate)**2/(2*seconds)))
+            else: value=0.25*math.sin(2*math.pi*float(kind)*(c+1)*n/rate)
+            if floating: data.extend(struct.pack('<f',value))
+            else:
+                sample=max(-(1<<(bits-1)), min((1<<(bits-1))-1,round(value*(1<<(bits-1)))))
+                data.extend(sample.to_bytes(bits//8,'little',signed=True))
+    fmt=struct.pack('<HHIIHH',3 if floating else 1,channels,rate,rate*channels*(bits//8),channels*(bits//8),bits)
+    path.write_bytes(b'RIFF'+struct.pack('<I',36+len(data))+b'WAVEfmt '+struct.pack('<I',16)+fmt+b'data'+struct.pack('<I',len(data))+data)
+for rate in [44100,48000,88200,96000,176400,192000]:
+    for bits in [16,24,32]:
+        for channels in [1,2]:
+            wav(f'noise-{rate}-{bits}-{channels}.wav',rate,bits,channels,floating=bits==32)
+for kind in ['silence','impulse','limits','sweep','20','100','1000','8000','23000']:
+    wav(f'{kind}.wav',48000,32,2,kind,seconds=8 if kind in ['silence','impulse'] else 4,floating=True)
+for rate in [44100,48000,96000]:
+    wav(f'tone-{rate}.wav',rate,32,2,'1000',seconds=4,floating=True)
+wav('integer32.wav',48000,32,2)
+(out/'manifest.json').write_text(json.dumps({'seed':'0x12345678','rates':[44100,48000,88200,96000,176400,192000],'duration':2,'noisePeak':0.25},indent=2))
+AUDIO_PY
+    render_source="$render_dir/noise-48000-24-2.wav"
+    [ -s "$render_dir/lossless.flac" ] || afconvert -f flac -d flac "$render_source" "$render_dir/lossless.flac"
+    [ -s "$render_dir/lossless.m4a" ] || afconvert -f m4af -d alac "$render_source" "$render_dir/lossless.m4a"
+    [ -s "$render_dir/lossless.aiff" ] || afconvert -f AIFF -d BEI24 "$render_source" "$render_dir/lossless.aiff"
+    [ -s "$render_dir/lossy.m4a" ] || afconvert -f m4af -d aac -b 192000 "$render_source" "$render_dir/lossy.m4a"
+    for ext in aif wave bwf; do
+        if [ "$ext" = aif ]; then render_copy="$render_dir/lossless.aiff"; else render_copy="$render_source"; fi
+        [ -s "$render_dir/alias.$ext" ] || cp "$render_copy" "$render_dir/alias.$ext"
+    done
+    [ -s "$render_dir/alias.mp4" ] || cp "$render_dir/lossy.m4a" "$render_dir/alias.mp4"
+    [ -s "$render_dir/lossy.aac" ] || afconvert -f adts -d aac -b 192000 "$render_source" "$render_dir/lossy.aac"
+    if command -v ffmpeg >/dev/null; then
+        [ -s "$render_dir/cbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -b:a 192k "$render_dir/cbr.mp3"
+        [ -s "$render_dir/vbr.mp3" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a libmp3lame -q:a 2 "$render_dir/vbr.mp3"
+        [ -s "$render_dir/lossy.mp2" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a mp2 -b:a 192k "$render_dir/lossy.mp2"
+        [ -s "$render_dir/lossy.qta" ] || ffmpeg -nostdin -loglevel error -y -i "$render_source" -c:a aac -f mov "$render_dir/lossy.qta"
+    fi
+    exit 0
+fi
+
 REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 OUT="$REPO_ROOT/Assets/test_audio_files"
 FORCE=0

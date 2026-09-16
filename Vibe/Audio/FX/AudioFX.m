@@ -4,6 +4,9 @@
 //
 
 #import "AudioFX.h"
+#if DEBUG
+#import "AudioPlayer+Debug.h"
+#endif
 #import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
 #import "FadeMath.h"
 #import <AVFoundation/AVFoundation.h>
@@ -136,6 +139,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 @end
 
 @implementation AudioFX {
+#if DEBUG
+    void (^_debugScheduler)(NSTimeInterval, dispatch_block_t);
+#endif
     // The player's serial engine queue, shared rather than owned. All graph
     // and parameter mutation runs here, as every other engine touch in the app
     // does.
@@ -174,6 +180,16 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     BOOL                    _delaySendEnabled;
     BOOL                    _shortDelaySendEnabled;
     float                   _delayTapBPM;
+}
+
+#if DEBUG
+- (void)debugSetScheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler { _debugScheduler = [scheduler copy]; }
+#endif
+- (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block {
+#if DEBUG
+    if (_debugScheduler) { _debugScheduler(seconds, block); return; }
+#endif
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), _queue, block);
 }
 
 - (instancetype)initWithQueue:(dispatch_queue_t)queue {
@@ -515,9 +531,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         return;
     }
     __weak AudioFX *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLowKillSweepStepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:kLowKillSweepStepMicroseconds / 1000000.0 block:^{
         [weakSelf stepLowKillRamp:step + 1 from:start to:target generation:generation];
-    });
+    }];
 }
 
 #pragma mark - Reverb send
@@ -595,9 +611,9 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     }
     gate.outputVolume = VibeFadeVolumeOverSteps(start, target, step, steps);
     __weak AudioFX *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:stepMicroseconds / 1000000.0 block:^{
         [weakSelf stepSendGateRamp:gate step:step + 1 of:steps stepMicroseconds:stepMicroseconds from:start to:target generation:generation counter:counter completion:completion];
-    });
+    }];
 }
 
 #pragma mark - Delay send

@@ -37,6 +37,7 @@
     float pitch = _pitch;
     os_unfair_lock_unlock(&_stateLock);
     self.varispeed.rate = 1.0f + pitch / 100.0f;
+    self.varispeed.bypass = pitch == 0;
     return YES;
 }
 
@@ -82,19 +83,33 @@
 #if DEBUG
     // DataPlayedBack never fires under --no-audio-hw's manual rendering:
     // "played back" is computed against the output device's timeline, which
-    // doesn't exist. DataRendered is the same moment at manual mode's zero
-    // output latency, and without it track end — and so auto-advance — never
-    // fires.
+    // doesn't exist. DataRendered plus the downstream presentation latency
+    // below drains the complete signal before track-end teardown.
     if (_engine.isInManualRenderingMode) {
         completionType = AVAudioPlayerNodeCompletionDataRendered;
     }
 #endif
     __weak AudioPlayer *weakSelf = self;
+#if DEBUG
+    __weak AVAudioPlayerNode *weakNode = node;
+#endif
     AVAudioPlayerNodeCompletionHandler finalCompletion =
             ^(AVAudioPlayerNodeCompletionCallbackType callbackType) {
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
             dispatch_async(strongSelf->_queue, ^{
+#if DEBUG
+                // DataRendered belongs to the source node. Downstream units
+                // can still hold its final samples (even bypassed varispeed
+                // reports latency). Drain that pipeline before tearing it down.
+                NSTimeInterval latency = weakNode.outputPresentationLatency;
+                if (strongSelf->_engine.isInManualRenderingMode && latency > 0) {
+                    [strongSelf scheduleAfterSeconds:latency block:^{
+                        [strongSelf segmentDidCompleteWithGeneration:gen];
+                    }];
+                    return;
+                }
+#endif
                 [strongSelf segmentDidCompleteWithGeneration:gen];
             });
         }

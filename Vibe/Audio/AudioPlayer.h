@@ -90,8 +90,7 @@ NS_ASSUME_NONNULL_BEGIN
                               name:(NSString *)deviceName
                           enableFX:(BOOL)enableFX
                           delegate:(id <AudioPlayerDelegate>)delegate
-              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration
-        NS_DESIGNATED_INITIALIZER;
+              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;

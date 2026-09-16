@@ -107,6 +107,28 @@ jobs:
           path: build/TestResults.xcresult
           retention-days: 7
 
+  # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
+  test-audio:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-xcodegen
+      - name: Install fixture encoder
+        run: brew install ffmpeg
+      - name: Render and compare audio
+        run: make test-audio
+      - name: Audio test summary
+        if: always()
+        run: make test-audio-summary
+      - name: Upload audio failures and PCM attachments
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: AudioTestResults.xcresult
+          path: build/AudioTestResults.xcresult
+          retention-days: 7
+
   # clang's static analyzer, failing on any finding outside ThirdParty/.
   # project.yml has had the analyzer's checks on all along
   # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job

@@ -10,9 +10,23 @@
 #if DEBUG
 
 #import "AudioPlayer.h"
+#import "AudioFX.h"
+#import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
+@interface AudioFX (RenderDebug)
+- (void)debugSetScheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
+@end
+
 @interface AudioPlayer (Debug)
+- (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate;
+- (nullable AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error;
+- (void)debugSetCapture:(void (^ _Nullable)(AVAudioPCMBuffer *buffer))capture;
+- (NSDictionary *)debugRenderState;
+- (void)debugShutdown;
+
 
 // The player's own copy of the loading configuration, for dump_audio_loading's
 // three-way comparison against the materialization coordinator's and the
@@ -70,5 +84,7 @@
 - (NSDictionary<NSString *, id> *)debugEqualizerState;
 
 @end
+
+NS_ASSUME_NONNULL_END
 
 #endif

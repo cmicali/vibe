@@ -7,6 +7,7 @@
 #import "AudioPlayerInternal.h"
 #if DEBUG
 #import "VibeManualRenderPump.h"
+#import "AudioPlayer+Debug.h"
 #endif
 #import "AudioFX.h"
 #import "AudioLoadingConfiguration.h"
@@ -81,6 +82,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer ()
+- (instancetype)initWithDeviceUID:(NSString *)uid name:(NSString *)name enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate loadingConfiguration:(AudioLoadingConfiguration *)configuration manualPump:(id)pump;
 // playOnQueue:'s phases; the ordering constraints between them are commented
 // there, at the call sites.
 - (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track
@@ -138,6 +140,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                           enableFX:(BOOL)enableFX
                           delegate:(id<AudioPlayerDelegate>)delegate
               loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+    return [self initWithDeviceUID:deviceUID name:deviceName enableFX:enableFX delegate:delegate
+             loadingConfiguration:loadingConfiguration manualPump:nil];
+}
+
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate
+             loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration manualPump:(id)pump {
     NSParameterAssert(loadingConfiguration);
     self = [super init];
     if (self) {
@@ -170,6 +179,15 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // Without enableFX it stays nil forever: no FX node is ever minted,
         // and installMasterBusOnQueue wires the mixer straight to the output.
         _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue] : nil;
+#if DEBUG
+        _manualPump = pump;
+        if (_manualPump) {
+            __weak VibeManualRenderPump *weakPump = _manualPump;
+            [_fx debugSetScheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
+                [weakPump scheduleAfter:seconds block:block];
+            }];
+        }
+#endif
         _retiredFades = [NSMutableArray array];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
@@ -186,30 +204,32 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [self createEngineAndMasterBusOnQueue];
 
 #if TARGET_OS_OSX
-            AudioDeviceManager *deviceManager = [AudioDeviceManager sharedInstance];
-            [deviceManager addObserver:self];
+            if (!self->_engine.isInManualRenderingMode) {
+                AudioDeviceManager *deviceManager = [AudioDeviceManager sharedInstance];
+                [deviceManager addObserver:self];
 
-            __weak AudioPlayer *weakSelf = self;
-            self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
-                    addObserverForName:AVAudioEngineConfigurationChangeNotification
-                                object:self->_engine
-                                 queue:nil
-                            usingBlock:^(NSNotification *note) {
-                                AudioPlayer *strongSelf = weakSelf;
-                                if (strongSelf) {
-                                    dispatch_async(strongSelf->_queue, ^{
-                                        [strongSelf handleEngineConfigurationChange];
-                                        if (strongSelf->_bitPerfectWanted) {
-                                            [strongSelf publishBitPerfectReportOnQueue];
-                                        }
-                                    });
-                                }
-                            }];
-            // Do not put first-use HAL discovery on the player's sole queue.
-            // The engine begins honestly on System Output; a successful async
-            // snapshot later applies the saved preference through the checked
-            // device-switch path, and an absent device remains pending.
-            [self resolvePendingSavedOutputDeviceOnQueue];
+                __weak AudioPlayer *weakSelf = self;
+                self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
+                        addObserverForName:AVAudioEngineConfigurationChangeNotification
+                                    object:self->_engine
+                                     queue:nil
+                                usingBlock:^(NSNotification *note) {
+                                    AudioPlayer *strongSelf = weakSelf;
+                                    if (strongSelf) {
+                                        dispatch_async(strongSelf->_queue, ^{
+                                            [strongSelf handleEngineConfigurationChange];
+                                            if (strongSelf->_bitPerfectWanted) {
+                                                [strongSelf publishBitPerfectReportOnQueue];
+                                            }
+                                        });
+                                    }
+                                }];
+                // Do not put first-use HAL discovery on the player's sole queue.
+                // The engine begins honestly on System Output; a successful async
+                // snapshot later applies the saved preference through the checked
+                // device-switch path, and an absent device remains pending.
+                [self resolvePendingSavedOutputDeviceOnQueue];
+            }
 #endif
             // On iOS there is no HAL device layer: routing belongs to
             // AVAudioSession, and engine-config-change handling lives with the
@@ -233,6 +253,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         return;
     }
     dispatch_sync(_queue, block);
+}
+
+- (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block {
+#if DEBUG
+    if (_manualPump) { [_manualPump scheduleAfter:seconds block:block]; return; }
+#endif
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), _queue, block);
 }
 
 - (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
@@ -259,18 +286,18 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // and position all behave normally; the pump below pulls frames at
     // real-time pace and discards them. Must be enabled while the engine is
     // stopped and before the graph is wired.
-    BOOL noAudioHW = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+    BOOL noAudioHW = _manualPump != nil || [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
     BOOL manualRendering = NO;
     if (noAudioHW) {
         NSError *manualError = nil;
-        AVAudioFormat *renderFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0
-                                                                                     channels:2];
+        AVAudioFormat *renderFormat = _manualPump.format ?: [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0 channels:2];
         manualRendering = [_engine
                 enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline
                                    format:renderFormat
                         maximumFrameCount:kVibeManualPumpMaxFrames
                                     error:&manualError];
         if (!manualRendering) {
+            if (_manualPump) [NSException raise:NSInternalInconsistencyException format:@"Manual rendering required: %@", manualError];
             // The engine will open the output device as it always does; pair
             // --no-audio-hw with --silent, as launch.sh does, and playback at
             // least stays inaudible.
@@ -279,16 +306,20 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
 #endif
 
-    [self installMasterBusOnQueue];
-
+    if (_engine.isInManualRenderingMode) {
+        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:_engine.manualRenderingFormat];
+    }
 #if DEBUG
     if (manualRendering) {
-        // TRAP: the pump binds its engine at init, so a rebuild needs a fresh
-        // one — the old pump would render against the engine that just died.
-        [_manualPump cancel];
-        _manualPump = [[VibeManualRenderPump alloc] initWithEngine:_engine queue:_queue];
+        // Rebind before installing FX: its scheduled sweeps use this queue.
+        // Rebuilds keep the same clock and cancel the old timer in attach.
+        if (!_manualPump) _manualPump = [[VibeManualRenderPump alloc] initWithFormat:_engine.manualRenderingFormat automatic:YES];
+        [_manualPump attachToEngine:_engine queue:_queue];
         LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
     }
+#endif
+    [self installMasterBusOnQueue];
+#if DEBUG
     // --silent, for testing: zero the main mixer so that playback runs
     // normally but nothing audible reaches the output device, which still gets
     // opened and driven — use --no-audio-hw to keep hardware untouched. It
@@ -310,6 +341,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // deterministic step in both configurations. Runs on _queue; the engine init
 // and the iOS media-services-reset rebuild are the callers.
 - (void)installMasterBusOnQueue {
+    // Apple's default SRC leaves measurable ultrasonic aliases when reducing
+    // the output rate. The render suite holds their RMS below -90 dBFS.
+    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
     if (_fx) {
         [_fx installInEngine:_engine];
     }
@@ -407,7 +441,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #endif
 #if TARGET_OS_OSX
     if (_outputDeviceListener) AUListenerDispose(_outputDeviceListener);
-    [[AudioDeviceManager sharedInstance] removeObserver:self];
+    if (_configChangeObserver) [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync
     // from here cannot deadlock against in-flight queue work: a queued block
@@ -1321,8 +1355,42 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 #pragma mark - Debug introspection
-
 #if DEBUG
+- (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate {
+    NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
+    return [self initWithDeviceUID:@"" name:@"" enableFX:enableFX delegate:delegate
+             loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]
+                       manualPump:[[VibeManualRenderPump alloc] initWithFormat:format automatic:automatic]];
+}
+- (AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error {
+    __block AVAudioPCMBuffer *buffer;
+    __block NSError *failure;
+    [self runSyncOnQueue:^{ buffer = [self->_manualPump renderFrames:frames error:&failure]; }];
+    if (error) *error = failure;
+    return buffer;
+}
+- (void)debugSetCapture:(void (^)(AVAudioPCMBuffer *))capture {
+    [self runSyncOnQueue:^{ self->_manualPump.capture = capture; }];
+}
+- (NSDictionary *)debugRenderState {
+    __block NSDictionary *state;
+    [self runSyncOnQueue:^{ state = @{@"running": @(self->_engine.isRunning),
+        @"frames": @(self->_manualPump.renderedFrames), @"varispeed": @(self->_varispeed != nil),
+        @"nodeVolume": @(self->_node.volume), @"latency": @(self->_node.outputPresentationLatency), @"varispeedLatency": @(self->_varispeed.latency), @"mixerRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate),
+        @"nodes": @(self->_engine.attachedNodes.count), @"retired": @(self->_retiredFades.count)}; }];
+    return state;
+}
+- (void)debugShutdown {
+    self.delegate = nil;
+    [self runSyncOnQueue:^{
+        [self preemptRampsOnQueue];
+        self->_segmentGeneration++;
+        [self cancelPlayOpenOnQueue];
+        [self prefetchOnQueue:nil];
+        [self->_manualPump cancel];
+        [self->_engine stop];
+    }];
+}
 
 // Debug-only: dump_audio_loading compares the three consumers' snapshots —
 // the materialization coordinator's, the metadata cache's and this one — and
@@ -1457,6 +1525,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
     // owning queue, as with every other graph mutation.
     dispatch_async(_queue, ^{
         self->_varispeed.rate = 1.0f + pitch / 100.0f;
+        self->_varispeed.bypass = pitch == 0;
     });
 }
 
@@ -1476,6 +1545,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
     // Re-apply in case the narrower range clamped the current pitch.
     dispatch_async(_queue, ^{
         self->_varispeed.rate = 1.0f + pitch / 100.0f;
+        self->_varispeed.bypass = pitch == 0;
     });
 }
 

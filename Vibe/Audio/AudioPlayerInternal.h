@@ -343,6 +343,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Wires the master bus on a fresh engine: the FX segment, or, with FX
 // disabled, the mixer straight to the output. The rebuild's second half.
 - (void)installMasterBusOnQueue;
+- (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block;
 // Reconciles tap demand. Also called after a successful engine start so a
 // temporary unusable-format failure can recover without toggling demand.
 - (void)applyLevelTapOnQueue;

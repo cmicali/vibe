@@ -156,6 +156,6 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) drives this channel 
 - `references/settings-window.md` — the five settings verbs' replies, control naming, the kind table. Read when driving a Settings pane.
 - `references/equalizer-counters.md` — `dump_equalizer`'s schema and bounds, `set_equalizer_mode`. Read when judging the equalizer bars.
 - `references/screenshots-and-logs.md` — how the snapshot picks a window and what it cannot render, real capture and pixel probes, on-device `--log-stderr`. Read when a screenshot looks wrong or a log must come off a phone.
-- `references/test-audio.md` — the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`. Read before picking a file for a test.
+- `references/test-audio.md` — `make test-audio`, loopback/device checks, the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`. Read before picking a file for a test.
 - `references/os-input.md` — CGEvents through the window server for hover, focus, and drop targets. Read when an explicit gesture test needs OS input on an isolated test desktop.
 - `references/build-provenance.md` — the launch-time provenance block and how the git fields reach the binary. Read when a log must be tied to a build.

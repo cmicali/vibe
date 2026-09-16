@@ -7,6 +7,10 @@
 #import "AudioPlayerInternal.h"
 #import "FadeMath.h"
 
+// AVAudioPlayerNode smooths volume writes over 20 ms. A zero parameter is
+// not yet zero output: teardown at the last write cuts that ramp mid-sample.
+static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
+
 // The stepping loop every ramp below funnels into. Private: callers pick an
 // entry point named for what they are fading, never these nine parameters.
 @interface AudioPlayer (FadesPrivate)
@@ -56,14 +60,15 @@
     node.volume = VibeFadeVolumeForFadeLength(fadeMilliseconds, start, target, step, totalSteps);
     if (step >= totalSteps) {
         if (completion) {
-            completion();
+            if (target == 0) [self scheduleAfterSeconds:kNodeVolumeSettleSeconds block:completion];
+            else completion();
         }
         return;
     }
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:stepMicroseconds / 1000000.0 block:^{
         [weakSelf stepRampAsync:node step:step + 1 from:start to:target totalSteps:totalSteps stepMicroseconds:stepMicroseconds fadeMilliseconds:fadeMilliseconds preemptable:preemptable generation:generation completion:completion];
-    });
+    }];
 }
 
 - (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target generation:(uint64_t)generation completion:(dispatch_block_t)completion {
@@ -104,14 +109,20 @@
     // this is always the equal-power side of a crossfade; see FadeMath.h.
     fade.node.volume = VibeCrossfadeVolumeOverSteps(start, 0, step, totalSteps);
     if (step >= totalSteps) {
-        [_retiredFades removeObject:fade];
-        [self completeRetiredFadePair:fade];
+        __weak AudioPlayer *weakSelf = self;
+        [self scheduleAfterSeconds:kNodeVolumeSettleSeconds block:^{
+            AudioPlayer *strongSelf = weakSelf;
+            if (strongSelf && [strongSelf->_retiredFades containsObject:fade]) {
+                [strongSelf->_retiredFades removeObject:fade];
+                [strongSelf completeRetiredFadePair:fade];
+            }
+        }];
         return;
     }
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(stepMicroseconds * NSEC_PER_USEC)), _queue, ^{
+    [self scheduleAfterSeconds:stepMicroseconds / 1000000.0 block:^{
         [weakSelf stepRetiredFadeAsync:fade step:step + 1 from:start totalSteps:totalSteps stepMicroseconds:stepMicroseconds];
-    });
+    }];
 }
 
 - (void)completeRetiredFadePair:(VibeRetiredFade *)fade {
