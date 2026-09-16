@@ -6,15 +6,8 @@
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayerInternal.h"
 
-// How long the engine may sit idle before it is stopped to release the output
-// device. Long enough to absorb even a slow next-track open, short enough to
-// let go promptly when playback really ends; see the header for why it is
-// deferred at all. Shorter while the device is hogged for bit-perfect output,
-// because until the stop nothing else on the Mac can use it.
-static const NSTimeInterval kEngineIdleStopDelaySeconds = 10.0;
-#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
-#endif
+// Give the next track time to open before releasing the idle engine.
+static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 
 @implementation AudioPlayer (Engine)
 
@@ -60,14 +53,8 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
 
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;
-    NSTimeInterval delay = kEngineIdleStopDelaySeconds;
-#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    if (_hoggedDeviceID != kAudioObjectUnknown) {
-        delay = kEngineIdleStopDelayHoggedSeconds;
-    }
-#endif
     __weak AudioPlayer *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), _queue, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kEngineIdleStopDelaySeconds * NSEC_PER_SEC)), _queue, ^{
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_engineIdleStopGeneration) {
             return;

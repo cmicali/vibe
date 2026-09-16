@@ -128,7 +128,7 @@
 #if TARGET_OS_OSX
     // The outgoing audio is silent: a settlement parked for a bit-perfect
     // format switch may stop the engine now.
-    if (_activeRetiredOutputCount == 0) {
+    if (_parkedSettlement && _activeRetiredOutputCount == 0) {
         [self runParkedSettlementOnQueue];
     }
 #endif
