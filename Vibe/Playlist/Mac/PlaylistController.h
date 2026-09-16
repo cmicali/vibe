@@ -66,8 +66,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Staleness counter for work stamped against the current row set — the
 // shell's removal-undo and reorder-undo registrations. It follows the model's
-// own replace-all announcement (playlistDidReplaceAllTracks:, which both
-// replaceAllWithURLs: and clear fire), so ANY path that replaces the list
+// own structureGeneration (advanced before playlistDidReplaceAllTracks:,
+// which both replaceAllWithURLs: and clear fire), so ANY path that replaces the list
 // bumps it — there is no call-site discipline to forget. Appends, swaps,
 // removals and inserts leave it alone: they never invalidate a stamped row
 // number wholesale, because a stamped registration only runs after every
@@ -118,9 +118,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)previous;
 
 // The gapless auto-advance's bookkeeping half: the player has already spliced
-// into the next track, so advance the index and scroll without starting a
-// play. Row repaint rides the currentIndexDidChange observer, as with next.
-- (BOOL)advanceToNextTrackWithoutPlaying;
+// into the next track. The model checks both identities before advancing;
+// success scrolls without starting a play. Row repaint rides the ordinary
+// currentIndexDidChange observer; a stale boundary changes nothing.
+- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack;
+
+// The model's forward-survivor query for the shell's removal decision.
+- (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
 
 // The playlist-boundary predicates: the single source of truth for whether
 // there is a track after or before the current one. They are shared by next
@@ -134,14 +138,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track;
 
-// Points a row at a different file, returning the fresh AudioTrack now in it,
-// or nil when index is out of range. Mints a new track rather than
-// reassigning the old one's url: AudioTrack memoizes its cache key, and a
-// track carrying the old key would file the new file's waveform and metadata
-// under the old entries. Duration, detected BPM, and detected key carry
-// across — same audio.
-// Playback is untouched; a caller replacing the playing row restarts it.
-- (AudioTrack * _Nullable)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
+// Replaces every occurrence of this file only while the captured row still
+// belongs to this playlist, returning the affected rows. Each gets a fresh
+// AudioTrack and cache key, carrying duration and analyzed BPM/key across.
+// Playback is untouched; the shell restarts a replaced playing row.
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;
 
 // Takes the rows out of the list, returning the exact objects removed in
 // ascending row order, or nil when the set is empty or out of range. Survivors

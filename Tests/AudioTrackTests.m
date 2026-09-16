@@ -10,6 +10,8 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
+#import "NowPlayingController.h"
+#import <MediaPlayer/MediaPlayer.h>
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 
@@ -387,6 +389,48 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
             installerFinished, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC)), 0);
     XCTAssertTrue(cacheInstalled);
     XCTAssertEqual(track.metadata, (AudioTrackMetadata *)cached);
+}
+
+
+- (void)testNowPlayingMetadataAndArtworkDirtyDetectionUsesTheInstalledTrack {
+    AudioTrack *track = TrackNamed(@"cover.wav");
+    FakeTrackMetadata *metadata = [FakeTrackMetadata new];
+    metadata.title = @"Title";
+    metadata.artist = @"Artist";
+    Attach(track, metadata);
+    NSMutableArray *publications = NSMutableArray.array;
+    NowPlayingController *publisher = [[NowPlayingController alloc] initWithClock:^{ return 1000.0; }
+            publish:^(NSDictionary *info, NowPlayingPlaybackState state) { [publications addObject:info ?: @{}]; }
+            commandAvailability:^(BOOL next, BOOL previous) {}];
+    void (^publish)(void) = ^{
+        [publisher updateWithTrack:track position:0 duration:30 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
+    };
+    publish();
+    metadata.title = @"New title";
+    publish();
+    metadata.artist = nil;
+    publish();
+    XCTAssertEqual(publications.count, 3u);
+    XCTAssertEqualObjects([publications.lastObject objectForKey:MPMediaItemPropertyTitle], @"New title");
+    XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtist]);
+    metadata.cachedThumbnail = [NSImage imageWithSize:NSMakeSize(20, 20) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    publish();
+    MPMediaItemArtwork *thumbnail = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
+    XCTAssertNotNil(thumbnail);
+    publish();
+    XCTAssertEqual(publications.count, 4u);
+    metadata.title = @"Title only";
+    publish();
+    XCTAssertEqual([publications.lastObject objectForKey:MPMediaItemPropertyArtwork], thumbnail);
+    metadata.cachedArt = [NSImage imageWithSize:NSMakeSize(1024, 768) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    publish();
+    MPMediaItemArtwork *full = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
+    XCTAssertNotEqual(full, thumbnail);
+    XCTAssertLessThanOrEqual(full.bounds.size.width, 512);
+    metadata.cachedArt = nil;
+    metadata.cachedThumbnail = nil;
+    publish();
+    XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtwork]);
 }
 
 @end

@@ -17,6 +17,32 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
 
 #pragma mark - The mapped codes
 
+- (void)testOnlyNotPlayingInOurDomainIsBenign {
+    XCTAssertTrue(VibePlayErrorIsBenign(VibeErr(kVibeAudioErrorDomain, VibeAudioErrorNotPlaying)));
+    XCTAssertFalse(VibePlayErrorIsBenign(VibeErr(NSPOSIXErrorDomain, VibeAudioErrorNotPlaying)));
+    for (NSNumber *code in @[@(VibeAudioErrorFileOpenFailed), @(VibeAudioErrorFileOpenTimedOut),
+                             @(VibeAudioErrorEngineStartFailed), @(VibeAudioErrorDeviceUnavailable), @9999]) {
+        XCTAssertFalse(VibePlayErrorIsBenign(VibeErr(kVibeAudioErrorDomain, code.integerValue)));
+    }
+}
+
+- (void)testTrackErrorsMatchURLRatherThanURLObjectIdentity {
+    NSURL *url = [NSURL fileURLWithPath:@"/a.wav"];
+    NSError *error = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorFileOpenFailed
+                                    userInfo:@{kVibeAudioErrorTrackURLKey: url}];
+    XCTAssertTrue(VibePlayErrorMatchesCurrentURL(error, [NSURL fileURLWithPath:@"/a.wav"]));
+    XCTAssertFalse(VibePlayErrorMatchesCurrentURL(error, [NSURL fileURLWithPath:@"/b.wav"]));
+    XCTAssertFalse(VibePlayErrorMatchesCurrentURL(error, nil));
+}
+
+- (void)testGraphErrorsWithoutURLSurviveTheShellURLFilter {
+    for (NSNumber *code in @[@(VibeAudioErrorEngineStartFailed), @(VibeAudioErrorDeviceUnavailable)]) {
+        NSError *error = VibeErr(kVibeAudioErrorDomain, code.integerValue);
+        XCTAssertTrue(VibePlayErrorMatchesCurrentURL(error, nil));
+        XCTAssertTrue(VibePlayErrorMatchesCurrentURL(error, [NSURL fileURLWithPath:@"/a.wav"]));
+    }
+}
+
 - (void)testEachCodeMapsToItsOwnLine {
     NSArray<NSNumber *> *codes = @[@(VibeAudioErrorFileOpenTimedOut),
                                    @(VibeAudioErrorFileOpenFailed),

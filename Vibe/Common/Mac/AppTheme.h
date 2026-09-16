@@ -338,6 +338,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // paired field, one per appearance like every color pair, and single mode
 // reads and writes its dark slot from either side — the color pairs' rule —
 // while the light half lies dormant, so a mode flip round-trips.
+// Coupled editor choices: selecting a glyph clears every image it replaces,
+// and Play also selects its paired Pause glyph.
++ (NSArray<NSString *> *)imageKeysForButton:(NSString *)key;
+- (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key;
+
 - (NSString *)imageReferenceForKey:(NSString *)key;
 - (void)setImageReference:(NSString *)reference forKey:(NSString *)key;
 // The image a slot's reference resolves to when it names a present custom or

@@ -88,6 +88,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return _model.currentIndex;
 }
 
+- (NSUInteger)structureGeneration {
+    return _model.structureGeneration;
+}
+
 - (void)setCurrentIndex:(NSUInteger)currentIndex {
     _model.currentIndex = currentIndex;
 }
@@ -338,9 +342,6 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 #pragma mark - Playlist observer
 
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
-    // The rows a stamped registration described no longer exist; see the
-    // header. Bumped on the model's announcement, not in any shell action.
-    _structureGeneration++;
     // A replacement resets the index to 0 without moving it, so the hook below
     // never fires for the first track of a new folder.
     [self notifyCurrentIndexDidChange];
@@ -744,8 +745,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return NO;
 }
 
-- (BOOL)advanceToNextTrackWithoutPlaying {
-    if ([_model next]) {
+- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {
+    if ([_model advanceFromTrack:finishedTrack toTrack:startedTrack]) {
         [self scrollCurrentTrackToVisible];
         return YES;
     }
@@ -807,14 +808,11 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 // The live rows the exact objects occupy now, departed ones dropped — the
 // identity-resolution rule every group gesture rests on, stated once.
 - (NSIndexSet *)rowsForTracks:(NSArray<AudioTrack *> *)tracks {
-    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
-    for (AudioTrack *track in tracks) {
-        NSInteger row = [_model getIndexForTrack:track];
-        if (row >= 0) {
-            [rows addIndex:(NSUInteger)row];
-        }
-    }
-    return rows;
+    return [_model indexesOfTracks:tracks];
+}
+
+- (AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes {
+    return [_model forwardTrackAfterRemovingTracksAtIndexes:indexes];
 }
 
 - (void)playSelectedTrack {
@@ -927,8 +925,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model indexesOfTracksWithURL:url];
 }
 
-- (AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url {
-    return [_model replaceTrackAtIndex:index withURL:url];
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {
+    return [_model replaceTracksMatchingTrack:track withURL:url];
 }
 
 - (NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes {

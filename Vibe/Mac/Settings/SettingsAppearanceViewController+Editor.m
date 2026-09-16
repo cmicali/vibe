@@ -39,34 +39,6 @@ static NSString *const kWellDark = @"dark";
 // any glyph. Not a symbol-name shape, so it can never reach a glyph field.
 static NSString *const kGlyphChoiceCustomImage = @"custom-image";
 
-// The live effect an image field's edit requests: the placeholder repaints
-// the header and the playlist rows, the app icon re-decides the Dock, a
-// button image redresses the transport row.
-static VibeSettingsLiveEffect EffectForImageKey(NSString *key) {
-    if ([key isEqualToString:kVibeThemeImageAppIcon]) {
-        return VibeSettingsLiveEffectAppIcon;
-    }
-    if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
-            || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
-        return VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
-    }
-    return VibeSettingsLiveEffectTransportButtons;
-}
-
-// The image slots a transport button's Custom image choice governs, by the
-// dark image key its popup and rows are looked up by: the first is the one
-// the panel opens for, and the play button carries the pause state's pair.
-static NSArray<NSString *> *ImageKeysForButton(NSString *key) {
-    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
-        return @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight,
-                 kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight];
-    }
-    if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
-        return @[kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight];
-    }
-    return @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight];
-}
-
 static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return [key isEqualToString:dark] || [key isEqualToString:light];
 }
@@ -329,26 +301,12 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 
 - (BOOL)buttonHasImageForKey:(NSString *)key {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    for (NSString *imageKey in ImageKeysForButton(key)) {
+    for (NSString *imageKey in [AppTheme imageKeysForButton:key]) {
         if ([theme imageReferenceForKey:imageKey].length) {
             return YES;
         }
     }
     return NO;
-}
-
-// A play pick writes both of the pair — the pause glyph from the pair table
-// — so the two states never draw the same glyph.
-- (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
-        theme.playButtonGlyph = glyph;
-        theme.pauseButtonGlyph = VibePauseGlyphForPlayGlyph(glyph);
-    } else if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
-        theme.nextButtonGlyph = glyph;
-    } else {
-        theme.playlistButtonGlyph = glyph;
-    }
 }
 
 // The glyph an image slot stands in for: the pause state's for the pause
@@ -1106,7 +1064,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 - (void)clearCustomImage:(NSButton *)sender {
     NSString *key = sender.identifier;
     [AppSettings.sharedInstance.currentTheme setImageReference:@"" forKey:key];
-    [self themeFieldDidChange:EffectForImageKey(key)];
+    [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
     [self refreshFromSettings]; // also hides the badge — the cursor is still over it
 }
 
@@ -1129,31 +1087,21 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
             [self refreshFromSettings];
             return;
         }
-        if (![AppSettings.sharedInstance.activeThemeIdentifier isEqualToString:target]) {
-            // Theme changed under the sheet — drop the pick before it is
-            // stored, so nothing is left for the sweep to find.
-            [self refreshFromSettings];
-            return;
-        }
         NSError *error = nil;
-        // Read mapped, as the theme import is: the byte cap inside AppTheme
-        // rejects an oversized image, but only once the bytes exist, and a
-        // mistakenly picked huge file must not be pulled into memory to be
-        // told it is too big.
-        NSString *stored = [AppTheme storeCustomImageData:
-                [NSData dataWithContentsOfURL:panel.URL
-                                      options:NSDataReadingMappedIfSafe
-                                        error:NULL] error:&error];
+        BOOL stored = [AppSettings.sharedInstance setCurrentThemeImageForKey:key
+                themeIdentifier:target data:^{
+            return [NSData dataWithContentsOfURL:panel.URL options:NSDataReadingMappedIfSafe error:NULL];
+        } error:&error];
         if (!stored) {
             [self refreshFromSettings];
+            if (!error) return; // a theme switch superseded the picker
             NSAlert *alert = [[NSAlert alloc] init];
             alert.messageText = STR_SETTINGS_THEME_ALBUM_ART_INVALID;
             alert.informativeText = STR_SETTINGS_THEME_ALBUM_ART_REQUIREMENTS;
             [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
             return;
         }
-        [AppSettings.sharedInstance.currentTheme setImageReference:stored forKey:key];
-        [self themeFieldDidChange:EffectForImageKey(key)];
+        [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
         [self refreshFromSettings];
     }];
 }
@@ -1172,10 +1120,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         return;
     }
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    [self setGlyph:choice forButtonImageKey:key];
-    for (NSString *imageKey in ImageKeysForButton(key)) {
-        [theme setImageReference:@"" forKey:imageKey];
-    }
+    [theme setGlyph:choice forButtonImageKey:key];
     [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];
     [self refreshFromSettings];
 }

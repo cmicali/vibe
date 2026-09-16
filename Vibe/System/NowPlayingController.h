@@ -58,6 +58,12 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 // so the media keys can route to Vibe as soon as now-playing info is published.
 - (instancetype)initWithDelegate:(id<NowPlayingControllerDelegate>)delegate;
 
+// Publication-only construction: no remote-command registration. The clock and
+// sinks are the OS boundary; the same dirty check and artwork pipeline run.
+- (instancetype)initWithClock:(NSTimeInterval (^)(void))clock
+                      publish:(void (^)(NSDictionary * _Nullable, NowPlayingPlaybackState))publish
+          commandAvailability:(void (^)(BOOL hasNext, BOOL hasPrevious))commandAvailability;
+
 // Publishes the current track's metadata and artwork, and the playback timing
 // and state. A nil track clears the now-playing info, meaning nothing is
 // loaded, but only once something has been published: before the first track

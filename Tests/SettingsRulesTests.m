@@ -8,11 +8,144 @@
 #import <XCTest/XCTest.h>
 
 #import "SettingsRules.h"
+#import "AppSettingsInternal.h"
+#import "AppSettings+Mac.h"
 
 @interface SettingsRulesTests : XCTestCase
 @end
 
 @implementation SettingsRulesTests
+
+- (void)tearDown {
+    [AppSettings.sharedInstance resetToDefaults];
+    [super tearDown];
+}
+
+- (AppSettings *)freshSettings {
+    [AppSettings.sharedInstance resetToDefaults];
+    return AppSettings.sharedInstance;
+}
+
+// Exercise the persisted getters, not a second copy of the snapping rule.
+// Midpoint ties favor the smaller preset; extreme external values must not
+// overflow the distance calculation and choose the opposite end of a ladder.
+- (void)testStoredPresetValuesClampAndBreakTiesDownward {
+    AppSettings *settings = [self freshSettings];
+    NSArray *cases = @[
+        @[@"skipBaseBars", @[@[@(NSIntegerMin), @4], @[@6, @4], @[@7, @8],
+                            @[@12, @8], @[@13, @16], @[@(NSIntegerMax), @16]]],
+        @[@"crossfadeMilliseconds", @[@[@(NSIntegerMin), @10], @[@255, @10],
+                            @[@256, @500], @[@1250, @500], @[@1251, @2000],
+                            @[@(NSIntegerMax), @2000]]],
+        @[@"uiUpdateHzCap", @[@[@(NSIntegerMin), @3], @[@16, @3], @[@17, @30],
+                            @[@45, @30], @[@46, @60], @[@(NSIntegerMax), @60]]]
+    ];
+    for (NSArray *settingCase in cases) {
+        for (NSArray *pair in settingCase[1]) {
+            [settings setValue:pair[0] forKey:settingCase[0]];
+            XCTAssertEqualObjects([settings valueForKey:settingCase[0]], pair[1], @"%@ %@", settingCase[0], pair[0]);
+            XCTAssertEqualObjects([[AppSettings new] valueForKey:settingCase[0]], pair[1]);
+        }
+    }
+}
+
+- (void)testAppearancePreviewIsTransientAndExplicitChoiceClearsIt {
+    AppSettings *settings = [self freshSettings];
+    XCTAssertNil(settings.windowAppearance);
+    settings.windowAppearanceStyle = @"dark";
+    settings.windowAppearancePreviewStyle = @"light";
+    XCTAssertEqualObjects(settings.windowAppearance.name, NSAppearanceNameAqua);
+    XCTAssertEqualObjects(settings.windowAppearanceStyle, @"dark");
+    XCTAssertNil([AppSettings new].windowAppearancePreviewStyle);
+    XCTAssertEqualObjects([AppSettings new].windowAppearance.name, NSAppearanceNameDarkAqua);
+    settings.windowAppearanceStyle = @"dark";
+    XCTAssertNil(settings.windowAppearancePreviewStyle);
+    XCTAssertEqualObjects(settings.windowAppearance.name, NSAppearanceNameDarkAqua);
+    settings.windowAppearanceStyle = @"unknown";
+    XCTAssertNil(settings.windowAppearance);
+}
+
+- (void)testEndingPreviewRestoresStoredAppearance {
+    AppSettings *settings = [self freshSettings];
+    for (NSString *style in @[@"", @"light", @"dark"]) {
+        settings.windowAppearanceStyle = style;
+        NSAppearance *stored = settings.windowAppearance;
+        settings.windowAppearancePreviewStyle = @"dark";
+        settings.windowAppearancePreviewStyle = nil;
+        XCTAssertEqualObjects(settings.windowAppearance.name, stored.name);
+    }
+}
+
+- (void)testSingleModeThemeOutranksBothPreviewAndStoredAppearance {
+    AppSettings *settings = [self freshSettings];
+    settings.windowAppearanceStyle = @"light";
+    settings.windowAppearancePreviewStyle = @"light";
+    settings.currentTheme.mode = @"single";
+    [settings currentThemeDidChange];
+    XCTAssertEqualObjects(settings.windowAppearance.name, NSAppearanceNameDarkAqua);
+    XCTAssertEqualObjects(settings.windowAppearanceStyle, @"light");
+    settings.currentTheme.mode = @"dual";
+    [settings currentThemeDidChange];
+    XCTAssertEqualObjects(settings.windowAppearance.name, NSAppearanceNameAqua);
+}
+
+- (void)testThemeApplicationKeepsCommonPlaybackAndWaveformSettings {
+    AppSettings *settings = [self freshSettings];
+    settings.pauseAtTrackEnd = YES;
+    settings.crossfadeMilliseconds = 500;
+    settings.waveformNormalize = NO;
+    settings.waveformGainDB = 3.3;
+    settings.folderOpenSort = VibeFolderOpenSortNewestFirst;
+    NSString *theme = [settings addUserThemeWithRecord:@{@"waveformTheme": @"orange"} name:@"Levels"];
+    [settings applyThemeWithIdentifier:theme];
+    [settings applyThemeWithIdentifier:@"vibe"];
+    AppSettings *reloaded = [AppSettings new];
+    XCTAssertTrue(reloaded.pauseAtTrackEnd);
+    XCTAssertEqual(reloaded.crossfadeMilliseconds, 500);
+    XCTAssertFalse(reloaded.waveformNormalize);
+    XCTAssertEqual(reloaded.waveformGainDB, 3.5);
+    XCTAssertEqual(reloaded.folderOpenSort, VibeFolderOpenSortNewestFirst);
+}
+
+- (void)testExternalSharedSettingsNormalizeOnRead {
+    AppSettings *settings = [self freshSettings];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:@"date" forKey:SETTING_FOLDER_OPEN_SORT];
+    XCTAssertEqual(settings.folderOpenSort, VibeFolderOpenSortName);
+    [defaults setDouble:30 forKey:SETTING_WAVEFORM_GAIN_DB];
+    XCTAssertEqual(settings.waveformGainDB, kVibeWaveformGainMaxDB);
+    [defaults setDouble:-6.74 forKey:SETTING_WAVEFORM_GAIN_DB];
+    XCTAssertEqual(settings.waveformGainDB, -6.5);
+    settings.waveformDragBehavior = @"Seek";
+    settings.artworkDragAction = @"copy_name";
+    XCTAssertEqualObjects(settings.waveformDragBehavior, @"drag_window");
+    XCTAssertEqualObjects(settings.artworkDragAction, @"copy_file");
+}
+
+- (void)testFactoryResetRestoresDerivedSettingsAndLeavesOtherStoresAlone {
+    AppSettings *settings = [self freshSettings];
+    NSString *foreignKey = @"SettingsRulesTests.foreignStore";
+    [NSUserDefaults.standardUserDefaults setObject:@"keep" forKey:foreignKey];
+    @try {
+        XCTAssertTrue(settings.allSettingsAtDefaults);
+        settings.audioFXEnabled = NO;
+        settings.pauseAtTrackEnd = YES;
+        settings.windowAppearanceStyle = @"light";
+        settings.crossfadeMilliseconds = 2000;
+        settings.waveformGainDB = 7;
+        XCTAssertFalse(settings.allSettingsAtDefaults);
+        [settings resetToDefaults];
+        XCTAssertTrue(settings.allSettingsAtDefaults);
+        XCTAssertTrue(settings.audioFXEnabled);
+        XCTAssertFalse(settings.pauseAtTrackEnd);
+        XCTAssertNil(settings.windowAppearance);
+        XCTAssertEqual(settings.crossfadeMilliseconds, 10);
+        XCTAssertEqual(settings.waveformGainDB, 0);
+        XCTAssertEqualObjects([NSUserDefaults.standardUserDefaults objectForKey:foreignKey], @"keep");
+    } @finally {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:foreignKey];
+    }
+}
 
 - (void)testPitchRangeNormalizesToSupportedValues {
     XCTAssertEqual(VibeNormalizedPitchRange(8), 8);

@@ -584,6 +584,33 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
++ (NSArray<NSString *> *)imageKeysForButton:(NSString *)key {
+    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
+        return @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight,
+                 kVibeThemeImagePauseButtonDark, kVibeThemeImagePauseButtonLight];
+    }
+    if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
+        return @[kVibeThemeImageNextButtonDark, kVibeThemeImageNextButtonLight];
+    }
+    return @[kVibeThemeImagePlaylistButtonDark, kVibeThemeImagePlaylistButtonLight];
+}
+
+// A play pick writes both of the pair — the pause glyph from the pair table
+// — so the two states never draw the same glyph.
+- (void)setGlyph:(NSString *)glyph forButtonImageKey:(NSString *)key {
+    if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
+        self.playButtonGlyph = glyph;
+        self.pauseButtonGlyph = VibePauseGlyphForPlayGlyph(glyph);
+    } else if ([key isEqualToString:kVibeThemeImageNextButtonDark]) {
+        self.nextButtonGlyph = glyph;
+    } else {
+        self.playlistButtonGlyph = glyph;
+    }
+    for (NSString *imageKey in [AppTheme imageKeysForButton:key]) {
+        [self setImageReference:@"" forKey:imageKey];
+    }
+}
+
 - (VibeColor *)resolvedColorForBase:(NSString *)base {
     return DynamicColor([self colorForBase:base dark:YES], [self colorForBase:base dark:NO],
                         SemanticFallbackForBase(base));

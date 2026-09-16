@@ -13,6 +13,19 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+static inline BOOL VibePlayErrorIsBenign(NSError *error) {
+    return [error.domain isEqualToString:kVibeAudioErrorDomain]
+            && error.code == VibeAudioErrorNotPlaying;
+}
+
+// Errors without a URL can describe resume/seek/device failures. AudioPlayer
+// checks resume/seek submission identity before delivery; the shell cannot
+// infer it from an absent URL. A URL-bearing error must match the shown row.
+static inline BOOL VibePlayErrorMatchesCurrentURL(NSError *error, NSURL *_Nullable currentURL) {
+    NSURL *failedURL = error.userInfo[kVibeAudioErrorTrackURLKey];
+    return !failedURL || [failedURL isEqual:currentURL];
+}
+
 // Deliberately short: the title line already names the track and the full error
 // text is in the log. VibeAudioErrorNotPlaying never arrives here — it is
 // filtered on the way in as a benign no-op rather than a failure to report. The
