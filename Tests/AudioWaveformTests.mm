@@ -1,12 +1,17 @@
 //
 // AudioWaveform: the chunk-combining math every renderer reads through, the
 // NaN sanitizing that keeps corrupt decodes out of the cache, and the shared
-// mono downmix.
+// mono downmix, plus the host-less resize/content morph transitions.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "AudioWaveform.h"
+#import "WaveformMorphEngine.h"
+#import "WaveformRendererRegistry.h"
+#import "DetailedAudioWaveformRenderer.h"
+#import "AppSettings.h"
+#import "VibeStrings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,6 +36,232 @@
 
 - (AudioWaveform *)waveform {
     return new AudioWaveform(_source.size(), _source.data());
+}
+
+- (AudioWaveformRenderer *)rendererForStyle:(NSString *)identifier {
+    CALayer *host = [CALayer layer];
+    host.bounds = CGRectMake(0, 0, 512, 80);
+    return [WaveformRendererRegistry rendererForResolvedIdentifier:identifier
+            layer:host bounds:host.bounds isDark:YES];
+}
+
+#pragma mark - Resize and content transitions
+
+- (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(nullptr, YES, 1024), kVibeWaveformFullScaleRMS);
+    for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {
+        AudioWaveformCacheChunk chunk;
+        chunk.set(-rms, rms, rms * rms, 1);
+        AudioWaveform waveform(1, &chunk);
+        float plain = VibeWaveformFullScaleRMSForWaveform(&waveform, NO, 1024);
+        float normalized = VibeWaveformFullScaleRMSForWaveform(&waveform, YES, 1024);
+        XCTAssertGreaterThan(normalized, 0);
+        XCTAssertLessThanOrEqual(normalized, plain);
+        if (rms == 0 || rms >= kVibeWaveformFullScaleRMS) XCTAssertEqual(normalized, plain);
+        for (float gain : {-12.0f, 0.0f, 12.0f}) {
+            for (float fraction : {0.0f, 0.1f, 0.5f, 1.0f}) {
+                float energy = rms * rms * fraction;
+                float level = VibeWaveformBarLevel(energy, normalized, gain);
+                XCTAssertTrue(std::isfinite(level));
+                XCTAssertGreaterThanOrEqual(level, VibeWaveformBarLevel(energy, plain, gain));
+            }
+        }
+    }
+}
+
+- (void)testEveryDetailedVariantNormalizesAtItsDrawnEnergyResolution {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);
+    chunks[4095].set(-0.8f, 0.8f, 0.64f, 1); // a transient inside a quieter averaged section
+    AudioWaveform waveform(chunks.size(), chunks.data());
+    for (NSString *identifier in [WaveformRendererRegistry availableIdentifiers]) {
+        // These two draw individual layers; the next test covers their geometry.
+        if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"]) continue;
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
+        XCTAssertTrue([renderer isKindOfClass:DetailedAudioWaveformRenderer.class], @"%@", identifier);
+        for (CGFloat width : {257.0, 512.0, 773.0}) {
+            NSUInteger count = [renderer numBarsForWidth:width];
+            std::vector<float> plain(count * 2), normalized(count * 2);
+            for (float gain : {-12.0f, 0.0f, 12.0f}) {
+                renderer.gainDB = gain;
+                renderer.normalizesLevels = NO;
+                [renderer fillEnvelope:plain.data() barCount:count waveform:&waveform];
+                renderer.normalizesLevels = YES;
+                [renderer fillEnvelope:normalized.data() barCount:count waveform:&waveform];
+                for (NSUInteger i = 0; i < count; i++) {
+                    XCTAssertLessThanOrEqual(normalized[i * 2], plain[i * 2], @"%@", identifier);
+                    XCTAssertGreaterThanOrEqual(normalized[i * 2 + 1], plain[i * 2 + 1], @"%@", identifier);
+                }
+                if (gain == 0) {
+                    XCTAssertEqualWithAccuracy(*std::max_element(normalized.begin(), normalized.end()), 1, 1e-6, @"%@", identifier);
+                }
+            }
+        }
+    }
+}
+
+- (void)testLayerStylesOnlyGrowUnderNormalization {
+    std::vector<AudioWaveformCacheChunk> chunks(1024);
+    for (auto &chunk : chunks) chunk.set(-0.1f, 0.1f, 0.01f, 1);
+    chunks[511].set(-0.8f, 0.8f, 0.64f, 1);
+    AudioWaveform waveform(chunks.size(), chunks.data());
+    for (NSString *identifier in @[@"sonic_cirrus", @"cupertino_basic"]) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
+        for (CGFloat width : {257.0, 512.0, 773.0}) {
+            host.bounds = CGRectMake(0, 0, width, 80);
+            for (float gain : {-12.0f, 0.0f, 12.0f}) {
+                renderer.gainDB = gain;
+                renderer.normalizesLevels = NO;
+                [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+                [renderer settleMorphImmediately];
+                std::vector<CGFloat> plain;
+                for (CALayer *layer in host.sublayers) plain.push_back(layer.bounds.size.height);
+                renderer.normalizesLevels = YES;
+                [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+                [renderer settleMorphImmediately];
+                XCTAssertEqual(host.sublayers.count, plain.size());
+                CGFloat maximum = 0;
+                for (NSUInteger i = 0; i < plain.size(); i++) {
+                    CGFloat height = host.sublayers[i].bounds.size.height;
+                    XCTAssertGreaterThanOrEqual(height, plain[i], @"%@", identifier);
+                    maximum = MAX(maximum, height);
+                }
+                if (gain == 0) {
+                    // Sonic's full-height top bar is 42pt in this 80pt band;
+                    // Cupertino Basic is a fixed 9pt pill independent of audio.
+                    XCTAssertEqualWithAccuracy(maximum, [identifier isEqualToString:@"sonic_cirrus"] ? 42 : 9, 1e-6);
+                }
+            }
+        }
+    }
+}
+
+- (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
+    NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
+    XCTAssertTrue([identifiers containsObject:@"wiggle"]);
+    XCTAssertTrue([identifiers containsObject:@"wiggle_centered"]);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle"], STR_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE_CENTERED);
+    XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
+    XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
+    for (NSString *identifier in @[@"detailed", @"wiggle", @"wiggle_centered"]) {
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
+        BOOL wiggle = ![identifier isEqualToString:@"detailed"];
+        XCTAssertEqual(renderer.class, DetailedAudioWaveformRenderer.class);
+        XCTAssertEqual([renderer numBarsForWidth:512], wiggle ? 64u : 1024u);
+        renderer.samplingWidth = 512;
+        XCTAssertEqual([renderer numBarsForWidth:2048], wiggle ? 64u : 4096u,
+                       @"Zoom must preserve Wiggle's loops without reducing Detailed's resolution");
+        renderer.samplingWidth = 768;
+        XCTAssertEqual([renderer numBarsForWidth:2048], wiggle ? 96u : 4096u);
+    }
+}
+
+- (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
+    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
+        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
+        CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
+        CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
+        CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
+        XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
+        XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
+        XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
+        XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
+        XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
+    }
+}
+
+- (void)testWiggleCollapseFadesTheBaselineButKeepsLoadedQuietAudioVisible {
+    AudioWaveformCacheChunk quiet;
+    quiet.set(-0.014f, 0.014f, 0.000196f, 1);
+    AudioWaveform waveform(1, &quiet);
+    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:identifier];
+        CALayer *host = renderer.parentLayer;
+        [renderer updateWaveform:host.bounds progress:0 waveform:&waveform];
+        [renderer settleMorphImmediately];
+        CAShapeLayer *mask = (CAShapeLayer *)host.sublayers.firstObject.mask;
+        XCTAssertEqual(mask.opacity, 1);
+        [renderer updateWaveform:host.bounds progress:0 waveform:nullptr];
+        [renderer backingScaleDidChange]; // redraw the displayed samples without advancing a timer
+        XCTAssertGreaterThan(mask.opacity, 0);
+        XCTAssertLessThan(mask.opacity, 1);
+        [renderer settleMorphImmediately];
+        XCTAssertEqual(mask.opacity, 0);
+    }
+}
+
+- (void)testSettledResizeDrawsOnceWithoutStartingAnAnimation {
+    __block NSUInteger rebuilds = 0, fills = 0;
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; }
+            rebuild:^{ rebuilds++; }];
+    void (^fill)(std::vector<float> &) = ^(std::vector<float> &samples) {
+        fills++;
+        for (NSUInteger i = 0; i < samples.size(); i++) samples[i] = (float)(i + 1) / samples.size();
+    };
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:fill];
+    [morph settleImmediately];
+    rebuilds = fills = 0;
+    for (NSUInteger count = 61; count <= 100; count++) {
+        [morph updateTargetForSize:CGSizeMake(count * 10, 80) identity:(__bridge const void *)self count:count fill:fill];
+        XCTAssertTrue(morph.isSettled);
+        XCTAssertEqual([morph displayedSamples].size(), count);
+        XCTAssertEqualWithAccuracy([morph displayedSamples][0], 1.0f / count, 1e-6);
+        XCTAssertEqual([morph displayedSamples].back(), 1.0f);
+    }
+    XCTAssertEqual(rebuilds, 40u);
+    XCTAssertEqual(fills, 40u);
+    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    XCTAssertEqual(rebuilds, 41u);
+    XCTAssertEqual(fills, 40u, @"Height alone must not reread the waveform");
+    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    XCTAssertEqual(rebuilds, 41u, @"An unchanged draw must do no work");
+}
+
+- (void)testResizePreservesAGainMorphAndItsPairedSamples {
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; } rebuild:^{}];
+    morph.samplesPerBar = 2;
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+                         fill:^(std::vector<float> &samples) { samples = {-0.2f, 0.4f, -0.6f, 0.8f}; }];
+    XCTAssertFalse(morph.isSettled, @"New audio still grows into view");
+    [morph settleImmediately];
+    [morph invalidateTarget];
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+                         fill:^(std::vector<float> &samples) { samples = {-0.1f, 0.2f, -0.3f, 0.4f}; }];
+    XCTAssertFalse(morph.isSettled, @"Gain still eases with an unchanged waveform identity");
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:8
+                         fill:^(std::vector<float> &samples) { samples.assign(8, 0.1f); }];
+    XCTAssertFalse(morph.isSettled);
+    const std::vector<float> carried = {-0.2f, 0.4f, -0.2f, 0.4f, -0.6f, 0.8f, -0.6f, 0.8f};
+    XCTAssertTrue([morph displayedSamples] == carried);
+    [morph settleImmediately];
+    XCTAssertTrue([morph displayedSamples] == std::vector<float>(8, 0.1f));
+    [morph dipDisplayedSamplesFromFraction:0 toFraction:0.25];
+    XCTAssertFalse(morph.isSettled, @"The conversion sweep still animates");
+    [morph settleImmediately];
+}
+
+- (void)testSilentWaveformAndEmptyStateRemainDistinctAfterResize {
+    __block NSUInteger rebuilds = 0;
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; }
+            rebuild:^{ rebuilds++; }];
+    void (^silence)(std::vector<float> &) = ^(std::vector<float> &samples) {
+        std::fill(samples.begin(), samples.end(), 0.0f);
+    };
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:silence];
+    [morph settleImmediately];
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:90 fill:silence];
+    XCTAssertTrue(morph.isSettled);
+    XCTAssertEqual(morph.barMinHeight, 1);
+    rebuilds = 0;
+    [morph updateTargetForSize:CGSizeMake(900, 80) identity:NULL count:90 fill:silence];
+    XCTAssertEqual(morph.barMinHeight, 0);
+    XCTAssertEqual(rebuilds, 1u);
 }
 
 #pragma mark - getMaxMeanSquare

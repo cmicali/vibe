@@ -10,6 +10,8 @@ It fades to its highlight color on hover, dims to half that opacity while presse
 
 Each button sets its own `symbolPointSize` and the icon is drawn centered in the frame, so the 50pt transport hit targets carry symbols configured at 31pt, whose glyphs draw at roughly 0.8 times that (~25pt).
 
+**The three state colors keep one relationship**, the factory ratios of the resting alpha (0.55) to hover (0.8), pressed (half of hover) and disabled (0.19): `setSymbolColorsFromRestingColor:` derives all three from one picked color, alpha included, which is how a theme dresses a button with a single color well. **A custom `image` replaces the symbol**: a second layer beside the color layer draws the picture in its own colors, aspect-fit into the box a glyph of the configured point size fills, and the same states fade its opacity by the same ratios over full strength at hover. Set, the symbol and the colors are ignored; nil returns to the mask the color layer still holds.
+
 ## Image views
 
 - **`CrossfadingImageView`** — `ArtworkImageView`'s layer-backed `NSImageView` base, so `setImage:` cross-fades the incoming image over the outgoing one. It vends `kVibeArtCrossfadeDuration`, **shared with the header tint wash so art and tint fade on the same clock** (`MainWindow/APPEARANCE.md`) — and it matches the tint's retargeting too: rapid successive images blend continuously, each outgoing image finishing its own fade beneath the newer ones, never snapping an in-flight fade back to opaque. It is opted out of drag-and-drop, so file drops fall through to the window.

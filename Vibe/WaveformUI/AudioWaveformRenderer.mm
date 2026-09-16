@@ -4,6 +4,7 @@
 //
 
 #import "AudioWaveformRenderer.h"
+#import "WaveformMorphEngine.h"
 
 @implementation AudioWaveformRenderer {
     CGFloat _hoverHighlightX;
@@ -15,9 +16,6 @@
         self.parentLayer = parentLayer;
         self.isDark = isDark;
         self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
-        // A sentinel, forcing the first updateProgress: to paint every layer's
-        // played or unplayed color rather than only the boundary delta.
-        self.lastProgressBoundary = -1;
         _hoverHighlightX = -1;
     }
     return self;
@@ -37,7 +35,7 @@
         return;
     }
     _normalizesLevels = normalizes;
-    [self levelMappingDidChange];
+    [_morph invalidateTarget];
 }
 
 - (void)setGainDB:(float)gainDB {
@@ -45,16 +43,22 @@
         return;
     }
     _gainDB = gainDB;
-    [self levelMappingDidChange];
+    [_morph invalidateTarget];
 }
 
-// The base draws no bars; the families forward to their morph engine.
-- (void)levelMappingDidChange {
-
+- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
+               waveform:(AudioWaveform *)waveform {
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, count);
+    float gainDB = self.gainDB;
+    for (NSUInteger i = 0; i < count; i++) {
+        out[i * stride] = VibeWaveformBarLevel(
+                VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
+                fullScaleRMS, gainDB);
+    }
 }
 
 // Abstract. Both are declared nonnull, and styleIdentifier is used as a
-// dictionary key by AudioWaveformView's registry, so a subclass that forgets
+// dictionary key by WaveformRendererRegistry, so a subclass that forgets
 // to override would otherwise raise deep inside -setup with nothing naming the
 // culprit. Assert here, where the class is known, and return a marker that
 // keeps a Release build registering something rather than crashing.
@@ -70,10 +74,6 @@
 
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
-    // The colors have changed, so the cached played and unplayed colors on
-    // every layer are stale. Force the next updateProgress: to repaint
-    // everything.
-    self.lastProgressBoundary = -1;
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
@@ -90,15 +90,15 @@
 }
 
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-
+    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
 }
 
 - (void)settleMorphImmediately {
-
+    [_morph settleImmediately];
 }
 
 - (void)backingScaleDidChange {
-
+    [_morph rebuildNow];
 }
 
 - (BOOL)supportsEnvelopeBake {

@@ -139,77 +139,36 @@
 // Settings start playback of a selection the user was not looking at.
 - (BOOL)hasVisiblePlaylistSelection {
     MainWindow *window = (MainWindow *)self.window;
-    return window.isKeyWindow && window.isPlaylistShown
-            && self.playlistController.selectedRow >= 0;
+    return VibeMenuHasVisibleSelection(window.isKeyWindow, window.isPlaylistShown,
+            self.playlistController.selectedRow);
 }
 
 - (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
-    // Only when there really is a track after the current one. At the end of
-    // the playlist, next: is a no-op.
-    if ([menuItem.identifier isEqualToString:kVibeMenuNextTrack]) {
-        return self.playlistController.hasNextTrack;
-    }
-    if ([menuItem.identifier isEqualToString:kVibeMenuPreviousTrack]) {
-        return self.playlistController.hasPreviousTrack;
-    }
-    if ([menuItem.identifier isEqualToString:kVibeMenuPlaySelected]) {
-        return [self hasVisiblePlaylistSelection];
-    }
-    // The skips need both a loaded track and a player that is not stopped:
-    // after the playlist ends there is no node left to seek. See
-    // skipByFileSeconds:.
-    return self.playlistController.currentTrack != nil && !self.audioPlayer.isStopped;
+    return VibeTransportMenuEnabled(menuItem.identifier, self.playlistController.hasNextTrack,
+            self.playlistController.hasPreviousTrack, [self hasVisiblePlaylistSelection],
+            self.playlistController.currentTrack != nil, self.audioPlayer.isStopped);
 }
 
 - (BOOL)validateFileMenuItem:(NSMenuItem *)menuItem {
+    NSString *title = VibeFileMenuTitle(menuItem.identifier, self.playlistController.count,
+            self.audioPlayer.isPlaying);
+    if (title) menuItem.title = title;
     if ([menuItem.identifier isEqualToString:kVibeMenuPlay]) {
-        // The action is playPause:, so mirror the toggle in the title and
-        // icon, as standard macOS players do. During Loading, isPlaying
-        // follows whether the pending open will start or park.
-        BOOL playing = self.audioPlayer.isPlaying;
-        menuItem.title = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
-        menuItem.image = [NSImage imageWithSystemSymbolName:(playing ? @"pause.fill" : @"play.fill")
+        menuItem.image = [NSImage imageWithSystemSymbolName:(self.audioPlayer.isPlaying ? @"pause.fill" : @"play.fill")
                                    accessibilityDescription:menuItem.title];
-        return self.playlistController.count > 0;
     }
-    if ([menuItem.identifier isEqualToString:kVibeMenuSavePlaylist]) {
-        // The sheet attaches to this window, so it must be the key one: ⌘S in
-        // front of Settings or About must not raise a sheet behind them.
-        return self.window.isKeyWindow && self.playlistController.count > 0;
-    }
-    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
-        menuItem.title = self.playlistController.count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
-        // Nil-targeted, so the key window's closeFile: target owns both the
-        // action and this shared item's title. Settings and About restore the
-        // singular title in their own validators.
-        return self.playlistController.count > 0;
-    }
-    return self.playlistController.currentTrack.url != nil;   // kVibeMenuShowInFinder
+    return VibeFileMenuEnabled(menuItem.identifier, self.playlistController.count,
+            self.window.isKeyWindow, self.playlistController.currentTrack.url != nil);
 }
 
 - (BOOL)validateEditMenuItem:(NSMenuItem *)menuItem {
-    // TRAP: NSUndoManager's own state and titles, never a stat — validation
-    // runs on main on every menu open, and a stat on an unreachable mount
-    // blocks until it times out. An emptied Trash surfaces only when the
-    // restore runs.
-    if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) {
-        menuItem.title = self.window.undoManager.undoMenuItemTitle;
-        return !self.isConversionUndoRedoInFlight && self.window.undoManager.canUndo;
-    }
-    if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) {
-        menuItem.title = self.window.undoManager.redoMenuItemTitle;
-        return !self.isConversionUndoRedoInFlight && self.window.undoManager.canRedo;
-    }
-    // The one structural edit: it acts on the SELECTED row, so it shares Play
-    // Selected Track's whole gate — key window included.
-    if ([menuItem.identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) {
-        return [self hasVisiblePlaylistSelection];
-    }
-    // The Copy items act on the current track, like Show in Finder.
-    if ([menuItem.identifier isEqualToString:kVibeMenuEditCopyFile]) {
-        return self.playlistController.currentTrack.url != nil;
-    }
-    return self.playlistController.currentTrack != nil;   // kVibeMenuEditCopyName
+    // Stack titles and availability only: no filesystem reads during validation.
+    NSUndoManager *manager = self.window.undoManager;
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) menuItem.title = manager.undoMenuItemTitle;
+    if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
+    return VibeEditMenuEnabled(menuItem.identifier, self.isConversionUndoRedoInFlight,
+            manager.canUndo, manager.canRedo, [self hasVisiblePlaylistSelection],
+            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil);
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
@@ -233,9 +192,9 @@
     // converter, which cannot name this controller's selectors; a click landing
     // after the conversion settles reaches a cancel that is a no-op by then.
     BOOL converting = self.fileConverter.isConverting;
-    menuItem.action = converting ? @selector(cancelConversion:) : @selector(convertCurrentTrackToFLAC:);
+    menuItem.action = VibeConvertMenuAction(converting);
     if (converting) {
-        menuItem.title = STR_MENU_CONVERT_CANCEL;
+        menuItem.title = VibeConvertMenuTitle(converting);
         return YES;
     }
     return [self.fileConverter validateConvertMenuItem:menuItem

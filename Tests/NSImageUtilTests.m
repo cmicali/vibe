@@ -9,6 +9,7 @@
 #import <XCTest/XCTest.h>
 #import <AppKit/AppKit.h>
 #import "NSImage+Util.h"
+#import "PlatformImage.h"
 
 @interface NSImageUtilTests : XCTestCase
 @end
@@ -76,6 +77,25 @@
     XCTAssertNotEqual(raster, source);
     XCTAssertTrue([raster.representations.firstObject isKindOfClass:NSBitmapImageRep.class]);
     XCTAssertNotEqual(raster.representations.firstObject, source.representations.firstObject);
+}
+
+// The transport buttons read the art under them: a cover dark along its
+// bottom asks for the light-on-dark colors, one light along its bottom for
+// the dark-on-light ones, whatever the rest of the picture holds.
+- (void)testLowerBandDarknessFollowsTheBottomOfTheImage {
+    NSImage *(^split)(NSColor *, NSColor *) = ^(NSColor *top, NSColor *bottom) {
+        return [NSImage imageWithSize:NSMakeSize(64, 64) flipped:NO drawingHandler:^BOOL(NSRect rect) {
+            [bottom setFill];
+            NSRectFill(NSMakeRect(0, 0, 64, 32));
+            [top setFill];
+            NSRectFill(NSMakeRect(0, 32, 64, 32));
+            return YES;
+        }];
+    };
+    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, NSColor.blackColor), 1.0 / 3));
+    XCTAssertFalse(VibeImageLowerBandIsDark(split(NSColor.blackColor, NSColor.whiteColor), 1.0 / 3));
+    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, [NSColor colorWithWhite:0.3 alpha:1]), 0.5));
+    XCTAssertTrue(VibeImageLowerBandIsDark(nil, 0.5), @"unrasterizable reads as dark");
 }
 
 @end

@@ -102,7 +102,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Conversion undo/redo moves files asynchronously after NSUndoManager has
 // already moved its stack. Menus, actions and debug commands share this gate
 // so the inverse cannot start against a half-mutated conversion record.
-@property (nonatomic, getter=isConversionUndoRedoInFlight) BOOL conversionUndoRedoInFlight;
 
 // The undo/redo settled hook MainPlayerController+Convert fires. The debug
 // channel is its only setter; in a shipping build it costs one always-nil

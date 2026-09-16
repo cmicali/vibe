@@ -35,7 +35,8 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     // This is the only renderer that draws with a flat array of bar layers,
     // since the Detailed family draws gradient and mask layers, so the layer
     // machinery lives here rather than in the base class.
-    NSArray<CALayer*>* _layers;
+    NSMutableArray<CALayer*>* _layers;
+    NSInteger _lastProgressBoundary; // -1 forces a full repaint after a color change
 
     VibeColor* _playedColorTop;
     VibeColor* _unPlayedColorTop;
@@ -49,10 +50,6 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
     // because a fixed-width column at the cursor could land in a gap and light
     // nothing. It recolors that bar's two layers rather than overlaying them.
     NSInteger _hoverBarIndex;
-
-    // The samples are one normalized height per bar, and rebuildLayerFrames is
-    // the rebuild callback.
-    WaveformMorphEngine *_morph;
 }
 
 + (NSString *)styleIdentifier {
@@ -106,9 +103,8 @@ static const CGFloat kPlayedBottomAlphaRatio = 0.8;
 static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateColors:(BOOL)isDark {
-    // super sets lastProgressBoundary to -1, so that the next updateProgress:
-    // repaints every bar with the new colors.
     [super updateColors:isDark];
+    _lastProgressBoundary = -1;
     // Tops are the theme colors as-is; each bottom is its paler mirror — the
     // played one blended toward white, both at their ratio of the side's
     // level.
@@ -133,7 +129,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 // The played and unplayed pair a bar index should show right now, ignoring any
 // hover.
 - (VibeColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
-    BOOL played = (self.lastProgressBoundary >= 0 && index < self.lastProgressBoundary);
+    BOOL played = (_lastProgressBoundary >= 0 && index < _lastProgressBoundary);
     if (top) {
         return played ? _playedColorTop : _unPlayedColorTop;
     }
@@ -180,25 +176,25 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     if (have == count) {
         return;
     }
-    if (self.lastProgressBoundary > 0 && have > 0) {
-        self.lastProgressBoundary = VibeBlockBoundaryForProgress(
-                (CGFloat)self.lastProgressBoundary / (CGFloat)have, (NSInteger)count);
+    VibeSignpostBegin(waveform_layers);
+    if (_lastProgressBoundary > 0 && have > 0) {
+        _lastProgressBoundary = VibeBlockBoundaryForProgress(
+                (CGFloat)_lastProgressBoundary / (CGFloat)have, (NSInteger)count);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    NSMutableArray<CALayer *> *layers = [_layers mutableCopy] ?: [NSMutableArray new];
-    while (layers.count > count * 2) {
-        [layers.lastObject removeFromSuperlayer];
-        [layers removeLastObject];
+    if (!_layers) _layers = [NSMutableArray new];
+    while (_layers.count > count * 2) {
+        [_layers.lastObject removeFromSuperlayer];
+        [_layers removeLastObject];
     }
     CGFloat scale = self.parentLayer.contentsScale;
-    while (layers.count < count * 2) {
+    while (_layers.count < count * 2) {
         CALayer *layer = [[CALayer alloc] init];
         layer.contentsScale = scale;
-        [layers addObject:layer];
+        [_layers addObject:layer];
         [self.parentLayer addSublayer:layer];
     }
-    _layers = layers;
     // The hover index is against the old count; updateWaveform: re-snaps it
     // from the kept x right after this.
     _hoverBarIndex = -1;
@@ -207,6 +203,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [self setLayerColor:[self restingColorForBar:(NSInteger)i top:NO] atIndex:i * 2 + 1];
     }
     [CATransaction commit];
+    VibeSignpostEnd(waveform_layers);
 }
 
 - (void)setLayerColor:(VibeColor *)color atIndex:(NSUInteger)index {
@@ -234,7 +231,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     NSInteger count = (NSInteger)(_layers.count / 2);
     NSInteger newBoundary = VibeBlockBoundaryForProgress(progress, count);
 
-    NSInteger oldBoundary = self.lastProgressBoundary;
+    NSInteger oldBoundary = _lastProgressBoundary;
     NSInteger start, end;
     if (oldBoundary < 0) {
         // The sentinel after updateColors:, so repaint everything.
@@ -252,7 +249,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [self setLayerColor:colorTop atIndex:(NSUInteger)(i * 2)];
         [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
     }
-    self.lastProgressBoundary = newBoundary;
+    _lastProgressBoundary = newBoundary;
     // The playhead crossing the hovered bar, or a full repaint after
     // updateColors:, has just painted over the highlight. Restore it.
     if (_hoverBarIndex >= start && _hoverBarIndex < end) {
@@ -277,34 +274,10 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // engine owns the fast, collapsed and commit scaffold and skips this fill
     // on a live-resize frame, where the waveform identity and count are
     // unchanged. Only the sampling itself belongs to this family.
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
-    float gainDB = self.gainDB;
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
-        for (NSUInteger i = 0; i < count; i++) {
-            target[i] = VibeWaveformBarLevel(
-                    VibeWaveformEnergyColumnForBar(waveform, i, count).getMeanSquare(),
-                    fullScaleRMS, gainDB);
-        }
+        [self fillEnergyLevels:target.data() count:count stride:1 waveform:waveform];
     }];
-}
-
-- (void)levelMappingDidChange {
-    [_morph invalidateTarget];
-}
-
-- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
-}
-
-- (void)settleMorphImmediately {
-    [_morph settleImmediately];
-}
-
-// Hover here is color-only and needs no re-place; the bar frames re-round to
-// the new pixel grid.
-- (void)backingScaleDidChange {
-    [_morph rebuildNow];
 }
 
 // Lays the bar layers out for the currently displayed samples. It is the morph
@@ -313,11 +286,13 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 // one-device-pixel step, and makes the settle draw identical to the last
 // animation frame, so there is no end-of-morph shift.
 - (void)rebuildLayerFrames {
+    VibeSignpostBegin(waveform_bars);
     const std::vector<float> &samples = [_morph displayedSamples];
     // Always equal after updateWaveform:'s reconcile; the MIN only guards a
     // morph tick landing between a future reorder of the two.
     NSUInteger count = MIN(samples.size(), _layers.count / 2);
     if (count == 0) {
+        VibeSignpostEnd(waveform_bars);
         return;
     }
 
@@ -348,13 +323,18 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         CGFloat height = samples[i] * vscale;
         CGFloat topBarHeight = round(height * kTopLineRatio / pixel) * pixel;
         topBarHeight = MAX(topBarHeight, minHeight);
-        _layers[i * 2].frame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
+        CGRect topFrame = CGRectMake(x, topLineY, blockWidth, topBarHeight);
+        CALayer *top = _layers[i * 2];
+        if (!CGRectEqualToRect(top.frame, topFrame)) top.frame = topFrame;
 
         // The mirror line.
         CGFloat bottomBarHeight = round(topBarHeight * (1 - kTopLineRatio) / pixel) * pixel;
-        _layers[i * 2 + 1].frame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
+        CGRect bottomFrame = CGRectMake(x, bottomLineY - bottomBarHeight, blockWidth, bottomBarHeight);
+        CALayer *bottom = _layers[i * 2 + 1];
+        if (!CGRectEqualToRect(bottom.frame, bottomFrame)) bottom.frame = bottomFrame;
     }
     [CATransaction commit];
+    VibeSignpostEnd(waveform_bars);
 }
 
 @end

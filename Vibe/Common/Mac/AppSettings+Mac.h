@@ -143,6 +143,21 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // apply installs. An unknown identifier answers vibe's (the empty record).
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
+// The theme editor's undo. currentThemeDidChange pushes the stored entry
+// each edit of a USER theme replaced — fields and name, so a committed
+// rename (renameUserThemeWithIdentifier:toName:) is an entry too — and a
+// continuous gesture's ticks (the continuous form below), moving the same
+// keys within two seconds of each other, coalesce onto the first tick's
+// entry, while discrete edits never do, so two menu picks of one field are
+// two undos; fifty deep. A theme apply drops the stack, so an undo never
+// lands on another theme, and a built-in's edits are divergence rather than
+// the theme's and are not recorded. undoThemeEdit puts the top entry's name
+// and fields back and persists them without recording; the caller requests
+// ThemeApply. The image sweep keeps a custom image a stacked entry still
+// names, so an undo can put a cleared picture back.
+@property (readonly, nonatomic) BOOL canUndoThemeEdit;
+- (void)undoThemeEdit;
+
 // Repopulates currentTheme from the named record and makes it active. Store
 // only — the caller requests VibeSettingsLiveEffectThemeApply, per the
 // store-first contract.
@@ -152,8 +167,12 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // writing the field. The working record lands in the active user theme's own
 // record; diverging from a read-only built-in, it lands in its own key
 // instead, so a casual toggle survives relaunch without dirtying the
-// built-in, and re-applying the theme resets it.
+// built-in, and re-applying the theme resets it. A continuous control —
+// the corner-radius slider, a color well tracking its panel — reports each
+// tick with continuous:YES, which is what lets undo fold the gesture into
+// one entry; the bare form is a discrete edit.
 - (void)currentThemeDidChange;
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous;
 
 // User-theme CRUD. Every mutation refuses a built-in identifier; names are
 // deduped against every display name. addUserThemeWithRecord returns the
@@ -329,6 +348,14 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // resolver handle nil and shows embedded art alone.
 - (BOOL)useFolderArt;
 - (void)setUseFolderArt:(BOOL)use;
+
+// Binds an asynchronous picker to its original editable theme. The data
+// provider is not called for a superseded pick. Caller persists through
+// currentThemeDidChange and then requests the image field's live effect.
+- (BOOL)setCurrentThemeImageForKey:(NSString *)key
+                 themeIdentifier:(NSString *)identifier
+                            data:(NSData * _Nullable (^)(void))data
+                           error:(NSError * _Nullable * _Nullable)error;
 
 @end
 

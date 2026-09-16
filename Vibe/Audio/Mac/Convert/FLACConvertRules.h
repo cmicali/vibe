@@ -7,6 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "PlaybackIntent.h"
 
 #import "AudioFileFormat.h"
 
@@ -76,6 +77,15 @@ static inline NSString *VibeFLACDestinationName(NSString *sourceLastPathComponen
     }
     NSString *destination = [base stringByAppendingPathExtension:@"flac"];
     return destination ?: [base stringByAppendingString:@".flac"];
+}
+
+// Conversion changes the file behind a row, preserving its loaded intent.
+// A stopped or noncurrent row changes only the model, never starts playback.
+static inline BOOL VibeFLACSwapPlaybackIntent(BOOL current, NSTimeInterval position,
+        BOOL playing, BOOL paused, VibePendingPlaybackIntent *intent) {
+    if (!current || (!playing && !paused)) return NO;
+    *intent = VibePendingPlaybackIntentMake(position, !playing);
+    return YES;
 }
 
 NS_ASSUME_NONNULL_END

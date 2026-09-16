@@ -136,4 +136,21 @@
     XCTAssertEqualObjects(VibeFLACDestinationName(@"Café – Intro.aif"), @"Café – Intro.flac");
 }
 
+
+- (void)testConversionReplayPreservesPositionAndPlayingOrPausedIntent {
+    for (NSInteger current = 0; current < 2; current++) for (NSInteger playing = 0; playing < 2; playing++) {
+        for (NSInteger paused = 0; paused < 2; paused++) {
+            VibePendingPlaybackIntent intent = { .position = -999, .paused = NO };
+            BOOL replay = VibeFLACSwapPlaybackIntent(current, 42.75, playing, paused, &intent);
+            XCTAssertEqual(replay, current && (playing || paused));
+            if (replay) {
+                XCTAssertEqual(intent.position, 42.75);
+                XCTAssertEqual(intent.paused, !playing);
+            } else {
+                XCTAssertEqual(intent.position, -999);
+            }
+        }
+    }
+}
+
 @end

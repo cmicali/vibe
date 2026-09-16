@@ -135,15 +135,17 @@ static void ensureCellAttributes(void) {
         left.lineBreakMode = NSLineBreakByTruncatingTail;
         NSMutableParagraphStyle *right = [left mutableCopy];
         right.alignment = NSTextAlignmentRight;
-        // One label-color set spans the header and the playlist: titleColor
-        // is every title, artistColor every secondary line — here the artist
-        // run and both numeric columns, which already share its fallback.
+        // One label-color set spans the header and the playlist — titleColor
+        // every title, artistColor every secondary line, here the artist run
+        // and both numeric columns — until a column's own pair is switched on,
+        // which the theme resolves per column.
         AppTheme *theme = AppSettings.sharedInstance.currentTheme;
         defaultArtImage = theme.resolvedDefaultArtworkImage;
-        NSColor *titleColor = theme.resolvedTitleColor;
-        NSColor *artistColor = theme.resolvedArtistColor;
+        NSColor *titleColor = [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistTitle];
+        NSColor *artistColor = [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistArtist];
         numColumnAttributes = @{
-                NSForegroundColorAttributeName: artistColor,
+                NSForegroundColorAttributeName:
+                        [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistNumber],
                 NSKernAttributeName: @(-1.5),
                 // Deliberately not the duration slot: the # column is row
                 // chrome, like the drop hint, so it keeps the built-in
@@ -152,7 +154,8 @@ static void ensureCellAttributes(void) {
                 NSParagraphStyleAttributeName: right,
         };
         lengthColumnAttributes = @{
-                NSForegroundColorAttributeName: artistColor,
+                NSForegroundColorAttributeName:
+                        [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistDuration],
                 NSKernAttributeName: @(-1.0),
                 NSFontAttributeName:
                         [Fonts playlistDurationFont],

@@ -4,6 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "VibeStrings.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -197,6 +198,49 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
         return VibeMenuValidationDomainConvert;
     }
     return VibeMenuValidationDomainUnknown;
+}
+
+// Validation reads snapshots only; it never probes files or opens a window.
+static inline BOOL VibeMenuHasVisibleSelection(BOOL keyWindow, BOOL playlistShown, NSInteger selectedRow) {
+    return keyWindow && playlistShown && selectedRow >= 0;
+}
+
+static inline BOOL VibeTransportMenuEnabled(NSString *identifier, BOOL hasNext, BOOL hasPrevious,
+        BOOL visibleSelection, BOOL hasTrack, BOOL stopped) {
+    if ([identifier isEqualToString:kVibeMenuNextTrack]) return hasNext;
+    if ([identifier isEqualToString:kVibeMenuPreviousTrack]) return hasPrevious;
+    if ([identifier isEqualToString:kVibeMenuPlaySelected]) return visibleSelection;
+    return VibeMenuValidationDomainForIdentifier(identifier) == VibeMenuValidationDomainTransport
+            && hasTrack && !stopped;
+}
+
+static inline BOOL VibeFileMenuEnabled(NSString *identifier, NSUInteger count, BOOL keyWindow, BOOL hasURL) {
+    if ([identifier isEqualToString:kVibeMenuSavePlaylist]) return keyWindow && count > 0;
+    if ([identifier isEqualToString:kVibeMenuPlay] || [identifier isEqualToString:kVibeMenuClose]) return count > 0;
+    return [identifier isEqualToString:kVibeMenuShowInFinder] && hasURL;
+}
+
+static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL undoRedoInFlight,
+        BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL) {
+    if ([identifier isEqualToString:kVibeMenuEditUndo]) return !undoRedoInFlight && canUndo;
+    if ([identifier isEqualToString:kVibeMenuEditRedo]) return !undoRedoInFlight && canRedo;
+    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) return visibleSelection;
+    if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return hasURL;
+    return [identifier isEqualToString:kVibeMenuEditCopyName] && hasTrack;
+}
+
+static inline NSString *_Nullable VibeFileMenuTitle(NSString *identifier, NSUInteger count, BOOL playing) {
+    if ([identifier isEqualToString:kVibeMenuPlay]) return playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+    if ([identifier isEqualToString:kVibeMenuClose]) return count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
+    return nil;
+}
+
+static inline NSString *VibeConvertMenuTitle(BOOL converting) {
+    return converting ? STR_MENU_CONVERT_CANCEL : STR_MENU_CONVERT_TO_FLAC;
+}
+
+static inline SEL VibeConvertMenuAction(BOOL converting) {
+    return NSSelectorFromString(converting ? @"cancelConversion:" : @"convertCurrentTrackToFLAC:");
 }
 
 NS_ASSUME_NONNULL_END

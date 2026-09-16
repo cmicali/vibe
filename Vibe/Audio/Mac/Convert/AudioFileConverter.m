@@ -30,6 +30,9 @@ static const AVAudioFrameCount kConvertBufferFrames = 32768;
 // it to remove what a crash or a kill left behind.
 static NSString *const kConvertTempPrefix = @"vibe-convert-";
 
+@implementation VibeFLACConversionRecord
+@end
+
 #pragma mark - Converter
 
 // _queue and _relatedItemPresenters are in AudioFileConverterInternal.h: the
@@ -39,6 +42,9 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
     // and off the converter queue, or an undo would wait out a running encode.
     // Serial, because an undo must follow the trash it reverses.
     dispatch_queue_t _disposeQueue;
+    void (^_restore)(NSURL *, NSURL *, void (^)(BOOL, NSError *));
+    void (^_verify)(NSURL *, void (^)(BOOL, NSError *));
+    void (^_trash)(NSURL *, void (^)(VibeTrashOutcome, NSURL *, NSError *));
     // The destination stats, serial: each menu open against an unreachable
     // mount would otherwise park another global-pool worker for the whole
     // mount timeout — the generation drops stale answers but not stale work.
@@ -70,8 +76,19 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
 }
 
 - (instancetype)init {
+    self = [self initWithRestore:nil verify:nil trash:nil];
+    if (self) dispatch_async(_queue, ^{ [self sweepStaleTempFiles]; });
+    return self;
+}
+
+- (instancetype)initWithRestore:(void (^)(NSURL *, NSURL *, void (^)(BOOL, NSError *)))restore
+                         verify:(void (^)(NSURL *, void (^)(BOOL, NSError *)))verify
+                          trash:(void (^)(NSURL *, void (^)(VibeTrashOutcome, NSURL *, NSError *)))trash {
     self = [super init];
     if (self) {
+        _restore = [restore copy];
+        _verify = [verify copy];
+        _trash = [trash copy];
         _relatedItemPresenters = [NSMutableArray new];
         // Utility QoS: the encode must never outrank the player queue.
         _queue = dispatch_queue_create("com.vibe.flacconvert",
@@ -80,10 +97,6 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
         _statQueue = dispatch_queue_create("com.vibe.flacconvert.stat",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
-        // On the encode's own serial queue rather than the dispose queue, so
-        // it finishes before the first conversion can create the temp it
-        // would otherwise remove.
-        dispatch_async(_queue, ^{ [self sweepStaleTempFiles]; });
     }
     return self;
 }
@@ -189,9 +202,7 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
         return;
     }
 
-    _converting = YES;
-    atomic_store(&_cancelRequested, false);
-    _deleteOriginalAtAccept = AppSettings.sharedInstance.deleteOriginalAfterConvert;
+    [self beginConversionDeletingOriginal:AppSettings.sharedInstance.deleteOriginalAfterConvert];
 
     __weak AudioFileConverter *weakSelf = self;
     void (^progress)(double) = ^(double fraction) {
@@ -289,6 +300,13 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
     });
 }
 
+- (void)beginConversionDeletingOriginal:(BOOL)deleteOriginal {
+    NSAssert(!_converting, @"Only one accepted conversion may run");
+    _converting = YES;
+    atomic_store(&_cancelRequested, false);
+    _deleteOriginalAtAccept = deleteOriginal;
+}
+
 // Every terminal path of a conversion that reached _converting = YES funnels
 // through here: the temp is removed unless it was placed, and _converting
 // flips back on main before the completion runs. The refusals ahead of the flag
@@ -332,9 +350,9 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
                      completion:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion {
     run_on_main_thread({
         self->_converting = NO;
-        completion(outputURL, error);
         NSArray<dispatch_block_t> *waiters = self->_cancelWaiters;
         self->_cancelWaiters = nil;
+        completion(outputURL, error);
         for (dispatch_block_t waiter in waiters) {
             waiter();
         }
@@ -355,6 +373,88 @@ static NSString *const kConvertTempPrefix = @"vibe-convert-";
             _cancelWaiters = [NSMutableArray new];
         }
         [_cancelWaiters addObject:completion];
+    }
+}
+
+#pragma mark - Undo and redo
+
+- (void)registerUndoForConversion:(VibeFLACConversionRecord *)record
+                    undoManager:(NSUndoManager *)undoManager
+                           swap:(void (^)(NSURL *, NSURL *))swap
+                     completion:(void (^)(BOOL, NSString *, NSURL *, NSError *))completion {
+    [self registerConversionInverse:record undo:YES undoManager:undoManager swap:swap completion:completion];
+}
+
+- (void)registerConversionInverse:(VibeFLACConversionRecord *)record undo:(BOOL)undo
+                     undoManager:(NSUndoManager *)undoManager
+                            swap:(void (^)(NSURL *, NSURL *))swap
+                      completion:(void (^)(BOOL, NSString *, NSURL *, NSError *))completion {
+    __weak NSUndoManager *weakManager = undoManager;
+    [undoManager registerUndoWithTarget:self handler:^(AudioFileConverter *converter) {
+        [converter applyConversion:record undo:undo undoManager:weakManager swap:swap completion:completion];
+    }];
+    [undoManager setActionName:STR_MENU_CONVERT_TO_FLAC];
+}
+
+- (void)applyConversion:(VibeFLACConversionRecord *)record undo:(BOOL)undo
+           undoManager:(NSUndoManager *)undoManager
+                  swap:(void (^)(NSURL *, NSURL *))swap
+            completion:(void (^)(BOOL, NSString *, NSURL *, NSError *))completion {
+    // Register even a refused inverse, while the stack direction is still
+    // active. A failed restore must leave a recoverable Undo/Redo entry.
+    [self registerConversionInverse:record undo:!undo undoManager:undoManager swap:swap completion:completion];
+    if (_undoRedoInFlight) return;
+    _undoRedoInFlight = YES;
+    void (^settle)(BOOL, NSString *, NSURL *, NSError *) = ^(BOOL committed, NSString *reason, NSURL *stranded, NSError *error) {
+        self->_undoRedoInFlight = NO;
+        completion(committed, reason, stranded, error);
+    };
+    NSURL *replacement = undo ? record.sourceURL : record.outputURL;
+    NSURL *retiring = undo ? record.outputURL : record.sourceURL;
+    NSURL *trashURL = undo ? record.sourceTrashURL : record.outputTrashURL;
+    VibeFLACFileLocation location = undo ? record.sourceLocation : record.outputLocation;
+    void (^verify)(void) = ^{
+        [self verifyPlayableFileAtURL:replacement completion:^(BOOL playable, NSError *error) {
+            if (!playable) { settle(NO, @"replacement_unavailable", nil, error); return; }
+            BOOL dispose = undo || record.sourceWasTrashed;
+            VibeFLACFileLocation retiringLocation = undo ? record.outputLocation : record.sourceLocation;
+            if (dispose && !VibeFLACMayDisposeExpectedPath(retiringLocation)) {
+                settle(NO, @"already_at_target", nil, nil);
+                return;
+            }
+            swap(retiring, replacement);
+            if (!dispose) { settle(YES, nil, nil, nil); return; }
+            [self trashItemAtURL:retiring completion:^(VibeTrashOutcome outcome, NSURL *movedURL, NSError *trashError) {
+                NSURL *knownURL = outcome == VibeTrashOutcomeMovedKnownURL ? movedURL : nil;
+                if (undo) {
+                    record.outputTrashURL = knownURL;
+                    record.outputLocation = VibeFLACFileLocationAfterTrash(outcome);
+                } else {
+                    record.sourceTrashURL = knownURL;
+                    record.sourceLocation = VibeFLACFileLocationAfterTrash(outcome);
+                }
+                if (outcome == VibeTrashOutcomeFailed) LogError(@"Conversion inverse could not trash %@: %@", retiring.path, trashError);
+                // The verified row swap committed even when disposal failed.
+                settle(YES, nil, nil, nil);
+            }];
+        }];
+    };
+    if (location == VibeFLACFileLocationUnknownTrashURL) {
+        run_on_main_thread({ settle(NO, @"replacement_location_unknown", nil, nil); });
+    } else if (location == VibeFLACFileLocationKnownTrashURL) {
+        [self restoreTrashedItemAtURL:trashURL toURL:replacement completion:^(BOOL restored, NSError *error) {
+            if (!restored) { settle(NO, @"restore_failed", trashURL, error); return; }
+            if (undo) {
+                record.sourceTrashURL = nil;
+                record.sourceLocation = VibeFLACFileLocationExpectedPath;
+            } else {
+                record.outputTrashURL = nil;
+                record.outputLocation = VibeFLACFileLocationExpectedPath;
+            }
+            verify();
+        }];
+    } else {
+        verify();
     }
 }
 
@@ -420,6 +520,7 @@ static NSString *VibeFileStat(NSURL *url) {
             completion:(void (^)(VibeTrashOutcome,
                                  NSURL *_Nullable,
                                  NSError *_Nullable))completion {
+    if (_trash) { _trash(url, completion); return; }
     [self trashItemAtURL:url resultingURLFilter:nil completion:completion];
 }
 
@@ -480,6 +581,7 @@ static NSString *VibeFileStat(NSURL *url) {
 - (void)restoreTrashedItemAtURL:(NSURL *)trashedURL
                           toURL:(NSURL *)originalURL
                      completion:(void (^)(BOOL, NSError *_Nullable))completion {
+    if (_restore) { _restore(trashedURL, originalURL, completion); return; }
     dispatch_async(_disposeQueue, ^{
         LogInfo(@"Restore: %@ (%@) -> %@ (%@)",
                 trashedURL.path, VibeFileStat(trashedURL),
@@ -536,6 +638,7 @@ static NSString *VibeFileStat(NSURL *url) {
 
 - (void)verifyPlayableFileAtURL:(NSURL *)url
                      completion:(void (^)(BOOL, NSError *_Nullable))completion {
+    if (_verify) { _verify(url, completion); return; }
     NSAssert(NSThread.isMainThread, @"verifyPlayableFileAtURL must be called on the main thread");
     dispatch_async(_disposeQueue, ^{
         NSError *error = nil;

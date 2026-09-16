@@ -44,6 +44,17 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
 @property (nonatomic, copy, nullable) VibeSourceTrashResultingURLFilter
         nextSourceTrashResultingURLFilter;
 
+// File-operation boundaries for host-less orchestration tests. This
+// construction skips the process-launch temp sweep. nil uses the real I/O.
+- (instancetype)initWithRestore:(void (^_Nullable)(NSURL *, NSURL *, void (^)(BOOL, NSError * _Nullable)))restore
+                         verify:(void (^_Nullable)(NSURL *, void (^)(BOOL, NSError * _Nullable)))verify
+                          trash:(void (^_Nullable)(NSURL *, void (^)(VibeTrashOutcome, NSURL * _Nullable, NSError * _Nullable)))trash;
+// Accepted request state, shared by the public entry and cancellation tests.
+- (void)beginConversionDeletingOriginal:(BOOL)deleteOriginal;
+// The request terminus is shared by every encoder/placement outcome.
+- (void)settleConversionWithURL:(nullable NSURL *)url error:(nullable NSError *)error
+                     completion:(void (^)(NSURL * _Nullable, NSError * _Nullable))completion;
+
 - (NSError *)errorWithCode:(VibeConvertErrorCode)code description:(NSString *)description;
 - (void)trashItemAtURL:(NSURL *)url
     resultingURLFilter:(nullable VibeSourceTrashResultingURLFilter)resultingURLFilter

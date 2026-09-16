@@ -247,6 +247,14 @@
     return self.currentTrack == track;
 }
 
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {
+    NSIndexSet *rows = [self indexesOfTracksWithURL:track.url];
+    [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        [self replaceTrackAtIndex:row withURL:url];
+    }];
+    return rows;
+}
+
 - (AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url {
     if (index >= _tracks.count || !url) {
         return nil;

@@ -594,6 +594,8 @@ targets:
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m
       - path: Vibe/Debug/VibeFakeCloud.m
+      - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
+      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
@@ -615,6 +617,7 @@ targets:
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/AppTheme.m
       - path: Vibe/Common/Mac/AppTheme+Archive.m
+      - path: Vibe/System/NowPlayingController.m
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
@@ -636,7 +639,17 @@ targets:
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
+      - path: Vibe/Util/Mac/NSView+DarkMode.m  # AppTheme's dynamic colors resolve through its appearance fold
       - path: Vibe/WaveformUI/WaveformTheme.m
+      - path: Vibe/WaveformUI/WaveformMorphEngine.mm
+      - path: Vibe/WaveformUI/AudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/BasicAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/CupertinoWaveformRenderer.mm
+      - path: Vibe/WaveformUI/DetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/OversamplingDetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/SonicCirrusWaveformRenderer.mm
+      - path: Vibe/WaveformUI/WaveformRendererRegistry.mm
+      - path: Vibe/Debug/VibeWorkTally.m
     settings:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -673,8 +686,7 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
-          # WaveformZoomMath.h only: header-only, so nothing from the rendering
-          # half is compiled in here.
+          # Waveform math, themes and the host-less morph engine.
           - "$(SRCROOT)/Vibe/WaveformUI"
           - "$(SRCROOT)/Vibe/Debug"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
@@ -687,6 +699,7 @@ targets:
           # source under Vibe/iOS is compiled here.
           - "$(SRCROOT)/Vibe/iOS"
     dependencies:
+      - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AVFAudioWaveformLoader reads (and its tests write) files

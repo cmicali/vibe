@@ -79,18 +79,15 @@ static inline AudioWaveformCacheChunk VibeWaveformEnergyColumnForBar(AudioWavefo
             : waveform->getChunkAtIndex(i, count);
 }
 
-// The full-scale reference for one fill: the fixed -9 dBFS RMS, or with
-// Normalize on the track's loudest energy column at the floored resolution,
-// so that column draws full height whatever the master's level. The
-// resolution is the fixed column count rather than the bar count, so a
-// resize cannot move the reference. A silent or still-empty waveform falls
-// back to the constant rather than dividing by zero; its bars are zero
-// either way.
+// Normalize only raises levels: its reference cannot exceed the fixed one.
+// Match the drawn energy windows, including the finer styles' 1/1024 floor.
+// Silence and empty waveforms keep the fixed reference to avoid division by zero.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform * _Nullable waveform,
-                                                        BOOL normalize) {
+                                                        BOOL normalize,
+                                                        NSUInteger count) {
     float loudest = (normalize && waveform)
-            ? sqrtf(waveform->getMaxMeanSquare(kVibeWaveformEnergyColumns)) : 0;
-    return loudest > 0 ? loudest : kVibeWaveformFullScaleRMS;
+            ? sqrtf(waveform->getMaxMeanSquare(MIN(count, kVibeWaveformEnergyColumns))) : 0;
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
 // Snap a hover/seek column to the device-pixel grid. A fractional origin or
@@ -120,7 +117,13 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
     }
 }
 
-@interface AudioWaveformRenderer : NSObject
+@class WaveformMorphEngine;
+
+@interface AudioWaveformRenderer : NSObject {
+@protected
+    // Bar renderers install their geometry callback; flat controls leave this nil.
+    WaveformMorphEngine *_morph;
+}
 
 @property (assign) BOOL isDark;
 
@@ -132,30 +135,30 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // branch on it for non-palette decisions.
 @property (strong) WaveformTheme *theme;
 
-// The last played bar index that updateProgress: painted. Layer-array
-// renderers — SonicCirrusWaveformRenderer, which owns the bar-layer machinery
-// — use it to repaint only the bars between the old and new progress boundary
-// rather than every bar. Set it to -1 to force a full repaint, as after the
-// played and unplayed colors change in updateColors:.
-@property (assign) NSInteger lastProgressBoundary;
-
 // Settings > Appearance > Waveform's Normalize and Gain, handed over by the
 // view as the theme is; the init defaults — off, 0 dB — are the plain
 // mapping. Every fill measures its bars against
 // VibeWaveformFullScaleRMSForWaveform and passes the gain to
-// VibeWaveformBarLevel. Either setter reaches levelMappingDidChange, which
-// the bar families forward to their morph engine's invalidateTarget, so a
-// change refills from the same waveform and the bars ease to their new
+// VibeWaveformBarLevel. Either setter invalidates the optional morph engine's
+// target, so a change refills from the same waveform and the bars ease to their new
 // heights rather than staying where the last fill put them.
 @property (nonatomic) BOOL normalizesLevels;
 @property (nonatomic) float gainDB;
-- (void)levelMappingDidChange;
+
+// One energy level per bar. Stride permits interleaved envelopes without a
+// temporary sample buffer; the caller supplies their sign and symmetry.
+- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
+               waveform:(AudioWaveform *)waveform;
 
 @property (strong) CALayer* parentLayer;
 
-// Stable, never-localized key for this renderer: the NSUserDefaults value, the
-// AudioWaveformView registry key, and the stem of the menu item's identifier.
-// displayName is the localized name and must never be used as a key.
+// Wiggle's loop count can use an unzoomed reference width while its geometry
+// spans the drawn width. Zero follows the drawn width; other styles ignore it.
+@property (nonatomic) CGFloat samplingWidth;
+
+// Metadata for the class's default registry entry. Variants may share a class;
+// persist and compare the resolved registry identifier, never this class key.
+// displayName is localized and must never be used as a key.
 + (NSString *)styleIdentifier;
 
 // Localized, user-visible name. Display only.
@@ -175,20 +178,20 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
-// The window moved to a display with a different backing scale. The base does
-// nothing; the families rebuild their settled geometry, whose device-pixel
+// The window moved to a display with a different backing scale. Rebuild the
+// optional morph engine's geometry, whose device-pixel
 // snapping baked in the old scale and which a same-size updateWaveform: pass
 // skips.
 - (void)backingScaleDidChange;
 
 // The Convert to FLAC sweep: collapse the bars in the x-fraction span
-// [from, to) to the midline and let the shared morph ease them back. The base
-// does nothing; the families forward to their morph engine.
+// [from, to) to the midline and let the shared morph ease them back. A no-op
+// for a renderer with no morph engine.
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to;
 
 // Land the in-flight morph on its target in one rebuild rather than easing
 // there — see WaveformMorphEngine.settleImmediately for when that is worth
-// doing. The base does nothing; the families forward to their morph engine.
+// doing. A no-op for a renderer with no morph engine.
 - (void)settleMorphImmediately;
 
 // The hover scrubbing affordance: light the waveform's own column at view x to

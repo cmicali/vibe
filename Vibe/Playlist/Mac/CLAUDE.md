@@ -16,7 +16,7 @@ An evicted embedded thumbnail returns the placeholder without decoding in the ce
 
 Row backgrounds belong to `PlaylistRowView`, not to AppKit. **`drawSelectionInRect:` does not call super**, which replaces the system `selectedContentBackgroundColor` accent-blue fill with the theme's selected-row color — falling back to the neutral white or black wash at about 9% — and the playing row draws the theme's playing-row color (same fallback) from `drawBackgroundInRect:`, skipping it when the row is also selected, which already drew. The overrides are read per draw; rows draw on state changes and scroll-in, and the record lookup is cheap.
 
-The cell text is themed the same way: `ensureCellAttributes` resolves the theme's title/artist colors (one label-color set spans the header and the playlist — the artist color also covers both numeric columns) and the playlist font slot, and is **invalidated by the `PlaylistAppearance` effect** (`+invalidateCellAttributes` + `reloadData`) rather than cached forever.
+The cell text is themed the same way: `ensureCellAttributes` asks the theme for each column's color (`resolvedPlaylistColorForBase:` — one label-color set spans the header and the playlist, the title color every title and the artist color the artist run and both numeric columns, until a column's own switched-on pair takes over; `Common/Mac/CLAUDE.md`) and the playlist font slot, and is **invalidated by the `PlaylistAppearance` effect** (`+invalidateCellAttributes` + `reloadData`) rather than cached forever.
 
 `rowViewForRow:` sets `playingRow`, and `refreshRowViewPlayingStates` re-stamps it across the visible rows on every `currentIndex` change, because `reloadDataForRowIndexes:` rebuilds cell views but keeps row views.
 
@@ -53,7 +53,7 @@ None of them works while the playlist is collapsed. That gate is not here — th
 
 `loadURLs:selectingIndex:` replaces the list and lands the cursor on a clamped row, opening nothing — the shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one replacement path; `append:` extends it without touching playback or `currentIndex`. Every track change calls `scrollCurrentTrackToVisible`, a no-op while the row is already visible. Nothing else scrolls the table.
 
-`replaceTrackAtIndex:withURL:` and `indexesOfTracksWithURL:` forward to the model and are where the convert swap lands — see `Vibe/Playlist/CLAUDE.md` for why the model keeps a URL index, and `Mac/MainWindow/CLAUDE.md` for why the swap mints a fresh `AudioTrack`.
+`replaceTracksMatchingTrack:withURL:` and `indexesOfTracksWithURL:` forward to the model and are where the convert swap lands — see `Vibe/Playlist/CLAUDE.md` for why the model keeps a URL index, and `Mac/MainWindow/CLAUDE.md` for why the swap mints a fresh `AudioTrack`.
 
 `currentIndexDidChangeHandler` is this shell's one current-index funnel, and is what sends a playlist position to the metadata cache's cloud-lane ranking (`Audio/Metadata/CLAUDE.md`).
 

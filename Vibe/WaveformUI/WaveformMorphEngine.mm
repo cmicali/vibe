@@ -20,9 +20,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     // layout.
     std::vector<float> _displayedSamples;
     std::vector<float> _targetSamples;
-    // targetScratchWithCount:'s reusable buffer. It is swapped with
-    // _targetSamples when the target moves, and then holds the stale target
-    // until the next call overwrites it.
+    // Swapped with _targetSamples when the target moves; holds the stale
+    // target until the next fill overwrites it.
     std::vector<float> _scratchSamples;
     CGSize _size;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
@@ -61,6 +60,10 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
+    // Resampling a settled picture for a new width is layout, not new audio.
+    // Starting an ease here doubles the rebuilds throughout a resize and
+    // leaves a timer repainting after the window has stopped moving.
+    BOOL animate = _targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil;
     if (!_targetInvalidated && identity == _lastTargetIdentity && count == _lastTargetCount) {
         // The target is unchanged, so do not touch the scratch: after a commit
         // it holds the stale target, and comparing against it would morph back
@@ -75,24 +78,19 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     _lastTargetIdentity = identity;
     _lastTargetCount = count;
     _targetInvalidated = NO;
-    std::vector<float> &target = [self targetScratchWithCount:count];
+    _scratchSamples.resize(count);
     if (identity) {
-        fill(target);
+        VibeSignpostBegin(waveform_target);
+        fill(_scratchSamples);
+        VibeSignpostEnd(waveform_target);
     } else {
-        std::fill(target.begin(), target.end(), 0.0f);
+        std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
     }
-    [self commitTargetForSize:size hasWaveform:(identity != NULL)];
+    [self commitTargetForSize:size hasWaveform:(identity != NULL) animate:animate];
 }
 
 - (void)invalidateTarget {
     _targetInvalidated = YES;
-}
-
-- (std::vector<float> &)targetScratchWithCount:(NSUInteger)count {
-    if (_scratchSamples.size() != count) {
-        _scratchSamples.resize(count); // new elements value-init to 0
-    }
-    return _scratchSamples;
 }
 
 - (const std::vector<float> &)displayedSamples {
@@ -142,31 +140,36 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 // updateTargetForSize:'s slow path; the branch rationale lives on that
 // declaration. This is internal, and the scratch must be freshly filled before
 // it runs, because after a commit it holds the stale target.
-- (void)commitTargetForSize:(CGSize)size hasWaveform:(BOOL)hasWaveform {
+- (void)commitTargetForSize:(CGSize)size hasWaveform:(BOOL)hasWaveform animate:(BOOL)animate {
     BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
     _size = size;
     BOOL hasWaveformChanged = (_hasWaveform != hasWaveform);
     _hasWaveform = hasWaveform;
-    if (_displayedSamples.size() != _scratchSamples.size()) {
-        if (_displayedSamples.empty()) {
-            // The first build starts collapsed, so the waveform grows out of
-            // the midline.
-            _displayedSamples.assign(_scratchSamples.size(), 0.0f);
-        } else {
-            // A bar-count change mid-picture is a resize — the renderers
-            // derive their count from the width — so carry the on-screen
-            // shape over rather than collapsing it to the midline every few
-            // points of drag.
-            [self resampleDisplayedToCount:_scratchSamples.size()];
-        }
-        geometryChanged = YES;
-    }
     BOOL targetChanged = (_scratchSamples != _targetSamples);
     if (!targetChanged && !geometryChanged && !hasWaveformChanged) {
         return;
     }
     if (targetChanged) {
         std::swap(_targetSamples, _scratchSamples);
+    }
+    if (!animate) {
+        _displayedSamples = _targetSamples;
+        [self runRebuild];
+        return;
+    }
+    if (_displayedSamples.size() != _targetSamples.size()) {
+        if (_displayedSamples.empty()) {
+            // The first build starts collapsed, so the waveform grows out of
+            // the midline.
+            _displayedSamples.assign(_targetSamples.size(), 0.0f);
+        } else {
+            // A bar-count change mid-picture is a resize — the renderers
+            // derive their count from the width — so carry the on-screen
+            // shape over rather than collapsing it to the midline every few
+            // points of drag.
+            [self resampleDisplayedToCount:_targetSamples.size()];
+        }
+        geometryChanged = YES;
     }
     // A hasWaveform flip on its own. The samples are identical, so no morph
     // will run, but the hairline floor has changed, so redraw in place.

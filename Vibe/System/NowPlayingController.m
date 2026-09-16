@@ -57,6 +57,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // parks a track that never sounded. Publishing even a cleared or paused
     // state would evict the user's current Now Playing app.
     BOOL _hasPublished;
+    NSTimeInterval (^_clock)(void);
+    void (^_publish)(NSDictionary *, NowPlayingPlaybackState);
+    void (^_commandAvailability)(BOOL, BOOL);
 
     // The last published snapshot, for the dirty check in updateWithTrack:....
     // updateUI runs several times back to back on a track transition, and only
@@ -85,7 +88,22 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 }
 
 - (instancetype)initWithDelegate:(id<NowPlayingControllerDelegate>)delegate {
-    self = [super init];
+    self = [self initWithClock:^{ return CFAbsoluteTimeGetCurrent(); }
+                      publish:^(NSDictionary *info, NowPlayingPlaybackState state) {
+        MPNowPlayingInfoCenter *center = MPNowPlayingInfoCenter.defaultCenter;
+        center.nowPlayingInfo = info;
+#if TARGET_OS_OSX
+        switch (state) {
+            case NowPlayingPlaybackStatePlaying: center.playbackState = MPNowPlayingPlaybackStatePlaying; break;
+            case NowPlayingPlaybackStatePaused: center.playbackState = MPNowPlayingPlaybackStatePaused; break;
+            case NowPlayingPlaybackStateStopped: center.playbackState = MPNowPlayingPlaybackStateStopped; break;
+        }
+#endif
+    } commandAvailability:^(BOOL next, BOOL previous) {
+        MPRemoteCommandCenter *center = MPRemoteCommandCenter.sharedCommandCenter;
+        center.nextTrackCommand.enabled = next;
+        center.previousTrackCommand.enabled = previous;
+    }];
     if (self) {
         _delegate = delegate;
 #if DEBUG
@@ -103,6 +121,20 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         }
 #endif
         [self registerCommands];
+    }
+    return self;
+}
+
+- (instancetype)initWithClock:(NSTimeInterval (^)(void))clock
+                      publish:(void (^)(NSDictionary *, NowPlayingPlaybackState))publish
+          commandAvailability:(void (^)(BOOL, BOOL))commandAvailability {
+    self = [super init];
+    if (self) {
+        _clock = [clock copy];
+        _publish = [publish copy];
+        _commandAvailability = [commandAvailability copy];
+        _publishedHasNext = YES;
+        _publishedHasPrevious = YES;
     }
     return self;
 }
@@ -249,18 +281,11 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 #endif
-    MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
-
-    // Applied before every early return below, so that command availability
-    // tracks the playlist boundaries even when the now-playing info itself is
-    // unchanged, or not yet published.
-    MPRemoteCommandCenter *commands = [MPRemoteCommandCenter sharedCommandCenter];
-    if (hasNext != _publishedHasNext) {
-        commands.nextTrackCommand.enabled = hasNext;
+    // Availability changes apply even before the first publication and while
+    // metadata is unchanged; enabling commands does not claim Now Playing.
+    if (hasNext != _publishedHasNext || hasPrevious != _publishedHasPrevious) {
+        _commandAvailability(hasNext, hasPrevious);
         _publishedHasNext = hasNext;
-    }
-    if (hasPrevious != _publishedHasPrevious) {
-        commands.previousTrackCommand.enabled = hasPrevious;
         _publishedHasPrevious = hasPrevious;
     }
 
@@ -275,12 +300,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (_publishedURL == nil) {
             return;
         }
-        center.nowPlayingInfo = nil;
-#if TARGET_OS_OSX
-        // playbackState is macOS-only; iOS derives it from the audio session
-        // and the published rate.
-        center.playbackState = MPNowPlayingPlaybackStateStopped;
-#endif
+        _publish(nil, NowPlayingPlaybackStateStopped);
         _publishedURL = nil;
         _publishedArtworkImage = nil;
         _publishedArtworkWrapper = nil;
@@ -318,7 +338,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
                 && artwork == _publishedArtworkImage
                 && !VibeNowPlayingPositionIsDirty(_publishedPosition, _publishedAt, _publishedRate,
                                                   _publishedState == NowPlayingPlaybackStatePlaying,
-                                                  position, CFAbsoluteTimeGetCurrent(),
+                                                  position, _clock(),
                                                   kVibeNowPlayingRepublishTolerance);
         if (unchanged) {
             return;
@@ -371,7 +391,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // A failed rasterization is retryable on the next publish pass.
     _publishedArtworkImage = _publishedArtworkWrapper ? artwork : nil;
 
-    center.nowPlayingInfo = info;
+    _publish(info, state);
     _hasPublished = YES;
     _publishedURL = track.url.absoluteString ?: @"";
     _publishedTitle = title;
@@ -380,20 +400,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     _publishedRate = rate;
     _publishedDuration = duration;
     _publishedPosition = position;
-    _publishedAt = CFAbsoluteTimeGetCurrent();
-#if TARGET_OS_OSX
-    switch (state) {
-        case NowPlayingPlaybackStatePlaying:
-            center.playbackState = MPNowPlayingPlaybackStatePlaying;
-            break;
-        case NowPlayingPlaybackStatePaused:
-            center.playbackState = MPNowPlayingPlaybackStatePaused;
-            break;
-        case NowPlayingPlaybackStateStopped:
-            center.playbackState = MPNowPlayingPlaybackStateStopped;
-            break;
-    }
-#endif
+    _publishedAt = _clock();
 }
 
 @end

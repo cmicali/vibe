@@ -39,6 +39,9 @@ void VibeWorkTallyAdd(const char *name, uint64_t nanos);
 // window is open, so the tail timer that usually calls it cannot double-log.
 void VibeWorkTallyEndWindow(void);
 
+// Closes the same window and returns its measurements instead of logging them.
+NSDictionary *VibeWorkTallyTakeWindow(void);
+
 __END_DECLS
 
 #endif

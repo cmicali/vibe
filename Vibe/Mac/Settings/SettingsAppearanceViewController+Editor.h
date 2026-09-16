@@ -3,13 +3,15 @@
 //  Vibe
 //
 //  The Appearance pane's editor page: the scrolled stack of themed rows that
-//  swaps in over the theme list, its color wells, the default-artwork pickers
+//  swaps in over the theme list, its color wells, the image pickers
 //  and the font panel. It edits whatever theme is active — the list's
 //  selection IS activation — so nothing is handed over on the page swap; the
 //  class file owns the list page, the swap itself and the theme file actions.
 //
 
 #import "SettingsAppearanceViewController.h"
+#import "MainPlayerController+Settings.h"
+#import "AppTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -32,5 +34,16 @@ NS_ASSUME_NONNULL_BEGIN
 // editor's, and the pass ends in the class file's applyEditorVisibility.
 
 @end
+
+static inline VibeSettingsLiveEffect VibeThemeImageEditEffect(NSString *key) {
+    if ([key isEqualToString:kVibeThemeImageAppIcon]) {
+        return VibeSettingsLiveEffectAppIcon;
+    }
+    if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
+            || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
+        return VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
+    }
+    return VibeSettingsLiveEffectTransportButtons;
+}
 
 NS_ASSUME_NONNULL_END
