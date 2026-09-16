@@ -140,4 +140,53 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     XCTAssertEqualObjects(_drains, expected);
 }
 
+
+#pragma mark - Launch restoration
+
+- (void)testExplicitLaunchOpenSuppressesRestorationAndEmptyState {
+    [_coalescer openBurstURLs:URLBatch(2)];
+    [_coalescer finishLaunchRestoring:^BOOL{ XCTFail(@"Explicit open must win"); return YES; }
+                         revealEmpty:^{ XCTFail(@"An open is pending"); }];
+    [_coalescer openBurstURLs:URLBatch(1)];
+    XCTAssertEqualObjects(_drains, (@[@"replace 2", @"append 1"]));
+}
+
+- (void)testSavedSessionRestoresOnceWithoutArmingABurst {
+    __block NSUInteger restores = 0;
+    [_coalescer finishLaunchRestoring:^BOOL{ restores++; return YES; }
+                         revealEmpty:^{ XCTFail(@"Session restored"); }];
+    XCTAssertEqual(restores, 1u);
+    XCTAssertEqual(_timers.count, 0u);
+    [_coalescer openBurstURLs:URLBatch(2)]; // CLI discovery finished after restoration.
+    [_coalescer openBurstURLs:URLBatch(1)];
+    XCTAssertEqualObjects(_drains, (@[@"replace 2", @"append 1"]));
+}
+
+- (void)testFailedRestorationRevealsEmptyBeforeALateOpen {
+    NSMutableArray *events = [NSMutableArray array];
+    [_coalescer finishLaunchRestoring:^BOOL{ [events addObject:@"restore"]; return NO; }
+                         revealEmpty:^{ [events addObject:@"empty"]; }];
+    XCTAssertEqualObjects(events, (@[@"restore", @"empty"]));
+    [_coalescer openBurstURLs:URLBatch(1)];
+    XCTAssertEqualObjects(_drains, @[@"replace 1"]);
+}
+
+- (void)testCLISelectionSkipsFlagsAndDebugPayloadBeforeProbingPaths {
+    NSMutableArray *probes = [NSMutableArray array];
+    NSArray *urls = [OpenBurstCoalescer fileURLsInArguments:
+            @[@"Vibe", @"--debug-cmd", @"/debug-payload.mp3", @"-flag", @"/missing.mp3", @"/a.mp3", @"/a.mp3", @"~/b.mp3"]
+            existingPath:^BOOL(NSString *path) { [probes addObject:path]; return ![path isEqual:@"/missing.mp3"]; }];
+    NSString *expanded = [@"~/b.mp3" stringByExpandingTildeInPath];
+    XCTAssertEqualObjects(probes, (@[@"/missing.mp3", @"/a.mp3", @"/a.mp3", expanded]));
+    XCTAssertEqualObjects([urls valueForKey:@"path"], (@[@"/a.mp3", @"/a.mp3", expanded]));
+}
+
+- (void)testEmptyArgumentsAndDanglingDebugFlagProduceNoOpens {
+    for (NSArray *args in @[@[], @[@"Vibe"], @[@"Vibe", @"--debug-cmd"]]) {
+        XCTAssertEqual([OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
+            XCTFail(@"No path should be probed: %@", path); return YES;
+        }].count, 0u);
+    }
+}
+
 @end

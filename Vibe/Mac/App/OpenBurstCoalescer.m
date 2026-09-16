@@ -41,6 +41,23 @@
     return self;
 }
 
+- (void)finishLaunchRestoring:(BOOL (^)(void))restore revealEmpty:(dispatch_block_t)revealEmpty {
+    if (![self startAndDrainQueue] && !restore()) revealEmpty();
+}
+
++ (NSArray<NSURL *> *)fileURLsInArguments:(NSArray<NSString *> *)arguments
+                           existingPath:(BOOL (^)(NSString *))exists {
+    NSMutableArray<NSURL *> *urls = NSMutableArray.array;
+    for (NSUInteger i = 1; i < arguments.count; i++) {
+        NSString *argument = arguments[i];
+        if ([argument isEqualToString:@"--debug-cmd"]) { i++; continue; }
+        if ([argument hasPrefix:@"-"]) continue;
+        NSString *path = argument.stringByExpandingTildeInPath;
+        if (exists(path)) [urls addObject:[NSURL fileURLWithPath:path]];
+    }
+    return urls;
+}
+
 - (BOOL)startAndDrainQueue {
     _started = YES;
     if (_queue.count == 0) {

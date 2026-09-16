@@ -25,11 +25,6 @@
     // the formatter truncates, so that is when its text can change. A value
     // of -1 poisons it, so the next tick always writes, even from position 0.
     NSTimeInterval           _lastPosition;
-    // The right label's guard: the whole second it last formatted, with the
-    // remaining/total mode in the low bit, and the text that produced. -1 is
-    // "never".
-    NSInteger                _lastRightLabelKey;
-    NSString                *_lastRightLabelText;
     // The codec line's two independent inputs; see renderFXState:. They are
     // kept so that either can be re-rendered without the other, and as the
     // change guard: the composed string cannot be compared through
@@ -63,7 +58,6 @@
         _bpmTextField = contentView.bpmTextField;
         _dropHintTextField = contentView.dropHintTextField;
         _waveformView = contentView.waveformView;
-        _lastRightLabelKey = -1;
         _contentView = contentView;
         _lastPosition = -1;
         _fileMetadataText = @"";
@@ -331,7 +325,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     if (duration > 0) {
         _waveformView.progress = (float) position / (float) duration;
     }
-    if (state == TrackDisplayStateLoading) {
+    if (!VibeTrackTimeMayUpdate(state, duration, NO)) {
         // The position reads 0 while the open is in flight, meaning unknown
         // rather than zero. renderState shows --:-- for this state, so do not
         // overwrite it.
@@ -361,23 +355,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 - (void)renderRightTimeLabelWithDisplayPosition:(NSTimeInterval)displayPosition
                                        duration:(NSTimeInterval)duration
                                            rate:(double)rate {
-    BOOL remaining = AppSettings.sharedInstance.currentTheme.showRemainingTime;
-    NSTimeInterval value = remaining ? duration / rate - displayPosition : duration / rate;
-    if (!isfinite(value) || value < 0) {
-        value = 0; // the formatter's own clamp, applied here so the key sees it too
-    }
-    // The formatter truncates to whole seconds, so the text is a function of
-    // the floor and the mode alone, and a tick that moves neither has nothing
-    // to format — which was most of the playback tick. The text is kept and
-    // re-applied rather than the write skipped, so another writer of this
-    // label (Loading's --:--) is still overwritten on the next tick as before.
-    NSInteger key = (NSInteger)floor(value) * 2 + (remaining ? 1 : 0);
-    if (key != _lastRightLabelKey) {
-        _lastRightLabelKey = key;
-        NSString *text = [[Formatters sharedInstance] durationStringFromTimeInterval:value];
-        _lastRightLabelText = remaining ? [VibeNotLocalized(@"-") stringByAppendingString:text] : text;
-    }
-    setStringValueIfChanged(self.totalTimeTextField, _lastRightLabelText);
+    NSString *text = [[Formatters sharedInstance] durationStringForFileDuration:duration rate:rate
+            elapsedDisplayTime:displayPosition remaining:AppSettings.sharedInstance.currentTheme.showRemainingTime];
+    setStringValueIfChanged(self.totalTimeTextField, text);
 }
 
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state {
@@ -385,7 +365,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     // and error states the right label must keep showing --:--, and the
     // duration guard stops a 0 rendering as 0:00 — the same clobber
     // renderPosition: guards against.
-    if (state != TrackDisplayStateTrack || duration <= 0) {
+    if (!VibeTrackTimeMayUpdate(state, duration, YES)) {
         return;
     }
     [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition) duration:duration rate:rate];

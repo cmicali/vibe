@@ -31,6 +31,14 @@ NS_ASSUME_NONNULL_BEGIN
 // hierarchy.
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView;
 
+// Runs the same admission and delivery policy with controlled rendering and
+// publication. Render completions are delivered on main; nil uses the real
+// serial renderer or the adopted views/Dock. A nil published image is default art.
+- (instancetype)initWithRenderer:(void (^_Nullable)(NSImage *source, NSColor * _Nullable cachedColor,
+        void (^completion)(NSImage *image, NSColor * _Nullable color, BOOL dark)))renderer
+                      publication:(void (^_Nullable)(NSImage * _Nullable image, NSColor * _Nullable color,
+                                                     BOOL defaultArt, BOOL dark))publication;
+
 // A deferred art load must re-check which track is current when it completes,
 // since the user may have skipped on, and the owner answers here. Set once at
 // startup.
