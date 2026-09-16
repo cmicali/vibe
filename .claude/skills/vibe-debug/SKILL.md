@@ -100,7 +100,6 @@ Five verbs of its own — `settings_open`, `dump_settings_ui`, `settings_click`,
 
 `click`, `drag`, `mouse_*` and the `key*` verbs post synthesized NSEvents into the app's own event queue. Unlike the other `--debug-cmd` verbs, which call controller actions directly, these exercise the **real event dispatch path**: `TransportKeyMonitor`, view `mouseDown:` and tracking loops, and menu key equivalents. Unlike CGEvent injection through `input.swift`, they need no Accessibility permission and target Vibe's event queue directly. This does not prevent a handler from starting an OS interaction.
 
-
 The global-input helper `input.swift` requires `--isolated-desktop`, which asserts isolation rather than creating it.
 
 - **Coordinates are main-window points, top-left origin** — the `dump_screenshot` frame, retina pixel ÷ 2. `dump_view_tree` frames are AppKit **bottom-left** in the superview; convert with the window height. Mouse replies carry `hitView`, so a missed aim shows at once.

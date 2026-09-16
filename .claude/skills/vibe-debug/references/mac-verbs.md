@@ -39,7 +39,7 @@ Action replies are a compact `{ok, state, index, count, position, pitch, lowKill
 
 ## Input injection
 
-Raw input is for explicit gesture tests on an isolated test desktop, never unattended stress. Coordinates and the tracking-loop and right-click traps are in `../SKILL.md`. Prefer the named stress-runner probes, which assert the resulting pitch:
+Raw input is for explicit gesture tests on an isolated test desktop, never unattended stress. Coordinates and the tracking-loop and right-click traps are in `../SKILL.md`. Prefer `stress.py --gesture-test`, which asserts the resulting pitch. The underlying channel command only queues the gesture:
 
 ```bash
 "$V" --debug-cmd gesture_test pitch-reset isolated-desktop  # also pitch-drag
