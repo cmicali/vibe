@@ -125,7 +125,7 @@ Edit > Undo/Redo are thin forwards to the window's `NSUndoManager`; `+Menus` val
 
 `AudioFileConverter.registerUndoForConversion:undoManager:swap:completion:` owns the common inverse: register the opposite action synchronously, restore and verify the replacement, ask the shell to swap any surviving rows, then dispose of the retired file. Its file-location and failed-inverse rules live in `Audio/Mac/Convert/CLAUDE.md`. The shell supplies `swapConvertedTrack:toURL:` and the completion that refreshes destination state, reports failure, reveals a stranded Trash item, and consumes the debug settlement handler.
 
-The model's batch replacement rejects a departed captured row even when a new playlist has the same URL, and replaces every duplicate with a fresh track. `VibeFLACSwapPlaybackIntent` preserves the captured playhead and paused/playing intent only for a loaded current row; a stopped or noncurrent row never starts playback.
+`VibeFLACSwapPlaybackIntent` preserves the captured playhead and paused/playing intent only for a loaded current row; a stopped or noncurrent row never starts playback.
 
 ## Time labels and display states
 
