@@ -1,8 +1,8 @@
 # Coverage record: the materialization coordinator and the silent-stall class
 
-Split out of `docs/done/background-lane-wedged-open-starvation.md` on 2026-08-21 so the coverage substrate could land **before** that fix. That document diagnoses one bug; this one records the standing coverage work it exposed and the fix-specific tests completed with it.
+Split out of the wedged-open starvation bug record on 2026-08-21 (deleted with `docs/done/`; `git show fabbc5da:docs/done/background-lane-wedged-open-starvation.md`) so the coverage substrate could land **before** that fix. That record diagnoses one bug; this one records the standing coverage work it exposed and the fix-specific tests completed with it.
 
-The original bug in one line: a background-lane `AVAudioFile` open that never returned held its transfer admission forever, permanently starving all cloud background materialization. Read `## Why the original harness did not catch it` (W1–W6) in the bug doc for the diagnosis this coverage answers.
+The original bug in one line: a background-lane `AVAudioFile` open that never returned held its transfer admission forever, permanently starving all cloud background materialization. Its `## Why the original harness did not catch it` (W1–W6) is the diagnosis this coverage answers.
 
 **Anchors** are against `main` at `f814829`. Re-check before acting.
 
@@ -90,7 +90,7 @@ Two cheaper derivations of the same idea are worth having on their own, because 
 
 ## Test coverage to add
 
-Items are lettered; the fix steps they pair with are numbered 1–7 in the bug doc's `## The fix`.
+Items are lettered; the fix steps they pair with are numbered 1–7 in the bug record's `## The fix`.
 
 ### A. Unit tests for the fix
 

@@ -294,7 +294,8 @@ H policy numbers · I platform differences · J open items · K non-goals.
   crowding out newly visible iOS pages — but only ~3 art surfaces are ever
   simultaneously wanted. **Resolution:** delete during the simplification,
   gated on an on-device iOS pager check against a stuck fake provider (the one
-  failure mode with no host-less test).
+  failure mode with no host-less test). The simulator pager check was run at the
+  deletion; the on-device iPhone check is not recorded as run.
 - **J7. Stacked open admission (DECIDED, superseded by J8).** Handle opens were
   bounded by a second scheduler whose limits duplicated the transfer lane's.
   The original resolution made one lane slot span transfer and handle open, and
@@ -324,6 +325,12 @@ H policy numbers · I platform differences · J open items · K non-goals.
   metadata and artwork callers have no deadline that guarantees cancellation. A fix
   needs explicit slow-volume, caller-deadline, and retry policy; see the
   [bug record](bugs/no-deadline-on-a-running-materialization.md).
+- **J10. Deferred readability items (OPEN, no behavior at stake).** Two were set
+  aside by the file-load refactor: `AudioTrackArtwork`'s extraction-state
+  booleans could be one enum, but `_embeddedExtractionInFlight` survived
+  demotion while its siblings reset, so the mapping needs its own state-space
+  pass first; and the artwork retry ladder is unlike the coordinator, which
+  settles rather than retries — K4 permits leaving it.
 
 ## K. Non-goals — what this spec deliberately does not constrain
 

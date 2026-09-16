@@ -1,7 +1,7 @@
 # Bug: a running stage-1 materialization has no deadline
 
-Found while reviewing
-[the dataless-probe fix](../done/fix-dataless-probe-on-state-queue.md). **Not fixed.**
+Found while reviewing the dataless-probe fix (`fabbc5da`; its plan is
+`git show fabbc5da:docs/done/fix-dataless-probe-on-state-queue.md`). **Not fixed.**
 
 The initial-classification scheduler caps concurrent and pending probes; it cannot cancel a
 probe already blocked in `stat(2)`. A delayed/readmitted dataless claim is different again: its
