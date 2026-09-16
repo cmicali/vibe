@@ -621,6 +621,9 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
+      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m

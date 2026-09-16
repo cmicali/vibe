@@ -13,6 +13,20 @@
 #import <CoreAudio/AudioHardwareBase.h>
 #include <math.h>
 
+// A saved-device bind may land while stopped, or during the first loading
+// open before the engine starts. Loading with a running outgoing fade must
+// not rebind underneath it; playing and paused are also excluded.
+static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL engineRunning) {
+    return stopped || (loading && !engineRunning);
+}
+
+// Manual selection clears the pending preference. Content equality permits
+// copied strings, but nil never revives a cleared or superseded lookup.
+static inline BOOL VibeSavedOutputDeviceRequestIsCurrent(NSString *uid, NSString *name,
+        NSString *pendingUID, NSString *pendingName) {
+    return [pendingUID isEqualToString:uid] && [pendingName isEqualToString:name];
+}
+
 typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // The setting is off, or the device is ineligible — defensive: the shell
     // never lets the two coincide.

@@ -80,6 +80,8 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
     BOOL _hasSuccessfulSnapshot;
     NSMutableArray<void (^)(NSArray<AudioDevice *> *)> *_snapshotWaiters;
     BOOL _snapshotRetryScheduled;
+    NSArray<AudioDevice *> *(^_enumerator)(BOOL);
+    void (^_retryScheduler)(NSTimeInterval, dispatch_block_t);
     // Consecutive sweeps discarded for a per-device read failure. Bounds how
     // long a permanently broken device can keep the whole list unpublished;
     // see kMaxIncompleteSweeps. Confined to _refreshQueue.
@@ -133,8 +135,15 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 }
 
 - (instancetype)init {
+    return [self initWithEnumerator:nil retryScheduler:nil];
+}
+
+- (instancetype)initWithEnumerator:(NSArray<AudioDevice *> *(^)(BOOL))enumerator
+                     retryScheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler {
     self = [super init];
     if (self) {
+        _enumerator = [enumerator copy];
+        _retryScheduler = [scheduler copy];
         _observers = [NSHashTable weakObjectsHashTable];
         _observersLock = OS_UNFAIR_LOCK_INIT;
         _devicesLock = OS_UNFAIR_LOCK_INIT;
@@ -155,19 +164,21 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         // resolution instead waits asynchronously for this block to publish a
         // successful snapshot.
         dispatch_async(_refreshQueue, ^{
-            // Deliver HAL notifications on the HAL's own thread rather than
-            // the main run loop. notifyObserversUsingBlock: hops to the main
-            // thread itself.
-            CFRunLoopRef nullRunLoop = NULL;
-            AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-            OSStatus runLoopStatus = AudioObjectSetPropertyData(kAudioObjectSystemObject,
-                    &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
-            if (runLoopStatus != noErr) {
-                LogWarn(@"AudioDeviceManager could not move HAL callbacks off the run loop (OSStatus %d)",
-                        (int)runLoopStatus);
-            }
-            if (![self registerMissingListeners]) {
-                [self scheduleListenerRegistrationRetry];
+            if (!self->_enumerator) {
+                // Deliver HAL notifications on the HAL's own thread rather than
+                // the main run loop. notifyObserversUsingBlock: hops to the main
+                // thread itself.
+                CFRunLoopRef nullRunLoop = NULL;
+                AudioObjectPropertyAddress runLoopProperty = { kAudioHardwarePropertyRunLoop, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+                OSStatus runLoopStatus = AudioObjectSetPropertyData(kAudioObjectSystemObject,
+                        &runLoopProperty, 0, NULL, sizeof(CFRunLoopRef), &nullRunLoop);
+                if (runLoopStatus != noErr) {
+                    LogWarn(@"AudioDeviceManager could not move HAL callbacks off the run loop (OSStatus %d)",
+                            (int)runLoopStatus);
+                }
+                if (![self registerMissingListeners]) {
+                    [self scheduleListenerRegistrationRetry];
+                }
             }
             // Covers a change that landed before either listener attached. A
             // later change queues its own refresh behind this block.
@@ -275,7 +286,8 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     // failure still never masquerades as removal while a permanent one cannot
     // keep the whole list unpublished forever.
     BOOL acceptPartial = _incompleteSweeps >= kMaxIncompleteSweeps;
-    NSArray<AudioDevice *> *devices = [self enumerateOutputDevicesAcceptingPartial:acceptPartial];
+    NSArray<AudioDevice *> *devices = [(_enumerator ? _enumerator(acceptPartial)
+            : [self enumerateOutputDevicesAcceptingPartial:acceptPartial]) copy];
     if (!devices) {
         _incompleteSweeps++;
         [self scheduleSnapshotRetry];
@@ -304,12 +316,20 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         return;
     }
     _snapshotRetryScheduled = YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), _refreshQueue, ^{
-        self->_snapshotRetryScheduled = NO;
-        if ([self refreshOutputDevicesCache]) {
-            [self notifyDeviceStateRecovered];
-        }
-    });
+    __weak AudioDeviceManager *weakSelf = self;
+    dispatch_block_t retry = ^{
+        AudioDeviceManager *strongSelf = weakSelf;
+        if (!strongSelf) return;
+        dispatch_async(strongSelf->_refreshQueue, ^{
+            strongSelf->_snapshotRetryScheduled = NO;
+            if ([strongSelf refreshOutputDevicesCache]) [strongSelf notifyDeviceStateRecovered];
+        });
+    };
+    if (_retryScheduler) {
+        _retryScheduler(2, retry);
+    } else {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), _refreshQueue, retry);
+    }
 }
 
 - (BOOL)registerMissingListeners {
@@ -372,11 +392,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 // AudioPlayer's removed-device fallback, or an open devices menu's rebuild —
 // therefore read a cache that already reflects the change they are told about.
 - (void)refreshDevicesThenNotify:(void (^)(id<AudioDeviceManagerObserver> observer))block {
-    dispatch_async(_refreshQueue, ^{
-        if ([self refreshOutputDevicesCache]) {
-            [self notifyObserversUsingBlock:block];
-        }
-    });
+    [self refreshOutputDevicesWithCompletion:^(BOOL published) {
+        if (published) [self notifyObserversUsingBlock:block];
+    }];
+}
+
+- (void)refreshOutputDevicesWithCompletion:(void (^)(BOOL))completion {
+    dispatch_async(_refreshQueue, ^{ completion([self refreshOutputDevicesCache]); });
 }
 
 // The full sweep: the device list and default plus per-device HAL reads for

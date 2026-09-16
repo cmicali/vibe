@@ -11,6 +11,19 @@
 
 @implementation CoreAudioUtil
 
++ (BOOL)releaseDeviceObligation:(AudioDeviceID *)deviceID attempt:(BOOL (^)(void))attempt
+                      isAbsent:(BOOL (^)(AudioDeviceID))isAbsent {
+    if (*deviceID == kAudioObjectUnknown) return YES;
+    for (NSUInteger retry = 0; retry < 2; retry++) {
+        if (attempt() || isAbsent(*deviceID)) {
+            *deviceID = kAudioObjectUnknown;
+            return YES;
+        }
+    }
+    return NO;
+}
+
+
 + (AudioDeviceID)systemDefaultOutputDeviceID {
     AudioDeviceID deviceID = kAudioObjectUnknown;
     [self readSystemDefaultOutputDeviceID:&deviceID];

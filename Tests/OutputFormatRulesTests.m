@@ -6,6 +6,8 @@
 #import <XCTest/XCTest.h>
 
 #import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
+#import "AudioDeviceManager.h"
+#import "CoreAudioUtil.h"
 
 static AudioStreamBasicDescription PCM(double rate, UInt32 bits, BOOL isFloat) {
     AudioStreamBasicDescription d = {0};
@@ -64,10 +66,19 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     return n;
 }
 
-@interface OutputFormatRulesTests : XCTestCase
+@interface OutputFormatRulesTests : XCTestCase <AudioDeviceManagerObserver>
 @end
 
-@implementation OutputFormatRulesTests
+@implementation OutputFormatRulesTests {
+    NSArray<AudioDevice *> *_nextDeviceSnapshot;
+    NSMutableArray<NSNumber *> *_deviceSweeps;
+    NSMutableArray<dispatch_block_t> *_deviceRetries;
+    dispatch_block_t _deviceChangeHandler;
+}
+
+- (void)audioOutputDevicesDidChange {
+    if (_deviceChangeHandler) _deviceChangeHandler();
+}
 
 #pragma mark - Source depth
 
@@ -463,6 +474,228 @@ static VibeBitPerfectReport Perfect(void) {
     r.hogWanted = NO;
     r.exclusive = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusActive);
+}
+
+#pragma mark - Device discovery and snapshot lifecycle
+
+- (AudioDevice *)device:(NSInteger)identifier uid:(NSString *)uid name:(NSString *)name {
+    return [[AudioDevice alloc] initWithName:name uid:uid deviceId:identifier isSystemDefault:NO transportType:kAudioDeviceTransportTypeUSB];
+}
+
+- (AudioDeviceManager *)managerWithSnapshot:(NSArray<AudioDevice *> *)snapshot {
+    _nextDeviceSnapshot = snapshot;
+    _deviceSweeps = [NSMutableArray array];
+    _deviceRetries = [NSMutableArray array];
+    XCTestExpectation *started = [self expectationWithDescription:@"initial enumeration"];
+    AudioDeviceManager *manager = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+        @synchronized (self) {
+            [self->_deviceSweeps addObject:@(partial)];
+            if (self->_deviceSweeps.count == 1) [started fulfill];
+            return self->_nextDeviceSnapshot;
+        }
+    } retryScheduler:^(NSTimeInterval delay, dispatch_block_t retry) {
+        @synchronized (self) {
+            XCTAssertEqual(delay, 2);
+            [self->_deviceRetries addObject:[retry copy]];
+        }
+    }];
+    [self waitForExpectations:@[started] timeout:2];
+    [manager outputDevices]; // Initial setup has returned from the injected enumeration.
+    return manager;
+}
+
+- (void)refresh:(AudioDeviceManager *)manager snapshot:(NSArray<AudioDevice *> *)snapshot published:(BOOL)expected {
+    @synchronized (self) { _nextDeviceSnapshot = snapshot; }
+    XCTestExpectation *done = [self expectationWithDescription:@"refresh completion"];
+    [manager refreshOutputDevicesWithCompletion:^(BOOL published) {
+        XCTAssertFalse(NSThread.isMainThread);
+        XCTAssertEqual(published, expected);
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:2];
+}
+
+- (void)testUnpublishedSnapshotIsUnknownWhilePublishedEmptyMeansAbsent {
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
+    XCTAssertEqual(manager.outputDevices.count, 0u);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:42]);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:-1]);
+    [self refresh:manager snapshot:@[] published:YES];
+    XCTAssertEqual(manager.outputDevices.count, 0u);
+    XCTAssertTrue([manager knowsOutputDeviceIsAbsent:42]);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:-1], @"System Output is a policy, never a removed device");
+}
+
+- (void)testFailedRefreshRetainsPublishedDevicesAndTheirIdentity {
+    AudioDevice *device = [self device:42 uid:@"usb" name:@"DAC"];
+    AudioDeviceManager *manager = [self managerWithSnapshot:@[device]];
+    [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqualObjects(manager.outputDevices, @[device]);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:42]);
+    XCTAssertEqual([manager outputDeviceForId:42], device);
+    [self refresh:manager snapshot:@[] published:YES];
+    XCTAssertTrue([manager knowsOutputDeviceIsAbsent:42]);
+    XCTAssertNil([manager outputDeviceForId:42]);
+}
+
+- (void)testPublishedDeviceArrayCannotBeMutatedThroughEnumerationResult {
+    AudioDevice *device = [self device:42 uid:@"usb" name:@"DAC"];
+    NSMutableArray *enumerated = [NSMutableArray arrayWithObject:device];
+    AudioDeviceManager *manager = [self managerWithSnapshot:enumerated];
+    [enumerated removeAllObjects];
+    XCTAssertEqualObjects(manager.outputDevices, @[device]);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:42]);
+}
+
+- (void)testPartialSweepStartsAfterThreeFailuresAndSuccessResetsTheBudget {
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
+    [self refresh:manager snapshot:nil published:NO];
+    [self refresh:manager snapshot:nil published:NO];
+    [self refresh:manager snapshot:@[] published:YES];
+    [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqualObjects(_deviceSweeps, (@[@NO, @NO, @NO, @YES, @NO]));
+    XCTAssertEqual(_deviceRetries.count, 1u, @"Repeated failures share the outstanding retry");
+}
+
+- (void)testEvenPartialEnumerationFailureCannotPublishFalseRemoval {
+    AudioDevice *device = [self device:42 uid:@"usb" name:@"DAC"];
+    AudioDeviceManager *manager = [self managerWithSnapshot:@[device]];
+    for (NSUInteger i = 0; i < 5; i++) [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqualObjects(_deviceSweeps.lastObject, @YES);
+    XCTAssertEqualObjects(manager.outputDevices, @[device]);
+    XCTAssertFalse([manager knowsOutputDeviceIsAbsent:42]);
+}
+
+- (void)testPendingSavedDeviceLookupsDrainExactlyOnceAfterRecovery {
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
+    AudioDevice *device = [self device:42 uid:@"usb" name:@"DAC"];
+    XCTestExpectation *resolved = [self expectationWithDescription:@"both waiters"];
+    resolved.expectedFulfillmentCount = 2;
+    __block NSUInteger deliveries = 0;
+    for (NSUInteger i = 0; i < 2; i++) {
+        [manager resolveOutputDeviceForUID:@"usb" name:@"DAC" completion:^(AudioDevice *answer) {
+            XCTAssertFalse(NSThread.isMainThread);
+            XCTAssertEqual(answer, device);
+            deliveries++;
+            [resolved fulfill];
+        }];
+    }
+    [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqual(deliveries, 0u);
+    [self refresh:manager snapshot:@[device] published:YES];
+    [self waitForExpectations:@[resolved] timeout:2];
+    [self refresh:manager snapshot:@[] published:YES];
+    XCTAssertEqual(deliveries, 2u);
+}
+
+- (void)testSavedDeviceResolutionPrefersUIDThenFallsBackToName {
+    AudioDevice *a = [self device:1 uid:@"a" name:@"DAC"];
+    AudioDevice *b = [self device:2 uid:@"b" name:@"DAC"];
+    AudioDeviceManager *manager = [self managerWithSnapshot:@[a, b]];
+    NSArray *cases = @[@[@"b", @"DAC", b], @[@"unknown", @"DAC", a], @[@"", @"DAC", a],
+                       @[@"a", @"renamed", a], @[@"unknown", @"missing", NSNull.null]];
+    XCTestExpectation *resolved = [self expectationWithDescription:@"UID/name resolutions"];
+    resolved.expectedFulfillmentCount = cases.count;
+    for (NSArray *row in cases) {
+        [manager resolveOutputDeviceForUID:row[0] name:row[1] completion:^(AudioDevice *answer) {
+            XCTAssertEqualObjects(answer ?: NSNull.null, row[2]);
+            [resolved fulfill];
+        }];
+    }
+    [self waitForExpectations:@[resolved] timeout:2];
+}
+
+- (void)testAuthoritativeEmptySnapshotCompletesAnUnmatchedLookup {
+    AudioDeviceManager *manager = [self managerWithSnapshot:@[]];
+    XCTestExpectation *resolved = [self expectationWithDescription:@"no match"];
+    [manager resolveOutputDeviceForUID:@"missing" name:@"DAC" completion:^(AudioDevice *answer) {
+        XCTAssertNil(answer);
+        [resolved fulfill];
+    }];
+    [self waitForExpectations:@[resolved] timeout:2];
+    XCTAssertEqual(_deviceRetries.count, 0u);
+}
+
+- (void)testRecoveryTimerPublishesBeforeMainThreadObserversRun {
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
+    AudioDevice *device = [self device:42 uid:@"usb" name:@"DAC"];
+    XCTestExpectation *notified = [self expectationWithDescription:@"recovery observer"];
+    _deviceChangeHandler = ^{
+        XCTAssertTrue(NSThread.isMainThread);
+        XCTAssertEqualObjects(manager.outputDevices, @[device]);
+        [notified fulfill];
+    };
+    [manager addObserver:self];
+    @synchronized (self) { _nextDeviceSnapshot = @[device]; }
+    dispatch_block_t retry = _deviceRetries.firstObject;
+    retry();
+    [self waitForExpectations:@[notified] timeout:2];
+    [manager removeObserver:self];
+    _deviceChangeHandler = nil;
+    [self refresh:manager snapshot:nil published:NO];
+    XCTAssertEqual(_deviceRetries.count, 2u, @"Completed timer releases the retry slot");
+}
+
+#pragma mark - Deferred saved-device bind races
+
+- (void)testSavedDeviceMayBindAtIdleOrSilentLaunchButNotUnderAnOutgoingFade {
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, YES));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, YES, NO));
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, YES, YES));
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES)); // playing or paused
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, NO)); // paused engine may be idle-stopped
+}
+
+- (void)testSavedDeviceAnswerCannotOverwriteManualSelectionOrANewerPreference {
+    XCTAssertTrue(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", [@"uid" mutableCopy], [@"DAC" mutableCopy]));
+    XCTAssertTrue(VibeSavedOutputDeviceRequestIsCurrent(@"", @"DAC", @"", @"DAC"));
+    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", nil, nil));
+    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", @"other", @"DAC"));
+    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", @"uid", @"other"));
+}
+
+#pragma mark - Format restore / exclusive release obligations
+
+- (void)testSuccessfulDeviceCleanupClearsSlotWithoutAnAbsenceReadOrRetry {
+    AudioDeviceID deviceID = 42;
+    __block NSUInteger attempts = 0;
+    XCTAssertTrue([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ attempts++; return YES; }
+            isAbsent:^BOOL(AudioDeviceID identifier) { XCTFail(@"Successful write settled it"); return NO; }]);
+    XCTAssertEqual(deviceID, kAudioObjectUnknown);
+    XCTAssertEqual(attempts, 1u);
+}
+
+- (void)testDeviceCleanupRetriesOnceAndRetainsFailureForTheNextLeave {
+    AudioDeviceID deviceID = 42;
+    __block NSUInteger attempts = 0;
+    BOOL (^unknownOrPresent)(AudioDeviceID) = ^BOOL(AudioDeviceID identifier) { XCTAssertEqual(identifier, 42u); return NO; };
+    XCTAssertFalse([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ attempts++; return NO; } isAbsent:unknownOrPresent]);
+    XCTAssertEqual(attempts, 2u);
+    XCTAssertEqual(deviceID, 42u, @"An uncertain restore must not forget which device is owed");
+    attempts = 0;
+    XCTAssertTrue([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ return ++attempts == 2; } isAbsent:unknownOrPresent]);
+    XCTAssertEqual(attempts, 2u);
+    XCTAssertEqual(deviceID, kAudioObjectUnknown);
+}
+
+- (void)testConfirmedRemovalRetiresCleanupWhileUnknownDiscoveryKeepsIt {
+    AudioDeviceManager *manager = [self managerWithSnapshot:nil];
+    AudioDeviceID deviceID = 42;
+    BOOL (^absent)(AudioDeviceID) = ^BOOL(AudioDeviceID identifier) { return [manager knowsOutputDeviceIsAbsent:identifier]; };
+    XCTAssertFalse([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ return NO; } isAbsent:absent]);
+    XCTAssertEqual(deviceID, 42u);
+    [self refresh:manager snapshot:@[] published:YES];
+    __block NSUInteger attempts = 0;
+    XCTAssertTrue([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ attempts++; return NO; } isAbsent:absent]);
+    XCTAssertEqual(attempts, 1u);
+    XCTAssertEqual(deviceID, kAudioObjectUnknown);
+}
+
+- (void)testEmptyDeviceObligationTouchesNoHardwareOrDiscovery {
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    XCTAssertTrue([CoreAudioUtil releaseDeviceObligation:&deviceID attempt:^BOOL{ XCTFail(@"No device to restore"); return NO; }
+            isAbsent:^BOOL(AudioDeviceID identifier) { XCTFail(@"No discovery needed"); return NO; }]);
 }
 
 @end
