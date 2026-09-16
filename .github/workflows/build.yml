@@ -57,6 +57,21 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             "build/DerivedData/Build/Products/${{ matrix.configuration }}/Vibe.app"
 
+      # Parked, not deleted. The exclusive-output flag stays in the code; this
+      # step comes back if App Store review rejects the hog-mode APIs and we
+      # have to ship two builds, one with them and one without. Until then the
+      # flag-off build is not exercised.
+      # - name: Build without exclusive output
+      #   if: matrix.configuration == 'Release'
+      #   run: |
+      #     xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Release \
+      #       -derivedDataPath build/DerivedData VIBE_ENABLE_EXCLUSIVE_OUTPUT=0 build
+      #     nm build/DerivedData/Build/Products/Release/Vibe.app/Contents/MacOS/Vibe > /tmp/vibe-symbols.txt
+      #     if grep -Eq 'readHogOwner|setHogOwnedByThisProcess|acquireExclusiveOutputOnQueue|releaseExclusiveOutputOnQueue|toggleExclusiveOutput' /tmp/vibe-symbols.txt; then
+      #       echo 'Exclusive output methods survived the disabled build'
+      #       exit 1
+      #     fi
+
   # A job of its own rather than a step on the build matrix: the suite is
   # Debug-only, so hanging it off a two-configuration matrix would either run
   # it twice or run it in a leg where it doesn't belong. Separate also means it
@@ -93,6 +108,28 @@ jobs:
         with:
           name: TestResults.xcresult
           path: build/TestResults.xcresult
+          retention-days: 7
+
+  # Real AudioPlayer/AudioFX graphs, pulled offline: no audio device or app.
+  test-audio:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-xcodegen
+      - name: Install fixture encoder
+        run: brew install ffmpeg
+      - name: Render and compare audio
+        run: make test-audio
+      - name: Audio test summary
+        if: always()
+        run: make test-audio-summary
+      - name: Upload audio failures and PCM attachments
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: AudioTestResults.xcresult
+          path: build/AudioTestResults.xcresult
           retention-days: 7
 
   # clang's static analyzer, failing on any finding outside ThirdParty/.

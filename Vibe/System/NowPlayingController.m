@@ -48,7 +48,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 @implementation NowPlayingController {
     __weak id<NowPlayingControllerDelegate> _delegate;
 #if DEBUG
-    // --no-audio-hw: publish nothing to the system. See the initializer.
+    // Debug launches can leave system media focus alone. See the initializer.
     BOOL _suppressed;
 #endif
 
@@ -107,16 +107,14 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     if (self) {
         _delegate = delegate;
 #if DEBUG
-        // --no-audio-hw exists so a test run leaves the system's audio
-        // routing alone, and publishing Now Playing defeats that on its own:
-        // registering as the active media app is enough for macOS to pull
-        // auto-switching AirPods over from another device, with no output
-        // device ever opened. Suppressing the publish keeps the flag's
-        // promise. Testing Now Playing itself therefore needs a launch
-        // without it (VIBE_AUDIBLE=1 for launch.sh).
-        _suppressed = [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+        // TRAP: publishing Now Playing can pull AirPods from another device
+        // even when rendering to a virtual output. Hardware loopback tests
+        // need suppression independently of the manual-rendering flag.
+        NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+        _suppressed = [arguments containsObject:@"--no-audio-hw"]
+                || [arguments containsObject:@"--no-now-playing"];
         if (_suppressed) {
-            LogInfo(@"NowPlayingController: --no-audio-hw, system Now Playing not published");
+            LogInfo(@"NowPlayingController: system Now Playing suppressed for this debug launch");
             return self;
         }
 #endif

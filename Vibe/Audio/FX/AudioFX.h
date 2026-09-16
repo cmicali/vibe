@@ -36,8 +36,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioFX : NSObject
 
 // queue is the player's serial engine queue. Every mutation this class makes
-// runs there.
-- (instancetype)initWithQueue:(dispatch_queue_t)queue;
+// runs there. scheduler runs a block on that queue after a delay — the
+// player's own scheduleAfterSeconds:block:, so the sweeps and gate ramps ride
+// whatever clock the player does (the debug pump's, under manual rendering).
+- (instancetype)initWithQueue:(dispatch_queue_t)queue
+                    scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
 
 // Builds, attaches and wires the whole FX segment, then applies any intent
 // recorded before the engine existed. It must run on the queue, once, before

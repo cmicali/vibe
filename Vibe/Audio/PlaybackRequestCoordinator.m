@@ -68,7 +68,7 @@
 
 - (VibePlaybackRequest *)markSlowForRequest:(uint64_t)identifier {
     VibePlaybackRequest *request = _currentRequest;
-    if (!request || request.identifier != identifier || request.isSlow) {
+    if (![self isCurrentRequest:identifier] || request.isSlow) {
         return nil;
     }
     request.slow = YES;
@@ -115,11 +115,15 @@
 
 - (VibePlaybackRequest *)consumeRequest:(uint64_t)identifier {
     VibePlaybackRequest *request = _currentRequest;
-    if (!request || request.identifier != identifier) {
+    if (![self isCurrentRequest:identifier]) {
         return nil;
     }
     _currentRequest = nil;
     return [self copyOfRequest:request];
+}
+
+- (BOOL)isCurrentRequest:(uint64_t)identifier {
+    return _currentRequest && _currentRequest.identifier == identifier;
 }
 
 - (void)invalidate {

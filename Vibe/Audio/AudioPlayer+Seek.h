@@ -16,16 +16,14 @@
 //    seek submitted a moment after a play does not evaporate in the gap before
 //    the player queue enters Loading.
 //  - **Unscheduling a stale splice reuses this whole path**, through
-//    seekToPosition:restoringPreemptedPause: — the fade down/reschedule/fade
+//    seekOnQueueToPosition:restoringPreemptedPause: — the fade down/reschedule/fade
 //    up dance is the only click-free way to drop a queued segment. It costs
 //    one spurious didFinishSeeking:, which only settles UI. Restoring matters
 //    because that seek is internal: a user seek deliberately cancels a pending
 //    pause, but a pause raced against a playlist retarget must survive it, so
 //    the internal seek lands parked instead of fading back up.
 //
-//  The reschedule half is private to this file: seekToPosition: is the only
-//  caller, and the whole point of the pair is that nothing else may enter
-//  halfway.
+//  The fade completion stays private to this file.
 //
 
 #import "AudioPlayer.h"
@@ -41,11 +39,11 @@ NS_ASSUME_NONNULL_BEGIN
 // that is still opening and applies when it starts.
 - (void)seekToPosition:(NSTimeInterval)position;
 
-// The internal splice-unschedule form: a pending pause this seek preempts is
-// carried through and the reschedule lands parked, with didPausePlaying:
-// delivered. Every user seek takes the plain form, which cancels the pause.
-- (void)seekToPosition:(NSTimeInterval)position
-        restoringPreemptedPause:(BOOL)restoringPreemptedPause;
+// Runs on the player queue for the current track. Splice removal enters
+// directly, preserving pause intent; another queue hop could move an old
+// position past a newer user seek or output rebuild.
+- (void)seekOnQueueToPosition:(NSTimeInterval)position
+      restoringPreemptedPause:(BOOL)restoringPreemptedPause;
 
 @end
 

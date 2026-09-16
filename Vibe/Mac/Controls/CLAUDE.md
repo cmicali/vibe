@@ -18,6 +18,8 @@ Each button sets its own `symbolPointSize` and the icon is drawn centered in the
 - **`ArtworkImageView`** — `CrossfadingImageView` plus `NSDraggingSource`: the foreground art card, dragged out as whatever `AppSettings.artworkDragAction` names — the file itself (`copy_file`, the default), its path, or the displayed track's `trackDisplayName`. The mode is read **once at drag start**, and only the file payload holds the security scope open past `beginDragWithEvent:`, since only it is read by the receiver after the drop; the text payloads leave `_securityScopedURL` nil so the end-of-session stop stays balanced. `fileURL` alone is the have-a-track signal every mode gates on, and both payload properties are reassigned together by `ArtworkDisplayController`.
 - **`ScaledImageView`** — an `NSImageView` with a `drawImageOverlayInRect:` hook for subclasses.
 
+A pending artwork press revalidates its file and drag payload at the first drag event: Close or a playback failure can clear them after mouse-down.
+
 ## Pitch control
 
 - **`PitchFaderView`** — the fader itself, with its own delegate.

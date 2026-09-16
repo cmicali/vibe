@@ -11,7 +11,9 @@
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h"
 #import "OutputDevicesMenuController.h"
+#import "OutputFormatRules.h"
 #import "VibeStrings.h"
 
 static const CGFloat kOutputPopUpWidth = 280;
@@ -26,6 +28,14 @@ static const CGFloat kOutputPopUpWidth = 280;
     // observation below covers it while it is closed.
     OutputDevicesMenuController *_outputMenuController;
     NSPopUpButton *_outputPopUp;
+    // Enabled only for a device bit-perfect output can drive; the row's
+    // caption says why otherwise, and names the format while it is active.
+    NSSwitch *_bitPerfectSwitch;
+    SettingsRowView *_bitPerfectRow;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    NSSwitch *_exclusiveOutputSwitch;
+    SettingsRowView *_exclusiveOutputRow;
+#endif
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSSwitch *_reopenPlaylistSwitch;
@@ -64,6 +74,17 @@ static const CGFloat kOutputPopUpWidth = 280;
     widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
+    _bitPerfectSwitch = [self switchWithAction:@selector(toggleBitPerfect:)];
+    _bitPerfectRow = [SettingsRowView rowWithTitle:STR_SETTINGS_BIT_PERFECT
+                                           caption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF
+                                           control:_bitPerfectSwitch];
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    _exclusiveOutputSwitch = [self switchWithAction:@selector(toggleExclusiveOutput:)];
+    _exclusiveOutputRow = [SettingsRowView rowWithTitle:STR_SETTINGS_EXCLUSIVE_OUTPUT
+                                               caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
+                                               control:_exclusiveOutputSwitch];
+#endif
+
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
     _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
@@ -83,6 +104,10 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
+            _bitPerfectRow,
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            _exclusiveOutputRow,
+#endif
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_STARTUP_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
@@ -101,7 +126,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 }
 
 - (void)refreshFromSettings {
-    [self refreshOutputPopUp];
+    [self refreshOutputDevice];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
@@ -109,6 +134,64 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 }
+
+// The switch follows the Output popup beside it: enabled only while the
+// chosen device is one the mode can drive (OutputFormatRules.h), with the
+// caption saying why otherwise. On, the caption is the player's own report —
+// the same sentence the header's open lock shows on hover — and the report
+// settles asynchronously, so the toggle's own call shows the previous one
+// until the player controller's report-change call corrects it.
+- (void)refreshBitPerfectRows {
+    if (!self.viewLoaded) {
+        return;
+    }
+    AudioPlayer *audioPlayer = self.playerController.audioPlayer;
+    NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
+    AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
+    BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
+    _bitPerfectSwitch.enabled = on || eligible; // an unavailable saved device must not trap the mode on
+    _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
+    NSString *caption;
+    if (!eligible) {
+        caption = STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
+    }
+    else if (on) {
+        caption = [self.playerController bitPerfectStatusText];
+    }
+    else {
+        caption = STR_SETTINGS_BIT_PERFECT_CAPTION_OFF;
+    }
+    BOOL captionChanged = [_bitPerfectRow setCaption:caption];
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    BOOL exclusiveEligible = device && VibeBitPerfectShouldHog(YES, device.transportType,
+            device.isSystemDefault);
+    _exclusiveOutputSwitch.enabled = on && exclusiveEligible;
+    _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
+            ? NSControlStateValueOn : NSControlStateValueOff;
+    NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
+            : !exclusiveEligible ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_DEVICE
+            : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
+    captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
+#endif
+    if (captionChanged) {
+        [self paneContentDidChange];
+    }
+}
+
+- (void)toggleBitPerfect:(id)sender {
+    AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+    [self refreshOutputDevice]; // the popup grays ineligible devices out while on
+}
+
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+- (void)toggleExclusiveOutput:(id)sender {
+    AppSettings.sharedInstance.exclusiveOutput = (_exclusiveOutputSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect];
+    [self refreshBitPerfectRows];
+}
+#endif
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
@@ -135,7 +218,10 @@ static const CGFloat kOutputPopUpWidth = 280;
 // controller-set item state and the popup's own selected-item checkmark are
 // deliberately redundant — they land on the same item as long as this
 // selection stays in sync, so neither path should be removed.
-- (void)refreshOutputPopUp {
+- (void)refreshOutputDevice {
+    if (!self.viewLoaded) {
+        return;
+    }
     [_outputMenuController menuNeedsUpdate:_outputPopUp.menu];
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
@@ -144,18 +230,15 @@ static const CGFloat kOutputPopUpWidth = 280;
         // Output, so show that.
         [_outputPopUp selectItemWithTag:-1];
     }
+    [self refreshBitPerfectRows];
 }
 
 - (void)audioOutputDevicesDidChange {
-    if (self.viewLoaded) {
-        [self refreshOutputPopUp];
-    }
+    [self refreshOutputDevice];
 }
 
 - (void)systemDefaultOutputDeviceDidChange {
-    if (self.viewLoaded) {
-        [self refreshOutputPopUp];
-    }
+    [self refreshOutputDevice];
 }
 
 #pragma mark - Default music player

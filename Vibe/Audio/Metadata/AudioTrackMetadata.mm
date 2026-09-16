@@ -670,9 +670,7 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
                                             fractionDigits:0]]];
     }
     if (self.sampleRate != nil) {
-        [parts addObject:[NSString stringWithFormat:STR_LABEL_SAMPLE_RATE,
-                [[Formatters sharedInstance] decimalString:self.sampleRate.doubleValue / 1000
-                                            fractionDigits:1]]];
+        [parts addObject:[[Formatters sharedInstance] sampleRateString:self.sampleRate.doubleValue]];
     }
     return [parts componentsJoinedByString:VibeNotLocalized(@" | ")];
 }

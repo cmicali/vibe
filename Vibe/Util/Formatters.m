@@ -4,6 +4,7 @@
 //
 
 #import "Formatters.h"
+#import "VibeStrings.h"
 
 
 @implementation Formatters {
@@ -124,6 +125,10 @@
     NSDateComponentsFormatter *formatter = duration >= 3600 ? _hourTimeFormatter : _timeFormatter;
     NSString *result = [formatter stringFromTimeInterval:duration];
     return result ?: @"";
+}
+
+- (NSString *)sampleRateString:(double)hertz {
+    return [NSString stringWithFormat:STR_LABEL_SAMPLE_RATE, [self decimalString:hertz / 1000 fractionDigits:1]];
 }
 
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits {

@@ -9,12 +9,11 @@
 //  the media keys to Vibe, and publishing now-playing info is what makes Vibe
 //  the system's active Now Playing app.
 //
-//  TRAP: the debug-only --no-audio-hw flag suppresses all of it — no publish,
-//  no command registration. Becoming the system's active media app pulls
-//  auto-switching AirPods over from another device even when no output device
-//  was ever opened, which would defeat the flag's whole purpose, so a test
-//  launch stays silent here too. Verifying this class therefore needs a launch
-//  without that flag; see the vibe-debug skill.
+//  TRAP: the debug-only --no-audio-hw and --no-now-playing flags suppress all
+//  of it — no publish, no command registration. Publishing can pull AirPods
+//  from another device even when rendering to a virtual output. The latter
+//  flag leaves hardware rendering enabled for loopback tests. Verifying this
+//  class needs a launch without either flag; see the vibe-debug skill.
 //
 //  It owns no playback state. MainPlayerController drives it with track and
 //  timing updates through updateWithTrack:..., and receives the hardware

@@ -7,6 +7,7 @@
 
 @class MainPlayerController;
 @class SettingsAppearanceViewController;
+@class SettingsGeneralViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -14,9 +15,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
-// The Appearance pane, the one pane other code addresses by name: the theme
-// editor's host, and the debug channel's preview and navigation target.
+// The two panes other code addresses by name: Appearance is the theme
+// editor's host and the debug channel's preview and navigation target;
+// General shows the bit-perfect report, which the player controller
+// refreshes as it changes.
 - (nullable SettingsAppearanceViewController *)appearancePane;
+- (nullable SettingsGeneralViewController *)generalPane;
 
 // Selects the Appearance pane and lands on the theme editor — View > Theme >
 // Edit Themes…'s destination. The window must already be shown (the app

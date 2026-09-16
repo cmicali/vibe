@@ -84,6 +84,7 @@
 @interface ArtworkLoadObservingWorkScheduler : AudioWorkScheduler
 @property (nonatomic, copy, nullable) void (^rejectionObserved)(
         VibeAudioWorkAdmissionFailure failure);
+@property (nonatomic, copy, nullable) dispatch_block_t completionObserved;
 @end
 
 @implementation ArtworkLoadObservingWorkScheduler
@@ -92,7 +93,14 @@
                    failureQueue:(dispatch_queue_t)failureQueue
               admissionFailure:(void (^)(VibeAudioWorkAdmissionFailure failure))admissionFailure {
     void (^rejectionObserved)(VibeAudioWorkAdmissionFailure) = self.rejectionObserved;
-    return [super submitWork:work failureQueue:failureQueue
+    dispatch_block_t completionObserved = self.completionObserved;
+    return [super submitWork:^{
+        work();
+        if (completionObserved) {
+            // The registry's main-queue settlement was enqueued by work().
+            dispatch_async(dispatch_get_main_queue(), completionObserved);
+        }
+    } failureQueue:failureQueue
             admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         if (rejectionObserved) {
             rejectionObserved(failure);
@@ -108,8 +116,8 @@
 
 @implementation AudioTrackArtworkLoadTests
 
-- (AudioWorkScheduler *)scheduler {
-    return [[AudioWorkScheduler alloc]
+- (ArtworkLoadObservingWorkScheduler *)scheduler {
+    return [[ArtworkLoadObservingWorkScheduler alloc]
             initWithLabel:@"com.vibe.tests.artwork"
             qualityOfService:QOS_CLASS_USER_INITIATED
             maximumRunningCount:2
@@ -126,10 +134,13 @@
             clock:^NSTimeInterval{ return NSProcessInfo.processInfo.systemUptime; }];
 }
 
-- (void)installServicesWithFactory:(VibeAudioFileMaterializationOperationFactory)factory {
+- (ArtworkLoadObservingWorkScheduler *)installServicesWithFactory:
+        (VibeAudioFileMaterializationOperationFactory)factory {
+    ArtworkLoadObservingWorkScheduler *scheduler = [self scheduler];
     [AudioTrackArtwork installArtLoadServicesForTesting:
             [self materializationWithFactory:factory]
-                                          workScheduler:[self scheduler]];
+                                          workScheduler:scheduler];
+    return scheduler;
 }
 
 - (NSData *)embeddedArtData {
@@ -613,7 +624,8 @@
 
 - (void)testNewEdgesDroppedBehindStaleReadsRecoverByReRequesting {
     dispatch_semaphore_t releaseBaseMaterializations = dispatch_semaphore_create(0);
-    [self installServicesWithFactory:^id<AudioFileMaterializationOperation>(
+    ArtworkLoadObservingWorkScheduler *scheduler =
+            [self installServicesWithFactory:^id<AudioFileMaterializationOperation>(
             NSURL *url, VibeAudioFileMaterializationRole role) {
         BOOL waits = [url.lastPathComponent hasPrefix:@"window-base-"] &&
                 ![url.lastPathComponent hasPrefix:@"window-base-0."] &&
@@ -627,6 +639,10 @@
             return YES;
         }];
     }];
+    XCTestExpectation *workersSettled =
+            [self expectationWithDescription:@"all artwork workers settled"];
+    workersSettled.expectedFulfillmentCount = 9;
+    scheduler.completionObserved = ^{ [workersSettled fulfill]; };
     dispatch_semaphore_t releaseFirstRead = dispatch_semaphore_create(0);
     dispatch_semaphore_t releaseSecondRead = dispatch_semaphore_create(0);
     XCTestExpectation *firstStarted = [self expectationWithDescription:@"first stale read"];
@@ -699,7 +715,6 @@
     }
 
     dispatch_semaphore_signal(releaseFirstRead);
-    dispatch_semaphore_signal(releaseSecondRead);
     for (NSUInteger index = 0; index < 5; index++) {
         dispatch_semaphore_signal(releaseBaseMaterializations);
     }
@@ -721,6 +736,11 @@
     [self waitForExpectations:retried timeout:2];
     XCTAssertFalse(newEdges[0].artLoadPending);
     XCTAssertFalse(newEdges[1].artLoadPending);
+
+    // Wanted completions do not imply the uncancellable stale read settled.
+    dispatch_semaphore_signal(releaseSecondRead);
+    [self waitForExpectations:@[workersSettled] timeout:2];
+    XCTAssertEqual(staleCompletionCount, 0u);
 }
 
 - (void)testRedisplayWaitsForStaleReadThenStartsOneFreshLoad {

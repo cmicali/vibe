@@ -1,3 +1,7 @@
+# Unreleased
+
+* mac: Added Settings > General > Bit-perfect output — the chosen device follows each file's sample rate and bit depth, optional Exclusive output reserves eligible physical devices while playing, and Vibe restores the device format on quit; FX, the pitch fader and the crossfade are off while it is on, and the header shows a lock while a track is delivered unchanged
+
 # v1.12
 
 * mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file

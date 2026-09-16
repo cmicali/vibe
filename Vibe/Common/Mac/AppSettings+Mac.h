@@ -238,10 +238,16 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (void)setSkipBaseBars:(NSInteger)bars;
 
 // Track-change crossfade length: 10 (instant, the declick minimum), 500 or
-// 2000. VibeSettingsLiveEffectCrossfade pushes it to AudioPlayer; pause, seek
-// and stop declicks never scale with it.
+// 2000. The stored choice the popup displays; what the player is told is
+// effectiveCrossfadeMilliseconds, which VibeSettingsLiveEffectCrossfade
+// pushes. Pause, seek and stop declicks never scale with it.
 - (NSInteger)crossfadeMilliseconds;
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
+
+// The crossfade the player is told: the declick minimum while bit-perfect
+// output is on (two tracks summed is not bit-perfect), else the stored choice.
+// The one push site reads this, never crossfadeMilliseconds.
+- (NSInteger)effectiveCrossfadeMilliseconds;
 
 // Settings > Playback > On track end. NO, the default, plays the next track
 // in the playlist when one ends; YES parks on the finished track exactly as
@@ -276,8 +282,45 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // clears every active effect and withdraws its macOS menu and Q/W/E/R/T controls
 // immediately; without one the controls remain absent until relaunch. iOS
 // passes a hard NO and never consults this; see PlayerViewController.
+// The stored choice, which the Playback pane's switch displays. Whether FX
+// exist for the user is audioFXAllowed below, which bit-perfect output
+// outranks.
 - (BOOL)audioFXEnabled;
 - (void)setAudioFXEnabled:(BOOL)enabled;
+
+// Settings > General > Audio > Bit-perfect output, default NO. While on, the
+// chain is pruned to the exact one — no FX (this outranks audioFXEnabled at
+// every gate, and the next launch builds no FX graph), no varispeed, the
+// crossfade at the declick minimum, the pitch fader gone — and each track's
+// settlement sets the chosen device to the file's rate and word length.
+// The shell only turns it on for an eligible device (OutputFormatRules.h):
+// the General pane disables the switch
+// otherwise, the Output menu grays ineligible devices out while it is on, and
+// the device-vanished fallback turns it off. A writer requests
+// VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade.
+- (BOOL)bitPerfectOutput;
+- (void)setBitPerfectOutput:(BOOL)enabled;
+
+// Optional exclusive access while bit-perfect output is on, default NO.
+// The system output and virtual devices remain shared. Compiled-out builds
+// always read NO, even if an earlier build stored YES. Writers request
+// VibeSettingsLiveEffectBitPerfect; the FX and crossfade choices do not move.
+- (BOOL)exclusiveOutput;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+- (void)setExclusiveOutput:(BOOL)enabled;
+#endif
+
+// The one answer to "do FX exist for the user": audioFXEnabled and not
+// bitPerfectOutput. Every gate reads this — the launch-time graph choice,
+// the FX menu's visibility and key equivalents, menu validation, the key
+// monitor and the FXControls effect's clear — never audioFXEnabled.
+- (BOOL)audioFXAllowed;
+
+// The one answer to "may the pitch fader be shown": not bitPerfectOutput,
+// which mints no varispeed for it to drive. togglePitchPanel: refuses a
+// reveal on it, which is the whole gate; menu validation and the window's
+// launch restore read the same answer.
+- (BOOL)pitchControlAllowed;
 
 // NO skips tempo detection on the waveform decode pass. A file scanned while
 // off caches a waveform with no BPM, so re-enabling only affects files not

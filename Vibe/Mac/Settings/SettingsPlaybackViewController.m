@@ -30,6 +30,9 @@ static NSString *const kOnEndPause = @"pause";
     NSPopUpButton *_skipStepsPopUp;
     NSPopUpButton *_crossfadePopUp;
     NSSwitch *_enableFXSwitch;
+    // Their captions change with bit-perfect output, which disables both.
+    SettingsRowView *_crossfadeRow;
+    SettingsRowView *_enableFXRow;
     NSSwitch *_detectBPMSwitch;
     NSSwitch *_detectKeySwitch;
 }
@@ -77,20 +80,20 @@ static NSString *const kOnEndPause = @"pause";
     // only decides whether it is detected at all.
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    NSString *fxCaption = self.playerController.audioPlayer.fx
-            ? nil
-            : [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()];
+    // Both rows recaption in refreshFromSettings: "reopen" on the FX row while
+    // the run has no graph, "off while bit-perfect" on both while that mode
+    // outranks them, nothing otherwise.
+    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp];
+    _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp],
+            _crossfadeRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL control:pitchRadios],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL control:_skipStepsPopUp],
         ]],
         [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX
-                                  caption:fxCaption
-                                  control:_enableFXSwitch],
+            _enableFXRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM control:_detectBPMSwitch],
@@ -109,6 +112,19 @@ static NSString *const kOnEndPause = @"pause";
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
     [_crossfadePopUp selectItemWithTag:AppSettings.sharedInstance.crossfadeMilliseconds];
     _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    // Bit-perfect output outranks both: it holds the crossfade at the declick
+    // minimum and turns FX off, so neither control has anything to govern
+    // while it is on. The FX row's caption otherwise says "reopen" only while
+    // this run has no graph, which is the one case a change waits.
+    // The pane is remeasured by the caller of every refresh, so the captions'
+    // change answers go unread here.
+    BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
+    _crossfadePopUp.enabled = !bitPerfect;
+    _enableFXSwitch.enabled = !bitPerfect;
+    [_crossfadeRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
+    [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT
+            : (self.playerController.audioPlayer.fx ? nil
+               : [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]))];
     _detectBPMSwitch.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeySwitch.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }

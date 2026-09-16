@@ -30,6 +30,7 @@ All of these run in CI (`.github/workflows/build.yml`).
 | Command | Gate |
 | --- | --- |
 | `make test` | Host-less unit and orchestration tests (`Tests/`, always Debug) plus the cloud-runner oracle tests. **Read `Tests/CLAUDE.md` before adding to it.** |
+| `make test-audio` | Real player/FX graphs in offline manual rendering, full PCM comparisons and signal-quality checks; no app or audio device. See `Tests/CLAUDE.md`. |
 | `make test-summary` | Markdown pass/fail table from the last `make test`. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets; fails on any finding outside `ThirdParty/`. Findings are config-dependent — Release is what CI checks. |
 | `make check-layout` | The layout rule below. |

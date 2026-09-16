@@ -97,6 +97,8 @@ typedef struct {
 // Atomically returns and invalidates the matching request. A completion or
 // timeout that loses the race gets nil and must not change playback.
 - (nullable VibePlaybackRequest *)consumeRequest:(uint64_t)identifier;
+// Check before preparatory work without copying or consuming the request.
+- (BOOL)isCurrentRequest:(uint64_t)identifier;
 - (void)invalidate;
 
 @end

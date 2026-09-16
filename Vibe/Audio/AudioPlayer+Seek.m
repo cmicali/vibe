@@ -12,11 +12,6 @@
 @implementation AudioPlayer (Seek)
 
 - (void)seekToPosition:(NSTimeInterval)pos {
-    [self seekToPosition:pos restoringPreemptedPause:NO];
-}
-
-- (void)seekToPosition:(NSTimeInterval)pos
-        restoringPreemptedPause:(BOOL)restoringPreemptedPause {
     // The caller computed pos against the track that is current NOW — a
     // scrubber fraction of its duration, a bar skip from its tempo. A gapless
     // boundary can promote the next track before the block below runs, and
@@ -61,73 +56,69 @@
             });
             return;
         }
-        AVAudioPlayerNode *node = self->_node;
-        AVAudioFile *file = self->_file;
-        if (!node || !file) {
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didFinishSeeking:track];
-            });
-            return;
-        }
-        uint64_t owningSubmittedPlayIdentifier =
-                self->_activeSubmittedPlayIdentifier;
-        double sampleRate = file.processingFormat.sampleRate;
-        BOOL wasPlaying = (self->_state == VibePlayerStatePlaying);
-        AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
-        NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
-        self->_segmentGeneration++; // drop the current segment's stop-fired completion
-
-        if (!wasPlaying) {
-            // Paused: reschedule the existing, silent node in place. No audio
-            // is rendering, so there is nothing to declick, and the next
-            // resume fades in from the seeked frame. The faded volume is kept,
-            // and the resume ramps it back up.
-            [self preemptRampsOnQueue];
-            [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
-            [node stop];
-            [self scheduleFile:file onNode:node fromFrame:startFrame];
-            [self publishPlaybackState:self->_state node:node file:file segmentStart:startFrame position:framePosition];
-            [self maybeArmGaplessOnQueue];
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didFinishSeeking:track];
-            });
-            return;
-        }
-
-        // Playing: declick without touching the audio graph. Reconnecting a
-        // live node, as the two-node crossfade's reroute does, is itself a
-        // click on a running engine. So instead fade this node down,
-        // reschedule it in place and fade it back up: both the [node stop] and
-        // the new segment's start then land at silence. The reschedule is
-        // deferred into the fade-out completion, because the node must stay
-        // audible through the ramp, and the position state is rewritten there
-        // so that the getter follows the node.
-        //
-        // A user seek deliberately cancels a pending pause; the internal
-        // splice-unschedule seek must not — the user pressed pause during a
-        // playlist retarget they never see, so the preempt below would
-        // silently drop their pause and fade back up. Capture the intent
-        // before the preempt clears it; finishSeekOnQueue lands parked.
-        BOOL reissuePause = restoringPreemptedPause && self->_pausePending;
-        uint64_t rampGen = [self preemptRampsOnQueue];
-        __weak AudioPlayer *weakSelf = self;
-        [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
-            [weakSelf finishSeekOnQueue:node
-                                   file:file
-                             startFrame:startFrame
-                          framePosition:framePosition
-                         rampGeneration:rampGen
-                                  track:track
-                submittedPlayIdentifier:owningSubmittedPlayIdentifier
-                           reissuePause:reissuePause];
-        }];
+        [self seekOnQueueToPosition:pos restoringPreemptedPause:NO];
     });
+}
+
+- (void)seekOnQueueToPosition:(NSTimeInterval)pos
+      restoringPreemptedPause:(BOOL)restoringPreemptedPause {
+    AudioTrack *track = self.currentTrack;
+    AVAudioPlayerNode *node = _node;
+    AVAudioFile *file = _file;
+    if (!node || !file) {
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:track];
+        });
+        return;
+    }
+    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
+    double sampleRate = file.processingFormat.sampleRate;
+    BOOL wasPlaying = (_state == VibePlayerStatePlaying);
+    AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
+    NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
+    _segmentGeneration++; // drop the current segment's stop-fired completion
+
+    if (!wasPlaying) {
+        _pendingSeekPosition = -1;
+        // Paused: reschedule the existing, silent node in place. No audio
+        // is rendering, so there is nothing to declick, and the next
+        // resume fades in from the seeked frame. The faded volume is kept,
+        // and the resume ramps it back up.
+        _seekRampGeneration = [self preemptRampsOnQueue];
+        [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
+        [node stop];
+        [self scheduleFile:file onNode:node fromFrame:startFrame];
+        [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
+        [self maybeArmGaplessOnQueue];
+        run_on_main_thread({
+            [self.delegate audioPlayer:self didFinishSeeking:track];
+        });
+        return;
+    }
+
+    // Stop and reschedule only after fading to silence; reconnecting the
+    // live graph would click. Internal splice removal preserves a pending
+    // pause, while a user seek cancels it.
+    BOOL reissuePause = restoringPreemptedPause && _pausePending;
+    uint64_t rampGen = [self preemptRampsOnQueue];
+    _seekRampGeneration = rampGen;
+    _pausePending = reissuePause;
+    _pendingSeekPosition = framePosition;
+    __weak AudioPlayer *weakSelf = self;
+    [self rampNodeAsync:node step:1 from:node.volume to:0 generation:rampGen completion:^{
+        [weakSelf finishSeekOnQueue:node
+                               file:file
+                         startFrame:startFrame
+                      framePosition:framePosition
+                     rampGeneration:rampGen
+                              track:track
+            submittedPlayIdentifier:owningSubmittedPlayIdentifier];
+    }];
 }
 
 // A restart failure outranks whichever ramp preempted this seek. Cancel that
 // ramp, keep the newly scheduled frame parked, and expose Paused rather than a
-// Playing state backed by a stopped node. A newer seek's cancelled completion
-// still runs and can park its newer frame before it settles.
+// Playing state backed by a stopped node.
 - (void)parkSeekAfterStartFailureForNode:(AVAudioPlayerNode *)node
                                     file:(AVAudioFile *)file
                               startFrame:(AVAudioFramePosition)startFrame
@@ -147,21 +138,17 @@
            forSubmittedPlay:submittedPlayIdentifier];
 }
 
-// The playing seek's fade-out completion; the parameters are what
-// seekToPosition: captured when the seek was requested. Four outcomes, each
-// with an early return: the node was replaced, the fade was preempted, the
-// engine failed to start, or the reschedule lands and fades back in. Every
-// path delivers didFinishSeeking:.
+// Every fade-out completion settles didFinishSeeking:, including a superseded seek.
 - (void)finishSeekOnQueue:(AVAudioPlayerNode *)node
                      file:(AVAudioFile *)file
                startFrame:(AVAudioFramePosition)startFrame
             framePosition:(NSTimeInterval)framePosition
            rampGeneration:(uint64_t)rampGen
                     track:(AudioTrack *)track
-  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier
-             reissuePause:(BOOL)reissuePause {
-    if (_node != node || _file != file) {
-        // A new play, track change, stop or device switch replaced the
+  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    if (_seekRampGeneration != rampGen || _node != node || _file != file) {
+        // A newer seek owns the position, even if it repeats this target.
+        // A play, track change, stop or device switch may also replace the
         // node while this faded. That operation owns playback and this
         // seek's target is moot. The seek is dropped, but the request
         // still settles the UI: the header promises didFinishSeeking:
@@ -177,16 +164,13 @@
         });
         return;
     }
-    // Same node, but a pause, its cancel or a newer seek bumped the ramp
+    _pendingSeekPosition = -1;
+    // Same node and seek, but a pause or its cancel bumped the ramp
     // generation mid-fade. The reschedule below still lands, since the
     // user asked for this position, but the preemptor owns volume and
     // _state, so this path touches neither.
     BOOL preempted = (rampGen != _rampGeneration);
-    // [node stop] fires the completion of whatever segment is scheduled
-    // right now, which after a preempted seek's own reschedule can carry
-    // the current generation rather than the one this seek's entry bump
-    // retired. Re-bump immediately before the stop, or that completion
-    // reads as current and "finishes" the track.
+    // Retire whichever segment is now scheduled before stop fires its completion.
     _segmentGeneration++;
     [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
     [node stop];
@@ -218,11 +202,12 @@
         });
         return;
     }
-    if (reissuePause) {
+    if (_pausePending) {
         // The pause this internal seek preempted still owns the outcome: land
         // the reschedule parked, as the completed pause fade would have. The
         // stopped node holds the new segment, so resume plays it from here —
         // the paused-seek shape, plus the pause's own delegate settlement.
+        _pausePending = NO;
         node.volume = 0; // resume ramps up from silence, as after a real pause
         [self publishPlaybackState:VibePlayerStatePaused node:node file:file
                       segmentStart:startFrame position:framePosition];

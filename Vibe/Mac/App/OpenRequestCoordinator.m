@@ -62,14 +62,19 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     return self;
 }
 
+- (void)invalidate {
+    NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
+    _openGeneration++;
+    _nextSequence = 0;
+    _nextDeliverySequence = 0;
+    [_completed removeAllObjects];
+}
+
 - (OpenRequestToken *)beginRequestAppending:(BOOL)append
                                    delivery:(OpenRequestDelivery)delivery {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
     if (!append) {
-        _openGeneration++;
-        _nextSequence = 0;
-        _nextDeliverySequence = 0;
-        [_completed removeAllObjects];
+        [self invalidate];
     }
     OpenRequestToken *token = [OpenRequestToken new];
     token.generation = _openGeneration;
