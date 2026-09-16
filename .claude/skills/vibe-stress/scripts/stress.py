@@ -67,7 +67,7 @@ CLIENT_LAUNCH_RETRIES = 4
 # above it: a client timeout below the app's own deadline reports a verb that
 # was still working as an unresponsive app. A 7-minute MP3 takes ~30s through
 # file_cache in a -O0 debug build, and the app allows it 60.
-VERB_TIMEOUTS = {"file_cache": 90, "convert_to_flac": 150, "quiesce": 40}
+VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40}
 
 # A recovery probe slower than this, after a timed-out op, is what makes it a
 # main-thread stall rather than a verb that outran its budget. Ordinary probe
@@ -88,7 +88,7 @@ COMMAND_VERBS = set("""
 append block_main burst check_consistency clear_caches clear_cloud_trace
 click_menu dump_audio_loading dump_cloud_health dump_cloud_trace dump_health
 dump_menu dump_metadata_progress dump_row_loading dump_state dump_theme dump_view_tree
-file_cache file_clear_cache file_drag_drop file_drag_end file_drag_hover
+file_cache file_clear_cache file_drag_drop file_drag_end file_drag_hover hang_open
 import_theme next open play_index play_pause select_rows remove_selected previous
 quiesce quit redo remove_theme reorder_begin reorder_cancel reorder_drop reorder_update
 seek set_analysis set_appearance set_audio_loading set_equalizer_mode set_fake_cloud

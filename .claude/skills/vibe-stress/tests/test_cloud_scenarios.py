@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import json
 import random
@@ -63,6 +64,47 @@ class FakeOpenContext:
 class TraceHelperTests(unittest.TestCase):
     # The cloud runner shares Channel with stress/replay. Keep its input gate
     # under the same host-less runner tests, with process launch held as a spy.
+    def test_literal_commands_in_both_channel_consumers_are_allowed(self):
+        # Generated operations have their own coverage below. Also audit the
+        # real call sites outside the generator: cloud scenarios, setup,
+        # cleanup and diagnostics must not drift from the shared gate.
+        for path in (SCRIPT, Path(stress.__file__)):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                    continue
+                if node.func.attr == "cmd":
+                    args = node.args
+                elif (node.func.attr == "run" and isinstance(node.func.value, ast.Name)
+                      and node.func.value.id == "channel" and node.args
+                      and isinstance(node.args[0], (ast.List, ast.Tuple))):
+                    args = node.args[0].elts
+                else:
+                    continue
+                if not args or not isinstance(args[0], ast.Constant):
+                    continue
+                argv = [str(arg.value) if isinstance(arg, ast.Constant) else "dynamic"
+                        for arg in args]
+                with self.subTest(file=path.name, line=node.lineno, argv=argv):
+                    stress.require_command(argv)
+
+    def test_cloud_hung_open_can_arm_poll_and_release_through_channel(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(Path, "exists", return_value=True), \
+                mock.patch.object(stress.subprocess, "run") as process:
+            corpus = Path(directory)
+            (corpus / "a").mkdir()
+            (corpus / "b").mkdir()
+            channel = stress.Channel(Path("unused.app"))
+            ctx = cloud.Ctx(channel, corpus, False)
+            process.return_value = mock.Mock(returncode=0, stdout='{"ok":true,"hungOpens":1}')
+            ctx.cmd("hang_open", "successor.wav")
+            ctx.wait_for_hung_open("successor.wav", "the successor open")
+            ctx.cmd("hang_open", "release")
+            self.assertEqual([call.args[0][-2:] for call in process.call_args_list], [
+                ["hang_open", "successor.wav"], ["hang_open", "successor.wav"],
+                ["hang_open", "release"],
+            ])
+
     def test_every_profile_and_operation_stays_command_only(self):
         for profile in stress.PROFILES:
             generator = stress.OpGenerator(random.Random(71), [Path("a.wav")],
