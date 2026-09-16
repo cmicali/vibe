@@ -482,6 +482,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil;
             }),
+            VibeDebugCmd(@"select_rows all|none|<row|current> [row|current ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeSelectPlaylistRows(controller, tokens);
+            }),
+            VibeDebugCmd(@"remove_selected", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count != 1) return VibeErrorJSON(@"usage: remove_selected");
+                [controller removeSelectedPlaylistTracks:nil];
+                return VibeJSONString(controller.debugActionSummary);
+            }),
+            VibeDebugCmd(@"gesture_test pitch-reset|pitch-drag isolated-desktop", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeTestGesture(controller, tokens);
+            }),
             VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectMouse(controller, tokens);
             }),

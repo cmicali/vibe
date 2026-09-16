@@ -69,7 +69,7 @@ static NSInteger VibeEffectKeyForChars(NSString *chars) {
         _monitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp)
                                                           handler:^NSEvent *(NSEvent *event) {
             TransportKeyMonitor *strongSelf = weakSelf;
-            return strongSelf ? [strongSelf handleKeyEvent:event] : event;
+            return strongSelf ? [strongSelf handleKeyEvent:event inWindow:event.window] : event;
         }];
         // If the window resigns key while an effect key is held, through
         // Cmd-Tab or a panel stealing focus, the release lands elsewhere and
@@ -204,9 +204,9 @@ static unichar VibeBareKeyChar(NSString *chars) {
 }
 
 // Returns nil to swallow a handled key, or the event to pass it on.
-- (NSEvent *)handleKeyEvent:(NSEvent *)event {
+- (NSEvent *)handleKeyEvent:(NSEvent *)event inWindow:(NSWindow *)window {
     MainPlayerController *controller = _controller;
-    if (!controller || event.window != controller.window) {
+    if (!controller || window != controller.window) {
         return event;
     }
     if (event.type == NSEventTypeKeyUp) {

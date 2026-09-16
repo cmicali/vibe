@@ -67,7 +67,7 @@ CLIENT_LAUNCH_RETRIES = 4
 # above it: a client timeout below the app's own deadline reports a verb that
 # was still working as an unresponsive app. A 7-minute MP3 takes ~30s through
 # file_cache in a -O0 debug build, and the app allows it 60.
-VERB_TIMEOUTS = {"file_cache": 90, "convert_to_flac": 150, "quiesce": 40}
+VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40}
 
 # A recovery probe slower than this, after a timed-out op, is what makes it a
 # main-thread stall rather than a verb that outran its budget. Ordinary probe
@@ -82,14 +82,50 @@ AUDIO_SUFFIXES = {".mp3", ".mp2", ".m4a", ".mp4", ".qta", ".aac", ".flac",
 # extensions — was never opened by any profile.
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".pls", ".cue"}
 
-# Menu items that would wedge or kill the run: anything opening a modal panel
-# (the channel cannot be served while one is up), quitting, hiding, or closing
-# the window. Matched against both the item identifier and its action selector.
-MENU_DENY = re.compile(
-    r"quit|terminate|hide|unhide|close|open|save|print|help|about|"
-    r"settings|preferences|minimi|zoom|convert",
-    re.IGNORECASE,
-)
+# Only app-owned actions belong in unattended runs. Unknown commands fail closed,
+# including old journals: raw events can initiate native file/window dragging.
+COMMAND_VERBS = set("""
+append block_main burst check_consistency clear_caches clear_cloud_trace
+click_menu dump_audio_loading dump_cloud_health dump_cloud_trace dump_health
+dump_menu dump_metadata_progress dump_row_loading dump_state dump_theme dump_view_tree
+file_cache file_clear_cache file_drag_drop file_drag_end file_drag_hover hang_open
+import_theme next open play_index play_pause select_rows remove_selected previous
+quiesce quit redo remove_theme reorder_begin reorder_cancel reorder_drop reorder_update
+seek set_analysis set_appearance set_audio_loading set_equalizer_mode set_fake_cloud
+set_folder_art set_pause_at_track_end set_pitch set_theme set_window_width settings_close
+skip_back skip_back_more skip_back_most skip_forward skip_forward_more skip_forward_most
+sleep toggle_low_kill toggle_pitch_panel toggle_size undo
+low_kill_boost_on low_kill_boost_off reverb_send_on reverb_send_off
+delay_send_on delay_send_off short_delay_send_on short_delay_send_off
+""".split())
+MENU_IDS = set("""
+menu_play menu_next_track menu_previous_track menu_skip_forward menu_skip_forward_more
+menu_skip_forward_most menu_skip_back menu_skip_back_more menu_skip_back_most
+menu_fx_low_kill menu_fx_low_kill_boost menu_fx_reverb menu_fx_delay menu_fx_short_delay
+pitch_range_8 pitch_range_16 menu_show_playlist menu_show_pitch menu_show_file_info
+menu_play_selected menu_edit_select_all menu_edit_remove_from_playlist menu_edit_undo menu_edit_redo
+""".split())
+GESTURE_TESTS = ("pitch-reset", "pitch-drag")
+
+
+def require_command(argv, gesture_test=None):
+    """Validate before any client launch, including every nested block_main."""
+    if (not isinstance(argv, (list, tuple)) or not argv
+            or any(not isinstance(a, str) or "\x00" in a for a in argv)):
+        raise ValueError("command-only stress requires a nonempty string argument list")
+    if argv == ["gesture_test", gesture_test, "isolated-desktop"] and gesture_test in GESTURE_TESTS:
+        return
+    while argv[0] == "block_main":
+        if len(argv) == 2:
+            return
+        if len(argv) < 3:
+            raise ValueError("block_main requires a duration")
+        argv = argv[2:]
+    if argv[0] not in COMMAND_VERBS:
+        raise ValueError(f"command-only stress refuses {argv[0]!r}; use a named gesture test "
+                         "on an isolated desktop for input testing")
+    if argv[0] == "click_menu" and (len(argv) != 2 or argv[1] not in MENU_IDS):
+        raise ValueError("command-only stress refuses this menu item")
 
 
 class Failure(Exception):
@@ -119,7 +155,7 @@ class Channel:
     instrumented startup as well: see the client_app note below.
     """
 
-    def __init__(self, app: Path, verbose=False, client_app: Path = None):
+    def __init__(self, app: Path, verbose=False, client_app: Path = None, gesture_test=None):
         # The client need not be the app under test. The channel is command and
         # response FILES in a shared container plus a Darwin notify wake-up, so
         # any build of the same source can drive any other — which matters
@@ -132,6 +168,7 @@ class Channel:
         self.binary = (client_app or app) / "Contents/MacOS/Vibe"
         # Off by default so anything that needs each op's own timing — the
         # shrinker, a replay — gets it without asking.
+        self.gesture_test = gesture_test
         self.batch = False
         self.verbose = verbose
         if not self.binary.exists():
@@ -146,6 +183,7 @@ class Channel:
         inside dyld's initializers. That is the harness outrunning the OS, not a
         Vibe defect, so it is retried rather than reported.
         """
+        require_command(argv, self.gesture_test)
         started = time.monotonic()
         code, out = 0, ""
         for attempt in range(CLIENT_LAUNCH_RETRIES):
@@ -194,12 +232,14 @@ class Channel:
         Returns [(exit_code, payload)] as far as the stream got, which may be
         shorter than argv_list, or None if the batch could not be expressed.
         """
+        for argv in argv_list:
+            require_command(argv)
         lines = []
         for argv in argv_list:
             # The channel's tokenizer groups quoted tokens but has no escapes,
-            # so an argument containing a quote cannot be expressed. Rare enough
-            # to hand back to the per-op path rather than mangle.
-            if any('"' in a or "'" in a for a in argv):
+            # so quotes and line/control whitespace go through argv instead.
+            # In particular, a filename newline must never start another command.
+            if any(not a or any(c in a for c in "\"'\n\r\t") for a in argv):
                 return None
             lines.append(" ".join(f'"{a}"' if " " in a else a for a in argv))
         try:
@@ -429,8 +469,6 @@ UNDO_REFUSALS = ["nothing to undo", "nothing to redo", "still in progress"]
 FX_ON_OFF = [
     "low_kill_boost", "reverb_send", "delay_send", "short_delay_send",
 ]
-TRANSPORT_KEYS = ["space", "p", "left", "right", "up", "down"]
-HELD_FX_KEYS = ["w", "e", "r", "t"]
 
 APPEARANCE_VALUES = ["light", "dark", "system"]
 EQUALIZER_MODES = ["balanced", "activity", "spectrum"]
@@ -487,13 +525,6 @@ def THEME_HOSTILE(rng):
     ])
 
 
-# Where a playlist edit gets its selection from. Arrow keys carry no modifier
-# into TransportKeyMonitor's bare-key handling only when unmodified — Shift and
-# Command fall through to the table, which is what makes an extension possible
-# at all — so these are the table's own selection verbs reached the way a user
-# reaches them.
-PLAYLIST_SELECT_KEYS = ["down", "up"]
-
 # Import is bounded because every accepted record is a persisted user theme
 # until the end-of-run cleanup removes it: an 8-hour run at any real weight
 # would put tens of thousands in the store mid-run. The cap is high enough
@@ -503,28 +534,25 @@ MAX_THEME_IMPORTS = 80
 
 class OpGenerator:
     def __init__(self, rng, corpus_files, corpus_playlists, corpus_dirs, menu_ids,
-                 profile, exclusions=(), themes=(), theme_base=None,
-                 playlist_band=None):
+                 profile, themes=(), theme_base=None):
         self.rng = rng
         self.files = corpus_files
         self.playlists = corpus_playlists
         self.dirs = corpus_dirs
         self.menu_ids = menu_ids
-        self.exclusions = list(exclusions)
         self.themes = list(themes)
         self.theme_base = theme_base
         self.theme_imports = 0
-        # None when the playlist pane was closed at discovery: every op that
-        # needs a row falls back rather than clicking into the header.
-        self.playlist_band = playlist_band
-        self.keep_playlist = profile in ("theme", "playlist")
-        self.window = (900.0, 400.0)
+        self.window = (900.0, 400.0)  # synthetic file-drop coordinates only
+        self.playlist_count = len(corpus_files)
         self.weights = effective_weights(profile)
         self.kinds = [k for k, w in self.weights.items() if w > 0]
         self.kind_weights = [self.weights[k] for k in self.kinds]
 
-    def note_window(self, frame_string):
+    def note_state(self, state):
+        self.playlist_count = state.get("playlist", {}).get("count", self.playlist_count)
         # NSStringFromRect: "{{x, y}, {w, h}}"
+        frame_string = state.get("window", {}).get("frame")
         nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame_string or "")]
         if len(nums) == 4 and nums[2] > 0 and nums[3] > 0:
             self.window = (nums[2], nums[3])
@@ -684,36 +712,19 @@ class OpGenerator:
         return [("fx", [f"{name}_{state}"], [])]
 
     def op_held_fx(self):
-        """key_down without the matching key_up, sometimes across a track change.
-
-        A momentary effect latched by a lost key_up is a real bug class and
-        nothing else in the harness would produce one.
-        """
-        key = self.rng.choice(HELD_FX_KEYS)
-        ops = [("key_down", ["key_down", key], [])]
+        """Hold an effect across a track change through controller actions."""
+        name = self.rng.choice(FX_ON_OFF)
+        ops = [("fx", [f"{name}_on"], [])]
         if self.rng.random() < 0.5:
             ops.append(("transport", ["next"], []))
         if self.rng.random() < 0.7:
-            ops.append(("key_up", ["key_up", key], []))
+            ops.append(("fx", [f"{name}_off"], []))
         return ops
-
-    def op_key(self):
-        return [("key", ["key", self.rng.choice(TRANSPORT_KEYS)], [])]
 
     # -- window and UI ------------------------------------------------------
 
     def op_window(self):
-        verb = self.rng.choice(["toggle_size", "toggle_pitch_panel"])
-        if verb == "toggle_size" and self.keep_playlist:
-            # Show Playlist, and the pane is where every row op finds a row. A
-            # uniform toggle parks it CLOSED for half the run, and with it
-            # closed the playlist keys are dead and the clicks land in the
-            # header — the profile reports a clean pass over code it never
-            # entered. Closed and straight back open buys both teardown and
-            # rebuild edges and leaves the pane where the ops need it, which is
-            # the same shape and the same reason as folder_art's pair.
-            return [("window", [verb], []), ("window", [verb], [])]
-        return [("window", [verb], [])]
+        return [("window", [self.rng.choice(["toggle_size", "toggle_pitch_panel"])], [])]
 
     def op_resize(self):
         width = self.rng.choice([
@@ -724,26 +735,12 @@ class OpGenerator:
         return [("resize", ["set_window_width", str(width)], [])]
 
     def point(self):
-        """A random window point outside the chrome buttons; see chrome_exclusion_rects."""
-        w, h = self.window
-        for _ in range(24):
-            x = round(self.rng.uniform(0, w), 1)
-            y = round(self.rng.uniform(0, h), 1)
-            if not any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in self.exclusions):
-                return x, y
-        return round(w / 2, 1), round(h / 2, 1)
-
-    def op_click(self):
-        x, y = self.point()
-        return [("click", ["click", str(x), str(y)], [])]
-
-    def op_drag(self):
-        pts = [*self.point(), *self.point()]
-        return [("drag", ["drag", *[str(p) for p in pts]], [])]
+        """Coordinates for direct file-drop delegate calls, never mouse events."""
+        return tuple(round(self.rng.uniform(0, size), 1) for size in self.window)
 
     def op_file_drag_drop(self):
         if not self.files:
-            return self.op_click()
+            return self.op_transport()
         x, y = self.point()
         ops = [("file_drag_hover", ["file_drag_hover", str(x), str(y)], [])]
         if self.rng.random() < 0.6:
@@ -759,7 +756,7 @@ class OpGenerator:
         and the random file_drag_drop only reaches the Add well by coordinate
         luck."""
         if not self.files:
-            return self.op_click()
+            return self.op_transport()
         return [("append", ["append", str(self.rng.choice(self.files))], PATH_REFUSALS)]
 
     def op_end_of_track(self):
@@ -817,7 +814,7 @@ class OpGenerator:
     def op_menu(self):
         if not self.menu_ids:
             return self.op_window()
-        return [("menu", ["click_menu", self.rng.choice(self.menu_ids)], ["disabled", "no menu item"])]
+        return [("menu", ["click_menu", self.rng.choice(self.menu_ids)], ["disabled"])]
 
     def op_undo(self):
         verb = self.rng.choice(["undo", "redo"])
@@ -998,67 +995,22 @@ class OpGenerator:
 
     # -- playlist structure -------------------------------------------------
 
-    def playlist_point(self):
-        """A point inside the playlist's viewport, or None when it is closed."""
-        if not self.playlist_band:
-            return None
-        top, bottom = self.playlist_band
-        width = self.window[0]
-        return (round(self.rng.uniform(8, max(9, width - 8)), 1),
-                round(self.rng.uniform(top + 2, bottom - 2), 1))
-
-    def op_playlist_select(self):
-        """Land a multi-row selection the way the keyboard makes one.
-
-        Click to give the table focus and an anchor, then extend with
-        Shift-arrows: unmodified arrows are TransportKeyMonitor's, and anything
-        carrying a modifier falls through to the table, which is the only
-        reason an extension is reachable from the channel at all. Select-All is
-        the other shape, and it is the one that puts EVERY row in the set —
-        including the playing one.
-        """
-        point = self.playlist_point()
-        if not point:
-            return self.op_transport()
+    def op_select_rows(self):
+        # The app resolves these against the current table at execution time;
+        # "current" follows jumps earlier in the same batch, and numbered rows
+        # cover the observed list. A shortened or empty list ignores stale rows.
         if self.rng.random() < 0.2:
-            return [("playlist_select_all", ["click_menu", "menu_edit_select_all"],
-                     ["disabled", "no menu item"])]
-        ops = [("playlist_click", ["click", str(point[0]), str(point[1])], [])]
-        for _ in range(self.rng.randint(0, 6)):
-            ops.append(("playlist_extend",
-                        ["key", self.rng.choice(PLAYLIST_SELECT_KEYS), "shift"], []))
-        return ops
+            rows = ["all"]
+        else:
+            rows = list(map(str, sorted({self.rng.randrange(max(1, self.playlist_count))
+                                        for _ in range(self.rng.randint(1, 6))})))
+            if self.rng.random() < 0.5:
+                rows.append("current")
+        return [("select_rows", ["select_rows", *rows], [])]
 
-    def op_playlist_remove(self):
-        """Remove the selection, sometimes the playing row, sometimes all of it.
-
-        The model half cannot make the transport decision: removing the CURRENT
-        row through the playlist alone would leave the player sounding an object
-        the list no longer holds, so every gesture funnels through the shell,
-        which owns the unload, the successor re-prefetch and the replacement
-        play. Doing it while a track is genuinely playing is the only way to
-        reach that funnel's interesting branch.
-
-        The three ways in are deliberately all used: Backspace and Forward
-        Delete are physical-key twins that only the key monitor knows apart,
-        and the Edit item is the menu path with its own validation. A REPEAT
-        delete sometimes follows, which the monitor must swallow: one gesture
-        takes one selection, and a held key must not walk the playlist.
-        """
-        ops = self.op_playlist_select()
-        if ops and ops[0][0] == "transport":
-            return ops
-        gesture = self.rng.choice([
-            ["key", "delete"], ["key", "forward_delete"],
-            ["click_menu", "menu_edit_remove_from_playlist"],
-        ])
-        ops.append(("playlist_remove", gesture, ["disabled", "no menu item"]))
-        if self.rng.random() < 0.1:
-            ops.append(("playlist_remove_repeat", ["key", "delete", "repeat"], []))
-        # Undo right behind the edit, while the replacement play it triggered is
-        # still settling: the restore is generation-stamped and must die quietly
-        # once the playlist it edited has been replaced, rather than reinserting
-        # into a list it no longer describes.
+    def op_remove_selected(self):
+        ops = self.op_select_rows()
+        ops.append(("remove_selected", ["remove_selected"], []))
         if self.rng.random() < 0.6:
             ops.append(("undo", ["undo"], UNDO_REFUSALS))
             if self.rng.random() < 0.5:
@@ -1066,25 +1018,8 @@ class OpGenerator:
         return ops
 
     def op_playlist_move(self):
-        """Drag rows to a new slot, which is the table's own internal drag.
-
-        A move is transport-safe at the model boundary — the current object
-        survives it — so what this exercises is the slot arithmetic, the
-        token fence that must let a stale drag die rather than move strangers,
-        and the shell follow-up that re-parks the successor and registers the
-        inverse. The inverse is registered on EVERY move, which is what lets
-        undo and redo chain, so the undo behind it is part of the op.
-
-        The drag needs a key window and enough steps to clear AppKit's
-        threshold; a drop within a row of the source is a documented no-op
-        rather than a failure, and is left in the mix on purpose.
-        """
-        start, end = self.playlist_point(), self.playlist_point()
-        if not start or not end:
-            return self.op_transport()
-        ops = [("playlist_drag",
-                ["drag", str(start[0]), str(start[1]), str(end[0]), str(end[1]),
-                 str(self.rng.choice([60, 100, 140]))], [])]
+        # One reorder mechanism: the real delegate path, without a native drag.
+        ops = self.op_reorder_begin() + self.op_reorder_finish()
         if self.rng.random() < 0.5:
             ops.append(("undo", ["undo"], UNDO_REFUSALS))
             if self.rng.random() < 0.4:
@@ -1126,8 +1061,8 @@ PROFILES = {
         "open_file": 14, "open_dir": 3, "open_playlist": 2, "open_burst": 6,
         "cache_churn": 2, "clear_caches": 1,
         "transport": 14, "seek": 8, "pitch": 5,
-        "fx": 5, "held_fx": 4, "key": 4,
-        "window": 3, "resize": 3, "click": 4, "drag": 2, "file_drag_drop": 3,
+        "fx": 5, "held_fx": 4,
+        "window": 3, "resize": 3, "file_drag_drop": 3,
         "menu": 3, "undo": 1, "settle": 6, "folder_art": 1,
         "playlist_jump": 4, "burst": 0,
         "reorder_begin": 3, "reorder_finish": 4,
@@ -1135,7 +1070,7 @@ PROFILES = {
         "block_main": 2, "audio_loading": 2, "equalizer_mode": 2,
         "appearance": 2, "resize_storm": 2,
         "theme": 4, "theme_import": 1,
-        "playlist_select": 2, "playlist_remove": 4, "playlist_move": 2,
+        "select_rows": 2, "remove_selected": 4, "playlist_move": 2,
         "undo_storm": 1,
     },
     # Everything pointed at the open path and the async deliveries that race it.
@@ -1143,10 +1078,10 @@ PROFILES = {
         "open_file": 30, "open_dir": 6, "open_burst": 20, "open_playlist": 4,
         "cache_churn": 6, "clear_caches": 2,
         "transport": 10, "seek": 4, "pitch": 1,
-        "fx": 1, "held_fx": 1, "key": 1,
-        "window": 1, "resize": 1, "click": 1, "drag": 0, "file_drag_drop": 2,
+        "fx": 1, "held_fx": 1,
+        "window": 1, "resize": 1, "file_drag_drop": 2,
         "menu": 1, "undo": 0, "settle": 8, "folder_art": 2,
-        "reorder_begin": 2, "reorder_finish": 3, "playlist_remove": 3,
+        "reorder_begin": 2, "reorder_finish": 3, "remove_selected": 3,
         "append": 6, "end_of_track": 1, "analysis_flip": 3,
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,
@@ -1164,9 +1099,9 @@ PROFILES = {
         "cache_churn": 6, "clear_caches": 3,
         "transport": 16, "playlist_jump": 14, "burst": 10,
         "seek": 8, "pitch": 2,
-        "fx": 2, "held_fx": 3, "key": 2,
+        "fx": 2, "held_fx": 3,
         "window": 2, "resize": 2, "resize_storm": 8,
-        "click": 2, "drag": 1, "file_drag_drop": 3,
+        "file_drag_drop": 3,
         "menu": 1, "undo": 0, "settle": 2, "folder_art": 4,
         "reorder_begin": 6, "reorder_finish": 8,
         "append": 8, "end_of_track": 3, "analysis_flip": 4,
@@ -1176,7 +1111,7 @@ PROFILES = {
         # a removal whose replacement play is still settling when the next open
         # lands on top of it is the shape neither profile reaches alone.
         "theme": 9, "theme_import": 2,
-        "playlist_select": 5, "playlist_remove": 8, "playlist_move": 5,
+        "select_rows": 5, "remove_selected": 8, "playlist_move": 5,
         "undo_storm": 3,
     },
     # The folder-artwork fallback: opens through all three resolve strategies
@@ -1188,10 +1123,10 @@ PROFILES = {
         "open_file": 20, "open_dir": 14, "open_burst": 16, "open_playlist": 6,
         "cache_churn": 3, "clear_caches": 3,
         "transport": 12, "seek": 2, "pitch": 0,
-        "fx": 0, "held_fx": 0, "key": 2,
-        "window": 10, "resize": 4, "click": 3, "drag": 0, "file_drag_drop": 4,
+        "fx": 0, "held_fx": 0,
+        "window": 10, "resize": 4, "file_drag_drop": 4,
         "menu": 1, "undo": 0, "settle": 6, "folder_art": 10,
-        "reorder_begin": 2, "reorder_finish": 2, "playlist_remove": 2,
+        "reorder_begin": 2, "reorder_finish": 2, "remove_selected": 2,
         "append": 4, "end_of_track": 0, "analysis_flip": 1,
         "block_main": 4, "audio_loading": 2, "equalizer_mode": 0,
         "appearance": 6, "resize_storm": 3,
@@ -1222,17 +1157,17 @@ PROFILES = {
         "cache_churn": 3, "clear_caches": 5, "cloud_churn": 4,
         "transport": 18, "seek": 6, "pitch": 0,
         "playlist_jump": 18, "burst": 12,
-        "fx": 0, "held_fx": 0, "key": 1,
-        "window": 1, "resize": 1, "click": 2, "drag": 0, "file_drag_drop": 1,
+        "fx": 0, "held_fx": 0,
+        "window": 1, "resize": 1, "file_drag_drop": 1,
         "menu": 1, "undo": 0, "settle": 30, "folder_art": 1,
         # Reorder earns a thin slot here despite the settle budget: moving the
         # successor away re-parks prefetch, which is a live cloud transfer
         # being retargeted — a race only this profile can reach.
         "reorder_begin": 2, "reorder_finish": 2,
-        # playlist_remove is cloud-relevant for the same reason: a removed
+        # remove_selected is cloud-relevant for the same reason: a removed
         # row's queued scan work is abandoned mid-transfer, and a removed
         # current row supersedes a live foreground download.
-        "playlist_remove": 2,
+        "remove_selected": 2,
         "append": 2, "end_of_track": 2, "analysis_flip": 1,
         # Kept deliberately thin. This profile's weights are a measured balance
         # between opens and settles — every op kind added here is a settle not
@@ -1245,18 +1180,18 @@ PROFILES = {
         # measured balance between opens and settles, and each op added here is
         # a settle not taken. The sweep needs those seconds.
         "theme": 0, "theme_import": 0,
-        "playlist_select": 0, "playlist_move": 0,
+        "select_rows": 0, "playlist_move": 0,
         "undo_storm": 0,
     },
-    # No file loading at all: pure UI monkey against whatever is loaded.
+    # UI controller actions against whatever is loaded; never raw input.
     "ui": {
         "open_file": 0, "open_dir": 0, "open_playlist": 0, "open_burst": 0,
         "cache_churn": 0, "clear_caches": 0,
         "transport": 10, "seek": 8, "pitch": 10,
-        "fx": 10, "held_fx": 8, "key": 8,
-        "window": 8, "resize": 8, "click": 12, "drag": 6, "file_drag_drop": 0,
+        "fx": 10, "held_fx": 8,
+        "window": 8, "resize": 8, "file_drag_drop": 0,
         "menu": 6, "undo": 1, "settle": 4,
-        "reorder_begin": 5, "reorder_finish": 6, "playlist_remove": 5,
+        "reorder_begin": 5, "reorder_finish": 6, "remove_selected": 5,
         "append": 0, "end_of_track": 2, "analysis_flip": 0,
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "appearance": 6, "resize_storm": 10,
@@ -1283,13 +1218,13 @@ PROFILES = {
         "open_file": 14, "open_dir": 6, "open_burst": 10, "open_playlist": 2,
         "cache_churn": 3, "clear_caches": 4,
         "transport": 10, "playlist_jump": 6, "seek": 3, "pitch": 0,
-        "fx": 0, "held_fx": 0, "key": 1,
-        "window": 4, "resize": 4, "click": 3, "drag": 1, "file_drag_drop": 2,
+        "fx": 0, "held_fx": 0,
+        "window": 4, "resize": 4, "file_drag_drop": 2,
         "menu": 2, "undo": 0, "settle": 6, "folder_art": 3,
         "block_main": 5, "audio_loading": 1, "equalizer_mode": 1,
         "theme": 32, "theme_import": 10,
         "appearance": 12, "resize_storm": 4,
-        "playlist_select": 3, "playlist_remove": 2, "playlist_move": 2,
+        "select_rows": 3, "remove_selected": 2, "playlist_move": 2,
         "undo_storm": 1,
     },
     # Structural edits to the playlist, under enough transport to make them
@@ -1310,13 +1245,13 @@ PROFILES = {
         "cache_churn": 2, "clear_caches": 2,
         "transport": 16, "playlist_jump": 14, "burst": 4,
         "seek": 4, "pitch": 0,
-        "fx": 0, "held_fx": 0, "key": 2,
-        "window": 1, "resize": 3, "click": 2, "drag": 0, "file_drag_drop": 3,
+        "fx": 0, "held_fx": 0,
+        "window": 1, "resize": 3, "file_drag_drop": 3,
         "menu": 2, "undo": 2, "settle": 5, "folder_art": 1,
         "block_main": 6, "audio_loading": 2, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,
         "theme": 3, "theme_import": 1,
-        "playlist_select": 16, "playlist_remove": 20, "playlist_move": 16,
+        "select_rows": 16, "remove_selected": 20, "playlist_move": 16,
         "undo_storm": 10,
     },
 }
@@ -1325,9 +1260,7 @@ PROFILES = {
 def effective_weights(profile):
     """The op weights a profile actually runs: base overlaid by the profile.
 
-    The one spelling of the merge, shared by OpGenerator and run()'s
-    needs-rows derivation, so a change to the overlay rule cannot leave the
-    two disagreeing about what a profile draws."""
+    All profiles generate command-only operations, including inherited ones."""
     weights = dict(PROFILES["base"])
     weights.update(PROFILES.get(profile, {}))
     return weights
@@ -1699,98 +1632,6 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
 # --------------------------------------------------------------------------
 
 
-def chrome_exclusion_rects(channel):
-    """Top-left window-point rects the random clicker must never hit.
-
-    The window draws its own close and minimize buttons as SymbolButtons in its
-    top-left corner, and `closeApp:` is `[self close]` — which ends the run. A
-    uniform random click finds them within a few hundred ops and the driver
-    then reports a crash with no crash report to show for it, because the app
-    exited perfectly cleanly.
-
-    The buttons are direct subviews of the window-spanning content view, so
-    their frames are already window coordinates; they only need the AppKit
-    bottom-left origin flipped. The fallback rect covers the same corner in
-    case the view tree is unreadable.
-    """
-    rects = [(0.0, 0.0, 72.0, 44.0)]
-    code, tree, _ = channel.run(["dump_view_tree"], timeout=20)
-    if code != 0 or not tree:
-        return rects
-
-    def parse(frame):
-        nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame or "")]
-        return nums if len(nums) == 4 else None
-
-    def walk(node, height):
-        if node.get("class") == "SymbolButton":
-            box = parse(node.get("frame"))
-            if box:
-                x, y, w, h = box
-                top = height - y - h
-                if top < 80 and x < 160:
-                    rects.append((x - 6, top - 6, x + w + 6, top + h + 6))
-        for child in node.get("subviews", []):
-            walk(child, height)
-
-    for window in tree.get("windows", []):
-        box = parse(window.get("frame"))
-        if box and window.get("contentView"):
-            walk(window["contentView"], box[3])
-    return rects
-
-
-def discover_playlist_band(channel, require: bool):
-    """The playlist viewport's top and bottom in window points, or None.
-
-    Only the drag op needs real geometry, but selection needs the table to have
-    keyboard focus and the only way to give it that is a click inside the
-    pane — so every row op depends on this. The band is a y-range rather than a
-    rect because the pane spans the window's full width, and width is the one
-    dimension the resize ops move; x comes from the tracked window frame the
-    same way op_click's does.
-
-    PlaylistDropZoneView is the marker rather than PlaylistTableView: the table
-    is the scroll view's document view, so its frame is the whole scrollable
-    content — 532 points tall inside a 250-point pane, and mostly off-screen.
-    The drop zone is the viewport, which is what a click has to land in.
-    """
-    if require:
-        # The pane persists in NSUserDefaults, so a run inherits whatever the
-        # last one left it as, and a closed pane makes every row op a no-op
-        # against the header. Ask, then open it if it is shut.
-        code, state, _ = channel.run(["dump_state"], timeout=20)
-        shown = bool(((state or {}).get("window") or {}).get("playlistShown"))
-        if code == 0 and not shown:
-            channel.run(["toggle_size"])
-
-    code, tree, _ = channel.run(["dump_view_tree"], timeout=20)
-    if code != 0 or not tree:
-        return None
-
-    def parse(frame):
-        nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame or "")]
-        return nums if len(nums) == 4 else None
-
-    found = []
-
-    def walk(node, height, oy):
-        box = parse(node.get("frame"))
-        y = oy + (box[1] if box else 0.0)
-        if box and node.get("class") == "PlaylistDropZoneView":
-            top = height - y - box[3]
-            found.append((top, top + box[3]))
-        for child in node.get("subviews", []):
-            walk(child, height, y)
-
-    for window in tree.get("windows", []):
-        box = parse(window.get("frame"))
-        if box and window.get("contentView"):
-            walk(window["contentView"], box[3], 0.0)
-    # The tallest, in case a collapsed twin is also in the tree.
-    return max(found, key=lambda b: b[1] - b[0]) if found else None
-
-
 def collect_themes(channel):
     """Every applicable theme id, and one real record to mutate from.
 
@@ -1835,26 +1676,30 @@ def collect_themes(channel):
 def collect_menu_ids(channel):
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
     if code != 0 or not payload:
-        return []
+        raise ValueError("could not inspect the live menu; menu coverage is unknown")
     ids = []
 
     def walk(items):
         for item in items:
             identifier = item.get("id")
-            action = item.get("action") or ""
             # A submenu parent is not a clickable op: it is built with a nil
             # action, but AppKit assigns it submenuAction: once it has a
             # submenu, which reaches no responder. Recurse into its children
             # rather than collecting it.
             has_submenu = "items" in item
             if (identifier and not has_submenu
-                    and not MENU_DENY.search(identifier)
-                    and not MENU_DENY.search(action)):
+                    and identifier in MENU_IDS):
                 ids.append(identifier)
             if item.get("items"):
                 walk(item["items"])
 
     walk(payload.get("menu", []))
+    missing = MENU_IDS - set(ids)
+    if missing:
+        # FX can be absent by design when launched without its graph. Still
+        # name every missing item so a rename never silently erases coverage.
+        print("WARNING: missing allowed menu IDs (not exercised): "
+              + ", ".join(sorted(missing)), file=sys.stderr)
     return ids
 
 
@@ -1876,6 +1721,8 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
     # deliver — a hang, an unquotable argument — falls through to the per-op
     # loop, which resumes exactly where the reply stream stopped, so the op that
     # wedged still gets its own timeout and its own stall diagnosis.
+    for _, argv, _ in ops:
+        require_command(argv)
     batched = {}
     if getattr(channel, "batch", False) and len(ops) > 1:
         budget = sum(VERB_TIMEOUTS.get(argv[0], 30) for _, argv, _ in ops)
@@ -1997,7 +1844,6 @@ def run(args):
     started = time.time()
     launch(corpus, app)
     menu_ids = collect_menu_ids(channel)
-    exclusions = chrome_exclusion_rects(channel)
     # Settings is RESTORABLE, and the app opts into NSQuitAlwaysKeepsWindows —
     # so once it has been open at quit, AppKit reopens it on every launch
     # afterwards, and no op in the run is responsible. Left alone it either
@@ -2006,28 +1852,12 @@ def run(args):
     # Closing it before the baseline is what makes every leg start from the
     # same UI, whatever the previous leg left behind.
     channel.run(["settings_close"], timeout=20)
-    # Derived from the weights, not a profile list, so it cannot go stale when
-    # profiles change: hammer carried the row ops at real weight while a
-    # hardcoded list here named only theme/playlist, so a hammer run that
-    # inherited a closed pane silently turned every row op into transport for
-    # its whole length, warning-free.
-    row_weights = effective_weights(args.profile)
-    needs_rows = any(row_weights.get(op, 0) > 0 for op in
-                     ("playlist_select", "playlist_remove", "playlist_move"))
-    band = discover_playlist_band(channel, needs_rows)
     themes, theme_base = collect_themes(channel)
-    print(f"menu:   {len(menu_ids)} clickable items after the modal/quit denylist")
-    print(f"clicks: avoiding {len(exclusions)} window-chrome rects (close/minimize)")
+    print(f"menu:   {len(menu_ids)} allowed app actions")
+    print("input:  command-only (no pointer events, key events or activation)")
     print(f"settings: {describe_feature_settings(channel)}")
     print(f"themes: {len(themes)} applicable, "
           f"base record {'from ' + str(theme_base.get('name')) if theme_base else 'UNAVAILABLE'}")
-    if band:
-        print(f"rows:   playlist viewport y {band[0]:.0f}..{band[1]:.0f}")
-    elif needs_rows:
-        # Not fatal, but the profile is now driving something else entirely and
-        # a clean pass would mean nothing — say so where it will be read.
-        print("rows:   NO PLAYLIST VIEWPORT FOUND — row ops will fall back to "
-              "transport, and this run does not score playlist editing")
     if IGNORED_METRICS:
         print(f"RELAXED: not scoring {', '.join(sorted(IGNORED_METRICS))} "
               f"— this run cannot report those")
@@ -2062,8 +1892,7 @@ def run(args):
               f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
 
     generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile,
-                            exclusions, themes=themes, theme_base=theme_base,
-                            playlist_band=band)
+                            themes=themes, theme_base=theme_base)
     journal_path = (Path(args.journal) if args.journal
                     else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
     # Everything else in the run — health series, stall samples, the failure
@@ -2106,7 +1935,7 @@ def run(args):
                     break
 
                 state = check_liveness(channel, since=started)
-                generator.note_window(state.get("window", {}).get("frame"))
+                generator.note_state(state)
 
                 violations = check_consistency(channel)
                 if violations:
@@ -2122,12 +1951,8 @@ def run(args):
                     # ~600 views, which clears the growth limit on its own and
                     # fails the run on a window rather than on a leak.
                     #
-                    # Gate on the VIEWS, not on the window count. An in-flight
-                    # drag puts AppKit's own drag-image window on screen, and a
-                    # count-only test tripped 91 times in 2,200 ops with the
-                    # view total sitting flat at baseline throughout — so a
-                    # chrome-less window comes and goes unremarked and only a
-                    # window carrying a subtree is worth acting on.
+                    # Gate on views too: a window without an app view subtree
+                    # is not evidence of retained app UI.
                     #
                     # Nothing in the op set opens Settings on purpose and the
                     # menu item that would is denied, so WHAT opens it is still
@@ -2187,6 +2012,7 @@ def run(args):
         except KeyboardInterrupt:
             print("\ninterrupted", file=sys.stderr)
 
+    channel.run(["reorder_cancel"])
     user_settings_restore(channel, restore, imported_themes)
 
     if health_samples or resting_samples:
@@ -2228,6 +2054,8 @@ def load_journal(path: Path):
             entry = json.loads(line)
             if "argv" in entry:
                 ops.append((entry.get("op", "op"), entry["argv"], entry.get("tolerated", [])))
+    for _, argv, _ in ops:
+        require_command(argv)
     return ops
 
 
@@ -2240,6 +2068,8 @@ def reproduces(channel, corpus, app, ops, resting_mb=0):
     allocation is exactly the kind of failure whose repro you most want cut
     down, since it only shows up after hundreds of ops.
     """
+    for _, argv, _ in ops:
+        require_command(argv)
     launch(corpus, app)
     failure = replay_ops(channel, ops)
     if failure:
@@ -2339,11 +2169,56 @@ def describe_materialization_coverage(channel) -> str:
     return ", ".join(parts)
 
 
+def run_gesture_test(args):
+    """One named gesture on an already running, isolated desktop app."""
+    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    channel = Channel(app, verbose=args.verbose, gesture_test=args.gesture_test,
+                      client_app=Path(args.client_app) if args.client_app else None)
+
+    def command(argv):
+        code, payload, _ = channel.run(argv)
+        if code != 0 or not payload or payload.get("error"):
+            raise ValueError(f"gesture test failed: {argv}: {payload}")
+        return payload
+
+    original = command(["dump_state"])
+    shown = original["window"]["pitchPanelShown"]
+    pitch = original["player"]["pitch"]
+    try:
+        if not shown:
+            command(["toggle_pitch_panel"])
+        command(["set_pitch", "3" if args.gesture_test == "pitch-reset" else "0"])
+        reply = command(["gesture_test", args.gesture_test, "isolated-desktop"])
+        if reply.get("hitView") != "PitchFaderView" or not reply.get("windowKey"):
+            raise ValueError(f"gesture missed the named control: {reply}")
+        deadline = time.monotonic() + 3
+        while True:
+            state = command(["dump_state"])
+            value = state["player"]["pitch"]
+            fader = state["ui"]["pitchFader"]
+            changed = (abs(value) < 0.01 if args.gesture_test == "pitch-reset"
+                       else 0.35 < value <= state["player"]["maxPitch"])
+            if changed and abs(value - fader) < 0.01:
+                print(f"PASSED {args.gesture_test}: player and fader pitch = {value}")
+                return 0
+            if time.monotonic() >= deadline:
+                raise ValueError(f"gesture had no expected effect: player={value}, fader={fader}")
+            time.sleep(0.05)
+    finally:
+        command(["set_pitch", str(pitch)])
+        if command(["dump_state"])["window"]["pitchPanelShown"] != shown:
+            command(["toggle_pitch_panel"])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--corpus", required=True,
+    parser.add_argument("--corpus",
                         help="directory of audio files to stress against")
+    parser.add_argument("--gesture-test", choices=GESTURE_TESTS,
+                        help="run one named gesture against the running app, outside stress/replay")
+    parser.add_argument("--isolated-desktop", action="store_true",
+                        help="assert the gesture test is on a dedicated test Mac or disposable VM")
     parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
     parser.add_argument("--seed", type=int, help="replay a previous run's op sequence")
     parser.add_argument("--iterations", type=int, default=2000, help="ops to run (default 2000)")
@@ -2393,6 +2268,14 @@ def main():
                              "in the run header.")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+    if args.gesture_test:
+        if not args.isolated_desktop or args.replay or args.shrink:
+            parser.error("--gesture-test requires --isolated-desktop and cannot replay or shrink")
+        return run_gesture_test(args)
+    if args.isolated_desktop:
+        parser.error("--isolated-desktop is only for --gesture-test; it never unlocks raw input")
+    if not args.corpus:
+        parser.error("--corpus is required for stress, replay and shrink")
     IGNORED_METRICS.update(args.ignore_metric)
 
     signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -2425,4 +2308,7 @@ if __name__ == "__main__":
     # block-buffers that — so a soak's progress stays invisible until the
     # process exits, which for an hour-long run is the entire run.
     sys.stdout.reconfigure(line_buffering=True)
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except ValueError as error:
+        sys.exit(str(error))

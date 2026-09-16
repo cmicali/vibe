@@ -77,7 +77,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 open "/path/with spaces/track.wav"
 sleep 1
 dump_screenshot after-open
-key space
+play_pause
 dump_state
 EOF
 ```
@@ -94,11 +94,17 @@ Five verbs of its own — `settings_open`, `dump_settings_ui`, `settings_click`,
 
 ### In-process input injection
 
-`click`, `drag`, `mouse_*`, and the `key*` verbs post synthesized NSEvents into the app's own queue — the **real dispatch path** (`TransportKeyMonitor`, `mouseDown:`, tracking loops, key equivalents) with no Accessibility permission and no frontmost requirement. Prefer them. `input.swift` (CGEvents through the window server, `references/os-input.md`) exists only for what posted events cannot reach: tracking areas and hover, OS-level focus and activation, real drop targets.
+**Reserve raw input for explicit gesture tests.** Unattended stress uses controller/delegate commands (`seek`, `set_pitch`, `select_rows`, `remove_selected`, `reorder_*`, `file_drag_*`), never arbitrary clicks or drags. Use `vibe-stress`'s named `--gesture-test` cases for pitch-fader mechanics on an isolated test desktop. For another gesture, follow the [targeted OS-input workflow](references/os-input.md): identify a control, resolve fresh geometry, check the result, and stop on a missed target. Never fall back to global input to recover a stress run.
+
+**App-local injection does not contain its effects.** A handler may initiate native file dragging (artwork and playlist rows) or window dragging (background and waveform). Mouse injection also activates Vibe. Real input tests belong on a dedicated test Mac or disposable macOS VM, not the user's working desktop.
+
+`click`, `drag`, `mouse_*` and the `key*` verbs post synthesized NSEvents into the app's own event queue. Unlike the other `--debug-cmd` verbs, which call controller actions directly, these exercise the **real event dispatch path**: `TransportKeyMonitor`, view `mouseDown:` and tracking loops, and menu key equivalents. Unlike CGEvent injection through `input.swift`, they need no Accessibility permission and target Vibe's event queue directly. This does not prevent a handler from starting an OS interaction.
+
+The global-input helper `input.swift` requires `--isolated-desktop`, which asserts isolation rather than creating it.
 
 - **Coordinates are main-window points, top-left origin** — the `dump_screenshot` frame, retina pixel ÷ 2. `dump_view_tree` frames are AppKit **bottom-left** in the superview; convert with the window height. Mouse replies carry `hitView`, so a missed aim shows at once.
 - Mouse injection **self-activates the app**, since a non-key window swallows the first click as activation; keyboard injection needs no activation. Replies are written when events are *queued*, so poll `dump_state`.
-- TRAP: **a lone `mouse_down` on a control that runs a modal tracking loop** (the pitch fader, a button) stalls the app inside that loop and the channel cannot deliver the `mouse_up`; recovery takes a physical click. Use `click` or `drag`, which queue the whole gesture before the loop starts; keep `mouse_down`/`mouse_up` for plain responder-method views.
+- TRAP: **a lone `mouse_down` on a control that runs a modal tracking loop** (a button) stalls the app inside that loop and the channel cannot deliver the `mouse_up`. Stop the test and capture diagnostics; do not attempt global-input recovery during stress. Use `click` or `drag`, which queue the whole gesture before the loop starts; keep `mouse_down`/`mouse_up` for plain responder-method views.
 - TRAP: **`click x y right` on a view with a context menu** (a playlist row) opens a *real* menu that blocks the channel until dismissed. Do it only with a dismisser in place: a human, or a `key esc` posted *before* the right-click, since it cannot be delivered afterwards.
 
 ## Screenshots and appearance
@@ -151,5 +157,5 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) drives this channel 
 - `references/equalizer-counters.md` — `dump_equalizer`'s schema and bounds, `set_equalizer_mode`. Read when judging the equalizer bars.
 - `references/screenshots-and-logs.md` — how the snapshot picks a window and what it cannot render, real capture and pixel probes, on-device `--log-stderr`. Read when a screenshot looks wrong or a log must come off a phone.
 - `references/test-audio.md` — the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`. Read before picking a file for a test.
-- `references/os-input.md` — CGEvents through the window server for hover, focus, and drop targets. Read only once the in-process verbs have failed you.
+- `references/os-input.md` — CGEvents through the window server for hover, focus, and drop targets. Read when an explicit gesture test needs OS input on an isolated test desktop.
 - `references/build-provenance.md` — the launch-time provenance block and how the git fields reach the binary. Read when a log must be tied to a build.

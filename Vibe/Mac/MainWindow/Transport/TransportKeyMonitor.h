@@ -29,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithController:(MainPlayerController *)controller;
 
+// The local monitor supplies event.window. Keeping window identity explicit
+// also lets host-less tests drive the real handler without a native window.
+- (nullable NSEvent *)handleKeyEvent:(NSEvent *)event inWindow:(nullable NSWindow *)window;
+
 @end
 
 NS_ASSUME_NONNULL_END
