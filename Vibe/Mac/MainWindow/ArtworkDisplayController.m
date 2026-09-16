@@ -172,14 +172,26 @@ static const CGFloat kTransportBandFraction = 1.0 / 3;
     ArtworkRenderRequest       *_queuedRenderRequest;
     BOOL                        _renderInFlight;
     BOOL                        _initialized;
+    void (^_renderer)(NSImage *, NSColor *, void (^)(NSImage *, NSColor *, BOOL));
+    void (^_publication)(NSImage *, NSColor *, BOOL, BOOL);
 }
 
 - (instancetype)initWithContentView:(MainPlayerContentView *)contentView {
-    self = [super init];
+    self = [self initWithRenderer:nil publication:nil];
     if (self) {
         _artworkView = contentView.albumArtImageView;
         _headerTintView = contentView.headerTintView;
         _playlistTintView = contentView.playlistTintView;
+    }
+    return self;
+}
+
+- (instancetype)initWithRenderer:(void (^)(NSImage *, NSColor *, void (^)(NSImage *, NSColor *, BOOL)))renderer
+                      publication:(void (^)(NSImage *, NSColor *, BOOL, BOOL))publication {
+    self = [super init];
+    if (self) {
+        _renderer = [renderer copy];
+        _publication = [publication copy];
         _dominantColorByArt = [NSMapTable weakToStrongObjectsMapTable];
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
@@ -322,21 +334,22 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 - (void)startRenderRequest:(ArtworkRenderRequest *)request {
     _renderInFlight = YES;
     __weak ArtworkDisplayController *weakSelf = self;
+    void (^complete)(NSImage *, NSColor *, BOOL) = ^(NSImage *square, NSColor *color, BOOL dark) {
+        NSAssert(NSThread.isMainThread, @"Artwork delivery belongs on main");
+        ArtworkDisplayResult *result = [[ArtworkDisplayResult alloc]
+                initWithSquareImage:square dominantColor:color lowerBandIsDark:dark];
+        [weakSelf completeRenderRequest:request result:result];
+    };
+    if (_renderer) {
+        _renderer(request.renderSource, request.cachedColor, complete);
+        return;
+    }
     dispatch_async(_artworkRenderQueue, ^{
         @autoreleasepool {
-            NSImage *square = [request.renderSource squareCroppedImage]
-                    ?: request.renderSource;
+            NSImage *square = [request.renderSource squareCroppedImage] ?: request.renderSource;
             NSColor *color = request.cachedColor ?: [square dominantColor];
-            ArtworkDisplayResult *result = [[ArtworkDisplayResult alloc]
-                    initWithSquareImage:square dominantColor:color
-                        lowerBandIsDark:VibeImageLowerBandIsDark(square, kTransportBandFraction)];
-            run_on_main_thread({
-                ArtworkDisplayController *strongSelf = weakSelf;
-                if (!strongSelf) {
-                    return;
-                }
-                [strongSelf completeRenderRequest:request result:result];
-            });
+            BOOL dark = VibeImageLowerBandIsDark(square, kTransportBandFraction);
+            run_on_main_thread({ complete(square, color, dark); });
         }
     });
 }
@@ -358,18 +371,12 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                                           _artworkTargetMetadata,
                                           _artworkTargetArt)) {
         _pendingArt = nil;
-        _artworkView.image = result.squareImage;
         _showingDefaultArt = NO;
         _dominantArtColor = result.dominantColor;
-        if (self.dominantColorDidChangeHandler) {
-            self.dominantColorDidChangeHandler();
-        }
-        [self refreshTintWashes];
         _displayedArt = request.sourceArt;
         _displayedArtTrack = request.track;
         _displayedArtMetadata = request.metadata;
-        [self applyDockIcon];
-        [self publishTransportBackdropDark:result.lowerBandIsDark];
+        [self publishImage:result.squareImage lowerBandIsDark:result.lowerBandIsDark];
     }
 
     _renderInFlight = NO;
@@ -542,17 +549,29 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
     if (_showingDefaultArt && _initialized) {
         return;
     }
-    _artworkView.image = AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage;
     _showingDefaultArt = YES;
     _dominantArtColor = nil;
-    if (self.dominantColorDidChangeHandler) {
-        self.dominantColorDidChangeHandler();
-    }
-    [self refreshTintWashes]; // samples the placeholder's transport contrast too
-    [NSDockTile resetToAppIcon];
     _displayedArt = nil;
     _displayedArtTrack = nil;
     _displayedArtMetadata = nil;
+    [self publishImage:nil lowerBandIsDark:YES];
+}
+
+// Image, color, transport contrast and Dock publication share the acceptance
+// gate above. The injected sink never creates a view or touches the Dock.
+- (void)publishImage:(NSImage *)image lowerBandIsDark:(BOOL)dark {
+    if (!_publication) {
+        _artworkView.image = _showingDefaultArt
+                ? AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage : image;
+    }
+    if (self.dominantColorDidChangeHandler) self.dominantColorDidChangeHandler();
+    if (_publication) {
+        _publication(image, _dominantArtColor, _showingDefaultArt, dark);
+    } else {
+        [self refreshTintWashes]; // also samples default art's transport contrast
+        [self applyDockIcon];
+    }
+    if (!_showingDefaultArt) [self publishTransportBackdropDark:dark];
 }
 
 - (void)publishTransportBackdropDark:(BOOL)dark {

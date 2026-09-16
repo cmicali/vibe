@@ -12,6 +12,10 @@
 + (Formatters *)sharedInstance;
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration;
+// Total or remaining wall-clock duration, with elapsed already in wall time.
+// Caches whole seconds and mode together; invalid arithmetic displays zero.
+- (NSString *)durationStringForFileDuration:(NSTimeInterval)duration rate:(double)rate
+                         elapsedDisplayTime:(NSTimeInterval)elapsed remaining:(BOOL)remaining;
 
 // Fixed-fraction decimal in the user's locale: "44.1" in en, "44,1" in de.
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits;

@@ -36,6 +36,13 @@ typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block)
 // append rather than replace. Returns YES when a batch drained, so the caller
 // knows whether the empty state may render.
 - (BOOL)startAndDrainQueue;
+// After grant restoration: an explicit queued open wins, then the saved
+// session, then empty state. Restoration itself never arms an open burst.
+- (void)finishLaunchRestoring:(BOOL (^)(void))restore revealEmpty:(dispatch_block_t)revealEmpty;
+// Pure argument selection; existence checks are supplied by the caller and
+// run on its worker, never during the main-thread launch drain.
++ (NSArray<NSURL *> *)fileURLsInArguments:(NSArray<NSString *> *)arguments
+                           existingPath:(BOOL (^)(NSString *path))exists;
 
 // A system open event: part of the current burst, or the start of a new one.
 - (void)openBurstURLs:(NSArray<NSURL *> *)urls;

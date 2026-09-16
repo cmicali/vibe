@@ -69,4 +69,10 @@ static inline TrackDisplayState VibeResolveTrackDisplayState(
     return playerIsLoading ? TrackDisplayStateLoading : TrackDisplayStateTrack;
 }
 
+// Placeholder states retain their labels; a parked track's zero duration
+// must not overwrite the full-length right label installed at track end.
+static inline BOOL VibeTrackTimeMayUpdate(TrackDisplayState state, NSTimeInterval duration, BOOL rightLabel) {
+    return state == TrackDisplayStateTrack && (!rightLabel || duration > 0);
+}
+
 NS_ASSUME_NONNULL_END

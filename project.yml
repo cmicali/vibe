@@ -617,6 +617,8 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
+      - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m

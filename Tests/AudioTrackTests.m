@@ -11,6 +11,7 @@
 
 #import "AudioTrack.h"
 #import "NowPlayingController.h"
+#import "ArtworkDisplayController.h"
 #import <MediaPlayer/MediaPlayer.h>
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
@@ -24,9 +25,19 @@
 @property (nonatomic, strong) NSImage *cachedArt;
 @property (nonatomic, strong) NSImage *cachedThumbnail;
 @property (nonatomic) BOOL parsedOK;
+@property (nonatomic) BOOL artNeedsLoad;
+@property (nonatomic, getter=isArtLoadPending) BOOL artLoadPending;
+@property (nonatomic, copy) BOOL (^artStillWanted)(void);
+@property (nonatomic, copy) void (^artCompletion)(NSImage *);
+@property (nonatomic) NSUInteger discardedArtCount;
 @end
 
 @implementation FakeTrackMetadata
+- (void)loadArtIfNeededStillWanted:(BOOL (^)(void))wanted completion:(void (^)(NSImage *))completion {
+    self.artStillWanted = wanted;
+    self.artCompletion = completion;
+}
+- (void)discardDecodedArt { self.discardedArtCount++; self.cachedArt = nil; }
 - (instancetype)init {
     self = [super init];
     // The real AudioTrackMetadata inits key to -1 (0 would be C major); the
@@ -39,7 +50,10 @@
 @interface AudioTrackTests : XCTestCase
 @end
 
-@implementation AudioTrackTests
+@implementation AudioTrackTests {
+    NSMutableArray<NSDictionary *> *_artRenders;
+    NSMutableArray<NSDictionary *> *_artPublications;
+}
 
 static AudioTrack *TrackNamed(NSString *filename) {
     NSString *path = [@"/private/tmp/vibe-tests/" stringByAppendingString:filename];
@@ -431,6 +445,223 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     metadata.cachedThumbnail = nil;
     publish();
     XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtwork]);
+}
+
+
+#pragma mark - Artwork scheduling (actual controller, controlled pixel work)
+
+- (ArtworkDisplayController *)artController {
+    NSMutableArray *renders = _artRenders = [NSMutableArray array];
+    NSMutableArray *publications = _artPublications = [NSMutableArray array];
+    return [[ArtworkDisplayController alloc] initWithRenderer:^(NSImage *source, NSColor *cachedColor,
+            void (^completion)(NSImage *, NSColor *, BOOL)) {
+        [renders addObject:@{@"source": source, @"color": cachedColor ?: NSNull.null, @"complete": [completion copy]}];
+    } publication:^(NSImage *image, NSColor *color, BOOL defaultArt, BOOL dark) {
+        [publications addObject:@{@"image": image ?: NSNull.null, @"color": color ?: NSNull.null,
+                                 @"default": @(defaultArt), @"dark": @(dark)}];
+    }];
+}
+
+- (AudioTrack *)artTrack:(NSUInteger)marker {
+    AudioTrack *track = TrackNamed([NSString stringWithFormat:@"art-%lu.mp3", (unsigned long)marker]);
+    FakeTrackMetadata *metadata = [FakeTrackMetadata new];
+    metadata.cachedArt = [[NSImage alloc] initWithSize:NSMakeSize(marker, marker)];
+    Attach(track, metadata);
+    return track;
+}
+
+- (void)completeArtRender:(NSUInteger)index color:(NSColor *)color dark:(BOOL)dark {
+    NSDictionary *request = _artRenders[index];
+    void (^complete)(NSImage *, NSColor *, BOOL) = request[@"complete"];
+    complete(request[@"source"], color, dark);
+}
+
+- (void)testArtworkRendersOnlyRunningAndNewestQueuedTrack {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20], *c = [self artTrack:30];
+    __block NSUInteger colors = 0, backdrops = 0;
+    controller.dominantColorDidChangeHandler = ^{ colors++; };
+    controller.transportBackdropDidChangeHandler = ^(BOOL dark) { backdrops++; XCTAssertFalse(dark); };
+    [controller updateForTrack:a];
+    [controller updateForTrack:b];
+    [controller updateForTrack:c];
+    [controller updateForTrack:c];
+    XCTAssertEqual(_artRenders.count, 1u);
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artPublications.count, 0u);
+    XCTAssertEqual(colors, 0u);
+    XCTAssertNil(controller.dominantArtColor);
+    XCTAssertEqual(_artRenders.count, 2u);
+    XCTAssertEqual(((NSImage *)_artRenders[1][@"source"]).size.width, 30);
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqual(_artPublications.count, 1u);
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.blueColor);
+    XCTAssertEqualObjects(_artPublications[0][@"color"], NSColor.blueColor);
+    XCTAssertEqualObjects(_artPublications[0][@"default"], @NO);
+    XCTAssertEqual(colors, 1u);
+    XCTAssertEqual(backdrops, 1u);
+    [controller updateForTrack:c];
+    XCTAssertEqual(_artRenders.count, 2u);
+}
+
+- (void)testReturningToSameArtworkStillRejectsTheEarlierSubmission {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    [controller updateForTrack:a];
+    [controller updateForTrack:b];
+    [controller updateForTrack:a];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artPublications.count, 0u);
+    XCTAssertEqual(_artRenders.count, 2u);
+    [self completeArtRender:1 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artPublications.count, 1u);
+    // The stale color is still useful for that same source on a later visit.
+    [controller updateForTrack:nil];
+    [controller updateForTrack:a];
+    XCTAssertEqualObjects(_artRenders[2][@"color"], NSColor.redColor);
+}
+
+- (void)testMetadataReplacementOnSameTrackRejectsOldCrop {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *track = [self artTrack:10];
+    [controller updateForTrack:track];
+    FakeTrackMetadata *replacement = [FakeTrackMetadata new];
+    replacement.cachedArt = [[NSImage alloc] initWithSize:NSMakeSize(20, 20)];
+    Attach(track, replacement);
+    [controller updateForTrack:track];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artPublications.count, 0u);
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.blueColor);
+}
+
+- (void)testReplacingImageWithinSameMetadataRejectsOldCrop {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *track = [self artTrack:10];
+    [controller updateForTrack:track];
+    ((FakeTrackMetadata *)track.metadata).cachedArt = [[NSImage alloc] initWithSize:NSMakeSize(20, 20)];
+    [controller updateForTrack:track];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artPublications.count, 0u);
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqual(_artPublications.count, 1u);
+}
+
+- (void)testClosingCancelsQueuedArtworkAndRejectsRunningResult {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    [controller updateForTrack:a];
+    [controller updateForTrack:b];
+    [controller updateForTrack:nil];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    XCTAssertEqual(_artRenders.count, 1u);
+    XCTAssertEqual(_artPublications.count, 1u);
+    XCTAssertEqualObjects(_artPublications[0][@"default"], @YES);
+    XCTAssertNil(controller.dominantArtColor);
+}
+
+- (void)testSlowPlaceholderKeepsCurrentCropEligibleToInstall {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    __block AudioTrack *current = a;
+    controller.currentTrackProvider = ^{ return current; };
+    [controller updateForTrack:a];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    current = b;
+    [controller updateForTrack:b];
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.redColor);
+    [controller showPlaceholderForSlowLoad];
+    XCTAssertNil(controller.dominantArtColor);
+    XCTAssertEqualObjects(_artPublications.lastObject[@"default"], @YES);
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.blueColor);
+    [controller showPlaceholderForSlowLoad];
+    XCTAssertEqual(_artPublications.count, 3u, @"Installed current art survives the slow-open timer");
+}
+
+- (void)testSharedCoverTransfersOwnershipWithoutAnotherRender {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    ((FakeTrackMetadata *)b.metadata).cachedArt = a.metadata.cachedArt;
+    controller.currentTrackProvider = ^{ return b; };
+    [controller updateForTrack:a];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    [controller updateForTrack:b];
+    [controller showPlaceholderForSlowLoad];
+    XCTAssertEqual(_artRenders.count, 1u);
+    XCTAssertEqual(_artPublications.count, 1u);
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.redColor);
+}
+
+- (void)testDeferredArtworkLoadChecksCurrentTrackAndMetadata {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    [controller updateForTrack:b];
+    [self completeArtRender:0 color:NSColor.blueColor dark:YES];
+    FakeTrackMetadata *metadata = (FakeTrackMetadata *)a.metadata;
+    metadata.cachedArt = nil;
+    metadata.artNeedsLoad = YES;
+    __block AudioTrack *current = a;
+    controller.currentTrackProvider = ^{ return current; };
+    [controller updateForTrack:a];
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.blueColor, @"Unresolved art keeps the installed image");
+    XCTAssertTrue(metadata.artStillWanted());
+    current = b;
+    XCTAssertFalse(metadata.artStillWanted());
+    current = a;
+    Attach(a, [FakeTrackMetadata new]);
+    XCTAssertFalse(metadata.artStillWanted());
+    // The metadata owner normally releases its callbacks after delivery.
+    metadata.artStillWanted = nil;
+    metadata.artCompletion = nil;
+}
+
+- (void)testPlaybackChangeDemotesOnlyTheDepartingTracksDecodedArt {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    FakeTrackMetadata *old = (FakeTrackMetadata *)a.metadata;
+    [controller trackDidStartPlaying:a];
+    [controller trackDidStartPlaying:a];
+    XCTAssertEqual(old.discardedArtCount, 0u);
+    [controller trackDidStartPlaying:b];
+    XCTAssertEqual(old.discardedArtCount, 1u);
+    XCTAssertNil(old.cachedArt);
+    XCTAssertNotNil(b.metadata.cachedArt);
+}
+
+- (void)testDeferredArtworkDistinguishesStillLoadingFromKnownArtlessness {
+    ArtworkDisplayController *controller = self.artController;
+    AudioTrack *old = [self artTrack:10], *pending = [self artTrack:20];
+    [controller updateForTrack:old];
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    FakeTrackMetadata *metadata = (FakeTrackMetadata *)pending.metadata;
+    metadata.cachedArt = nil;
+    metadata.artNeedsLoad = YES;
+    controller.currentTrackProvider = ^{ return pending; };
+    __block NSUInteger resolved = 0;
+    __weak ArtworkDisplayController *weakController = controller;
+    controller.artDidResolveHandler = ^{ resolved++; [weakController updateForTrack:pending]; };
+    [controller updateForTrack:pending];
+    metadata.artCompletion(nil);
+    XCTAssertEqual(_artPublications.count, 1u);
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.redColor);
+    [controller updateForTrack:pending]; // Retry after the unresolved completion.
+    metadata.cachedArt = [[NSImage alloc] initWithSize:NSMakeSize(20, 20)];
+    metadata.artNeedsLoad = NO;
+    metadata.artCompletion(metadata.cachedArt);
+    XCTAssertEqual(resolved, 1u);
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqualObjects(controller.dominantArtColor, NSColor.blueColor);
+    metadata.cachedArt = nil;
+    metadata.artNeedsLoad = YES;
+    [controller updateForTrack:pending];
+    metadata.artNeedsLoad = NO;
+    metadata.artCompletion(nil);
+    XCTAssertEqual(_artPublications.count, 3u);
+    XCTAssertEqualObjects(_artPublications.lastObject[@"default"], @YES);
+    XCTAssertNil(controller.dominantArtColor);
+    metadata.artStillWanted = nil;
+    metadata.artCompletion = nil;
 }
 
 @end

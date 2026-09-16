@@ -7,6 +7,9 @@
 
 
 @implementation Formatters {
+    NSTimeInterval _lastDurationSeconds;
+    BOOL _lastDurationRemaining;
+    NSString *_lastDurationText;
     NSDateComponentsFormatter *_timeFormatter;
     NSDateComponentsFormatter *_hourTimeFormatter;
     NSDateComponentsFormatter *_spelledDurationFormatter;
@@ -95,6 +98,20 @@
     _spelledDurationFormatter.unitsStyle = NSDateComponentsFormatterUnitsStyleFull;
     _spelledDurationFormatter.allowedUnits = NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
     _spelledDurationFormatter.maximumUnitCount = 2;
+}
+
+- (NSString *)durationStringForFileDuration:(NSTimeInterval)duration rate:(double)rate
+                         elapsedDisplayTime:(NSTimeInterval)elapsed remaining:(BOOL)remaining {
+    NSTimeInterval value = duration / rate - (remaining ? elapsed : 0);
+    if (!isfinite(value) || value < 0) value = 0;
+    NSTimeInterval seconds = floor(value);
+    if (!_lastDurationText || seconds != _lastDurationSeconds || remaining != _lastDurationRemaining) {
+        NSString *text = [self durationStringFromTimeInterval:seconds];
+        _lastDurationText = remaining ? [@"-" stringByAppendingString:text] : text;
+        _lastDurationSeconds = seconds;
+        _lastDurationRemaining = remaining;
+    }
+    return _lastDurationText;
 }
 
 - (NSString *)durationStringFromTimeInterval:(NSTimeInterval)duration {

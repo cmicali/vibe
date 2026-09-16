@@ -963,4 +963,105 @@ static NSURL *Directory(NSString *path) {
     XCTAssertNil([PlaylistFile commonDirectoryForTracks:@[]]);
 }
 
+
+#pragma mark - Private session mirror
+
+- (NSURL *)sessionURLWithDefaults:(NSUserDefaults **)defaults {
+    NSString *suite = [@"vibe-session-tests-" stringByAppendingString:NSUUID.UUID.UUIDString];
+    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:suite] isDirectory:YES];
+    NSUserDefaults *store = [[NSUserDefaults alloc] initWithSuiteName:suite];
+    *defaults = store;
+    [self addTeardownBlock:^{
+        [NSFileManager.defaultManager removeItemAtURL:root error:nil];
+        [store removePersistentDomainForName:suite];
+    }];
+    return [root URLByAppendingPathComponent:@"nested/session.m3u"];
+}
+
+- (NSArray<AudioTrack *> *)sessionTracks {
+    // These paths deliberately do not exist: restoring the mirror never probes audio files.
+    AudioTrack *a = [AudioTrack withURL:[NSURL fileURLWithPath:@"/nonexistent-vibe-session/a.mp3"]];
+    AudioTrack *b = [AudioTrack withURL:[NSURL fileURLWithPath:@"/nonexistent-vibe-session/b.flac"]];
+    return @[a, b, a];
+}
+
+- (void)testSessionRoundTripPreservesOrderDuplicatesCursorAndPausedIntent {
+    NSUserDefaults *defaults;
+    NSURL *url = [self sessionURLWithDefaults:&defaults];
+    NSArray *tracks = self.sessionTracks;
+    NSError *error = nil;
+    XCTAssertTrue([PlaylistFile saveSessionTracks:tracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:&error]);
+    XCTAssertNil(error);
+    __block NSUInteger loads = 0;
+    XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused) {
+        loads++;
+        XCTAssertEqualObjects(urls, [tracks valueForKey:@"url"]);
+        XCTAssertEqual(index, 1u);
+        XCTAssertTrue(paused);
+    }]);
+    XCTAssertEqual(loads, 1u);
+}
+
+- (void)testSessionCursorClampsCorruptAndOutOfRangeValues {
+    NSUserDefaults *defaults;
+    NSURL *url = [self sessionURLWithDefaults:&defaults];
+    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:NSNotFound enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    XCTAssertEqual([defaults integerForKey:kVibeLastPlaylistCurrentIndexKey], 2);
+    for (NSArray<NSNumber *> *row in @[@[@(-4), @0], @[@0, @0], @[@1, @1], @[@(NSIntegerMax), @2]]) {
+        [defaults setObject:row[0] forKey:kVibeLastPlaylistCurrentIndexKey];
+        XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+            XCTAssertEqual(index, row[1].unsignedIntegerValue);
+        }]);
+    }
+    [defaults removeObjectForKey:kVibeLastPlaylistCurrentIndexKey];
+    XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+        XCTAssertEqual(index, 0u);
+    }]);
+}
+
+- (void)testFailedSaveRemovesOldMirrorAndCursor {
+    NSUserDefaults *defaults;
+    NSURL *url = [self sessionURLWithDefaults:&defaults];
+    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    NSError *failure = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteOutOfSpaceError userInfo:nil];
+    NSError *error = nil;
+    XCTAssertFalse([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:2 enabled:YES toURL:url defaults:defaults write:^BOOL(NSError **outError) {
+        if (outError) *outError = failure;
+        return NO;
+    } error:&error]);
+    XCTAssertEqualObjects(error, failure);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:url.path]);
+    XCTAssertNil([defaults objectForKey:kVibeLastPlaylistCurrentIndexKey]);
+    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+        XCTFail(@"Must not revive an old playlist after failed save");
+    }]);
+}
+
+- (void)testDisabledOrEmptySaveDeletesSessionWithoutCallingWriter {
+    for (NSNumber *enabled in @[@NO, @YES]) {
+        NSUserDefaults *defaults;
+        NSURL *url = [self sessionURLWithDefaults:&defaults];
+        XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+        NSArray *tracks = enabled.boolValue ? @[] : self.sessionTracks;
+        XCTAssertTrue([PlaylistFile saveSessionTracks:tracks currentIndex:0 enabled:enabled.boolValue toURL:url defaults:defaults write:^BOOL(NSError **error) {
+            XCTFail(@"No session should be written"); return YES;
+        } error:nil]);
+        XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:url.path]);
+        XCTAssertNil([defaults objectForKey:kVibeLastPlaylistCurrentIndexKey]);
+    }
+}
+
+- (void)testDisabledOrUnusableMirrorNeverLoads {
+    NSUserDefaults *defaults;
+    NSURL *url = [self sessionURLWithDefaults:&defaults];
+    void (^unexpectedLoad)(NSArray *, NSUInteger, BOOL) = ^(NSArray *urls, NSUInteger index, BOOL paused) { XCTFail(@"No restorable session"); };
+    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
+    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:0 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:NO defaults:defaults load:unexpectedLoad]);
+    for (NSString *text in @[@"", @"#EXTM3U\n# comment\n", @"relative.mp3\nhttps://example.com/a.mp3\n"]) {
+        XCTAssertTrue([text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:nil]);
+        XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
+    }
+}
+
 @end
