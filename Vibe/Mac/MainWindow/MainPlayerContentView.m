@@ -199,6 +199,12 @@ API_AVAILABLE(macos(26.0))
     // a second writer of the same alpha. Seeded before the tracking area
     // exists, so it defaults to the setting's own default.
     BOOL _trafficLightsShown;
+    // The play button's state, kept so a theme re-apply can redraw it in the
+    // state the controller last asked for.
+    BOOL _playShowsPause;
+    // Whether the art under the transport row reads as dark — the artwork
+    // controller's sample, seeded dark for the factory placeholder.
+    BOOL _transportBackdropDark;
     // The codec line's rendered text width, measured at the text edge
     // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
     CGFloat _codecTextWidth;
@@ -210,6 +216,7 @@ API_AVAILABLE(macos(26.0))
         // Shown until told otherwise: a zero-filled ivar would mean a caller
         // that forgot setTrafficLightsShown: silently loses the buttons.
         _trafficLightsShown = YES;
+        _transportBackdropDark = YES;
         self.wantsLayer = YES;
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self buildSubviewsWithTarget:target];
@@ -443,11 +450,24 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [self buildHeaderLabels];
     [self buildPlaylistPane];
     [self buildCornerReadouts];
-    // The one spelling of the themed fonts and label colors; without this the
-    // labels would launch semantic-colored and re-style only when a live
-    // effect first fired.
+    // The one spelling of the themed fonts, label colors and transport looks;
+    // without this the labels would launch semantic-colored and re-style
+    // only when a live effect first fired.
     [self applyThemedLabelFonts];
     [self applyThemedLabelColors];
+    [self applyThemedTransportButtons];
+    [self applyWindowBackgroundStyle];
+}
+
+// The header panel under the theme's window background: the Regular glass
+// pane the labels and waveform sit on under glass and solid, and NO pane at
+// all under clear — the window's own Clear backdrop is the whole look, the
+// same sheet a transparent placeholder shows through the art. Hidden rather
+// than restyled Clear: a second Clear pane over the backdrop compounds into
+// a visibly lighter band, so the header would not match the art beside it.
+- (void)applyWindowBackgroundStyle {
+    _backgroundGlassView.hidden = [AppSettings.sharedInstance.currentTheme.windowBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
 }
 
 // The glass panel behind the waveform and header, the art-color tint over
@@ -455,7 +475,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // above them.
 - (void)buildHeaderBackdrop {
     NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
-    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
+    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     if (@available(macOS 26.0, *)) {
         _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
     }
@@ -778,6 +798,89 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
 }
 
+// A glyph this macOS has a symbol for, else the factory one — the free-text
+// glyph fields' resolve-time fallback, the way Fonts resolves an uninstalled
+// face. A button drawing nothing is never the answer.
+static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
+    // Whether this macOS has a symbol never changes within a run, and the
+    // probe allocates an image, so remember each name's answer.
+    static NSMutableDictionary<NSString *, NSNumber *> *known;
+    if (!known) {
+        known = [NSMutableDictionary dictionary];
+    }
+    NSNumber *has = known[glyph];
+    if (has == nil) {
+        has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
+        known[glyph] = has;
+    }
+    return has.boolValue ? glyph : factory;
+}
+
+// One button's whole themed look: its picture for the art under it
+// (AppTheme.buttonImageForKey:, either side of the pair), else its glyph,
+// and the resting color the states derive from.
+static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
+                               NSString *glyph, NSString *factoryGlyph,
+                               NSString *colorBase, BOOL dark) {
+    button.image = [theme buttonImageForKey:imageKey];
+    button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
+    [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
+}
+
+// The gradient, when on, makes the backdrop dark whatever the cover; off,
+// the art's own lower band decides.
+- (BOOL)transportBackdropIsDark {
+    return AppSettings.sharedInstance.currentTheme.buttonGradient || _transportBackdropDark;
+}
+
+- (void)applyThemedTransportButtons {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL dark = self.transportBackdropIsDark;
+    ApplyThemeToButton(_playlistToggleButton, theme,
+                       dark ? kVibeThemeImagePlaylistButtonDark : kVibeThemeImagePlaylistButtonLight,
+                       theme.playlistButtonGlyph, kVibeThemePlaylistButtonGlyphDefault,
+                       kVibeThemeColorPlaylistButton, dark);
+    ApplyThemeToButton(_nextButton, theme,
+                       dark ? kVibeThemeImageNextButtonDark : kVibeThemeImageNextButtonLight,
+                       theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
+                       kVibeThemeColorNextButton, dark);
+    [self dressPlayButton];
+    _albumArtGradientView.hidden = !theme.buttonGradient;
+}
+
+- (void)setTransportBackdropDark:(BOOL)dark {
+    if (_transportBackdropDark == dark) {
+        return;
+    }
+    _transportBackdropDark = dark;
+    [self applyThemedTransportButtons];
+}
+
+// The play button dresses two states from one theme slot pair: the pause
+// glyph and image while playing, the play ones otherwise. Each image slot
+// falls back to its glyph on its own, so a theme with only a play image
+// still shows a pause glyph while playing rather than the play picture.
+- (void)setPlayButtonShowsPause:(BOOL)showsPause {
+    // updateUI asks on every transport event; the dress is a CATransaction
+    // and three colors, so only a state change pays for it.
+    if (showsPause == _playShowsPause) {
+        return;
+    }
+    _playShowsPause = showsPause;
+    [self dressPlayButton];
+}
+
+- (void)dressPlayButton {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL dark = self.transportBackdropIsDark, pause = _playShowsPause;
+    NSString *imageKey = pause ? (dark ? kVibeThemeImagePauseButtonDark : kVibeThemeImagePauseButtonLight)
+                               : (dark ? kVibeThemeImagePlayButtonDark : kVibeThemeImagePlayButtonLight);
+    ApplyThemeToButton(_playButton, theme, imageKey,
+                       pause ? theme.pauseButtonGlyph : theme.playButtonGlyph,
+                       pause ? kVibeThemePauseButtonGlyphDefault : kVibeThemePlayButtonGlyphDefault,
+                       kVibeThemeColorPlayButton, dark);
+}
+
 // The glass style's unthemed lift: clear in dark, a white brightening wash in
 // light that lifts row contrast for the dark text while letting the blur
 // through.
@@ -790,15 +893,20 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     BOOL solid = [theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    BOOL clear = [theme.playlistBackgroundStyle
+            isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR];
     // Solid removes the behind-window blur outright; the background layer then
     // carries the whole background over whatever the window backdrop shows.
     // Under glass it is the unthemed appearance lift — the theme's color pair
     // belongs to the solid cover alone, and any themed color over glass is the
-    // playlist tint wash layered above (ArtworkDisplayController).
-    _playlistFrostView.hidden = solid;
+    // playlist tint wash layered above (ArtworkDisplayController). Clear
+    // removes the blur and the lift both: the window's Clear backdrop is the
+    // whole background, readability being the theme's own call.
+    _playlistFrostView.hidden = solid || clear;
     NSColor *background = solid
             ? [theme displayColorForBase:kVibeThemeColorPlaylistBackground dark:dark]
-            : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
+            : clear ? NSColor.clearColor
+                    : [MainPlayerContentView defaultPlaylistBackgroundColorForDark:dark];
     _playlistDimView.layer.backgroundColor = background.CGColor;
 }
 

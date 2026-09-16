@@ -5,7 +5,7 @@
 //  The private surface shared between AppSettings.m and Mac/AppSettings+Mac.m:
 //  the stored keys both halves read, the ivars the macOS half keeps, and the
 //  macOS halves of the shared store-wide entry points. Do not use it outside
-//  the AppSettings implementation files; everything else goes through
+//  the AppSettings implementation files and their tests; other callers use
 //  AppSettings.h or AppSettings+Mac.h.
 //
 
@@ -32,6 +32,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AppSettings () {
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
+    // The theme editor's undo (AppSettings+Mac.h): the record each edit of a
+    // user theme replaced, and what the last push moved, for coalescing.
+    NSMutableArray<NSDictionary *> *_themeUndoStack;
+    NSSet<NSString *> *_themeUndoChangedKeys;
+    NSTimeInterval _themeUndoPushTime;
+    BOOL _themeUndoRestoring;
     // The Settings window's temporary appearance preview: transient by
     // design, so a window left open on the Appearance page at quit reverts.
     NSString   *_windowAppearancePreviewStyle;
@@ -49,6 +55,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addMacNullableSettingKeysTo:(NSMutableArray<NSString *> *)keys;
 - (void)resetMacThemeState;
 - (void)macApplicationDidFinishLaunching;
+// The production edit funnel with explicit time, so drag coalescing can be
+// exercised without sleeping or replacing the defaults/theme machinery.
+- (void)currentThemeDidChangeContinuous:(BOOL)continuous atTime:(NSTimeInterval)time;
 @end
 
 #endif  // TARGET_OS_OSX

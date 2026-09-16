@@ -146,14 +146,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
         // is not an open: it never enters the coalescer (Mac/App/CLAUDE.md).
-        if (![self->_openBurstCoalescer startAndDrainQueue]
-                && ![self.mainPlayerController restoreLastPlaylist]) {
-            // No launch-time open is queued and nothing was remembered: Finder
-            // events land before this point, so the empty state may render.
-            // Argv paths arrive a beat later, off their exists checks, and
-            // replace it as a burst open.
+        [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
+            return [self.mainPlayerController restoreLastPlaylist];
+        } revealEmpty:^{
             [self.mainPlayerController revealEmptyState];
-        }
+        }];
     }];
 }
 
@@ -175,27 +172,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // openBurstURLs:, which queues before start and drains after it either
     // way.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-        NSFileManager *fileManager = [NSFileManager defaultManager];
-        for (NSUInteger i = 1; i < args.count; i++) {
-            NSString *arg = args[i];
-            if ([arg isEqualToString:@"--debug-cmd"]) {
-                i++; // the only flag that takes a value (see main.m)
-                continue;
-            }
-            if ([arg hasPrefix:@"-"]) {
-                // Skip only the flag itself. Consuming the next argument
-                // unconditionally would drop the path in
-                // `Vibe --someflag song.mp3`. A value riding an AppKit
-                // "-key value" pair fails the exists check below.
-                continue;
-            }
-            NSString *path = arg.stringByExpandingTildeInPath;
-            if ([fileManager fileExistsAtPath:path]) {
-                [urls addObject:[NSURL fileURLWithPath:path]];
-                LogInfo(@"Opening command-line path: %@", path);
-            }
-        }
+        NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
+            return [NSFileManager.defaultManager fileExistsAtPath:path];
+        }];
         if (urls.count == 0) {
             return;
         }

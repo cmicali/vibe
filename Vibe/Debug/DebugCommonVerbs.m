@@ -37,6 +37,7 @@
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
 #import "VibeFakeCloud.h"
+#import "VibeWorkTally.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -152,6 +153,17 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
+            VibeDebugCmd(@"work_tally <begin|end>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                                  id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count == 2 && [tokens[1] isEqualToString:@"begin"]) {
+                    VibeWorkTallyBeginWindow("debug");
+                    return VibeJSONString(@{@"ok": @YES});
+                }
+                if (tokens.count == 2 && [tokens[1] isEqualToString:@"end"]) {
+                    return VibeJSONString(VibeWorkTallyTakeWindow());
+                }
+                return VibeErrorJSON(@"usage: work_tally <begin|end>");
+            }),
             VibeDebugCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(surface.debugStateDictionary);

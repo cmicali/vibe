@@ -1,20 +1,10 @@
-// Synthetic keyboard/mouse via CGEvent — for testing the REAL input path
-// (hotkeys through the key monitor, fader drag mechanics, double-click
-// reset) that --debug-cmd bypasses entirely. Requires Accessibility
-// permission for the terminal.
+// Global CGEvents: only for explicit OS-input tests on a dedicated test Mac
+// or disposable macOS VM. Never use as a stress/replay recovery fallback.
+// App-local debug events already exercise key monitors and view handlers.
 //
-// Vibe must be frontmost or the events land in whatever app is — activate it
-// first: osascript -e 'tell application "Vibe" to activate'
-//
-// Coordinates are global screen points, origin top-left — the same space
-// find-window.swift prints window origin/size in.
-//
-// Usage:
-//   swift input.swift key <name>                    # a-z, 0-9, space, tab, return, esc
-//   swift input.swift move <x> <y>                 # plain cursor move (hover states)
-//   swift input.swift click <x> <y>
-//   swift input.swift dblclick <x> <y>
-//   swift input.swift drag <x1> <y1> <x2> <y2> [steps=20]
+// Usage: swift input.swift --isolated-desktop key|move|click|dblclick|drag ...
+// Coordinates are global screen points, origin top-left. The flag asserts
+// isolation; it does not create it. Activation and bounds are not containment.
 import CoreGraphics
 import Foundation
 
@@ -32,11 +22,14 @@ let keyCodes: [String: CGKeyCode] = [
     "return": 36, "tab": 48, "space": 49, "esc": 53,
 ]
 
-let args = CommandLine.arguments
-guard args.count >= 2 else { die("usage: input.swift key|click|dblclick|drag ...") }
+let rawArgs = CommandLine.arguments
+guard rawArgs.count >= 3, rawArgs[1] == "--isolated-desktop" else {
+    die("global input requires --isolated-desktop on a dedicated test Mac or disposable VM; never use during unattended stress")
+}
+let args = [rawArgs[0]] + Array(rawArgs.dropFirst(2))
 
 func point(_ xi: Int, _ yi: Int) -> CGPoint {
-    guard args.count > yi, let x = Double(args[xi]), let y = Double(args[yi]) else { die("bad coordinates") }
+    guard args.count > yi, let x = Double(args[xi]), let y = Double(args[yi]), x.isFinite, y.isFinite else { die("bad coordinates") }
     return CGPoint(x: x, y: y)
 }
 
@@ -77,7 +70,8 @@ case "click", "dblclick":
 
 case "drag":
     let a = point(2, 3), b = point(4, 5)
-    let steps = args.count > 6 ? (Int(args[6]) ?? 20) : 20
+    let steps = args.count > 6 ? (Int(args[6]) ?? 0) : 20
+    guard (2...200).contains(steps) else { die("steps must be 2...200") }
     post(mouse(.leftMouseDown, a))
     for i in 1...steps {
         let t = Double(i) / Double(steps)

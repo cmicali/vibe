@@ -8,7 +8,7 @@ file format, the identifier/display-name split, `bundled:` artwork, and the
 - A theme is one `Themes/<identifier>.json` (plus its `bundled:` PNGs if it
   carries artwork). No code changes, no project edits, no xcodegen run.
 - The shipped themes in `Themes/` are working examples; the full field set is
-  `ThemeJSONGroups()` in `Vibe/Common/Mac/AppTheme.m`.
+  `ThemeJSONGroups()` in `Vibe/Common/Mac/Theme/AppTheme.m`.
 - `make test` is the gate (`testBundledThemesAreValid`): the app's import
   path silently DROPS a typo'd key or malformed color, and the test's
   sanitizer round-trip is what makes that loud. Update the expected

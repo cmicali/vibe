@@ -28,7 +28,7 @@ ignored by the app), and then one object per Settings editor section —
 only the fields the theme changes from the factory look: a missing field (or
 a whole missing section) means "the default". Keys are section-local
 (`window.cornerRadius`, `waveform.style`, `playlist.showArtworkColumn`); the
-full set is `ThemeJSONGroups()` in `Vibe/Common/Mac/AppTheme.m`. Colors are
+full set is `ThemeJSONGroups()` in `Vibe/Common/Mac/Theme/AppTheme.m`. Colors are
 `#RRGGBB[AA]` with a `…Light`/`…Dark` suffix per appearance. A theme with
 `"window": {"mode": "single"}` uses only the `…Dark`-keyed slots.
 

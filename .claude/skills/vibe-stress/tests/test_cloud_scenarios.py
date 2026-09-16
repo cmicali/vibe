@@ -1,8 +1,12 @@
+import ast
 import importlib.util
+import json
+import random
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "cloud-scenarios.py"
@@ -10,6 +14,7 @@ SPEC = importlib.util.spec_from_file_location("vibe_cloud_scenarios", SCRIPT)
 cloud = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = cloud
 SPEC.loader.exec_module(cloud)
+stress = sys.modules["stress"]
 
 
 def event(seq, kind, role, file="track.wav"):
@@ -57,6 +62,220 @@ class FakeOpenContext:
 
 
 class TraceHelperTests(unittest.TestCase):
+    # The cloud runner shares Channel with stress/replay. Keep its input gate
+    # under the same host-less runner tests, with process launch held as a spy.
+    def test_literal_commands_in_both_channel_consumers_are_allowed(self):
+        # Generated operations have their own coverage below. Also audit the
+        # real call sites outside the generator: cloud scenarios, setup,
+        # cleanup and diagnostics must not drift from the shared gate.
+        for path in (SCRIPT, Path(stress.__file__)):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                    continue
+                if node.func.attr == "cmd":
+                    args = node.args
+                elif (node.func.attr == "run" and isinstance(node.func.value, ast.Name)
+                      and node.func.value.id == "channel" and node.args
+                      and isinstance(node.args[0], (ast.List, ast.Tuple))):
+                    args = node.args[0].elts
+                else:
+                    continue
+                if not args or not isinstance(args[0], ast.Constant):
+                    continue
+                argv = [str(arg.value) if isinstance(arg, ast.Constant) else "dynamic"
+                        for arg in args]
+                with self.subTest(file=path.name, line=node.lineno, argv=argv):
+                    stress.require_command(argv)
+
+    def test_cloud_hung_open_can_arm_poll_and_release_through_channel(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(Path, "exists", return_value=True), \
+                mock.patch.object(stress.subprocess, "run") as process:
+            corpus = Path(directory)
+            (corpus / "a").mkdir()
+            (corpus / "b").mkdir()
+            channel = stress.Channel(Path("unused.app"))
+            ctx = cloud.Ctx(channel, corpus, False)
+            process.return_value = mock.Mock(returncode=0, stdout='{"ok":true,"hungOpens":1}')
+            ctx.cmd("hang_open", "successor.wav")
+            ctx.wait_for_hung_open("successor.wav", "the successor open")
+            ctx.cmd("hang_open", "release")
+            self.assertEqual([call.args[0][-2:] for call in process.call_args_list], [
+                ["hang_open", "successor.wav"], ["hang_open", "successor.wav"],
+                ["hang_open", "release"],
+            ])
+
+    def test_every_profile_and_operation_stays_command_only(self):
+        for profile in stress.PROFILES:
+            generator = stress.OpGenerator(random.Random(71), [Path("a.wav")],
+                                           [Path("a.m3u")], [Path("folder")],
+                                           sorted(stress.MENU_IDS), profile,
+                                           themes=["vibe"], theme_base={"name": "Vibe"})
+            self.assertNotIn("click", generator.kinds)
+            self.assertNotIn("drag", generator.kinds)
+            self.assertNotIn("key", generator.kinds)
+            for kind in generator.kinds:
+                for _ in range(20):
+                    for _, argv, _ in getattr(generator, f"op_{kind}")():
+                        with self.subTest(profile=profile, operation=kind, argv=argv):
+                            stress.require_command(argv)
+            moves = generator.op_playlist_move()
+            self.assertEqual(moves[0][1][0], "reorder_begin")
+            self.assertTrue(any(argv[0] in {"reorder_drop", "reorder_cancel"}
+                                for _, argv, _ in moves))
+
+    def test_input_gate_blocks_before_any_process_in_single_and_batch_paths(self):
+        with mock.patch.object(Path, "exists", return_value=True):
+            channel = stress.Channel(Path("unused.app"))
+        rejected = [
+            ["click", "20", "30"], ["drag", "1", "2", "3", "4"],
+            ["mouse_move", "1", "2"], ["mouse_down", "1", "2"],
+            ["mouse_up", "1", "2"], ["key", "q", "cmd"], ["key_down", "w"],
+            ["key_up", "w"], ["script", "-"], ["script", "old-script.txt"],
+            ["gesture_test", "pitch-drag", "isolated-desktop"],
+            ["click_menu", "show_in_finder"], ["click_menu", "menu_edit_copy_file"],
+            ["click_menu", "menu_settings"], ["future_input_wrapper"],
+        ]
+        with mock.patch.object(stress.subprocess, "run") as launch:
+            for argv in rejected:
+                for wrapped in (argv, ["block_main", "0.1", *argv],
+                                ["block_main", "0.1", "block_main", "0.2", *argv]):
+                    with self.subTest(argv=wrapped):
+                        with self.assertRaises(ValueError):
+                            channel.run(wrapped)
+                        with self.assertRaises(ValueError):
+                            channel.run_batch([["next"], wrapped], timeout=1)
+            launch.assert_not_called()
+
+    def test_replay_and_shrink_preflight_the_entire_stream(self):
+        ops = [("valid", ["next"], []), ("old_pointer", ["click", "1", "2"], ["refuses"])]
+        with mock.patch.object(stress, "launch") as launch:
+            channel = mock.Mock()
+            with self.assertRaises(ValueError):
+                stress.replay_ops(channel, ops)
+            with self.assertRaises(ValueError):
+                stress.reproduces(channel, Path("corpus"), Path("app"), ops)
+            channel.run.assert_not_called()
+            channel.run_batch.assert_not_called()
+            launch.assert_not_called()
+        with tempfile.TemporaryDirectory() as directory:
+            journal = Path(directory) / "old.ndjson"
+            journal.write_text("\n".join(json.dumps({"argv": argv}) for _, argv, _ in ops))
+            with self.assertRaises(ValueError):
+                stress.load_journal(journal)
+
+    def test_batch_cannot_turn_a_filename_into_an_input_command(self):
+        with mock.patch.object(Path, "exists", return_value=True):
+            channel = stress.Channel(Path("unused.app"))
+        with mock.patch.object(stress.subprocess, "run") as launch:
+            for path in ("track\nclick 1 2", "track\rdrag 1 2 3 4", "track\tname", "", "a'b"):
+                self.assertIsNone(channel.run_batch([["open", path]], timeout=1))
+            launch.assert_not_called()
+            launch.return_value = mock.Mock(returncode=0, stdout='{"ok":true}')
+            channel.run(["open", "track\nclick 1 2"])
+            self.assertEqual(launch.call_args.args[0][-1], "track\nclick 1 2")
+
+    def test_synthetic_drags_and_controller_actions_remain_available(self):
+        for argv in (["file_drag_hover", "1", "2"], ["file_drag_drop", "1", "2", "a.wav"],
+                     ["file_drag_end"], ["reorder_begin", "0", "2"], ["reorder_drop", "4"],
+                     ["reorder_cancel"], ["select_rows", "all"], ["select_rows", "current", "50"], ["remove_selected"],
+                     ["click_menu", "menu_play"], ["block_main", "0.1", "next"]):
+            stress.require_command(argv)
+        stress.require_command(["gesture_test", "pitch-reset", "isolated-desktop"], "pitch-reset")
+        with self.assertRaises(ValueError):
+            stress.require_command(["gesture_test", "pitch-drag", "isolated-desktop"], "pitch-reset")
+        with self.assertRaises(ValueError):
+            stress.require_command(["click", "1", "2"], "pitch-reset")
+
+    def test_menu_discovery_keeps_safe_edit_actions_and_reports_missing_ids(self):
+        edits = {"menu_play_selected", "menu_edit_select_all", "menu_edit_remove_from_playlist",
+                 "menu_edit_undo", "menu_edit_redo"}
+        self.assertTrue(edits <= stress.MENU_IDS)
+        items = [{"id": identifier} for identifier in sorted(stress.MENU_IDS)]
+        channel = mock.Mock()
+        channel.run.return_value = (0, {"menu": [{"id": "parent", "items": items}]}, 1)
+        with mock.patch.object(sys, "stderr") as stderr:
+            found = stress.collect_menu_ids(channel)
+            self.assertEqual(set(found), stress.MENU_IDS)
+            stderr.write.assert_not_called()
+        for identifier in found:
+            stress.require_command(["click_menu", identifier])
+        items[:] = [item for item in items if item["id"] != "menu_play_selected"]
+        items.append({"id": "renamed_play_selected"})
+        with mock.patch.object(sys, "stderr") as stderr:
+            found = stress.collect_menu_ids(channel)
+            warning = "".join(call.args[0] for call in stderr.write.call_args_list)
+            self.assertIn("missing allowed menu IDs (not exercised): menu_play_selected", warning)
+            self.assertNotIn("renamed_play_selected", found)
+        channel.run.return_value = (1, None, 1)
+        with self.assertRaisesRegex(ValueError, "menu coverage is unknown"):
+            stress.collect_menu_ids(channel)
+
+    def test_row_selection_covers_large_lists_and_targets_the_live_current_row(self):
+        generator = stress.OpGenerator(random.Random(71), [Path("a.wav")], [], [], [], "playlist")
+        generator.note_state({"playlist": {"count": 1000}, "window": {"frame": "{{0, 0}, {800, 600}}"}})
+        selections = [generator.op_select_rows()[0][1][1:] for _ in range(200)]
+        numbered = [int(row) for rows in selections for row in rows if row.isdigit()]
+        self.assertGreater(max(numbered), 900)
+        self.assertLess(max(numbered), 1000)
+        self.assertTrue(any("current" in rows and "all" not in rows for rows in selections))
+        self.assertIn(["all"], selections)
+        self.assertEqual(generator.window, (800, 600))
+        for count in (3, 0):
+            generator.note_state({"playlist": {"count": count}})
+            for _ in range(30):
+                argv = generator.op_select_rows()[0][1]
+                stress.require_command(argv)
+                self.assertTrue(all(int(row) < max(1, count) for row in argv[1:] if row.isdigit()))
+
+    def test_gesture_mode_requires_isolation_and_never_unlocks_replay(self):
+        for flags in (["--gesture-test", "pitch-reset"], ["--isolated-desktop"],
+                      ["--gesture-test", "pitch-reset", "--isolated-desktop", "--replay", "old"],
+                      ["--gesture-test", "pitch-reset", "--isolated-desktop", "--shrink", "old"]):
+            with mock.patch.object(sys, "argv", ["stress.py", *flags]), \
+                    mock.patch.object(stress, "run_gesture_test") as gesture, \
+                    mock.patch.object(sys, "stderr"):
+                with self.assertRaises(SystemExit) as raised:
+                    stress.main()
+                self.assertEqual(raised.exception.code, 2)
+                gesture.assert_not_called()
+
+    def test_gesture_success_timeout_and_missed_target_restore_settings(self):
+        cases = [(name, outcome, shown) for name in stress.GESTURE_TESTS
+                 for outcome in ("success", "timeout", "miss") for shown in (False, True)]
+        for name, outcome, shown in cases:
+            state = {"window": {"pitchPanelShown": shown},
+                     "player": {"pitch": 2.5, "maxPitch": 8}, "ui": {"pitchFader": 2.5}}
+
+            def reply(argv, **kwargs):
+                if argv[0] == "set_pitch":
+                    state["player"]["pitch"] = state["ui"]["pitchFader"] = float(argv[1])
+                if argv[0] == "toggle_pitch_panel":
+                    state["window"]["pitchPanelShown"] = not state["window"]["pitchPanelShown"]
+                if argv[0] == "gesture_test" and outcome != "timeout":
+                    state["player"]["pitch"] = state["ui"]["pitchFader"] = (0 if name == "pitch-reset" else 4)
+                payload = (state if argv[0] == "dump_state" else
+                           {"ok": True, "hitView": "WrongView" if outcome == "miss" else "PitchFaderView",
+                            "windowKey": True})
+                return 0, payload, 1
+
+            args = mock.Mock(app=None, client_app=None, verbose=False, gesture_test=name)
+            with self.subTest(gesture=name, outcome=outcome, shown=shown), \
+                    mock.patch.object(stress, "Channel") as channel, \
+                    mock.patch.object(stress.time, "monotonic", side_effect=[0, 4]), \
+                    mock.patch.object(sys, "stdout") as stdout:
+                channel.return_value.run.side_effect = reply
+                if outcome == "success":
+                    self.assertEqual(stress.run_gesture_test(args), 0)
+                    self.assertIn("PASSED", "".join(call.args[0] for call in stdout.write.call_args_list))
+                else:
+                    with self.assertRaisesRegex(ValueError, "no expected effect" if outcome == "timeout"
+                                                else "missed the named control"):
+                        stress.run_gesture_test(args)
+                    stdout.write.assert_not_called()
+                self.assertEqual(state["player"]["pitch"], 2.5)
+                self.assertEqual(state["window"]["pitchPanelShown"], shown)
+
     def test_open_and_play_requires_the_explicit_nonzero_submission(self):
         cloud.open_and_play(FakeOpenContext(True), Path("folder"), index=1)
         with self.assertRaisesRegex(cloud.Failed, "explicit playback submission"):

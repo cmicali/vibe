@@ -164,4 +164,37 @@
     XCTAssertTrue([rendered containsString:expected], @"got %@", rendered);
 }
 
+
+#pragma mark - Header duration
+
+- (void)testHeaderTimeUsesRateAdjustedDurationAndElapsedTime {
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:240 rate:2 elapsedDisplayTime:15 remaining:NO], @"2:00");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:240 rate:2 elapsedDisplayTime:15 remaining:YES], @"-1:45");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:240 rate:0.5 elapsedDisplayTime:15 remaining:YES], @"-7:45");
+}
+
+- (void)testHeaderTimeCacheIncludesModeAndWholeSecond {
+    NSString *total = [_formatters durationStringForFileDuration:60.9 rate:1 elapsedDisplayTime:0 remaining:NO];
+    XCTAssertEqual(total, [_formatters durationStringForFileDuration:60.1 rate:1 elapsedDisplayTime:500 remaining:NO]);
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:60.1 rate:1 elapsedDisplayTime:0 remaining:YES], @"-1:00");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:60.1 rate:1 elapsedDisplayTime:0.2 remaining:YES], @"-0:59");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:60.1 rate:1 elapsedDisplayTime:0 remaining:NO], total);
+}
+
+- (void)testHeaderTimeClampsPastEndAndInvalidArithmetic {
+    for (NSNumber *duration in @[@(-1), @(NAN), @(INFINITY)]) {
+        XCTAssertEqualObjects([_formatters durationStringForFileDuration:duration.doubleValue rate:1 elapsedDisplayTime:0 remaining:YES], @"-0:00");
+    }
+    for (NSNumber *rate in @[@0, @(-1), @(NAN)]) {
+        XCTAssertEqualObjects([_formatters durationStringForFileDuration:120 rate:rate.doubleValue elapsedDisplayTime:0 remaining:NO], @"0:00");
+    }
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:120 rate:1 elapsedDisplayTime:121 remaining:YES], @"-0:00");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:120 rate:1 elapsedDisplayTime:NAN remaining:YES], @"-0:00");
+}
+
+- (void)testHeaderTimeCrossesTheHourBoundary {
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:7200 rate:2 elapsedDisplayTime:0 remaining:YES], @"-1:00:00");
+    XCTAssertEqualObjects([_formatters durationStringForFileDuration:7200 rate:2 elapsedDisplayTime:0.1 remaining:YES], @"-59:59");
+}
+
 @end

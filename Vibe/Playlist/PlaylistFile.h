@@ -8,6 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
+extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 
 // Readers for playlist-like files that expand into an ordered list of audio
 // files — CUE sheets and M3U playlists — and the M3U writer. Only the file
@@ -74,6 +75,17 @@ NS_ASSUME_NONNULL_BEGIN
 // The deepest folder every track sits under — the directory a saved file
 // makes every entry relative to. nil when nothing below the root is shared.
 + (nullable NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks;
+
+// The app's private session mirror: explicit URL/defaults keep it independent
+// of the shell and let tests use a temporary folder. No grants or Open Recent.
+// A failed write removes both stale mirror and cursor; nil write uses atomic M3U.
++ (BOOL)saveSessionTracks:(NSArray<AudioTrack *> *)tracks currentIndex:(NSUInteger)index
+                 enabled:(BOOL)enabled toURL:(NSURL *)url defaults:(NSUserDefaults *)defaults
+                   write:(BOOL (^_Nullable)(NSError * _Nullable * _Nullable error))write
+                   error:(NSError * _Nullable * _Nullable)error;
++ (void)removeSessionAtURL:(NSURL *)url defaults:(NSUserDefaults *)defaults;
++ (BOOL)restoreSessionAtURL:(NSURL *)url enabled:(BOOL)enabled defaults:(NSUserDefaults *)defaults
+                     load:(void (^)(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused))load;
 
 @end
 

@@ -30,6 +30,23 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
     VibeConvertErrorDestinationMatchesSource,
 };
 
+// One finished conversion, as NSUndoManager's invocation argument: where the
+// source was, where the FLAC landed, and any known Trash location for whichever
+// was last moved aside. A nil Trash URL says only that no location is known;
+// the expected live path must still be verified before either direction
+// commits. Mutated in place as moves land, so one object rides both directions.
+@interface VibeFLACConversionRecord : NSObject
+@property (strong) NSURL *sourceURL;
+@property (strong) NSURL *outputURL;
+@property (strong, nullable) NSURL *sourceTrashURL;
+@property (strong, nullable) NSURL *outputTrashURL;
+@property VibeFLACFileLocation sourceLocation;
+@property VibeFLACFileLocation outputLocation;
+// Whether the conversion trashed its source, so redo re-trashes it rather
+// than re-reading a setting that may have flipped.
+@property BOOL sourceWasTrashed;
+@end
+
 @interface AudioFileConverter : NSObject
 
 // Main thread. YES from accept until the completion runs; menu validation
@@ -112,6 +129,16 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // validateMenuItem: should return. The running case is the controller's — the
 // item becomes Cancel Conversion — so this is never asked while converting.
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(nullable AudioTrack *)track;
+
+// The asynchronous inverse owns the shared gate and registers its opposite
+// synchronously, while NSUndoManager is still undoing/redoing. Only the row
+// swap and UI settlement belong to the shell; file ordering stays here.
+@property (nonatomic, readonly, getter=isUndoRedoInFlight) BOOL undoRedoInFlight;
+- (void)registerUndoForConversion:(VibeFLACConversionRecord *)record
+                    undoManager:(NSUndoManager *)undoManager
+                           swap:(void (^)(NSURL *from, NSURL *to))swap
+                     completion:(void (^)(BOOL committed, NSString * _Nullable reason,
+                                          NSURL * _Nullable strandedURL, NSError * _Nullable error))completion;
 
 @end
 

@@ -9,12 +9,14 @@
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
+#import "ArtworkDisplayController.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MainPlayerContentView.h"
 #import "MainWindow.h"
 #import "MenuValidationRules.h"
+#import "NSDockTile+Util.h"
 #import "PitchControlPanel.h"
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
@@ -52,7 +54,7 @@
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
         backdrop = frost;
     }
-    [MainPlayerContentView applyCornerRadius:AppSettings.sharedInstance.currentTheme.windowCornerRadius
+    [MainPlayerContentView applyCornerRadius:AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius
                                   toBackdrop:backdrop];
     backdrop.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [contentView addSubview:backdrop];
@@ -283,11 +285,20 @@
     [self.playerContentView setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
 }
 
+// The theme's app icon into the application, then the tile's choice between
+// it and the playing art — the AppIcon live effect's whole body, and the
+// launch-time apply. The icon lands first, since the tile reads it live.
+- (void)applyAppIcon {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [NSDockTile setAppIcon:[theme customImageForKey:kVibeThemeImageAppIcon] shaped:theme.appIconShape];
+    [self->_artworkController applyDockIcon];
+}
+
 // The whole themed window shape in one pass: the contentView mask that
 // shapes the window, the glass backdrop, the header panel pieces, the solid
 // background cover, and the pitch panel's drawn right-edge corners.
 - (void)applyWindowChrome {
-    CGFloat radius = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
+    CGFloat radius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     NSView *contentView = self.window.contentView;
     contentView.layer.cornerRadius = radius;
     [MainPlayerContentView applyCornerRadius:radius toBackdrop:self.windowBackdropView];
@@ -314,7 +325,10 @@
             ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark] : nil;
     overlay.hidden = (color == nil);
     overlay.layer.backgroundColor = color.CGColor;
-    overlay.layer.cornerRadius = theme.windowCornerRadius;
+    overlay.layer.cornerRadius = theme.resolvedWindowCornerRadius;
+    // The header panel's half of the style; nil before the body is built,
+    // which applies its own at construction.
+    [self.playerContentView applyWindowBackgroundStyle];
 }
 
 - (void)applyStoredAppearance {

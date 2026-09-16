@@ -52,12 +52,28 @@ static const CGFloat kInlineTitleInset = 10;
     return self;
 }
 
-// The cell's own title padding, so the value can be placed at an exact inset
-// from the bezel edge whatever the cell reserves around it.
-- (NSEdgeInsets)cellTitlePadding {
+// The cell's own padding around the value, so it can be placed at an exact
+// inset from the bezel edge whatever the cell reserves around it. The value
+// is the item's image, when it carries one (the glyph popups), followed by
+// the title: the leading edge is then the image's, and the image's advance —
+// its width plus the cell's gap before the title — is what the title sits
+// past. Measured off the cell's own rects, so no gap is guessed.
+- (NSEdgeInsets)cellValuePadding {
     NSRect probe = NSMakeRect(0, 0, 200, kInlineBezelHeight);
     NSRect title = [self.cell titleRectForBounds:probe];
-    return NSEdgeInsetsMake(0, NSMinX(title), 0, NSMaxX(probe) - NSMaxX(title));
+    CGFloat leading = NSMinX(title);
+    if (self.selectedItem.image) {
+        leading = NSMinX([self.cell imageRectForBounds:probe]);
+    }
+    return NSEdgeInsetsMake(0, leading, 0, NSMaxX(probe) - NSMaxX(title));
+}
+
+- (CGFloat)cellImageAdvance {
+    if (!self.selectedItem.image) {
+        return 0;
+    }
+    NSRect probe = NSMakeRect(0, 0, 200, kInlineBezelHeight);
+    return NSMinX([self.cell titleRectForBounds:probe]) - NSMinX([self.cell imageRectForBounds:probe]);
 }
 
 // Sized to the DISPLAYED value, not the widest menu item — the badge stays
@@ -65,8 +81,10 @@ static const CGFloat kInlineTitleInset = 10;
 - (NSSize)intrinsicContentSize {
     NSString *title = self.selectedItem.title ?: @"";
     CGFloat text = ceil([title sizeWithAttributes:@{NSFontAttributeName: self.font}].width);
-    return NSMakeSize(kInlineTitleInset + text + kInlineBadgeGap + kInlineBadgeDiameter
-                              + kInlineEdgeInset,
+    // An item's image draws ahead of the title; without its advance the cell
+    // truncates the value against the badge.
+    return NSMakeSize(kInlineTitleInset + [self cellImageAdvance] + text + kInlineBadgeGap
+                              + kInlineBadgeDiameter + kInlineEdgeInset,
                       MAX([super intrinsicContentSize].height, kInlineBezelHeight));
 }
 
@@ -125,7 +143,7 @@ static const CGFloat kInlineTitleInset = 10;
     // The value, drawn by the cell in a frame placed by hand: the title starts
     // at the inset and the frame ends short of the badge, the cell's own
     // padding folded in on both sides so it never truncates its title.
-    NSEdgeInsets padding = [self cellTitlePadding];
+    NSEdgeInsets padding = [self cellValuePadding];
     NSRect title = bounds;
     title.origin.x = kInlineTitleInset - padding.left;
     title.size.width = NSMinX(badge) - kInlineBadgeGap + padding.right - NSMinX(title);

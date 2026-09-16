@@ -1,0 +1,23 @@
+{
+  "version" : 1,
+  "name" : "Glassy",
+  "description" : "The whole window as one sheet of clear glass: a transparent placeholder lets the backdrop through where the artwork would be, the header and playlist take the same clear backdrop, and the waveform draws flat in the playing track's own color.",
+  "window" : {
+    "backgroundStyle" : "clear"
+  },
+  "player" : {
+    "defaultArtworkDark" : "bundled:glassy.png",
+    "defaultArtworkLight" : "bundled:glassy.png"
+  },
+  "info" : {
+    "colorDark" : "#FBFFFF7F"
+  },
+  "waveform" : {
+    "gradient" : false,
+    "style" : "basic",
+    "theme" : "album_art"
+  },
+  "playlist" : {
+    "tint" : "artwork"
+  }
+}

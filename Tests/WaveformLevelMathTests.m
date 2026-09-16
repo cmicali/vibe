@@ -61,15 +61,14 @@ static float MeanSquareAtFraction(float fraction) {
                                / VibeWaveformBarLevel(MeanSquareAtFraction(0.01f), kVibeWaveformFullScaleRMS, 24), sqrtf(2.0f), 1e-4f);
 }
 
-// Normalize hands the fill the track's loudest column as the reference: that
-// column draws full height at 0 dB whatever its level, everything else in
-// proportion, and the gain still applies over it — the bend included.
-- (void)testANormalizedReferenceDrawsTheLoudestColumnFull {
-    float loudest = MeanSquareAtFraction(2.0f);  // pegged against the fixed reference
+// A quiet track's loudest column draws full height at 0 dB, with the gain
+// still applied over normalization — the bend included.
+- (void)testAQuietNormalizedReferenceDrawsTheLoudestColumnFull {
+    float loudest = MeanSquareAtFraction(0.5f);
     float reference = sqrtf(loudest);
-    XCTAssertEqual(VibeWaveformBarLevel(loudest, kVibeWaveformFullScaleRMS, 0), 1.0f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, 0), 1.0f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(1.0f), reference, 0), 0.5f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.25f), reference, 0), 0.5f, 1e-6f);
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, -6),
                                powf(powf(10, -6.0f / 20), exp2f(6.0f / 24)), 1e-5f);
     XCTAssertEqual(VibeWaveformBarLevel(loudest, reference, 6), 1.0f);

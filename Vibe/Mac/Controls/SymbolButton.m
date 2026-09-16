@@ -4,15 +4,30 @@
 //
 
 #import "SymbolButton.h"
+#import "PlatformColor.h"
 
 static const CFTimeInterval kFadeDuration = 0.1;
 
 // A fallback only: every call site sets its own size.
 static const CGFloat kDefaultSymbolPointSize = 15;
 
+// The factory state strengths: the resting alpha, and what hover, press and
+// disabled do to it. setSymbolColorsFromRestingColor: scales a picked color's
+// alpha by these ratios, and a custom image fades its opacity by the same
+// ones, so every button state keeps one relationship whatever draws it.
+static const CGFloat kRestingAlpha = 0.55;
+static const CGFloat kHoverAlpha = 0.8;
+static const CGFloat kDisabledAlpha = 0.19;
+static const CGFloat kPressedFraction = 0.5;
+
+// SF Symbol glyphs draw at roughly this fraction of their configured point
+// size, so a custom image fits the same box a glyph fills.
+static const CGFloat kGlyphFractionOfPointSize = 0.8;
+
 @implementation SymbolButton {
     CALayer *_colorLayer;  // flat wash of the current state color
     CALayer *_maskLayer;   // the symbol, as the alpha mask carving that wash
+    CALayer *_imageLayer;  // the custom image, when one replaces the symbol
     // What _maskLayer's image was built for. It skips redundant rasterizations
     // on every layout pass.
     NSString *_renderedSymbolName;
@@ -36,11 +51,17 @@ static const CGFloat kDefaultSymbolPointSize = 15;
         _maskLayer = [CALayer layer];
         _colorLayer.mask = _maskLayer;
         [self.layer addSublayer:_colorLayer];
+        // The custom image's layer sits beside the color layer, hidden until
+        // an image is set; the state fades then ride its opacity instead.
+        _imageLayer = [CALayer layer];
+        _imageLayer.contentsGravity = kCAGravityResizeAspect;
+        _imageLayer.hidden = YES;
+        [self.layer addSublayer:_imageLayer];
         // Idle sits dim. Hover fades to the highlight color at full opacity,
         // with no transparency, and a press dims to half that opacity.
-        _symbolNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.55];
-        _symbolHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.8];
-        _symbolDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:0.19];
+        _symbolNormalColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kRestingAlpha];
+        _symbolHighlightColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kHoverAlpha];
+        _symbolDisabledColor = [NSColor colorWithDisplayP3Red:1 green:1 blue:1 alpha:kDisabledAlpha];
         // EnabledDuringMouseDrag is needed because exited and entered do not
         // fire during a drag without it, and dragging off and back is exactly
         // a mid-drag exit.
@@ -90,7 +111,24 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     [CATransaction setDisableActions:YES];
     _colorLayer.frame = self.bounds;
     [self updateMaskLayer];
+    [self updateImageLayer];
     [CATransaction commit];
+}
+
+// The custom image as the layer's own contents — AppKit draws an NSImage set
+// there at the layer's contentsScale from its best rep — aspect-fit by the
+// layer's gravity into the box a glyph of the configured point size fills,
+// and centered.
+- (void)updateImageLayer {
+    _imageLayer.hidden = (_image == nil);
+    _imageLayer.contents = _image;
+    if (!_image) {
+        return;
+    }
+    CGFloat scale = self.window.backingScaleFactor;
+    _imageLayer.contentsScale = scale > 0 ? scale : 2;
+    CGFloat box = round(_symbolPointSize * kGlyphFractionOfPointSize);
+    [self centerLayer:_imageLayer size:NSMakeSize(box, box)];
 }
 
 // Rasterizes the configured symbol at the window's backing scale and centers
@@ -156,25 +194,36 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     if (!image) {
         return;
     }
-    CGSize size = CGSizeMake(CGImageGetWidth(image) / _renderedScale,
-                             CGImageGetHeight(image) / _renderedScale);
-    _maskLayer.frame = CGRectMake(round((self.bounds.size.width - size.width) / 2),
-                                  round((self.bounds.size.height - size.height) / 2),
-                                  size.width, size.height);
+    [self centerLayer:_maskLayer size:NSMakeSize(CGImageGetWidth(image) / _renderedScale,
+                                                 CGImageGetHeight(image) / _renderedScale)];
+}
+
+- (void)centerLayer:(CALayer *)layer size:(NSSize)size {
+    layer.frame = CGRectMake(round((self.bounds.size.width - size.width) / 2),
+                             round((self.bounds.size.height - size.height) / 2),
+                             size.width, size.height);
 }
 
 #pragma mark - State color
 
 - (void)applyColorAnimated:(BOOL)animated {
     NSColor *color;
+    // The image's opacity by state, the factory ratios over full strength at
+    // hover: a custom picture reads as itself when hovered and rests a step
+    // dimmer, as the glyphs do.
+    float opacity;
     if (!self.isEnabled) {
         color = _symbolDisabledColor;
+        opacity = kDisabledAlpha / kHoverAlpha;
     } else if (_mouseDown && _hovering) {
-        color = [_symbolHighlightColor colorWithAlphaComponent:_symbolHighlightColor.alphaComponent * 0.5];
+        color = VibeColorWithScaledAlpha(_symbolHighlightColor, kPressedFraction);
+        opacity = kPressedFraction;
     } else if (_hovering) {
         color = _symbolHighlightColor;
+        opacity = 1;
     } else {
         color = _symbolNormalColor;
+        opacity = kRestingAlpha / kHoverAlpha;
     }
     [CATransaction begin];
     if (animated) {
@@ -183,7 +232,15 @@ static const CGFloat kDefaultSymbolPointSize = 15;
         [CATransaction setDisableActions:YES];
     }
     _colorLayer.backgroundColor = color.CGColor;
+    _imageLayer.opacity = opacity;
     [CATransaction commit];
+}
+
+- (void)setSymbolColorsFromRestingColor:(NSColor *)color {
+    _symbolNormalColor = color;
+    _symbolHighlightColor = VibeColorWithScaledAlpha(color, kHoverAlpha / kRestingAlpha);
+    _symbolDisabledColor = VibeColorWithScaledAlpha(color, kDisabledAlpha / kRestingAlpha);
+    [self applyColorAnimated:NO];
 }
 
 #pragma mark - Mouse handling (momentary push)
@@ -245,6 +302,20 @@ static const CGFloat kDefaultSymbolPointSize = 15;
     [CATransaction begin];
     [CATransaction setDisableActions:YES]; // instant swap, no fade
     [self updateMaskLayer];
+    [CATransaction commit];
+}
+
+// The image hides the color layer rather than replacing its contents, so a
+// return to the symbol is the mask it still holds.
+- (void)setImage:(NSImage *)image {
+    if (_image == image) {
+        return;
+    }
+    _image = image;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES]; // instant swap, like the symbol's
+    _colorLayer.hidden = (image != nil);
+    [self updateImageLayer];
     [CATransaction commit];
 }
 

@@ -123,7 +123,7 @@ No Settings-pane row: this is transport state like play/pause, not configuration
 ## Phase 3 — iOS integration
 
 - `PlaybackController` gets the same pass-through: apply `AppSettings.sharedInstance.shuffleEnabled` to its `Playlist` at init and expose `- (void)toggleShuffle` writing the setting and the model together (no gapless prefetch exists on iOS — verify while there: if the iOS player parks any successor handle, route it through `nextTrackPeek` the same way). `next`/`previous`/`selectTrackAtIndex:` already funnel through the model (`PlaybackController.m:374-395`) and inherit Phase 1.
-- UI: a shuffle button on the now-playing card's control row (`Vibe/iOS/CLAUDE.md` owns the card's layout conventions — follow them; tinted when active, like the system players). The library rows and mini player need nothing: the visible order never changes.
+- UI: a shuffle button on the now-playing card's control row (`Vibe/iOS/Player/CLAUDE.md` owns the card's layout conventions — follow them; tinted when active, like the system players). The library rows and mini player need nothing: the visible order never changes.
 - The card's page-swipe navigation (`PlayerViewController+Pager.m`) previews neighbors — check what it uses for "next page": if it asks `trackAtIndex:currentIndex ± 1` anywhere, it must ask the model's peek instead, or the swiped-to page won't match the track that plays. This is the iOS twin of the mac's prefetch leak; grep for `currentIndex + 1` under `Vibe/iOS/` and fix every hit through the model.
 
 **Acceptance**: `make build-ios`; simulator loop (`launch-ios.sh`, `drive-ios.sh`): toggle shuffle, swipe and tap through tracks, confirm the no-repeat walk and that a page swipe lands on the same track advance would have chosen.

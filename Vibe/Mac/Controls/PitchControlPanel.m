@@ -97,7 +97,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     // mask, and drawing past the left edge bleeds a dark strip over the main
     // content — seen on macOS 26, at least through CALayer renderInContext.
     NSRect b = self.bounds;
-    CGFloat r = AppSettings.sharedInstance.currentTheme.windowCornerRadius;
+    CGFloat r = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
     [background moveToPoint:NSMakePoint(NSMinX(b), NSMinY(b))];
     [background lineToPoint:NSMakePoint(NSMaxX(b) - r, NSMinY(b))];

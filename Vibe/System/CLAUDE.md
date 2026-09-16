@@ -10,6 +10,8 @@ The `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge: publishing what i
 
 `MPNowPlayingInfoCenter.playbackState` is the one macOS-only write (the property does not exist on iOS, which derives state from the audio session and the published rate) and it is guarded.
 
+`initWithClock:publish:commandAvailability:` runs the same publication path without registering remote commands. Host-less tests inject the clock and OS writes to cover first-play gating, clearing, dirty detection, command changes and artwork promotion; actual system registration remains a live-app check.
+
 The republish position rule is header-only in `NowPlayingRules.h`, tested — beside the controller that is its only caller, and on this side of the platform boundary because both platforms' publishes run through it.
 
 **TRAP: the published artwork must be privately rasterized on the main thread, and that result must be the only thing the `MPMediaItemArtwork` request handler hands back.** The handler is invoked on the media daemon's threads, and the source is the live `NSImage` the header, dock tile and playlist cells are drawing from — `NSImage` is not safe to draw concurrently, so drawing it inside the handler races the UI. `VibeArtworkForPublishing` always redraws even an already-small thumbnail, caps larger art at 512px, and gives the daemon a private `NSImage` and bitmap representation.

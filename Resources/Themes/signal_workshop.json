@@ -6,6 +6,7 @@
     "backgroundColorDark" : "#161715",
     "backgroundColorLight" : "#E7E6DE",
     "backgroundStyle" : "solid",
+    "customCornerRadius" : true,
     "cornerRadius" : 8,
     "tint" : "mono"
   },

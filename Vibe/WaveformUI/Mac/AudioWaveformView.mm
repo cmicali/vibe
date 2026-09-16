@@ -16,6 +16,7 @@
 static const CGFloat kWaveformDragHysteresis = 4;
 
 @implementation AudioWaveformView {
+    NSString                    *_styleIdentifier;
     CGFloat                     _progress;
     NSUInteger                  _progressTracker;
     // The convert sweep's front: bars left of it have already been dipped.
@@ -60,19 +61,13 @@ static const CGFloat kWaveformDragHysteresis = 4;
 }
 
 - (void)setWaveformStyle:(NSString*)identifier {
-    Class renderer = [WaveformRendererRegistry rendererClassForIdentifier:identifier];
-    if (!renderer) {
-        // Unknown identifier (hand-edited default, or a style dropped in a
-        // later version): fall back rather than leaving a blank waveform.
-        renderer = [WaveformRendererRegistry rendererClassForIdentifier:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT];
-        if (!renderer) {
-            return;
-        }
-    }
-    if (_currentWaveformRenderer && [_currentWaveformRenderer class] == renderer) {
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:identifier];
+    if (_currentWaveformRenderer && [_styleIdentifier isEqualToString:style]) {
         return; // unchanged style: keep the live layer tree and its state
     }
-    _currentWaveformRenderer = [[renderer alloc] initWithLayer:self.layer bounds:self.bounds isDark:self.isDark];
+    _styleIdentifier = style;
+    _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
+            layer:self.layer bounds:self.bounds isDark:self.isDark];
     [self applyLevelSettings];
     [self applyResolvedTheme];
     [self drawWaveform];
@@ -121,14 +116,18 @@ static const CGFloat kWaveformDragHysteresis = 4;
 }
 
 - (void)drawWaveform {
+    VibeSignpostBegin(waveform_update);
     [_currentWaveformRenderer updateWaveform:self.bounds progress:self.progress waveform:self.waveform.waveform];
+    VibeSignpostEnd(waveform_update);
 }
 
 - (void)updateRendererProgress {
+    VibeSignpostBegin(waveform_progress);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [_currentWaveformRenderer updateProgress:_progress waveform:self.waveform.waveform];
     [CATransaction commit];
+    VibeSignpostEnd(waveform_progress);
 }
 
 - (void)mouseDown:(NSEvent *)event {
@@ -355,8 +354,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if (!_currentWaveformRenderer) {
         // Prefer the persisted style, then the app default; the registry owns
         // the chain.
-        [self setWaveformStyle:[WaveformRendererRegistry
-                resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle]];
+        [self setWaveformStyle:AppSettings.sharedInstance.currentTheme.waveformStyle];
     }
     [self drawWaveform];
 }

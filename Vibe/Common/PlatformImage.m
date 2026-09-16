@@ -84,24 +84,25 @@ static CGImageRef VibeCGImageOfImage(VibeImage *image) {
 #endif
 }
 
-VibeColor *VibeDominantColorOfImage(VibeImage *image) {
+// The image downsampled to side x side, drawn into a context whose layout we
+// dictate — sRGB, 8-bit, alpha last, premultiplied — so a pixel loop reads a
+// known buffer instead of interrogating whatever the source happened to be
+// encoded as. Row 0 is the image's TOP. The caller frees the buffer; NULL when
+// the image cannot be rasterized.
+static unsigned char *_Nullable VibeSampledPixels(VibeImage *_Nullable image, size_t side) {
     CGImageRef source = image ? VibeCGImageOfImage(image) : NULL;
     if (!source) {
-        return nil;
+        return NULL;
     }
-    // Drawn into a context whose layout we dictate — sRGB, 8-bit, alpha last,
-    // premultiplied — so the pixel loop below reads a known buffer instead of
-    // interrogating whatever the source happened to be encoded as.
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     if (!space) {
-        return nil;
+        return NULL;
     }
-    const size_t side = kDominantSampleSide;
     const size_t bytesPerRow = side * 4;
     unsigned char *data = calloc(side * bytesPerRow, 1);
     if (!data) {
         CGColorSpaceRelease(space);
-        return nil;
+        return NULL;
     }
     CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast
             | kCGBitmapByteOrder32Big;
@@ -110,11 +111,62 @@ VibeColor *VibeDominantColorOfImage(VibeImage *image) {
     CGColorSpaceRelease(space);
     if (!context) {
         free(data);
-        return nil;
+        return NULL;
     }
     CGContextSetInterpolationQuality(context, kCGInterpolationMedium);
     CGContextDrawImage(context, CGRectMake(0, 0, side, side), source);
     CGContextRelease(context);
+    return data;
+}
+
+// One sampled pixel as straight (un-premultiplied) sRGB, or NO for a pixel
+// too transparent to count — the buffer's layout contract, spelled once for
+// both readers.
+static BOOL VibeOpaquePixelRGB(const unsigned char *px, double *r, double *g, double *b) {
+    double a = px[3] / 255.0;
+    if (a < 0.5) {
+        return NO;
+    }
+    *r = MIN(1.0, (px[0] / 255.0) / a);
+    *g = MIN(1.0, (px[1] / 255.0) / a);
+    *b = MIN(1.0, (px[2] / 255.0) / a);
+    return YES;
+}
+
+BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction) {
+    const size_t side = kDominantSampleSide;
+    unsigned char *data = VibeSampledPixels(image, side);
+    if (!data) {
+        return YES;
+    }
+    // Relative luminance of the band's opaque pixels, gamma-encoded sRGB
+    // taken as-is: the question is which of two button colors reads, and
+    // the midpoint of the encoded scale is where either starts to.
+    size_t firstRow = (size_t)floor(side * (1 - clampRange(fraction, 0, 1)));
+    double luminance = 0;
+    NSInteger count = 0;
+    for (size_t y = firstRow; y < side; y++) {
+        const unsigned char *row = data + y * side * 4;
+        for (size_t x = 0; x < side; x++) {
+            double r, g, b;
+            if (!VibeOpaquePixelRGB(row + x * 4, &r, &g, &b)) {
+                continue;
+            }
+            luminance += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            count++;
+        }
+    }
+    free(data);
+    return count == 0 || luminance / count < 0.5;
+}
+
+VibeColor *VibeDominantColorOfImage(VibeImage *image) {
+    const size_t side = kDominantSampleSide;
+    const size_t bytesPerRow = side * 4;
+    unsigned char *data = VibeSampledPixels(image, side);
+    if (!data) {
+        return nil;
+    }
 
     // A weighted hue histogram. Vivid pixels — saturated and not near-black —
     // vote for their hue band, while grays and shadows abstain but still feed
@@ -130,15 +182,10 @@ VibeColor *VibeDominantColorOfImage(VibeImage *image) {
     for (size_t y = 0; y < side; y++) {
         const unsigned char *row = data + y * bytesPerRow;
         for (size_t x = 0; x < side; x++) {
-            const unsigned char *px = row + x * 4;
-            double a = px[3] / 255.0;
-            if (a < 0.5) {
+            double r, g, b;
+            if (!VibeOpaquePixelRGB(row + x * 4, &r, &g, &b)) {
                 continue;
             }
-            // Premultiplied by the context's own format, so always un-multiply.
-            double r = MIN(1.0, (px[0] / 255.0) / a);
-            double g = MIN(1.0, (px[1] / 255.0) / a);
-            double b = MIN(1.0, (px[2] / 255.0) / a);
             avgR += r; avgG += g; avgB += b;
             avgCount++;
             double maxc = MAX(r, MAX(g, b));

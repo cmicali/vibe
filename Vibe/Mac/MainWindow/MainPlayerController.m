@@ -290,6 +290,11 @@
         strongSelf.waveformView.artworkThemeColor = strongSelf->_artworkController.dominantArtColor;
         [strongSelf refreshWaveformTheme];
     };
+    // The transport buttons pick their light or dark color from the art
+    // under them, which the controller samples at every install.
+    _artworkController.transportBackdropDidChangeHandler = ^(BOOL dark) {
+        [weakControllerForArt.playerContentView setTransportBackdropDark:dark];
+    };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.
     self.playerContentView.appearanceChangedHandler = ^{
@@ -334,6 +339,7 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
+    [self applyAppIcon];
 
     self.waveformView.delegate = self;
     // The theme's style, not the loose Settings.waveformStyle key — migration
@@ -498,7 +504,7 @@
     // so it can still read isPlaying for an instant after closeFile:, and no
     // later updateUI would fix the icon, since the update timer is paused.
     BOOL showPause = track && self.audioPlayer.isPlaying;
-    self.playButton.symbolName = showPause ? @"pause.fill" : @"play.fill";
+    [self.playerContentView setPlayButtonShowsPause:showPause];
     self.playButton.accessibilityLabel = showPause ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
 
     self.playButton.enabled = self.playlistController.count > 0;
@@ -672,7 +678,7 @@
 
 - (void)startPendingMetadataLoadForGeneration:(NSUInteger)generation {
     if (!VibePlaybackConsumePendingMetadataLoad(&_metadataLoadPending, generation,
-                                                _metadataLoadGeneration)) {
+                                                 _metadataLoadGeneration)) {
         return;
     }
     [self.metadataCache loadMetadata:self.playlistController.playlist];
@@ -760,8 +766,6 @@
 // a defaults key as the row index — written in the same call as the mirror,
 // so it is exact — and is state, like VibeGrantedFolders, not a preference:
 // resetToDefaults leaves it and the live effect clears it.
-static NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
-
 static NSURL *VibeLastPlaylistURL(void) {
     NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
                                                             NSUserDomainMask, YES).firstObject;
@@ -770,27 +774,16 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (void)saveLastPlaylist {
-    NSArray<AudioTrack *> *tracks = self.playlistController.playlist;
-    if (!AppSettings.sharedInstance.reopenLastPlaylist || tracks.count == 0) {
-        [self removeLastPlaylist];
-        return;
-    }
-    NSURL *url = VibeLastPlaylistURL();
-    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
-                           withIntermediateDirectories:YES attributes:nil error:nil];
     NSError *error = nil;
-    if (![PlaylistFile writeM3UForTracks:tracks relativeToDirectory:nil toURL:url error:&error]) {
+    if (![PlaylistFile saveSessionTracks:self.playlistController.playlist
+            currentIndex:self.playlistController.currentIndex enabled:AppSettings.sharedInstance.reopenLastPlaylist
+            toURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults write:nil error:&error]) {
         LogError(@"Last playlist not saved: %@", error.localizedDescription);
-        [self removeLastPlaylist];   // a stale mirror must not outlive a failed write
-        return;
     }
-    [NSUserDefaults.standardUserDefaults setInteger:(NSInteger)self.playlistController.currentIndex
-                                             forKey:kVibeLastPlaylistCurrentIndexKey];
 }
 
 - (void)removeLastPlaylist {
-    [NSFileManager.defaultManager removeItemAtURL:VibeLastPlaylistURL() error:nil];
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kVibeLastPlaylistCurrentIndexKey];
+    [PlaylistFile removeSessionAtURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults];
 }
 
 - (NSArray<NSURL *> *)lastPlaylistURLs {
@@ -798,18 +791,11 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (BOOL)restoreLastPlaylist {
-    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
-        return NO;
-    }
-    NSArray<NSURL *> *urls = [self lastPlaylistURLs];
-    if (urls.count == 0) {
-        return NO;
-    }
-    // Every row comes back, readable or not; an unreadable current row lands
-    // in the inline error state when its parked open fails.
-    NSInteger index = [NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey];
-    [self loadURLs:urls selectingIndex:(NSUInteger)index startPaused:YES];
-    return YES;
+    return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
+            enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
+            load:^(NSArray<NSURL *> *urls, NSUInteger index, BOOL paused) {
+        [self loadURLs:urls selectingIndex:index startPaused:paused];
+    }];
 }
 
 - (void)applyReopenLastPlaylist {

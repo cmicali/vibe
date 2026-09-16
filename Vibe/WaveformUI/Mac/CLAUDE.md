@@ -1,6 +1,6 @@
 # The waveform view (macOS only)
 
-`AudioWaveformView` is a CALayer-based `NSView` that delegates drawing to the shared renderer strategies one directory up. **It is a pure rendering surface**: `MainPlayerController` owns the `AudioWaveformCache`, symmetrically with `metadataCache`, requests loads and forwards deliveries to the view through `TrackDisplayController`'s pass-throughs — `prepareForWaveformLoad` to reset, then `showWaveform:`.
+`AudioWaveformView` is a CALayer-based `NSView` that delegates drawing to the shared renderer strategies in `../Renderers/`. **It is a pure rendering surface**: `MainPlayerController` owns the `AudioWaveformCache`, symmetrically with `metadataCache`, requests loads and forwards deliveries to the view through `TrackDisplayController`'s pass-throughs — `prepareForWaveformLoad` to reset, then `showWaveform:`.
 
 `AudioWaveformView+Loading` holds the two non-waveform states, and `AudioWaveformViewInternal.h` is the private surface they share.
 
@@ -23,6 +23,7 @@ While the cursor is over a loaded waveform, the waveform's own column under the 
 The view only routes the cursor's x to the renderer, through `setHoverHighlightX:`, where a negative value clears the highlight — **because the two renderer families need opposite mechanisms**:
 
 - The **Detailed** family adds a flat full-alpha column layer inside `_waveformContainer`, so the shared bar mask clips it to the envelope for free. It is a couple of points wide, since one bar is sub-point at 1024 bars or more.
+- **Wiggle / Wiggle MC** use the same masked column but span a complete loop, including its curved ends, so the highlight does not flicker into dots between the vertical strokes. Played progress and seeks stay continuous.
 - **Sonic Cirrus**, whose bars are discrete layers with gaps, snaps to a bar index and recolors that bar's two layers instead — a fixed-width column there could land in a gap and light nothing.
 - **Cupertino Basic** has no bars to light: the pill grows while hovered — Apple Music's own affordance — and a hairline column inside the capsule tracks the x.
 
@@ -67,4 +68,4 @@ with the press, so a track change mid-drag makes the release a no-op.
 
 ## The convert sweep
 
-`convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed mid-recovery. It gates on having a waveform, like hover, and resets in `prepareForWaveformLoad` and the empty and loading states. A value at or below the front just moves the front — that is the post-conversion reset. The mechanism is shared; see `WaveformUI/CLAUDE.md`.
+`convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed mid-recovery. It gates on having a waveform, like hover, and resets in `prepareForWaveformLoad` and the empty and loading states. A value at or below the front just moves the front — that is the post-conversion reset. The mechanism is shared; see `WaveformUI/Renderers/CLAUDE.md`.

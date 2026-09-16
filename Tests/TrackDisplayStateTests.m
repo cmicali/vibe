@@ -167,4 +167,21 @@
     }
 }
 
+
+- (void)testTimeTicksCannotOverwritePlaceholderStates {
+    for (NSNumber *state in @[@(TrackDisplayStateLoading), @(TrackDisplayStateEmpty),
+                             @(TrackDisplayStateLaunchGrace), @(TrackDisplayStateError)]) {
+        XCTAssertFalse(VibeTrackTimeMayUpdate(state.integerValue, 120, NO));
+        XCTAssertFalse(VibeTrackTimeMayUpdate(state.integerValue, 120, YES));
+    }
+}
+
+- (void)testParkedTrackMayResetElapsedWithoutOverwritingItsFullDuration {
+    for (NSNumber *duration in @[@0, @(-1), @(NAN)]) {
+        XCTAssertTrue(VibeTrackTimeMayUpdate(TrackDisplayStateTrack, duration.doubleValue, NO));
+        XCTAssertFalse(VibeTrackTimeMayUpdate(TrackDisplayStateTrack, duration.doubleValue, YES));
+    }
+    XCTAssertTrue(VibeTrackTimeMayUpdate(TrackDisplayStateTrack, 120, YES));
+}
+
 @end

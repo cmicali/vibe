@@ -335,7 +335,7 @@ means every desktop soak claims the media-app role and can hold the user's AirPo
   comment (:61), `launch-ios.sh:11–13`.
 - The `--silent` comment block in `AudioPlayer.m` (:291–301), `AudioFX.h:48–56`, and
   `NowPlayingController.h:12` / `.m:91`.
-- `Vibe/Audio/CLAUDE.md:84`.
+- `Vibe/Audio/CLAUDE.md` ("Live output levels").
 
 ## Verification
 
