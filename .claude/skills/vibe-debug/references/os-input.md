@@ -1,20 +1,27 @@
-# OS-level input: CGEvents through the window server
+# Targeted gesture and OS-input tests
 
-The fallback input path. **Prefer the in-process `click`, `drag` and `key*` verbs** in the
-`vibe-debug` skill — no permissions, no frontmost requirement, and they drive the same
-key monitor and view mouse handling. This path exists only for what posted events
-cannot reach — including hotkeys and mouse mechanics such as a fader drag or a
-double-click reset only when the in-process verbs have already failed you.
+Use controller/delegate commands for ordinary verification and unattended stress. `seek`, `set_pitch`, `select_rows`, `remove_selected`, synthetic `reorder_*` and `file_drag_*` exercise app behavior without pointer input. Keyboard routing, hover, drag thresholds, autoscroll, external drag-out and OS activation need separate, explicit tests.
 
-`input.swift` sends **CGEvents through the window server** and remains the only way to test what posted events cannot reach: tracking-area and hover effects, OS-level focus and activation semantics, and drop targets.
+**Run real input only on a dedicated test Mac or disposable macOS VM.** A different Space, window-bound coordinate checks, app activation or app-local event posting is not containment. Artwork and playlist mouse handlers can initiate a native drag carrying actual files. Never use global mouse/key input to recover a hung stress run, replay or shrink. Capture diagnostics and stop instead.
+
+## Named in-process gesture probes
+
+Start with `vibe-stress/scripts/stress.py --gesture-test pitch-reset|pitch-drag --isolated-desktop` against an already running Debug app. Each case resolves the pitch fader's current geometry, verifies the target before injection, queues the complete gesture and asserts the resulting player/fader pitch. Original pitch and panel visibility are restored. The flag is an explicit assertion about the test environment, not a sandbox.
+
+For other gestures, define one named case and its expected state before sending input. Read `dump_view_tree`/`dump_state` immediately before the gesture, resolve the specific control, verify visibility and its hit target, and abort if layout, focus or target differs. Do not use fixed screen coordinates copied from another run or random points across the window. Check the resulting state; an event-queued reply alone proves nothing. Test keyboard selection/removal routing separately from the direct selection/removal commands.
+
+## Global events, for what the window server owns
+
+`input.swift` sends CGEvents through the global window-server input stream. Use it only for an explicitly planned OS-input case inside the isolated environment, such as hover or an external file drop onto a controlled destination holding disposable test files. It needs Accessibility permission. App-local `click`, `drag` and `key*` already reach view handlers and key monitors, so global events are not required for those merely because they are gestures.
 
 ```bash
-osascript -e 'tell application "Vibe" to activate'   # events land in the frontmost app
-swift .claude/skills/vibe-debug/scripts/input.swift key p          # a-z, 0-9, space, tab, return, esc
-swift .claude/skills/vibe-debug/scripts/input.swift move 700 200          # plain cursor move — hover states
-swift .claude/skills/vibe-debug/scripts/input.swift drag 882 461 882 552   # x1 y1 x2 y2 [steps]
-swift .claude/skills/vibe-debug/scripts/input.swift dblclick 882 500       # also: click
+# Only in the isolated test environment. Resolve this run's window geometry first.
+swift .claude/skills/vibe-debug/scripts/find-window.swift
+swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop move <x> <y>
+swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop click <x> <y>
+swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop drag <x1> <y1> <x2> <y2> [steps]
 ```
 
-Coordinates are global screen coordinates with a top-left origin; `find-window.swift` prints window origin and size in the same space. `move` is what the transport-button reveal needs, through the window-wide `NSTrackingArea` in `MainPlayerContentView`: enter and exit fire only on **boundary crossings**, so move *outside* the window first and then back in. A move from one inside point to another changes nothing, and `CGWarpMouseCursorPosition` does not drive tracking areas at all. This path needs Accessibility permission and turns flaky if focus is stolen mid-test, so verify the result with `dump_state` rather than assuming the event landed. For everything else, prefer `--debug-cmd`.
+Coordinates here are global screen points with a top-left origin, unlike the debug channel's window points. Confirm the intended app is frontmost immediately before input; abort if focus changes. Do not activate repeatedly and continue blindly. For drag-out, verify the intended destination and resulting disposable payload, then confirm the session ended. These checks improve test accuracy but are not a substitute for desktop isolation.
 
+Hover tracking uses boundary crossings: move from outside the named target into it, using freshly resolved geometry. `CGWarpMouseCursorPosition` alone does not drive tracking areas. Always read back the relevant state or capture the target appearance to verify the expected outcome.

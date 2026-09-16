@@ -1,6 +1,6 @@
 ---
 name: vibe-stress
-description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random driving with consistency, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, a deterministic cloud-loading scenario suite over a fake file provider (download ordering, the foreground hold, the open deadline), plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, testing cloud/placeholder loading order, or minimizing a failing run to a repro.
+description: Stress, soak, fuzz, and torture the running Vibe app against a folder of real audio files — seeded random controller actions without pointer input, with consistency, leak, hang, and crash oracles, a single-playlist skip/seek torture suite for the delivery races that only open when transport outruns the metadata scan, a deterministic cloud-loading scenario suite over a fake file provider (download ordering, the foreground hold, the open deadline), plus the sanitizer (ASan/UBSan/TSan) and malloc-debug build matrix. Use for soak or endurance runs, memory-leak and resource-growth hunting, race hunting, fuzzing the file-loading path, hammering skips and seeks on a large playlist, testing cloud/placeholder loading order, or minimizing a failing run to a repro.
 ---
 
 # Stress and fuzz testing Vibe
@@ -11,9 +11,13 @@ Needs a **Debug** build; the channel compiles out of Release. Flags: each script
 
 Three drivers, three questions:
 
-- **`stress.py`** drives randomly for hours and notices when something breaks.
+- **`stress.py`** randomizes controller actions for hours and notices when something breaks. Every profile is command-only: no raw mouse events, keyboard events or per-operation activation.
 - **`torture.py`** loads one large playlist and hammers transport so track changes outrun everything async.
 - **`cloud-scenarios.py`** drives one named situation and asserts what the fake provider's trace must contain — the cloud guarantees are about *order*, which random driving cannot state.
+
+**Unattended stress must leave desktop input alone.** `Channel` allows only reviewed controller/delegate commands and a small set of app-only menu identifiers. It rejects raw `click`, `drag`, `mouse_*`, `key*`, arbitrary `script` wrappers and unknown verbs, including inside nested `block_main` calls. Single commands, batches, journals, replay and shrink all use this gate. An old journal containing input is rejected before replay/shrink launches the app; do not silently filter it and claim the same reproduction. There is no flag that unlocks random input. Launching Vibe and explicitly changing its window size still affect its presentation.
+
+**Never recover a stress failure with global input.** Do not use `input.swift`, Accessibility mouse driving, AppleScript/System Events, or computer-use clicks to unstick or extend an unattended run. Capture diagnostics and stop the run. App-local NSEvents are not containment: artwork and playlist handlers can start native file-export drags, and the waveform/background can start native window dragging. Keeping endpoints inside the window or repeatedly activating Vibe does not prevent these effects.
 
 ## Running each suite
 
@@ -26,6 +30,8 @@ make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600 --iterati
 ```
 
 Profiles (`--profile`): `base`, `loading`, `hammer`, `ui`, `cloud`, `theme`, `playlist`, `artwork` — what each weights and why is `references/profiles.md`. `cloud` and `artwork` need purpose-built corpora (`make-cloud-corpus.py`, `make-hostile-corpus.py`; same file).
+
+By default, validated batches travel through one `script -` invocation. `--no-batch` uses one client per operation when individual timing matters. Raw script commands from journals are refused; only the runner constructs the batch after validating every command and checking that arguments can be represented without changing token boundaries.
 
 **Torture.** One playlist, no settle anywhere, ops batched through `script -` so a burst is one client invocation (~15 real track changes/s). Phases per `--phases` (default `skip,seek,mixed,jump,blocked,boundary`; `references/profiles.md`). Between bursts: alive, `check_consistency`, fds / engine nodes / live heap / views against baseline; at the end a `quiesce` that requires every `pending` counter at zero.
 
@@ -61,6 +67,17 @@ launchctl unsetenv TSAN_OPTIONS        # session-wide until unset
 ```
 
 `-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build (incompatible with TSan; ~3x slower; aim it at malformed files, where input reaches TagLib's C++). Reports land as `$C/tsan.<pid>`; **no file means no race**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are `references/sanitizers.md`.
+
+## Named gesture tests, separate from stress
+
+Only use these when the gesture itself is under test, on a **dedicated test Mac or disposable macOS VM**, with a Debug app already running. The flag asserts that isolation exists; it does not create it. A different Space on the user's desktop is not isolation. Do not provision a VM or run global input as an automatic fallback.
+
+```bash
+.claude/skills/vibe-stress/scripts/stress.py --gesture-test pitch-reset --isolated-desktop
+.claude/skills/vibe-stress/scripts/stress.py --gesture-test pitch-drag --isolated-desktop
+```
+
+These are bounded tests of the named pitch fader. They prepare its pitch, resolve and hit-test fresh geometry inside the app immediately before queuing a complete gesture, and require the player and fader to reach the expected result. They restore the starting pitch and panel visibility even on failure. An unavailable, clipped or covered target fails instead of trying coordinates elsewhere. They cannot combine with replay or shrinking and do not enable arbitrary input. Keyboard routing, hover, drag thresholds, autoscroll, external drag-out and OS focus remain dedicated gesture/OS tests under `vibe-debug`'s [OS-input reference](../vibe-debug/references/os-input.md); normal stress makes no coverage claim for them.
 
 ## The four oracles, and what a failure means
 
@@ -98,7 +115,7 @@ Every metric in the table was audited against an external tool (`references/heal
 
 ## Traps
 
-- **TRAP: a random clicker quits the app.** The window's own close and minimize `SymbolButton`s sit top-left and `closeApp:` is `[self close]`. The driver excludes their rects from `dump_view_tree` (plus a fixed fallback); a hand-rolled clicker must too.
+- **TRAP: the old random clicker was not contained by the app event queue.** A posted drag could pick up a real file from artwork or playlist rows, or hand an empty waveform to native window dragging. It also activated Vibe repeatedly and aimed using stale geometry. Excluding close/minimize rectangles only stopped accidental exits. Random input and its geometry/exclusion machinery have been removed; do not reintroduce them under another profile or recovery path.
 - **TRAP: never `sample Vibe` by name.** The CLI client *is* the app binary, so the name matches every in-flight `--debug-cmd`, and its stack (`VibeDebugClientRunOne` in `usleep`) reads as a hang. Resolve the GUI pid — `pgrep -x Vibe` filtered for an argv lacking `--debug-cmd` — and sample *before* re-probing: a probe that succeeds means the stall ended and took its stack with it.
 - **TRAP: a toggled setting persists across runs, and a disabled feature looks exactly like a clean run.** `AppSettings` is `NSUserDefaults`, so a run inherits the last run's final random toggle; with folder art off the accessors never reach the resolver and nothing in the summary says so. The driver forces every `FEATURE_SETTINGS` entry on at launch and prints it (`settings: folderArt=on`), and the toggle ops (`folder_art`, `toggle_size` under `playlist`/`theme`) emit `off` then straight back `on` — that pair is load-bearing. **Verify a coverage claim's duty cycle from the journal** before believing it.
 - **TRAP: `open -a <path>` resolves by BUNDLE ID, not path.** Every build is `com.commonwealthrecordings.Vibe`, so it launches whichever copy LaunchServices registered; a fix-vs-pre-fix comparison tests one binary twice. `VIBE_APP` does not save you (`launch.sh` hands it to `open -a`), and `lsregister -f` can leave *both* running. Direct-exec and verify with `ps -o comm=` — what `run-torture.sh` does.
@@ -109,7 +126,7 @@ Every metric in the table was audited against an external tool (`references/heal
 - **TRAP: the sandbox kills clients under launch pressure.** Hundreds of quick client launches make libsecinit fail, SIGTRAPping in dyld initializers before `main()` — a real `Vibe` `.ips` with `parentProc: Python`, sub-millisecond lifetime, stack topped by `_libsecinit_appsandbox`. The driver retries a signal-killed client that produced no output and reports `client` only when retries are exhausted; do the same in any hand loop over `--debug-cmd`.
 - **TRAP: the corpus grant is what makes direct-exec and sanitizer runs possible.** The driver launches through `launch.sh` with the corpus dir because `open -a` is what grants sandbox access, and the grant persists. Sanitizer options are environment variables, which `open -a` cannot pass, and a direct-exec `"$V" <file>` cannot read argv paths under the sandbox — but once the folder is granted a direct-exec launch reaches every file in it through the channel. `launchctl setenv` is the only way an `open -a` launch sees a variable.
 - **TRAP: never add a TSan `suppressions=` file.** It deadlocks the launch before `main()` — `__tsan::Initialize` opens it inside dyld's initializers and that `open()` never returns under the sandbox. No log, no channel, indistinguishable from the `log_path` trap in `references/sanitizers.md`. Filter framework noise afterwards instead.
-- **Deliberately excluded from every profile**: `convert_to_flac` (writes beside the source; the corpus is real music), right-clicks and lone `mouse_down` (the wedge reasons in `vibe-debug`), and menu items matching a denylist of anything modal, quitting, hiding or closing.
+- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. All raw input is excluded. The menu allowlist covers transport, FX, pitch range and selected View actions; it excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. Add new actions deliberately at the command gate, with a runner test.
 
 ## Supporting files
 

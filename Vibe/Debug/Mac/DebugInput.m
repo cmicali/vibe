@@ -7,6 +7,7 @@
 
 #import "DebugInternal.h"
 #import "PlaylistTableView.h" // the reorder verbs hand the real table to the drag delegate methods
+#import "PitchFaderView.h"
 
 #if DEBUG
 
@@ -17,7 +18,8 @@
 // these exercise the real event dispatch path, local monitors such as
 // TransportKeyMonitor and view mouse handling included, and unlike CGEvent
 // injection through input.swift they need no Accessibility permission and no
-// frontmost window.
+// global event posting. Mouse injection does activate the window, and handlers
+// can start native file/window dragging. App-local events are not containment.
 //
 // They have two structural limits against real window-server events. Tracking
 // areas and hover effects do not fire, because the window server drives those.
@@ -364,15 +366,92 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
     return VibeMouseReply(@"drag", window, start, x1, y1);
 }
 
+// Explicit, named gesture probes only. Resolve and hit-test the real control
+// after activation, in the same main-thread turn that queues the full gesture.
+// The runner checks the resulting pitch; queued events alone are not a pass.
+NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    BOOL reset = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-reset"];
+    BOOL drag = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-drag"];
+    if ((!reset && !drag) || ![tokens.lastObject isEqualToString:@"isolated-desktop"]) {
+        return VibeErrorJSON(@"usage: gesture_test pitch-reset|pitch-drag isolated-desktop (dedicated test Mac or VM only)");
+    }
+    NSWindow *window = controller.window;
+    if (!window.isVisible || !((MainWindow *)window).isPitchPanelShown) {
+        return VibeErrorJSON(@"gesture target unavailable: show the player and pitch panel first");
+    }
+    VibeMakeWindowKeyForInjection(window);
+    if (!window.isKeyWindow) {
+        return VibeErrorJSON(@"gesture target unavailable: player is not key");
+    }
+    [window.contentView layoutSubtreeIfNeeded];
+    PitchFaderView *fader = nil;
+    for (NSView *view in controller.pitchPanel.subviews) {
+        if ([view isKindOfClass:PitchFaderView.class]) {
+            fader = (PitchFaderView *)view;
+            break;
+        }
+    }
+    if (!fader || fader.isHiddenOrHasHiddenAncestor || NSIsEmptyRect(fader.visibleRect)) {
+        return VibeErrorJSON(@"gesture target unavailable: pitch fader is hidden");
+    }
+    NSRect bounds = fader.bounds;
+    NSPoint end = [fader convertPoint:NSMakePoint(NSMidX(bounds), NSMinY(bounds) + NSHeight(bounds) * 0.75) toView:nil];
+    // Reset off-center: a plain scale click must not satisfy the double-click
+    // assertion merely by landing on zero. Drag starts on the centered knob.
+    NSPoint start = reset ? end : [fader convertPoint:NSMakePoint(NSMidX(bounds), NSMidY(bounds)) toView:nil];
+    NSView *content = window.contentView;
+    for (NSValue *value in @[[NSValue valueWithPoint:start], [NSValue valueWithPoint:end]]) {
+        NSPoint point = value.pointValue;
+        if (!NSPointInRect([fader convertPoint:point fromView:nil], fader.visibleRect)
+                || [content hitTest:[content.superview convertPoint:point fromView:nil]] != fader) {
+            return VibeErrorJSON(@"gesture target unavailable: pitch fader is clipped or covered");
+        }
+    }
+    NSString *x1 = @(start.x).stringValue, *y1 = @(NSHeight(window.frame) - start.y).stringValue;
+    if (reset) {
+        return VibeInjectMouse(controller, @[@"click", x1, y1, @"left", @"2"]);
+    }
+    return VibeInjectDrag(controller, @[@"drag", x1, y1, @(end.x).stringValue,
+                                       @(NSHeight(window.frame) - end.y).stringValue, @"20"]);
+}
+
+// Selection is a table operation; removal is the shell's transport decision.
+// Neither needs a key window, a visible pane, or a pointer gesture.
+NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    PlaylistTableView *table = controller.playlistController.tableView;
+    if (!table || tokens.count < 2) {
+        return VibeErrorJSON(@"usage: select_rows all|none|<row> [row ...]");
+    }
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    if (tokens.count == 2 && [tokens[1] isEqualToString:@"all"]) {
+        [rows addIndexesInRange:NSMakeRange(0, (NSUInteger)table.numberOfRows)];
+    }
+    else if (!(tokens.count == 2 && [tokens[1] isEqualToString:@"none"])) {
+        for (NSString *token in [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]) {
+            NSUInteger row = 0;
+            if (!VibeParseNonnegativeInteger(token, &row)) {
+                return VibeErrorJSON(@"select_rows requires nonnegative integer rows");
+            }
+            // A replacement or removal may have shortened the list since the
+            // runner chose its rows. Select surviving row numbers, or none.
+            if (row < (NSUInteger)table.numberOfRows) [rows addIndex:row];
+        }
+    }
+    [table selectRowIndexes:rows byExtendingSelection:NO];
+    NSMutableArray<NSNumber *> *selected = [NSMutableArray array];
+    [table.selectedRowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        [selected addObject:@(row)];
+    }];
+    return VibeJSONString(@{@"ok": @YES, @"selectedRows": selected});
+}
+
 #pragma mark Synthetic file drags
 
 // file_drag_hover, file_drag_drop and file_drag_end drive the same FileDropDelegate path a
-// real external file drag takes through MainWindow. A genuine
-// NSDraggingSession cannot be synthesized, because only the window server can
-// start one, which is what makes the playlist drop zone untestable through the
-// event verbs above. These are direct delegate calls rather than posted
-// events. Coordinates are main-window points with a top-left origin, as with
-// the mouse verbs.
+// real external file drag takes through MainWindow. These are direct delegate
+// calls without mouse events or a native NSDraggingSession: mouse handlers can
+// start window-server dragging, which unattended stress must avoid. Coordinates
+// are main-window points with a top-left origin, as with the mouse verbs.
 
 static NSString *VibeWellName(PlaylistDropWellAction action) {
     switch (action) {
@@ -471,9 +550,8 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 // reorder_begin, reorder_update, reorder_drop and reorder_cancel drive the
 // playlist's internal row-reorder drag through the same NSTableViewDataSource
 // methods a real drag session calls, in the same order — writer per dragged
-// row, willBegin, validate, accept, ended. A genuine NSDraggingSession cannot
-// be synthesized (only the window server starts one, the same limit the file
-// drags above document), so these calls carry a stand-in NSDraggingInfo whose
+// row, willBegin, validate, accept, ended. No native NSDraggingSession is
+// started; these calls carry a stand-in NSDraggingInfo whose
 // draggingSource is the real table and whose draggingPasteboard holds what
 // the real writers minted. Everything downstream — token match, survivor
 // resolution, slot arithmetic, the model move, the table reconciliation, the

@@ -39,7 +39,11 @@ Action replies are a compact `{ok, state, index, count, position, pitch, lowKill
 
 ## Input injection
 
-Coordinates and the tracking-loop and right-click traps are in `SKILL.md`.
+Raw input is for explicit gesture tests on an isolated test desktop, never unattended stress. Coordinates and the tracking-loop and right-click traps are in `../SKILL.md`. Prefer the named stress-runner probes, which assert the resulting pitch:
+
+```bash
+"$V" --debug-cmd gesture_test pitch-reset isolated-desktop  # also pitch-drag
+```
 
 ```bash
 "$V" --debug-cmd click 75 122        # {ok, posted, hitView, windowKey} — down+up at a window point; `click x y right`, `click x y left 2` = double-click
@@ -58,9 +62,11 @@ Coordinates and the tracking-loop and right-click traps are in `SKILL.md`.
 ```bash
 "$V" --debug-cmd open ~/Music/album  # {ok, opening} — file or dir through the direct expand/filter/replace path, bypassing the AppDelegate funnel; poll dump_state
 "$V" --debug-cmd append ~/Music/track.flac  # {ok, appending} — the real deliberate-open funnel with appending:YES, then addURLs:; poll dump_state
-"$V" --debug-cmd file_drag_hover 520 275   # {ok, well} — synthetic external-file drag-over at a window point, through the real FileDropDelegate. NOT an event (a genuine NSDraggingSession cannot be synthesized). well = replace|add|none
+"$V" --debug-cmd file_drag_hover 520 275   # {ok, well} — synthetic external-file drag-over at a window point, through the real FileDropDelegate. Direct delegate calls, with no mouse events or native drag session. well = replace|add|none
 "$V" --debug-cmd file_drag_drop 520 275 ~/Music/track.wav  # {ok, dropping, well} — completes the drag: delivers the drop at that point (none→replace), tears the drag-over UI down. ABSOLUTE path; same sandbox caveat as open
 "$V" --debug-cmd file_drag_end       # {ok} — the drag left without a drop
+"$V" --debug-cmd select_rows 0 2      # actual table selection without focus; all/none also accepted; ignores rows beyond the current list
+"$V" --debug-cmd remove_selected      # shell removal action over that selection, including transport and undo
 "$V" --debug-cmd save_playlist ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/set.m3u  # {ok, path, tracks} — File > Save Playlist… without its panel: extended M3U, entries relative to the file's folder, noted in Open Recent. {"error": "playlist is empty"} on an empty list. The path must be writable by the sandboxed app (the container's tmp is; the host can read it back)
 "$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm, key, camelot, timing} — decode + cache one file's waveform, UI untouched; waits up to 60s. timing is that decode's phase breakdown, absent on a hit. Replies only once the entry is on disk, so a relaunch is guaranteed the hit
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, wasPresent} — evict one file's waveform entry (keyed by size and mtime). clear then file_cache = a forced cold decode with freshly detected bpm
@@ -70,7 +76,7 @@ Coordinates and the tracking-loop and right-click traps are in `SKILL.md`.
 
 ### Row reorder: `reorder_*`
 
-A synthetic playlist row-reorder drag: the real `NSTableViewDataSource` choreography (writer + token per row, willBegin) with a stand-in `NSDraggingInfo`. The session **survives across channel commands on purpose** — begin, mutate the playlist with any other verb, then update or drop — which stages the mid-drag races (replace-all rejection, a converted-away dragged row dropping out) no pointer can. AppKit's half — the drag threshold, which rows a gesture picks up, the insertion line, autoscroll — is not exercised and stays a manual pointer check.
+A synthetic playlist row-reorder drag: the real `NSTableViewDataSource` choreography (writer + token per row, willBegin) with a stand-in `NSDraggingInfo` and no native drag session. The session **survives across channel commands on purpose** — begin, mutate the playlist with any other verb, then update or drop — which stages the mid-drag races (replace-all rejection, a converted-away dragged row dropping out) no pointer can. AppKit's half — the drag threshold, which rows a gesture picks up, the insertion line, autoscroll — is not exercised and stays a manual pointer check.
 
 ```bash
 "$V" --debug-cmd reorder_begin 1 3   # {ok, rows}

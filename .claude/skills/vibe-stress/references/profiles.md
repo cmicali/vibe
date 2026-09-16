@@ -4,13 +4,13 @@ The weight tables are `PROFILES` in `scripts/stress.py` and `PHASES` in `scripts
 
 ## `stress.py` profiles
 
-**`base`** mixes everything.
+**`base`** mixes all command-only operations.
 
 **`loading`** weights the open path and the async deliveries that race it (waveform, BPM, key, metadata landing after the track has changed), including `open_burst`: two to four opens on top of each other with no settle.
 
 **`hammer`** is `loading` with the throttles off: `burst` moves the track-change loop inside the app, where a jump lands every main-queue turn, and `settle` drops to a token weight so an open almost never finishes before the next lands. Aim it at a big *local* library: every open is a real decode, tag parse and art extraction racing the next track change. Structural edits stay in the mix because a removal whose replacement play is still settling when the next open lands is a shape neither profile reaches alone.
 
-**`ui`** loads no files: a pure monkey over transport, seeks, pitch, FX, clicks, drags, resizes and menus against whatever is loaded.
+**`ui`** loads no files: controller actions for transport, seeks, pitch, FX, layout and allowed menus against whatever is loaded. It does not test hit targets or event routing.
 
 **`cloud`** puts the corpus behind the fake file provider, so an open *is* a download and the serial cloud lane, the foreground hold, the neighborhood re-ranking and the abandoned play/prefetch opens are all live at once. Rules:
 
@@ -27,14 +27,18 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 **`theme`** drives the theme record end to end: store, sanitizer, apply. An apply is the app's widest single settings edit, so the profile weights **what is in flight underneath** it rather than the apply count: opens stay heavy, because the artwork color feeding the waveform palette rides the generation-matched install path and an apply landing between a delivery and its install is the case the color-ownership guarantee is written for; appearance flips are heavy because every theme rule branches on dark and a single-mode theme outranks `windowAppearanceStyle`. Its `theme_import` op is a **mutation** fuzzer, not a generator: a record built from scratch is refused at the JSON reader and never reaches the sanitizer, the one gate over four callers. It starts from a real dumped record and corrupts one to four fields with absurd numbers, wrong types, malformed colors and nonexistent font faces. **The nonexistent font face matters most, because it sanitizes clean** — a face name cannot be checked without asking the text system for it. `MAX_THEME_IMPORTS` caps imports because every accepted record is a *persisted* user theme.
 
-**`playlist`** drives structural edits under enough transport to make them dangerous: the shell funnel owning the unload, the successor re-prefetch, the replacement play and the undo registration has no interesting branch unless something is playing. Opens stay in the mix: a replacement playlist is what makes a registered undo stale, reachable only by edit, open, undo. **Selection is reachable only because modified keys fall through** `TransportKeyMonitor` to the focused table — `key down shift` is `moveDownAndModifySelection:` and the only way the channel builds a multi-row selection; a click into the pane first gives it focus and an anchor. Both need the pane open, which is why `toggle_size` emits as an off/on pair here (see the settings trap in `SKILL.md`). Row reorder is a real `drag`: synthetic events drive `NSTableView`'s internal drag session **only with the window key and enough interpolation steps** to clear AppKit's threshold — a drag into a non-key window silently does nothing, and a drop within one row of the source is a documented no-op.
+**`playlist`** drives structural edits under enough transport to make them dangerous: the shell funnel owning the unload, the successor re-prefetch, the replacement play and the undo registration has no interesting branch unless something is playing. Opens stay in the mix: a replacement playlist is what makes a registered undo stale, reachable only by edit, open, undo.
+
+**Playlist editing needs no pointer or focus.** `select_rows all|none|<row> [row ...]` updates the actual table selection; row numbers outside the current list are ignored, so a list emptied by an earlier operation deselects. `remove_selected` invokes the shell's existing selection-removal action, which owns transport and undo. Both work while the pane is closed or the window is inactive. Keyboard selection and Delete routing are separate gesture tests.
+
+**There is one reorder mechanism in stress.** `playlist_move` uses `reorder_begin` followed by update/drop/cancel, the same synthetic delegate path used for interleaved reorder operations. This exercises token matching, survivor resolution, slot arithmetic, table updates and shell undo without a native drag session. `file_drag_*` likewise remain direct delegate calls; despite their names they do not inject pointer events or export files to another app.
 
 **`artwork`** aims at the folder-artwork fallback: opens through all three resolve strategies (a folder, a burst of files, a lone file), the playlist visible far more often so cell draws pull thumbnails off the resolver concurrently with the header's display-size load, and the setting flipped underneath both. Pair it with `make-hostile-corpus.py`: one cover per accepted filename, near-miss names, unreadable, undecodable and oversize covers, a cover that is a directory and one that is a FIFO, hard-linked real tracks mixed in so the run keeps changing between a file that decodes and one that cannot.
 
 ## Op kinds that exist for one reason
 
 - `open_burst` — overlapping opens with no settle.
-- `held_fx` — a `key_down w` whose `key_up` is sometimes lost across a track change, latching a momentary effect.
+- `held_fx` — an effect enabled across a track change, sometimes left on until a later controller action.
 - Out-of-range `seek` and `set_pitch` — the clamp escaping is the finding.
 - `folder_art` — flips `set_folder_art`, the one change that drops every answer the resolver holds, onto resolves and decodes in flight. Emits `off`/`on` as a pair.
 - `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a convert, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
