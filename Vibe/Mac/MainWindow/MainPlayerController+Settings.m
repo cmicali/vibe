@@ -8,6 +8,7 @@
 #import "PlaylistController.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Menus.h"
+#import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
 #import "MainWindow.h"
@@ -67,6 +68,7 @@
             _pitchPanel.pitch = 0;
             [(MainWindow *)self.window setPitchPanelShown:NO animate:YES];
             [self updateRateDependentUI];
+            [self updateNowPlaying];
         }
         // The header's lock and the Settings caption redraw from
         // audioPlayerDidChangeBitPerfectReport: once this lands on the

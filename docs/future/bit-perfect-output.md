@@ -21,7 +21,11 @@ implementation plan is available in git history.
   can become active. Turning the mode off restores the saved FX/crossfade choices.
 - First use remembers the device's original physical format. Changing devices,
   disabling the mode, or quitting restores it. Exclusive access is released after
-  an idle engine stop (6 seconds when held; the normal idle delay is 10 seconds).
+  an idle engine stop (6 seconds in both modes).
+- With bit-perfect off, playback keeps the pre-feature mixer connection and
+  varispeed timing. Neither the output-unit binding listener nor the volume,
+  balance and mute listener is installed. Disabling restores that connection
+  and removes both listeners before ordinary playback continues.
 - A disappearing selected device disables the mode and falls back to System Output.
   An unresolved saved device at launch stays pending; this is not device removal.
 - Starts and stops retain their declick fades. A sample-rate boundary needs the
@@ -49,7 +53,7 @@ Measured 2026-09-15 on this Mac, macOS 27.0, using the Xcode 26 SDK:
 | 32-bit integer source through AVAudioFile | 24,641,537 becomes 24,641,536 in float32 decoding. The report refuses Active even if the physical device offers 32-bit integer output. |
 | Speaker balance at main volume 1.0 | Left/right balance changes do not change virtual main volume. Balance must be read and watched separately. |
 
-These findings explain the direct node → mixer path, the shared master-bus rewiring
+These findings explain the direct node → mixer path, the bit-perfect master-bus rewiring
 helper, and the separate rate, channel, depth, gain and ownership report inputs.
 
 ### System-output experiment
@@ -64,8 +68,9 @@ Rebinding and preparing after the take held in a standalone experiment but did
 not fix the app. The rule therefore refuses to hog the current system output and
 refuses the take when the default cannot be read. See the reproducible
 [`hogfollow.swift`](../../.claude/skills/vibe-debug/scripts/hogfollow.swift) experiment.
-A listener on the output unit also catches same-rate default moves that produce
-no AVAudioEngine configuration notification, using the normal recovery path.
+While a bit-perfect device is prepared, a listener on the output unit also catches
+same-rate default moves that produce no AVAudioEngine configuration notification,
+using the normal recovery path.
 
 ### Ownership failures
 
@@ -92,6 +97,9 @@ The regression set covers:
   and restoration when leaving a device or disabling the mode.
 - Mode toggles during an open, a same-device selection that makes a pending mode
   eligible, and same-rate system-output changes during playback and pause.
+- Cold-off playback and on/off round trips against the pre-feature graph and idle
+  timing, traced for absence of bit-perfect calls and listeners; a selected-device
+  fallback while an open is held must restore the normal incoming chain.
 - Header lock, tooltip and Settings caption on play/pause/stop, volume, mute and
   balance changes. **Screenshot first after the transition**: other debug verbs
   refresh the pane and can hide a missing production update.

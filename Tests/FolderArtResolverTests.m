@@ -12,6 +12,40 @@
 
 @implementation FolderArtResolverTests
 
+- (void)testSettingChangeCannotBeOverwrittenByAnOlderBackgroundRead {
+    for (NSNumber *initial in @[@NO, @YES]) {
+        __block BOOL enabled = initial.boolValue;
+        dispatch_semaphore_t readerReached = dispatch_semaphore_create(0);
+        dispatch_semaphore_t resumeReader = dispatch_semaphore_create(0);
+        FolderArtResolver *resolver = [[FolderArtResolver alloc]
+                initWithEnabledProvider:^BOOL{
+            BOOL captured = enabled;
+            if (!NSThread.isMainThread) {
+                dispatch_semaphore_signal(readerReached);
+                dispatch_semaphore_wait(resumeReader,
+                        dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+            }
+            return captured;
+        } accessProvider:^BOOL(NSString *directory) {
+            return YES;
+        }];
+        NSString *track = @"/Library/Albums/SettingRace/track.mp3";
+        XCTestExpectation *finished = [self expectationWithDescription:@"background read returned"];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [resolver needsBackgroundLoadForAudioFilePath:track];
+            dispatch_semaphore_signal(readerReached);
+            [finished fulfill];
+        });
+        XCTAssertEqual(dispatch_semaphore_wait(readerReached,
+                dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        enabled = !enabled;
+        [resolver folderArtSettingDidChange];
+        dispatch_semaphore_signal(resumeReader);
+        [self waitForExpectations:@[finished] timeout:3];
+        XCTAssertEqual([resolver needsBackgroundLoadForAudioFilePath:track], enabled);
+    }
+}
+
 - (FolderArtResolver *)resolverWithFileInfo:(FolderArtFileInfoProvider)fileInfo
                               dataReader:(FolderArtDataReader)dataReader
                                  decoder:(FolderArtDecoder)decoder {

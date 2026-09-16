@@ -31,6 +31,7 @@
 // sees the other's, so this one import is conditional.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
+#import <AudioToolbox/AudioToolbox.h>
 #endif
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayer+Fades.h"
@@ -197,6 +198,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioStreamID           _preparedStreamID;
     AudioStreamBasicDescription _preparedFormat;
     AudioObjectPropertyListenerBlock _outputLevelListener;
+    AUEventListenerRef      _outputDeviceListener;
+    // The original non-bit-perfect connection, restored when leaving the mode.
+    AVAudioFormat           *_masterBusFormatBeforeBitPerfect;
     // A settlement waiting for the outgoing audio to go silent before it may
     // stop the engine for a format switch; run once by completeRetiredFadePair:
     // when _activeRetiredOutputCount reaches zero.
@@ -346,9 +350,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // (--no-audio-hw, --silent) included — the init path and the iOS
 // media-services rebuild must configure the engine identically.
 - (void)createEngineAndMasterBusOnQueue;
-// The FX-less master bus at a rate, tap removed and reconciled back; the
-// engine init and macOS's bit-perfect rate switch both wire through it.
-- (void)wireMasterBusOnQueueAtRate:(double)rate;
 // Makes _varispeed what the chain wants — one, or none under macOS's
 // bit-perfect output. Lives in AudioPlayer.m because _varispeed is written
 // there alone.

@@ -73,9 +73,10 @@ static NSString *const kNoArtMarker = @"";
     dispatch_queue_t _queue;
     // The album-art setting, cached: directoryForAudioFilePath: gates every
     // accessor on it, and those run on every cell draw and every updateUI pass
-    // — far too hot for a defaults read apiece. -1 is unknown; only an
-    // invalidate clears it. Two racers both asking the provider is harmless.
-    atomic_int _enabledCache;
+    // — far too hot for a defaults read apiece. Only initialization and the
+    // setting's live effect write it; a background reader cannot restore an
+    // older choice after the user changes the setting.
+    atomic_bool _enabledCache;
     FolderArtEnabledProvider _enabledProvider;
     FolderArtAccessProvider _accessProvider;
     FolderArtDirectoryLister _lister;
@@ -145,7 +146,7 @@ static NSString *const kNoArtMarker = @"";
         _thumbnails.countLimit = kThumbnailCacheLimit;
         _displayImages = [[NSCache alloc] init];
         _displayImages.countLimit = kDisplayCacheLimit;
-        atomic_init(&_enabledCache, -1);
+        atomic_init(&_enabledCache, enabledProvider());
         // Serial and background: never urgent, and one folder at a time keeps a
         // big playlist's scrolling from turning into a disk storm.
         _queue = dispatch_queue_create("com.vibe.folderart",
@@ -366,13 +367,13 @@ static NSString *const kNoArtMarker = @"";
     // that skips VibeSettingsLiveEffectFolderArt is not observed. Not a full
     // wipe: the settled answers stay; see the header for why this exists
     // separately from invalidate.
-    atomic_store_explicit(&_enabledCache, -1, memory_order_relaxed);
+    atomic_store_explicit(&_enabledCache, _enabledProvider(), memory_order_relaxed);
     [_thumbnails removeAllObjects];
     [_displayImages removeAllObjects];
 }
 
 - (void)invalidate {
-    atomic_store_explicit(&_enabledCache, -1, memory_order_relaxed);
+    atomic_store_explicit(&_enabledCache, _enabledProvider(), memory_order_relaxed);
     os_unfair_lock_lock(&_lock);
     NSMutableArray<NSString *> *forgotten = [NSMutableArray array];
     for (NSString *directory in _directories) {
@@ -415,13 +416,7 @@ static NSString *const kNoArtMarker = @"";
 #pragma mark - Entries
 
 - (BOOL)folderArtEnabled {
-    int cached = atomic_load_explicit(&_enabledCache, memory_order_relaxed);
-    if (cached >= 0) {
-        return cached != 0;
-    }
-    BOOL enabled = _enabledProvider();
-    atomic_store_explicit(&_enabledCache, enabled ? 1 : 0, memory_order_relaxed);
-    return enabled;
+    return atomic_load_explicit(&_enabledCache, memory_order_relaxed);
 }
 
 - (NSString *)directoryForAudioFilePath:(NSString *)path {

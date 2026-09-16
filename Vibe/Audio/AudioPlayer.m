@@ -114,9 +114,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t                _incomingFadeMilliseconds;
     AudioLoadingConfiguration *_loadingConfiguration;
     id                      _configChangeObserver;
-#if TARGET_OS_OSX
-    AUEventListenerRef      _outputDeviceListener;
-#endif
 #if DEBUG
     // --no-audio-hw's stand-in for the HAL IO thread; see
     // VibeManualRenderPump. Non-nil exactly while manual rendering is active,
@@ -193,49 +190,21 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [deviceManager addObserver:self];
 
             __weak AudioPlayer *weakSelf = self;
-            // Always leave the event callback before rebuilding. Rebinding
-            // emits another output-unit event; doing it inside the AU event
-            // drain can keep that drain running forever and starve settlements.
-            dispatch_block_t configurationChanged = ^{
-                AudioPlayer *strongSelf = weakSelf;
-                if (strongSelf) {
-                    dispatch_async(strongSelf->_queue, ^{
-                        [strongSelf handleEngineConfigurationChange];
-                        if (strongSelf->_bitPerfectWanted) {
-                            [strongSelf publishBitPerfectReportOnQueue];
-                        }
-                    });
-                }
-            };
             self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
                     addObserverForName:AVAudioEngineConfigurationChangeNotification
                                 object:self->_engine
                                  queue:nil
                             usingBlock:^(NSNotification *note) {
-                                configurationChanged();
+                                AudioPlayer *strongSelf = weakSelf;
+                                if (strongSelf) {
+                                    dispatch_async(strongSelf->_queue, ^{
+                                        [strongSelf handleEngineConfigurationChange];
+                                        if (strongSelf->_bitPerfectWanted) {
+                                            [strongSelf publishBitPerfectReportOnQueue];
+                                        }
+                                    });
+                                }
                             }];
-            // A same-rate default change can move the output unit without an
-            // engine configuration notification, after the HAL default event.
-            // Watch the actual binding and use the same recovery path.
-            AudioUnit outputUnit = self->_engine.outputNode.audioUnit;
-            if (outputUnit) {
-                OSStatus status = AUEventListenerCreateWithDispatchQueue(
-                        &self->_outputDeviceListener, 0.01, 0.01, self->_queue,
-                        ^(void *object, const AudioUnitEvent *event, UInt64 time, AudioUnitParameterValue value) {
-                            configurationChanged();
-                        });
-                if (status == noErr) {
-                    AudioUnitEvent event = { .mEventType = kAudioUnitEvent_PropertyChange,
-                        .mArgument.mProperty = { outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-                                                 kAudioUnitScope_Global, 0 } };
-                    status = AUEventListenerAddEventType(self->_outputDeviceListener, NULL, &event);
-                }
-                if (status != noErr) {
-                    LogDebug(@"output device listener failed: %d", (int)status);
-                    if (self->_outputDeviceListener) AUListenerDispose(self->_outputDeviceListener);
-                    self->_outputDeviceListener = NULL;
-                }
-            }
             // Do not put first-use HAL discovery on the player's sole queue.
             // The engine begins honestly on System Output; a successful async
             // snapshot later applies the saved preference through the checked
@@ -343,35 +312,17 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 - (void)installMasterBusOnQueue {
     if (_fx) {
         [_fx installInEngine:_engine];
-        // TRAP: this is the only rebuild edge that re-reconciles the level
-        // tap. This method is what the iOS media-services rebuild re-runs, so
-        // a tap installed outside applyLevelTapOnQueue dies with the old
-        // engine and never comes back — no error, no log, the bars simply
-        // stop moving. Reconciling here also re-reads the sample rate, which
-        // a reset is free to change.
-        [self applyLevelTapOnQueue];
     }
     else {
-        // At the device's own rate, which a fresh engine's output node
-        // already reports: the mixer's default is 44.1 kHz whatever the
-        // device, and the output unit would silently resample the difference.
-        double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
-        [self wireMasterBusOnQueueAtRate:(rate > 0 ? rate : [_engine.mainMixerNode outputFormatForBus:0].sampleRate)];
+        [_engine connect:_engine.mainMixerNode to:_engine.outputNode
+                  format:[_engine.mainMixerNode outputFormatForBus:0]];
     }
-}
-
-// The FX-less master bus: mainMixer -> output at `rate`, on a stopped engine.
-// The level tap sits on that bus, so it is removed first and reconciled back
-// through the one funnel. installMasterBusOnQueue wires it once per engine,
-// and macOS's bit-perfect rate switch rewires it whenever the device's rate
-// moves.
-- (void)wireMasterBusOnQueueAtRate:(double)rate {
-    AVAudioFormat *mixerFormat = [_engine.mainMixerNode outputFormatForBus:0];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
-                                                                          channels:mixerFormat.channelCount ?: 2];
-    [_levelTap remove];
-    _levelTap = nil;
-    [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
+    // TRAP: this is the only rebuild edge that re-reconciles the level tap.
+    // This method is what the iOS media-services rebuild re-runs, so a tap
+    // installed outside applyLevelTapOnQueue dies with the old engine and
+    // never comes back — no error, no log, the bars simply stop moving.
+    // Reconciling here also re-reads the sample rate, which a reset is free
+    // to change.
     [self applyLevelTapOnQueue];
 }
 
@@ -677,10 +628,15 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                                              segmentWasQueued);
     [self unpublishNodeOnQueue];   // oldNode above is the handle the retire uses
 
-    // oldVarispeed above is the retire's. The incoming chain is minted at the
-    // settlement, where it is connected — not here, because macOS's
-    // bit-perfect mode can toggle while the open is in flight.
     _varispeed = nil;
+#if TARGET_OS_OSX
+    if (!_bitPerfectWanted || self.fx)
+#endif
+    {
+        AVAudioUnitVarispeed *newVarispeed = [[AVAudioUnitVarispeed alloc] init];
+        [_engine attachNode:newVarispeed];
+        _varispeed = newVarispeed;
+    }
 
     // The retire fades the outgoing side out while the incoming node fades in
     // concurrently on its own chain, in finishPlayOnQueueWithFile: — an
@@ -688,13 +644,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retireNode:oldNode varispeed:oldVarispeed milliseconds:_incomingFadeMilliseconds];
 }
 
-// Makes _varispeed what the chain wants: one, minted here alone, or none
-// under macOS's bit-perfect output — a resampler at ratio 1.0 is still a
-// resampler, so none is minted rather than trusted, and a stale one is
-// dropped. The settlement calls it with the slot the retire cleared, right
-// before the incoming node is connected; the device restore calls it on the
-// current track's slot with the engine stopped, which is how a mode toggle
-// rebuilds the chain in place without a click.
+// Reconcile the chain after a mode change, including one during a file open.
+// Ordinary playback creates its varispeed at submission and never enters here.
+// Bit-perfect playback removes it: even at ratio 1.0 it changes the samples.
 - (void)ensureVarispeedOnQueue {
 #if TARGET_OS_OSX
     if (_bitPerfectWanted && !self.fx) {
@@ -840,9 +792,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // ran — so the switch may stop the engine, which it does itself.
     if (_bitPerfectWanted) {
         [self prepareOutputOnQueueForFile:file];
+        [self ensureVarispeedOnQueue]; // a toggle during the open may have changed the chain
     }
 #endif
-    [self ensureVarispeedOnQueue]; // the chain as the mode wants it NOW, not at submission
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
     if (!node) {
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -998,7 +950,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtAbandonment
                               playPath:nil];
     [self clearGaplessOnQueue]; // any queued segment died with the node
-    // Detach the varispeed the settlement minted for the failed track.
+    // Detach the varispeed attached for the failed track.
     // Otherwise it stays attached across Stopped until the next play or stop;
     // stopOnQueue arrives here with it already nil. The detach must not throw,
     // because this can run right after a failed connect left it
