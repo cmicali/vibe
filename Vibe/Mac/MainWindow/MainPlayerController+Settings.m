@@ -19,6 +19,7 @@
 #import "MainMenuBuilder.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
+#import "PitchControlPanel.h"
 #import "TrackDisplayController.h"
 
 @implementation MainPlayerController (Settings)
@@ -60,10 +61,10 @@
     if (effects & VibeSettingsLiveEffectBitPerfect) {
         BOOL bitPerfect = settings.bitPerfectOutput;
         if (bitPerfect) {
-            // No varispeed under the mode, so the pitch is 0 by construction;
-            // the fader mirrors the player at the next reveal, and the panel
-            // is withdrawn until the mode goes off.
+            // No varispeed under the mode: reset both the player and its
+            // readout before withdrawing the panel.
             self.audioPlayer.pitch = 0;
+            _pitchPanel.pitch = 0;
             [(MainWindow *)self.window setPitchPanelShown:NO animate:YES];
             [self updateRateDependentUI];
         }

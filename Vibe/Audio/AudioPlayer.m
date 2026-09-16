@@ -193,17 +193,24 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             [deviceManager addObserver:self];
 
             __weak AudioPlayer *weakSelf = self;
+            // Always leave the event callback before rebuilding. Rebinding
+            // emits another output-unit event; doing it inside the AU event
+            // drain can keep that drain running forever and starve settlements.
+            dispatch_block_t configurationChanged = ^{
+                AudioPlayer *strongSelf = weakSelf;
+                if (strongSelf) {
+                    dispatch_async(strongSelf->_queue, ^{
+                        [strongSelf handleEngineConfigurationChange];
+                        [strongSelf publishBitPerfectReportOnQueue];
+                    });
+                }
+            };
             self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
                     addObserverForName:AVAudioEngineConfigurationChangeNotification
                                 object:self->_engine
                                  queue:nil
                             usingBlock:^(NSNotification *note) {
-                                AudioPlayer *strongSelf = weakSelf;
-                                if (strongSelf) {
-                                    dispatch_async(strongSelf->_queue, ^{
-                                        [strongSelf handleEngineConfigurationChange];
-                                    });
-                                }
+                                configurationChanged();
                             }];
             // A same-rate default change can move the output unit without an
             // engine configuration notification, after the HAL default event.
@@ -213,9 +220,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 OSStatus status = AUEventListenerCreateWithDispatchQueue(
                         &self->_outputDeviceListener, 0.01, 0.01, self->_queue,
                         ^(void *object, const AudioUnitEvent *event, UInt64 time, AudioUnitParameterValue value) {
-                            AudioPlayer *strongSelf = weakSelf;
-                            [strongSelf handleEngineConfigurationChange];
-                            [strongSelf publishBitPerfectReportOnQueue];
+                            configurationChanged();
                         });
                 if (status == noErr) {
                     AudioUnitEvent event = { .mEventType = kAudioUnitEvent_PropertyChange,
