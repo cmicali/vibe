@@ -114,6 +114,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t                _incomingFadeMilliseconds;
     AudioLoadingConfiguration *_loadingConfiguration;
     id                      _configChangeObserver;
+#if TARGET_OS_OSX
+    AUEventListenerRef      _outputDeviceListener;
+#endif
 #if DEBUG
     // --no-audio-hw's stand-in for the HAL IO thread; see
     // VibeManualRenderPump. Non-nil exactly while manual rendering is active,
@@ -202,6 +205,30 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                                     });
                                 }
                             }];
+            // A same-rate default change can move the output unit without an
+            // engine configuration notification, after the HAL default event.
+            // Watch the actual binding and use the same recovery path.
+            AudioUnit outputUnit = self->_engine.outputNode.audioUnit;
+            if (outputUnit) {
+                OSStatus status = AUEventListenerCreateWithDispatchQueue(
+                        &self->_outputDeviceListener, 0.01, 0.01, self->_queue,
+                        ^(void *object, const AudioUnitEvent *event, UInt64 time, AudioUnitParameterValue value) {
+                            AudioPlayer *strongSelf = weakSelf;
+                            [strongSelf handleEngineConfigurationChange];
+                            [strongSelf publishBitPerfectReportOnQueue];
+                        });
+                if (status == noErr) {
+                    AudioUnitEvent event = { .mEventType = kAudioUnitEvent_PropertyChange,
+                        .mArgument.mProperty = { outputUnit, kAudioOutputUnitProperty_CurrentDevice,
+                                                 kAudioUnitScope_Global, 0 } };
+                    status = AUEventListenerAddEventType(self->_outputDeviceListener, NULL, &event);
+                }
+                if (status != noErr) {
+                    LogDebug(@"output device listener failed: %d", (int)status);
+                    if (self->_outputDeviceListener) AUListenerDispose(self->_outputDeviceListener);
+                    self->_outputDeviceListener = NULL;
+                }
+            }
             // Do not put first-use HAL discovery on the player's sole queue.
             // The engine begins honestly on System Output; a successful async
             // snapshot later applies the saved preference through the checked
@@ -421,6 +448,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [_manualPump cancel];
 #endif
 #if TARGET_OS_OSX
+    if (_outputDeviceListener) AUListenerDispose(_outputDeviceListener);
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync

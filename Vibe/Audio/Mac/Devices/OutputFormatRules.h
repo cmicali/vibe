@@ -23,7 +23,7 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // The device does not offer the file's rate; a multiple was used when it
     // offered one.
     VibeBitPerfectStatusRateUnsupported,
-    // The HAL did not take the format in time.
+    // The output route, format or gain could not be confirmed.
     VibeBitPerfectStatusSwitchFailed,
     VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
@@ -53,7 +53,7 @@ typedef struct {
     BOOL hasTrack;
     BOOL fxGraph;
     BOOL rateExact;
-    BOOL formatConfirmed;   // the device has the format that was asked of it
+    BOOL formatConfirmed;   // the bound device has the requested format; its gain reads succeeded
     BOOL channelsMatch;     // no channel-count conversion anywhere in the chain
     BOOL depthOK;
     BOOL muted;
@@ -276,8 +276,8 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 }
 
 // The fold over the report's inputs, in priority order, so two breakers never
-// race for the caption: Off > FXGraphPresent > Idle > RateUnsupported >
-// SwitchFailed > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
+// race for the caption: Off > FXGraphPresent > Idle > SwitchFailed >
+// RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
 // SourceLossy > Active. FXGraphPresent sits second because the mode is inert
 // in such a run — nothing below it was even attempted. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
@@ -293,11 +293,11 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (!r.hasTrack) {
         return VibeBitPerfectStatusIdle;
     }
-    if (!r.rateExact) {
-        return VibeBitPerfectStatusRateUnsupported;
-    }
     if (!r.formatConfirmed) {
         return VibeBitPerfectStatusSwitchFailed;
+    }
+    if (!r.rateExact) {
+        return VibeBitPerfectStatusRateUnsupported;
     }
     if (!r.channelsMatch) {
         return VibeBitPerfectStatusChannelConversion;

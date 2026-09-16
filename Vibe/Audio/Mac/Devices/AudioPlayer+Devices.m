@@ -122,6 +122,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 }
 
 - (AudioDeviceID)activeOutputDeviceID {
+#if DEBUG
+    if (_engine.isInManualRenderingMode) {
+        return [CoreAudioUtil systemDefaultOutputDeviceID]; // no hardware output unit to query
+    }
+#endif
     AudioUnit outputUnit = _engine.outputNode.audioUnit;
     if (outputUnit) {
         AudioDeviceID deviceID = kAudioObjectUnknown;
@@ -131,7 +136,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             return deviceID;
         }
     }
-    return [CoreAudioUtil systemDefaultOutputDeviceID];
+    // A failed read cannot prove where the engine is sending audio. In
+    // particular, the system default is not evidence of an explicit bind.
+    return kAudioObjectUnknown;
 }
 
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
@@ -192,12 +199,10 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     });
 }
 
-// Handles AVAudioEngineConfigurationChangeNotification: the output hardware
-// changed under the engine, through a device removal or a format or
-// sample-rate change, which makes the engine stop itself. The health check is
-// idempotent and rebuilds only when the graph actually died, so notifications
-// caused by our own completed rebuilds are no-ops rather than redundant
-// rebuilds.
+// Handles engine configuration and output-unit device changes: the hardware
+// can stop the engine or silently move its output to another device. The health check is
+// idempotent: a running graph is healthy only on the requested device, so
+// notifications caused by our own completed rebuilds are no-ops.
 - (void)handleEngineConfigurationChange {
     // This notification comes from AVAudioEngine, not the device manager, so
     // unlike audioOutputDevicesDidChange it can land before the first snapshot
@@ -210,9 +215,11 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     VibePlayerState state = _state;
     BOOL hasNode = (_node != nil);
     os_unfair_lock_unlock(&_stateLock);
-    BOOL graphHealthy = _engine.isRunning && hasNode;
+    AudioDeviceID boundDeviceID = [self activeOutputDeviceID];
+    BOOL graphHealthy = _engine.isRunning && hasNode
+            && (requested < 0 || boundDeviceID == (AudioDeviceID)requested);
     LogDebug(@"engine configuration change: requested %ld bound %u healthy %d state %ld",
-             (long)requested, [self activeOutputDeviceID], graphHealthy, (long)state);
+             (long)requested, boundDeviceID, graphHealthy, (long)state);
     if (!graphHealthy) {
         // Publish the stopped graph before any recovery branch can wait or
         // return. Transport state intentionally remains unchanged so a
@@ -225,15 +232,16 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         [self setOutputDeviceOnQueue:-1];
         return;
     }
-    if (state == VibePlayerStateStopped) {
+    if (state == VibePlayerStateStopped
+            && (requested < 0 || boundDeviceID == (AudioDeviceID)requested)) {
         return;
     }
     if (graphHealthy) {
         // The graph survived, so there is nothing to recover.
         return;
     }
-    // The engine stopped itself in response to the change. Rebuild the graph,
-    // preserving the track, the position and the play or pause state.
+    // The engine stopped or left the chosen device. Rebuild while preserving
+    // transport; a Stopped player only rebinds, without resurrecting its file.
     AudioDeviceID deviceID = kAudioObjectUnknown;
     if (requested >= 0) {
         deviceID = (AudioDeviceID)requested;
@@ -267,7 +275,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     // resume starts the engine, just as after a normal idle stop. A format
     // another process moved during the pause is what this notification
     // often IS, and the rebuild's prepare sets it back.
-    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID
+    if (state == VibePlayerStatePaused && hasNode && boundDeviceID == deviceID
             && !(_file && [self outputNeedsSwitchOnQueueForFile:_file])) {
         return;
     }
@@ -450,7 +458,12 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
     LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
 
-    if (newDeviceID != currentDeviceID) {
+    // Choosing the already-active System Output device can make a wanted
+    // mode eligible for the first time. Rebuild so the current track gets
+    // prepared too; merely pinning the unit would leave its old rate behind.
+    BOOL needsPreparation = _bitPerfectWanted && !self.fx && outputDeviceID >= 0
+            && _preparedDeviceID != newDeviceID;
+    if (newDeviceID != currentDeviceID || needsPreparation) {
         if (![self configureOutputDeviceOnQueue:newDeviceID]) {
             // configureOutputDeviceOnQueue has already reported the error.
             // Do not record or persist a device we failed to switch to.
@@ -778,16 +791,18 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
         AudioStreamBasicDescription physical = {0};
-        [CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID];
+        BOOL readFormat = [CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID];
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        report.formatConfirmed = VibePhysicalFormatsEquivalent(physical, _preparedFormat);
+        report.formatConfirmed = readFormat && [self activeOutputDeviceID] == _preparedDeviceID
+                && VibePhysicalFormatsEquivalent(physical, _preparedFormat);
         report.systemDefault = (_preparedDeviceID == [CoreAudioUtil systemDefaultOutputDeviceID]);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         report.hogWanted = VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType, report.systemDefault);
 #endif
-        [CoreAudioUtil readVirtualMainVolume:&report.softwareVolume forDeviceID:_preparedDeviceID];
+        report.formatConfirmed &= [CoreAudioUtil readVirtualMainVolume:&report.softwareVolume
+                                                           forDeviceID:_preparedDeviceID];
         report.formatConfirmed &= [CoreAudioUtil readOutputMute:&report.muted forDeviceID:_preparedDeviceID];
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
         if (file) {

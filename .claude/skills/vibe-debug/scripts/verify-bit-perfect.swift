@@ -29,7 +29,16 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
+// exit() skips Swift defers. Register each acquired resource before the next
+// operation can fail, and use the same cleanup for errors and normal exit.
+var cleanupActions: [() -> Void] = []
+func cleanup() {
+    while let action = cleanupActions.popLast() { action() }
+}
+defer { cleanup() }
+
 func fail(_ message: String) -> Never {
+    cleanup()
     FileHandle.standardError.write((message + "\n").data(using: .utf8)!)
     exit(1)
 }
@@ -108,15 +117,15 @@ func writeVolume(_ device: AudioDeviceID, _ slot: VolumeSlot, _ volume: Float32)
 
 guard let device = deviceNamed(deviceName) else { fail("no output device named \(deviceName)") }
 var restoreVolumes: [(VolumeSlot, Float32)] = []
+cleanupActions.append {
+    for (slot, volume) in restoreVolumes { _ = writeVolume(device, slot, volume) }
+}
 for slot in volumeSlots {
     guard let volume = readVolume(device, slot), volume < 0.999 else { continue }
     guard forceVolume else {
         fail("\(deviceName)'s volume is \(volume) (slot \(slot.element)); set it to 100% in Audio MIDI Setup or pass --force-volume")
     }
     if writeVolume(device, slot, 1.0) { restoreVolumes.append((slot, volume)) }
-}
-defer {
-    for (slot, volume) in restoreVolumes { _ = writeVolume(device, slot, volume) }
 }
 
 let reference: AVAudioFile
@@ -142,19 +151,19 @@ guard let referenceData = referenceBuffer.floatChannelData else { fail("referenc
 // with an IOProc — no AVAudioEngine, whose input node follows the default
 // input device rather than the one asked for.
 var restoreRate: Double? = nil
+cleanupActions.append {
+    if let rate = restoreRate {
+        var rateAddress = property(kAudioDevicePropertyNominalSampleRate)
+        var value = rate
+        _ = AudioObjectSetPropertyData(device, &rateAddress, 0, nil, UInt32(MemoryLayout<Float64>.size), &value)
+    }
+}
 if setRate && nominalRate(device) != fileRate {
     restoreRate = nominalRate(device)
     var rateAddress = property(kAudioDevicePropertyNominalSampleRate)
     var wanted = fileRate
     guard AudioObjectSetPropertyData(device, &rateAddress, 0, nil, UInt32(MemoryLayout<Float64>.size), &wanted) == noErr else {
         fail("could not set \(deviceName) to \(fileRate) Hz")
-    }
-}
-defer {
-    if let rate = restoreRate {
-        var rateAddress = property(kAudioDevicePropertyNominalSampleRate)
-        var value = rate
-        _ = AudioObjectSetPropertyData(device, &rateAddress, 0, nil, UInt32(MemoryLayout<Float64>.size), &value)
     }
 }
 let rateDeadline = Date().addingTimeInterval(15)
@@ -222,6 +231,14 @@ var procID: AudioDeviceIOProcID? = nil
 guard AudioDeviceCreateIOProcID(device, ioProc, nil, &procID) == noErr, let proc = procID else {
     fail("could not create an IOProc on \(deviceName)")
 }
+let stopCapture = {
+    if let activeProc = procID {
+        AudioDeviceStop(device, activeProc)
+        AudioDeviceDestroyIOProcID(device, activeProc)
+        procID = nil
+    }
+}
+cleanupActions.append(stopCapture)
 guard AudioDeviceStart(device, proc) == noErr else { fail("could not start IO on \(deviceName)") }
 
 // Wait for audio, then record for `seconds` from the first non-silent frame.
@@ -235,7 +252,7 @@ while Date() < deadline {
     if heard { audioSeen = true; break }
 }
 if !audioSeen {
-    AudioDeviceStop(device, proc)
+    stopCapture()
     captureLock.lock()
     let frames = captured[0].count
     captureLock.unlock()
@@ -245,8 +262,7 @@ if !audioSeen {
     fail("no audio arrived on \(deviceName) within 15 s (\(callbacks) callbacks, \(frames) frames)")
 }
 Thread.sleep(forTimeInterval: seconds)
-AudioDeviceStop(device, proc)
-AudioDeviceDestroyIOProcID(device, proc)
+stopCapture()
 
 // MARK: - Compare
 

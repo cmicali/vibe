@@ -363,6 +363,21 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(Perfect()), VibeBitPerfectStatusActive);
 }
 
+- (void)testFailedSwitchIsNotAnUnsupportedRate {
+    VibeBitPerfectReport r = Perfect();
+    r.rateExact = NO;
+    r.formatConfirmed = NO; // the supported rate was requested but never reached
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
+    r.formatConfirmed = YES; // a confirmed fallback to an offered multiple
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusRateUnsupported);
+}
+
+- (void)testUnconfirmedOutputCannotBeActiveEvenAtTheRightRateAndUnityVolume {
+    VibeBitPerfectReport r = Perfect();
+    r.formatConfirmed = NO; // wrong route or a failed format/volume/mute read
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
+}
+
 // The shell is told about a report only when it differs, so every field the
 // shell renders must count — the volume is the one a user moves mid-track.
 - (void)testReportEqualityCountsEveryRenderedField {
@@ -415,10 +430,10 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusDepthInsufficient);
     r.channelsMatch = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusChannelConversion);
-    r.formatConfirmed = NO;
-    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
     r.rateExact = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusRateUnsupported);
+    r.formatConfirmed = NO;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
     r.hasTrack = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusIdle);
     r.fxGraph = YES;
