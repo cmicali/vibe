@@ -222,6 +222,14 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
             && a.mChannelsPerFrame == b.mChannelsPerFrame;
 }
 
+// Shared by the silent settlement and the gapless gate: even an unchanged
+// device needs a rebuild when the mixer would resample into it.
+static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription current,
+                                                   AudioStreamBasicDescription chosen,
+                                                   double mixerRate) {
+    return !VibePhysicalFormatsEquivalent(current, chosen) || mixerRate != chosen.mSampleRate;
+}
+
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
 // source's (a lossy source takes 24), else the smallest integer depth above
 // it, else float32 — and for a float source the float format first, since

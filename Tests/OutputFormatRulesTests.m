@@ -271,6 +271,38 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectChooseFormat(PCM(88200, 24, NO), 88200, dac, n, &chosen));
 }
 
+#pragma mark - Gapless output compatibility
+
+- (void)testSameRateDepthChangeNeedsAnOutputSwitchOnAnIntegerDAC {
+    AudioStreamRangedDescription dac[16];
+    UInt32 n = (UInt32)USBDACList(dac);
+    AudioStreamBasicDescription first = {0}, next = {0};
+    XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 16, NO), 44100, dac, n, &first));
+    XCTAssertTrue(VibeBitPerfectChooseFormat(PCM(44100, 24, NO), 44100, dac, n, &next));
+    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(first, next, 44100));
+    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(next, first, 44100));
+    XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(first, first, 44100));
+}
+
+- (void)testFloatOutputCanSpliceDifferentDepthsAndLossyFilesWithoutASwitch {
+    AudioStreamRangedDescription device = RangedFormat(44100, 32, YES);
+    AudioStreamBasicDescription sources[] = {
+        PCM(44100, 16, NO), PCM(44100, 24, NO),
+        Compressed(kAudioFormatMPEGLayer3, 0, 44100),
+    };
+    for (NSUInteger i = 0; i < sizeof(sources) / sizeof(sources[0]); i++) {
+        AudioStreamBasicDescription chosen = {0};
+        XCTAssertTrue(VibeBitPerfectChooseFormat(sources[i], 44100, &device, 1, &chosen));
+        XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(device.mFormat, chosen, 44100));
+    }
+}
+
+- (void)testStaleMixerRateRequiresASwitchEvenWhenThePhysicalFormatMatches {
+    AudioStreamBasicDescription physical = PCM(48000, 32, YES);
+    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(physical, physical, 44100));
+    XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(physical, physical, 48000));
+}
+
 #pragma mark - Eligibility
 
 // Every SDK transport, one assertion each, so moving one between the sides is

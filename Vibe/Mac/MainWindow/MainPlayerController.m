@@ -27,6 +27,7 @@
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
+#import "PlaybackDeliveryRules.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "MainWindow.h"
@@ -73,7 +74,7 @@
     // that a timer armed by playlist A and firing after a re-drop cannot start
     // playlist B's load while B's first track is still opening. Only
     // scheduleDeferredMetadataLoad, cancelDeferredMetadataLoad and
-    // startPendingMetadataLoad write it.
+    // startPendingMetadataLoadForGeneration: write it.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
     TransportKeyMonitor*        _keyMonitor;
@@ -656,10 +657,7 @@
     NSUInteger generation = ++_metadataLoadGeneration;
     __weak MainPlayerController *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        MainPlayerController *strongSelf = weakSelf;
-        if (strongSelf && generation == strongSelf->_metadataLoadGeneration) {
-            [strongSelf startPendingMetadataLoad];
-        }
+        [weakSelf startPendingMetadataLoadForGeneration:generation];
     });
 }
 
@@ -669,10 +667,14 @@
 }
 
 - (void)startPendingMetadataLoad {
-    if (!_metadataLoadPending) {
+    [self startPendingMetadataLoadForGeneration:_metadataLoadGeneration];
+}
+
+- (void)startPendingMetadataLoadForGeneration:(NSUInteger)generation {
+    if (!VibePlaybackConsumePendingMetadataLoad(&_metadataLoadPending, generation,
+                                                _metadataLoadGeneration)) {
         return;
     }
-    _metadataLoadPending = NO;
     [self.metadataCache loadMetadata:self.playlistController.playlist];
 }
 
@@ -884,14 +886,9 @@ static NSURL *VibeLastPlaylistURL(void) {
     // model will slide into its place. When everything after the current row
     // is going too, the cursor moves BACK onto a previous row, and removal
     // must not replay backward. The intent resolves after every transport
-    // command already submitted to the player queue; the two short-circuits
-    // are what keep every other edit off that round trip.
-    NSUInteger successorRow = currentIndex + 1;
-    while ([rows containsIndex:successorRow]) {
-        successorRow += 1;
-    }
-    BOOL continuesPlaying = removingCurrent
-            && successorRow < playlist.count
+    // command already submitted to the player queue; the model's query keeps
+    // every other edit off that round trip.
+    BOOL continuesPlaying = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows] != nil
             && [self.audioPlayer playingIntentAfterPendingCommands];
 
     // A removal is a plain list edit, so it is undoable like one: undo
@@ -1117,7 +1114,8 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (AudioTrack *)successorPrefetchTrack {
-    if (AppSettings.sharedInstance.pauseAtTrackEnd) {
+    if (!VibePlaybackShouldAdvanceAtTrackEnd(self.playlistController.hasNextTrack,
+                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
         return nil;
     }
     return [self.playlistController trackAtIndex:self.playlistController.currentIndex + 1];

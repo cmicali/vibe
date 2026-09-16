@@ -579,8 +579,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
                                          current:&current chosen:&chosen]) {
         return NO;
     }
-    return !VibePhysicalFormatsEquivalent(chosen, current)
-            || [self masterBusRateDiffersFrom:chosen.mSampleRate];
+    return VibeBitPerfectOutputNeedsSwitch(current, chosen,
+            [_engine.mainMixerNode outputFormatForBus:0].sampleRate);
 }
 
 // The chosen device vanished: the mode cannot follow the fallback onto System
@@ -615,7 +615,8 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     _preparedStreamID = stream;
     _preparedFormat = chosen;
     BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
-    if (formatDiffers || [self masterBusRateDiffersFrom:chosen.mSampleRate]) {
+    if (VibeBitPerfectOutputNeedsSwitch(current, chosen,
+            [_engine.mainMixerNode outputFormatForBus:0].sampleRate)) {
         // Nothing is audible by construction — the settlement parked until the
         // outgoing fades completed, and the device restore stopped the engine
         // itself — so the switch may stop it.

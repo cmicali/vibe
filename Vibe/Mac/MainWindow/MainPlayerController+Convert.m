@@ -138,15 +138,12 @@
 // Puts the finished FLAC into the rows its source occupied, so the conversion
 // reads as the file changing format in place. Main thread.
 - (void)swapConvertedTrack:(AudioTrack *)track toURL:(NSURL *)outputURL {
-    // The row the converted track occupies now, not at conversion start: a
-    // mid-encode re-drop replaces the playlist, and then there is nothing to
-    // swap and the FLAC simply stays on disk.
-    if ([self.playlistController getIndexForTrack:track] < 0) {
+    // Follow the source URL even if the converting row was removed or the
+    // playlist replaced. Every surviving duplicate must move before disposal.
+    NSIndexSet *rows = [self.playlistController indexesOfTracksWithURL:track.url];
+    if (rows.count == 0) {
         return;
     }
-    // Every row holding the source: the same file can sit in the playlist
-    // twice, and a row left behind would point at a file about to be trashed.
-    NSIndexSet *rows = [self.playlistController indexesOfTracksWithURL:track.url];
     NSUInteger currentRow = self.playlistController.currentIndex;
     // Currency is the current row's, not the converted object's: mid-encode
     // the user can make a same-URL duplicate row current, and deciding by

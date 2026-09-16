@@ -67,6 +67,10 @@ NS_ASSUME_NONNULL_BEGIN
 // unchanged, so a double-click on the already-playing row still re-renders it.
 @property (nonatomic) NSUInteger currentIndex;
 
+// Replacing or clearing the list retires registrations for its old rows.
+// In-place edits leave this alone so their undo chain can restore coordinates.
+@property (nonatomic, readonly) NSUInteger structureGeneration;
+
 // A defensive shallow copy. Callers iterate the result across async work
 // while appends can extend the live array on the main thread.
 - (NSArray<AudioTrack *> *)tracks;
@@ -82,6 +86,15 @@ NS_ASSUME_NONNULL_BEGIN
 // selection that outran the model resolves to what is really there.
 - (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes;
 
+// Live rows of the exact captured objects, in row order, deduplicated. A
+// departed object is ignored even if a new row now has its URL or old index.
+- (NSIndexSet *)indexesOfTracks:(NSArray<AudioTrack *> *)tracks;
+
+// The first forward survivor of a current-row removal. nil for a noncurrent
+// edit, an invalid set, or when the landing is backward/empty. The shell uses
+// this to decide whether the ordered playing intent may continue.
+- (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
+
 // Replaces the whole list and resets currentIndex to 0.
 - (void)replaceAllWithURLs:(NSArray<NSURL *> *)urls;
 
@@ -93,6 +106,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Advance or retreat currentIndex, returning NO at the playlist boundary.
 - (BOOL)next;
 - (BOOL)previous;
+
+// Adopt a gapless boundary only while BOTH exact rows still describe it.
+// Refusal changes nothing; success performs the ordinary cursor notification.
+- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack;
 
 // The playlist-boundary predicates: the single source of truth for whether
 // there is a track after or before the current one.
