@@ -2,7 +2,7 @@
 
 Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it — the app's only write path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve.
 
-The controller half — the playlist swap and undo UI settlement — is `Mac/MainWindow/CLAUDE.md`.
+The controller half — the playlist swap and undo UI settlement — is `Mac/MainWindow/Convert/CLAUDE.md`.
 
 **The encoder is CoreAudio's** (`AVAudioFile` with `kAudioFormatFLAC`): no new dependency, nothing for `THIRD-PARTY-NOTICES.md`. ffmpeg was never an option — the app is sandboxed and ships in the App Store.
 

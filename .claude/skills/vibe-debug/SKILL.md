@@ -364,7 +364,36 @@ When feeding `"$V" --debug-cmd script` directly, **always use stdin** — `scrip
 
 ### The settings window
 
-The Settings window has five verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click`, `settings_resize` — and **must never be driven with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. They live with the code they exercise, in **`Vibe/Mac/Settings/CLAUDE.md`**, along with the sheet, pane-animation and open-panel traps.
+Five verbs of its own — `settings_open`, `settings_close`, `dump_settings_ui`, `settings_click`, `settings_resize` — and **never `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. The walker is `Vibe/Debug/Mac/DebugSettingsUI.m`; it keys off the panes' row and section classes (`Vibe/Mac/Settings/CLAUDE.md`).
+
+- `settings_open <pane>` takes the stable identifier (`general`, `playback`, `appearance`, …), an index or the displayed title, and replies with settled geometry. `paneFillsTabView`, read after a layout flush, is the collapsed-pane oracle: `dump_settings_ui` still reports plausible rects while nothing can be clicked.
+- `dump_settings_ui` covers the selected pane only. Each control carries `kind`, `name`, its row `label`, `enabled`, a `rect` and its live value; row titles and captions are structure, not controls. The toolbar is outside the pane, so the dump's `toolbar` reports each segmented item's per-segment enabled flags by identifier (`theme_navigation`, `theme_randomize`, `appearance_toggle`), and driving them goes by reserved names: `settings_click Back` / `Forward`, `randomize settings|colors`, `undo`, and `preview light|dark`, which replies with `windowAppearancePreview` beside the untouched stored `windowAppearance`.
+- **Naming.** `settings_click` matches, case-insensitively, a button's title or its row's title — exactly first, then as a substring; two matches is an error. When several match, `label`, `field` and bare `control` step aside if exactly one other control remains, so a field is addressed by its row title only when it is the row's one control (the theme editor's Name field). `#3` addresses the dump's index, which is how the Files pane's folder list and the theme table are reached: a card's header labels every control in it, and the theme table's header rows take indices of their own. **Quote names with spaces**, since the second token is the value. Popup items match by title or by the stable identifier on `represented`: `settings_click Style sonic_cirrus`.
+
+| kind | value | what happens |
+| --- | --- | --- |
+| `button` | none | `performClick:` |
+| `switch` | `on`, `off`, `toggle` (default) | a state flip plus one action send — `NSSwitch` has no cell, so `performClick:` is not its click path; `on`/`off` are idempotent |
+| `checkbox` | `on`, `off`, `toggle` (default) | the real click path; already there replies `action: "unchanged"` |
+| `radio` | none, or `on` | `off` is refused, since clicking a radio cannot turn one off |
+| `popup` | item title, `represented` identifier or `#index` | selects it, then sends the item's action if it has one, else the button's |
+| `pulldown` | same | sends the item's action; `#0` is refused, being the button's title rather than a choice |
+| `table` | `2`, `0,3`, `all`, `none` | sets the selection, delegate and all — what re-enables Remove |
+| `slider` | a number | sets `doubleValue`, then sends the action; the dump carries `value`, `min`, `max` |
+| `colorwell` | `#RRGGBB[AA]` | sets the color, alpha included, then sends the action; the dump's `value` is the same hex. The Appearance pane's wells share row labels, so address them as `#index` |
+| `field` | the text | focuses the field, sets the text, then moves first responder off it — the Tab commit, so end-editing runs: `settings_click Name "New name"` is the editor's rename |
+| `label`, `control` | — | refused: a readout, and the generic bucket the walker does not model yet |
+
+The wrong value for a kind is an error, never a silent no-op.
+
+**Traps.**
+
+- A `settings_click` that changes a pane's measured height starts the 0.12s coordinated resize; wait 0.2s before asserting frames or rects. Revealing the Appearance editor's conditional rows moves nothing outside its scrolled stack.
+- **A sheet blocks everything behind it**: `settings_click` refuses and `dump_settings_ui` reports `sheet`; only `settings_close` clears it, calling `endSheet:` first. Add Folder, Add Common Folder and a click on an editor image preview open a powerbox panel no injection verb can dismiss.
+- **Set Vibe as Default Music Player raises a real system panel.** Leave it to a human.
+- Hover badges (the editor's clear-image ✕) need a real hover through `input.swift` before the click; posted events never fire tracking areas. The font panel cannot be driven; `import_theme` and `set_theme` are the scripted path to a font change.
+- **Assert the setting through `dump_state.settings`, not the control.** The control moving proves the click landed; the setting proves the action ran (`activeTheme`, `folderOpenSort`, …).
+- `settings_resize` reads the reply's frame after a layout flush, so a constraint snap-back is observable in the reply rather than hidden by it.
 
 ### In-process input injection
 

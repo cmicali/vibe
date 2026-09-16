@@ -632,8 +632,8 @@ targets:
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+AudioOpen.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
-      - path: Vibe/iOS/PageWaveformCoordinator.m
-      - path: Vibe/iOS/FileSearchIndex.m
+      - path: Vibe/iOS/Player/PageWaveformCoordinator.m
+      - path: Vibe/iOS/Search/FileSearchIndex.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m

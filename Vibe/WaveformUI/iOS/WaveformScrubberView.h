@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The user pinched to a new zoom, delivered on release rather than per frame.
 // The owner shares one zoom across every page — a swipe must not change it —
-// and persists it; see Vibe/iOS/CLAUDE.md. The value is the REQUEST, which is
+// and persists it; see Vibe/iOS/Player/CLAUDE.md. The value is the REQUEST, which is
 // what must be stored: see visibleFraction.
 - (void)waveformScrubberView:(WaveformScrubberView *)view
     didChangeVisibleFraction:(CGFloat)fraction;

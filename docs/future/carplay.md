@@ -71,7 +71,7 @@ A dataless Dropbox or iCloud track takes seconds to make a sound, and in the car
 - `Vibe/iOS/VibeiOSAppDelegate.{h,m}` — becomes the `PlaybackController` owner.
 - `Vibe/iOS/VibeiOSSceneDelegate.m` — borrows it instead of creating it.
 - `Vibe/iOS/CarPlay/` — new: the `CPTemplateApplicationSceneDelegate` and the template controllers, a `PlaybackObserver` between them. Under `Vibe/iOS/` rather than a shared subsystem, since CarPlay is iOS-only by construction.
-- `Vibe/iOS/SearchFolderStore.{h,m}` and `FileSearchIndex.{h,m}` — the persistent library and its search index, reused by the templates.
+- `Vibe/iOS/Search/SearchFolderStore.{h,m}` and `FileSearchIndex.{h,m}` — the persistent library and its search index, reused by the templates.
 - `Vibe/System/NowPlayingController.m` — the skip commands, if the lock-screen trade above turns out acceptable.
 - `Vibe/Common/VibeStrings.h` — every template title and list label is user-facing; `make strings` after.
 - `Vibe/iOS/CLAUDE.md` — the multi-scene paragraph, and a CarPlay section.

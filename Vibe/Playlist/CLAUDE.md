@@ -14,7 +14,7 @@
 - Observers get `playlistDidReplaceAllTracks:`, `didAppendTracksAtIndexes:`, `didReplaceTrackAtIndex:`, `didRemoveTracksAtIndexes:`, `didInsertTracksAtIndexes:`, `didMoveTracksFromIndexes:toIndexes:` and `currentIndexDidChangeFromIndex:`. There is **one** observer slot — the iOS shell's ordinary fan-out to several views is `PlaybackController`'s job, while its removal and move methods stay no-ops until iOS has a transport-safe coordinator (`Vibe/iOS/CLAUDE.md`).
 - **One structural edit sends one event.** Each structural event carries only what the table reconciliation consumes — the removed or landed index set, or a move's sources and destination — and deliberately does *not* also fire `currentIndexDidChangeFromIndex:`: two callbacks for one edit make the mac table reconcile against the same action twice and obscure the ordering.
 
-See `Mac/MainWindow/CLAUDE.md` for why the swap mints a fresh `AudioTrack` rather than reassigning a `url`.
+See `Mac/MainWindow/Convert/CLAUDE.md` for why the swap mints a fresh `AudioTrack` rather than reassigning a `url`.
 
 ## Playlist files (.cue, .m3u, .m3u8)
 

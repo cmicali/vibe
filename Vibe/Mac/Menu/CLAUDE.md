@@ -32,7 +32,7 @@ Copy Name copies the current track's `singleLineTitle`; Copy File puts its file 
 
 ## Playback
 
-Transport first — Play, Previous Track, Next Track, then **Play Selected Track** on bare Return, the keyboard twin of a double-click on a playlist row. It is the one Playback item validated against the *window*: enabled only while the playlist is showing and a row is selected, because with the pane collapsed the arrow keys do not move a selection either (`MainWindow/CLAUDE.md`). Below the separator are the six skip-seek items, then the Pitch Range submenu.
+Transport first — Play, Previous Track, Next Track, then **Play Selected Track** on bare Return, the keyboard twin of a double-click on a playlist row. It is the one Playback item validated against the *window*: enabled only while the playlist is showing and a row is selected, because with the pane collapsed the arrow keys do not move a selection either (`MainWindow/Transport/CLAUDE.md`). Below the separator are the six skip-seek items, then the Pitch Range submenu.
 
 ## Convert
 

@@ -72,13 +72,11 @@ The command list lives in the skill and in the channel's own unknown-command rep
 
 `project.yml` lists one recursive source entry per top-level shared subsystem and per macOS app-shell piece. A new one of those boundaries needs a new entry; a nested feature directory such as `Audio/Levels/` is already covered by its subsystem entry. Within that:
 
-- Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` is a **shared subsystem**, listed in both targets' sources.
-- Inside any subsystem, `Mac/` and `iOS/` are the only platform markers: a path containing `Mac` compiles only into `Vibe`, a path containing `iOS` only into `VibeiOS`, a path containing neither into both.
-- No source entry may exclude a feature-named path. The only excludes allowed are `**/.DS_Store`, `**/*.md`, `Mac/**`, `iOS/**`, plus `**/Info.plist` on a shell directory and a fixed list under `ThirdParty/`.
+Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` is a shared subsystem compiled into both targets, and within one `Mac/` and `iOS/` are the only platform markers.
 
 Consequences: **a new file in a shared directory joins the iOS target automatically**, so it must be AppKit-free or `TARGET_OS_OSX`-guarded. A shared source may not `#import` a header that only one platform's tree has, unguarded — Xcode's project-wide headermap resolves it by basename whatever the target membership, so it would compile and then fail at runtime or link.
 
-`make check-layout` enforces all four assertions; CI's `build-ios` job catches an AppKit leak.
+`make check-layout` enforces the rule — its header states the four assertions, and it, not this prose, is the authority; CI's `build-ios` job catches an AppKit leak.
 
 ## Subsystem map
 
@@ -95,8 +93,8 @@ Nested `CLAUDE.md` files hold the detail and load only when you work under that 
 - **`Vibe/Playlist/`** — the model and the CUE/M3U readers, shared; `Mac/` is the table.
 - **`Vibe/WaveformUI/`** — waveform *rendering*: renderer strategies and the morph engine, shared; `Mac/` the `NSView`, `iOS/` the scrubber. Named apart from `Audio/Waveform/` deliberately — one makes the data, the other draws it.
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel: shared transport, dispatch and common verbs, with `Mac/` and `iOS/` command tables.
-- **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats), `MainWindow/` (`MainPlayerController`; layout and chrome are that directory's `APPEARANCE.md`), `Menu/`, `Controls/`, `Settings/`, `About/`.
-- **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), a tab shell, mini player, and the full-screen now-playing card. The iOS halves of shared subsystems live under those subsystems, not here.
+- **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats), `MainWindow/` (`MainPlayerController`; layout and chrome are that directory's `APPEARANCE.md`, and `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/`, `About/`.
+- **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), a tab shell, mini player, and the full-screen now-playing card; `Player/`, `Search/` and `Settings/` each carry their own `CLAUDE.md`. The iOS halves of shared subsystems live under those subsystems, not here.
 - **`Vibe/ThirdParty/`** — vendored TagLib subset and PINCache/PINOperation.
 
 ## Cross-directory guarantees
