@@ -1,5 +1,5 @@
 // The measurement behind "the system default output device is never hogged"
-// (Audio/Mac/Devices/CLAUDE.md; docs/future/bit-perfect-output.md, Q8). Run
+// (Audio/Mac/Devices/CLAUDE.md; docs/future/bit-perfect-output.md, system-output experiment). Run
 // it against the device that IS the default: hogfollow <deviceID>.
 //
 // Phase 1, engine running: does hogging the default move the default, and

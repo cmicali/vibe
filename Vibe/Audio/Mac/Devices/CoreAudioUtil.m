@@ -7,6 +7,7 @@
 #import <CoreAudio/CoreAudio.h>
 #import <AudioToolbox/AudioToolbox.h> // kAudioHardwareServiceDeviceProperty_VirtualMainVolume
 #import <unistd.h>
+#include <math.h>
 
 @implementation CoreAudioUtil
 
@@ -239,48 +240,39 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
     return VibeWriteDeviceProperty(stream, kAudioStreamPropertyPhysicalFormat, &format, sizeof(format));
 }
 
-static const AudioObjectPropertyAddress kVibeVirtualMainVolumeAddress = {
-    kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
-    kAudioObjectPropertyScopeOutput,
-    kAudioObjectPropertyElementMain
-};
-
-+ (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID {
-    if (!volume) {
+// Keep the absence/failure distinction in one place for all optional controls.
+static BOOL VibeReadOutputControl(AudioDeviceID deviceID, AudioObjectPropertySelector selector,
+                                   void *value, UInt32 size) {
+    if (deviceID == kAudioObjectUnknown) {
         return NO;
     }
+    AudioObjectPropertyAddress address = {
+        selector, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain
+    };
+    return !AudioObjectHasProperty(deviceID, &address)
+            || VibeReadDeviceProperty(deviceID, selector, address.mScope, value, size);
+}
+
++ (BOOL)readOutputVolume:(Float32 *)volume balance:(Float32 *)balance mute:(BOOL *)muted
+            forDeviceID:(AudioDeviceID)deviceID {
     *volume = 1.0f;
-    if (deviceID == kAudioObjectUnknown) {
-        return NO;
-    }
-    if (!AudioObjectHasProperty(deviceID, &kVibeVirtualMainVolumeAddress)) {
-        return YES; // no software volume control; mute is a separate read
-    }
-    return VibeReadDeviceProperty(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
-                                  kAudioObjectPropertyScopeOutput, volume, sizeof(*volume));
+    *balance = 0.5f;
+    UInt32 mute = 0;
+    BOOL read = VibeReadOutputControl(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                                      volume, sizeof(*volume));
+    read &= VibeReadOutputControl(deviceID, kAudioDevicePropertyStereoPan, balance, sizeof(*balance));
+    read &= VibeReadOutputControl(deviceID, kAudioDevicePropertyMute, &mute, sizeof(mute));
+    *muted = mute != 0;
+    BOOL validVolume = isfinite(*volume) && *volume >= 0 && *volume <= 1;
+    BOOL validBalance = isfinite(*balance) && *balance >= 0 && *balance <= 1;
+    // Keep invalid driver values out of the published/debug snapshot. The
+    // failed confirmation still prevents these defaults from reporting Active.
+    if (!validVolume) *volume = 1.0f;
+    if (!validBalance) *balance = 0.5f;
+    return read && validVolume && validBalance;
 }
 
-+ (BOOL)readOutputMute:(BOOL *)muted forDeviceID:(AudioDeviceID)deviceID {
-    if (!muted) {
-        return NO;
-    }
-    *muted = NO;
-    if (deviceID == kAudioObjectUnknown) {
-        return NO;
-    }
-    AudioObjectPropertyAddress address = { kAudioDevicePropertyMute,
-        kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
-    if (!AudioObjectHasProperty(deviceID, &address)) {
-        return YES;
-    }
-    UInt32 value = 0;
-    BOOL read = VibeReadDeviceProperty(deviceID, address.mSelector, address.mScope, &value, sizeof(value));
-    *muted = value != 0;
-    return read;
-}
-
-// A wildcard keeps volume and mute on one registration with one lifetime,
-// including devices that expose only one of the two optional controls.
+// One registration and lifetime, including devices with only some controls.
 static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
     kAudioObjectPropertySelectorWildcard, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain
 };
@@ -305,7 +297,7 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {
++ (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID {
     *owner = -1;
     return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,
                                   kAudioObjectPropertyScopeGlobal, owner, sizeof(*owner));
@@ -313,7 +305,7 @@ static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {
 
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID {
     pid_t owner = -1;
-    if (!VibeReadHogOwner(deviceID, &owner)) {
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
         return NO;
     }
     pid_t me = getpid();
@@ -328,7 +320,7 @@ static BOOL VibeReadHogOwner(AudioDeviceID deviceID, pid_t *owner) {
     if (!VibeWriteDeviceProperty(deviceID, kAudioDevicePropertyHogMode, &request, sizeof(request))) {
         return NO;
     }
-    if (!VibeReadHogOwner(deviceID, &owner)) {
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
         return NO;
     }
     return owned ? owner == me : owner != me;

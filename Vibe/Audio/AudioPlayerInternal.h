@@ -176,7 +176,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioDeviceID           _rebindDeviceID;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL                    _exclusiveOutputWanted;
-    // The device this process currently hogs, or kAudioObjectUnknown.
+    // Possible ownership, or kAudioObjectUnknown. Retained until release is
+    // confirmed, even after a failed take; never overwritten by another device.
     AudioDeviceID           _hoggedDeviceID;
 #endif
     // The one device whose format this run changed and has not yet put back,
@@ -188,9 +189,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioStreamBasicDescription _formatBeforeChange;
     // The device the last prepare set up, from that prepare until it is
     // left: its first output stream, the physical format asked of it, and
-    // the listener on its volume/mute that is the HAL's handle for the
+    // the listener on its volume/balance/mute that is the HAL's handle for the
     // removal. kAudioObjectUnknown while none. The report reads the stream's
-    // physical format, volume, mute and system default live against these.
+    // physical format, volume, balance, mute and system default live against these.
     AudioDeviceID           _preparedDeviceID;
     AudioStreamID           _preparedStreamID;
     AudioStreamBasicDescription _preparedFormat;
