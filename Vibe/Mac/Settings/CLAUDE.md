@@ -56,7 +56,7 @@ Rows are listed by the effect they must request.
 
 **When opening a folder** (`folderOpenSort`, the enum itself on `representedObject`) requests nothing and needs nothing: the order governs the *next* open, and re-sorting the playlist on screen would discard one built by hand. Both shells read it at open time (`Util/CLAUDE.md`).
 
-**Album art** (`useFolderArt`, identifiers `file_only` and `file_then_folder`). **TRAP: the pane must request `FolderArt` after writing it** — the resolver caches the setting, and that effect is the one thing that drops the cache, so a write without it is not observed at all (`Audio/Metadata/CLAUDE.md`).
+**Album art** (`useFolderArt`, identifiers `file_only` and `file_then_folder`). **TRAP: the pane must request `FolderArt` after writing it** — the resolver caches the setting, and that effect is the one thing that drops the cache, so a write without it is not observed at all (`Audio/Metadata/FolderArt/CLAUDE.md`).
 
 **Granted folders** is the sunk list over `FolderAccessManager` (`Mac/App/`). Every folder the user opens, drops or adds is an app-scoped security bookmark re-opened at launch. **A stored row is visible immediately but authorizes nothing until restoration has started its scope**, so a row carries a `VibeGrantedFolderState` and an unavailable one is dimmed and suffixed. The list multi-selects, so Remove takes a batch, and Edit > Select All reaches it through the responder chain. Persistence is the manager's own `VibeGrantedFolders` key — bookmark blobs, not `AppSettings`.
 

@@ -36,7 +36,7 @@ static const float kMinConfidence = 1.3f;
 // center places that crossover — here at 187 BPM, which keeps drum and bass at
 // 174 rather than halving it to 87 — and the spread only sets how hard the
 // prior can override the comb. Both were swept against GiantSteps; see
-// Audio/CLAUDE.md. The center is the sensitive one: 120 costs 9 points of
+// Audio/Analysis/CLAUDE.md. The center is the sensitive one: 120 costs 9 points of
 // Accuracy1, and widening the spread to 160, or dropping the prior entirely,
 // costs 6 and 11 — the prior is load-bearing, not decoration.
 static const double kTempoPriorCenterBPM = 140.0;

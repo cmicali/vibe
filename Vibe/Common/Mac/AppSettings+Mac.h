@@ -290,7 +290,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // NO skips key detection on the waveform decode pass; same caching caveat as
 // analyzeBPM, and a tagged key is likewise unaffected. Defaults OFF, unlike
 // analyzeBPM: detection is right about half the time on real dance music
-// (see Audio/CLAUDE.md), which is not good enough to put in front of someone
+// (see Audio/Analysis/CLAUDE.md), which is not good enough to put in front of someone
 // unasked, while a key the file already carries always shows.
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;

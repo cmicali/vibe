@@ -28,7 +28,7 @@ Everything the app plays and nothing that draws it: engine, `Playlist`, metadata
 
 **Three mac features are off, each at one switch**: no DJ FX (`enableFX:NO`), no folder art (`AudioTrackArtwork`'s resolver handle nil), no BPM/key analysis (no analysis provider installed). Their settings are macOS-only in `AppSettings`.
 
-**The 128px thumbnail is on.** Rows archive compact bytes; decoded pixels live in `AudioTrackArtwork`'s shared 128-image LRU. An eviction returns the placeholder, decodes once off-main, and refreshes only visible Library, Search and mini-player surfaces. **TRAP: UITableView renders prepared cells before they are "visible" and displays them without re-running `cellForRowAtIndexPath:`** — a delivery in that window repaints nothing, so the Library re-renders each cell in `willDisplayCell:`.
+**The 128px thumbnail is on.** Rows archive compact bytes; decoded pixels live in `AudioTrackArtwork`'s shared bounded LRU (`kEmbeddedThumbnailCacheCount`). An eviction returns the placeholder, decodes once off-main, and refreshes only visible Library, Search and mini-player surfaces. **TRAP: UITableView renders prepared cells before they are "visible" and displays them without re-running `cellForRowAtIndexPath:`** — a delivery in that window repaints nothing, so the Library re-renders each cell in `willDisplayCell:`.
 
 ## FolderSession
 

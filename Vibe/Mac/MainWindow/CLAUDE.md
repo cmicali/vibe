@@ -12,7 +12,7 @@
 
 ## Folder art invalidation
 
-`FolderArtResolver` (`Audio/Metadata/`) is the feature; this controller owns invalidation and redraw. The `FolderArt` effect calls `refreshFolderArt` → `folderArtSettingDidChange`: **the resolver caches the setting on the cell-draw path, so this effect is what makes a write observable at all**, and it keeps settled answers. A grant change (`FolderAccessManagerDidChangeNotification`, observed here because a grant can change with the Files pane gone) is narrower: `invalidateDirectoriesSettledWithoutGrant` forgets no-grant answers and re-arms known cover reads. `folderArtDidResolve:`, fired for "none" as well as a cover, coalesces a visible-rows-only reload over a short delay, because the resolver is serial and a per-turn gate would coalesce nothing. Neither may be a full wipe (`Audio/Metadata/CLAUDE.md`).
+`FolderArtResolver` (`Audio/Metadata/FolderArt/`) is the feature; this controller owns invalidation and redraw. The `FolderArt` effect calls `refreshFolderArt` → `folderArtSettingDidChange`: **the resolver caches the setting on the cell-draw path, so this effect is what makes a write observable at all**, and it keeps settled answers. A grant change (`FolderAccessManagerDidChangeNotification`, observed here because a grant can change with the Files pane gone) is narrower: `invalidateDirectoriesSettledWithoutGrant` forgets no-grant answers and re-arms known cover reads. `folderArtDidResolve:`, fired for "none" as well as a cover, coalesces a visible-rows-only reload over a short delay, because the resolver is serial and a per-turn gate would coalesce nothing. Neither may be a full wipe (`Audio/Metadata/FolderArt/CLAUDE.md`).
 
 ## The UI tick
 

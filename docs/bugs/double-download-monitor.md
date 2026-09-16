@@ -10,7 +10,7 @@ Root `CLAUDE.md:106`:
 
 > The playing row's fraction comes from the shell's own open-request-identified monitor via `noteProgress:forURL:`, **so no file is watched by two monitors.**
 
-Restated at `Vibe/Audio/CLAUDE.md:102` ("one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path"). The code does not keep either sentence. As with the display-art stash, the docs state the intent correctly, so the fix restores a rule already written rather than inventing one.
+Restated in `Vibe/Audio/Loading/CLAUDE.md` ("The transfer registry") ("one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path"). The code does not keep either sentence. As with the display-art stash, the docs state the intent correctly, so the fix restores a rule already written rather than inventing one.
 
 ## The mechanism
 
@@ -126,7 +126,7 @@ Update `testAZeroSampleNeverLeavesOrReentersIndeterminate` (`:98`) and `testNote
 Both guarantee statements read as though the first fraction is what enforces the rule. Rewrite to say ownership is declared and outlives entry churn:
 
 - root `CLAUDE.md:106`
-- `Vibe/Audio/CLAUDE.md:102`
+- `Vibe/Audio/Loading/CLAUDE.md` ("The transfer registry")
 - one clause in `Vibe/System/CLAUDE.md`'s `monitorReplacing:` paragraph (`:23`), which currently ends at "preserving it when a same-row replay still owns the same underlying open identifier"
 
 ### 6. Optional — make the guarantee observable

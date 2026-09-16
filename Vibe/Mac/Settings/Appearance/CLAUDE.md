@@ -1,6 +1,6 @@
 # Appearance pane: the theme list and editor
 
-Two pages in one pane. The list page, the page swap, import, export and the drop target are in the class file; the editor page is `+Editor.m`, with `SettingsAppearanceViewControllerInternal.h` carrying its outlets and the list-side methods it calls. Scaffolding and sizing are `../CLAUDE.md`; the theme record and its sanitization gate are `Common/Mac/CLAUDE.md`.
+Two pages in one pane. The list page, the page swap, import, export and the drop target are in the class file; the editor page is `+Editor.m`, with `SettingsAppearanceViewControllerInternal.h` carrying its outlets and the list-side methods it calls. Scaffolding and sizing are `../CLAUDE.md`; the theme record and its sanitization gate are `Common/Mac/Theme/CLAUDE.md`, the theme store `Common/Mac/CLAUDE.md`.
 
 ## The list page
 
@@ -16,7 +16,7 @@ A Window card (the **Appearance** popup — Auto/Light/Dark, the window's own se
 
 - **The light/dark preview toggle** (both pages) writes `AppSettings.windowAppearancePreviewStyle`, the transient override, never the stored style: the list page's Appearance popup keeps showing the stored choice, and the two disagreeing is the feature. `viewDidDisappear` drops the preview, so leaving the pane and closing the window are one revert; writing the stored style clears the preview. Under a single-mode theme the preview is outranked by the pinned dark appearance. The item is inserted while the pane is selected and removed otherwise, never hidden: `NSToolbarItem.hidden` needs macOS 15, and the delegate vends non-inserted copies during enumeration.
 - **Navigation is the toolbar's `navigational` pill.** The editor retitles the window `Theme: <name>` through the pane-title chain (`applyEditorTitle`, the Name field's live text while editing). Back pops; Forward, armed by a pop, re-opens; both disable outside this pane (`updateThemeNavigation`).
-- **The dice control** rolls settings or colors (`AppTheme`'s two dice, `Common/Mac/CLAUDE.md`) as a whole-theme `ThemeApply`, on the editor page over a user theme only (`canRandomize`). **The arrow undoes the last edit**, the Name rename included: the stack lives in `AppSettings.currentThemeDidChange` (`Common/Mac/CLAUDE.md`), which also re-runs `updateThemeNavigation`, so the arrow enables on the first edit. Edit > Undo does not reach it; that item targets the playlist undo.
+- **The dice control** rolls settings or colors (`AppTheme`'s two dice, `Common/Mac/Theme/CLAUDE.md`) as a whole-theme `ThemeApply`, on the editor page over a user theme only (`canRandomize`). **The arrow undoes the last edit**, the Name rename included: the stack lives in `AppSettings.currentThemeDidChange` (`Common/Mac/CLAUDE.md`), which also re-runs `updateThemeNavigation`, so the arrow enables on the first edit. Edit > Undo does not reach it; that item targets the playlist undo.
 - The toolbar sits outside the pane, beyond the walker: `settings_click Back|Forward`, `preview light|dark`, `randomize settings|colors` and `undo` are reserved names routed through the pane's model, and `dump_settings_ui`'s `toolbar` reports each segment's enabled flag.
 
 ## The editor page

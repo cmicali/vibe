@@ -56,7 +56,7 @@ void VibeInstallDebugScreenshotHook(void);
 // the authoritative list: one entry per verb, carrying its
 // usage string, its per-verb client wait and its handler, and both dispatch
 // and the unknown-command reply derive from it. The usage docs live in
-// .claude/skills/vibe-debug/SKILL.md.
+// .claude/skills/vibe-debug/references/mac-verbs.md.
 
 // The app side; call it at launch. It listens on com.vibe.debug.command, on
 // the main queue.
