@@ -23,6 +23,18 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) CGFloat cornerRadius;
 @end
 
+// A table row that keeps the accent-colored selection whether or not its
+// table has focus — the sidebar's pane row and the theme list's active theme,
+// where the selection states a fact rather than a focus. A stock row dims to
+// gray when the table is not first responder. It has to be the override: the
+// table writes `emphasized` on every key-window and first-responder change.
+@interface SettingsAccentRowView : NSTableRowView
+@end
+
+// Where a row's title starts, and where a list's text and its hairlines start
+// with it, so the two line up down a card — the System Settings alignment.
+static const CGFloat kSettingsRowInset = 16;
+
 @interface SettingsRowView : NSView
 
 // The title may end with a localized colon (the strings are shared with the
@@ -33,9 +45,31 @@ NS_ASSUME_NONNULL_BEGIN
                      caption:(nullable NSString *)caption
                      control:(NSView *)control;
 + (instancetype)rowWithTitle:(nullable NSString *)title controls:(NSArray<NSView *> *)controls;
-// A row that is all content — the folder list, a wrapping explainer —
-// spanning the card's width with no trailing cluster.
+// A row that is all content — a wrapping explainer, a button row — spanning
+// the card's width with no trailing cluster. TRAP: the content is pinned
+// leading-to-trailing, so it must carry no required width of its own, fixed
+// or capped: that pin climbs the required equalities up to the pane and, by
+// way of the split view, decides the window's content view — which follows
+// the window frame only at NSLayoutPriorityWindowSizeStayPut — so the content
+// stops short of a widened window and, stay-put keeping it there, stays
+// short after a switch to any other pane. The folder list's fixed 408 did
+// exactly that: an 839-point window drawing 680 points of content.
 + (instancetype)rowWithContentView:(NSView *)contentView;
+
+// A list inside a card, in the System Settings shape (the Sound pane's device
+// table): no bezel, full-width rows with a hairline under each, the table sunk
+// to the pane's own background and spanning the card edge to edge, rowCount
+// rows tall and scrolling past that. The look is set here; the table's
+// behavior — selection, drag types, delegate — stays the pane's, and its
+// cells come from listCellWithIdentifier:inTableView:. The row carries no
+// separator of its own: the sunk edge is the divider.
++ (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount;
+
+// A cell for such a list: the reuse lookup, and on a miss a fresh cell already
+// carrying the row hairline, its textField nil — the pane adds its content
+// then.
++ (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
+                                inTableView:(NSTableView *)table;
 
 // The structural labels, exposed so the debug walker can use the title as the
 // row's addressing label and skip both as elements of their own.

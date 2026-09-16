@@ -20,8 +20,8 @@
 #pragma mark - Low-kill cutoff
 
 - (void)testParkedCutoffSitsBelowTheAudibleBand {
-    // "Off" is a cutoff parked below hearing, never a bypass: un-bypassing a
-    // band dumps its stale delay-line state into the signal and clicks.
+    // "Off" sweeps to the floor and then goes flat by band type, never by
+    // bypass: flipping bypass dumps stale delay-line state and clicks.
     XCTAssertEqual(VibeLowKillCutoffHz(NO, NO), kLowKillParkedHz);
     XCTAssertLessThan(kLowKillParkedHz, 25.0f);
 }

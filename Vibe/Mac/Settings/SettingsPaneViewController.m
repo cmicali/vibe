@@ -9,32 +9,65 @@
 #import "WindowAnimation.h"
 
 
-// The System Settings inline dropdown: borderless, the value beside an
-// always-visible chevron badge, no hover treatment — the reference has none;
-// the menu just pops on click. AppKit draws a popup's arrows only with a
-// bezel, so the badge is drawn here, in width the intrinsic size reserves
-// for it. (A bezel-on-hover variant fought the widened bounds and double
-// drew; owning the whole rendering is the stable form.)
+// The System Settings inline dropdown: borderless, the value beside a chevron
+// badge, and while the mouse is over it the badge's circle grown into a
+// rounded bezel around the whole value — the macOS 26 reference's hover
+// treatment. AppKit draws a popup's arrows only with a bezel, so the badge,
+// the bezel and the value's placement are all drawn here, in width the
+// intrinsic size reserves for them. (A hover variant that switched the cell's
+// own bezel on fought the widened bounds and double drew; owning the whole
+// rendering is the stable form.)
 @interface VibeInlinePopUpButton : NSPopUpButton
 @end
 
-@implementation VibeInlinePopUpButton
+@implementation VibeInlinePopUpButton {
+    BOOL _hovered;
+}
 
-// The badge is the System Settings treatment, measured off its pixels: the
-// chevrons sit in a filled circle one lift-step above the card, label-colored
-// so both halves adapt to the appearance.
+// Measured off the reference's pixels: the chevrons sit in a filled circle
+// one lift-step above the card, 3.5 points in from the trailing edge, and
+// the hover bezel keeps that same margin above and below the circle. Both
+// fills are label-colored so they adapt to the appearance.
 static const CGFloat kInlineBadgeDiameter = 19;
 static const CGFloat kInlineBadgeGap = 8;
+static const CGFloat kInlineEdgeInset = 3.5;
+static const CGFloat kInlineBezelHeight = kInlineBadgeDiameter + 2 * kInlineEdgeInset;
+static const CGFloat kInlineBezelRadius = 6;
+// Where the value starts, past the bezel's leading edge.
+static const CGFloat kInlineTitleInset = 10;
+
+- (instancetype)initWithFrame:(NSRect)frame pullsDown:(BOOL)flag {
+    self = [super initWithFrame:frame pullsDown:flag];
+    if (self) {
+        // One area following the frame by itself (InVisibleRect). Active in
+        // the app rather than the key window, so the hover still lands while
+        // the font or color panel holds key — the album-art badge's reason.
+        [self addTrackingArea:[[NSTrackingArea alloc]
+                initWithRect:NSZeroRect
+                     options:(NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp
+                              | NSTrackingInVisibleRect)
+                       owner:self
+                    userInfo:nil]];
+    }
+    return self;
+}
+
+// The cell's own title padding, so the value can be placed at an exact inset
+// from the bezel edge whatever the cell reserves around it.
+- (NSEdgeInsets)cellTitlePadding {
+    NSRect probe = NSMakeRect(0, 0, 200, kInlineBezelHeight);
+    NSRect title = [self.cell titleRectForBounds:probe];
+    return NSEdgeInsetsMake(0, NSMinX(title), 0, NSMaxX(probe) - NSMaxX(title));
+}
 
 // Sized to the DISPLAYED value, not the widest menu item — the badge stays
-// pinned at the row's trailing edge and the text hugs it, like the
-// reference. The height is the cell's own answer.
+// pinned at the row's trailing edge and the text hugs it, like the reference.
 - (NSSize)intrinsicContentSize {
-    NSSize size = [super intrinsicContentSize];
     NSString *title = self.selectedItem.title ?: @"";
     CGFloat text = ceil([title sizeWithAttributes:@{NSFontAttributeName: self.font}].width);
-    size.width = text + 8 + kInlineBadgeGap + kInlineBadgeDiameter + 2;
-    return size;
+    return NSMakeSize(kInlineTitleInset + text + kInlineBadgeGap + kInlineBadgeDiameter
+                              + kInlineEdgeInset,
+                      MAX([super intrinsicContentSize].height, kInlineBezelHeight));
 }
 
 // Selection reaches the displayed title through here, for a user pick and
@@ -49,15 +82,54 @@ static const CGFloat kInlineBadgeGap = 8;
     [self invalidateIntrinsicContentSize];
 }
 
+- (void)setHovered:(BOOL)hovered {
+    if (_hovered != hovered) {
+        _hovered = hovered;
+        self.needsDisplay = YES;
+    }
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    [self setHovered:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [self setHovered:NO];
+}
+
+// The menu tracks inside super's mouseDown:, and the tracking area's exit for
+// a mouse that left meanwhile is not guaranteed to follow it, so the state is
+// re-read from where the mouse actually is once the menu is gone.
+- (void)mouseDown:(NSEvent *)event {
+    [super mouseDown:event];
+    NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
+    [self setHovered:[self mouse:point inRect:self.bounds]];
+}
+
 - (void)drawRect:(NSRect)dirtyRect {
-    [super drawRect:dirtyRect];
     NSRect bounds = self.bounds;
-    NSRect circle = NSMakeRect(NSMaxX(bounds) - kInlineBadgeDiameter - 2,
-                               NSMidY(bounds) - kInlineBadgeDiameter / 2,
-                               kInlineBadgeDiameter, kInlineBadgeDiameter);
-    circle = [self backingAlignedRect:circle options:NSAlignAllEdgesNearest];
+    NSRect badge = NSMakeRect(NSMaxX(bounds) - kInlineEdgeInset - kInlineBadgeDiameter,
+                              NSMidY(bounds) - kInlineBadgeDiameter / 2,
+                              kInlineBadgeDiameter, kInlineBadgeDiameter);
     [[NSColor.labelColor colorWithAlphaComponent:0.08] setFill];
-    [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
+    if (_hovered && self.isEnabled) {
+        NSRect bezel = NSInsetRect(bounds, 0, (NSHeight(bounds) - kInlineBezelHeight) / 2);
+        bezel = [self backingAlignedRect:bezel options:NSAlignAllEdgesNearest];
+        [[NSBezierPath bezierPathWithRoundedRect:bezel xRadius:kInlineBezelRadius
+                                         yRadius:kInlineBezelRadius] fill];
+    }
+    else {
+        NSRect circle = [self backingAlignedRect:badge options:NSAlignAllEdgesNearest];
+        [[NSBezierPath bezierPathWithOvalInRect:circle] fill];
+    }
+    // The value, drawn by the cell in a frame placed by hand: the title starts
+    // at the inset and the frame ends short of the badge, the cell's own
+    // padding folded in on both sides so it never truncates its title.
+    NSEdgeInsets padding = [self cellTitlePadding];
+    NSRect title = bounds;
+    title.origin.x = kInlineTitleInset - padding.left;
+    title.size.width = NSMinX(badge) - kInlineBadgeGap + padding.right - NSMinX(title);
+    [self.cell drawWithFrame:title inView:self];
     // Built per draw so the palette color resolves against the appearance the
     // draw runs under — a template drawInRect: renders black, not tinted.
     NSImage *chevrons = [NSImage symbolNamed:@"chevron.up.chevron.down"
@@ -65,8 +137,8 @@ static const CGFloat kInlineBadgeGap = 8;
                                      palette:@[NSColor.labelColor]
                     accessibilityDescription:nil];
     NSSize size = chevrons.size;
-    NSRect target = NSMakeRect(NSMidX(circle) - size.width / 2,
-                               NSMidY(circle) - size.height / 2,
+    NSRect target = NSMakeRect(NSMidX(badge) - size.width / 2,
+                               NSMidY(badge) - size.height / 2,
                                size.width, size.height);
     [chevrons drawInRect:[self backingAlignedRect:target options:NSAlignAllEdgesNearest]
                 fromRect:NSZeroRect
@@ -264,7 +336,8 @@ static const CGFloat kInlineBadgeGap = 8;
     }
     popUp.bordered = NO;
     // A borderless popup still draws its own small arrows where the badge
-    // sits; the badge is the only chevron treatment.
+    // sits, and reserves title room for them; the badge is the only chevron
+    // treatment.
     ((NSPopUpButtonCell *)popUp.cell).arrowPosition = NSPopUpNoArrow;
     [popUp setContentHuggingPriority:NSLayoutPriorityDefaultHigh
                       forOrientation:NSLayoutConstraintOrientationHorizontal];

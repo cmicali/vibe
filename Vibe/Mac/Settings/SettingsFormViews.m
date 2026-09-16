@@ -7,12 +7,14 @@
 #import "NSView+DarkMode.h"
 #import "NSString+FormLabel.h"
 
-static const CGFloat kRowPaddingH = 16;
 static const CGFloat kRowPaddingV = 8;
 static const CGFloat kRowMinHeight = 40;
 static const CGFloat kRowTitleControlGap = 8;
 static const CGFloat kCardCornerRadius = 10;
 static const CGFloat kHeaderCardGap = 6;
+// The System Settings list row: 24 points, measured off the Sound pane's
+// device table.
+static const CGFloat kListRowHeight = 24;
 
 // updateLayer resolves the side's color against the current appearance, and
 // the appearance-change hook re-runs it, so a dynamic color tracks a live
@@ -40,6 +42,31 @@ static const CGFloat kHeaderCardGap = 6;
 - (void)viewDidChangeEffectiveAppearance {
     [super viewDidChangeEffectiveAppearance];
     self.needsDisplay = YES;
+}
+
+@end
+
+// The one hairline — along a card row's top edge, along a list row's bottom
+// — starting at the row inset and running to the trailing edge.
+static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
+    SettingsFillView *line = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+    line.darkColor = NSColor.separatorColor;
+    line.lightColor = NSColor.separatorColor;
+    [in addSubview:line];
+    [NSLayoutConstraint activateConstraints:@[
+        [line.heightAnchor constraintEqualToConstant:1],
+        [line.leadingAnchor constraintEqualToAnchor:in.leadingAnchor constant:kSettingsRowInset],
+        [line.trailingAnchor constraintEqualToAnchor:in.trailingAnchor],
+        atTop ? [line.topAnchor constraintEqualToAnchor:in.topAnchor]
+              : [line.bottomAnchor constraintEqualToAnchor:in.bottomAnchor],
+    ]];
+    return line;
+}
+
+@implementation SettingsAccentRowView
+
+- (BOOL)isEmphasized {
+    return YES;
 }
 
 @end
@@ -127,7 +154,7 @@ static const CGFloat kHeaderCardGap = 6;
     cluster.translatesAutoresizingMaskIntoConstraints = NO;
     [row addSubview:cluster];
     [NSLayoutConstraint activateConstraints:@[
-        [cluster.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-kRowPaddingH],
+        [cluster.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-kSettingsRowInset],
         [cluster.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
         // A tall cluster (the color wells) grows the row past its minimum.
         [cluster.topAnchor constraintGreaterThanOrEqualToAnchor:row.topAnchor constant:kRowPaddingV - 2],
@@ -140,7 +167,7 @@ static const CGFloat kHeaderCardGap = 6;
         [row addSubview:titleLabel];
         row->_titleLabel = titleLabel;
         [NSLayoutConstraint activateConstraints:@[
-            [titleLabel.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:kRowPaddingH],
+            [titleLabel.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:kSettingsRowInset],
             [titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:cluster.leadingAnchor
                                                                 constant:-kRowTitleControlGap],
         ]];
@@ -155,16 +182,60 @@ static const CGFloat kHeaderCardGap = 6;
 }
 
 + (instancetype)rowWithContentView:(NSView *)contentView {
+    return [self rowFilledWith:@[contentView]
+                        insets:NSEdgeInsetsMake(kRowPaddingV + 2, kSettingsRowInset,
+                                                kRowPaddingV + 2, kSettingsRowInset)];
+}
+
++ (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount {
+    table.headerView = nil;
+    table.style = NSTableViewStyleFullWidth;
+    table.rowHeight = kListRowHeight;
+    table.intercellSpacing = NSZeroSize;
+    table.backgroundColor = NSColor.clearColor;
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scrollView.documentView = table;
+    scrollView.hasVerticalScroller = YES;
+    scrollView.borderType = NSNoBorder;
+    scrollView.drawsBackground = NO;
+    [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;
+    // Sunk to the pane background — the card's lift undone. Light is the
+    // pane's own white; dark takes the card one step back down, which lands
+    // within a 255th of the backdrop for any window background near the
+    // measured one (0.102, the card over it 0.129).
+    SettingsFillView *backdrop = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+    backdrop.darkColor = [NSColor colorWithWhite:0 alpha:0.21];
+    backdrop.lightColor = NSColor.whiteColor;
+    return [self rowFilledWith:@[backdrop, scrollView] insets:NSEdgeInsetsZero];
+}
+
++ (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
+                                inTableView:(NSTableView *)table {
+    NSTableCellView *cell = [table makeViewWithIdentifier:identifier owner:nil];
+    if (!cell) {
+        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+        cell.identifier = identifier;
+        // Under the row rather than the table's grid, which would rule the
+        // empty rows below the last one too.
+        Hairline(cell, NO);
+    }
+    return cell;
+}
+
+// Every view pinned to the row's four edges at the insets, stacked in order.
++ (instancetype)rowFilledWith:(NSArray<NSView *> *)views insets:(NSEdgeInsets)insets {
     SettingsRowView *row = [[self alloc] initWithFrame:NSZeroRect];
     row.translatesAutoresizingMaskIntoConstraints = NO;
-    contentView.translatesAutoresizingMaskIntoConstraints = NO;
-    [row addSubview:contentView];
-    [NSLayoutConstraint activateConstraints:@[
-        [contentView.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:kRowPaddingH],
-        [contentView.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-kRowPaddingH],
-        [contentView.topAnchor constraintEqualToAnchor:row.topAnchor constant:kRowPaddingV + 2],
-        [contentView.bottomAnchor constraintEqualToAnchor:row.bottomAnchor constant:-(kRowPaddingV + 2)],
-    ]];
+    for (NSView *view in views) {
+        view.translatesAutoresizingMaskIntoConstraints = NO;
+        [row addSubview:view];
+        [NSLayoutConstraint activateConstraints:@[
+            [view.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:insets.left],
+            [view.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-insets.right],
+            [view.topAnchor constraintEqualToAnchor:row.topAnchor constant:insets.top],
+            [view.bottomAnchor constraintEqualToAnchor:row.bottomAnchor constant:-insets.bottom],
+        ]];
+    }
     return row;
 }
 
@@ -177,16 +248,7 @@ static const CGFloat kHeaderCardGap = 6;
         _separator = nil;
         return;
     }
-    _separator = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
-    _separator.darkColor = NSColor.separatorColor;
-    _separator.lightColor = NSColor.separatorColor;
-    [self addSubview:_separator];
-    [NSLayoutConstraint activateConstraints:@[
-        [_separator.heightAnchor constraintEqualToConstant:1],
-        [_separator.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:kRowPaddingH],
-        [_separator.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-        [_separator.topAnchor constraintEqualToAnchor:self.topAnchor],
-    ]];
+    _separator = Hairline(self, YES);
 }
 
 - (BOOL)showsTopSeparator {
@@ -250,7 +312,7 @@ static const CGFloat kHeaderCardGap = 6;
         [NSLayoutConstraint activateConstraints:@[
             [headerLabel.topAnchor constraintEqualToAnchor:section.topAnchor],
             [headerLabel.leadingAnchor constraintEqualToAnchor:section.leadingAnchor
-                                                      constant:kRowPaddingH],
+                                                      constant:kSettingsRowInset],
             [headerLabel.trailingAnchor constraintLessThanOrEqualToAnchor:section.trailingAnchor],
         ]];
         cardTopAttachment = headerLabel.bottomAnchor;

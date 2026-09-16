@@ -12,10 +12,11 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-// Sized so the list's card matches the other panes' width: the row insets it
-// 16 on each side of the pane's 440-point content column.
-static const CGFloat kFolderListWidth = 408;
-static const CGFloat kFolderListHeight = 170;
+// The explainer's wrap width before any layout: the design-width pane's row
+// content (480 less the pane and row insets), so the height the panes' shared
+// floor is first computed from is the design one. viewDidLayout then follows
+// the card's actual width.
+static const CGFloat kExplainWrapWidth = 408;
 static NSString *const kFolderCellIdentifier = @"FolderCell";
 // Stable identifiers for the album-art choices, so the debug channel can pick
 // one without touching localized text.
@@ -45,6 +46,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 @end
 
 @implementation SettingsFilesViewController {
+    NSTextField *_explainLabel;
     NSTableView *_tableView;
     NSPopUpButton *_addCommonButton;
     NSButton *_removeButton;
@@ -61,15 +63,31 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     uint64_t _commonFolderProbeGeneration;
 }
 
-// Wraps at the folder list's width, so the pane has one text measure rather
-// than two.
+// Spans the card and wraps at whatever width that is. A wrapping label
+// measures its height at preferredMaxLayoutWidth, so viewDidLayout hands it
+// the width the row actually gave it — a fixed measure left a stale
+// two-line height under a one-line fit once the window was wide. Its
+// horizontal compression resistance is dropped below the fitting priority
+// so the unwrapped text never widens every pane to its single-line width (a
+// long localization would otherwise raise the window's floor); the row's
+// leading-to-trailing pin decides the real width regardless. A width CAP is
+// deliberately not set — SettingsFormViews.h's rowWithContentView: trap.
 - (NSTextField *)explainLabel:(NSString *)text {
     NSTextField *label = [NSTextField wrappingLabelWithString:text];
     label.selectable = NO;
     label.textColor = NSColor.secondaryLabelColor;
-    label.preferredMaxLayoutWidth = kFolderListWidth;
-    [label.widthAnchor constraintLessThanOrEqualToConstant:kFolderListWidth].active = YES;
+    label.preferredMaxLayoutWidth = kExplainWrapWidth;
+    [label setContentCompressionResistancePriority:NSLayoutPriorityFittingSizeCompression - 1
+                                    forOrientation:NSLayoutConstraintOrientationHorizontal];
     return label;
+}
+
+- (void)viewDidLayout {
+    [super viewDidLayout];
+    CGFloat width = NSWidth(_explainLabel.frame);
+    if (width > 0 && fabs(_explainLabel.preferredMaxLayoutWidth - width) > 0.5) {
+        _explainLabel.preferredMaxLayoutWidth = width; // invalidates the intrinsic size itself
+    }
 }
 
 - (void)loadView {
@@ -85,30 +103,21 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
     [self addItem:STR_SETTINGS_ALBUM_ART_FILE_ONLY value:kAlbumArtFileOnly to:_albumArtPopUp];
     [self addItem:STR_SETTINGS_ALBUM_ART_FOLDER value:kAlbumArtFolder to:_albumArtPopUp];
-    NSTextField *explain = [self explainLabel:[NSString stringWithFormat:STR_SETTINGS_PERMISSIONS_EXPLAIN,
-                                                                        VibeAppName()]];
+    _explainLabel = [self explainLabel:[NSString stringWithFormat:STR_SETTINGS_PERMISSIONS_EXPLAIN,
+                                                                 VibeAppName()]];
 
     _tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
-    _tableView.headerView = nil;
     _tableView.allowsMultipleSelection = YES;
     _tableView.dataSource = self;
     _tableView.delegate = self;
-    _tableView.rowHeight = 22;
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:kFolderCellIdentifier];
     [_tableView addTableColumn:column];
     // File URLs only: the drop reads with FileURLsOnly, so registering
     // NSPasteboardTypeURL too would show a copy cursor for a browser-link drag
     // the drop then rejects.
     [_tableView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
-
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
-    scrollView.documentView = _tableView;
-    scrollView.hasVerticalScroller = YES;
-    scrollView.borderType = NSBezelBorder;
-    [NSLayoutConstraint activateConstraints:@[
-        [scrollView.widthAnchor constraintEqualToConstant:kFolderListWidth],
-        [scrollView.heightAnchor constraintEqualToConstant:kFolderListHeight],
-    ]];
+    // Seven rows: the folders most people grant fit; a long list scrolls.
+    SettingsRowView *listRow = [SettingsRowView rowWithTableView:_tableView rowCount:7];
 
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
@@ -120,6 +129,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _removeButton.enabled = NO;
     NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
+    SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -127,11 +137,15 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
-            [SettingsRowView rowWithContentView:explain],
-            [SettingsRowView rowWithContentView:scrollView],
-            [SettingsRowView rowWithContentView:buttons],
+            [SettingsRowView rowWithContentView:_explainLabel],
+            listRow,
+            buttonRow,
         ]],
     ]];
+    // The sunk list is its own divider on both edges; the hairlines the
+    // section stamps would double them.
+    listRow.showsTopSeparator = NO;
+    buttonRow.showsTopSeparator = NO;
 }
 
 // Observed only while visible, like the base class's own observers: the window
@@ -369,10 +383,9 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:kFolderCellIdentifier owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
-        cell.identifier = kFolderCellIdentifier;
+    NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kFolderCellIdentifier
+                                                        inTableView:tableView];
+    if (!cell.textField) {
         NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
         icon.translatesAutoresizingMaskIntoConstraints = NO;
         NSTextField *label = [NSTextField labelWithString:@""];
@@ -383,12 +396,13 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
         cell.imageView = icon;
         cell.textField = label;
         [NSLayoutConstraint activateConstraints:@[
-            [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
+            [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
             [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
             [icon.widthAnchor constraintEqualToConstant:16],
             [icon.heightAnchor constraintEqualToConstant:16],
             [label.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:6],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-4],
+            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
+                                                            constant:-kSettingsRowInset],
             [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
         ]];
     }
