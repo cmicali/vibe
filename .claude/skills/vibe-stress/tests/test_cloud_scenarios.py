@@ -178,7 +178,7 @@ class TraceHelperTests(unittest.TestCase):
     def test_synthetic_drags_and_controller_actions_remain_available(self):
         for argv in (["file_drag_hover", "1", "2"], ["file_drag_drop", "1", "2", "a.wav"],
                      ["file_drag_end"], ["reorder_begin", "0", "2"], ["reorder_drop", "4"],
-                     ["reorder_cancel"], ["select_rows", "all"], ["remove_selected"],
+                     ["reorder_cancel"], ["select_rows", "all"], ["select_rows", "current", "50"], ["remove_selected"],
                      ["click_menu", "menu_play"], ["block_main", "0.1", "next"]):
             stress.require_command(argv)
         stress.require_command(["gesture_test", "pitch-reset", "isolated-desktop"], "pitch-reset")
@@ -186,6 +186,47 @@ class TraceHelperTests(unittest.TestCase):
             stress.require_command(["gesture_test", "pitch-drag", "isolated-desktop"], "pitch-reset")
         with self.assertRaises(ValueError):
             stress.require_command(["click", "1", "2"], "pitch-reset")
+
+    def test_menu_discovery_keeps_safe_edit_actions_and_reports_missing_ids(self):
+        edits = {"menu_play_selected", "menu_edit_select_all", "menu_edit_remove_from_playlist",
+                 "menu_edit_undo", "menu_edit_redo"}
+        self.assertTrue(edits <= stress.MENU_IDS)
+        items = [{"id": identifier} for identifier in sorted(stress.MENU_IDS)]
+        channel = mock.Mock()
+        channel.run.return_value = (0, {"menu": [{"id": "parent", "items": items}]}, 1)
+        with mock.patch.object(sys, "stderr") as stderr:
+            found = stress.collect_menu_ids(channel)
+            self.assertEqual(set(found), stress.MENU_IDS)
+            stderr.write.assert_not_called()
+        for identifier in found:
+            stress.require_command(["click_menu", identifier])
+        items[:] = [item for item in items if item["id"] != "menu_play_selected"]
+        items.append({"id": "renamed_play_selected"})
+        with mock.patch.object(sys, "stderr") as stderr:
+            found = stress.collect_menu_ids(channel)
+            warning = "".join(call.args[0] for call in stderr.write.call_args_list)
+            self.assertIn("missing allowed menu IDs (not exercised): menu_play_selected", warning)
+            self.assertNotIn("renamed_play_selected", found)
+        channel.run.return_value = (1, None, 1)
+        with self.assertRaisesRegex(ValueError, "menu coverage is unknown"):
+            stress.collect_menu_ids(channel)
+
+    def test_row_selection_covers_large_lists_and_targets_the_live_current_row(self):
+        generator = stress.OpGenerator(random.Random(71), [Path("a.wav")], [], [], [], "playlist")
+        generator.note_state({"playlist": {"count": 1000}, "window": {"frame": "{{0, 0}, {800, 600}}"}})
+        selections = [generator.op_select_rows()[0][1][1:] for _ in range(200)]
+        numbered = [int(row) for rows in selections for row in rows if row.isdigit()]
+        self.assertGreater(max(numbered), 900)
+        self.assertLess(max(numbered), 1000)
+        self.assertTrue(any("current" in rows and "all" not in rows for rows in selections))
+        self.assertIn(["all"], selections)
+        self.assertEqual(generator.window, (800, 600))
+        for count in (3, 0):
+            generator.note_state({"playlist": {"count": count}})
+            for _ in range(30):
+                argv = generator.op_select_rows()[0][1]
+                stress.require_command(argv)
+                self.assertTrue(all(int(row) < max(1, count) for row in argv[1:] if row.isdigit()))
 
     def test_gesture_mode_requires_isolation_and_never_unlocks_replay(self):
         for flags in (["--gesture-test", "pitch-reset"], ["--isolated-desktop"],
@@ -199,9 +240,11 @@ class TraceHelperTests(unittest.TestCase):
                 self.assertEqual(raised.exception.code, 2)
                 gesture.assert_not_called()
 
-    def test_queued_gesture_without_a_state_change_fails_and_restores_settings(self):
-        for name in stress.GESTURE_TESTS:
-            state = {"window": {"pitchPanelShown": False},
+    def test_gesture_success_timeout_and_missed_target_restore_settings(self):
+        cases = [(name, outcome, shown) for name in stress.GESTURE_TESTS
+                 for outcome in ("success", "timeout", "miss") for shown in (False, True)]
+        for name, outcome, shown in cases:
+            state = {"window": {"pitchPanelShown": shown},
                      "player": {"pitch": 2.5, "maxPitch": 8}, "ui": {"pitchFader": 2.5}}
 
             def reply(argv, **kwargs):
@@ -209,18 +252,29 @@ class TraceHelperTests(unittest.TestCase):
                     state["player"]["pitch"] = state["ui"]["pitchFader"] = float(argv[1])
                 if argv[0] == "toggle_pitch_panel":
                     state["window"]["pitchPanelShown"] = not state["window"]["pitchPanelShown"]
+                if argv[0] == "gesture_test" and outcome != "timeout":
+                    state["player"]["pitch"] = state["ui"]["pitchFader"] = (0 if name == "pitch-reset" else 4)
                 payload = (state if argv[0] == "dump_state" else
-                           {"ok": True, "hitView": "PitchFaderView", "windowKey": True})
+                           {"ok": True, "hitView": "WrongView" if outcome == "miss" else "PitchFaderView",
+                            "windowKey": True})
                 return 0, payload, 1
 
             args = mock.Mock(app=None, client_app=None, verbose=False, gesture_test=name)
-            with self.subTest(gesture=name), mock.patch.object(stress, "Channel") as channel, \
-                    mock.patch.object(stress.time, "monotonic", side_effect=[0, 4]):
+            with self.subTest(gesture=name, outcome=outcome, shown=shown), \
+                    mock.patch.object(stress, "Channel") as channel, \
+                    mock.patch.object(stress.time, "monotonic", side_effect=[0, 4]), \
+                    mock.patch.object(sys, "stdout") as stdout:
                 channel.return_value.run.side_effect = reply
-                with self.assertRaisesRegex(ValueError, "no expected effect"):
-                    stress.run_gesture_test(args)
+                if outcome == "success":
+                    self.assertEqual(stress.run_gesture_test(args), 0)
+                    self.assertIn("PASSED", "".join(call.args[0] for call in stdout.write.call_args_list))
+                else:
+                    with self.assertRaisesRegex(ValueError, "no expected effect" if outcome == "timeout"
+                                                else "missed the named control"):
+                        stress.run_gesture_test(args)
+                    stdout.write.assert_not_called()
                 self.assertEqual(state["player"]["pitch"], 2.5)
-                self.assertFalse(state["window"]["pitchPanelShown"])
+                self.assertEqual(state["window"]["pitchPanelShown"], shown)
 
     def test_open_and_play_requires_the_explicit_nonzero_submission(self):
         cloud.open_and_play(FakeOpenContext(True), Path("folder"), index=1)

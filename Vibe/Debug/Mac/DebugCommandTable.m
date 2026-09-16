@@ -482,7 +482,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil;
             }),
-            VibeDebugCmd(@"select_rows all|none|<row> [row ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"select_rows all|none|<row|current> [row|current ...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSelectPlaylistRows(controller, tokens);
             }),
             VibeDebugCmd(@"remove_selected", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

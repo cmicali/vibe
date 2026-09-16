@@ -66,6 +66,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd file_drag_drop 520 275 ~/Music/track.wav  # {ok, dropping, well} — completes the drag: delivers the drop at that point (none→replace), tears the drag-over UI down. ABSOLUTE path; same sandbox caveat as open
 "$V" --debug-cmd file_drag_end       # {ok} — the drag left without a drop
 "$V" --debug-cmd select_rows 0 2      # actual table selection without focus; all/none also accepted; ignores rows beyond the current list
+"$V" --debug-cmd select_rows current 50  # resolves the playing row at execution time, optionally with numbered rows
 "$V" --debug-cmd remove_selected      # shell removal action over that selection, including transport and undo
 "$V" --debug-cmd save_playlist ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/set.m3u  # {ok, path, tracks} — File > Save Playlist… without its panel: extended M3U, entries relative to the file's folder, noted in Open Recent. {"error": "playlist is empty"} on an empty list. The path must be writable by the sandboxed app (the container's tmp is; the host can read it back)
 "$V" --debug-cmd file_cache song.flac        # {ok, wasCached, bpm, key, camelot, timing} — decode + cache one file's waveform, UI untouched; waits up to 60s. timing is that decode's phase breakdown, absent on a hit. Replies only once the entry is on disk, so a relaunch is guaranteed the hit

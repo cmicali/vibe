@@ -103,6 +103,7 @@ menu_play menu_next_track menu_previous_track menu_skip_forward menu_skip_forwar
 menu_skip_forward_most menu_skip_back menu_skip_back_more menu_skip_back_most
 menu_fx_low_kill menu_fx_low_kill_boost menu_fx_reverb menu_fx_delay menu_fx_short_delay
 pitch_range_8 pitch_range_16 menu_show_playlist menu_show_pitch menu_show_file_info
+menu_play_selected menu_edit_select_all menu_edit_remove_from_playlist menu_edit_undo menu_edit_redo
 """.split())
 GESTURE_TESTS = ("pitch-reset", "pitch-drag")
 
@@ -543,12 +544,15 @@ class OpGenerator:
         self.theme_base = theme_base
         self.theme_imports = 0
         self.window = (900.0, 400.0)  # synthetic file-drop coordinates only
+        self.playlist_count = len(corpus_files)
         self.weights = effective_weights(profile)
         self.kinds = [k for k, w in self.weights.items() if w > 0]
         self.kind_weights = [self.weights[k] for k in self.kinds]
 
-    def note_window(self, frame_string):
+    def note_state(self, state):
+        self.playlist_count = state.get("playlist", {}).get("count", self.playlist_count)
         # NSStringFromRect: "{{x, y}, {w, h}}"
+        frame_string = state.get("window", {}).get("frame")
         nums = [float(n) for n in re.findall(r"-?\d+\.?\d*", frame_string or "")]
         if len(nums) == 4 and nums[2] > 0 and nums[3] > 0:
             self.window = (nums[2], nums[3])
@@ -810,7 +814,7 @@ class OpGenerator:
     def op_menu(self):
         if not self.menu_ids:
             return self.op_window()
-        return [("menu", ["click_menu", self.rng.choice(self.menu_ids)], ["disabled", "no menu item"])]
+        return [("menu", ["click_menu", self.rng.choice(self.menu_ids)], ["disabled"])]
 
     def op_undo(self):
         verb = self.rng.choice(["undo", "redo"])
@@ -993,10 +997,15 @@ class OpGenerator:
 
     def op_select_rows(self):
         # The app resolves these against the current table at execution time;
-        # rows outside the live list are ignored, so an empty list deselects.
-        rows = (["all"] if self.rng.random() < 0.2 else
-                list(map(str, sorted({self.rng.randrange(24)
-                                      for _ in range(self.rng.randint(1, 6))}))))
+        # "current" follows jumps earlier in the same batch, and numbered rows
+        # cover the observed list. A shortened or empty list ignores stale rows.
+        if self.rng.random() < 0.2:
+            rows = ["all"]
+        else:
+            rows = list(map(str, sorted({self.rng.randrange(max(1, self.playlist_count))
+                                        for _ in range(self.rng.randint(1, 6))})))
+            if self.rng.random() < 0.5:
+                rows.append("current")
         return [("select_rows", ["select_rows", *rows], [])]
 
     def op_remove_selected(self):
@@ -1667,7 +1676,7 @@ def collect_themes(channel):
 def collect_menu_ids(channel):
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
     if code != 0 or not payload:
-        return []
+        raise ValueError("could not inspect the live menu; menu coverage is unknown")
     ids = []
 
     def walk(items):
@@ -1685,6 +1694,12 @@ def collect_menu_ids(channel):
                 walk(item["items"])
 
     walk(payload.get("menu", []))
+    missing = MENU_IDS - set(ids)
+    if missing:
+        # FX can be absent by design when launched without its graph. Still
+        # name every missing item so a rename never silently erases coverage.
+        print("WARNING: missing allowed menu IDs (not exercised): "
+              + ", ".join(sorted(missing)), file=sys.stderr)
     return ids
 
 
@@ -1920,7 +1935,7 @@ def run(args):
                     break
 
                 state = check_liveness(channel, since=started)
-                generator.note_window(state.get("window", {}).get("frame"))
+                generator.note_state(state)
 
                 violations = check_consistency(channel)
                 if violations:

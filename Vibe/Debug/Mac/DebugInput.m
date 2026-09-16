@@ -420,7 +420,7 @@ NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> 
 NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens) {
     PlaylistTableView *table = controller.playlistController.tableView;
     if (!table || tokens.count < 2) {
-        return VibeErrorJSON(@"usage: select_rows all|none|<row> [row ...]");
+        return VibeErrorJSON(@"usage: select_rows all|none|<row|current> [row|current ...]");
     }
     NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
     if (tokens.count == 2 && [tokens[1] isEqualToString:@"all"]) {
@@ -429,8 +429,11 @@ NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSStr
     else if (!(tokens.count == 2 && [tokens[1] isEqualToString:@"none"])) {
         for (NSString *token in [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]) {
             NSUInteger row = 0;
-            if (!VibeParseNonnegativeInteger(token, &row)) {
-                return VibeErrorJSON(@"select_rows requires nonnegative integer rows");
+            if ([token isEqualToString:@"current"]) {
+                row = controller.playlistController.currentIndex;
+            }
+            else if (!VibeParseNonnegativeInteger(token, &row)) {
+                return VibeErrorJSON(@"select_rows requires nonnegative integer rows or current");
             }
             // A replacement or removal may have shortened the list since the
             // runner chose its rows. Select surviving row numbers, or none.
