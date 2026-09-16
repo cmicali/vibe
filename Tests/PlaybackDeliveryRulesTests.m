@@ -35,16 +35,6 @@
     }
 }
 
-- (void)testDepartedFinishStopsOldStatsWhileReplacementIsOpening {
-    NSURL *url = [NSURL fileURLWithPath:@"/same.wav"];
-    AudioTrack *old = [AudioTrack withURL:url], *replacement = [AudioTrack withURL:url];
-    XCTAssertTrue(VibePlaybackStaleFinishStopsStats(replacement, old));
-    XCTAssertTrue(VibePlaybackStaleFinishStopsStats(replacement, nil));
-    XCTAssertFalse(VibePlaybackStaleFinishStopsStats(replacement, replacement));
-    XCTAssertTrue(VibePlaybackStaleFinishStopsStats(nil, old));
-    XCTAssertTrue(VibePlaybackStaleFinishStopsStats(nil, nil));
-}
-
 - (void)testSeekSettlementMatchesRowsAndAcceptsEmptyOnlyWhileStopped {
     NSURL *url = [NSURL fileURLWithPath:@"/same.wav"];
     AudioTrack *track = [AudioTrack withURL:url], *otherRow = [AudioTrack withURL:url];

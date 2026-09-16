@@ -101,6 +101,12 @@ static const CGFloat kDragHysteresis = 3;
         labelText = self.trackDisplayName;
         wantsSecurityScope = NO;
     }
+    // A close or playback failure can clear the displayed file after
+    // mouseDown but before the first drag event. A nil pasteboard payload
+    // (or the label built from its path) raises inside AppKit.
+    if (!fileURL || !writer || labelText.length == 0) {
+        return;
+    }
 
     // Record for the drag-end stop only when the start took. The stop must
     // balance a successful start, since an unbalanced stop over-releases the

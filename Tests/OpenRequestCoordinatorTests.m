@@ -74,6 +74,22 @@ static NSArray<NSURL *> *OpenFiles(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"first:replace:0:1", @"second:append:1:0"]));
 }
 
+- (void)testCloseDropsPendingAndBufferedOpensAndAllowsANewAppend {
+    OpenRequestToken *walking = [self beginAppending:NO tagged:@"walking"];
+    OpenRequestToken *buffered = [self beginAppending:YES tagged:@"buffered"];
+    [_coordinator finishRequest:buffered files:OpenFiles(1) folderCount:0];
+    [_coordinator invalidate];
+    XCTAssertFalse([_coordinator isRequestCurrent:walking]);
+    XCTAssertFalse([_coordinator isRequestCurrent:buffered]);
+    [_coordinator finishRequest:walking files:OpenFiles(2) folderCount:1];
+    [_coordinator abandonStalledRequests];
+    XCTAssertEqual(_deliveries.count, 0u);
+
+    OpenRequestToken *fresh = [self beginAppending:YES tagged:@"fresh"];
+    [_coordinator finishRequest:fresh files:OpenFiles(1) folderCount:0];
+    XCTAssertEqualObjects(_deliveries, (@[@"fresh:append:1:0"]));
+}
+
 // The first batch's folder walk hangs on a mount that never answers. Without
 // the deadline every later batch in the burst would buffer unseen, and a
 // multi-file open would produce nothing at all.

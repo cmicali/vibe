@@ -16,14 +16,6 @@ static inline BOOL VibePlaybackShouldAdvanceAtTrackEnd(BOOL hasNextTrack, BOOL p
     return hasNextTrack && !pauseAtTrackEnd;
 }
 
-// Called for a finish belonging to a departed row. A replacement still
-// opening has no matching player track, so the old statistics run must end;
-// one already started owns a new run. Two nil tracks mean an emptied list.
-static inline BOOL VibePlaybackStaleFinishStopsStats(
-        AudioTrack *_Nullable playlistTrack, AudioTrack *_Nullable playerTrack) {
-    return !playlistTrack || playerTrack != playlistTrack;
-}
-
 // An empty seek's settlement is meaningful only while still stopped. A real
 // row is matched by identity, so another occurrence of its URL cannot own it.
 static inline BOOL VibePlaybackSeekSettlementIsCurrent(

@@ -29,7 +29,9 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            [self acquireExclusiveOutputOnQueue]; // bit-perfect: hog rides the running engine
+            if (_bitPerfectWanted && _exclusiveOutputWanted) {
+                [self acquireExclusiveOutputOnQueue];
+            }
 #endif
             NSError *startError = nil;
             if (![_engine startAndReturnError:&startError]) {
@@ -78,7 +80,9 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
         if (state == VibePlayerStateStopped) {
             [strongSelf->_engine stop];
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            [strongSelf releaseExclusiveOutputOnQueue];
+            if (strongSelf->_hoggedDeviceID != kAudioObjectUnknown) {
+                [strongSelf releaseExclusiveOutputOnQueue];
+            }
 #endif
         }
         else if (state == VibePlayerStatePaused && strongSelf->_node && strongSelf->_file) {
@@ -98,7 +102,9 @@ static const NSTimeInterval kEngineIdleStopDelayHoggedSeconds = 6.0;
             [node stop];
             [strongSelf->_engine stop];
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            [strongSelf releaseExclusiveOutputOnQueue];
+            if (strongSelf->_hoggedDeviceID != kAudioObjectUnknown) {
+                [strongSelf releaseExclusiveOutputOnQueue];
+            }
 #endif
             double sampleRate = file.processingFormat.sampleRate;
             AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
