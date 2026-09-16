@@ -254,29 +254,54 @@ static const AudioObjectPropertyAddress kVibeVirtualMainVolumeAddress = {
         return NO;
     }
     if (!AudioObjectHasProperty(deviceID, &kVibeVirtualMainVolumeAddress)) {
-        return YES; // no software volume at all: nothing scales the samples
+        return YES; // no software volume control; mute is a separate read
     }
     return VibeReadDeviceProperty(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
                                   kAudioObjectPropertyScopeOutput, volume, sizeof(*volume));
 }
 
-+ (BOOL)addVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
-                               queue:(dispatch_queue_t)queue
-                         forDeviceID:(AudioDeviceID)deviceID {
-    if (deviceID == kAudioObjectUnknown || !AudioObjectHasProperty(deviceID, &kVibeVirtualMainVolumeAddress)) {
++ (BOOL)readOutputMute:(BOOL *)muted forDeviceID:(AudioDeviceID)deviceID {
+    if (!muted) {
         return NO;
     }
-    OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeVirtualMainVolumeAddress, queue, listener);
+    *muted = NO;
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress address = { kAudioDevicePropertyMute,
+        kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
+    if (!AudioObjectHasProperty(deviceID, &address)) {
+        return YES;
+    }
+    UInt32 value = 0;
+    BOOL read = VibeReadDeviceProperty(deviceID, address.mSelector, address.mScope, &value, sizeof(value));
+    *muted = value != 0;
+    return read;
+}
+
+// A wildcard keeps volume and mute on one registration with one lifetime,
+// including devices that expose only one of the two optional controls.
+static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
+    kAudioObjectPropertySelectorWildcard, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain
+};
+
++ (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
     if (status != noErr) {
-        LogWarn(@"CoreAudioUtil: volume listener on %u failed (OSStatus %d)", deviceID, (int)status);
+        LogWarn(@"CoreAudioUtil: output level listener on %u failed (OSStatus %d)", deviceID, (int)status);
     }
     return status == noErr;
 }
 
-+ (void)removeVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
-                                  queue:(dispatch_queue_t)queue
-                            forDeviceID:(AudioDeviceID)deviceID {
-    AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeVirtualMainVolumeAddress, queue, listener);
++ (void)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID {
+    AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT

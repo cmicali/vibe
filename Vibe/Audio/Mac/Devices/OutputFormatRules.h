@@ -11,6 +11,7 @@
 
 #import <Foundation/Foundation.h>
 #import <CoreAudio/AudioHardwareBase.h>
+#include <math.h>
 
 typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // The setting is off, or the device is ineligible — defensive: the shell
@@ -24,7 +25,9 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusRateUnsupported,
     // The HAL did not take the format in time.
     VibeBitPerfectStatusSwitchFailed,
+    VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
+    VibeBitPerfectStatusMuted,
     // Software volume below 1.0.
     VibeBitPerfectStatusVolumeScaled,
     // Hog held by another process.
@@ -51,7 +54,9 @@ typedef struct {
     BOOL fxGraph;
     BOOL rateExact;
     BOOL formatConfirmed;   // the device has the format that was asked of it
+    BOOL channelsMatch;     // no channel-count conversion anywhere in the chain
     BOOL depthOK;
+    BOOL muted;
     BOOL hogWanted;
     BOOL exclusive;
     BOOL sourceLossless;
@@ -69,7 +74,8 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.softwareVolume == b.softwareVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.fxGraph == b.fxGraph && a.rateExact == b.rateExact
-            && a.formatConfirmed == b.formatConfirmed && a.depthOK == b.depthOK
+            && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
+            && a.depthOK == b.depthOK && a.muted == b.muted
             && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
             && a.sourceLossless == b.sourceLossless && a.systemDefault == b.systemDefault;
 }
@@ -179,33 +185,33 @@ static inline BOOL VibeRangedFormatOffersRate(AudioStreamRangedDescription forma
     if (format.mFormat.mSampleRate == rate) {
         return YES;
     }
-    return format.mSampleRateRange.mMinimum <= rate && rate <= format.mSampleRateRange.mMaximum
-            && format.mSampleRateRange.mMinimum < format.mSampleRateRange.mMaximum;
-}
-
-static inline BOOL VibeFormatsOfferRate(const AudioStreamRangedDescription *formats, UInt32 count,
-                                        double rate) {
-    for (UInt32 i = 0; i < count; i++) {
-        if (VibeRangedFormatOffersRate(formats[i], rate)) {
-            return YES;
-        }
-    }
-    return NO;
+    return format.mSampleRateRange.mMinimum <= rate && rate <= format.mSampleRateRange.mMaximum;
 }
 
 // The rate rule: exact, else the smallest integer multiple offered, else 0.
 static inline double VibeBitPerfectTargetRate(double sourceRate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count) {
-    if (sourceRate <= 0) {
+    if (!isfinite(sourceRate) || sourceRate <= 0) {
         return 0;
     }
-    for (UInt32 multiple = 1; multiple <= 16; multiple *= 2) {
-        if (VibeFormatsOfferRate(formats, count, sourceRate * multiple)) {
-            return sourceRate * multiple;
+    double target = 0;
+    for (UInt32 i = 0; i < count; i++) {
+        // Discrete rates and continuous ranges both contribute their smallest
+        // integral ratio. Scanning the offers also covers 3x, 6x and ratios
+        // above 16x without an arbitrary search ceiling.
+        double candidates[] = { formats[i].mFormat.mSampleRate,
+            sourceRate * MAX(1.0, ceil(formats[i].mSampleRateRange.mMinimum / sourceRate)) };
+        for (unsigned j = 0; j < 2; j++) {
+            double rate = candidates[j];
+            if (isfinite(rate) && rate >= sourceRate && fmod(rate, sourceRate) == 0
+                    && VibeRangedFormatOffersRate(formats[i], rate)
+                    && (target == 0 || rate < target)) {
+                target = rate;
+            }
         }
     }
-    return 0;
+    return target;
 }
 
 static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
@@ -263,7 +269,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 
 // The fold over the report's inputs, in priority order, so two breakers never
 // race for the caption: Off > FXGraphPresent > Idle > RateUnsupported >
-// SwitchFailed > DepthInsufficient > VolumeScaled > ExclusiveRefused >
+// SwitchFailed > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
 // SourceLossy > Active. FXGraphPresent sits second because the mode is inert
 // in such a run — nothing below it was even attempted. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
@@ -285,8 +291,14 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (!r.formatConfirmed) {
         return VibeBitPerfectStatusSwitchFailed;
     }
+    if (!r.channelsMatch) {
+        return VibeBitPerfectStatusChannelConversion;
+    }
     if (!r.depthOK) {
         return VibeBitPerfectStatusDepthInsufficient;
+    }
+    if (r.muted) {
+        return VibeBitPerfectStatusMuted;
     }
     if (r.softwareVolume < 1.0f) {
         return VibeBitPerfectStatusVolumeScaled;

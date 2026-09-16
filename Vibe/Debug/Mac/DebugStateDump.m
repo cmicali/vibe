@@ -22,7 +22,9 @@ static NSString *VibeDebugBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusActive:            return @"active";
         case VibeBitPerfectStatusRateUnsupported:   return @"rateUnsupported";
         case VibeBitPerfectStatusSwitchFailed:      return @"switchFailed";
+        case VibeBitPerfectStatusChannelConversion: return @"channelConversion";
         case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
+        case VibeBitPerfectStatusMuted:             return @"muted";
         case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
         case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
         case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
@@ -42,6 +44,7 @@ static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
         @"bitsPerChannel": @(r.bitsPerChannel),
         @"isFloat": @(r.isFloat),
         @"softwareVolume": @(r.softwareVolume),
+        @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),
         @"fxGraph": @(r.fxGraph),
@@ -49,6 +52,7 @@ static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
         @"rateExact": @(r.rateExact),
         @"formatConfirmed": @(r.formatConfirmed),
         @"depthOK": @(r.depthOK),
+        @"channelsMatch": @(r.channelsMatch),
         @"hogWanted": @(r.hogWanted),
         @"exclusive": @(r.exclusive),
         @"sourceLossless": @(r.sourceLossless),

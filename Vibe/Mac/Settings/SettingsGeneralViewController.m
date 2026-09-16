@@ -151,7 +151,7 @@ static const CGFloat kOutputPopUpWidth = 280;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
     BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
-    _bitPerfectSwitch.enabled = eligible;
+    _bitPerfectSwitch.enabled = on || eligible; // an unavailable saved device must not trap the mode on
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *caption;
     if (!eligible) {

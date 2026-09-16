@@ -46351,6 +46351,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect.channels": {
+      "comment": "Bit-perfect output status: the decoded file, mixer or output device has a different channel count, so unchanged delivery of every channel is not verified.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The playback path changes this file's channel count"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect.depth": {
       "comment": "Bit-perfect output status: the file carries more bits per sample than the decoder or the device can pass on, so the audio is truncated. The decoder is 32-bit float, which carries 24 integer bits.",
       "localizations": {
@@ -46430,6 +46442,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "This file is lossy; the decoded audio is delivered unchanged"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.muted": {
+      "comment": "Bit-perfect output status: the device's separate mute control is on, even if its volume still reads 100 percent.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The output device is muted. Unmute it in Sound settings."
           }
         }
       },

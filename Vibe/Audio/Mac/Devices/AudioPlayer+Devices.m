@@ -698,18 +698,18 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 #endif
 
-// The prepared device changes: the old volume listener goes and a new one
-// comes, because the fold reads the volume and the user moves it mid-track.
+// The prepared device changes: replace the volume/mute listener, because
+// either control can silence or scale the output mid-track.
 // kAudioObjectUnknown forgets the device. The block is copied before the
 // add, because the HAL keys the removal on the block object it was handed.
 - (void)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID {
     if (_preparedDeviceID == deviceID) {
         return;
     }
-    if (_volumeListener) {
-        [CoreAudioUtil removeVirtualMainVolumeListener:_volumeListener queue:_queue
-                                           forDeviceID:_preparedDeviceID];
-        _volumeListener = nil;
+    if (_outputLevelListener) {
+        [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue
+                                    forDeviceID:_preparedDeviceID];
+        _outputLevelListener = nil;
     }
     _preparedDeviceID = deviceID;
     _preparedStreamID = kAudioObjectUnknown;
@@ -721,11 +721,19 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf && strongSelf->_preparedDeviceID == deviceID) {
-            [strongSelf publishBitPerfectReportOnQueue];
+            for (UInt32 i = 0; i < count; i++) {
+                AudioObjectPropertySelector selector = addresses[i].mSelector;
+                if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+                        || selector == kAudioDevicePropertyMute
+                        || selector == kAudioObjectPropertySelectorWildcard) {
+                    [strongSelf publishBitPerfectReportOnQueue];
+                    break;
+                }
+            }
         }
     } copy];
-    if ([CoreAudioUtil addVirtualMainVolumeListener:listener queue:_queue forDeviceID:deviceID]) {
-        _volumeListener = listener;
+    if ([CoreAudioUtil addOutputLevelListener:listener queue:_queue forDeviceID:deviceID]) {
+        _outputLevelListener = listener;
     }
 }
 
@@ -751,7 +759,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 // Computes the report from its owners — the mode, the graph, the chosen
 // device, the hog, the current file, and the prepared device's physical
-// format, volume and default-ness read live — and publishes the copy the
+// format, volume, mute and default-ness read live — and publishes the copy the
 // shell reads, announcing it to the delegate when it differs. Held while a
 // device switch is rebuilding; configureOutputDeviceOnQueue: publishes once
 // at its end.
@@ -779,9 +787,19 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         report.hogWanted = VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType, report.systemDefault);
 #endif
         [CoreAudioUtil readVirtualMainVolume:&report.softwareVolume forDeviceID:_preparedDeviceID];
+        report.formatConfirmed &= [CoreAudioUtil readOutputMute:&report.muted forDeviceID:_preparedDeviceID];
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
+            // Matching rate and depth cannot certify a downmix. Check every
+            // connection, including the mixer and the output unit's two sides.
+            UInt32 channels = source.mChannelsPerFrame;
+            report.channelsMatch = channels > 0
+                    && file.processingFormat.channelCount == channels
+                    && [_engine.mainMixerNode outputFormatForBus:0].channelCount == channels
+                    && [_engine.outputNode inputFormatForBus:0].channelCount == channels
+                    && [_engine.outputNode outputFormatForBus:0].channelCount == channels
+                    && physical.mChannelsPerFrame == channels;
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
             report.depthOK = VibePhysicalFormatSatisfies(physical, source,
                                                          *file.processingFormat.streamDescription);
@@ -869,12 +887,16 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             return;
         }
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
-        if (requested >= 0) {
+        // A saved device can be absent at launch. Turning the mode off on
+        // System Output must restore varispeed on the current track too.
+        AudioDeviceID deviceID = requested >= 0 ? (AudioDeviceID)requested
+                : (!bitPerfectOutput ? [self activeOutputDeviceID] : kAudioObjectUnknown);
+        if (deviceID != kAudioObjectUnknown) {
             // Rebind even during an open: a warm engine would otherwise skip
             // acquiring exclusive access when the incoming file settles.
             // The rebuild restores a loaded track at its current position;
             // an in-flight open keeps its request and starts when it settles.
-            [self configureOutputDeviceOnQueue:(AudioDeviceID)requested];
+            [self configureOutputDeviceOnQueue:deviceID];
         }
         else if (!bitPerfectOutput) {
             [self leaveOutputDeviceOnQueue];

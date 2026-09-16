@@ -188,13 +188,13 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioStreamBasicDescription _formatBeforeChange;
     // The device the last prepare set up, from that prepare until it is
     // left: its first output stream, the physical format asked of it, and
-    // the listener on its software volume that is the HAL's handle for the
+    // the listener on its volume/mute that is the HAL's handle for the
     // removal. kAudioObjectUnknown while none. The report reads the stream's
-    // physical format, the volume and the system default live against these.
+    // physical format, volume, mute and system default live against these.
     AudioDeviceID           _preparedDeviceID;
     AudioStreamID           _preparedStreamID;
     AudioStreamBasicDescription _preparedFormat;
-    AudioObjectPropertyListenerBlock _volumeListener;
+    AudioObjectPropertyListenerBlock _outputLevelListener;
     // A settlement waiting for the outgoing audio to go silent before it may
     // stop the engine for a format switch; run once by completeRetiredFadePair:
     // when _activeRetiredOutputCount reaches zero.

@@ -52,16 +52,19 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream;
 
 // The HAL's software volume for the device's output ('vmvc'). A device with
-// none answers YES with *volume = 1.0: nothing scales its samples.
+// none answers YES with *volume = 1.0. Mute is read separately below.
 + (BOOL)readVirtualMainVolume:(Float32 *)volume forDeviceID:(AudioDeviceID)deviceID;
-// A listener on that volume, delivered on queue. The block is the handle:
-// the remove must be given the same block object, queue and device.
-+ (BOOL)addVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
-                               queue:(dispatch_queue_t)queue
-                         forDeviceID:(AudioDeviceID)deviceID;
-+ (void)removeVirtualMainVolumeListener:(AudioObjectPropertyListenerBlock)listener
-                                  queue:(dispatch_queue_t)queue
-                            forDeviceID:(AudioDeviceID)deviceID;
+// Optional output mute; a device with no mute control answers NO in *muted.
++ (BOOL)readOutputMute:(BOOL *)muted forDeviceID:(AudioDeviceID)deviceID;
+// One listener for the output's main-element properties, delivered on queue.
+// The caller filters addresses for volume/mute. The block is the handle:
+// removal must use the same block object, queue and device.
++ (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID;
++ (void)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value

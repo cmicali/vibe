@@ -218,8 +218,12 @@ static NSString *VibeSampleRateText(double sampleRate) {
                     VibeSampleRateText(report.sampleRate)];
         case VibeBitPerfectStatusSwitchFailed:
             return STR_SETTINGS_BIT_PERFECT_SWITCH_FAILED;
+        case VibeBitPerfectStatusChannelConversion:
+            return STR_SETTINGS_BIT_PERFECT_CHANNELS;
         case VibeBitPerfectStatusDepthInsufficient:
             return STR_SETTINGS_BIT_PERFECT_DEPTH;
+        case VibeBitPerfectStatusMuted:
+            return STR_SETTINGS_BIT_PERFECT_MUTED;
         case VibeBitPerfectStatusVolumeScaled:
             return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_VOLUME,
                     [formatters decimalString:report.softwareVolume * 100 fractionDigits:0]];

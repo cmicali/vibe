@@ -156,6 +156,16 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     NSUInteger n = FloatListForRates(kSpeakerRates, 4, list);
     XCTAssertEqual(VibeBitPerfectTargetRate(22050, list, (UInt32)n), 44100);
     XCTAssertEqual(VibeBitPerfectTargetRate(24000, list, (UInt32)n), 48000);
+    XCTAssertEqual(VibeBitPerfectTargetRate(32000, list, (UInt32)n), 96000);
+}
+
+- (void)testIntegerMultiplesAreNotLimitedToPowersOfTwoOrSixteen {
+    AudioStreamRangedDescription list[] = { RangedFormat(384000, 32, YES),
+        RangedFormat(192000, 32, YES), RangedFormat(44100, 32, YES) };
+    XCTAssertEqual(VibeBitPerfectTargetRate(32000, list, 3), 192000); // 6x, despite larger rate first
+    XCTAssertEqual(VibeBitPerfectTargetRate(4000, list, 1), 384000); // 96x
+    XCTAssertEqual(VibeBitPerfectTargetRate(NAN, list, 3), 0);
+    XCTAssertEqual(VibeBitPerfectTargetRate(INFINITY, list, 3), 0);
 }
 
 - (void)testNothingOfferedIsZero {
@@ -174,6 +184,12 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     ranged.mSampleRateRange.mMaximum = 192000;
     XCTAssertEqual(VibeBitPerfectTargetRate(88200, &ranged, 1), 88200);
     XCTAssertEqual(VibeBitPerfectTargetRate(384000, &ranged, 1), 0);
+    ranged.mSampleRateRange = (AudioValueRange){ 70000, 100000 };
+    XCTAssertEqual(VibeBitPerfectTargetRate(32000, &ranged, 1), 96000);
+    ranged.mSampleRateRange = (AudioValueRange){ 70000, 95000 };
+    XCTAssertEqual(VibeBitPerfectTargetRate(32000, &ranged, 1), 0);
+    ranged.mSampleRateRange = (AudioValueRange){ 96000, 96000 };
+    XCTAssertEqual(VibeBitPerfectTargetRate(32000, &ranged, 1), 96000);
 }
 
 #pragma mark - The depth rule, as-is
@@ -305,7 +321,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 static VibeBitPerfectReport Perfect(void) {
     return (VibeBitPerfectReport){
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES, .fxGraph = NO,
-        .rateExact = YES, .formatConfirmed = YES, .depthOK = YES, .softwareVolume = 1.0f,
+        .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
+        .depthOK = YES, .softwareVolume = 1.0f,
         .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
     };
 }
@@ -333,6 +350,21 @@ static VibeBitPerfectReport Perfect(void) {
     r = Perfect();
     r.systemDefault = YES;
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.channelsMatch = NO;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.muted = YES;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+}
+
+- (void)testMuteAndChannelConversionEachPreventAnActiveReport {
+    VibeBitPerfectReport r = Perfect();
+    r.muted = YES; // volume is still exactly 1.0
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusMuted);
+    r = Perfect();
+    r.channelsMatch = NO; // rate, precision and every gain check still pass
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusChannelConversion);
 }
 
 // One assertion per adjacent pair of the priority order, so a reorder fails:
@@ -345,8 +377,12 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusExclusiveRefused);
     r.softwareVolume = 0.5f;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusVolumeScaled);
+    r.muted = YES;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusMuted);
     r.depthOK = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusDepthInsufficient);
+    r.channelsMatch = NO;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusChannelConversion);
     r.formatConfirmed = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
     r.rateExact = NO;
