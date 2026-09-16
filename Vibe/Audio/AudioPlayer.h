@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
+#import "PlaybackIntent.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -112,12 +113,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pause;
 - (void)resume;
 
-// Action-only coordination read for a structural replacement. Unlike the
-// lock-only UI predicates below, this waits for transport commands already
-// submitted to the player queue, including a pause fade which has begun but
-// not completed. Do not poll it; main-thread actions call it once before
-// committing the model edit that must preserve that ordered intent.
-- (BOOL)playingIntentAfterPendingCommands;
+// Action-only queue barrier for a structural replacement. Includes Loading's
+// pending seek and pause intent, and an unfinished pause fade. Returns NO if
+// stopped or a non-nil requested row is no longer current; leaves intent untouched.
+// Do not poll it: ordinary UI reads remain lock-only.
+- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable AudioTrack *)track;
 
 // Starts a track at position (file seconds, clamped), optionally parked:
 // with startPaused the track loads but nothing renders until playPause.
@@ -198,7 +198,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Published transport state: exactly one of these three is true. During
 // Loading, isPlaying/isPaused reflect whether the open will land playing or
 // parked. A pause keeps reporting playing through its short fade. An action
-// that must order after pending transport uses playingIntentAfterPendingCommands.
+// that must order after pending transport uses getPlaybackIntent:forTrack:.
 - (BOOL)isPlaying;
 - (BOOL)isPaused;
 - (BOOL)isStopped;

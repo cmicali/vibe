@@ -121,9 +121,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             return deviceID;
         }
     }
-    // A failed read cannot prove where the engine is sending audio. In
-    // particular, the system default is not evidence of an explicit bind.
-    return kAudioObjectUnknown;
+    // Bit-perfect needs a confirmed binding; ordinary recovery retains its
+    // original system-default fallback.
+    return _bitPerfectWanted ? kAudioObjectUnknown : [CoreAudioUtil systemDefaultOutputDeviceID];
 }
 
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
@@ -188,7 +188,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 // Handles engine configuration and output-unit device changes: the hardware
 // can stop the engine or silently move its output to another device. The health check is
-// idempotent: a running graph is healthy only on the requested device, so
+// idempotent: bit-perfect also requires the requested device, so
 // notifications caused by our own completed rebuilds are no-ops.
 - (void)handleEngineConfigurationChange {
     // This notification comes from AVAudioEngine, not the device manager, so
@@ -202,11 +202,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     VibePlayerState state = _state;
     BOOL hasNode = (_node != nil);
     os_unfair_lock_unlock(&_stateLock);
-    AudioDeviceID boundDeviceID = [self activeOutputDeviceID];
+    AudioDeviceID boundDeviceID = _bitPerfectWanted ? [self activeOutputDeviceID] : kAudioObjectUnknown;
     BOOL graphHealthy = _engine.isRunning && hasNode
-            && (requested < 0 || boundDeviceID == (AudioDeviceID)requested);
-    LogDebug(@"engine configuration change: requested %ld bound %u healthy %d state %ld",
-             (long)requested, boundDeviceID, graphHealthy, (long)state);
+            && (!_bitPerfectWanted || requested < 0 || boundDeviceID == (AudioDeviceID)requested);
     if (!graphHealthy) {
         // Publish the stopped graph before any recovery branch can wait or
         // return. Transport state intentionally remains unchanged so a
@@ -221,11 +219,12 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         [self setOutputDeviceOnQueue:-1];
         return;
     }
-    // Loading, like Stopped, may legitimately have no running engine. Its
+    // In bit-perfect mode, Loading may have no running engine. Its
     // settlement will start it; rebinding the same device here only produces
     // another notification while leaving that open waiting on this queue.
-    if ((state == VibePlayerStateStopped || state == VibePlayerStateLoading)
-            && (requested < 0 || boundDeviceID == (AudioDeviceID)requested)) {
+    if ((!_bitPerfectWanted && state == VibePlayerStateStopped)
+            || (_bitPerfectWanted && (state == VibePlayerStateStopped || state == VibePlayerStateLoading)
+                && (requested < 0 || boundDeviceID == (AudioDeviceID)requested))) {
         return;
     }
     if (graphHealthy) {
@@ -267,7 +266,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     // resume starts the engine, just as after a normal idle stop. A format
     // another process moved during the pause is what this notification
     // often IS, and the rebuild's prepare sets it back.
-    if (state == VibePlayerStatePaused && hasNode && boundDeviceID == deviceID
+    if (state == VibePlayerStatePaused && hasNode
+            && (_bitPerfectWanted ? boundDeviceID : [self activeOutputDeviceID]) == deviceID
             && !(_bitPerfectWanted && _file && [self outputNeedsSwitchOnQueueForFile:_file])) {
         return;
     }
@@ -817,6 +817,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             for (UInt32 i = 0; i < count; i++) {
                 AudioObjectPropertySelector selector = addresses[i].mSelector;
                 if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+                        || selector == kAudioHardwareServiceDeviceProperty_VirtualMainBalance
                         || selector == kAudioDevicePropertyStereoPan
                         || selector == kAudioDevicePropertyMute
                         || selector == kAudioObjectPropertySelectorWildcard) {

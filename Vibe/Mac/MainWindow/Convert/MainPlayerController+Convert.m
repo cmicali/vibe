@@ -9,7 +9,6 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioFileConverter.h"
-#import "FLACConvertRules.h"
 #import "VibeStrings.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
@@ -133,16 +132,9 @@
     // the player left holding a track the playlist has dropped, every UI tick
     // skipped by the promote guard.
     BOOL wasCurrent = [rows containsIndex:currentRow];
-    // The player keeps running under these reads, so order matters: playhead
-    // first — a track that ends in between yields a stale-but-real position,
-    // where reading after would give a just-stopped player's 0. isPlaying
-    // covers Loading, and pairing it with isPaused rather than !isStopped
-    // keeps the pair consistent when a track ends between the reads.
-    NSTimeInterval position = wasCurrent ? self.audioPlayer.position : 0;
-    BOOL wasPlaying = wasCurrent && self.audioPlayer.isPlaying;
     VibePendingPlaybackIntent intent;
-    BOOL wasLoaded = VibeFLACSwapPlaybackIntent(wasCurrent, position, wasPlaying,
-            wasCurrent && !wasPlaying && self.audioPlayer.isPaused, &intent);
+    BOOL wasLoaded = wasCurrent && [self.audioPlayer getPlaybackIntent:&intent
+                                               forTrack:self.playlistController.currentTrack];
 
     NSUInteger nextRow = currentRow + 1;
     __block AudioTrack *converted = nil;

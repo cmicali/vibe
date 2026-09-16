@@ -1162,19 +1162,25 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-- (BOOL)playingIntentAfterPendingCommands {
-    __block BOOL playing = NO;
+- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(AudioTrack *)track {
+    __block BOOL loaded = NO;
     [self runSyncOnQueue:^{
         if (self->_state == VibePlayerStateLoading) {
-            // The mirror the public predicates answer from, not the pending
-            // request: one fact, so this and isPlaying/isPaused cannot
-            // disagree about a Loading start's intent.
-            playing = !self->_loadingStartPaused;
+            VibePlaybackRequest *request = self->_pendingRequest.currentRequest;
+            if (request && (!track || request.track == track)) {
+                *intent = request.intent;
+                loaded = YES;
+            }
             return;
         }
-        playing = self->_state == VibePlayerStatePlaying && !self->_pausePending;
+        if ((!track || self.currentTrack == track) && (self->_state == VibePlayerStatePlaying
+                || self->_state == VibePlayerStatePaused)) {
+            *intent = VibePendingPlaybackIntentMake(self.position,
+                    self->_state == VibePlayerStatePaused || self->_pausePending);
+            loaded = YES;
+        }
     }];
-    return playing;
+    return loaded;
 }
 
 // Explicit desired-state transport. Unlike playPause, duplicate calls are

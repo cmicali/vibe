@@ -23,7 +23,7 @@ V="$APP/Contents/MacOS/Vibe"      # the binary is its own CLI client (same sandb
 /usr/bin/log stream --level debug --predicate 'subsystem == "com.commonwealthrecordings.Vibe"'   # info/debug are never persisted; full path, zsh has a `log` builtin
 ```
 
-Every verb with its arguments and reply schema is `references/mac-verbs.md`; the channel's unknown-command reply is the authoritative list. Prefer the channel to lldb, CGEvents, or AppleScript: no permissions, no frontmost requirement, no pausing.
+Every verb with its arguments and reply schema, including bit-perfect reports and loopback verification, is `references/mac-verbs.md`; the channel's unknown-command reply is the authoritative list. Prefer the channel to lldb, CGEvents, or AppleScript: no permissions, no frontmost requirement, no pausing.
 
 **Audio flags, and what each run proves.** `launch.sh` passes both debug-only argv flags by default:
 

@@ -38,19 +38,21 @@ Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/Ma
 
 ## View
 
+**Show Pitch Control** and the P key are disabled while bit-perfect output is on, since the mode creates no varispeed. The window’s launch restore uses the same gate.
+
 - **Theme** is rebuilt whole on every open by `MainPlayerController.menuNeedsUpdate:`: one checkmarked item per theme (`representedObject` the stable id, identifier `view_theme_<id>`), then the nil-targeted **Edit Themes…** (`menu_edit_themes` → `AppDelegate.showThemeSettings:`, the same ownership as Settings…, so deliberately absent from `MenuValidationRules.h`). Selecting applies the theme and requests `ThemeApply`.
 - **Show File Info** flips the current theme's `showFileInfo` through the store's persist funnel, then requests `TrackDisplay`. Off hides the header's codec and BPM/key readouts; **the FX symbols on the codec line are deck state, not file info, and keep rendering** (`MainWindow/APPEARANCE.md`).
 - **Size** (Small, Default, Large) snaps to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths — the window is that plus the pitch panel's slice — and the height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One mapping, `contentWidthForSizeIdentifier:`, serves the action and the checkmarks, so dragging off a preset matches none.
 
 ## FX
 
-One checkmarked toggle per effect on bare Q/W/E/R/T, actions in `MainPlayerController+Transport` against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip. **The graph is a launch-time choice**: a run without it builds no `menu_fx` and cannot expose the controls until relaunch. With it, the `FXControls` effect clears every active effect before hiding the item, or restores it at once. Validation and `TransportKeyMonitor` both require the setting *and* a graph, so the keys cannot change an effect while the controls are off.
+One checkmarked toggle per effect on bare Q/W/E/R/T, actions in `MainPlayerController+Transport` against its state pass-throughs, so a menu toggle and a bare-key tap are the same flip. **The graph is a launch-time choice**: a run without it builds no `menu_fx` and cannot expose the controls until relaunch. With it, the `FXControls` effect clears every active effect before hiding the item, or restores it at once. Validation and `TransportKeyMonitor` both require `AppSettings.audioFXAllowed` (the FX setting with bit-perfect output outranking it) *and* a graph, so the keys cannot change an effect while the controls are off.
 
 **TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches Q/W/E/R/T under a hidden `menu_fx`, even when validation returns NO. The visibility effect must clear and restore those equivalents as well as hiding the item; validation remains the direct-dispatch gate.
 
 ## Output
 
-`OutputDevicesMenuController` builds "System Output (<default device>)" (tag -1) then every device from `AudioDeviceManager`, and as an observer **rebuilds it in place while it is open** — which is why the manager fans out in the common run-loop modes (`Audio/Mac/Devices/CLAUDE.md`). The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`; a chosen device that disappears falls back to System Output, persisted. **A second instance serves the Output popup in Settings > General** as its delegate and builder, so the two layouts cannot drift.
+`OutputDevicesMenuController` builds "System Output (<default device>)" (tag -1) then every device from `AudioDeviceManager`, and as an observer **rebuilds it in place while it is open** — which is why the manager fans out in the common run-loop modes (`Audio/Mac/Devices/CLAUDE.md`). The checkmark tracks `AudioPlayer.currentlyRequestedAudioDeviceId`; a chosen device that disappears falls back to System Output, persisted, and disables bit-perfect output. While the mode is on, System Output and transports outside `VibeBitPerfectDeviceEligible` gray out in both menus. **A second instance serves the Output popup in Settings > General** as its delegate and builder, so the two layouts cannot drift.
 
 ## Help
 

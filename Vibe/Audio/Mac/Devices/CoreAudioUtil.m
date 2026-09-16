@@ -270,19 +270,25 @@ static BOOL VibeReadOutputControl(AudioDeviceID deviceID, AudioObjectPropertySel
             forDeviceID:(AudioDeviceID)deviceID {
     *volume = 1.0f;
     *balance = 0.5f;
+    Float32 pan = 0.5f;
     UInt32 mute = 0;
     BOOL read = VibeReadOutputControl(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
                                       volume, sizeof(*volume));
-    read &= VibeReadOutputControl(deviceID, kAudioDevicePropertyStereoPan, balance, sizeof(*balance));
+    read &= VibeReadOutputControl(deviceID, kAudioHardwareServiceDeviceProperty_VirtualMainBalance,
+                                  balance, sizeof(*balance));
+    read &= VibeReadOutputControl(deviceID, kAudioDevicePropertyStereoPan, &pan, sizeof(pan));
     read &= VibeReadOutputControl(deviceID, kAudioDevicePropertyMute, &mute, sizeof(mute));
     *muted = mute != 0;
     BOOL validVolume = isfinite(*volume) && *volume >= 0 && *volume <= 1;
     BOOL validBalance = isfinite(*balance) && *balance >= 0 && *balance <= 1;
+    BOOL validPan = isfinite(pan) && pan >= 0 && pan <= 1;
+    // Virtual balance and a driver pan control can coexist; either may scale a channel.
+    if (validBalance && validPan && *balance == 0.5f) *balance = pan;
     // Keep invalid driver values out of the published/debug snapshot. The
     // failed confirmation still prevents these defaults from reporting Active.
     if (!validVolume) *volume = 1.0f;
-    if (!validBalance) *balance = 0.5f;
-    return read && validVolume && validBalance;
+    if (!validBalance || !validPan) *balance = 0.5f;
+    return read && validVolume && validBalance && validPan;
 }
 
 // One registration and lifetime, including devices with only some controls.

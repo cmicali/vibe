@@ -874,8 +874,10 @@ static NSURL *VibeLastPlaylistURL(void) {
     // must not replay backward. The intent resolves after every transport
     // command already submitted to the player queue; the model's query keeps
     // every other edit off that round trip.
+    VibePendingPlaybackIntent intent;
     BOOL continuesPlaying = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows] != nil
-            && [self.audioPlayer playingIntentAfterPendingCommands];
+            && [self.audioPlayer getPlaybackIntent:&intent forTrack:nil]
+            && !intent.paused;
 
     // A removal is a plain list edit, so it is undoable like one: undo
     // restores the exact objects to their rows — identity, metadata and
