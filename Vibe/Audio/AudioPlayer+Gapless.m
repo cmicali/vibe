@@ -55,7 +55,7 @@
         return;
     }
 #if TARGET_OS_OSX
-    if ([self outputNeedsSwitchOnQueueForFile:prefetchedFile]) {
+    if (_bitPerfectWanted && [self outputNeedsSwitchOnQueueForFile:prefetchedFile]) {
         return; // bit-perfect: the next file wants another device format, which only a settlement can set
     }
 #endif
@@ -119,7 +119,7 @@
     // the current file set; a 16-bit → 24-bit boundary on an integer DAC
     // takes the settlement, which switches. The promote publishes the new
     // file, and the report reads its source facts from the current file.
-    if ([self outputNeedsSwitchOnQueueForFile:_gaplessFile]) {
+    if (_bitPerfectWanted && [self outputNeedsSwitchOnQueueForFile:_gaplessFile]) {
         return;
     }
 #endif

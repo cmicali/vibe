@@ -126,8 +126,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 }
 
 - (void)refreshFromSettings {
-    [self refreshOutputPopUp];
-    [self refreshBitPerfectRows];
+    [self refreshOutputDevice];
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
@@ -183,8 +182,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)toggleBitPerfect:(id)sender {
     AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
-    [self refreshBitPerfectRows];
-    [self refreshOutputPopUp]; // the popup grays ineligible devices out while on
+    [self refreshOutputDevice]; // the popup grays ineligible devices out while on
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
@@ -220,7 +218,10 @@ static const CGFloat kOutputPopUpWidth = 280;
 // controller-set item state and the popup's own selected-item checkmark are
 // deliberately redundant — they land on the same item as long as this
 // selection stays in sync, so neither path should be removed.
-- (void)refreshOutputPopUp {
+- (void)refreshOutputDevice {
+    if (!self.viewLoaded) {
+        return;
+    }
     [_outputMenuController menuNeedsUpdate:_outputPopUp.menu];
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
@@ -229,20 +230,15 @@ static const CGFloat kOutputPopUpWidth = 280;
         // Output, so show that.
         [_outputPopUp selectItemWithTag:-1];
     }
+    [self refreshBitPerfectRows];
 }
 
 - (void)audioOutputDevicesDidChange {
-    if (self.viewLoaded) {
-        [self refreshOutputPopUp];
-        [self refreshBitPerfectRows];
-    }
+    [self refreshOutputDevice];
 }
 
 - (void)systemDefaultOutputDeviceDidChange {
-    if (self.viewLoaded) {
-        [self refreshOutputPopUp];
-        [self refreshBitPerfectRows];
-    }
+    [self refreshOutputDevice];
 }
 
 #pragma mark - Default music player

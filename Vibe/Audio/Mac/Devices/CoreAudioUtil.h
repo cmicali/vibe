@@ -61,7 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
                   forDeviceID:(AudioDeviceID)deviceID;
-+ (void)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
++ (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
 

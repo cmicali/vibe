@@ -290,10 +290,11 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
     return status == noErr;
 }
 
-+ (void)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
++ (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID {
-    AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    return status == noErr || status == kAudioHardwareBadObjectError;
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT

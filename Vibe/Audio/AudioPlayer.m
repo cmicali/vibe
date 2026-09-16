@@ -201,7 +201,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 if (strongSelf) {
                     dispatch_async(strongSelf->_queue, ^{
                         [strongSelf handleEngineConfigurationChange];
-                        [strongSelf publishBitPerfectReportOnQueue];
+                        if (strongSelf->_bitPerfectWanted) {
+                            [strongSelf publishBitPerfectReportOnQueue];
+                        }
                     });
                 }
             };
@@ -798,7 +800,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // is silent, then re-enter verbatim; consumeRequest: below drops a
     // re-entry a newer play or a stop has superseded, so no generation is
     // needed. Last writer wins if the same-path prefetch race delivers twice.
-    if (file && _activeRetiredOutputCount > 0 && [self outputNeedsSwitchOnQueueForFile:file]) {
+    if (_bitPerfectWanted && file && _activeRetiredOutputCount > 0
+            && [self outputNeedsSwitchOnQueueForFile:file]) {
         [self preemptRetiredFadesOnQueue];
         __weak AudioPlayer *weakSelf = self;
         _parkedSettlement = ^{
@@ -835,7 +838,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 #if TARGET_OS_OSX
     // Nothing is audible now — either nothing was counted, or the park above
     // ran — so the switch may stop the engine, which it does itself.
-    [self prepareOutputOnQueueForFile:file];
+    if (_bitPerfectWanted) {
+        [self prepareOutputOnQueueForFile:file];
+    }
 #endif
     [self ensureVarispeedOnQueue]; // the chain as the mode wants it NOW, not at submission
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
@@ -1687,7 +1692,9 @@ static NSString *VibeAudioLevelNormalizationModeName(
     // Every state publication and fade completion funnels here, which makes
     // it the edge that keeps the bit-perfect report's "a track is playing"
     // input honest without a hook in each publisher.
-    [self publishBitPerfectReportOnQueue];
+    if (_bitPerfectWanted) {
+        [self publishBitPerfectReportOnQueue];
+    }
 #endif
     if (!changed) {
         return;

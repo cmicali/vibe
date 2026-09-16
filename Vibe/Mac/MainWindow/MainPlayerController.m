@@ -47,8 +47,8 @@
 #import "DownloadProgressMonitor.h"
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
-#import "AppStats.h"
 #import "TrackCommands.h"
+#import "OpenRequestCoordinator.h"
 #import "VibeStrings.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -708,7 +708,7 @@
 // didFinishPlaying:'s stale-track guard drops any end-of-track callback
 // already in flight.
 - (IBAction)closeFile:(nullable id)sender {
-    [[AppStats sharedInstance] playbackStopped]; // stop fires no delegate callback
+    [OpenRequestCoordinator.sharedCoordinator invalidate];
     [self teardownDownloadMonitor];
     [self.audioPlayer stop];
     [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
@@ -947,9 +947,7 @@ static NSURL *VibeLastPlaylistURL(void) {
     // the last track always parks, because removal must not replay backward.
     BOOL startPaused = !continuesPlaying;
     if (startPaused) {
-        // The new submission drops any pending stop or pause callback for the
-        // removed track, so settle its app-side lifecycle before superseding it.
-        [[AppStats sharedInstance] playbackStopped];
+        // A slow parked open must not keep the UI tick running.
         [self pauseUIUpdateTimer];
     }
     [playlist playStartPaused:startPaused];

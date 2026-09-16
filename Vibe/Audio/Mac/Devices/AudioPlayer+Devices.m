@@ -35,7 +35,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             [self setOutputDeviceOnQueue:-1];
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
-        [self publishBitPerfectReportOnQueue]; // whether the chosen device is the default moved
+        if (self->_bitPerfectWanted) {
+            [self publishBitPerfectReportOnQueue]; // whether the chosen device is the default moved
+        }
     });
 }
 
@@ -51,7 +53,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
         if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
             LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
-            [self abandonBitPerfectForVanishedDeviceOnQueue];
+            if (self->_bitPerfectWanted) {
+                [self abandonBitPerfectForVanishedDeviceOnQueue];
+            }
             [self setOutputDeviceOnQueue:-1];
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
@@ -171,7 +175,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     _rebindDeviceID = deviceID;
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     _rebindDeviceID = kAudioObjectUnknown;
-    [self publishBitPerfectReportOnQueue]; // the rebuild's own publications were held
+    if (_bitPerfectWanted) {
+        [self publishBitPerfectReportOnQueue]; // the rebuild's own publications were held
+    }
     return rebound;
 }
 
@@ -228,7 +234,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     }
     if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
         LogError(@"Audio output device failed; falling back to system default");
-        [self abandonBitPerfectForVanishedDeviceOnQueue];
+        if (_bitPerfectWanted) {
+            [self abandonBitPerfectForVanishedDeviceOnQueue];
+        }
         [self setOutputDeviceOnQueue:-1];
         return;
     }
@@ -279,7 +287,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     // another process moved during the pause is what this notification
     // often IS, and the rebuild's prepare sets it back.
     if (state == VibePlayerStatePaused && hasNode && boundDeviceID == deviceID
-            && !(_file && [self outputNeedsSwitchOnQueueForFile:_file])) {
+            && !(_bitPerfectWanted && _file && [self outputNeedsSwitchOnQueueForFile:_file])) {
         return;
     }
     [self configureOutputDeviceOnQueue:deviceID];
@@ -349,7 +357,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         [self leaveOutputDeviceOnQueue];
     }
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    else if (!_exclusiveOutputWanted) {
+    else if (!_exclusiveOutputWanted && _hoggedDeviceID != kAudioObjectUnknown) {
         [self releaseExclusiveOutputOnQueue];
     }
 #endif
@@ -389,7 +397,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         // the mode toggled on mid-track drops the track's varispeed, toggled
         // off mints one, and the engine is stopped so neither clicks.
         [self ensureVarispeedOnQueue];
-        [self prepareOutputOnQueueForFile:file];
+        if (_bitPerfectWanted) {
+            [self prepareOutputOnQueueForFile:file];
+        }
         AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
         if (!node) {
             [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
@@ -502,7 +512,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
     // The report's eligibility follows the committed id, which the rebuild
     // above ran before this was written.
-    [self publishBitPerfectReportOnQueue];
+    if (_bitPerfectWanted) {
+        [self publishBitPerfectReportOnQueue];
+    }
     run_on_main_thread({
         [self.delegate audioPlayer:self didChangeOutputDevice:requested];
     });
@@ -610,6 +622,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     LogInfo(@"bit-perfect: the chosen device vanished; turning the mode off");
     _bitPerfectWanted = NO;
     [self leaveOutputDeviceOnQueue];
+    [self publishBitPerfectReportOnQueue];
 }
 
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file {
@@ -618,7 +631,9 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         return; // the state publication that follows every caller publishes the report
     }
     AudioDeviceID deviceID = (AudioDeviceID)device.deviceId;
-    [self setPreparedDeviceOnQueue:deviceID];
+    if (![self setPreparedDeviceOnQueue:deviceID]) {
+        return;
+    }
     AudioStreamID stream = kAudioObjectUnknown;
     AudioStreamBasicDescription current = {0}, chosen = {0};
     if (![self resolveOutputFormatOnQueueForFile:file device:device stream:&stream
@@ -738,14 +753,22 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 // these controls can silence or scale the output mid-track.
 // kAudioObjectUnknown forgets the device. The block is copied before the
 // add, because the HAL keys the removal on the block object it was handed.
-- (void)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID {
+- (BOOL)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID {
     if (_preparedDeviceID == deviceID && (_outputLevelListener || deviceID == kAudioObjectUnknown)) {
-        return;
+        return YES;
     }
     if (_outputLevelListener) {
-        [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue
-                                    forDeviceID:_preparedDeviceID];
-        _outputLevelListener = nil;
+        for (NSUInteger attempt = 0; attempt < 2; attempt++) {
+            if ([CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue
+                                             forDeviceID:_preparedDeviceID]) {
+                _outputLevelListener = nil;
+                break;
+            }
+        }
+        if (_outputLevelListener) {
+            LogWarn(@"bit-perfect: output listener removal still owed to device %u", _preparedDeviceID);
+            return NO; // retain the HAL's removal handle; never accumulate orphaned listeners
+        }
     }
     if (_preparedDeviceID != deviceID) {
         _preparedDeviceID = deviceID;
@@ -753,12 +776,12 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         memset(&_preparedFormat, 0, sizeof(_preparedFormat));
     }
     if (deviceID == kAudioObjectUnknown) {
-        return;
+        return YES;
     }
     __weak AudioPlayer *weakSelf = self;
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
         AudioPlayer *strongSelf = weakSelf;
-        if (strongSelf && strongSelf->_preparedDeviceID == deviceID) {
+        if (strongSelf && strongSelf->_bitPerfectWanted && strongSelf->_preparedDeviceID == deviceID) {
             for (UInt32 i = 0; i < count; i++) {
                 AudioObjectPropertySelector selector = addresses[i].mSelector;
                 if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
@@ -779,6 +802,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
             break;
         }
     }
+    return YES; // a registration failure is reported as unconfirmed, and retried at the next prepare
 }
 
 // The engine must be stopped. Retry once, then keep the obligation for the
@@ -809,10 +833,16 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 
 // Restore the original format, forget the prepared device and release it.
 - (void)leaveOutputDeviceOnQueue {
-    [self restoreOutputFormatOnQueue];
-    [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
+    if (_changedFormatDeviceID != kAudioObjectUnknown) {
+        [self restoreOutputFormatOnQueue];
+    }
+    if (_preparedDeviceID != kAudioObjectUnknown) {
+        [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
+    }
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    [self releaseExclusiveOutputOnQueue];
+    if (_hoggedDeviceID != kAudioObjectUnknown) {
+        [self releaseExclusiveOutputOnQueue];
+    }
 #endif
 }
 
@@ -823,13 +853,13 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 // device switch is rebuilding; configureOutputDeviceOnQueue: publishes once
 // at its end.
 - (void)publishBitPerfectReportOnQueue {
-    if (_rebindDeviceID != kAudioObjectUnknown) {
+    if (_rebindDeviceID != kAudioObjectUnknown || (!_bitPerfectWanted && !_bitPerfectReport.enabled)) {
         return;
     }
     VibeBitPerfectReport report = {0};
     report.enabled = _bitPerfectWanted;
-    report.fxGraph = (self.fx != nil);
-    AudioDevice *device = [self eligibleRequestedDeviceOnQueue];
+    report.fxGraph = _bitPerfectWanted && self.fx != nil;
+    AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
         AudioStreamBasicDescription physical = {0};
@@ -869,7 +899,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         }
     }
     os_unfair_lock_lock(&_stateLock);
-    report.hasTrack = (_state == VibePlayerStatePlaying);
+    report.hasTrack = _bitPerfectWanted && _state == VibePlayerStatePlaying;
     report.status = VibeBitPerfectFold(report);
     BOOL changed = !VibeBitPerfectReportsEqual(_bitPerfectReport, report);
     _bitPerfectReport = report;
@@ -942,7 +972,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         if (!changed) {
             return;
         }
-        if (bitPerfectOutput && self.fx) {
+        if (self.fx) {
             // Inert until relaunch: the graph is not a pass-through, so
             // switching the device for it would be theater.
             [self publishBitPerfectReportOnQueue];
@@ -989,6 +1019,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
     __block AudioDeviceID hogged = kAudioObjectUnknown;
     __block AudioDeviceID owed = kAudioObjectUnknown;
     __block AudioDeviceID prepared = kAudioObjectUnknown;
+    __block BOOL levelListener = NO;
     __block BOOL varispeed = NO;
     __block double mixerOutputRate = 0, outputNodeInputRate = 0, outputNodeOutputRate = 0;
     [self runSyncOnQueue:^{
@@ -997,6 +1028,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
 #endif
         owed = self->_changedFormatDeviceID;
         prepared = self->_preparedDeviceID;
+        levelListener = self->_outputLevelListener != nil;
         varispeed = (self.varispeed != nil);
         // The three rates that decide whether the graph resamples: the mixer
         // must feed the output node at the device's own rate.
@@ -1008,6 +1040,7 @@ static BOOL VibeCanBindSavedOutputDevice(VibePlayerState state, BOOL engineRunni
         @"hoggedDeviceId": @(hogged == kAudioObjectUnknown ? -1 : (NSInteger)hogged),
         @"restoreOwedToDeviceId": @(owed == kAudioObjectUnknown ? -1 : (NSInteger)owed),
         @"preparedDeviceId": @(prepared == kAudioObjectUnknown ? -1 : (NSInteger)prepared),
+        @"outputLevelListenerPresent": @(levelListener),
         @"varispeedPresent": @(varispeed),
         @"mixerOutputRate": @(mixerOutputRate),
         @"outputNodeInputRate": @(outputNodeInputRate),

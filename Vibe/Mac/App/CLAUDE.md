@@ -15,6 +15,8 @@ Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a dr
 
 `⌘O`, Open Recent and window drops enter through `openDeliberateURLs:appending:` and bypass the burst, so a deliberate action ends a Launch Services burst in progress rather than joining it. Drops are the one deliberate open that carries its own append decision.
 
+**Close invalidates the open coordinator before unloading the playlist.** A pending folder walk or buffered append cannot reopen files after the user closed them; replacement opens share the same invalidation method.
+
 The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unreachable mount cannot hold every later open hostage and cannot spawn a thread per drop either.
 
 `DocumentTypes` is **not** here — it is `Vibe/Common/`, since it reads the bundle and touches no AppKit, and both targets declare document types. The `⌘O` panel's filter and `DefaultAppRegistration` (`Mac/Settings/`) both read it, so the two cannot disagree about what a supported file is.
@@ -41,7 +43,7 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 
 ## Stats
 
-`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player events, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/CLAUDE.md` for the store and for what the two platforms do differently about keeping a running clock honest.
+`AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedURLs:` (the open funnel) and from the player's output-audio activity event, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/CLAUDE.md` for the store and for what the two platforms do differently about keeping a running clock honest.
 
 ## The last playlist
 
