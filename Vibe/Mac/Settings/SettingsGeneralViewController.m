@@ -327,7 +327,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     BOOL enabled = [self tableView:tableView shouldSelectRow:row];
     if (iconColumn) {
         cell.imageView.symbolConfiguration =
-                [NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightBlack];
+                [NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightBold];
         cell.imageView.image = [NSImage imageWithSystemSymbolName:row == 0 ? @"desktopcomputer" : symbolName
                                        accessibilityDescription:row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName];
         cell.imageView.alphaValue = enabled ? 1.0 : 0.4;
