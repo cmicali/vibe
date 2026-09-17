@@ -257,7 +257,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSInteger selectedRow = 0;
     for (NSUInteger i = 0; i < _outputDevices.count; i++) {
         if (_outputDevices[i].deviceId == requestedId) {
-            selectedRow = (NSInteger)i + 2;
+            selectedRow = (NSInteger)i + 1;
             break;
         }
     }
@@ -282,7 +282,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
             }
         }
     }
-    return row >= 2 && row < (NSInteger)_outputDevices.count + 2 ? _outputDevices[(NSUInteger)row - 2] : nil;
+    return row >= 1 && row < (NSInteger)_outputDevices.count + 1 ? _outputDevices[(NSUInteger)row - 1] : nil;
 }
 
 - (NSString *)typeNameForDevice:(AudioDevice *)device symbolName:(NSString **)symbolName {
@@ -305,21 +305,18 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_outputDevices.count + 2;
+    return (NSInteger)_outputDevices.count + 1;
 }
 
 - (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
-    if (row < 0 || row == 1 || row >= (NSInteger)_outputDevices.count + 2) {
+    if (row < 0 || row >= (NSInteger)_outputDevices.count + 1) {
         return NO;
     }
     return !AppSettings.sharedInstance.bitPerfectOutput
-            || (row >= 2 && VibeBitPerfectDeviceEligible([self outputDeviceAtRow:row].transportType));
+            || (row >= 1 && VibeBitPerfectDeviceEligible([self outputDeviceAtRow:row].transportType));
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    if (row == 1) {
-        return [[NSView alloc] initWithFrame:NSZeroRect];
-    }
     BOOL iconColumn = [tableColumn.identifier isEqualToString:@"icon"];
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
                                                         inTableView:tableView
@@ -346,12 +343,8 @@ static const CGFloat kGeneralPopUpWidth = 280;
     return cell;
 }
 
-- (CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row {
-    return row == 1 ? 8 : tableView.rowHeight;
-}
-
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
-    return [SettingsAccentRowView new];
+    return [SettingsRowView listRowViewForRow:row];
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {

@@ -25,8 +25,8 @@
 extern "C" {
 #endif
 
-// settings_open [pane]: shows the window, creating it on first use, and
-// selects a pane by identifier, index or displayed title.
+// settings_open [pane [light|dark|system]]: shows the window, creating it on
+// first use, and selects a pane by identifier, index or displayed title.
 NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens);
 
 // settings_close: ends an attached sheet, then closes the window.

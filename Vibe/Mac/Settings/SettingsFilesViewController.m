@@ -378,6 +378,10 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     return (NSInteger)_folders.count;
 }
 
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    return [SettingsRowView listRowViewForRow:row];
+}
+
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kFolderCellIdentifier
                                                         inTableView:tableView imagePosition:NSImageLeft];

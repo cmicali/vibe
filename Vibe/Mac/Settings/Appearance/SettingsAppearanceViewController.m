@@ -434,8 +434,7 @@ static const double kWaveformGainDetentDB = 0.75;
         return [self groupCellInTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
-    // The active theme is the selected row, always accent-colored (the row
-    // view below), so the cell carries nothing but the name.
+    // The selected row identifies the active theme; the cell only needs its name.
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
                                                         inTableView:tableView imagePosition:NSNoImage];
     cell.textField.stringValue =
@@ -444,7 +443,7 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
-    return [SettingsAccentRowView new];
+    return [SettingsRowView listRowViewForRow:row];
 }
 
 // A header row: the label alone, small and secondary above the names.

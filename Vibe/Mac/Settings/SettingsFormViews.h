@@ -23,15 +23,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) CGFloat cornerRadius;
 @end
 
-// A table row that keeps the accent-colored selection whether or not its
-// table has focus — the sidebar's pane row and the theme list's active theme,
-// where the selection states a fact rather than a focus. A stock row dims to
-// gray when the table is not first responder. It has to be the override: the
-// table writes `emphasized` on every key-window and first-responder change.
+// Sidebar selection stays accent-colored while unfocused; the shared list
+// factory configures this same row with the Sound settings palette instead.
 @interface SettingsAccentRowView : NSTableRowView
 @end
 
-// Where a row's title starts, and where a list's text and its hairlines start
+// Where a row's title starts, and where a list's text starts
 // with it, so the two line up down a card — the System Settings alignment.
 static const CGFloat kSettingsRowInset = 16;
 
@@ -61,15 +58,16 @@ static const CGFloat kSettingsRowInset = 16;
                                      delegate:(id<NSTableViewDelegate, NSTableViewDataSource>)delegate;
 
 // A list inside a card, in the System Settings shape (the Sound pane's device
-// table): no bezel, full-width rows with a hairline under each, the table sunk
-// to the pane's own background and spanning the card edge to edge, rowCount
-// rows tall and scrolling past that. Multiple columns keep their header. The look is set here; the table's
-// behavior — selection, drag types, delegate — stays the pane's, and its
-// cells come from listCellWithIdentifier:inTableView:imagePosition:. The row carries no
-// separator of its own: the sunk edge is the divider.
+// table): rounded edges, full-width alternating rows without separators,
+// rowCount rows tall and scrolling past that. Multiple columns keep their
+// header. The look is set here; the table's behavior — selection, drag types,
+// delegate — stays the pane's, and its cells come from
+// listCellWithIdentifier:inTableView:imagePosition:.
 + (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount;
 
-// A reusable list cell with a row hairline: text (NSNoImage), icon and text
++ (NSTableRowView *)listRowViewForRow:(NSInteger)row;
+
+// A reusable list cell: text (NSNoImage), icon and text
 // (NSImageLeft), or a centered icon (NSImageOnly).
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
                                 inTableView:(NSTableView *)table
