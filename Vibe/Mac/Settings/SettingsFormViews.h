@@ -56,20 +56,24 @@ static const CGFloat kSettingsRowInset = 16;
 // exactly that: an 839-point window drawing 680 points of content.
 + (instancetype)rowWithContentView:(NSView *)contentView;
 
+// Shared setup; panes supply selection policy, column titles and actions.
++ (NSTableView *)listTableWithColumnIdentifiers:(NSArray<NSUserInterfaceItemIdentifier> *)identifiers
+                                     delegate:(id<NSTableViewDelegate, NSTableViewDataSource>)delegate;
+
 // A list inside a card, in the System Settings shape (the Sound pane's device
 // table): no bezel, full-width rows with a hairline under each, the table sunk
 // to the pane's own background and spanning the card edge to edge, rowCount
-// rows tall and scrolling past that. The look is set here; the table's
+// rows tall and scrolling past that. Multiple columns keep their header. The look is set here; the table's
 // behavior — selection, drag types, delegate — stays the pane's, and its
-// cells come from listCellWithIdentifier:inTableView:. The row carries no
+// cells come from listCellWithIdentifier:inTableView:imagePosition:. The row carries no
 // separator of its own: the sunk edge is the divider.
 + (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount;
 
-// A cell for such a list: the reuse lookup, and on a miss a fresh cell already
-// carrying the row hairline, its textField nil — the pane adds its content
-// then.
+// A reusable list cell with a row hairline: text (NSNoImage), icon and text
+// (NSImageLeft), or a centered icon (NSImageOnly).
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
-                                inTableView:(NSTableView *)table;
+                                inTableView:(NSTableView *)table
+                              imagePosition:(NSCellImagePosition)imagePosition;
 
 // The structural labels, exposed so the debug walker can use the title as the
 // row's addressing label and skip both as elements of their own.

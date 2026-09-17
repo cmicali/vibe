@@ -187,8 +187,22 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
                                                 kRowPaddingV + 2, kSettingsRowInset)];
 }
 
++ (NSTableView *)listTableWithColumnIdentifiers:(NSArray<NSUserInterfaceItemIdentifier> *)identifiers
+                                     delegate:(id<NSTableViewDelegate, NSTableViewDataSource>)delegate {
+    NSTableView *table = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    table.dataSource = delegate;
+    table.delegate = delegate;
+    table.allowsColumnReordering = NO;
+    for (NSUserInterfaceItemIdentifier identifier in identifiers) {
+        [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:identifier]];
+    }
+    return table;
+}
+
 + (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount {
-    table.headerView = nil;
+    if (table.tableColumns.count == 1) {
+        table.headerView = nil;
+    }
     table.style = NSTableViewStyleFullWidth;
     table.rowHeight = kListRowHeight;
     table.intercellSpacing = NSZeroSize;
@@ -198,7 +212,8 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
     scrollView.hasVerticalScroller = YES;
     scrollView.borderType = NSNoBorder;
     scrollView.drawsBackground = NO;
-    [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;
+    [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight
+            + NSHeight(table.headerView.frame)].active = YES;
     // Sunk to the pane background — the card's lift undone. Light is the
     // pane's own white; dark takes the card one step back down, which lands
     // within a 255th of the backdrop for any window background near the
@@ -210,7 +225,8 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
 }
 
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
-                                inTableView:(NSTableView *)table {
+                                inTableView:(NSTableView *)table
+                              imagePosition:(NSCellImagePosition)imagePosition {
     NSTableCellView *cell = [table makeViewWithIdentifier:identifier owner:nil];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
@@ -218,6 +234,36 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
         // Under the row rather than the table's grid, which would rule the
         // empty rows below the last one too.
         Hairline(cell, NO);
+        NSLayoutXAxisAnchor *leading = cell.leadingAnchor;
+        CGFloat inset = kSettingsRowInset;
+        if (imagePosition != NSNoImage) {
+            NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+            icon.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell addSubview:icon];
+            cell.imageView = icon;
+            [NSLayoutConstraint activateConstraints:@[
+                imagePosition == NSImageOnly
+                        ? [icon.centerXAnchor constraintEqualToAnchor:cell.centerXAnchor]
+                        : [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
+                [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+                [icon.widthAnchor constraintEqualToConstant:16],
+                [icon.heightAnchor constraintEqualToConstant:16],
+            ]];
+            leading = icon.trailingAnchor;
+            inset = 6;
+        }
+        if (imagePosition != NSImageOnly) {
+            NSTextField *label = [NSTextField labelWithString:@""];
+            label.translatesAutoresizingMaskIntoConstraints = NO;
+            label.lineBreakMode = NSLineBreakByTruncatingTail;
+            [cell addSubview:label];
+            cell.textField = label;
+            [NSLayoutConstraint activateConstraints:@[
+                [label.leadingAnchor constraintEqualToAnchor:leading constant:inset],
+                [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-kSettingsRowInset],
+                [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+            ]];
+        }
     }
     return cell;
 }

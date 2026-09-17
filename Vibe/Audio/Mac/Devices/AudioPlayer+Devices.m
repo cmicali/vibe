@@ -726,7 +726,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     if (!device || !_exclusiveOutputWanted
             || ![CoreAudioUtil readSystemDefaultOutputDeviceID:&systemDefault]
             || !VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType,
-                                        deviceID == systemDefault)) {
+                                        deviceID == systemDefault)
+            || ![CoreAudioUtil supportsHogModeForDeviceID:deviceID]) {
         [self releaseExclusiveOutputOnQueue];
         return;
     }

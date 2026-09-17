@@ -82,6 +82,9 @@ NS_ASSUME_NONNULL_BEGIN
                      forDeviceID:(AudioDeviceID)deviceID;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+// A writable hog property permits an attempt, not a promise of ownership.
++ (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID;
+
 // kAudioDevicePropertyHogMode. TRAP: setting hog mode ignores the value
 // written and TOGGLES ownership — if this process owns it, a set releases it.
 // So this reads first and writes only when the owner has to change, which

@@ -7,6 +7,9 @@
 
 @interface SettingsGeneralViewController : SettingsPaneViewController
 
+// Audio and General share this controller; each instance builds only its own page.
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController audioPane:(BOOL)audioPane;
+
 // Refresh after the player's asynchronous device selection settles.
 - (void)refreshOutputDevice;
 

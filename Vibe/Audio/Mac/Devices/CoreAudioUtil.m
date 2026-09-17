@@ -375,6 +375,15 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
++ (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress address = {
+        kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
+    };
+    Boolean settable = false;
+    return deviceID != kAudioObjectUnknown && AudioObjectHasProperty(deviceID, &address)
+            && AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr && settable;
+}
+
 + (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID {
     *owner = -1;
     return VibeReadDeviceProperty(deviceID, kAudioDevicePropertyHogMode,

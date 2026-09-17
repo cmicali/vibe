@@ -321,9 +321,13 @@ static NSArray<NSString *> *VibeTableRowTitles(NSTableView *table) {
     for (NSInteger row = 0; row < table.numberOfRows; row++) {
         // makeIfNecessary, so a row scrolled out of view still reports its
         // text; these lists are short enough for that to be free.
-        NSView *cell = [table viewAtColumn:0 row:row makeIfNecessary:YES];
-        NSString *text = [cell isKindOfClass:NSTableCellView.class]
-                ? ((NSTableCellView *)cell).textField.stringValue : nil;
+        NSString *text = nil;
+        for (NSInteger column = 0; column < table.numberOfColumns && text.length == 0; column++) {
+            NSView *cell = [table viewAtColumn:column row:row makeIfNecessary:YES];
+            if ([cell isKindOfClass:NSTableCellView.class]) {
+                text = ((NSTableCellView *)cell).textField.stringValue;
+            }
+        }
         [rows addObject:text ?: @""];
     }
     return rows;

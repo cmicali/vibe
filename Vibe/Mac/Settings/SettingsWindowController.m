@@ -332,6 +332,8 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController audioPane:YES],
+                                  @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     // The sidebar labels reuse the Playback and Appearance menu strings: same
     // word, same translations.
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
@@ -604,8 +606,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
 }
 
-- (SettingsGeneralViewController *)generalPane {
-    return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"general"].viewController;
+- (SettingsGeneralViewController *)audioPane {
+    return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
 }
 
 - (BOOL)appearancePaneIsSelected {
