@@ -342,15 +342,18 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([self count:@"resume"],1u);
 }
 - (void)testStopRestartAndSameTrackReplay {
-    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
-    AudioTrack *track=[self play:url paused:NO position:0]; [self render:12000];
-    [_player stop]; [self render:2048]; XCTAssertTrue(_player.isStopped);
-    XCTAssertNil(_player.currentTrack); XCTAssertEqual([self count:@"finish"],0u);
-    NSData *silence=[self renderSeconds:0.1]; XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,4800)),0);
-    NSUInteger starts=[self count:@"start"]; [_player play:track];
-    [self settleUntil:^BOOL { return [self count:@"start"]>starts; }];
-    [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+    for (NSNumber *block in @[@63,@256,@1024,@4096]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO]; _blockSize=block.unsignedIntegerValue;
+        AudioTrack *track=[self play:url paused:NO position:0]; [self render:12000];
+        [_player stop]; [self render:2048]; XCTAssertTrue(_player.isStopped);
+        XCTAssertNil(_player.currentTrack); XCTAssertEqual([self count:@"finish"],0u);
+        NSData *silence=[self renderSeconds:0.1]; XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,4800)),0);
+        NSUInteger starts=[self count:@"start"]; [_player play:track];
+        [self settleUntil:^BOOL { return [self count:@"start"]>starts; }];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    }
 }
 - (void)testSeekPlayingPausedAndNearEnd {
     for (NSNumber *paused in @[@NO,@YES]) for (NSNumber *target in @[@0.125,@1.5,@1.95]) {
