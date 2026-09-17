@@ -52,6 +52,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *_removeButton;
     NSPopUpButton *_albumArtPopUp;
     NSPopUpButton *_folderSortPopUp;
+    NSSwitch *_convertEnabledSwitch, *_deleteOriginalSwitch;
+    NSPopUpButton *_convertDestinationPopUp;
     NSArray<VibeGrantedFolder *> *_folders;
     // Which of the Add Common Folder candidates are on disk, probed off the
     // main thread; nil, or a path with no entry, means not yet probed. Two of
@@ -97,14 +99,13 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     // are AppSettings' business, and a menu item has no reason to know them.
     _folderSortPopUp = [self popUpButtonWithWidth:260 action:@selector(folderOpenSortChanged:)];
     [self addItem:STR_SETTINGS_FOLDER_SORT_NAME value:@(VibeFolderOpenSortName) to:_folderSortPopUp];
-    [self addItem:STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST value:@(VibeFolderOpenSortNewestFirst) to:_folderSortPopUp];
-    [self addItem:STR_SETTINGS_FOLDER_SORT_AS_RECEIVED value:@(VibeFolderOpenSortAsReceived) to:_folderSortPopUp];
+    [self addItem:STR_SETTINGS_FOLDER_SORT_MODIFIED value:@(VibeFolderOpenSortNewestFirst) to:_folderSortPopUp];
+    [self addItem:STR_SETTINGS_FOLDER_SORT_UNSORTED value:@(VibeFolderOpenSortAsReceived) to:_folderSortPopUp];
 
     _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
     [self addItem:STR_SETTINGS_ALBUM_ART_FILE_ONLY value:kAlbumArtFileOnly to:_albumArtPopUp];
     [self addItem:STR_SETTINGS_ALBUM_ART_FOLDER value:kAlbumArtFolder to:_albumArtPopUp];
-    _explainLabel = [self explainLabel:[NSString stringWithFormat:STR_SETTINGS_PERMISSIONS_EXPLAIN,
-                                                                 VibeAppName()]];
+    _explainLabel = [self explainLabel:STR_SETTINGS_PERMISSIONS_EXPLAIN];
 
     _tableView = [SettingsRowView listTableWithColumnIdentifiers:@[kFolderCellIdentifier] delegate:self];
     _tableView.allowsMultipleSelection = YES;
@@ -122,10 +123,16 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];
-    _removeButton.enabled = NO;
+    [SettingsRowView setControl:_removeButton enabled:NO];
     NSStackView *buttons = [NSStackView stackViewWithViews:@[addButton, _addCommonButton, _removeButton]];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
+
+    _convertEnabledSwitch = [self switchWithAction:@selector(toggleConversion:)];
+    _deleteOriginalSwitch = [self switchWithAction:@selector(toggleDeleteOriginal:)];
+    _convertDestinationPopUp = [self popUpButtonWithWidth:220 action:@selector(conversionDestinationChanged:)];
+    [self addItem:STR_SETTINGS_CONVERT_DEST_BESIDE value:@NO to:_convertDestinationPopUp];
+    [self addItem:STR_SETTINGS_CONVERT_DEST_ASK value:@YES to:_convertDestinationPopUp];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -136,6 +143,11 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             [SettingsRowView rowWithContentView:_explainLabel],
             listRow,
             buttonRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_CONVERT_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_ENABLED control:_convertEnabledSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_DEST_LABEL control:_convertDestinationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL control:_deleteOriginalSwitch],
         ]],
     ]];
     // The sunk list is its own divider on both edges; the hairlines the
@@ -174,11 +186,17 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 - (void)refreshFromSettings {
     _folders = FolderAccessManager.sharedInstance.grantedFolders;
     [_tableView reloadData];
-    _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
+    [SettingsRowView setControl:_removeButton enabled:_tableView.selectedRowIndexes.count > 0];
     [self refreshCommonFolderMenu];
     NSString *albumArtSource = AppSettings.sharedInstance.useFolderArt ? kAlbumArtFolder : kAlbumArtFileOnly;
     [self selectValue:albumArtSource in:_albumArtPopUp];
     [self selectValue:@(AppSettings.sharedInstance.folderOpenSort) in:_folderSortPopUp];
+    BOOL enabled = AppSettings.sharedInstance.convertEnabled;
+    _convertEnabledSwitch.state = StateForBOOL(enabled);
+    [SettingsRowView setControl:_deleteOriginalSwitch enabled:enabled];
+    [SettingsRowView setControl:_convertDestinationPopUp enabled:enabled];
+    _deleteOriginalSwitch.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
+    [self selectValue:@(AppSettings.sharedInstance.convertAsksWhereToSave) in:_convertDestinationPopUp];
 }
 
 // Draws the menu from what is known now, then re-probes the candidate paths
@@ -317,6 +335,21 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Actions
 
+- (void)toggleConversion:(NSSwitch *)sender {
+    AppSettings.sharedInstance.convertEnabled = sender.state == NSControlStateValueOn;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectConvertMenu];
+    [self refreshFromSettings];
+}
+
+- (void)toggleDeleteOriginal:(NSSwitch *)sender {
+    AppSettings.sharedInstance.deleteOriginalAfterConvert = sender.state == NSControlStateValueOn;
+}
+
+- (void)conversionDestinationChanged:(id)sender {
+    AppSettings.sharedInstance.convertAsksWhereToSave = [_convertDestinationPopUp.selectedItem.representedObject boolValue];
+}
+
+
 // No live effect: the order governs the next open, and re-sorting the playlist
 // already on screen would throw away an order the user may have built by hand.
 - (void)folderOpenSortChanged:(id)sender {
@@ -400,11 +433,9 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     // and a dead path's mount can block for an automounter timeout — so the
     // state is the manager's own answer, which costs no I/O: a row dims because
     // its bookmark would not resolve, never because this pane stat-ed the path.
-    // Every branch sets both properties — the cells are recycled.
     BOOL unavailable = folder.state == VibeGrantedFolderStateUnavailable;
     NSString *display = [self.class displayPath:folder.path];
-    cell.imageView.alphaValue = unavailable ? 0.4 : 1.0;
-    cell.textField.textColor = unavailable ? NSColor.secondaryLabelColor : NSColor.labelColor;
+    cell.alphaValue = unavailable ? 0.5 : 1;
     cell.textField.stringValue = unavailable
             ? [NSString stringWithFormat:STR_SETTINGS_FOLDER_UNAVAILABLE, display]
             : display;
@@ -419,7 +450,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
-    _removeButton.enabled = _tableView.selectedRowIndexes.count > 0;
+    [SettingsRowView setControl:_removeButton enabled:_tableView.selectedRowIndexes.count > 0];
 }
 
 #pragma mark - Dropping folders in

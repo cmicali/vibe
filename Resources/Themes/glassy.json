@@ -6,6 +6,7 @@
     "backgroundStyle" : "clear"
   },
   "player" : {
+    "buttonGradient" : "artwork",
     "defaultArtworkDark" : "bundled:glassy.png",
     "defaultArtworkLight" : "bundled:glassy.png"
   },

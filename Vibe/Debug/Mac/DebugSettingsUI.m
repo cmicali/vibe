@@ -386,20 +386,46 @@ static NSDictionary *VibeElementStateJSON(VibeSettingsElement *element) {
     return node;
 }
 
+static NSDictionary *VibeViewPresentationJSON(NSView *view, NSWindow *window) {
+    CGFloat effectiveAlpha = 1;
+    for (NSView *ancestor = view; ancestor; ancestor = ancestor.superview) {
+        effectiveAlpha *= ancestor.alphaValue;
+    }
+    NSMutableDictionary *node = [@{
+        @"alpha": @(view.alphaValue),
+        @"effectiveAlpha": @(effectiveAlpha),
+        @"hidden": @(view.isHiddenOrHasHiddenAncestor),
+    } mutableCopy];
+    NSDictionary *rect = VibeElementRect(view, window);
+    if (rect) {
+        node[@"rect"] = rect;
+    }
+    return node;
+}
+
 static NSDictionary *VibeElementJSON(VibeSettingsElement *element, NSUInteger index, NSWindow *window) {
     NSMutableDictionary *node = [VibeElementStateJSON(element) mutableCopy];
+    [node addEntriesFromDictionary:VibeViewPresentationJSON(element.view, window)];
     node[@"index"] = @(index);
     node[@"kind"] = element.kind;
     node[@"name"] = element.name;
     if (element.label.length) {
         node[@"label"] = element.label;
     }
-    NSDictionary *rect = VibeElementRect(element.view, window);
-    if (rect) {
-        node[@"rect"] = rect;
-    }
-    if (element.view.isHiddenOrHasHiddenAncestor) {
-        node[@"hidden"] = @YES;
+    for (NSView *ancestor = element.view.superview; ancestor; ancestor = ancestor.superview) {
+        if (![ancestor isKindOfClass:SettingsRowView.class]) {
+            continue;
+        }
+        SettingsRowView *row = (SettingsRowView *)ancestor;
+        for (NSString *key in @[@"rowTitle", @"rowCaption"]) {
+            NSTextField *label = [key isEqualToString:@"rowTitle"] ? row.titleLabel : row.captionLabel;
+            if (label) {
+                NSMutableDictionary *text = [VibeViewPresentationJSON(label, window) mutableCopy];
+                text[@"value"] = label.stringValue;
+                node[key] = text;
+            }
+        }
+        break;
     }
     return node;
 }

@@ -47,6 +47,131 @@
 
 #pragma mark - Resize and content transitions
 
+- (NSData *)previewPixelsForStyle:(NSString *)style theme:(WaveformTheme *)theme
+                      barDensity:(CGFloat)density barWidth:(CGFloat)width normalize:(BOOL)normalize gainDB:(float)gainDB {
+    CGImageRef image = [WaveformRendererRegistry newPreviewForIdentifier:style dark:YES
+            theme:theme barDensity:density barWidth:width normalize:normalize gainDB:gainDB];
+    XCTAssertTrue(image != NULL);
+    if (!image) return NSData.data;
+    XCTAssertEqual(CGImageGetWidth(image), 720u);
+    XCTAssertEqual(CGImageGetHeight(image), 128u);
+    NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image)));
+    CGImageRelease(image);
+    return pixels;
+}
+
+- (void)testDetailedPreviewsRetainDistinctSamplingDetail {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    NSMutableSet<NSData *> *previews = [NSMutableSet set];
+    for (NSString *style in @[@"detailed", @"oversampling_detailed_x2",
+                              @"oversampling_detailed_x4", @"oversampling_detailed_x8"]) {
+        NSData *pixels = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+        XCTAssertGreaterThan(pixels.length, 0u);
+        XCTAssertFalse([previews containsObject:pixels], @"%@ duplicates another style's preview", style);
+        [previews addObject:pixels];
+        XCTAssertEqualObjects(pixels,
+                [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0]);
+    }
+}
+
+- (void)testWaveformPreviewFollowsPaletteDensityAndLevels {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    NSData *plain = [self previewPixelsForStyle:@"basic" theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+    XCTAssertNotEqualObjects(plain,
+            [self previewPixelsForStyle:@"basic" theme:theme barDensity:2 barWidth:1 normalize:NO gainDB:0]);
+    XCTAssertNotEqualObjects(plain,
+            [self previewPixelsForStyle:@"basic" theme:theme barDensity:1 barWidth:1 normalize:YES gainDB:0]);
+    XCTAssertNotEqualObjects(plain,
+            [self previewPixelsForStyle:@"basic" theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:6]);
+    theme.flatFill = YES;
+    XCTAssertNotEqualObjects(plain,
+            [self previewPixelsForStyle:@"basic" theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0]);
+    WaveformTheme *orange = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE
+            isDark:YES artworkColor:nil customPlayed:nil customUnplayed:nil];
+    XCTAssertNotEqualObjects(plain,
+            [self previewPixelsForStyle:@"basic" theme:orange barDensity:1 barWidth:1 normalize:NO gainDB:0]);
+}
+
+- (void)testBarWidthChangesPreviewOnlyForSupportedStyles {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        NSData *plain = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+        for (CGFloat width : {0.5, 2.0}) {
+            NSData *changed = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:width normalize:NO gainDB:0];
+            XCTAssertEqual([plain isEqualToData:changed],
+                    ![WaveformRendererRegistry supportsBarWidthForIdentifier:style], @"%@ width %g", style, width);
+        }
+    }
+}
+
+- (void)testPillWidthScalesHeightAndHoverWithinSeekBand {
+    AudioWaveformRenderer *renderer = [self rendererForStyle:@"cupertino_basic"];
+    CALayer *host = renderer.parentLayer;
+    CALayer *pill = host.sublayers.firstObject;
+    CALayer *fill = pill.sublayers.firstObject;
+    AudioWaveform waveform;
+    [renderer updateWaveform:host.bounds progress:0.25 waveform:&waveform];
+    XCTAssertFalse([WaveformRendererRegistry supportsBarDensityForIdentifier:@"cupertino_basic"]);
+    for (CGFloat scale : {0.5, 1.0, 2.0}) {
+        [renderer setHoverHighlightX:-1];
+        renderer.barWidthScale = scale;
+        XCTAssertEqual(pill.bounds.size.height, 9 * scale);
+        XCTAssertEqual(fill.bounds.size.height, pill.bounds.size.height);
+        XCTAssertEqual(fill.bounds.size.width, 128);
+        XCTAssertEqual(pill.cornerRadius, pill.bounds.size.height / 2);
+        [renderer setHoverHighlightX:128];
+        XCTAssertEqual(pill.bounds.size.height, 16 * scale);
+        XCTAssertTrue(CGRectContainsRect([renderer seekHitBandForBounds:host.bounds], pill.frame));
+    }
+    renderer.barDensity = 0.5;
+    [renderer updateWaveform:host.bounds progress:0.25 waveform:&waveform];
+    XCTAssertEqual(pill.bounds.size.height, 32);
+    host.bounds = CGRectMake(0, 0, 512, 20);
+    [renderer updateWaveform:host.bounds progress:0.25 waveform:&waveform];
+    XCTAssertTrue(CGRectContainsRect(host.bounds, pill.frame));
+    [renderer updateWaveform:host.bounds progress:0 waveform:nullptr];
+    renderer.barWidthScale = 0.5;
+    XCTAssertTrue(pill.hidden);
+}
+
+- (void)testBarWidthRebuildsLiveGeometryWithoutChangingCount {
+    AudioWaveformCacheChunk chunk;
+    chunk.set(-0.5f, 0.5f, 0.25f, 1);
+    AudioWaveform waveform(1, &chunk);
+    for (NSString *style in @[@"basic", @"cupertino", @"sonic_cirrus", @"wiggle", @"wiggle_centered"]) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+        CALayer *host = renderer.parentLayer;
+        BOOL sonic = [style isEqualToString:@"sonic_cirrus"];
+        BOOL wiggle = [style hasPrefix:@"wiggle"];
+        DetailedAudioWaveformRenderer *detailed = sonic ? nil : (DetailedAudioWaveformRenderer *)renderer;
+        for (CGFloat density : {0.5, 1.0, 2.0}) {
+            renderer.barDensity = density;
+            renderer.barWidthScale = 1;
+            [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+            [renderer settleMorphImmediately];
+            NSUInteger count = sonic ? host.sublayers.count / 2 : [detailed numBarsForWidth:512];
+            XCTAssertEqual(count, (NSUInteger)((wiggle ? 64 : 128) * density));
+            CAShapeLayer *mask = (CAShapeLayer *)host.sublayers.firstObject.mask;
+            CGFloat pitch = 512.0 / count;
+            CGFloat original = sonic ? host.sublayers.firstObject.bounds.size.width
+                    : wiggle ? mask.lineWidth : CGPathGetPathBoundingBox(mask.path).size.width - pitch * (count - 1);
+            for (CGFloat width : {0.5, 2.0}) {
+                renderer.barWidthScale = width;
+                XCTAssertEqual(sonic ? host.sublayers.count / 2 : [detailed numBarsForWidth:512], count);
+                CGFloat actual = sonic ? host.sublayers.firstObject.bounds.size.width
+                        : wiggle ? mask.lineWidth : CGPathGetPathBoundingBox(mask.path).size.width - pitch * (count - 1);
+                XCTAssertEqualWithAccuracy(actual, MIN(original * width, pitch), 1e-6, @"%@ density %g", style, density);
+                if (!sonic) {
+                    CGRect bounds = CGPathGetPathBoundingBox(mask.path);
+                    CGFloat inset = wiggle ? mask.lineWidth / 2 : 0;
+                    XCTAssertGreaterThanOrEqual(CGRectGetMinX(bounds) - inset, -1e-6);
+                    XCTAssertLessThanOrEqual(CGRectGetMaxX(bounds) + inset, 512 + 1e-6);
+                }
+            }
+        }
+    }
+}
+
 - (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
     XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(nullptr, YES, 1024), kVibeWaveformFullScaleRMS);
     for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {

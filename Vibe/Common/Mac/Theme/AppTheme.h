@@ -54,6 +54,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_DOCK_ICON_ALBUM_ART                  @"album_art"
 #define SETTINGS_VALUE_DOCK_ICON_APP_ICON                   @"app_icon"
 
+#define SETTINGS_VALUE_BUTTON_GRADIENT_NONE                 @"none"
+#define SETTINGS_VALUE_BUTTON_GRADIENT_HOVER                @"hover"
+#define SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK              @"artwork"
+#define SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS               @"always"
+
 // The transport buttons' factory glyphs, the defaults the theme's four glyph
 // fields carry. The pause glyph pairs with the play one: the editor writes
 // both from one pick (SettingsRules.h's pair table), a JSON can set either.
@@ -73,9 +78,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // vends; it follows macOS 26's window corners.
 #define kVibeThemeCornerRadiusDefault ((CGFloat)16)
 
-#define kVibeThemeWaveformBarDensityMin 0.5
-#define kVibeThemeWaveformBarDensityMax 4.0
-#define kVibeThemeWaveformBarDensityDefault 1.0
+#define kVibeThemeWaveformBarScaleMin 0.5
+#define kVibeThemeWaveformBarScaleMax 2.0
+#define kVibeThemeWaveformBarScaleDefault 1.0
 
 // The font slots' factory sizes — the point size each slot draws at under
 // the Vibe theme, the defaults the field rows carry.
@@ -275,6 +280,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic) double waveformBarDensity;            // multiplier of the style's designed count
+@property (nonatomic) double waveformBarWidth;              // multiplier of the style's designed thickness
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid
@@ -296,8 +302,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // the Dock has always had.
 @property (nonatomic) BOOL appIconShape;
 // The darkening gradient over the album art's lower half, behind the
-// transport buttons. NO leaves the art bare under them.
-@property (nonatomic) BOOL buttonGradient;
+// transport buttons: none/hover/artwork/always (default).
+@property (nonatomic, copy) NSString *buttonGradient;
+@property (nonatomic) BOOL showTransportButtons;
 // The transport buttons' SF Symbol names. Trimmed to the symbol-name shape
 // (lowercase letters, digits and dots); a name this macOS has no symbol for
 // draws the factory glyph, the way an uninstalled font face falls back — so
@@ -309,6 +316,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *pauseButtonGlyph;
 @property (nonatomic, copy) NSString *nextButtonGlyph;
 @property (nonatomic) BOOL showFileInfo;
+@property (nonatomic) BOOL showStatusIcons;
+@property (nonatomic) BOOL showTimeLabels;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;

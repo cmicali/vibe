@@ -66,6 +66,10 @@ static NSColor *ListColor(NSUInteger shade) {
 
 @end
 
+@implementation SettingsStackView
+- (BOOL)isFlipped { return YES; }
+@end
+
 // Card-row divider, inset from the leading edge.
 static SettingsFillView *Hairline(NSView *in) {
     SettingsFillView *line = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
@@ -130,6 +134,41 @@ static SettingsFillView *Hairline(NSView *in) {
     NSArray<NSLayoutConstraint *> *_captionConstraints;
 }
 
++ (void)setControl:(NSControl *)control enabled:(BOOL)enabled {
+    control.enabled = enabled;
+    control.alphaValue = enabled ? 1 : 0.5;
+    NSView *view = control.superview;
+    while (view && ![view isKindOfClass:SettingsRowView.class]) view = view.superview;
+    [(SettingsRowView *)view refreshControlAppearance];
+}
+
+- (void)collectControlsInView:(NSView *)view into:(NSMutableArray<NSControl *> *)controls {
+    if ([view isKindOfClass:NSControl.class]) {
+        [controls addObject:(NSControl *)view];
+        return; // AppKit owns a control's internal subviews.
+    }
+    for (NSView *child in view.subviews) [self collectControlsInView:child into:controls];
+}
+
+- (void)refreshControlAppearance {
+    NSMutableArray<NSControl *> *controls = [NSMutableArray array];
+    [self collectControlsInView:self into:controls];
+    BOOL hasControl = NO, enabled = NO;
+    for (NSControl *control in controls) {
+        if ([control isKindOfClass:NSTextField.class] && ![(NSTextField *)control isEditable]) continue;
+        control.alphaValue = control.enabled ? 1 : 0.5;
+        if (!control.hidden) {
+            hasControl = YES;
+            enabled |= control.enabled;
+        }
+    }
+    for (NSControl *control in controls) {
+        if ([control isKindOfClass:NSTextField.class] && ![(NSTextField *)control isEditable]) {
+            control.alphaValue = !hasControl || enabled ? 1 : 0.5;
+        }
+    }
+}
+
 - (BOOL)setCaption:(NSString *)caption {
     NSString *text = caption ?: @"";
     if (!_titleLabel) {
@@ -170,6 +209,7 @@ static SettingsFillView *Hairline(NSView *in) {
         _titleCenteredConstraint.active = NO;
         [NSLayoutConstraint activateConstraints:_captionConstraints];
     }
+    [self refreshControlAppearance];
     return changed;
 }
 
@@ -225,6 +265,7 @@ static SettingsFillView *Hairline(NSView *in) {
         row->_titleCenteredConstraint.active = YES;
         [row setCaption:caption];
     }
+    [row refreshControlAppearance];
     return row;
 }
 
@@ -242,7 +283,13 @@ static SettingsFillView *Hairline(NSView *in) {
     table.allowsColumnReordering = NO;
     table.allowsColumnResizing = NO;
     for (NSUserInterfaceItemIdentifier identifier in identifiers) {
-        [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:identifier]];
+        NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:identifier];
+        if ([identifier isEqualToString:@"icon"]) {
+            column.title = @"";
+            column.width = column.minWidth = column.maxWidth = 36;
+            column.resizingMask = NSTableColumnNoResizing;
+        }
+        [table addTableColumn:column];
     }
     return table;
 }
@@ -323,6 +370,10 @@ static SettingsFillView *Hairline(NSView *in) {
         if (imagePosition != NSNoImage) {
             NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
             icon.translatesAutoresizingMaskIntoConstraints = NO;
+            if (imagePosition == NSImageOnly) {
+                icon.symbolConfiguration =
+                        [NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightBold];
+            }
             [cell addSubview:icon];
             cell.imageView = icon;
             [NSLayoutConstraint activateConstraints:@[
@@ -367,6 +418,7 @@ static SettingsFillView *Hairline(NSView *in) {
             [view.bottomAnchor constraintEqualToAnchor:row.bottomAnchor constant:-insets.bottom],
         ]];
     }
+    [row refreshControlAppearance];
     return row;
 }
 

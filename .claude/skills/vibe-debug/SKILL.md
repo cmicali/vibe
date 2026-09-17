@@ -51,7 +51,7 @@ Which run proves what:
 
 **Every command replies with exactly one JSON object**; errors are `{"error": "…"}`. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage. Action replies are read synchronously and lag async engine work — confirm with `dump_state`. Arguments reach the app as an array, never re-tokenized, so a quoted path with spaces is safe.
 
-Never scrape text. Filter with `jq` — `-r` for shell substitution, `-e` to assert (nonzero on `false` or `null`, so it doubles as the test) — and pipe through `printf '%s' "$out"`, not `echo`, which in zsh rewrites `\t` inside the JSON into illegal control characters. **`jq`, not python**: before-and-after is two `-r` extractions and a shell compare; python earns its place only walking whole `dump_view_tree` subtrees.
+Never scrape text. Filter with `jq` — `-r` for shell substitution, `-e` to assert (nonzero on `false` or `null`, so it doubles as the test) — and pipe through `printf '%s' "$out"`, not `echo`, which in zsh rewrites `\t` inside the JSON into illegal control characters. **Use the script runner and `jq`, not generated Python**, for command execution, saved snapshots, comparisons and assertions. Settings opacity and row-label checks belong on `dump_settings_ui`; it exposes them directly without matching addresses in `dump_view_tree`.
 
 ```bash
 "$V" --debug-cmd dump_state | jq -e '.player.state == "playing"' >/dev/null   # assert; nonzero if not
@@ -73,7 +73,7 @@ awk -v a="$before" -v b="$after" 'BEGIN{exit !(b>a)}' || echo "FAIL: $before -> 
 
 ### Command scripts
 
-`script -` runs one verb per line (blank lines and `#` comments skipped; quotes group arguments, no escapes). Replies stream as NDJSON, and the script **stops at the first failing command** with its exit code, so exit 0 means every step passed. **Always feed it on stdin** — a heredoc or `script - < file` — since the sandboxed client usually cannot read a script by path. `sleep 0.2` is client-side, so the app never blocks; `scan_bpm -` and a nested `script` are unavailable inside one. A `dump_screenshot [label]` line carries the PNG as base64 (~100 KB — never run that raw): the wrapper decodes each to `<shots-dir>/shot-NN[-label].png` in command order, then `Read` the PNGs:
+`script -` runs one verb per line (blank lines and `#` comments skipped; quotes group arguments, no escapes). Replies stream as NDJSON, and the script **stops at the first failing command** with its exit code, so exit 0 means every command succeeded. **Always feed it on stdin** — a heredoc or `script - < file` — since the sandboxed client usually cannot read a script by path. `sleep 0.2` is client-side, so the app never blocks; `scan_bpm -` and a nested `script` are unavailable inside one. A `dump_screenshot [label]` line carries the PNG as base64 (~100 KB — never run that raw): the wrapper decodes each to `<output-dir>/shot-NN[-label].png` in command order, then inspect the PNGs. It also saves every reply to `replies.jsonl`, including partial output on a command failure. Use a fresh output directory per run.
 
 ```bash
 .claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots <<'EOF'
@@ -85,6 +85,22 @@ dump_state
 EOF
 ```
 
+Pass `--assert '<jq predicate>'` before the output directory to check the **array of all replies after the script succeeds**. Every predicate result must be `true`; false, null, empty output, non-booleans and invalid filters fail with exit 2. The runner retains replies for diagnosis and propagates command and artifact errors. Assertions do not interrupt the command sequence; split dependent phases into separate runs when an assertion must pass before proceeding.
+
+```bash
+.claude/skills/vibe-debug/scripts/run-script.sh --assert '
+  [ .[] | select(has("settings")) | .settings ] as $states |
+  ($states | length) == 2 and $states[0] == $states[1]
+' /tmp/settings-read-check <<'EOF'
+dump_state
+settings_open files
+dump_settings_ui
+dump_state
+EOF
+# Extract a saved snapshot without another app read.
+jq -s 'map(select(has("controls")))[0]' /tmp/settings-read-check/replies.jsonl
+```
+
 ### The settings window
 
 Five verbs of its own — `settings_open`, `dump_settings_ui`, `settings_click`, `settings_resize`, `settings_close` — and **never `click`, `drag`, or the `key*` verbs**, which post into the player window. Replies, control naming, and the kind table: `references/settings-window.md`. Traps:
@@ -93,6 +109,7 @@ Five verbs of its own — `settings_open`, `dump_settings_ui`, `settings_click`,
 - **A sheet blocks everything behind it**: `settings_click` refuses and `dump_settings_ui` reports `sheet`; only `settings_close` clears it. Add Folder, Add Common Folder, an editor image preview click, and Set Vibe as Default Music Player raise system panels no verb can dismiss — leave them to a human.
 - Hover badges (the editor's clear-image ✕) need a real hover through `input.swift` first; posted events never fire tracking areas. The font panel cannot be driven: `import_theme`/`set_theme` are the scripted route to a font change.
 - **Assert the setting through `dump_state.settings`, not the control.** The control moving proves the click landed; the setting proves the action ran.
+- For disabled styling, read each control's `alpha` / `effectiveAlpha` and its `rowTitle` / `rowCaption` presentation from `dump_settings_ui`. `hidden` is independent of opacity. See the settings reference for a reusable predicate.
 - `settings_resize` replies with the frame after a layout flush, so a constraint snap-back is observable in the reply.
 
 ### In-process input injection

@@ -17,7 +17,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectWaveformStyle    = 1UL << 6,
     VibeSettingsLiveEffectWaveformTheme    = 1UL << 7,
     VibeSettingsLiveEffectWindowTint       = 1UL << 8,
-    // showFileInfo, showRemainingTime, showBPM, showKey, keyNotation and
+    // Readout visibility, showRemainingTime, showBPM, showKey, keyNotation and
     // keyColorsEnabled share one display pass.
     VibeSettingsLiveEffectTrackDisplay     = 1UL << 9,
     VibeSettingsLiveEffectFolderArt        = 1UL << 10,
@@ -51,7 +51,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // The theme's app icon and its Dock tile choice — the icon into the
     // application, then the tile re-decided between it and the playing art.
     VibeSettingsLiveEffectAppIcon          = 1UL << 21,
-    // The three transport buttons' glyph or image and color, and the gradient
+    // The three transport buttons' visibility, glyph or image, color, and gradient
     // behind them.
     VibeSettingsLiveEffectTransportButtons = 1UL << 22,
     // Bit-perfect output: pushes the mode to the player, resets the pitch to

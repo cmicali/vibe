@@ -4,6 +4,8 @@ The strategies both views draw through, the morph engine they share and the leve
 
 **Compare styles by identifier, never by class.** Variants share classes — Wiggle and Wiggle MC are `DetailedAudioWaveformRenderer`, the oversampling trio share a file, Cupertino subclasses Basic — and the resolved registry identifier is what persists. `wiggle` stays with Wiggle MC so saved selections keep their geometry.
 
+The registry's settings preview renders the actual style into a static bitmap with the caller's palette, density, width and levels. Its shared synthetic sample includes fine transients: a smooth envelope alone hides the Detailed family's sampling differences at thumbnail size. Preview rendering never changes the live renderer's geometry or sampling counts.
+
 ## Families
 
 Two families and one flat style, split by *how progress and hover quantize*:
@@ -22,9 +24,9 @@ Two families and one flat style, split by *how progress and hover quantize*:
 
 **Normalize and Gain are the renderer's `normalizesLevels` and `gainDB`, handed over by each view as the theme is.** Normalize only raises: `VibeWaveformFullScaleRMSForWaveform` caps the track's loudest column at the fixed reference, measured over the drawn count (capped at 1,024) so it matches the windows the bars draw. Gain is a display gain ahead of the clamp plus a proportional curve bend (`kVibeWaveformGainDBPerExponentDoubling`). **A level change is a target change under the same identity**, which the morph's fast path would skip, so both setters call `invalidateTarget` and the bars ease to their new heights. Cupertino Basic ignores both.
 
-## Bar count
+## Bar count and thickness
 
-**The count follows the drawn width at the style's designed pitch**, so a resize adds bars rather than stretching them. Basic, Cupertino and Sonic Cirrus share `blockBarCountForWidth:` (4pt, capped at 1,024); Detailed and Wiggle use `numBarsForWidth:`. `barDensity` multiplies the block and Wiggle counts, defaulting to 1; Detailed and its fixed-count oversampling variants ignore it, as does the flat Cupertino Basic pill. The registry's `supportsBarDensityForIdentifier:` gates the editor. Wiggle's count reads `samplingWidth` when set, so an iOS pinch stretches its loops instead of resampling them (`../iOS/CLAUDE.md`).
+**The count follows the drawn width at the style's designed pitch**, so a resize adds bars rather than stretching them. Basic, Cupertino and Sonic Cirrus share `blockBarCountForWidth:` (4pt, capped at 1,024); Detailed and Wiggle use `numBarsForWidth:`. `barDensity` multiplies the block and Wiggle counts, defaulting to 1; Detailed and its fixed-count oversampling variants ignore it, as does the flat Cupertino Basic pill. The registry gates density and width separately; width also scales Cupertino Basic's resting and hovered pill heights, with its seek band covering the enlarged pill. `barWidthScale` scales the supported styles' bar thickness (Wiggle's stroke) without changing the count; discrete bars share `scaledBarWidth:pitch:` to stop at their slot edges. Wiggle's live stroke, hover and bitmap bake share the scaled geometry. Wiggle's count reads `samplingWidth` when set, so an iOS pinch stretches its loops instead of resampling them (`../iOS/CLAUDE.md`).
 
 ## The morph engine
 

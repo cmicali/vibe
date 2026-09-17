@@ -31,9 +31,8 @@
 // All subview frames are absolute, and the numbers live here rather than
 // inline in buildSubviewsWithTarget:. Edge-reaching values derive from
 // kMainWindowContentWidth, the design width, and the autoresizing masks
-// stretch them in a wider window. The one deliberate overhang has a name,
-// kHeaderPanelRightBleed. Two bands split at kPlaylistHeight: the header
-// above, the playlist below.
+// stretch them in a wider window. Two bands split at kPlaylistHeight:
+// the header above, the playlist below.
 
 // The header band is the whole window in the small, playlist-collapsed layout.
 static const CGFloat kHeaderHeight = kMainWindowSmallHeight;
@@ -41,18 +40,9 @@ static const CGFloat kPlaylistHeight = kMainWindowDesignHeight - kHeaderHeight;
 
 static const CGFloat kArtSize = kHeaderHeight; // square, fills the header band
 
-// The header glass starts behind the art's right edge, where the art shadows
-// onto it, and deliberately bleeds past the window's right edge. The glass
-// rounds all its corners, and the window shape clipping the right-side arcs
-// off-screen is what keeps the header's right edge square. The bleed must be
-// at least the radius.
-// Sized to the radius CLAMP's ceiling, not the live value: the bleed only
-// needs to be at least the radius, and the ceiling keeps this design-time
-// frame valid for every legal radius without re-deriving it on a change.
-static const CGFloat kHeaderPanelRightBleed = kVibeThemeCornerRadiusMax + 2;
-static const CGFloat kHeaderPanelX = kArtSize - 25;
-static const CGFloat kHeaderPanelWidth =
-        kMainWindowContentWidth + kHeaderPanelRightBleed - kHeaderPanelX;
+// Keep glass and tint out of transparent artwork. The window owns the outer
+// corners; this panel meets the artwork at a straight edge.
+static const CGFloat kHeaderPanelWidth = kMainWindowContentWidth - kArtSize;
 
 // Shared left edge / right margin for everything right of the art.
 static const CGFloat kHeaderContentX = kArtSize + 8;
@@ -205,6 +195,7 @@ API_AVAILABLE(macos(26.0))
     // Whether the art under the transport row reads as dark — the artwork
     // controller's sample, seeded dark for the factory placeholder.
     BOOL _transportBackdropDark;
+    BOOL _transportHasArtwork;
     // The codec line's rendered text width, measured at the text edge
     // (layoutArtistLineClearOfCodecLine) and reused on every geometry pass.
     CGFloat _codecTextWidth;
@@ -396,12 +387,19 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:NO animated:YES];
 }
 
-// The one place button visibility is decided. The traffic lights fold the
-// persisted setting in, so a hidden pair is never left fading to full alpha
-// behind its own hidden flag.
+// Fold the traffic-light and transport settings into hover visibility so
+// hidden buttons never fade to full alpha behind their hidden flags.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
-    CGFloat transport = shown ? 1.0 : 0.0;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL transportShown = theme.showTransportButtons;
+    CGFloat transport = (shown && transportShown) ? 1.0 : 0.0;
+    BOOL gradientEnabled = self.transportGradientEnabled;
+    CGFloat gradient = gradientEnabled && (shown || ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER]) ? 1 : 0;
+    _albumArtGradientView.hidden = !gradientEnabled;
+    _playlistToggleButton.hidden = !transportShown;
+    _playButton.hidden = !transportShown;
+    _nextButton.hidden = !transportShown;
     _closeButton.hidden = !_trafficLightsShown;
     _minimizeButton.hidden = !_trafficLightsShown;
     if (animated) {
@@ -412,6 +410,7 @@ API_AVAILABLE(macos(26.0))
             self->_playlistToggleButton.animator.alphaValue = transport;
             self->_playButton.animator.alphaValue = transport;
             self->_nextButton.animator.alphaValue = transport;
+            self->_albumArtGradientView.animator.alphaValue = gradient;
         }];
     } else {
         _closeButton.alphaValue = traffic;
@@ -419,6 +418,7 @@ API_AVAILABLE(macos(26.0))
         _playlistToggleButton.alphaValue = transport;
         _playButton.alphaValue = transport;
         _nextButton.alphaValue = transport;
+        _albumArtGradientView.alphaValue = gradient;
     }
 }
 
@@ -474,8 +474,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // it, and the waveform itself. First in, so everything else composites
 // above them.
 - (void)buildHeaderBackdrop {
-    NSRect headerPanelFrame = NSMakeRect(kHeaderPanelX, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
-    CGFloat cornerRadius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
+    NSRect headerPanelFrame = NSMakeRect(kArtSize, kPlaylistHeight, kHeaderPanelWidth, kHeaderHeight);
     if (@available(macOS 26.0, *)) {
         _backgroundGlassView = [[VibePassthroughGlassView alloc] initWithFrame:headerPanelFrame];
     }
@@ -486,9 +485,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
         frost.material = NSVisualEffectMaterialUnderWindowBackground;
         _backgroundGlassView = frost;
     }
-    [MainPlayerContentView applyCornerRadius:cornerRadius toBackdrop:_backgroundGlassView];
-    // Width-flexible, so the bleed stays past the moving right edge. The
-    // height must not be flexible; see the playlist frost's note below.
+    [MainPlayerContentView applyCornerRadius:0 toBackdrop:_backgroundGlassView];
+    // The height must not be flexible; see the playlist frost's note below.
     _backgroundGlassView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     [self addSubview:_backgroundGlassView];
 
@@ -498,8 +496,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // color.
     _headerTintView = [[VibePassthroughView alloc] initWithFrame:_backgroundGlassView.frame];
     _headerTintView.wantsLayer = YES;
-    _headerTintView.layer.cornerRadius = cornerRadius;
-    _headerTintView.layer.masksToBounds = YES;
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
     [self addSubview:_headerTintView];
 
@@ -545,6 +541,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     // AppKit creates its own backing layer first and the view ends up
     // layer-backed.
     _albumArtGradientView.layer = artGradient;
+    _albumArtGradientView.identifier = @"buttonGradient";
     _albumArtGradientView.wantsLayer = YES;
     _albumArtGradientView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
     [self addSubview:_albumArtGradientView];
@@ -827,10 +824,17 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
 
-// The gradient, when on, makes the backdrop dark whatever the cover; off,
-// the art's own lower band decides.
+- (BOOL)transportGradientEnabled {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    return theme.showTransportButtons
+            && ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_NONE]
+            && (![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK] || _transportHasArtwork);
+}
+
+// Hover gradients fade with the buttons, so enabled gradients give visible
+// buttons a dark backdrop; otherwise the image's own lower band decides.
 - (BOOL)transportBackdropIsDark {
-    return AppSettings.sharedInstance.currentTheme.buttonGradient || _transportBackdropDark;
+    return self.transportGradientEnabled || _transportBackdropDark;
 }
 
 - (void)applyThemedTransportButtons {
@@ -845,14 +849,15 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                        theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
                        kVibeThemeColorNextButton, dark);
     [self dressPlayButton];
-    _albumArtGradientView.hidden = !theme.buttonGradient;
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
-- (void)setTransportBackdropDark:(BOOL)dark {
-    if (_transportBackdropDark == dark) {
+- (void)setTransportBackdropDark:(BOOL)dark hasArtwork:(BOOL)hasArtwork {
+    if (_transportBackdropDark == dark && _transportHasArtwork == hasArtwork) {
         return;
     }
     _transportBackdropDark = dark;
+    _transportHasArtwork = hasArtwork;
     [self applyThemedTransportButtons];
 }
 
@@ -912,7 +917,7 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
 
 // The one home of the pre/post-26 backdrop dichotomy: Liquid Glass takes a
 // layer radius, the frost fallback a regenerated mask (its blur region
-// ignores a layer radius). Both build paths and both live re-applies call it.
+// ignores a layer radius).
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop {
     if (@available(macOS 26.0, *)) {
         if ([backdrop isKindOfClass:NSGlassEffectView.class]) {
@@ -924,11 +929,6 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
         ((NSVisualEffectView *)backdrop).maskImage =
                 [MainPlayerContentView frostCornerMaskWithRadius:radius];
     }
-}
-
-- (void)applyCornerRadius:(CGFloat)radius {
-    [MainPlayerContentView applyCornerRadius:radius toBackdrop:_backgroundGlassView];
-    _headerTintView.layer.cornerRadius = radius;
 }
 
 // A stretchable rounded-rect alpha mask, cap-inset so the corners never

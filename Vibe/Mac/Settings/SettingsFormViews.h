@@ -28,10 +28,18 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SettingsAccentRowView : NSTableRowView
 @end
 
+// TRAP: scrolling documents are flipped so relayout keeps their top in place.
+@interface SettingsStackView : NSStackView
+@end
+
 // Where a form row's title starts within its card.
 static const CGFloat kSettingsRowInset = 16;
 
 @interface SettingsRowView : NSView
+
+// Updates the control and its row's readout labels together, including
+// asynchronous enablement changes outside a pane refresh.
++ (void)setControl:(NSControl *)control enabled:(BOOL)enabled;
 
 // The title may end with a localized colon (the strings are shared with the
 // old form layout); it is stripped for display. nil title: the control
@@ -53,6 +61,7 @@ static const CGFloat kSettingsRowInset = 16;
 + (instancetype)rowWithContentView:(NSView *)contentView;
 
 // Shared setup; panes supply selection policy, column titles and actions.
+// An "icon" column is untitled and fixed at the shared glyph width.
 + (NSTableView *)listTableWithColumnIdentifiers:(NSArray<NSUserInterfaceItemIdentifier> *)identifiers
                                      delegate:(id<NSTableViewDelegate, NSTableViewDataSource>)delegate;
 
@@ -67,7 +76,7 @@ static const CGFloat kSettingsRowInset = 16;
 + (NSTableRowView *)listRowViewForRow:(NSInteger)row;
 
 // A reusable list cell: text (NSNoImage), icon and text
-// (NSImageLeft), or a centered icon (NSImageOnly).
+// (NSImageLeft), or a centered bold symbol (NSImageOnly).
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
                                 inTableView:(NSTableView *)table
                               imagePosition:(NSCellImagePosition)imagePosition;

@@ -24,7 +24,8 @@ static const CGFloat kCupertinoBarWidth = 1;
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
-    return kCupertinoBarWidth / MAX((CGFloat)1, self.barDensity);
+    return [self scaledBarWidth:kCupertinoBarWidth / MAX((CGFloat)1, self.barDensity)
+                         pitch:width / count];
 }
 
 // ±level rather than the peak envelope: every bar is centered on the midline
@@ -129,7 +130,16 @@ static const CGFloat kSeekBandHeight = 28;
 
 - (CGFloat)pillHeight {
     CGFloat height = self.hoverHighlightX >= 0 ? kPillHoverHeight : kPillHeight;
-    return MIN(height, _bounds.size.height);
+    return MIN(height * self.barWidthScale, _bounds.size.height);
+}
+
+- (void)setBarWidthScale:(CGFloat)scale {
+    if (self.barWidthScale == scale) return;
+    [super setBarWidthScale:scale];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [self layoutPill];
+    [CATransaction commit];
 }
 
 // Places all three layers for the current bounds, hover state and progress.
@@ -140,8 +150,6 @@ static const CGFloat kSeekBandHeight = 28;
         return;
     }
     CGFloat height = [self pillHeight];
-    // Whole points, so the pill's edges sit on device pixels at any backing
-    // scale — which is also why backingScaleDidChange needs no rebuild here.
     CGFloat y = round(CGRectGetMidY(_bounds) - height / 2);
     _track.frame = CGRectMake(CGRectGetMinX(_bounds), y, _bounds.size.width, height);
     _track.cornerRadius = height / 2;
@@ -182,7 +190,9 @@ static const CGFloat kSeekBandHeight = 28;
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
-    CGFloat height = MIN(kSeekBandHeight, bounds.size.height);
+    CGFloat height = MAX(kSeekBandHeight, kPillHoverHeight * self.barWidthScale
+                                        + kSeekBandHeight - kPillHoverHeight);
+    height = MIN(height, bounds.size.height);
     return CGRectMake(bounds.origin.x, CGRectGetMidY(bounds) - height / 2,
                       bounds.size.width, height);
 }

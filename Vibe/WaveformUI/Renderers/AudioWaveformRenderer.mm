@@ -18,6 +18,7 @@
         self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
         _hoverHighlightX = -1;
         _barDensity = 1;
+        _barWidthScale = 1;
     }
     return self;
 }
@@ -36,6 +37,16 @@
     _barDensity = density;
     // Stroke widths can change while the rounded count stays the same.
     [_morph rebuildNow];
+}
+
+- (void)setBarWidthScale:(CGFloat)scale {
+    if (_barWidthScale == scale) return;
+    _barWidthScale = scale;
+    [_morph rebuildNow];
+}
+
+- (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch {
+    return MIN(width * self.barWidthScale, pitch);
 }
 
 // Subclasses override this to paint, and call super to record the position.

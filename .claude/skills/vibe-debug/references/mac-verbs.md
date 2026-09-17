@@ -55,6 +55,8 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd key delete repeat   # `repeat` rides the modifier list but sets isARepeat — the only way to exercise a repeat guard (Remove from Playlist takes ONE row per press; the momentary FX keys ignore repeats). `delete` is Backspace, `forward_delete` its twin: different characters reaching different code
 ```
 
+`set_controls_hover on|off` calls the player's actual hover enter/exit handlers without moving the system pointer. It exercises the button and gradient fade, not AppKit tracking-area delivery. Wait 0.3 seconds for the fade, then inspect `dump_view_tree`'s `id: "buttonGradient"` node (`hidden`, and `alpha`, omitted when 1). A real cursor crossing or a settings refresh resumes the actual hover state.
+
 ## Files, playlist and caches
 
 `open` and `file_cache` read the path directly, so the sandbox may deny a file the app was never granted; `open -a "$APP" <file>` grants, so prefer paths opened this session.
@@ -171,7 +173,7 @@ seek 30
 sleep 0.5
 key space
 EOS
-.claude/skills/vibe-debug/scripts/run-script.sh <shots-dir> [file]   # decodes in-script screenshots to numbered PNGs
+.claude/skills/vibe-debug/scripts/run-script.sh [--assert '<jq predicate>'] <output-dir> [file]   # saves replies.jsonl and numbered PNGs; predicate checks the complete reply array after commands succeed (SKILL.md)
 ```
 
 ## Bit-perfect output

@@ -29,6 +29,22 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     id   _resizeObserver;
 }
 
+// Keep the controller's conversion guards when Undo follows the responder chain.
+- (IBAction)undo:(id)sender {
+    [NSApp sendAction:@selector(undo:) to:self.windowController from:sender];
+}
+
+- (IBAction)redo:(id)sender {
+    [NSApp sendAction:@selector(redo:) to:self.windowController from:sender];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(undo:) || item.action == @selector(redo:)) {
+        return [(id<NSMenuItemValidation>)self.windowController validateMenuItem:item];
+    }
+    return [super validateMenuItem:item];
+}
+
 - (instancetype)init {
     self = [super initWithContentRect:NSMakeRect(206, 444, kMainWindowContentWidth, kMainWindowDesignHeight)
                             styleMask:NSWindowStyleMaskBorderless |

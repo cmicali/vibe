@@ -86,13 +86,13 @@ static NSString *const kOnEndPause = @"pause";
     _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp];
     _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithRows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSITIONS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
             _crossfadeRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_CONTROLS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_PITCH_RANGE_LABEL control:pitchRadios],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SKIP_STEPS_LABEL control:_skipStepsPopUp],
-        ]],
-        [SettingsSectionView sectionWithRows:@[
             _enableFXRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
@@ -119,8 +119,8 @@ static NSString *const kOnEndPause = @"pause";
     // The pane is remeasured by the caller of every refresh, so the captions'
     // change answers go unread here.
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
-    _crossfadePopUp.enabled = !bitPerfect;
-    _enableFXSwitch.enabled = !bitPerfect;
+    [SettingsRowView setControl:_crossfadePopUp enabled:!bitPerfect];
+    [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
     [_crossfadeRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
     [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT
             : (self.playerController.audioPlayer.fx ? nil

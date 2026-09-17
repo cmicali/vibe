@@ -298,14 +298,13 @@
 }
 
 // The whole themed window shape in one pass: the contentView mask that
-// shapes the window, the glass backdrop, the header panel pieces, the solid
-// background cover, and the pitch panel's drawn right-edge corners.
+// shapes the window, the glass backdrop, the solid background cover, and
+// the pitch panel's drawn right-edge corners.
 - (void)applyWindowChrome {
     CGFloat radius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     NSView *contentView = self.window.contentView;
     contentView.layer.cornerRadius = radius;
     [MainPlayerContentView applyCornerRadius:radius toBackdrop:self.windowBackdropView];
-    [self.playerContentView applyCornerRadius:radius];
     [self applyWindowBackground];
     self->_pitchPanel.needsDisplay = YES;
     [self.window invalidateShadow];

@@ -10,6 +10,7 @@
 // Pushes the theme editor page for the active theme — the System
 // Settings-style sub-page this pane swaps to in place. View > Theme > Edit
 // Themes… lands here through SettingsWindowController.showThemeEditor.
+// A built-in is first copied, including its unsaved waveform changes.
 - (void)showThemeEditorForActiveTheme;
 
 // The toolbar navigation control's model: back pops the editor to the theme
@@ -36,10 +37,10 @@
 @property (readonly, nonatomic) BOOL canRandomize;
 - (void)randomizeThemeSettings;
 - (void)randomizeThemeColors;
-// The third segment: puts the theme back the way it was before the last
-// edit — any edit on the editor page, a roll included, drags coalesced —
-// most recent first, for as long as the edited theme stays active.
+// Theme history is shared by the toolbar and Edit menu on both pages.
 @property (readonly, nonatomic) BOOL canUndoEdit;
+@property (readonly, nonatomic) BOOL canRedoEdit;
 - (void)undoEdit;
+- (void)redoEdit;
 
 @end

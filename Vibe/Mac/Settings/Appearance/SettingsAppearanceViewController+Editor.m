@@ -44,25 +44,7 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return [key isEqualToString:dark] || [key isEqualToString:light];
 }
 
-// TRAP: the editor page's document view must be FLIPPED. An unflipped one
-// puts the document's top at its maxY — a moving target — while the clip view
-// keeps its bounds origin across geometry changes, so every relayout stranded
-// the content further off the top edge: the first card's top slid from its
-// correct 86 points to 72, then to 28 on a pane switch away and back, then to
-// -132 after a window resize, each time hiding more of the page under the
-// toolbar with no scroll gesture involved. Auto layout is flip-agnostic, so
-// the stack lays out identically either way; only the clip's idea of where
-// the top is changes.
-@interface SettingsEditorStackView : NSStackView
-@end
 
-@implementation SettingsEditorStackView
-
-- (BOOL)isFlipped {
-    return YES;
-}
-
-@end
 
 @implementation VibeDetentSlider
 
@@ -152,13 +134,15 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 // art-keyed (see kVibeThemeColorPlaylistButton), so they are captioned like
 // every pair but never registered with the single-mode collapse.
 - (NSStackView *)artKeyedImagePairForDarkKey:(NSString *)darkKey lightKey:(NSString *)lightKey {
-    return [self captionedPairWithDark:[self imageClusterForKey:darkKey]
-                                 light:[self imageClusterForKey:lightKey]];
+    return [self wellPair:[self imageClusterForKey:darkKey] caption:STR_SETTINGS_THEME_ON_DARK_ART
+                    well:[self imageClusterForKey:lightKey] caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
 }
 
 - (NSStackView *)artKeyedColorPairForBase:(NSString *)base {
-    return [self captionedPairWithDark:[self wellForDark:YES base:base effect:VibeSettingsLiveEffectTransportButtons]
-                                 light:[self wellForDark:NO base:base effect:VibeSettingsLiveEffectTransportButtons]];
+    return [self wellPair:[self wellForDark:YES base:base effect:VibeSettingsLiveEffectTransportButtons]
+                 caption:STR_SETTINGS_THEME_ON_DARK_ART
+                    well:[self wellForDark:NO base:base effect:VibeSettingsLiveEffectTransportButtons]
+                 caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
 }
 
 // A font row's trailing cluster: the current choice, then Select…, which
@@ -383,6 +367,25 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     return [theme buttonImageForKey:key] ?: PreviewGlyphImage([self glyphForImageKey:key]);
 }
 
+- (NSStackView *)waveformBarControlWithSlider:(NSSlider *__strong *)outSlider
+                                 valueLabel:(NSTextField *__strong *)outLabel {
+    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:kVibeThemeWaveformBarScaleDefault
+            minValue:kVibeThemeWaveformBarScaleMin maxValue:kVibeThemeWaveformBarScaleMax
+            target:self action:@selector(waveformBarSizingChanged:)];
+    slider.detentValue = kVibeThemeWaveformBarScaleDefault;
+    slider.continuous = YES;
+    [slider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    NSTextField *label = [NSTextField labelWithString:@""];
+    label.textColor = NSColor.secondaryLabelColor;
+    label.alignment = NSTextAlignmentRight;
+    [label.widthAnchor constraintEqualToConstant:50].active = YES;
+    *outSlider = slider;
+    *outLabel = label;
+    NSStackView *cluster = [NSStackView stackViewWithViews:@[slider, label]];
+    cluster.spacing = 10;
+    return cluster;
+}
+
 - (void)buildEditorPage {
     _imagePreviews = [NSMutableDictionary dictionary];
     _imageClearBadges = [NSMutableDictionary dictionary];
@@ -453,7 +456,12 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                         imageRows:@[[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_NEXT_IMAGE
                             control:[self artKeyedImagePairForDarkKey:kVibeThemeImageNextButtonDark
                                                              lightKey:kVibeThemeImageNextButtonLight]]]];
-    _buttonGradientSwitch = [self switchWithAction:@selector(toggleButtonGradient:)];
+    _transportButtonsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _buttonGradientPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(buttonGradientChanged:)];
+    [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_NONE value:SETTINGS_VALUE_BUTTON_GRADIENT_NONE to:_buttonGradientPopUp];
+    [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_HOVER value:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER to:_buttonGradientPopUp];
+    [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ARTWORK value:SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK to:_buttonGradientPopUp];
+    [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ALWAYS value:SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS to:_buttonGradientPopUp];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_GLASS value:SETTINGS_VALUE_WINDOW_BACKGROUND_GLASS to:_backgroundPopUp];
@@ -495,7 +503,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_playlistBackgroundPopUp];
 
-    _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
+    _fileInfoSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _statusIconsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _timeLabelsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
                                               target:self action:@selector(timeDisplayChanged:)];
     _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
@@ -521,19 +531,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             effect:VibeSettingsLiveEffectTrackDisplay];
 
     _waveformPopUp = [self waveformStylePopUpButton];
-    VibeDetentSlider *densitySlider = [VibeDetentSlider sliderWithValue:kVibeThemeWaveformBarDensityDefault
-            minValue:kVibeThemeWaveformBarDensityMin maxValue:kVibeThemeWaveformBarDensityMax
-            target:self action:@selector(waveformBarDensityChanged:)];
-    densitySlider.detentValue = kVibeThemeWaveformBarDensityDefault;
-    densitySlider.continuous = YES;
-    [densitySlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
-    _waveformBarDensitySlider = densitySlider;
-    _waveformBarDensityValue = [NSTextField labelWithString:@""];
-    _waveformBarDensityValue.textColor = NSColor.secondaryLabelColor;
-    _waveformBarDensityValue.alignment = NSTextAlignmentRight;
-    [_waveformBarDensityValue.widthAnchor constraintEqualToConstant:50].active = YES;
-    NSStackView *densityCluster = [NSStackView stackViewWithViews:@[densitySlider, _waveformBarDensityValue]];
-    densityCluster.spacing = 10;
+    NSStackView *densityCluster = [self waveformBarControlWithSlider:&_waveformBarDensitySlider
+            valueLabel:&_waveformBarDensityValue];
+    NSStackView *widthCluster = [self waveformBarControlWithSlider:&_waveformBarWidthSlider
+            valueLabel:&_waveformBarWidthValue];
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
@@ -623,18 +624,24 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistFontValue = playlistFontValue;
     _playlistDurationFontValue = playlistDurationFontValue;
 
-    // The Info section is captured so its rows can be disabled as a group
-    // when Show file info is off (see resolveLayoutStateFromSettings).
-    _infoSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+    _infoFontRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster];
+    _fileInfoRows = @[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO control:infoColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
         [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+    ];
+    NSMutableArray<SettingsRowView *> *infoRows = [NSMutableArray arrayWithArray:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_STATUS_ICONS control:_statusIconsSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+        _infoFontRow,
+    ]];
+    [infoRows addObjectsFromArray:_fileInfoRows];
+    _timeSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_SECTION_TIME rows:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TIME_LABELS control:_timeLabelsSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
     ]];
 
     NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
@@ -658,11 +665,14 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW control:selectedRowColors]];
 
     NSMutableArray<SettingsRowView *> *transportRows =
-        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
+        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TRANSPORT_BUTTONS
+                                                            control:_transportButtonsSwitch]];
     [transportRows addObjectsFromArray:playlistButtonRows];
     [transportRows addObjectsFromArray:playButtonRows];
     [transportRows addObjectsFromArray:nextButtonRows];
-    [transportRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch]];
+    [transportRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientPopUp]];
+
+    _transportSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows];
 
     NSArray<NSView *> *sections = @[
         // The pair swaps visibility — exactly one shows — so the second row
@@ -684,8 +694,11 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],
             _customDarkRow,
             _customLightRow,
@@ -695,14 +708,15 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows],
-        _infoSection,
+        _transportSection,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
+        _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
     _nameRow.showsTopSeparator = NO;
-    SettingsEditorStackView *editorStack =
-            [[SettingsEditorStackView alloc] initWithFrame:NSZeroRect];
+    SettingsStackView *editorStack =
+            [[SettingsStackView alloc] initWithFrame:NSZeroRect];
     for (NSView *section in sections) {
         [editorStack addArrangedSubview:section];
     }
@@ -820,7 +834,10 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     ForEachDescendantView(view, ^(NSView *subview) {
         if ([subview isKindOfClass:NSControl.class]) {
-            ((NSControl *)subview).enabled = enabled;
+            [SettingsRowView setControl:(NSControl *)subview enabled:enabled];
+            if (!enabled && [subview isKindOfClass:NSColorWell.class]) {
+                [(NSColorWell *)subview deactivate];
+            }
         }
     });
 }
@@ -861,8 +878,11 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     for (NSString *key in _glyphPopUps) {
         [self selectGlyphChoiceForButtonImageKey:key];
     }
-    _buttonGradientSwitch.state = StateForBOOL(theme.buttonGradient);
+    [self selectValue:theme.buttonGradient in:_buttonGradientPopUp];
 
+    _transportButtonsSwitch.state = StateForBOOL(theme.showTransportButtons);
+    _statusIconsSwitch.state = StateForBOOL(theme.showStatusIcons);
+    _timeLabelsSwitch.state = StateForBOOL(theme.showTimeLabels);
     _fileInfoSwitch.state = StateForBOOL(theme.showFileInfo);
     BOOL remaining = theme.showRemainingTime;
     _timeTotalRadio.state = StateForBOOL(!remaining);
@@ -874,8 +894,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _keyColorsSwitch.state = StateForBOOL(theme.keyColorsEnabled);
 
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
-    _waveformBarDensitySlider.doubleValue = theme.waveformBarDensity;
-    [self refreshWaveformBarDensityValue];
+    [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
@@ -900,22 +919,31 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     // The built-in page's one live control sits inside the swept stack now
     // that the caption row is a card row: without this, a built-in could
     // never be duplicated from its own page. Observed, not hypothetical.
-    _duplicateButton.enabled = YES;
+    [SettingsRowView setControl:_duplicateButton enabled:YES];
     if (!builtIn) {
-        // Everything below Show file info dims when it is off — the header
-        // shows none of it, so nothing those rows govern is on screen.
-        BOOL info = AppSettings.sharedInstance.currentTheme.showFileInfo;
-        SetDescendantControlsEnabled(_infoSection, info);
-        _fileInfoSwitch.enabled = YES; // the toggle that governs them stays live
+        BOOL info = theme.showFileInfo;
+        for (SettingsRowView *row in _fileInfoRows) {
+            SetDescendantControlsEnabled(row, info);
+        }
+        // These readouts share one font, even when only one group is visible.
+        SetDescendantControlsEnabled(_infoFontRow, info || theme.showStatusIcons || theme.showTimeLabels);
+        SetDescendantControlsEnabled(_transportSection, theme.showTransportButtons);
+        [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
+        SetDescendantControlsEnabled(_timeSection, theme.showTimeLabels);
+        [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
         // Key notation and key colors additionally require Show key.
-        _keyNotationPopUp.enabled = info && showKey;
-        _keyColorsSwitch.enabled = info && showKey;
+        [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];
+        [SettingsRowView setControl:_keyColorsSwitch enabled:info && showKey];
         // The slider governs nothing while the window draws the standard radius.
-        _cornerRadiusSlider.enabled = theme.customCornerRadius;
-        _waveformBarDensitySlider.enabled = [WaveformRendererRegistry supportsBarDensityForIdentifier:
-                [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]];
+        [SettingsRowView setControl:_cornerRadiusSlider enabled:theme.customCornerRadius];
+        NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
+        [SettingsRowView setControl:_waveformBarDensitySlider
+                enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
+        [SettingsRowView setControl:_waveformBarWidthSlider
+                enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
     }
-    if (builtIn) {
+    if (builtIn || (_fontEditingSlot == VibeFontSlotInfo
+            && !(theme.showFileInfo || theme.showStatusIcons || theme.showTimeLabels))) {
         [self closeEditorPanels];
     }
 }
@@ -1144,18 +1172,29 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     [self refreshFromSettings];
 }
 
-- (void)toggleButtonGradient:(id)sender {
+- (void)buttonGradientChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.buttonGradient =
-            (_buttonGradientSwitch.state == NSControlStateValueOn);
+            _buttonGradientPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];
 }
 
 #pragma mark - Editor: info display
 
-- (void)toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-    // The rows it governs enable/disable with it.
+- (void)toggleThemeVisibility:(NSSwitch *)sender {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL show = sender.state == NSControlStateValueOn;
+    VibeSettingsLiveEffect effect = VibeSettingsLiveEffectTrackDisplay;
+    if (sender == _transportButtonsSwitch) {
+        theme.showTransportButtons = show;
+        effect = VibeSettingsLiveEffectTransportButtons;
+    } else if (sender == _statusIconsSwitch) {
+        theme.showStatusIcons = show;
+    } else if (sender == _timeLabelsSwitch) {
+        theme.showTimeLabels = show;
+    } else {
+        theme.showFileInfo = show;
+    }
+    [self themeFieldDidChange:effect];
     [self refreshFromSettings];
 }
 
@@ -1189,20 +1228,27 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 #pragma mark - Editor: waveform
 
-- (void)waveformBarDensityChanged:(id)sender {
-    double density = round(_waveformBarDensitySlider.doubleValue * 100) / 100;
-    if (fabs(density - kVibeThemeWaveformBarDensityDefault) < 0.08) {
-        density = kVibeThemeWaveformBarDensityDefault;
+- (void)waveformBarSizingChanged:(NSSlider *)sender {
+    double scale = round(sender.doubleValue * 100) / 100;
+    if (fabs(scale - kVibeThemeWaveformBarScaleDefault) < 0.08) {
+        scale = kVibeThemeWaveformBarScaleDefault;
     }
-    AppSettings.sharedInstance.currentTheme.waveformBarDensity = density;
-    _waveformBarDensitySlider.doubleValue = AppSettings.sharedInstance.currentTheme.waveformBarDensity;
-    [self refreshWaveformBarDensityValue];
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (sender == _waveformBarWidthSlider) theme.waveformBarWidth = scale;
+    else theme.waveformBarDensity = scale;
+    [self refreshWaveformBarSizing];
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle continuous:YES];
 }
 
-- (void)refreshWaveformBarDensityValue {
+- (void)refreshWaveformBarSizing {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    _waveformBarDensitySlider.doubleValue = theme.waveformBarDensity;
+    _waveformBarWidthSlider.doubleValue = theme.waveformBarWidth;
     _waveformBarDensityValue.stringValue = [NSNumberFormatter
-            localizedStringFromNumber:@(AppSettings.sharedInstance.currentTheme.waveformBarDensity)
+            localizedStringFromNumber:@(theme.waveformBarDensity)
+            numberStyle:NSNumberFormatterPercentStyle];
+    _waveformBarWidthValue.stringValue = [NSNumberFormatter
+            localizedStringFromNumber:@(theme.waveformBarWidth)
             numberStyle:NSNumberFormatterPercentStyle];
 }
 
@@ -1254,6 +1300,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     if (notification.object != _nameField) {
         return;
     }
+    [(NSTextView *)_nameField.currentEditor setAllowsUndo:YES];
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];

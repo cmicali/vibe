@@ -213,6 +213,18 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeTransportCmd(@"low_kill_boost_on", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:YES]; }),
             VibeTransportCmd(@"low_kill_boost_off", ^(MainPlayerController *controller) { [controller setLowKillBoostActive:NO]; }),
             VibeTransportCmd(@"toggle_size", ^(MainPlayerController *controller) { [controller toggleSize:nil]; }),
+            VibeDebugCmd(@"set_controls_hover <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                BOOL shown;
+                if (!VibeParseOnOff(tokens, &shown)) {
+                    return VibeErrorJSON(@"usage: set_controls_hover <on|off>");
+                }
+                NSEvent *event = [NSEvent enterExitEventWithType:shown ? NSEventTypeMouseEntered : NSEventTypeMouseExited
+                        location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                        windowNumber:controller.window.windowNumber context:nil eventNumber:0 trackingNumber:0 userData:NULL];
+                if (shown) [controller.playerContentView mouseEntered:event];
+                else [controller.playerContentView mouseExited:event];
+                return VibeJSONString(@{@"ok": @YES, @"controlsHover": @(shown)});
+            }),
             VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // Drives the loading indicator directly, so both of its modes
                 // can be captured without a real slow cloud open — which is

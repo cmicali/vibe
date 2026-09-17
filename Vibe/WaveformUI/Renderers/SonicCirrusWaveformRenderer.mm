@@ -289,7 +289,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     CGFloat vscale = totalHeight * kBarAmplitudeOfHeight;
 
     CGFloat barPitch = width / (CGFloat)count;
-    CGFloat blockWidth = MAX(barPitch * kBlockWidthRatio, 1 / MAX((CGFloat)1, self.barDensity));
+    CGFloat blockWidth = [self scaledBarWidth:MAX(barPitch * kBlockWidthRatio,
+            1 / MAX((CGFloat)1, self.barDensity)) pitch:barPitch];
 
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
     CGFloat bottomLineY = topLineY - kBottomBarSpacing;

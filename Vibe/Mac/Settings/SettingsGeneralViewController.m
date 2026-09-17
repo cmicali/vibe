@@ -115,12 +115,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _outputTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", @"name", @"type"] delegate:self];
     _outputTable.allowsEmptySelection = NO;
     _outputTable.accessibilityLabel = STR_SETTINGS_OUTPUT_LABEL;
-    NSTableColumn *icon = _outputTable.tableColumns[0];
-    icon.title = @"";
-    icon.width = 36;
-    icon.minWidth = 36;
-    icon.maxWidth = 36;
-    icon.resizingMask = NSTableColumnNoResizing;
     NSTableColumn *name = _outputTable.tableColumns[1];
     name.title = STR_SETTINGS_DEVICE_NAME;
     name.width = 300;
@@ -182,7 +176,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
     BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
-    _bitPerfectSwitch.enabled = on || eligible; // an unavailable saved device must not trap the mode on
+    [SettingsRowView setControl:_bitPerfectSwitch enabled:on || eligible]; // an unavailable saved device must not trap the mode on
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *caption;
     if (!eligible) {
@@ -200,7 +194,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
             device.isSystemDefault);
     BOOL exclusiveSupported = exclusiveEligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
-    _exclusiveOutputSwitch.enabled = on && exclusiveSupported;
+    [SettingsRowView setControl:_exclusiveOutputSwitch enabled:on && exclusiveSupported];
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
@@ -325,19 +319,16 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSString *symbolName;
     NSString *typeName = [self typeNameForDevice:device symbolName:&symbolName];
     BOOL enabled = [self tableView:tableView shouldSelectRow:row];
+    cell.alphaValue = enabled ? 1 : 0.5;
     if (iconColumn) {
-        cell.imageView.symbolConfiguration =
-                [NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightBold];
         cell.imageView.image = [NSImage imageWithSystemSymbolName:row == 0 ? @"desktopcomputer" : symbolName
                                        accessibilityDescription:row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName];
-        cell.imageView.alphaValue = enabled ? 1.0 : 0.4;
         cell.toolTip = row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName;
     }
     else {
         cell.textField.stringValue = [tableColumn.identifier isEqualToString:@"type"]
                 ? typeName : row > 0 ? device.name : device
                         ? [NSString stringWithFormat:STR_MENU_OUTPUT_SYSTEM_NAMED, device.name] : STR_MENU_OUTPUT_SYSTEM;
-        cell.textField.textColor = enabled ? NSColor.labelColor : NSColor.disabledControlTextColor;
         cell.toolTip = cell.textField.stringValue;
     }
     return cell;
@@ -403,7 +394,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
 
 - (void)renderDefaultPlayerState:(BOOL)isDefault {
     _defaultPlayerButton.title = [self defaultPlayerTitle:isDefault];
-    _defaultPlayerButton.enabled = !isDefault;
+    [SettingsRowView setControl:_defaultPlayerButton enabled:!isDefault];
 }
 
 @end

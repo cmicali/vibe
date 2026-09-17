@@ -147,9 +147,12 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 // Multiplier of the designed count; defaults to 1. Detailed and the pill ignore it.
 @property (nonatomic) CGFloat barDensity;
+// Multiplier of bar/stroke thickness, independent of count; defaults to 1.
+@property (nonatomic) CGFloat barWidthScale;
 
 // Basic, Cupertino and Sonic Cirrus share a 4pt pitch and a 1,024-bar cap.
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;
+- (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
 
 // One energy level per bar. Stride permits interleaved envelopes without a
 // temporary sample buffer; the caller supplies their sign and symmetry.

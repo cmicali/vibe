@@ -122,7 +122,7 @@
     XCTAssertEqualObjects(settings.artworkDragAction, @"copy_file");
 }
 
-- (void)testFactoryResetRestoresDerivedSettingsAndLeavesOtherStoresAlone {
+- (void)testResetRestoresDerivedSettingsAndLeavesOtherStoresAlone {
     AppSettings *settings = [self freshSettings];
     NSString *foreignKey = @"SettingsRulesTests.foreignStore";
     [NSUserDefaults.standardUserDefaults setObject:@"keep" forKey:foreignKey];

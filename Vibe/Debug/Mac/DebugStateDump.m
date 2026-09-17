@@ -185,7 +185,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"dockIcon": theme.dockIcon,
             @"appIconShape": @(theme.appIconShape),
             @"appIcon": [theme imageReferenceForKey:kVibeThemeImageAppIcon],
-            @"buttonGradient": @(theme.buttonGradient),
+            @"buttonGradient": theme.buttonGradient,
             @"playlistNumberColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistNumber]),
             @"playlistTitleColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]),
             @"playlistArtistColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistArtist]),

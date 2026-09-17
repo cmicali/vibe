@@ -58,6 +58,58 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
            [identifier isEqualToString:kWiggleIdentifier] || [identifier isEqualToString:kWiggleMCIdentifier];
 }
 
++ (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier {
+    return [identifier isEqualToString:@"cupertino_basic"] || [self supportsBarDensityForIdentifier:identifier];
+}
+
++ (BOOL)supportsLevelsForIdentifier:(NSString *)identifier {
+    return ![identifier isEqualToString:@"cupertino_basic"];
+}
+
++ (CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
+                              theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
+                           barWidth:(CGFloat)barWidth
+                          normalize:(BOOL)normalize gainDB:(float)gainDB {
+    CGRect bounds = CGRectMake(0, 0, 360, 64);
+    CALayer *layer = [CALayer layer];
+    layer.bounds = bounds;
+    layer.contentsScale = 2;
+    AudioWaveform waveform;
+    for (NSUInteger i = 0; i < waveform.getNumChunks(); i++) {
+        float x = (float)i / (float)waveform.getNumChunks();
+        float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
+                + 0.16f * fabsf(sinf(x * 109));
+        // Fine transients keep the higher-resolution styles visible in a thumbnail.
+        float level = envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
+        AudioWaveformCacheChunk chunk;
+        chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, level * level * 0.5f, 1);
+        waveform.setChunkAtIndex(chunk, i);
+    }
+    AudioWaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
+            layer:layer bounds:bounds isDark:dark];
+    renderer.theme = theme;
+    renderer.barDensity = barDensity;
+    renderer.barWidthScale = barWidth;
+    renderer.normalizesLevels = normalize;
+    renderer.gainDB = gainDB;
+    [renderer updateColors:dark];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [renderer updateWaveform:bounds progress:0.4 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    [CATransaction commit];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(NULL, 720, 128, 8, 0, space,
+            kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!context) return NULL;
+    CGContextScaleCTM(context, 2, 2);
+    [layer renderInContext:context];
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    return image;
+}
+
 + (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     Class renderer = [self renderersByIdentifier][identifier];

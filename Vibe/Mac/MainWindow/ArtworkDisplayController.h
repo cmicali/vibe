@@ -64,8 +64,8 @@ NS_ASSUME_NONNULL_BEGIN
 // as dark — sampled from the very image on screen, the placeholder included,
 // so the buttons pick their color from what is under them rather than from
 // the appearance. Fires with every install and default; the receiver drops
-// an unchanged answer.
-@property (nonatomic, copy) void (^transportBackdropDidChangeHandler)(BOOL dark);
+// an unchanged answer. hasArtwork excludes the theme's default image.
+@property (nonatomic, copy) void (^transportBackdropDidChangeHandler)(BOOL dark, BOOL hasArtwork);
 
 // Reflects the track's art; a nil track shows the default. New art replaces
 // old art directly, and while a track's art is still unresolved the previous
