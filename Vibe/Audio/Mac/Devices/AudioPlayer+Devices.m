@@ -473,9 +473,13 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     // Choosing the already-active System Output device can make a wanted
     // mode eligible for the first time. Rebuild so the current track gets
     // prepared too; merely pinning the unit would leave its old rate behind.
-    BOOL needsPreparation = (_bitPerfectWanted && outputDeviceID >= 0
-            && _preparedDeviceID != newDeviceID)
-            || (!_bitPerfectWanted && _node && !self.varispeed);
+    // The same holds for a switch whose destination wants the mode off while
+    // this device is its system default too: the unit does not move, but the
+    // prepared device and the FX route are still the mode's.
+    BOOL needsPreparation = (_bitPerfectWanted
+            ? outputDeviceID >= 0 && _preparedDeviceID != newDeviceID
+            : (_node && !self.varispeed) || _preparedDeviceID != kAudioObjectUnknown)
+            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted);
     if (newDeviceID != currentDeviceID || needsPreparation) {
         if (![self configureOutputDeviceOnQueue:newDeviceID]) {
             // configureOutputDeviceOnQueue has already reported the error.
@@ -995,8 +999,16 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 @implementation AudioPlayer (Devices)
 
-- (void)setOutputDevice:(NSInteger)outputDeviceID {
+- (void)setOutputDevice:(NSInteger)outputDeviceID
+       bitPerfectOutput:(BOOL)bitPerfectOutput
+        exclusiveOutput:(BOOL)exclusiveOutput {
     dispatch_async(_queue, ^{
+        BOOL previousBitPerfect = self->_bitPerfectWanted;
+        self->_bitPerfectWanted = bitPerfectOutput;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        BOOL previousExclusive = self->_exclusiveOutputWanted;
+        self->_exclusiveOutputWanted = exclusiveOutput;
+#endif
         // System Output is a policy intent, so it supersedes a saved concrete
         // device even when no output currently exists. Clear before binding to
         // fence a resolver completion already queued behind this selection.
@@ -1018,7 +1030,13 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         // (a HAL read failure, and no output device existing at all) included.
         // A failed graph reconfiguration is the one case that commits nothing:
         // the engine did not move, so neither the requested id nor Settings may
-        // claim it did.
+        // claim it did — and the modes stay with the device still bound.
+        if (self.currentlyRequestedAudioDeviceId != outputDeviceID) {
+            self->_bitPerfectWanted = previousBitPerfect;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            self->_exclusiveOutputWanted = previousExclusive;
+#endif
+        }
     });
 }
 

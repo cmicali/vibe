@@ -215,8 +215,14 @@ NS_ASSUME_NONNULL_BEGIN
 // outputDeviceID is a CoreAudio AudioDeviceID held as an NSInteger, or -1 to
 // follow the system default output. It is not a menu or array index. Device
 // IDs do not survive a reboot, so persistence goes by UID and name; see
-// initWithDeviceUID:.
-- (void)setOutputDevice:(NSInteger)outputDeviceID;
+// initWithDeviceUID:. The two modes are the destination's own — the shell
+// remembers them per device — and land before the one rebuild, so the switch
+// leaves the old device and prepares the new one each as its own settings
+// want: pushing them afterwards would first prepare, and could hog, a device
+// whose mode is off. A switch that commits nothing keeps the previous modes.
+- (void)setOutputDevice:(NSInteger)outputDeviceID
+       bitPerfectOutput:(BOOL)bitPerfectOutput
+        exclusiveOutput:(BOOL)exclusiveOutput;
 
 // Bit-perfect output. While on, each track's settlement sets the chosen
 // device to the file's rate and word length, and the chain is pruned to

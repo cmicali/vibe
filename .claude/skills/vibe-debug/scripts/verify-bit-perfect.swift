@@ -638,6 +638,12 @@ if acceptance || blackholeCheck {
         _ = debug(binary, ["set_reopen_playlist", reopen ? "on" : "off"])
         _ = debug(binary, ["dump_menu"])
         _ = debug(binary, ["click_menu", deviceName])
+        // The mode is remembered per device: a removal or a switch away keeps
+        // the loopback's entry, so clear it once the loopback is the saved device.
+        let uid = stringProperty(device, kAudioDevicePropertyDeviceUID)
+        let boundDeadline = Date().addingTimeInterval(2)
+        while player(binary)["outputDeviceUID"] as? String != uid && Date() < boundDeadline { pause(0.02) }
+        _ = debug(binary, ["set_bit_perfect", "off"])
         let deadline = Date().addingTimeInterval(2)
         while nominalRate(device) != before && Date() < deadline { pause(0.02) }
         let restored = nominalRate(device) == before && physicalFormats(device) == formatsBefore
@@ -825,9 +831,12 @@ if acceptance || blackholeCheck {
         waitFor("alternate device") { player(binary)["outputDeviceUID"] as? String == stringProperty(otherID, kAudioDevicePropertyDeviceUID) }
         requireRestored(device, before, formatsBefore, label: "device-switch-restoration")
         report(["case": "return-to-loopback", "phase": "switch"])
-        _ = debug(binary, ["set_bit_perfect", "off"])
+        // The alternate device has its own mode, off; the loopback kept its on.
+        guard bitPerfect(binary)["enabled"] as? Bool == false else { fail("the alternate device inherited the loopback's mode") }
         _ = debug(binary, ["click_menu", deviceName])
         waitFor("return to loopback") { player(binary)["outputDeviceUID"] as? String == stringProperty(device, kAudioDevicePropertyDeviceUID) }
+        waitFor("loopback's remembered mode") { bitPerfect(binary)["enabled"] as? Bool == true }
+        _ = debug(binary, ["set_bit_perfect", "off"])
     }
     }
     if deviceName.contains("BlackHole") {
@@ -886,6 +895,7 @@ if acceptance || blackholeCheck {
                 return (debug(binary, ["click_menu", deviceName], required: false)["ok"] as? Bool) == true
             }
             waitFor("BlackHole bound") { player(binary)["outputDeviceUID"] as? String == uid }
+            _ = debug(binary, ["set_bit_perfect", "off"]) // a removal keeps the device's remembered mode
             guard setVolumes(device, savedVolumes.map { ($0.0, 1) }) else { fail("reconnected BlackHole volume is not unity") }
         }
         if let mask = driverNumber(box, 0x76627466) {

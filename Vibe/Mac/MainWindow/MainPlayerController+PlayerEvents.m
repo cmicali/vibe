@@ -318,20 +318,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL bitPerfectBefore = settings.bitPerfectOutput;
     if (newDeviceIndex == -1) {
-        AppSettings.sharedInstance.audioOutputDeviceName = @"";
-        AppSettings.sharedInstance.audioOutputDeviceUID = @"";
-        // The one place the app turns bit-perfect output off rather than the
-        // user: the chosen device vanished or was absent at launch, and the player abandoned the mode
-        // before falling back to System Output. The report's enabled flag is
-        // the player's word for it — the launch-time announcement of System
-        // Output, made while the saved device is still binding, leaves the
-        // mode wanted and must not be read as a fallback.
-        if (AppSettings.sharedInstance.bitPerfectOutput && !audioPlayer.bitPerfectReport.enabled) {
-            LogInfo(@"bit-perfect: output fell back to System Output; persisting the mode off");
-            AppSettings.sharedInstance.bitPerfectOutput = NO;
-            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
-        }
+        settings.audioOutputDeviceName = @"";
+        settings.audioOutputDeviceUID = @"";
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -339,9 +330,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // failed transiently. Keep the previous persisted choice rather than
         // erasing it.
         if (device) {
-            AppSettings.sharedInstance.audioOutputDeviceName = device.name;
-            AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
+            settings.audioOutputDeviceName = device.name;
+            settings.audioOutputDeviceUID = device.uid;
         }
+    }
+    // Bit-perfect output is remembered per device, so it just moved with the
+    // saved one: a fallback to System Output reads off with nothing written,
+    // and the vanished device keeps its entry for when it is chosen again.
+    // The player already has the new modes — a switch carried them, a
+    // vanished device dropped them — so this only moves the shell's half.
+    if (settings.bitPerfectOutput != bitPerfectBefore) {
+        [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
     }
     [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
 }

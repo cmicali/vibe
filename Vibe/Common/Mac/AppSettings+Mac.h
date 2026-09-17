@@ -289,19 +289,32 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // every gate, bypassing the FX graph immediately), no varispeed, the
 // crossfade at the declick minimum, the pitch fader gone — and each track's
 // settlement sets the chosen device to the file's rate and word length.
+//
+// This and exclusiveOutput are remembered PER DEVICE, keyed by the CoreAudio
+// UID so a device keeps its choice while unplugged and gets it back when it
+// is chosen again. The plain accessors are the saved device's
+// (audioOutputDeviceUID); System Output, having no UID, is always off, which
+// is why the device-vanished fallback needs no write to turn the mode off.
+// Only a mode that is on is stored: turning one off deletes it, and the
+// device's entry with its last mode.
+//
 // The shell only turns it on for an eligible device (OutputFormatRules.h):
-// the General pane disables the switch
-// otherwise, the Output menu grays ineligible devices out while it is on, and
-// the device-vanished fallback turns it off. A writer requests
-// VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade.
+// the General pane disables the switch otherwise. A writer requests
+// VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade, and so does the
+// saved device moving (didChangeOutputDevice:), since every reader below
+// moves with it.
 - (BOOL)bitPerfectOutput;
 - (void)setBitPerfectOutput:(BOOL)enabled;
+// What a switch to that device hands the player with the device itself.
+- (BOOL)bitPerfectOutputForDeviceUID:(nullable NSString *)deviceUID;
 
-// Optional exclusive access while bit-perfect output is on, default NO.
-// The system output and virtual devices remain shared. Compiled-out builds
-// always read NO, even if an earlier build stored YES. Writers request
-// VibeSettingsLiveEffectBitPerfect; the FX and crossfade choices do not move.
+// Optional exclusive access while bit-perfect output is on, default NO and
+// per device like it. The system output and virtual devices remain shared.
+// Compiled-out builds always read NO, even if an earlier build stored YES.
+// Writers request VibeSettingsLiveEffectBitPerfect; the FX and crossfade
+// choices do not move.
 - (BOOL)exclusiveOutput;
+- (BOOL)exclusiveOutputForDeviceUID:(nullable NSString *)deviceUID;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled;
 #endif
