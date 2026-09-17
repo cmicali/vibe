@@ -62,14 +62,14 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 - (void)setWaveformStyle:(NSString*)identifier {
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:identifier];
-    if (_currentWaveformRenderer && [_styleIdentifier isEqualToString:style]) {
-        return; // unchanged style: keep the live layer tree and its state
+    if (!_currentWaveformRenderer || ![_styleIdentifier isEqualToString:style]) {
+        _styleIdentifier = style;
+        _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
+                layer:self.layer bounds:self.bounds isDark:self.isDark];
+        [self applyLevelSettings];
+        [self applyResolvedTheme];
     }
-    _styleIdentifier = style;
-    _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
-            layer:self.layer bounds:self.bounds isDark:self.isDark];
-    [self applyLevelSettings];
-    [self applyResolvedTheme];
+    _currentWaveformRenderer.barDensity = AppSettings.sharedInstance.currentTheme.waveformBarDensity;
     [self drawWaveform];
     [self updateRendererProgress];
 }

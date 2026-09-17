@@ -8,6 +8,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 **The gate's clamps:** identifiers snap to their ladders, numbers clamp (radius `[0, kVibeThemeCornerRadiusMax]`, font sizes to narrow layout-safe bands), colors must round-trip as hex, bools are numbers only, unknown fields drop — so a newer build's export imports as the defaults. `initWithRecord:`, `replaceWithRecord:`, every typed setter, `recordFromJSONData:` and the store's `+sanitizedRecord:` all run it. **Font faces are deliberately not validated against installed fonts**: `Fonts`' never-nil fallback owns that at resolve time, which keeps this class host-lessly testable (`AppThemeTests`).
 
+`waveformBarDensity` travels as `waveform.barDensity`, defaults to 1, and clamps to 0.5–4. It scales a supported style's count relative to its designed pitch, so window resizing still adds bars. The renderer registry owns style eligibility; the record keeps the value across style changes.
+
 ## The built-ins
 
 **A built-in is `Resources/Themes/<identifier>.json`** — the stem is the stable identifier, `name` the English display name — read through the same `recordFromJSONData:` gate as a user import. Adding one is the file (the directory is a folder reference in both the app and VibeTests, so no project edit) plus its identifier in `testBuiltInIdentifiers`, which keeps a dropped file loud. Order is `vibe` first, then alphabetical.

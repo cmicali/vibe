@@ -29,6 +29,7 @@ static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
+static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
 static NSString *const kFieldWindowTint = @"windowTint";
 static NSString *const kFieldPlaylistTint = @"playlistTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
@@ -368,6 +369,9 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWaveformTheme, waveform, @"theme", SETTINGS_VALUE_WAVEFORM_THEME_MONO,
                               LadderField(VibeNormalizedWaveformTheme))];
         [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
+        [rows addObject:Field(kFieldWaveformBarDensity, waveform, @"barDensity",
+                              @(kVibeThemeWaveformBarDensityDefault),
+                              NumberField(kVibeThemeWaveformBarDensityMin, kVibeThemeWaveformBarDensityMax, NO))];
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
 
@@ -1267,6 +1271,9 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (BOOL)waveformGradient { return [self boolForKey:kFieldWaveformGradient]; }
 - (void)setWaveformGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformGradient]; }
+
+- (double)waveformBarDensity { return [self floatForKey:kFieldWaveformBarDensity]; }
+- (void)setWaveformBarDensity:(double)v { [self storeSanitized:@(v) forKey:kFieldWaveformBarDensity]; }
 
 - (NSString *)windowTint { return [self stringForKey:kFieldWindowTint]; }
 - (void)setWindowTint:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowTint]; }

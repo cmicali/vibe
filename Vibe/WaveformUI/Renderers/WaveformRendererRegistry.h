@@ -25,6 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Localized display name, falling back to the identifier itself.
 + (NSString *)displayNameForIdentifier:(NSString *)identifier;
 
++ (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
+
 // The full resolution chain for a persisted style: the given identifier if
 // registered, else the app default, else an arbitrary registered style (a
 // last resort only — registry order is unspecified).

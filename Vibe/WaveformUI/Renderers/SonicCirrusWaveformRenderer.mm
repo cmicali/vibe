@@ -13,14 +13,6 @@
 
 // Each bar is drawn with two layers: layers[i*2] is the top bar, and
 // layers[i*2 + 1] the mirrored bottom bar.
-//
-// 128 bars across the 512pt design-width waveform: a designed pitch of 4pt,
-// and the count follows the width at that pitch, so a resize adds or removes
-// bars at their designed size rather than stretching the pitch. The cap
-// bounds the layer count — two CALayers per bar is the expensive layout here,
-// unlike the Detailed family's one shared mask path.
-static const CGFloat kBarPitch = 4;
-static const NSUInteger kMaxBarCount = 1024;
 
 // The geometry constants shared by the morph engine's frame-skip heuristic,
 // through the vscale block handed to it in init, by rebuildLayerFrames, and by
@@ -162,11 +154,6 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [CATransaction commit];
 }
 
-- (NSUInteger)barCountForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBarPitch);
-    return clampRange(count, (NSUInteger)2, kMaxBarCount);
-}
-
 // Matches the layer array to the bar count, two layers per bar, appending or
 // removing at the tail. A count change moves every bar's index, so the
 // progress boundary is rescaled to keep the played fraction — updateProgress:
@@ -260,7 +247,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
 
-    NSUInteger count = [self barCountForWidth:bounds.size.width];
+    NSUInteger count = [self blockBarCountForWidth:bounds.size.width];
     [self reconcileBarCount:count];
 
     // A resize changes which bar index sits under the kept x, so re-snap the
@@ -302,7 +289,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     CGFloat vscale = totalHeight * kBarAmplitudeOfHeight;
 
     CGFloat barPitch = width / (CGFloat)count;
-    CGFloat blockWidth = clampMin(barPitch * kBlockWidthRatio, 1);
+    CGFloat blockWidth = MAX(barPitch * kBlockWidthRatio, 1 / MAX((CGFloat)1, self.barDensity));
 
     CGFloat topLineY = round(totalHeight * (1 - kTopLineRatio));
     CGFloat bottomLineY = topLineY - kBottomBarSpacing;

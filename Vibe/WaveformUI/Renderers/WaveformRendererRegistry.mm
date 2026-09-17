@@ -52,6 +52,12 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
     return [self renderersByIdentifier].allKeys;
 }
 
++ (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier {
+    return [identifier isEqualToString:@"basic"] || [identifier isEqualToString:@"cupertino"] ||
+           [identifier isEqualToString:@"sonic_cirrus"] ||
+           [identifier isEqualToString:kWiggleIdentifier] || [identifier isEqualToString:kWiggleMCIdentifier];
+}
+
 + (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     Class renderer = [self renderersByIdentifier][identifier];

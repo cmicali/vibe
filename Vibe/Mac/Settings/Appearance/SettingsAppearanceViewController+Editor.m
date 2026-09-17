@@ -12,6 +12,7 @@
 #import "NSImage+Util.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
+#import "WaveformRendererRegistry.h"
 
 static const CGFloat kImagePreviewSize = 64;
 // The glyph an unset button image slot previews, at the transport row's
@@ -520,6 +521,19 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             effect:VibeSettingsLiveEffectTrackDisplay];
 
     _waveformPopUp = [self waveformStylePopUpButton];
+    VibeDetentSlider *densitySlider = [VibeDetentSlider sliderWithValue:kVibeThemeWaveformBarDensityDefault
+            minValue:kVibeThemeWaveformBarDensityMin maxValue:kVibeThemeWaveformBarDensityMax
+            target:self action:@selector(waveformBarDensityChanged:)];
+    densitySlider.detentValue = kVibeThemeWaveformBarDensityDefault;
+    densitySlider.continuous = YES;
+    [densitySlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _waveformBarDensitySlider = densitySlider;
+    _waveformBarDensityValue = [NSTextField labelWithString:@""];
+    _waveformBarDensityValue.textColor = NSColor.secondaryLabelColor;
+    _waveformBarDensityValue.alignment = NSTextAlignmentRight;
+    [_waveformBarDensityValue.widthAnchor constraintEqualToConstant:50].active = YES;
+    NSStackView *densityCluster = [NSStackView stackViewWithViews:@[densitySlider, _waveformBarDensityValue]];
+    densityCluster.spacing = 10;
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
@@ -671,6 +685,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],
             _customDarkRow,
             _customLightRow,
@@ -859,6 +874,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     _keyColorsSwitch.state = StateForBOOL(theme.keyColorsEnabled);
 
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
+    _waveformBarDensitySlider.doubleValue = theme.waveformBarDensity;
+    [self refreshWaveformBarDensityValue];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
@@ -895,6 +912,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         _keyColorsSwitch.enabled = info && showKey;
         // The slider governs nothing while the window draws the standard radius.
         _cornerRadiusSlider.enabled = theme.customCornerRadius;
+        _waveformBarDensitySlider.enabled = [WaveformRendererRegistry supportsBarDensityForIdentifier:
+                [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]];
     }
     if (builtIn) {
         [self closeEditorPanels];
@@ -1169,6 +1188,23 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 }
 
 #pragma mark - Editor: waveform
+
+- (void)waveformBarDensityChanged:(id)sender {
+    double density = round(_waveformBarDensitySlider.doubleValue * 100) / 100;
+    if (fabs(density - kVibeThemeWaveformBarDensityDefault) < 0.08) {
+        density = kVibeThemeWaveformBarDensityDefault;
+    }
+    AppSettings.sharedInstance.currentTheme.waveformBarDensity = density;
+    _waveformBarDensitySlider.doubleValue = AppSettings.sharedInstance.currentTheme.waveformBarDensity;
+    [self refreshWaveformBarDensityValue];
+    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle continuous:YES];
+}
+
+- (void)refreshWaveformBarDensityValue {
+    _waveformBarDensityValue.stringValue = [NSNumberFormatter
+            localizedStringFromNumber:@(AppSettings.sharedInstance.currentTheme.waveformBarDensity)
+            numberStyle:NSNumberFormatterPercentStyle];
+}
 
 - (void)toggleWaveformGradient:(id)sender {
     AppSettings.sharedInstance.currentTheme.waveformGradient =

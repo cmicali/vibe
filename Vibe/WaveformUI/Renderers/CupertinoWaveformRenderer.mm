@@ -24,7 +24,7 @@ static const CGFloat kCupertinoBarWidth = 1;
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
-    return kCupertinoBarWidth;
+    return kCupertinoBarWidth / MAX((CGFloat)1, self.barDensity);
 }
 
 // ±level rather than the peak envelope: every bar is centered on the midline

@@ -73,6 +73,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // vends; it follows macOS 26's window corners.
 #define kVibeThemeCornerRadiusDefault ((CGFloat)16)
 
+#define kVibeThemeWaveformBarDensityMin 0.5
+#define kVibeThemeWaveformBarDensityMax 4.0
+#define kVibeThemeWaveformBarDensityDefault 1.0
+
 // The font slots' factory sizes — the point size each slot draws at under
 // the Vibe theme, the defaults the field rows carry.
 #define kVibeThemeTitleFontBaseSize     ((CGFloat)23)
@@ -270,6 +274,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (readonly, nonatomic) BOOL isSingleMode;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
+@property (nonatomic) double waveformBarDensity;            // multiplier of the style's designed count
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/solid

@@ -24,7 +24,7 @@ Two families and one flat style, split by *how progress and hover quantize*:
 
 ## Bar count
 
-**The count follows the drawn width at the style's designed pitch** (`numBarsForWidth:`, `barCountForWidth:`, each with its own cap), so a resize adds bars rather than stretching them. The oversampling variants are the deliberate exception and keep fixed counts: their look is sub-pixel overlap, which a resize already preserves. Wiggle's count reads `samplingWidth` when set, so an iOS pinch stretches its loops instead of resampling them (`../iOS/CLAUDE.md`).
+**The count follows the drawn width at the style's designed pitch**, so a resize adds bars rather than stretching them. Basic, Cupertino and Sonic Cirrus share `blockBarCountForWidth:` (4pt, capped at 1,024); Detailed and Wiggle use `numBarsForWidth:`. `barDensity` multiplies the block and Wiggle counts, defaulting to 1; Detailed and its fixed-count oversampling variants ignore it, as does the flat Cupertino Basic pill. The registry's `supportsBarDensityForIdentifier:` gates the editor. Wiggle's count reads `samplingWidth` when set, so an iOS pinch stretches its loops instead of resampling them (`../iOS/CLAUDE.md`).
 
 ## The morph engine
 
