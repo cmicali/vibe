@@ -137,21 +137,12 @@
     if (effects & VibeSettingsLiveEffectConvertMenu) {
         [MainMenuBuilder applyConvertMenuVisibility];
     }
-    if (effects & VibeSettingsLiveEffectFXControls) {
-        if (!settings.audioFXAllowed) {
-            self.lowKillBoostActive = NO;
-            self.lowKillActive = NO;
-            self.reverbSendActive = NO;
-            self.delaySendActive = NO;
-            self.shortDelaySendActive = NO;
-        }
-        [MainMenuBuilder applyFXMenuVisibility];
-    }
     if (effects & (VibeSettingsLiveEffectBitPerfect | VibeSettingsLiveEffectFXControls)) {
-        // Send one graph decision after clearing FX; the report redraws on settlement.
         [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
                              exclusiveOutput:settings.exclusiveOutput
                                     enableFX:settings.audioFXEnabled];
+        [self updateFXIndicators];
+        [MainMenuBuilder applyFXMenuVisibility];
     }
 }
 

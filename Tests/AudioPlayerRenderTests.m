@@ -622,6 +622,47 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([self count:@"finish"], 0u);
 }
 
+- (void)testQueuedFXBypassPreservesLaterEffectActions {
+    for (NSNumber *bitPerfect in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.fx.lowKillEnabled = YES;
+        _player.fx.lowKillBoostActive = YES;
+        _player.fx.reverbSendEnabled = YES;
+        _player.fx.delaySendEnabled = YES;
+        _player.fx.shortDelaySendEnabled = YES;
+        (void)_player.debugEngineCounts;
+        // Hold engine work until the later UI actions have published their intent.
+        dispatch_queue_t queue = [_player valueForKey:@"queue"];
+        dispatch_suspend(queue);
+        @try {
+            [_player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue];
+            XCTAssertFalse(_player.fx.lowKillEnabled);
+            XCTAssertFalse(_player.fx.lowKillBoostActive);
+            XCTAssertFalse(_player.fx.reverbSendEnabled);
+            XCTAssertFalse(_player.fx.delaySendEnabled);
+            XCTAssertFalse(_player.fx.shortDelaySendEnabled);
+            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+            _player.fx.lowKillEnabled = YES;
+            _player.fx.lowKillBoostActive = YES;
+            _player.fx.reverbSendEnabled = YES;
+            _player.fx.delaySendEnabled = YES;
+            _player.fx.shortDelaySendEnabled = YES;
+        }
+        @finally {
+            dispatch_resume(queue);
+        }
+        XCTAssertTrue([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+        XCTAssertTrue(_player.fx.lowKillEnabled);
+        XCTAssertTrue(_player.fx.lowKillBoostActive);
+        XCTAssertTrue(_player.fx.reverbSendEnabled);
+        XCTAssertTrue(_player.fx.delaySendEnabled);
+        XCTAssertTrue(_player.fx.shortDelaySendEnabled);
+        [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+        NSData *wet = [self renderSeconds:0.6];
+        XCTAssertGreaterThan(RMS(wet, 2, 0, NSMakeRange(24000, 4800)), 0.000001);
+    }
+}
+
 - (void)testFailedAndEmptyOpenRecover {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *empty=[_temporary URLByAppendingPathComponent:@"empty.wav"];

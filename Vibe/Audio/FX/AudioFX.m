@@ -211,10 +211,6 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     [engine disconnectNodeOutput:engine.mainMixerNode];
     [engine disconnectNodeOutput:_masterMix];
     // A bypass must not freeze a wet tail or an unfinished sweep for the next enable.
-    os_unfair_lock_lock(&_stateLock);
-    _lowKillEnabled = _lowKillBoostActive = _reverbSendEnabled = NO;
-    _delaySendEnabled = _shortDelaySendEnabled = NO;
-    os_unfair_lock_unlock(&_stateLock);
     _lowKillRampGeneration++;
     _reverbSendRampGeneration++;
     [self setLowKillBandsFlat:YES];

@@ -1025,6 +1025,14 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 #pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
 
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX {
+    // Clear intent at submission: a queued bypass must not erase newer FX actions.
+    if (bitPerfectOutput || !enableFX) {
+        self.fx.lowKillBoostActive = NO;
+        self.fx.lowKillEnabled = NO;
+        self.fx.reverbSendEnabled = NO;
+        self.fx.delaySendEnabled = NO;
+        self.fx.shortDelaySendEnabled = NO;
+    }
     dispatch_async(_queue, ^{
         BOOL changed = self->_bitPerfectWanted != bitPerfectOutput
                 || (self->_fxEnabled && !self->_bitPerfectWanted) != (enableFX && !bitPerfectOutput);
