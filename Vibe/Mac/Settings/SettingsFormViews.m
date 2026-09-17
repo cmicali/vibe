@@ -16,6 +16,8 @@ static const CGFloat kHeaderCardGap = 6;
 // device table.
 static const CGFloat kListRowHeight = 24;
 static const CGFloat kListHeaderHeight = 28;
+// Full-width table cells supply the other six points of the Sound list inset.
+static const CGFloat kListTextInset = 4;
 
 // Sound settings reference, in its Display P3 color space: base, stripe, selection.
 static NSColor *ListColor(NSUInteger shade) {
@@ -296,8 +298,10 @@ static SettingsFillView *Hairline(NSView *in) {
                 : [_listTable rectOfColumn:(NSInteger)column];
         cell = [_listTable convertRect:cell toView:_listHeader];
         CGFloat height = label.intrinsicContentSize.height;
-        label.frame = NSMakeRect(NSMinX(cell) + kSettingsRowInset,
-                (kListHeaderHeight - height) / 2, MAX(0, NSWidth(cell) - 2 * kSettingsRowInset), height);
+        // A label frame includes two points before its text; Auto Layout uses
+        // its alignment rect for row text, giving the reference's 8/10-point insets.
+        label.frame = NSMakeRect(NSMinX(cell),
+                (kListHeaderHeight - height) / 2, NSWidth(cell), height);
     }
 }
 
@@ -315,7 +319,7 @@ static SettingsFillView *Hairline(NSView *in) {
         cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
         cell.identifier = identifier;
         NSLayoutXAxisAnchor *leading = cell.leadingAnchor;
-        CGFloat inset = kSettingsRowInset;
+        CGFloat inset = kListTextInset;
         if (imagePosition != NSNoImage) {
             NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
             icon.translatesAutoresizingMaskIntoConstraints = NO;
@@ -324,7 +328,7 @@ static SettingsFillView *Hairline(NSView *in) {
             [NSLayoutConstraint activateConstraints:@[
                 imagePosition == NSImageOnly
                         ? [icon.centerXAnchor constraintEqualToAnchor:cell.centerXAnchor]
-                        : [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
+                        : [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kListTextInset],
                 [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
                 [icon.widthAnchor constraintEqualToConstant:16],
                 [icon.heightAnchor constraintEqualToConstant:16],
@@ -341,7 +345,7 @@ static SettingsFillView *Hairline(NSView *in) {
             cell.textField = label;
             [NSLayoutConstraint activateConstraints:@[
                 [label.leadingAnchor constraintEqualToAnchor:leading constant:inset],
-                [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-kSettingsRowInset],
+                [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-kListTextInset],
                 [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
             ]];
         }

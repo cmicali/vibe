@@ -28,8 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SettingsAccentRowView : NSTableRowView
 @end
 
-// Where a row's title starts, and where a list's text starts
-// with it, so the two line up down a card — the System Settings alignment.
+// Where a form row's title starts within its card.
 static const CGFloat kSettingsRowInset = 16;
 
 @interface SettingsRowView : NSView
