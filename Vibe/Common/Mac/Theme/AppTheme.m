@@ -55,6 +55,7 @@ static NSString *const kFieldPlaylistFontFace = @"playlistFontFace";
 static NSString *const kFieldPlaylistFontSize = @"playlistFontSize";
 static NSString *const kFieldPlaylistDurationFontFace = @"playlistDurationFontFace";
 static NSString *const kFieldPlaylistDurationFontSize = @"playlistDurationFontSize";
+static NSString *const kFieldShowPlaylistNumberColumn = @"showPlaylistNumberColumn";
 static NSString *const kFieldShowPlaylistArtworkColumn = @"showPlaylistArtworkColumn";
 static NSString *const kFieldShowPlaylistDurationColumn = @"showPlaylistDurationColumn";
 static NSString *const kFieldCustomCornerRadius = @"customCornerRadius";
@@ -406,6 +407,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldPlaylistDurationFontFace, playlist, @"durationFontFace", @"", TextField())];
         [rows addObject:Field(kFieldPlaylistDurationFontSize, playlist, @"durationFontSize",
                               @(kVibeThemePlaylistDurationFontBaseSize), NumberField(10, 14, NO))];
+        [rows addObject:Field(kFieldShowPlaylistNumberColumn, playlist, @"showNumberColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistArtworkColumn, playlist, @"showArtworkColumn", @YES, BoolField())];
         [rows addObject:Field(kFieldShowPlaylistDurationColumn, playlist, @"showDurationColumn", @YES, BoolField())];
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistNumber, playlist, @"numberColor", kVibeThemeColorArtist);
@@ -1473,6 +1475,9 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
                                            light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
 }
 
+- (BOOL)showPlaylistNumberColumn { return [self boolForKey:kFieldShowPlaylistNumberColumn]; }
+- (void)setShowPlaylistNumberColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistNumberColumn]; }
+
 - (BOOL)showPlaylistArtworkColumn { return [self boolForKey:kFieldShowPlaylistArtworkColumn]; }
 - (void)setShowPlaylistArtworkColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistArtworkColumn]; }
 
@@ -1524,6 +1529,7 @@ static id RandomPick(NSArray *choices) {
     self.nextButtonGlyph = RandomPick(VibeNextButtonGlyphs());
     self.playlistBackgroundStyle = RandomPick(backgrounds);
     self.playlistTint = RandomPick(tints);
+    self.showPlaylistNumberColumn = RandomChance(75);
     self.showPlaylistArtworkColumn = RandomChance(75);
     self.showPlaylistDurationColumn = RandomChance(75);
     // One face for the text, at the factory sizes; the small numeric slots

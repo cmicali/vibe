@@ -321,6 +321,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;
+@property (nonatomic) BOOL showPlaylistNumberColumn;              // the playlist's number gutter
 @property (nonatomic) BOOL showPlaylistArtworkColumn;             // the playlist's art column
 @property (nonatomic) BOOL showPlaylistDurationColumn;            // the playlist's length column
 @property (nonatomic) BOOL keyColorsEnabled;

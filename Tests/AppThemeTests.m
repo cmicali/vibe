@@ -77,6 +77,7 @@
     XCTAssertTrue(theme.waveformGradient);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertEqual(theme.waveformBarWidth, 1);
+    XCTAssertTrue(theme.showPlaylistNumberColumn);
     XCTAssertTrue(theme.showPlaylistArtworkColumn);
     XCTAssertTrue(theme.showPlaylistDurationColumn);
     XCTAssertEqual(theme.playlistDurationFontSize, 12);

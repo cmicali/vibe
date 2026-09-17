@@ -561,6 +561,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
+    _playlistNumberSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
+            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistNumberColumn = on; }];
     _playlistArtworkSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
             write:^(AppTheme *theme, BOOL on) { theme.showPlaylistArtworkColumn = on; }];
     _playlistDurationSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
@@ -676,6 +678,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
                 control:playlistDurationFontCluster],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLUMN
+                control:_playlistNumberSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_ARTWORK
                 control:_playlistArtworkSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLUMN
@@ -907,6 +911,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
+    _playlistNumberSwitch.state = StateForBOOL(theme.showPlaylistNumberColumn);
     _playlistArtworkSwitch.state = StateForBOOL(theme.showPlaylistArtworkColumn);
     for (NSString *key in AppTheme.imageFieldKeys) {
         _imagePreviews[key].image = [self previewImageForKey:key];

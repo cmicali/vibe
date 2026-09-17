@@ -81,10 +81,11 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
     return self;
 }
 
-// The theme's two optional columns. The title column absorbs the freed width
+// The theme's three optional columns. The title column absorbs the freed width
 // through the sequential autoresizing the table already uses.
 - (void)applyThemedColumnVisibility {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    [self tableColumnWithIdentifier:kPlaylistColumnNumber].hidden = !theme.showPlaylistNumberColumn;
     [self tableColumnWithIdentifier:kPlaylistColumnArt].hidden = !theme.showPlaylistArtworkColumn;
     [self tableColumnWithIdentifier:kPlaylistColumnLength].hidden = !theme.showPlaylistDurationColumn;
 }
@@ -290,6 +291,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
     NSTableCellView *view = [self makeViewWithIdentifier:column.identifier owner:self];
     if (!view) {
         view = [self makeCellViewWithIdentifier:column.identifier width:column.width];
+    }
+    if ([column.identifier isEqualToString:kPlaylistColumnArt]) {
+        // With the number column hidden the art column leads the row, and its
+        // rect gains the full-width leading padding outside the cell: bleed
+        // across it so the cover stays flush with the row edge. Set on every
+        // fetch because a reused cell outlives a visibility toggle.
+        NSInteger index = [self columnWithIdentifier:kPlaylistColumnArt];
+        CGFloat leadingBleed = MAX(kArtworkCellBleed, NSWidth([self rectOfColumn:index]) - column.width);
+        view.imageView.frame = NSMakeRect(-leadingBleed, -kArtworkCellBleed,
+                                          column.width + leadingBleed + kArtworkCellBleed,
+                                          self.rowHeight + 2 * kArtworkCellBleed);
     }
     return view;
 }

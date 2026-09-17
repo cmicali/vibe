@@ -67,7 +67,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSPopUpButton *_keyNotationPopUp;
     NSSwitch *_keyColorsSwitch;
     NSSwitch *_waveformGradientSwitch;
-    NSSwitch *_playlistArtworkSwitch;
+    NSSwitch *_playlistNumberSwitch, *_playlistArtworkSwitch;
     NSPopUpButton *_modePopUp;
     NSPopUpButton *_dockIconPopUp;
     NSSwitch *_appIconShapeSwitch;
