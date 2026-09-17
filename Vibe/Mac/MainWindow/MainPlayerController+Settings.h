@@ -93,6 +93,9 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
 // Applies the running-app half of settings that were already stored. Never
 // writes settings or window geometry.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects;
+// Device settlements already applied their modes; do not send them back to
+// a player that may have moved on to another device.
+- (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects updatingOutputModes:(BOOL)updatingOutputModes;
 
 @end
 

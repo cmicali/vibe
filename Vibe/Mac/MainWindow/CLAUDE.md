@@ -10,6 +10,8 @@
 
 **`+PlayerEvents` and `+Delivery` implement the root doc's staleness guarantee**: every callback can be stale and must match the delivered track against the playlist's current one, and `stop` fires no callback. The decisions are seams, both tested: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
+**TRAP: a device-change callback may arrive after a later switch is queued or bound.** The callback persists the settled device and applies dependent settings effects with `updatingOutputModes:NO`; sending its modes back would overwrite the later device's own preferences. Explicit settings edits use the same effect mapping with output-mode updates enabled.
+
 ## Folder art invalidation
 
 `FolderArtResolver` (`Audio/Metadata/FolderArt/`) is the feature; this controller owns invalidation and redraw. The `FolderArt` effect calls `refreshFolderArt` → `folderArtSettingDidChange`: **the resolver caches the setting on the cell-draw path, so this effect is what makes a write observable at all**, and it keeps settled answers. A grant change (`FolderAccessManagerDidChangeNotification`, observed here because a grant can change with the Files pane gone) is narrower: `invalidateDirectoriesSettledWithoutGrant` forgets no-grant answers and re-arms known cover reads. `folderArtDidResolve:`, fired for "none" as well as a cover, coalesces a visible-rows-only reload over a short delay, because the resolver is serial and a per-turn gate would coalesce nothing. Neither may be a full wipe (`Audio/Metadata/FolderArt/CLAUDE.md`).

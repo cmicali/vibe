@@ -334,13 +334,10 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             settings.audioOutputDeviceUID = device.uid;
         }
     }
-    // Bit-perfect output is remembered per device, so it just moved with the
-    // saved one: a fallback to System Output reads off with nothing written,
-    // and the vanished device keeps its entry for when it is chosen again.
-    // The player already has the new modes — a switch carried them, a
-    // vanished device dropped them — so this only moves the shell's half.
+    // TRAP: a later switch may already be queued or bound. This callback may
+    // refresh dependent controls, but must not send this device's modes back.
     if (settings.bitPerfectOutput != bitPerfectBefore) {
-        [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+        [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply updatingOutputModes:NO];
     }
     [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
 }
