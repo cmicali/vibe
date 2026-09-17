@@ -38,6 +38,12 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
         // the UI to toggle demand off and on.
         [self applyLevelTapOnQueue];
         @try {
+#if DEBUG
+            // TRAP: offline rendering can outrun the node's asynchronous file read.
+            if (_engine.isInManualRenderingMode) {
+                [node prepareWithFrameCount:_engine.manualRenderingMaximumFrameCount];
+            }
+#endif
             [node play];
             [self refreshOutputAudioActiveOnQueue];
             return YES;

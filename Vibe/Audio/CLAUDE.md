@@ -22,6 +22,8 @@ The main mixer uses maximum render quality for sample-rate conversion; `make tes
 
 **TRAP: `[AVAudioPlayerNode play]` throws if the engine stopped between the `isRunning` check and the call**, and the engine stops itself on device and format changes. `startEngineAndPlayNode:` starts it if needed and absorbs the race with a retry.
 
+**TRAP: offline rendering can outrun the node's asynchronous file read.** Before manual playback starts, `startEngineAndPlayNode:` prepares one maximum render block with `prepareWithFrameCount:`. The bounded pre-roll keeps a cold replay from consuming the capture window as silence; hardware playback keeps its normal asynchronous start.
+
 **TRAP: the deferred idle stop must retire a paused node's scheduled segment first.** Pause leaves `_segmentGeneration` current, so stopping the node would fire that segment's completion as a natural end and auto-advance out of a pause. `+Engine` bumps the generation, clears the armed splice, silences and stops, then reschedules in place from the paused frame. The idle stop (Stopped or Paused, deferred ~6s, releasing the output device) is cancelled by generation in `startEngineAndPlayNode:`, which is why the pair share a category.
 
 **TRAP: `+Fades` has two liveness mechanisms, and confusing them is the bug that file exists to keep visible.** Generation-tagged ramps belong to the current node and a newer operation preempts them. Retired fades (`_retiredFades`) belong to a node already out of the live state; membership in the array is the ramp's liveness, and a retired fade is deliberately not preemptable by a generation bump, or a second skip inside the fade window stops the node at mid-fade volume and clicks. Only stop, pause, a parked play and the failure reset silence one early.
