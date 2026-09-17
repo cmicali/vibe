@@ -142,8 +142,8 @@ static const double kWaveformGainDetentDB = 0.75;
 
     _appearanceRow = [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp];
     _waveformLevelRows = @[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_NORMALIZE_WAVEFORM control:_waveformNormalizeSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DISPLAY_GAIN control:gainCluster]];
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE control:_waveformNormalizeSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN control:gainCluster]];
     for (SettingsRowView *row in _waveformLevelRows) {
         row.hidden = YES;
     }

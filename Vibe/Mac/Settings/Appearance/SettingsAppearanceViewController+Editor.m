@@ -68,6 +68,22 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 
 #pragma mark - Construction
 
+- (NSSwitch *)themeSwitchWithEffect:(VibeSettingsLiveEffect)effect
+                              write:(void (^)(AppTheme *, BOOL))write {
+    NSSwitch *toggle = [self switchWithAction:@selector(themeSwitchChanged:)];
+    toggle.tag = effect;
+    if (!_themeSwitchWrites) _themeSwitchWrites = [NSMapTable strongToStrongObjectsMapTable];
+    [_themeSwitchWrites setObject:[write copy] forKey:toggle];
+    return toggle;
+}
+
+- (void)themeSwitchChanged:(NSSwitch *)sender {
+    void (^write)(AppTheme *, BOOL) = [_themeSwitchWrites objectForKey:sender];
+    write(AppSettings.sharedInstance.currentTheme, sender.state == NSControlStateValueOn);
+    [self themeFieldDidChange:(VibeSettingsLiveEffect)sender.tag];
+    [self refreshFromSettings];
+}
+
 // A well bound to one side of a themed color pair, by the pair's base key: it
 // reads its color through the theme's display accessor (the override, or the
 // unset slot's constant), writes it through the base setter, and requests the
@@ -413,8 +429,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _dockIconPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(dockIconChanged:)];
     [self addItem:STR_SETTINGS_THEME_DOCK_ICON_ALBUM_ART value:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART to:_dockIconPopUp];
     [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
-    _appIconShapeSwitch = [self switchWithAction:@selector(toggleAppIconShape:)];
-    _customCornerRadiusSwitch = [self switchWithAction:@selector(toggleCustomCornerRadius:)];
+    _appIconShapeSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectAppIcon
+            write:^(AppTheme *theme, BOOL on) { theme.appIconShape = on; }];
+    _customCornerRadiusSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWindowChrome
+            write:^(AppTheme *theme, BOOL on) { theme.customCornerRadius = on; }];
 
     // Default artwork follows the color pairs: one preview per appearance
     // under Light & Dark Modes, collapsing to the dark-keyed one — the single
@@ -458,7 +476,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                         imageRows:@[[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_NEXT_IMAGE
                             control:[self artKeyedImagePairForDarkKey:kVibeThemeImageNextButtonDark
                                                              lightKey:kVibeThemeImageNextButtonLight]]]];
-    _transportButtonsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _transportButtonsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTransportButtons
+            write:^(AppTheme *theme, BOOL on) { theme.showTransportButtons = on; }];
     _buttonGradientPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(buttonGradientChanged:)];
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_NONE value:SETTINGS_VALUE_BUTTON_GRADIENT_NONE to:_buttonGradientPopUp];
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_HOVER value:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER to:_buttonGradientPopUp];
@@ -492,21 +511,27 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_playlistBackgroundPopUp];
 
-    _fileInfoSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
-    _statusIconsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
-    _timeLabelsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _fileInfoSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.showFileInfo = on; }];
+    _statusIconsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.showStatusIcons = on; }];
+    _timeLabelsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.showTimeLabels = on; }];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
                                               target:self action:@selector(timeDisplayChanged:)];
     _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
                                                   target:self action:@selector(timeDisplayChanged:)];
     NSStackView *timeRadios = [NSStackView stackViewWithViews:@[_timeTotalRadio, _timeRemainingRadio]];
     timeRadios.spacing = 12;
-    _showBPMSwitch = [self switchWithAction:@selector(toggleShowBPM:)];
-    _showKeySwitch = [self switchWithAction:@selector(toggleShowKey:)];
+    _showBPMSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.showBPM = on; }];
+    _showKeySwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.showKey = on; }];
     _keyNotationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(keyNotationChanged:)];
     [self addItem:STR_SETTINGS_KEY_NOTATION_CAMELOT value:SETTINGS_VALUE_KEY_NOTATION_CAMELOT to:_keyNotationPopUp];
     [self addItem:STR_SETTINGS_KEY_NOTATION_MUSICAL value:SETTINGS_VALUE_KEY_NOTATION_MUSICAL to:_keyNotationPopUp];
-    _keyColorsSwitch = [self switchWithAction:@selector(toggleKeyColors:)];
+    _keyColorsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectTrackDisplay
+            write:^(AppTheme *theme, BOOL on) { theme.keyColorsEnabled = on; }];
 
     // Title and artist paint the playlist rows too; info and time appear only
     // in the header, so their drags skip the table reload.
@@ -534,9 +559,12 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART value:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_CUSTOM value:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM to:_waveformThemePopUp];
 
-    _waveformGradientSwitch = [self switchWithAction:@selector(toggleWaveformGradient:)];
-    _playlistArtworkSwitch = [self switchWithAction:@selector(togglePlaylistArtwork:)];
-    _playlistDurationSwitch = [self switchWithAction:@selector(togglePlaylistDuration:)];
+    _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
+            write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
+    _playlistArtworkSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
+            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistArtworkColumn = on; }];
+    _playlistDurationSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
+            write:^(AppTheme *theme, BOOL on) { theme.showPlaylistDurationColumn = on; }];
     NSStackView *(^customWells)(BOOL) = ^(BOOL dark) {
         return [self wellPair:[self wellForDark:dark base:kVibeThemeColorWaveformPlayed
                                          effect:VibeSettingsLiveEffectWaveformTheme]
@@ -586,8 +614,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     ];
     for (NSArray *column in playlistColumns) {
         NSString *base = column[0];
-        NSSwitch *toggle = [self switchWithAction:@selector(togglePlaylistColor:)];
-        toggle.identifier = base; // how the action finds the column, like the image buttons
+        NSSwitch *toggle = [self themeSwitchWithEffect:VibeSettingsLiveEffectPlaylistAppearance
+                write:^(AppTheme *theme, BOOL on) { [theme setPlaylistColorEnabled:on forBase:base]; }];
         _playlistColorSwitches[base] = toggle;
         SettingsRowView *pairRow = [SettingsRowView rowWithTitle:column[2]
                 control:[self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance]];
@@ -1027,28 +1055,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
 }
 
-- (void)toggleAppIconShape:(id)sender {
-    AppSettings.sharedInstance.currentTheme.appIconShape = (_appIconShapeSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
-}
-
 - (void)dockIconChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.dockIcon = _dockIconPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectAppIcon];
-}
-
-- (void)togglePlaylistColor:(NSSwitch *)sender {
-    [AppSettings.sharedInstance.currentTheme
-            setPlaylistColorEnabled:(sender.state == NSControlStateValueOn) forBase:sender.identifier];
-    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-    [self resolveLayoutStateFromSettings]; // the pair's row reveals with it
-}
-
-- (void)toggleCustomCornerRadius:(id)sender {
-    AppSettings.sharedInstance.currentTheme.customCornerRadius =
-            (_customCornerRadiusSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectWindowChrome];
-    [self refreshFromSettings]; // the slider enables with it
 }
 
 - (void)cornerRadiusChanged:(id)sender {
@@ -1163,49 +1172,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 #pragma mark - Editor: info display
 
-- (void)toggleThemeVisibility:(NSSwitch *)sender {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    BOOL show = sender.state == NSControlStateValueOn;
-    VibeSettingsLiveEffect effect = VibeSettingsLiveEffectTrackDisplay;
-    if (sender == _transportButtonsSwitch) {
-        theme.showTransportButtons = show;
-        effect = VibeSettingsLiveEffectTransportButtons;
-    } else if (sender == _statusIconsSwitch) {
-        theme.showStatusIcons = show;
-    } else if (sender == _timeLabelsSwitch) {
-        theme.showTimeLabels = show;
-    } else {
-        theme.showFileInfo = show;
-    }
-    [self themeFieldDidChange:effect];
-    [self refreshFromSettings];
-}
-
 - (void)timeDisplayChanged:(NSButton *)sender {
     AppSettings.sharedInstance.currentTheme.showRemainingTime = (sender == _timeRemainingRadio);
     [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
-- (void)toggleShowBPM:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showBPM = (_showBPMSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-}
-
-- (void)toggleShowKey:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showKey = (_showKeySwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-    // With Show key off the two rows below it have nothing to govern, so they
-    // dim rather than pretending a write would change anything on screen.
-    [self refreshFromSettings];
-}
-
 - (void)keyNotationChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.keyNotation = _keyNotationPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-}
-
-- (void)toggleKeyColors:(id)sender {
-    AppSettings.sharedInstance.currentTheme.keyColorsEnabled = (_keyColorsSwitch.state == NSControlStateValueOn);
     [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
 }
 
@@ -1235,12 +1208,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             numberStyle:NSNumberFormatterPercentStyle];
 }
 
-- (void)toggleWaveformGradient:(id)sender {
-    AppSettings.sharedInstance.currentTheme.waveformGradient =
-            (_waveformGradientSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectWaveformTheme];
-}
-
 - (void)waveformThemeChanged:(id)sender {
     [self chooseFromPopUp:_waveformThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
                     wells:@[_customDarkRow, _customLightRow] effect:VibeSettingsLiveEffectWaveformTheme
@@ -1248,18 +1215,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 #pragma mark - Editor: playlist
-
-- (void)togglePlaylistArtwork:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showPlaylistArtworkColumn =
-            (_playlistArtworkSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-}
-
-- (void)togglePlaylistDuration:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showPlaylistDurationColumn =
-            (_playlistDurationSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectPlaylistAppearance];
-}
 
 - (void)playlistBackgroundStyleChanged:(id)sender {
     [self chooseFromPopUp:_playlistBackgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID

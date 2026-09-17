@@ -99,8 +99,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     // are AppSettings' business, and a menu item has no reason to know them.
     _folderSortPopUp = [self popUpButtonWithWidth:260 action:@selector(folderOpenSortChanged:)];
     [self addItem:STR_SETTINGS_FOLDER_SORT_NAME value:@(VibeFolderOpenSortName) to:_folderSortPopUp];
-    [self addItem:STR_SETTINGS_FOLDER_SORT_MODIFIED value:@(VibeFolderOpenSortNewestFirst) to:_folderSortPopUp];
-    [self addItem:STR_SETTINGS_FOLDER_SORT_UNSORTED value:@(VibeFolderOpenSortAsReceived) to:_folderSortPopUp];
+    [self addItem:STR_SETTINGS_FOLDER_SORT_NEWEST_FIRST value:@(VibeFolderOpenSortNewestFirst) to:_folderSortPopUp];
+    [self addItem:STR_SETTINGS_FOLDER_SORT_AS_RECEIVED value:@(VibeFolderOpenSortAsReceived) to:_folderSortPopUp];
 
     _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
     [self addItem:STR_SETTINGS_ALBUM_ART_FILE_ONLY value:kAlbumArtFileOnly to:_albumArtPopUp];

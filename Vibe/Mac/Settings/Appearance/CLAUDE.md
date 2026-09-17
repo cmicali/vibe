@@ -24,7 +24,7 @@ Current theme comes first: the active name, Edit Theme… (Customize… for a bu
 
 ## The editor page
 
-Swapped in as a **sibling of the section stack**, and **scrolling inside whatever size the panes settled at**: `naturalPaneSize` measures only the base stack, so twenty editor rows cannot grow every pane, and the page swap is size-neutral. Every row action is one helper — write the `currentTheme` field, `currentThemeDidChange`, request the row's effect.
+Swapped in as a **sibling of the section stack**, and **scrolling inside whatever size the panes settled at**: `naturalPaneSize` measures only the base stack, so twenty editor rows cannot grow every pane, and the page swap is size-neutral. Every row action is one helper — write the `currentTheme` field, `currentThemeDidChange`, request the row's effect. Switches bind a typed field writer and their live effect at construction (`themeSwitchWithEffect:write:`); one action persists the edit, applies that effect and refreshes dependent controls.
 
 - **TRAP: the document view is a FLIPPED stack** (`SettingsStackView`). Unflipped, the document's top is its maxY while the clip view keeps its bounds origin, so every relayout stranded the page further under the toolbar. The scroll view keeps `automaticallyAdjustsContentInsets = NO`.
 - **A built-in selected externally while the editor is open remains read-only**: every control disables (the walker reports it and `settings_click` refuses), the Name row hides, and the first card carries a caption plus **Duplicate**. Explicitly opening the editor copies a built-in first. The Name and built-in rows swap visibility, so the second carries no top hairline.

@@ -51,14 +51,14 @@ static const CGFloat kAboutIconSize = 96;
     [self loadPaneWithSections:@[
         [self identityBlock],
         [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WEBSITE control:webLink],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ABOUT_WEB control:webLink],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ABOUT_SUPPORT control:supportLink],
             [SettingsRowView rowWithTitle:VibeNotLocalized(@"GitHub") control:repoLink],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_STATS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_FILES_OPENED_LABEL control:_filesOpenedValue],
             [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDERS_OPENED_LABEL control:_foldersOpenedValue],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_LISTENING_TIME control:_audioPlayedValue],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_AUDIO_PLAYED_LABEL control:_audioPlayedValue],
         ]],
     ]];
 }

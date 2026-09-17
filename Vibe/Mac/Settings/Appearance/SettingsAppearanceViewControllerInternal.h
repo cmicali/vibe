@@ -96,6 +96,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     // its drag requests (wellForDark:base:effect:). One action, one refresh
     // loop and one seed walk serve all of them.
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
+    NSMapTable<NSSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
     NSPopUpButton *_waveformPopUp;
     NSSlider *_waveformBarDensitySlider;
     NSTextField *_waveformBarDensityValue;
