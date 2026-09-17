@@ -453,6 +453,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                         imageRows:@[[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_NEXT_IMAGE
                             control:[self artKeyedImagePairForDarkKey:kVibeThemeImageNextButtonDark
                                                              lightKey:kVibeThemeImageNextButtonLight]]]];
+    _transportButtonsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
     _buttonGradientSwitch = [self switchWithAction:@selector(toggleButtonGradient:)];
 
     _backgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(backgroundStyleChanged:)];
@@ -495,7 +496,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_playlistBackgroundPopUp];
 
-    _fileInfoSwitch = [self switchWithAction:@selector(toggleFileInfo:)];
+    _fileInfoSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _statusIconsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
+    _timeLabelsSwitch = [self switchWithAction:@selector(toggleThemeVisibility:)];
     _timeTotalRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_TOTAL
                                               target:self action:@selector(timeDisplayChanged:)];
     _timeRemainingRadio = [NSButton radioButtonWithTitle:STR_SETTINGS_TIME_REMAINING
@@ -623,18 +626,24 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playlistFontValue = playlistFontValue;
     _playlistDurationFontValue = playlistDurationFontValue;
 
-    // The Info section is captured so its rows can be disabled as a group
-    // when Show file info is off (see resolveLayoutStateFromSettings).
-    _infoSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster],
+    _infoFontRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_INFO control:infoFontCluster];
+    _fileInfoRows = @[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_INFO control:infoColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
         [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_BPM control:_showBPMSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_KEY control:_showKeySwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_NOTATION_LABEL control:_keyNotationPopUp],
         [SettingsRowView rowWithTitle:STR_SETTINGS_KEY_COLORS control:_keyColorsSwitch],
+    ];
+    NSMutableArray<SettingsRowView *> *infoRows = [NSMutableArray arrayWithArray:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_STATUS_ICONS control:_statusIconsSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_FILE_INFO control:_fileInfoSwitch],
+        _infoFontRow,
+    ]];
+    [infoRows addObjectsFromArray:_fileInfoRows];
+    _timeSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_SECTION_TIME rows:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TIME_LABELS control:_timeLabelsSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_TIMES control:timeColors],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_TIME_LABEL control:timeRadios],
     ]];
 
     NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
@@ -658,11 +667,14 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW control:selectedRowColors]];
 
     NSMutableArray<SettingsRowView *> *transportRows =
-        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
+        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TRANSPORT_BUTTONS
+                                                            control:_transportButtonsSwitch]];
     [transportRows addObjectsFromArray:playlistButtonRows];
     [transportRows addObjectsFromArray:playButtonRows];
     [transportRows addObjectsFromArray:nextButtonRows];
     [transportRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BUTTON_GRADIENT control:_buttonGradientSwitch]];
+
+    _transportSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows];
 
     NSArray<NSView *> *sections = @[
         // The pair swaps visibility — exactly one shows — so the second row
@@ -684,6 +696,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS control:radiusCluster],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],
@@ -695,8 +708,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_ARTIST control:artistFontCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_COLOR_ARTIST control:artistColors],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSPORT_SECTION rows:transportRows],
-        _infoSection,
+        _transportSection,
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_INFO_SECTION rows:infoRows],
+        _timeSection,
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows],
     ];
 
@@ -821,6 +835,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     ForEachDescendantView(view, ^(NSView *subview) {
         if ([subview isKindOfClass:NSControl.class]) {
             ((NSControl *)subview).enabled = enabled;
+            if (!enabled && [subview isKindOfClass:NSColorWell.class]) {
+                [(NSColorWell *)subview deactivate];
+            }
         }
     });
 }
@@ -863,6 +880,9 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     }
     _buttonGradientSwitch.state = StateForBOOL(theme.buttonGradient);
 
+    _transportButtonsSwitch.state = StateForBOOL(theme.showTransportButtons);
+    _statusIconsSwitch.state = StateForBOOL(theme.showStatusIcons);
+    _timeLabelsSwitch.state = StateForBOOL(theme.showTimeLabels);
     _fileInfoSwitch.state = StateForBOOL(theme.showFileInfo);
     BOOL remaining = theme.showRemainingTime;
     _timeTotalRadio.state = StateForBOOL(!remaining);
@@ -902,11 +922,16 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     // never be duplicated from its own page. Observed, not hypothetical.
     _duplicateButton.enabled = YES;
     if (!builtIn) {
-        // Everything below Show file info dims when it is off — the header
-        // shows none of it, so nothing those rows govern is on screen.
-        BOOL info = AppSettings.sharedInstance.currentTheme.showFileInfo;
-        SetDescendantControlsEnabled(_infoSection, info);
-        _fileInfoSwitch.enabled = YES; // the toggle that governs them stays live
+        BOOL info = theme.showFileInfo;
+        for (SettingsRowView *row in _fileInfoRows) {
+            SetDescendantControlsEnabled(row, info);
+        }
+        // These readouts share one font, even when only one group is visible.
+        SetDescendantControlsEnabled(_infoFontRow, info || theme.showStatusIcons || theme.showTimeLabels);
+        SetDescendantControlsEnabled(_transportSection, theme.showTransportButtons);
+        _transportButtonsSwitch.enabled = YES;
+        SetDescendantControlsEnabled(_timeSection, theme.showTimeLabels);
+        _timeLabelsSwitch.enabled = YES;
         // Key notation and key colors additionally require Show key.
         _keyNotationPopUp.enabled = info && showKey;
         _keyColorsSwitch.enabled = info && showKey;
@@ -915,7 +940,8 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
         _waveformBarDensitySlider.enabled = [WaveformRendererRegistry supportsBarDensityForIdentifier:
                 [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]];
     }
-    if (builtIn) {
+    if (builtIn || (_fontEditingSlot == VibeFontSlotInfo
+            && !(theme.showFileInfo || theme.showStatusIcons || theme.showTimeLabels))) {
         [self closeEditorPanels];
     }
 }
@@ -1152,10 +1178,21 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
 #pragma mark - Editor: info display
 
-- (void)toggleFileInfo:(id)sender {
-    AppSettings.sharedInstance.currentTheme.showFileInfo = (_fileInfoSwitch.state == NSControlStateValueOn);
-    [self themeFieldDidChange:VibeSettingsLiveEffectTrackDisplay];
-    // The rows it governs enable/disable with it.
+- (void)toggleThemeVisibility:(NSSwitch *)sender {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL show = sender.state == NSControlStateValueOn;
+    VibeSettingsLiveEffect effect = VibeSettingsLiveEffectTrackDisplay;
+    if (sender == _transportButtonsSwitch) {
+        theme.showTransportButtons = show;
+        effect = VibeSettingsLiveEffectTransportButtons;
+    } else if (sender == _statusIconsSwitch) {
+        theme.showStatusIcons = show;
+    } else if (sender == _timeLabelsSwitch) {
+        theme.showTimeLabels = show;
+    } else {
+        theme.showFileInfo = show;
+    }
+    [self themeFieldDidChange:effect];
     [self refreshFromSettings];
 }
 

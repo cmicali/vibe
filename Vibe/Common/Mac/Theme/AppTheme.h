@@ -298,6 +298,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // The darkening gradient over the album art's lower half, behind the
 // transport buttons. NO leaves the art bare under them.
 @property (nonatomic) BOOL buttonGradient;
+@property (nonatomic) BOOL showTransportButtons;
 // The transport buttons' SF Symbol names. Trimmed to the symbol-name shape
 // (lowercase letters, digits and dots); a name this macOS has no symbol for
 // draws the factory glyph, the way an uninstalled font face falls back — so
@@ -309,6 +310,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *pauseButtonGlyph;
 @property (nonatomic, copy) NSString *nextButtonGlyph;
 @property (nonatomic) BOOL showFileInfo;
+@property (nonatomic) BOOL showStatusIcons;
+@property (nonatomic) BOOL showTimeLabels;
 @property (nonatomic) BOOL showRemainingTime;
 @property (nonatomic) BOOL showBPM;
 @property (nonatomic) BOOL showKey;

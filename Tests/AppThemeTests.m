@@ -71,6 +71,9 @@
         XCTAssertNil([theme customImageForKey:key], @"%@", key);
     }
     XCTAssertTrue(theme.showFileInfo);
+    XCTAssertTrue(theme.showTransportButtons);
+    XCTAssertTrue(theme.showStatusIcons);
+    XCTAssertTrue(theme.showTimeLabels);
     XCTAssertTrue(theme.waveformGradient);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertTrue(theme.showPlaylistArtworkColumn);
@@ -101,6 +104,9 @@
         @"customCornerRadius": @NO,
         @"windowCornerRadius": @16,
         @"showFileInfo": @YES,
+        @"showTransportButtons": @YES,
+        @"showStatusIcons": @YES,
+        @"showTimeLabels": @YES,
         @"titleFontFace": @"",
         @"dockIcon": @"album_art",
         @"playButtonGlyph": @"play.fill",
@@ -713,6 +719,29 @@ static CGFloat Brightness(NSString *hex) {
                                                    name:NULL error:&error];
     XCTAssertNil(error);
     XCTAssertEqualObjects(record, @{});
+}
+
+- (void)testHiddenControlsRoundTripWithoutLosingTheirAppearance {
+    NSDictionary *record = @{
+        @"showTransportButtons": @NO, @"showStatusIcons": @NO, @"showTimeLabels": @NO,
+        @"playButtonGlyph": @"play.circle.fill", @"buttonGradient": @NO,
+        @"showRemainingTime": @YES, @"timeColorDark": @"#123456", @"infoFontSize": @11,
+    };
+    NSData *data = [AppTheme JSONDataForRecord:record name:@"Hidden"];
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+    XCTAssertEqualObjects(json[@"player"][@"showTransportButtons"], @NO);
+    XCTAssertEqualObjects(json[@"info"][@"showStatusIcons"], @NO);
+    XCTAssertEqualObjects(json[@"info"][@"showTimeLabels"], @NO);
+    NSDictionary *back = [AppTheme recordFromJSONData:data name:NULL error:NULL];
+    XCTAssertEqualObjects(back, record);
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:back];
+    theme.showTransportButtons = YES;
+    theme.showStatusIcons = YES;
+    theme.showTimeLabels = YES;
+    XCTAssertEqualObjects(theme.dictionaryRepresentation, (@{
+        @"playButtonGlyph": @"play.circle.fill", @"buttonGradient": @NO,
+        @"showRemainingTime": @YES, @"timeColorDark": @"#123456", @"infoFontSize": @11,
+    }));
 }
 
 // The export walks the groups the field table names, in the order the rows

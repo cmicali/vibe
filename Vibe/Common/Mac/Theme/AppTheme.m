@@ -35,6 +35,9 @@ static NSString *const kFieldPlaylistTint = @"playlistTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
 static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
 static NSString *const kFieldWindowCornerRadius = @"windowCornerRadius";
+static NSString *const kFieldShowTransportButtons = @"showTransportButtons";
+static NSString *const kFieldShowStatusIcons = @"showStatusIcons";
+static NSString *const kFieldShowTimeLabels = @"showTimeLabels";
 static NSString *const kFieldShowFileInfo = @"showFileInfo";
 static NSString *const kFieldShowRemainingTime = @"showRemainingTime";
 static NSString *const kFieldShowBPM = @"showBPM";
@@ -340,6 +343,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         AddColorPair(rows, kVibeThemeColorNextButton, player, @"nextButtonColor");
         [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonDark, player, @"button_next_dark")];
         [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonLight, player, @"button_next_light")];
+        [rows addObject:Field(kFieldShowTransportButtons, player, @"showTransportButtons", @YES, BoolField())];
         [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient", @YES, BoolField())];
         // The font clamps are narrow on purpose: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
@@ -351,6 +355,8 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               @(kVibeThemeArtistFontBaseSize), NumberField(12, 20, NO))];
         AddColorPair(rows, kVibeThemeColorArtist, player, @"artistColor");
 
+        [rows addObject:Field(kFieldShowStatusIcons, info, @"showStatusIcons", @YES, BoolField())];
+        [rows addObject:Field(kFieldShowTimeLabels, info, @"showTimeLabels", @YES, BoolField())];
         [rows addObject:Field(kFieldShowFileInfo, info, @"showFileInfo", @YES, BoolField())];
         [rows addObject:Field(kFieldInfoFontFace, info, @"fontFace", @"", TextField())];
         [rows addObject:Field(kFieldInfoFontSize, info, @"fontSize",
@@ -1317,6 +1323,15 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)nextButtonGlyph { return [self stringForKey:kFieldNextButtonGlyph]; }
 - (void)setNextButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldNextButtonGlyph]; }
+
+- (BOOL)showTransportButtons { return [self boolForKey:kFieldShowTransportButtons]; }
+- (void)setShowTransportButtons:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowTransportButtons]; }
+
+- (BOOL)showStatusIcons { return [self boolForKey:kFieldShowStatusIcons]; }
+- (void)setShowStatusIcons:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowStatusIcons]; }
+
+- (BOOL)showTimeLabels { return [self boolForKey:kFieldShowTimeLabels]; }
+- (void)setShowTimeLabels:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowTimeLabels]; }
 
 - (BOOL)showFileInfo { return [self boolForKey:kFieldShowFileInfo]; }
 - (void)setShowFileInfo:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowFileInfo]; }

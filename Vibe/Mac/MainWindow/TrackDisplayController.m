@@ -252,6 +252,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
            duration:(NSTimeInterval)duration
                rate:(double)rate
         errorStatus:(NSString *)errorStatus {
+    BOOL showTime = AppSettings.sharedInstance.currentTheme.showTimeLabels;
+    self.currentTimeTextField.hidden = !showTime;
+    self.totalTimeTextField.hidden = !showTime;
     switch (state) {
     case TrackDisplayStateTrack:
     case TrackDisplayStateLoading:
@@ -431,8 +434,11 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 }
 
 - (void)renderBitPerfectToolTip:(NSString *)toolTip {
+    if (!AppSettings.sharedInstance.currentTheme.showStatusIcons) {
+        toolTip = nil;
+    }
     NSString *current = self.fileMetadataTextField.toolTip;
-    if (current == toolTip || [current isEqualToString:toolTip]) {
+    if (current == toolTip || (toolTip && [current isEqualToString:toolTip])) {
         return;
     }
     self.fileMetadataTextField.toolTip = toolTip;
@@ -459,7 +465,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
 // track's codec string. Each run carries its own color; see symbolRun and
 // cornerTextAttributes.
 - (void)composeFileMetadataLabel {
-    NSArray<NSString *> *symbols = fxSymbolNames(_fxState);
+    NSArray<NSString *> *symbols = AppSettings.sharedInstance.currentTheme.showStatusIcons
+            ? fxSymbolNames(_fxState) : @[];
     if (symbols.count == 0) {
         self.fileMetadataTextField.attributedStringValue =
                 [[NSAttributedString alloc] initWithString:_fileMetadataText

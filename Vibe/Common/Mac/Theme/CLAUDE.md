@@ -32,6 +32,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 ## The transport buttons
 
+`showTransportButtons` (`player`), `showStatusIcons` and `showTimeLabels` (`info`) default on, including for old sparse records. They only govern presentation: dependent glyphs, images, colors and time format stay stored while hidden.
+
 **Three fields apiece.** A glyph (`playlistButtonGlyph`, `playButtonGlyph` with `pauseButtonGlyph` beside it, `nextButtonGlyph`) is free text in the SF Symbol name shape, like a font face: the record knows no symbol catalog, the draw site (`MainPlayerContentView`) falls back to the factory glyph for a name this macOS lacks, and the editor's curated menus are `SettingsRules.h`'s. A color pair (`kVibeThemeColorPlaylistButton`/`PlayButton`/`NextButton`, white and black at 0.55 unset) is **keyed Dark/Light by the art under the buttons, not the appearance** (`Mac/MainWindow/APPEARANCE.md`) — **the one exception to single mode**: `colorKeyForBase:dark:` never collapses an art-keyed pair. Hover and disabled derive by `SymbolButton`'s factory ratios. An image pair, keyed the same way, wins over glyph and color when either side names one. `buttonGradient` (default on) is the darkening behind them; `dockIcon` (`album_art` or `app_icon`) is the Dock tile while art is up; `appIcon` replaces the application icon everywhere.
 
 ## Images

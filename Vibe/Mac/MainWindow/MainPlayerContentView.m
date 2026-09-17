@@ -396,12 +396,15 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:NO animated:YES];
 }
 
-// The one place button visibility is decided. The traffic lights fold the
-// persisted setting in, so a hidden pair is never left fading to full alpha
-// behind its own hidden flag.
+// Fold the traffic-light and transport settings into hover visibility so
+// hidden buttons never fade to full alpha behind their hidden flags.
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
-    CGFloat transport = shown ? 1.0 : 0.0;
+    BOOL transportShown = AppSettings.sharedInstance.currentTheme.showTransportButtons;
+    CGFloat transport = (shown && transportShown) ? 1.0 : 0.0;
+    _playlistToggleButton.hidden = !transportShown;
+    _playButton.hidden = !transportShown;
+    _nextButton.hidden = !transportShown;
     _closeButton.hidden = !_trafficLightsShown;
     _minimizeButton.hidden = !_trafficLightsShown;
     if (animated) {
@@ -845,7 +848,8 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                        theme.nextButtonGlyph, kVibeThemeNextButtonGlyphDefault,
                        kVibeThemeColorNextButton, dark);
     [self dressPlayButton];
-    _albumArtGradientView.hidden = !theme.buttonGradient;
+    _albumArtGradientView.hidden = !theme.showTransportButtons || !theme.buttonGradient;
+    [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
 - (void)setTransportBackdropDark:(BOOL)dark {

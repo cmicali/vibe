@@ -42,7 +42,9 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSButton *_duplicateButton;
     SettingsRowView *_builtInRow;
     NSStackView *_editorStack;
-    SettingsSectionView *_infoSection;
+    SettingsSectionView *_transportSection, *_timeSection;
+    SettingsRowView *_infoFontRow;
+    NSArray<SettingsRowView *> *_fileInfoRows;
     NSTextField *_nameField;
     // The theme the name field's text was populated for. The rename commit
     // reads the ACTIVE identifier, and the active theme can change while the
@@ -59,6 +61,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider, typed by what the class file reads of it
     NSTextField *_cornerRadiusValue;
     NSSwitch *_fileInfoSwitch;
+    NSSwitch *_transportButtonsSwitch, *_statusIconsSwitch, *_timeLabelsSwitch;
     NSButton *_timeTotalRadio, *_timeRemainingRadio;
     NSSwitch *_showBPMSwitch, *_showKeySwitch;
     NSPopUpButton *_keyNotationPopUp;
