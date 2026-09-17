@@ -321,9 +321,13 @@ static NSArray<NSString *> *VibeTableRowTitles(NSTableView *table) {
     for (NSInteger row = 0; row < table.numberOfRows; row++) {
         // makeIfNecessary, so a row scrolled out of view still reports its
         // text; these lists are short enough for that to be free.
-        NSView *cell = [table viewAtColumn:0 row:row makeIfNecessary:YES];
-        NSString *text = [cell isKindOfClass:NSTableCellView.class]
-                ? ((NSTableCellView *)cell).textField.stringValue : nil;
+        NSString *text = nil;
+        for (NSInteger column = 0; column < table.numberOfColumns && text.length == 0; column++) {
+            NSView *cell = [table viewAtColumn:column row:row makeIfNecessary:YES];
+            if ([cell isKindOfClass:NSTableCellView.class]) {
+                text = ((NSTableCellView *)cell).textField.stringValue;
+            }
+        }
         [rows addObject:text ?: @""];
     }
     return rows;
@@ -663,8 +667,9 @@ static NSString *VibeSelectTableRows(VibeSettingsElement *element, NSString *val
 #pragma mark - The verbs
 
 NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
-    if (tokens.count > 2) {
-        return VibeErrorJSON(@"usage: settings_open [pane]");
+    NSString *appearance = tokens.count == 3 ? tokens[2].lowercaseString : nil;
+    if (tokens.count > 3 || (appearance && ![@[@"light", @"dark", @"system"] containsObject:appearance])) {
+        return VibeErrorJSON(@"usage: settings_open [pane [light|dark|system]]");
     }
     AppDelegate *appDelegate = (AppDelegate *)NSApp.delegate;
     if (![appDelegate isKindOfClass:AppDelegate.class]) {
@@ -678,7 +683,7 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
     if (!tabs) {
         return errorJSON;
     }
-    if (tokens.count == 2) {
+    if (tokens.count >= 2) {
         NSInteger index = VibePaneIndexForToken(tabs, tokens[1]);
         if (index < 0) {
             return VibeErrorJSON(@"no settings pane '%@' (panes: %@)",
@@ -689,6 +694,11 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
         tabs.selectedTabViewItemIndex = index;
     }
     NSWindow *window = VibeSettingsWindow();
+    if (appearance) {
+        window.appearance = [appearance isEqualToString:@"system"] ? nil
+                : [NSAppearance appearanceNamed:[appearance isEqualToString:@"dark"]
+                        ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+    }
     NSTabViewItem *selected = VibeSelectedPane(tabs);
     if (!selected) {
         return VibeErrorJSON(@"no pane is selected");
@@ -709,6 +719,7 @@ NSString *VibeDebugSettingsOpen(NSArray<NSString *> *tokens) {
         @"paneFillsTabView": @(paneView.superview != nil
                 && NSEqualRects(paneView.frame, paneView.superview.bounds)),
         @"key": @(window.isKeyWindow),
+        @"appearance": window.effectiveAppearance.name,
     });
 }
 

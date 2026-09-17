@@ -463,10 +463,12 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
 }
 
-- (void)testExclusiveOutputRequiresOptInAndAnEligibleNonDefaultPhysicalDevice {
+- (void)testExclusiveOutputRequiresOptInAndAnEligibleNonDefaultDevice {
     XCTAssertFalse(VibeBitPerfectShouldHog(NO, kAudioDeviceTransportTypeUSB, NO));
     XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBluetooth, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, NO));
+    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(NO, kAudioDeviceTransportTypeVirtual, NO));
+    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, YES));
     XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, NO));
     XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBuiltIn, NO));
     XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, YES));

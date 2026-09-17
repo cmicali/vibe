@@ -343,17 +343,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
             AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
         }
     }
-    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshOutputDevice];
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
 }
 
 // The one edge the two report readouts redraw from: the header's lock glyph
-// with its tooltip, and the Settings caption while the General pane exists.
+// with its tooltip, and the Settings caption while the Audio pane exists.
 // The player publishes the report on its own queue after every toggle,
 // play, pause, stop, device switch and volume move, so nothing may read it
 // right after a setter and expect the new one.
 - (void)audioPlayerDidChangeBitPerfectReport:(AudioPlayer *)audioPlayer {
     [self updateFXIndicators];
-    [[(AppDelegate *)NSApp.delegate settingsWindowController].generalPane refreshBitPerfectRows];
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshBitPerfectRows];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(AudioTrack *)track {

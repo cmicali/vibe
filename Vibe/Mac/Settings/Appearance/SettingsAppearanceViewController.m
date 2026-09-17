@@ -90,14 +90,11 @@ static const double kWaveformGainDetentDB = 0.75;
 
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
-    _themeTable = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[kThemeCellIdentifier] delegate:self];
     _themeTable.allowsMultipleSelection = NO;
     _themeTable.allowsEmptySelection = NO;
-    _themeTable.dataSource = self;
-    _themeTable.delegate = self;
     _themeTable.target = self;
     _themeTable.doubleAction = @selector(editTheme:);
-    [_themeTable addTableColumn:[[NSTableColumn alloc] initWithIdentifier:kThemeCellIdentifier]];
     [_themeTable registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
     SettingsRowView *listRow = [SettingsRowView rowWithTableView:_themeTable
                                                         rowCount:kThemeListRowCount];
@@ -437,52 +434,24 @@ static const double kWaveformGainDetentDB = 0.75;
         return [self groupCellInTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
-    // The active theme is the selected row, always accent-colored (the row
-    // view below), so the cell carries nothing but the name.
+    // The selected row identifies the active theme; the cell only needs its name.
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
-                                                        inTableView:tableView];
-    if (!cell.textField) {
-        NSTextField *label = [NSTextField labelWithString:@""];
-        label.translatesAutoresizingMaskIntoConstraints = NO;
-        label.lineBreakMode = NSLineBreakByTruncatingTail;
-        [cell addSubview:label];
-        cell.textField = label;
-        [NSLayoutConstraint activateConstraints:@[
-            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
-                                                            constant:-kSettingsRowInset],
-            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-        ]];
-    }
+                                                        inTableView:tableView imagePosition:NSNoImage];
     cell.textField.stringValue =
             [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
     return cell;
 }
 
 - (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
-    return [SettingsAccentRowView new];
+    return [SettingsRowView listRowViewForRow:row];
 }
 
 // A header row: the label alone, small and secondary above the names.
 - (NSTableCellView *)groupCellInTableView:(NSTableView *)tableView title:(NSString *)title {
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeGroupCellIdentifier
-                                                        inTableView:tableView];
-    if (!cell.textField) {
-        NSTextField *label = [NSTextField labelWithString:@""];
-        label.translatesAutoresizingMaskIntoConstraints = NO;
-        label.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize
-                                       weight:NSFontWeightSemibold];
-        label.textColor = NSColor.secondaryLabelColor;
-        label.lineBreakMode = NSLineBreakByTruncatingTail;
-        [cell addSubview:label];
-        cell.textField = label;
-        [NSLayoutConstraint activateConstraints:@[
-            [label.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
-                                                            constant:-kSettingsRowInset],
-            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-        ]];
-    }
+                                                        inTableView:tableView imagePosition:NSNoImage];
+    cell.textField.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize weight:NSFontWeightSemibold];
+    cell.textField.textColor = NSColor.secondaryLabelColor;
     cell.textField.stringValue = title;
     return cell;
 }

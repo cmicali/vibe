@@ -15,6 +15,26 @@ static const CGFloat kHeaderCardGap = 6;
 // The System Settings list row: 24 points, measured off the Sound pane's
 // device table.
 static const CGFloat kListRowHeight = 24;
+static const CGFloat kListHeaderHeight = 28;
+// Full-width table cells supply the other six points of the Sound list inset.
+static const CGFloat kListTextInset = 4;
+
+// Sound settings reference, in its Display P3 color space: base, stripe, selection.
+static NSColor *ListColor(NSUInteger shade) {
+    return [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+        const CGFloat light[] = {247, 239, 223};
+        const CGFloat dark[][3] = {{39, 41, 50}, {50, 52, 60}, {92, 94, 101}};
+        return appearance.isDark
+                ? [NSColor colorWithDisplayP3Red:dark[shade][0] / 255
+                                          green:dark[shade][1] / 255 blue:dark[shade][2] / 255 alpha:1]
+                : [NSColor colorWithSRGBRed:light[shade] / 255 green:light[shade] / 255
+                                      blue:light[shade] / 255 alpha:1];
+    }];
+}
+
+@interface SettingsAccentRowView ()
+@property (nonatomic, strong) NSColor *listBackgroundColor;
+@end
 
 // updateLayer resolves the side's color against the current appearance, and
 // the appearance-change hook re-runs it, so a dynamic color tracks a live
@@ -46,9 +66,8 @@ static const CGFloat kListRowHeight = 24;
 
 @end
 
-// The one hairline — along a card row's top edge, along a list row's bottom
-// — starting at the row inset and running to the trailing edge.
-static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
+// Card-row divider, inset from the leading edge.
+static SettingsFillView *Hairline(NSView *in) {
     SettingsFillView *line = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
     line.darkColor = NSColor.separatorColor;
     line.lightColor = NSColor.separatorColor;
@@ -57,8 +76,7 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
         [line.heightAnchor constraintEqualToConstant:1],
         [line.leadingAnchor constraintEqualToAnchor:in.leadingAnchor constant:kSettingsRowInset],
         [line.trailingAnchor constraintEqualToAnchor:in.trailingAnchor],
-        atTop ? [line.topAnchor constraintEqualToAnchor:in.topAnchor]
-              : [line.bottomAnchor constraintEqualToAnchor:in.bottomAnchor],
+        [line.topAnchor constraintEqualToAnchor:in.topAnchor],
     ]];
     return line;
 }
@@ -66,7 +84,34 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
 @implementation SettingsAccentRowView
 
 - (BOOL)isEmphasized {
-    return YES;
+    return self.listBackgroundColor == nil;
+}
+
+- (NSBackgroundStyle)interiorBackgroundStyle {
+    return self.listBackgroundColor ? NSBackgroundStyleNormal : [super interiorBackgroundStyle];
+}
+
+- (void)drawBackgroundInRect:(NSRect)dirtyRect {
+    if (!self.listBackgroundColor) {
+        [super drawBackgroundInRect:dirtyRect];
+        return;
+    }
+    [self.listBackgroundColor setFill];
+    NSRectFill(self.bounds);
+}
+
+- (void)drawSelectionInRect:(NSRect)dirtyRect {
+    if (!self.listBackgroundColor) {
+        [super drawSelectionInRect:dirtyRect];
+        return;
+    }
+    [ListColor(2) setFill];
+    NSRectFill(self.bounds);
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    self.needsDisplay = YES;
 }
 
 @end
@@ -75,6 +120,8 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
 
 @implementation SettingsRowView {
     SettingsFillView *_separator;
+    NSTableView *_listTable;
+    SettingsFillView *_listHeader;
     // The caption's layout, built on first use by setCaption: — the control
     // cluster it must clear, the title-centered constraint that holds while
     // there is no caption, and the caption's own constraints while there is.
@@ -187,37 +234,121 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
                                                 kRowPaddingV + 2, kSettingsRowInset)];
 }
 
++ (NSTableView *)listTableWithColumnIdentifiers:(NSArray<NSUserInterfaceItemIdentifier> *)identifiers
+                                     delegate:(id<NSTableViewDelegate, NSTableViewDataSource>)delegate {
+    NSTableView *table = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    table.dataSource = delegate;
+    table.delegate = delegate;
+    table.allowsColumnReordering = NO;
+    table.allowsColumnResizing = NO;
+    for (NSUserInterfaceItemIdentifier identifier in identifiers) {
+        [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:identifier]];
+    }
+    return table;
+}
+
 + (instancetype)rowWithTableView:(NSTableView *)table rowCount:(NSUInteger)rowCount {
+    BOOL hasHeader = table.tableColumns.count > 1;
     table.headerView = nil;
     table.style = NSTableViewStyleFullWidth;
     table.rowHeight = kListRowHeight;
     table.intercellSpacing = NSZeroSize;
-    table.backgroundColor = NSColor.clearColor;
+    table.gridStyleMask = NSTableViewGridNone;
+    table.backgroundColor = ListColor(0);
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scrollView.documentView = table;
     scrollView.hasVerticalScroller = YES;
     scrollView.borderType = NSNoBorder;
-    scrollView.drawsBackground = NO;
+    scrollView.backgroundColor = ListColor(0);
     [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;
-    // Sunk to the pane background — the card's lift undone. Light is the
-    // pane's own white; dark takes the card one step back down, which lands
-    // within a 255th of the backdrop for any window background near the
-    // measured one (0.102, the card over it 0.129).
-    SettingsFillView *backdrop = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
-    backdrop.darkColor = [NSColor colorWithWhite:0 alpha:0.21];
-    backdrop.lightColor = NSColor.whiteColor;
-    return [self rowFilledWith:@[backdrop, scrollView] insets:NSEdgeInsetsZero];
+    SettingsRowView *row = [self rowFilledWith:@[scrollView]
+                                      insets:NSEdgeInsetsMake(hasHeader ? kListHeaderHeight : 0, 0, 0, 0)];
+    row.wantsLayer = YES;
+    row.layer.cornerRadius = kCardCornerRadius;
+    row.layer.masksToBounds = YES;
+    row->_listTable = table;
+    if (hasHeader) {
+        SettingsFillView *header = [[SettingsFillView alloc] initWithFrame:NSZeroRect];
+        header.darkColor = header.lightColor = ListColor(1);
+        for (NSTableColumn *column in table.tableColumns) {
+            NSTextField *label = [NSTextField labelWithString:column.title];
+            label.font = [NSFont systemFontOfSize:11 weight:NSFontWeightMedium];
+            label.textColor = NSColor.labelColor;
+            label.lineBreakMode = NSLineBreakByTruncatingTail;
+            [header addSubview:label];
+        }
+        [row addSubview:header];
+        [NSLayoutConstraint activateConstraints:@[
+            [header.leadingAnchor constraintEqualToAnchor:row.leadingAnchor],
+            [header.trailingAnchor constraintEqualToAnchor:row.trailingAnchor],
+            [header.topAnchor constraintEqualToAnchor:row.topAnchor],
+            [header.heightAnchor constraintEqualToConstant:kListHeaderHeight],
+        ]];
+        row->_listHeader = header;
+    }
+    return row;
+}
+
+- (void)layout {
+    [super layout];
+    for (NSUInteger column = 0; column < _listHeader.subviews.count; column++) {
+        NSTextField *label = (NSTextField *)_listHeader.subviews[column];
+        NSRect cell = _listTable.numberOfRows
+                ? [_listTable frameOfCellAtColumn:(NSInteger)column row:0]
+                : [_listTable rectOfColumn:(NSInteger)column];
+        cell = [_listTable convertRect:cell toView:_listHeader];
+        CGFloat height = label.intrinsicContentSize.height;
+        // A label frame includes two points before its text; Auto Layout uses
+        // its alignment rect for row text, giving the reference's 8/10-point insets.
+        label.frame = NSMakeRect(NSMinX(cell),
+                (kListHeaderHeight - height) / 2, NSWidth(cell), height);
+    }
+}
+
++ (NSTableRowView *)listRowViewForRow:(NSInteger)row {
+    SettingsAccentRowView *view = [SettingsAccentRowView new];
+    view.listBackgroundColor = ListColor((NSUInteger)row % 2);
+    return view;
 }
 
 + (NSTableCellView *)listCellWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
-                                inTableView:(NSTableView *)table {
+                                inTableView:(NSTableView *)table
+                              imagePosition:(NSCellImagePosition)imagePosition {
     NSTableCellView *cell = [table makeViewWithIdentifier:identifier owner:nil];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
         cell.identifier = identifier;
-        // Under the row rather than the table's grid, which would rule the
-        // empty rows below the last one too.
-        Hairline(cell, NO);
+        NSLayoutXAxisAnchor *leading = cell.leadingAnchor;
+        CGFloat inset = kListTextInset;
+        if (imagePosition != NSNoImage) {
+            NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+            icon.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell addSubview:icon];
+            cell.imageView = icon;
+            [NSLayoutConstraint activateConstraints:@[
+                imagePosition == NSImageOnly
+                        ? [icon.centerXAnchor constraintEqualToAnchor:cell.centerXAnchor]
+                        : [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kListTextInset],
+                [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+                [icon.widthAnchor constraintEqualToConstant:16],
+                [icon.heightAnchor constraintEqualToConstant:16],
+            ]];
+            leading = icon.trailingAnchor;
+            inset = 6;
+        }
+        if (imagePosition != NSImageOnly) {
+            NSTextField *label = [NSTextField labelWithString:@""];
+            label.translatesAutoresizingMaskIntoConstraints = NO;
+            label.textColor = NSColor.labelColor;
+            label.lineBreakMode = NSLineBreakByTruncatingTail;
+            [cell addSubview:label];
+            cell.textField = label;
+            [NSLayoutConstraint activateConstraints:@[
+                [label.leadingAnchor constraintEqualToAnchor:leading constant:inset],
+                [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-kListTextInset],
+                [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+            ]];
+        }
     }
     return cell;
 }
@@ -240,6 +371,9 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
 }
 
 - (void)setShowsTopSeparator:(BOOL)showsTopSeparator {
+    if (_listTable) {
+        return;
+    }
     if (showsTopSeparator == (_separator != nil)) {
         return;
     }
@@ -248,7 +382,7 @@ static SettingsFillView *Hairline(NSView *in, BOOL atTop) {
         _separator = nil;
         return;
     }
-    _separator = Hairline(self, YES);
+    _separator = Hairline(self);
 }
 
 - (BOOL)showsTopSeparator {

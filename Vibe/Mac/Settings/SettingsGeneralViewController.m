@@ -8,26 +8,24 @@
 #import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
 #import "AudioPlayer.h"
+#import "CoreAudioUtil.h"
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
-#import "OutputDevicesMenuController.h"
 #import "OutputFormatRules.h"
 #import "VibeStrings.h"
 
-static const CGFloat kOutputPopUpWidth = 280;
+static const CGFloat kGeneralPopUpWidth = 280;
 
-@interface SettingsGeneralViewController () <AudioDeviceManagerObserver>
+@interface SettingsGeneralViewController () <AudioDeviceManagerObserver, NSTableViewDataSource, NSTableViewDelegate>
 @end
 
 @implementation SettingsGeneralViewController {
-    // Owns the popup menu's layout and the change action — the same class
-    // that serves the menu bar's Output menu, so the two cannot drift. Its
-    // own device observation refreshes the popup while it is open; the
-    // observation below covers it while it is closed.
-    OutputDevicesMenuController *_outputMenuController;
-    NSPopUpButton *_outputPopUp;
+    BOOL _audioPane;
+    NSTableView *_outputTable;
+    NSArray<AudioDevice *> *_outputDevices;
+    BOOL _refreshingOutputList;
     // Enabled only for a device bit-perfect output can drive; the row's
     // caption says why otherwise, and names the format while it is active.
     NSSwitch *_bitPerfectSwitch;
@@ -49,19 +47,25 @@ static const CGFloat kOutputPopUpWidth = 280;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
+    return [self initWithPlayerController:playerController audioPane:NO];
+}
+
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController audioPane:(BOOL)audioPane {
     self = [super initWithPlayerController:playerController];
     if (self) {
-        _outputMenuController = [[OutputDevicesMenuController alloc] init];
-        _outputMenuController.audioPlayer = playerController.audioPlayer;
-        [AudioDeviceManager.sharedInstance addObserver:self];
+        _audioPane = audioPane;
+        if (audioPane) {
+            [AudioDeviceManager.sharedInstance addObserver:self];
+        }
     }
     return self;
 }
 
 - (void)loadView {
-    _outputPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:NULL];
-    _outputPopUp.menu.delegate = _outputMenuController;
-
+    if (_audioPane) {
+        [self loadAudioPane];
+        return;
+    }
     // The pane is measured once, here, while the async default-app check is
     // still out and the real title has not arrived. Floor the button at the
     // wider of the two titles it can carry, or the pane's width freezes
@@ -74,17 +78,6 @@ static const CGFloat kOutputPopUpWidth = 280;
     widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
-    _bitPerfectSwitch = [self switchWithAction:@selector(toggleBitPerfect:)];
-    _bitPerfectRow = [SettingsRowView rowWithTitle:STR_SETTINGS_BIT_PERFECT
-                                           caption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF
-                                           control:_bitPerfectSwitch];
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    _exclusiveOutputSwitch = [self switchWithAction:@selector(toggleExclusiveOutput:)];
-    _exclusiveOutputRow = [SettingsRowView rowWithTitle:STR_SETTINGS_EXCLUSIVE_OUTPUT
-                                               caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
-                                               control:_exclusiveOutputSwitch];
-#endif
-
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
     _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
@@ -92,23 +85,16 @@ static const CGFloat kOutputPopUpWidth = 280;
     // display name must never reach NSUserDefaults. No live effect for
     // either popup: the waveform view reads its setting per mouse-down, the
     // art view reads its own per drag start.
-    _waveformDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(waveformDragChanged:)];
+    _waveformDragPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(waveformDragChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_DRAG_WINDOW value:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW to:_waveformDragPopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_DRAG_SEEK value:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK to:_waveformDragPopUp];
 
-    _artworkDragPopUp = [self popUpButtonWithWidth:kOutputPopUpWidth action:@selector(artworkDragChanged:)];
+    _artworkDragPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(artworkDragChanged:)];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_FILE value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_OUTPUT_LABEL control:_outputPopUp],
-            _bitPerfectRow,
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            _exclusiveOutputRow,
-#endif
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_STARTUP_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
                                   caption:STR_SETTINGS_REOPEN_PLAYLIST_CAPTION
@@ -125,8 +111,54 @@ static const CGFloat kOutputPopUpWidth = 280;
     ]];
 }
 
+- (void)loadAudioPane {
+    _outputTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", @"name", @"type"] delegate:self];
+    _outputTable.allowsEmptySelection = NO;
+    _outputTable.accessibilityLabel = STR_SETTINGS_OUTPUT_LABEL;
+    NSTableColumn *icon = _outputTable.tableColumns[0];
+    icon.title = @"";
+    icon.width = 36;
+    icon.minWidth = 36;
+    icon.maxWidth = 36;
+    icon.resizingMask = NSTableColumnNoResizing;
+    NSTableColumn *name = _outputTable.tableColumns[1];
+    name.title = STR_SETTINGS_DEVICE_NAME;
+    name.width = 300;
+    name.minWidth = 160;
+    NSTableColumn *type = _outputTable.tableColumns[2];
+    type.title = STR_SETTINGS_DEVICE_TYPE;
+    type.width = 140;
+    type.minWidth = 100;
+
+    _bitPerfectSwitch = [self switchWithAction:@selector(toggleBitPerfect:)];
+    _bitPerfectRow = [SettingsRowView rowWithTitle:STR_SETTINGS_BIT_PERFECT
+                                           caption:STR_SETTINGS_BIT_PERFECT_CAPTION_OFF
+                                           control:_bitPerfectSwitch];
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    _exclusiveOutputSwitch = [self switchWithAction:@selector(toggleExclusiveOutput:)];
+    _exclusiveOutputRow = [SettingsRowView rowWithTitle:STR_SETTINGS_EXCLUSIVE_OUTPUT
+                                               caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
+                                               control:_exclusiveOutputSwitch];
+#endif
+
+    [self loadPaneWithSections:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
+            [SettingsRowView rowWithTableView:_outputTable rowCount:7],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            _bitPerfectRow,
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            _exclusiveOutputRow,
+#endif
+        ]],
+    ]];
+}
+
 - (void)refreshFromSettings {
-    [self refreshOutputDevice];
+    if (_audioPane) {
+        [self refreshOutputDevice];
+        return;
+    }
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
@@ -135,14 +167,14 @@ static const CGFloat kOutputPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 }
 
-// The switch follows the Output popup beside it: enabled only while the
+// The switch follows the selected output device: enabled only while the
 // chosen device is one the mode can drive (OutputFormatRules.h), with the
 // caption saying why otherwise. On, the caption is the player's own report —
 // the same sentence the header's open lock shows on hover — and the report
 // settles asynchronously, so the toggle's own call shows the previous one
 // until the player controller's report-change call corrects it.
 - (void)refreshBitPerfectRows {
-    if (!self.viewLoaded) {
+    if (!_outputTable) {
         return;
     }
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
@@ -166,11 +198,14 @@ static const CGFloat kOutputPopUpWidth = 280;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL exclusiveEligible = device && VibeBitPerfectShouldHog(YES, device.transportType,
             device.isSystemDefault);
-    _exclusiveOutputSwitch.enabled = on && exclusiveEligible;
+    BOOL exclusiveSupported = exclusiveEligible
+            && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
+    _exclusiveOutputSwitch.enabled = on && exclusiveSupported;
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
             : !exclusiveEligible ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_DEVICE
+            : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
 #endif
@@ -182,7 +217,7 @@ static const CGFloat kOutputPopUpWidth = 280;
 - (void)toggleBitPerfect:(id)sender {
     AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
-    [self refreshOutputDevice]; // the popup grays ineligible devices out while on
+    [self refreshOutputDevice];
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
@@ -213,24 +248,118 @@ static const CGFloat kOutputPopUpWidth = 280;
 
 #pragma mark - Output device
 
-// Same layout and checkmark rule as the menu bar's Output menu, built by the
-// same controller; the popup's selection then follows the checked item. The
-// controller-set item state and the popup's own selected-item checkmark are
-// deliberately redundant — they land on the same item as long as this
-// selection stays in sync, so neither path should be removed.
 - (void)refreshOutputDevice {
-    if (!self.viewLoaded) {
+    if (!_outputTable) {
         return;
     }
-    [_outputMenuController menuNeedsUpdate:_outputPopUp.menu];
-    AudioPlayer *audioPlayer = self.playerController.audioPlayer;
-    NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
-    if (![_outputPopUp selectItemWithTag:requestedId]) {
-        // A chosen device that vanished: the player falls back to System
-        // Output, so show that.
-        [_outputPopUp selectItemWithTag:-1];
+    _outputDevices = AudioDeviceManager.sharedInstance.outputDevices;
+    NSInteger requestedId = self.playerController.audioPlayer.currentlyRequestedAudioDeviceId;
+    NSInteger selectedRow = 0;
+    for (NSUInteger i = 0; i < _outputDevices.count; i++) {
+        if (_outputDevices[i].deviceId == requestedId) {
+            selectedRow = (NSInteger)i + 1;
+            break;
+        }
+    }
+    BOOL selectionChanged = _outputTable.selectedRow != selectedRow;
+    // Reload and reselect post selection notifications; neither is a device request.
+    _refreshingOutputList = YES;
+    [_outputTable reloadData];
+    [_outputTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)selectedRow]
+             byExtendingSelection:NO];
+    _refreshingOutputList = NO;
+    if (selectionChanged) {
+        [_outputTable scrollRowToVisible:selectedRow];
     }
     [self refreshBitPerfectRows];
+}
+
+- (AudioDevice *)outputDeviceAtRow:(NSInteger)row {
+    if (row == 0) {
+        for (AudioDevice *device in _outputDevices) {
+            if (device.isSystemDefault) {
+                return device;
+            }
+        }
+    }
+    return row >= 1 && row < (NSInteger)_outputDevices.count + 1 ? _outputDevices[(NSUInteger)row - 1] : nil;
+}
+
+- (NSString *)typeNameForDevice:(AudioDevice *)device symbolName:(NSString **)symbolName {
+    switch (device.transportType) {
+        case kAudioDeviceTransportTypeBuiltIn: *symbolName = @"speaker.wave.2"; return STR_SETTINGS_DEVICE_BUILT_IN;
+        case kAudioDeviceTransportTypeAggregate: *symbolName = @"square.stack.3d.up"; return STR_SETTINGS_DEVICE_AGGREGATE;
+        case kAudioDeviceTransportTypeVirtual: *symbolName = @"point.3.connected.trianglepath.dotted"; return STR_SETTINGS_DEVICE_VIRTUAL;
+        case kAudioDeviceTransportTypePCI: *symbolName = @"cpu"; return VibeNotLocalized(@"PCI");
+        case kAudioDeviceTransportTypeUSB: *symbolName = @"cable.connector"; return VibeNotLocalized(@"USB");
+        case kAudioDeviceTransportTypeFireWire: *symbolName = @"cable.connector"; return VibeNotLocalized(@"FireWire");
+        case kAudioDeviceTransportTypeBluetooth:
+        case kAudioDeviceTransportTypeBluetoothLE: *symbolName = @"headphones"; return VibeNotLocalized(@"Bluetooth");
+        case kAudioDeviceTransportTypeHDMI: *symbolName = @"display"; return VibeNotLocalized(@"HDMI");
+        case kAudioDeviceTransportTypeDisplayPort: *symbolName = @"display"; return VibeNotLocalized(@"DisplayPort");
+        case kAudioDeviceTransportTypeAirPlay: *symbolName = @"airplayaudio"; return VibeNotLocalized(@"AirPlay");
+        case kAudioDeviceTransportTypeAVB: *symbolName = @"network"; return VibeNotLocalized(@"AVB");
+        case kAudioDeviceTransportTypeThunderbolt: *symbolName = @"bolt"; return VibeNotLocalized(@"Thunderbolt");
+        default: *symbolName = @"hifispeaker"; return STR_SETTINGS_DEVICE_OTHER;
+    }
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+    return (NSInteger)_outputDevices.count + 1;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
+    if (row < 0 || row >= (NSInteger)_outputDevices.count + 1) {
+        return NO;
+    }
+    return !AppSettings.sharedInstance.bitPerfectOutput
+            || (row >= 1 && VibeBitPerfectDeviceEligible([self outputDeviceAtRow:row].transportType));
+}
+
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    BOOL iconColumn = [tableColumn.identifier isEqualToString:@"icon"];
+    NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
+                                                        inTableView:tableView
+                                                      imagePosition:iconColumn ? NSImageOnly : NSNoImage];
+    AudioDevice *device = [self outputDeviceAtRow:row];
+    NSString *symbolName;
+    NSString *typeName = [self typeNameForDevice:device symbolName:&symbolName];
+    BOOL enabled = [self tableView:tableView shouldSelectRow:row];
+    if (iconColumn) {
+        cell.imageView.symbolConfiguration =
+                [NSImageSymbolConfiguration configurationWithPointSize:16 weight:NSFontWeightBold];
+        cell.imageView.image = [NSImage imageWithSystemSymbolName:row == 0 ? @"desktopcomputer" : symbolName
+                                       accessibilityDescription:row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName];
+        cell.imageView.alphaValue = enabled ? 1.0 : 0.4;
+        cell.toolTip = row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName;
+    }
+    else {
+        cell.textField.stringValue = [tableColumn.identifier isEqualToString:@"type"]
+                ? typeName : row > 0 ? device.name : device
+                        ? [NSString stringWithFormat:STR_MENU_OUTPUT_SYSTEM_NAMED, device.name] : STR_MENU_OUTPUT_SYSTEM;
+        cell.textField.textColor = enabled ? NSColor.labelColor : NSColor.disabledControlTextColor;
+        cell.toolTip = cell.textField.stringValue;
+    }
+    return cell;
+}
+
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    return [SettingsRowView listRowViewForRow:row];
+}
+
+- (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    if (_refreshingOutputList) {
+        return;
+    }
+    NSInteger row = _outputTable.selectedRow;
+    if (![self tableView:_outputTable shouldSelectRow:row]) {
+        [self refreshOutputDevice];
+        return;
+    }
+    NSInteger deviceId = row == 0 ? -1 : [self outputDeviceAtRow:row].deviceId;
+    if (deviceId != self.playerController.audioPlayer.currentlyRequestedAudioDeviceId) {
+        [self.playerController.audioPlayer setOutputDevice:deviceId];
+    }
 }
 
 - (void)audioOutputDevicesDidChange {

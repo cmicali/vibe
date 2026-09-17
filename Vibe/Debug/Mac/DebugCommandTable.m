@@ -151,7 +151,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // The settings window: a second window the injection verbs below
             // cannot reach, since they all post into the player's event
             // stream. DebugSettingsUI.m addresses its controls by name.
-            VibeDebugCmd(@"settings_open [pane]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"settings_open [pane [light|dark|system]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsOpen(tokens);
             }),
             VibeDebugCmd(@"settings_close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

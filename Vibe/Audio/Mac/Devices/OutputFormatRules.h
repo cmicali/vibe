@@ -204,15 +204,13 @@ static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
     }
 }
 
-// Exclusive output is opt-in. Even when enabled, exclude virtual, which has no
-// DAC behind it and is what the loopback verification records from — and
-// never the system default output device. TRAP: hogging the default makes
+// Exclusive output is opt-in; HAL capability is checked before acquiring it.
+// Never take the system default output device. TRAP: hogging the default makes
 // coreaudiod move the default elsewhere and AVAudioEngine's output unit
 // follow it, off the device it was bound to, at a moment of its own
 // choosing; the measurements are Q8 of docs/future/bit-perfect-output.md.
 static inline BOOL VibeBitPerfectShouldHog(BOOL exclusiveOutput, UInt32 transportType, BOOL isSystemDefault) {
-    return exclusiveOutput && VibeBitPerfectDeviceEligible(transportType)
-            && transportType != kAudioDeviceTransportTypeVirtual && !isSystemDefault;
+    return exclusiveOutput && VibeBitPerfectDeviceEligible(transportType) && !isSystemDefault;
 }
 
 static inline BOOL VibeRangedFormatOffersRate(AudioStreamRangedDescription format, double rate) {

@@ -10,8 +10,9 @@ implementation plan is available in git history.
 - **Bit-perfect output**, off by default, requires an explicitly chosen eligible
   output device. It matches the file's rate and depth, removes varispeed, disables
   FX and pitch controls, and holds crossfades to the 10 ms declick minimum.
-- **Exclusive output** is a separate opt-in immediately below it. Virtual devices
-  and the current system output stay shared. Shared output can still deliver
+- **Exclusive output** is a separate opt-in immediately below it. Physical and virtual devices
+  may request it when the HAL hog property is writable; the current system output
+  stays shared. Shared output can still deliver
   Vibe's samples unchanged; it does not prevent other applications from mixing in.
 - The header lock and Settings caption read one report. Active requires confirmed
   routing and format, matching channel counts, sufficient source precision,

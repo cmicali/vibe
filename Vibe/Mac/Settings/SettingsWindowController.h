@@ -17,10 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The two panes other code addresses by name: Appearance is the theme
 // editor's host and the debug channel's preview and navigation target;
-// General shows the bit-perfect report, which the player controller
+// Audio shows the bit-perfect report, which the player controller
 // refreshes as it changes.
 - (nullable SettingsAppearanceViewController *)appearancePane;
-- (nullable SettingsGeneralViewController *)generalPane;
+- (nullable SettingsGeneralViewController *)audioPane;
 
 // Selects the Appearance pane and lands on the theme editor — View > Theme >
 // Edit Themes…'s destination. The window must already be shown (the app

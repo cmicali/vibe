@@ -106,12 +106,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     _explainLabel = [self explainLabel:[NSString stringWithFormat:STR_SETTINGS_PERMISSIONS_EXPLAIN,
                                                                  VibeAppName()]];
 
-    _tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
+    _tableView = [SettingsRowView listTableWithColumnIdentifiers:@[kFolderCellIdentifier] delegate:self];
     _tableView.allowsMultipleSelection = YES;
-    _tableView.dataSource = self;
-    _tableView.delegate = self;
-    NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:kFolderCellIdentifier];
-    [_tableView addTableColumn:column];
     // File URLs only: the drop reads with FileURLsOnly, so registering
     // NSPasteboardTypeURL too would show a copy cursor for a browser-link drag
     // the drop then rejects.
@@ -382,30 +378,14 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     return (NSInteger)_folders.count;
 }
 
+- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {
+    return [SettingsRowView listRowViewForRow:row];
+}
+
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kFolderCellIdentifier
-                                                        inTableView:tableView];
-    if (!cell.textField) {
-        NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
-        icon.translatesAutoresizingMaskIntoConstraints = NO;
-        NSTextField *label = [NSTextField labelWithString:@""];
-        label.translatesAutoresizingMaskIntoConstraints = NO;
-        label.lineBreakMode = NSLineBreakByTruncatingMiddle;
-        [cell addSubview:icon];
-        [cell addSubview:label];
-        cell.imageView = icon;
-        cell.textField = label;
-        [NSLayoutConstraint activateConstraints:@[
-            [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:kSettingsRowInset],
-            [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-            [icon.widthAnchor constraintEqualToConstant:16],
-            [icon.heightAnchor constraintEqualToConstant:16],
-            [label.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:6],
-            [label.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor
-                                                            constant:-kSettingsRowInset],
-            [label.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-        ]];
-    }
+                                                        inTableView:tableView imagePosition:NSImageLeft];
+    cell.textField.lineBreakMode = NSLineBreakByTruncatingMiddle;
     VibeGrantedFolder *folder = _folders[(NSUInteger)row];
     // Rows include unmounted and unreachable folders, and a path-specific icon
     // lookup can synchronously wake their mount on the main thread. Use the
