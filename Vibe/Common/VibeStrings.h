@@ -174,8 +174,8 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Help menu
 
-#define STR_MENU_HELP         NSLS(@"menu.help",         @"Help",        @"Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.")
-#define STR_MENU_HELP_SUPPORT NSLS(@"menu.help.support", @"Get Support", @"Help menu item: opens the app's support page in the browser, where a user gets help or reports a problem.")
+#define STR_MENU_HELP         NSLS(@"menu.help",         @"Help",                            @"Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.")
+#define STR_MENU_HELP_SUPPORT NSLS(@"menu.help.support", @"Report Issue or Feature Request", @"Help menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature.")
 
 #pragma mark - Context menus
 

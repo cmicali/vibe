@@ -13766,186 +13766,186 @@
       "extractionState": "manual"
     },
     "menu.help.support": {
-      "comment": "Help menu item: opens the app's support page in the browser, where a user gets help or reports a problem.",
+      "comment": "Help menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Получи поддръжка"
+            "value": "Съобщи за проблем или предложи функция"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Získat podporu"
+            "value": "Nahlásit problém nebo navrhnout funkci"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Få support"
+            "value": "Rapporter et problem eller foreslå en funktion"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Support erhalten"
+            "value": "Problem melden oder Funktion vorschlagen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Λήψη υποστήριξης"
+            "value": "Αναφορά προβλήματος ή αίτημα δυνατότητας"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Get Support"
+            "value": "Report Issue or Feature Request"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obtener soporte"
+            "value": "Informar de un problema o solicitar una función"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hanki tukea"
+            "value": "Ilmoita ongelmasta tai ehdota ominaisuutta"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obtenir de l’assistance"
+            "value": "Signaler un problème ou suggérer une fonctionnalité"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zatraži podršku"
+            "value": "Prijavi problem ili predloži značajku"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Támogatás kérése"
+            "value": "Hiba jelentése vagy funkció kérése"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dapatkan Dukungan"
+            "value": "Laporkan Masalah atau Minta Fitur"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ottieni supporto"
+            "value": "Segnala un problema o richiedi una funzionalità"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "サポートを見る"
+            "value": "問題の報告または機能のリクエスト"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "지원 받기"
+            "value": "문제 신고 또는 기능 요청"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Få kundestøtte"
+            "value": "Rapporter et problem eller foreslå en funksjon"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vraag ondersteuning aan"
+            "value": "Meld een probleem of vraag een functie aan"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uzyskaj wsparcie"
+            "value": "Zgłoś problem lub zaproponuj funkcję"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obter suporte"
+            "value": "Relatar um problema ou sugerir um recurso"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obter suporte"
+            "value": "Comunicar um problema ou sugerir uma funcionalidade"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Obțineți asistență"
+            "value": "Raportați o problemă sau solicitați o funcționalitate"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Получить поддержку"
+            "value": "Сообщить о проблеме или предложить функцию"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Získať podporu"
+            "value": "Nahlásiť problém alebo navrhnúť funkciu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Få support"
+            "value": "Rapportera ett problem eller föreslå en funktion"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รับการสนับสนุน"
+            "value": "รายงานปัญหาหรือขอคุณสมบัติใหม่"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Destek Al"
+            "value": "Sorun Bildir veya Özellik İste"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отримати підтримку"
+            "value": "Повідомити про проблему або запропонувати функцію"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhận hỗ trợ"
+            "value": "Báo cáo sự cố hoặc yêu cầu tính năng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "获取支持"
+            "value": "报告问题或提出功能请求"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "取得支援"
+            "value": "回報問題或提出功能要求"
           }
         }
       },
