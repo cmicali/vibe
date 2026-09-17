@@ -1,14 +1,12 @@
-# Unreleased
+# v1.12 (unreleased)
 
-* mac: Added Settings > General > Bit-perfect output — the chosen device follows each file's sample rate and bit depth, optional Exclusive output reserves eligible physical devices while playing, and Vibe restores the device format on quit; FX, the pitch fader and the crossfade are off while it is on, and the header shows a lock while a track is delivered unchanged
-
-# v1.12
-
+* mac: Added new waveform style: Wiggle
+* mac: Added bit-perfect playback and exclusive mode for audio output devices  
 * mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file
 * mac: Added Settings > General > Load last playlist on launch
-* mac: Added ability for themes to customize transport controls and app icon
-* mac: Settings UI improvement
-* Fixed audio now bit-perfect when low-cut FX is disabled (was slightly colored before)
+* mac: Added more theme customizations, including customizing transport controls and app icon
+* mac: Settings UI improvements, including new audio output device picker
+* Fixed audio now unchanged when low-cut FX is disabled (was slightly colored before)
 
 # v1.11
 
