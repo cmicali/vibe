@@ -24,8 +24,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // for its action's magnetic snap onto the default. NSSlider's own tick marks
 // are evenly spaced and single-sided, so the pair is drawn by the class; the
 // knob geometry mirrors AppKit's linear layout (half the knob inset at each
-// end). The editor's corner radius and the list page's waveform gain both
-// use it; the implementation is the Editor category's.
+// end). Corner radius, waveform density and waveform gain share it; the
+// implementation is the Editor category's.
 @interface VibeDetentSlider : NSSlider
 @property (nonatomic) double detentValue;
 @end
@@ -94,6 +94,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     // loop and one seed walk serve all of them.
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
     NSPopUpButton *_waveformPopUp;
+    NSSlider *_waveformBarDensitySlider;
+    NSTextField *_waveformBarDensityValue;
     NSPopUpButton *_waveformThemePopUp;
     // A played/unplayed pair per appearance — one pair cannot read on both
     // backdrops.

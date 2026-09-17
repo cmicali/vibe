@@ -380,9 +380,7 @@ static const double kWaveformGainDetentDB = 0.75;
     }
     AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
-    // Keep the twin surface agreeing without a whole-pane refresh.
-    NSPopUpButton *twin = sender == _waveformPopUp ? _listWaveformPopUp : _waveformPopUp;
-    [self selectValue:identifier in:twin];
+    [self refreshFromSettings];
 }
 
 #pragma mark - Theme list

@@ -9,12 +9,6 @@
 
 #include <cmath>
 
-// 128 bars across the 512pt design-width waveform: a designed pitch of 4pt —
-// the 3pt bar plus its gap — and the count follows the width at that pitch,
-// so a resize adds or removes bars rather than spreading them apart.
-static const CGFloat kBasicBarPitch = 4;
-static const NSUInteger kBasicMaxBars = 1024;
-
 #define kBasicBarWidth 3
 
 @implementation BasicAudioWaveformRenderer
@@ -37,12 +31,11 @@ static const NSUInteger kBasicMaxBars = 1024;
 }
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / kBasicBarPitch);
-    return clampRange(count, (NSUInteger)2, kBasicMaxBars);
+    return [self blockBarCountForWidth:width];
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
-    return kBasicBarWidth;
+    return kBasicBarWidth / MAX((CGFloat)1, self.barDensity);
 }
 
 // Discrete blocks with gaps, so the fill and the hover quantize to whole

@@ -35,6 +35,10 @@ static const CGFloat kWiggleStrokeWidth = 1.5;
 static const CGFloat kWigglePitch = 8;
 static const NSUInteger kWiggleMaxLoops = 1024;
 
+static CGFloat VibeWiggleStrokeForSize(CGSize size, NSUInteger count) {
+    return MIN(kWiggleStrokeWidth, size.width / (MAX((NSUInteger)1, count) * 4));
+}
+
 static CGFloat VibeWiggleVScale(CGFloat height, BOOL centered) {
     return MAX(0, VibeBarVScale(height) * 2 - kWiggleStrokeWidth) / (centered ? 2 : 1);
 }
@@ -46,7 +50,7 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
                                   BOOL centered) {
     CGMutablePathRef line = CGPathCreateMutable();
-    CGFloat stroke = kWiggleStrokeWidth;
+    CGFloat stroke = VibeWiggleStrokeForSize(size, count);
     CGFloat amplitude = VibeWiggleVScale(size.height, centered);
     if (count == 0 || size.width <= stroke || amplitude == 0) return line;
     CGFloat baseline = centered ? size.height / 2
@@ -137,7 +141,8 @@ static const NSUInteger kDetailedMaxBars = 8192;
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
     if (_wiggle && self.samplingWidth > 0) width = self.samplingWidth;
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) / (_wiggle ? kWigglePitch : kDetailedBarPitch));
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * (_wiggle ? self.barDensity : 1)
+                                           / (_wiggle ? kWigglePitch : kDetailedBarPitch));
     return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kDetailedMaxBars);
 }
 
@@ -198,7 +203,6 @@ static const NSUInteger kDetailedMaxBars = 8192;
     _barMask.fillColor = _wiggle ? nil : [VibeColor whiteColor].CGColor;
     if (_wiggle) {
         _barMask.strokeColor = [VibeColor whiteColor].CGColor;
-        _barMask.lineWidth = kWiggleStrokeWidth;
         _barMask.lineCap = kCALineCapRound;
         _barMask.lineJoin = kCALineJoinRound;
     }
@@ -321,14 +325,15 @@ static const NSUInteger kDetailedMaxBars = 8192;
 // column; the snap itself is the shared rule (VibeSnappedColumnRect).
 - (CGRect)hoverColumnRectForX:(CGFloat)x bounds:(CGRect)bounds scale:(CGFloat)scale {
     if (_wiggle) {
-        CGFloat width = MAX(0, bounds.size.width - kWiggleStrokeWidth);
         NSUInteger count = [self numBarsForWidth:bounds.size.width];
-        NSUInteger index = (NSUInteger)VibeBlockIndexForX(x - kWiggleStrokeWidth / 2,
+        CGFloat stroke = VibeWiggleStrokeForSize(bounds.size, count);
+        CGFloat width = MAX(0, bounds.size.width - stroke);
+        NSUInteger index = (NSUInteger)VibeBlockIndexForX(x - stroke / 2,
                                                           width, (NSInteger)count);
         CGFloat pitch = width / count;
         // Include the stroke at both valleys, then expand to whole pixels.
         CGFloat left = floor(index * pitch * scale) / scale;
-        CGFloat right = ceil(((index + 1) * pitch + kWiggleStrokeWidth) * scale) / scale;
+        CGFloat right = ceil(((index + 1) * pitch + stroke) * scale) / scale;
         return CGRectMake(left, 0, right - left, bounds.size.height);
     }
     return VibeSnappedColumnRect(x, kHoverHighlightWidth,
@@ -478,6 +483,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    if (_wiggle) _barMask.lineWidth = VibeWiggleStrokeForSize(_morph.size, count);
     _barMask.path = path;
     _barMask.opacity = opacity;
     [CATransaction commit];
@@ -528,7 +534,7 @@ static const NSUInteger kDetailedMaxBars = 8192;
         CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, _wiggleCentered);
         CGContextAddPath(ctx, path);
         CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
-        CGContextSetLineWidth(ctx, kWiggleStrokeWidth);
+        CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count));
         CGContextSetLineCap(ctx, kCGLineCapRound);
         CGContextSetLineJoin(ctx, kCGLineJoinRound);
         CGContextStrokePath(ctx);

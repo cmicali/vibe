@@ -17,12 +17,25 @@
         self.isDark = isDark;
         self.theme = [WaveformTheme monochromeThemeIsDark:isDark];
         _hoverHighlightX = -1;
+        _barDensity = 1;
     }
     return self;
 }
 
 - (CGFloat)hoverHighlightX {
     return _hoverHighlightX;
+}
+
+- (NSUInteger)blockBarCountForWidth:(CGFloat)width {
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * self.barDensity / 4);
+    return clampRange(count, (NSUInteger)2, (NSUInteger)1024);
+}
+
+- (void)setBarDensity:(CGFloat)density {
+    if (_barDensity == density) return;
+    _barDensity = density;
+    // Stroke widths can change while the rounded count stays the same.
+    [_morph rebuildNow];
 }
 
 // Subclasses override this to paint, and call super to record the position.

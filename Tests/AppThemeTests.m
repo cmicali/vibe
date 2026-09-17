@@ -72,6 +72,7 @@
     }
     XCTAssertTrue(theme.showFileInfo);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertTrue(theme.showPlaylistArtworkColumn);
     XCTAssertTrue(theme.showPlaylistDurationColumn);
     XCTAssertEqual(theme.playlistDurationFontSize, 12);
@@ -96,6 +97,7 @@
 - (void)testDefaultValuedFieldsAreNotStored {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"waveformTheme": @"mono",
+        @"waveformBarDensity": @1,
         @"customCornerRadius": @NO,
         @"windowCornerRadius": @16,
         @"showFileInfo": @YES,
@@ -336,11 +338,15 @@
         @"titleFontSize": @5,
         @"infoFontSize": @72,
         @"playlistFontSize": @(-3),
+        @"waveformBarDensity": @50,
     }];
     XCTAssertEqual(theme.windowCornerRadius, 36);
     XCTAssertEqual(theme.titleFontSize, 20);
     XCTAssertEqual(theme.infoFontSize, 15);
     XCTAssertEqual(theme.playlistFontSize, 11);
+    XCTAssertEqual(theme.waveformBarDensity, 4);
+    theme.waveformBarDensity = -1;
+    XCTAssertEqual(theme.waveformBarDensity, 0.5);
     theme.windowCornerRadius = -10;
     XCTAssertEqual(theme.windowCornerRadius, 0);
 }
@@ -353,6 +359,7 @@
         @"titleColorDark": @"#GGHHII",
         @"artistColorDark": @123,
         @"waveformStyle": @7,
+        @"waveformBarDensity": @(INFINITY),
     }];
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
     XCTAssertTrue(theme.showBPM);
@@ -637,7 +644,7 @@ static CGFloat Brightness(NSString *hex) {
 #pragma mark JSON
 
 - (void)testJSONRoundTripCarriesNameAndVersionAndStripsIds {
-    NSDictionary *record = @{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
+    NSDictionary *record = @{@"waveformTheme": @"orange", @"waveformBarDensity": @2.35, @"windowCornerRadius": @6,
                              @"id": @"SHOULD-NOT-TRAVEL"};
     NSData *data = [AppTheme JSONDataForRecord:record name:@"Exported"];
     XCTAssertNotNil(data);
@@ -647,7 +654,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertNil(json[@"id"]);
     // The fields travel nested under their editor sections, never flat, and
     // an untouched section is omitted rather than written empty.
-    XCTAssertEqualObjects(json[@"waveform"], @{@"theme": @"orange"});
+    XCTAssertEqualObjects(json[@"waveform"], (@{@"theme": @"orange", @"barDensity": @2.35}));
     XCTAssertEqualObjects(json[@"window"], (@{@"cornerRadius": @6, @"customCornerRadius": @YES}));
     XCTAssertNil(json[@"waveformTheme"]);
     XCTAssertNil(json[@"playlist"]);
@@ -663,7 +670,7 @@ static CGFloat Brightness(NSString *hex) {
     NSError *error = nil;
     NSDictionary *back = [AppTheme recordFromJSONData:data name:&name error:&error];
     XCTAssertNil(error);
-    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"windowCornerRadius": @6,
+    XCTAssertEqualObjects(back, (@{@"waveformTheme": @"orange", @"waveformBarDensity": @2.35, @"windowCornerRadius": @6,
                                    @"customCornerRadius": @YES}));
     XCTAssertEqualObjects(name, @"Exported");
 }
