@@ -60,6 +60,8 @@ The drag is `Playlist/Mac/CLAUDE.md`'s. This side owns **`playlistOrderDidChange
 
 ## The window
 
+Undo and Redo forward from the window to its controller so responder-chain menu routing retains the conversion-in-flight guard.
+
 **The height has a second floor that is a band.** A playlist pane under `kPlaylistPaneMinHeight` is a sliver, so nothing rests between `kMainWindowSmallHeight` and `kMainWindowMinLargeHeight`: `restingHeightForDraggedHeight:` sends a drag to the nearer end and `loadSettings` clamps a restored frame out of it. The rule reaches drags through `windowWillResize:toSize:`, **gated on `inLiveResize`** so the app's own animated resizes are not snapped mid-flight. All three programmatic resizes use one fixed `animationResizeTime:` (`kWindowResizeAnimationDuration`) rather than AppKit's distance-scaled default.
 
 **The pitch-panel toggle is the one resize the two `contentView` siblings must not follow** — the reveal is the right edge sweeping past a stationary panel — so `togglePitchPanel:` swaps in fixed masks for the animation and restores the resizable ones after.

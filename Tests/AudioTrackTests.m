@@ -481,7 +481,9 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     AudioTrack *a = [self artTrack:10], *b = [self artTrack:20], *c = [self artTrack:30];
     __block NSUInteger colors = 0, backdrops = 0;
     controller.dominantColorDidChangeHandler = ^{ colors++; };
-    controller.transportBackdropDidChangeHandler = ^(BOOL dark) { backdrops++; XCTAssertFalse(dark); };
+    controller.transportBackdropDidChangeHandler = ^(BOOL dark, BOOL hasArtwork) {
+        backdrops++; XCTAssertFalse(dark); XCTAssertTrue(hasArtwork);
+    };
     [controller updateForTrack:a];
     [controller updateForTrack:b];
     [controller updateForTrack:c];
@@ -502,6 +504,24 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     XCTAssertEqual(backdrops, 1u);
     [controller updateForTrack:c];
     XCTAssertEqual(_artRenders.count, 2u);
+}
+
+- (void)testTransportBackdropFollowsInstalledArtworkThroughPendingAndStaleRenders {
+    ArtworkDisplayController *controller = self.artController;
+    NSMutableArray *backdrops = NSMutableArray.array;
+    controller.transportBackdropDidChangeHandler = ^(BOOL dark, BOOL hasArtwork) {
+        [backdrops addObject:@[@(dark), @(hasArtwork)]];
+    };
+    [controller updateForTrack:nil];
+    AudioTrack *a = [self artTrack:10], *b = [self artTrack:20];
+    [controller updateForTrack:a];
+    XCTAssertEqualObjects(backdrops, (@[@[@YES, @NO]]));
+    [self completeArtRender:0 color:NSColor.redColor dark:YES];
+    [controller updateForTrack:b];
+    XCTAssertEqualObjects(backdrops, (@[@[@YES, @NO], @[@YES, @YES]]));
+    [controller updateForTrack:nil];
+    [self completeArtRender:1 color:NSColor.blueColor dark:NO];
+    XCTAssertEqualObjects(backdrops, (@[@[@YES, @NO], @[@YES, @YES], @[@YES, @NO]]));
 }
 
 - (void)testReturningToSameArtworkStillRejectsTheEarlierSubmission {

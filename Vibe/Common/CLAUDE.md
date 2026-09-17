@@ -16,7 +16,7 @@ The one in-memory value is `windowAppearancePreviewStyle`, an override that `win
 
 - the iOS-only loose appearance keys, in the `#if !TARGET_OS_OSX` block: `waveformStyle` and `waveformTheme` with its custom colors (played and unplayed, each per appearance). On macOS the theme migration consumed these keys and `currentTheme.<field>` is the store of record, so they are compiled out there — a macOS caller fails to build instead of silently reading the registered default forever;
 - `folderOpenSort`, `waveformNormalize` and `waveformGainDB`, genuinely shared. The level pair is set for a library's mastering level rather than a look, which is why it is a plain setting on both sides and never an `AppTheme` field;
-- the store-wide entry points: `sharedInstance`, `applicationDidFinishLaunching`, `allSettingsAtDefaults`, `resetToDefaults`.
+- the store-wide entry points: `sharedInstance`, `applicationDidFinishLaunching`, `allSettingsAtDefaults`, `resetToDefaults`. On macOS, stored custom themes are content: normal reset preserves them; `factoryReset` removes them before resetting settings.
 
 `AppStats` has the same shape: both shells feed it and both About screens read it, and its one `#if TARGET_OS_OSX` is how a RUNNING listening clock survives the process going quiet. The mac brackets the clock around system sleep — `systemUptime` is not frozen by sleep on Apple Silicon, so a night asleep would count as listening. iOS needs no bracket (nothing silences a running audio session without pausing the player) but needs a persistence edge, so it folds and restarts the clock at every background and terminate notification, since a backgrounded app is killed with no warning. Main thread only.
 

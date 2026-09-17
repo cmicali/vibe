@@ -27,14 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithTarget:(id)target;
 
 // The pre/post-26 backdrop dichotomy in one place: glass takes a layer
-// radius, frost a regenerated mask. Shared by both build paths and both live
-// re-applies (this view's instance applyCornerRadius: and the controller's
-// applyWindowChrome).
+// radius, frost a regenerated mask. Shared by both build paths and the
+// controller's applyWindowChrome.
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
-
-// Re-shapes the header glass panel and its tint layer to the themed radius;
-// the window mask and backdrop are the controller's (applyWindowChrome).
-- (void)applyCornerRadius:(CGFloat)radius;
 
 // Shows or hides the header glass panel for the theme's window background:
 // present under glass and solid, gone under clear, where the window's own
@@ -58,8 +53,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Which side of the buttons' color pair draws: the pair is keyed Dark/Light
 // by what is UNDER the buttons, not by the appearance. The artwork controller
 // samples the installed image's lower band and pushes the answer here; with
-// the gradient on the backdrop is always dark, whatever the art.
-- (void)setTransportBackdropDark:(BOOL)dark;
+// a visible gradient the backdrop is dark, whatever the art. hasArtwork
+// distinguishes a track's cover from the theme's default image.
+- (void)setTransportBackdropDark:(BOOL)dark hasArtwork:(BOOL)hasArtwork;
 
 // The play button's state, drawn through the theme's play/pause glyph and
 // image pair. The controller's updateUI is the one caller.

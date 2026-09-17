@@ -571,12 +571,12 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         [self refreshTintWashes]; // also samples default art's transport contrast
         [self applyDockIcon];
     }
-    if (!_showingDefaultArt) [self publishTransportBackdropDark:dark];
+    if (_publication || !_showingDefaultArt) [self publishTransportBackdropDark:dark];
 }
 
 - (void)publishTransportBackdropDark:(BOOL)dark {
     if (self.transportBackdropDidChangeHandler) {
-        self.transportBackdropDidChangeHandler(dark);
+        self.transportBackdropDidChangeHandler(dark, !_showingDefaultArt);
     }
 }
 

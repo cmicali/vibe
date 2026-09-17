@@ -30,6 +30,7 @@ static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
 static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
+static NSString *const kFieldWaveformBarWidth = @"waveformBarWidth";
 static NSString *const kFieldWindowTint = @"windowTint";
 static NSString *const kFieldPlaylistTint = @"playlistTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
@@ -344,7 +345,17 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonDark, player, @"button_next_dark")];
         [rows addObject:ImageFieldSpec(kVibeThemeImageNextButtonLight, player, @"button_next_light")];
         [rows addObject:Field(kFieldShowTransportButtons, player, @"showTransportButtons", @YES, BoolField())];
-        [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient", @YES, BoolField())];
+        [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient",
+                SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS, ^id(id raw) {
+            // Preserve the appearance of records exported before the hover choice.
+            if ([raw isKindOfClass:NSNumber.class]) {
+                return [raw boolValue] ? SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS : SETTINGS_VALUE_BUTTON_GRADIENT_NONE;
+            }
+            return [raw isKindOfClass:NSString.class] && [@[SETTINGS_VALUE_BUTTON_GRADIENT_NONE,
+                    SETTINGS_VALUE_BUTTON_GRADIENT_HOVER, SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK,
+                    SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS] containsObject:raw]
+                    ? raw : nil;
+        })];
         // The font clamps are narrow on purpose: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
         [rows addObject:Field(kFieldTitleFontSize, player, @"titleFontSize",
@@ -376,8 +387,11 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               LadderField(VibeNormalizedWaveformTheme))];
         [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
         [rows addObject:Field(kFieldWaveformBarDensity, waveform, @"barDensity",
-                              @(kVibeThemeWaveformBarDensityDefault),
-                              NumberField(kVibeThemeWaveformBarDensityMin, kVibeThemeWaveformBarDensityMax, NO))];
+                              @(kVibeThemeWaveformBarScaleDefault),
+                              NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
+        [rows addObject:Field(kFieldWaveformBarWidth, waveform, @"barWidth",
+                              @(kVibeThemeWaveformBarScaleDefault),
+                              NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
 
@@ -1280,6 +1294,8 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (double)waveformBarDensity { return [self floatForKey:kFieldWaveformBarDensity]; }
 - (void)setWaveformBarDensity:(double)v { [self storeSanitized:@(v) forKey:kFieldWaveformBarDensity]; }
+- (double)waveformBarWidth { return [self floatForKey:kFieldWaveformBarWidth]; }
+- (void)setWaveformBarWidth:(double)v { [self storeSanitized:@(v) forKey:kFieldWaveformBarWidth]; }
 
 - (NSString *)windowTint { return [self stringForKey:kFieldWindowTint]; }
 - (void)setWindowTint:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowTint]; }
@@ -1309,8 +1325,8 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 - (BOOL)appIconShape { return [self boolForKey:kFieldAppIconShape]; }
 - (void)setAppIconShape:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldAppIconShape]; }
 
-- (BOOL)buttonGradient { return [self boolForKey:kFieldButtonGradient]; }
-- (void)setButtonGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldButtonGradient]; }
+- (NSString *)buttonGradient { return [self stringForKey:kFieldButtonGradient]; }
+- (void)setButtonGradient:(NSString *)v { [self storeSanitized:v forKey:kFieldButtonGradient]; }
 
 - (NSString *)playlistButtonGlyph { return [self stringForKey:kFieldPlaylistButtonGlyph]; }
 - (void)setPlaylistButtonGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistButtonGlyph]; }
@@ -1502,7 +1518,9 @@ static id RandomPick(NSArray *choices) {
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformGradient = RandomChance(50);
-    self.buttonGradient = RandomChance(60);
+    self.buttonGradient = RandomPick(@[SETTINGS_VALUE_BUTTON_GRADIENT_NONE,
+            SETTINGS_VALUE_BUTTON_GRADIENT_HOVER, SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK,
+            SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS]);
     self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
     NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());
     self.playButtonGlyph = pair[0];

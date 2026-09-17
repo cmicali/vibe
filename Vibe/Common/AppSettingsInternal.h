@@ -32,12 +32,12 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AppSettings () {
     NSArray<NSDictionary *> *_storedUserThemesCache;
     AppTheme   *_currentTheme;
-    // The theme editor's undo (AppSettings+Mac.h): the record each edit of a
-    // user theme replaced, and what the last push moved, for coalescing.
-    NSMutableArray<NSDictionary *> *_themeUndoStack;
-    NSSet<NSString *> *_themeUndoChangedKeys;
-    NSTimeInterval _themeUndoPushTime;
-    BOOL _themeUndoRestoring;
+    // Theme edits and removals, with the last changed keys for coalescing.
+    NSMutableArray<NSDictionary *> *_themeHistory;
+    NSUInteger _themeHistoryIndex;
+    NSSet<NSString *> *_themeHistoryChangedKeys;
+    NSTimeInterval _themeHistoryPushTime;
+    BOOL _themeHistoryRestoring;
     // The Settings window's temporary appearance preview: transient by
     // design, so a window left open on the Appearance page at quit reverts.
     NSString   *_windowAppearancePreviewStyle;

@@ -22,6 +22,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
     NSButton *_resetButton;
+    NSButton *_factoryResetButton;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
     // Drops a stale usage reply: each refresh bumps it, and only the newest
@@ -45,6 +46,8 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
     _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
                                       target:self action:@selector(resetSettings:)];
+    _factoryResetButton = [NSButton buttonWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
+                                             target:self action:@selector(resetSettings:)];
     _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
@@ -56,7 +59,10 @@ static const CGFloat kAdvancedPopUpWidth = 200;
         [SettingsSectionView sectionWithRows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
                                  controls:@[_cacheSizeValue, _clearCacheButton]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL control:_resetButton],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL
+                                 caption:STR_SETTINGS_RESET_CAPTION control:_resetButton],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
+                                 caption:STR_SETTINGS_FACTORY_RESET_CAPTION control:_factoryResetButton],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
@@ -144,7 +150,9 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 - (void)refreshFromSettings {
     // The getter snaps to a preset, so this always matches an item.
     [_refreshRatePopUp selectItemWithTag:AppSettings.sharedInstance.uiUpdateHzCap];
-    _resetButton.enabled = !AppSettings.sharedInstance.allSettingsAtDefaults;
+    [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
+    [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
+            || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
     [self refreshCacheSize];
 }
 
@@ -160,7 +168,11 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 // window keeps a shape the store no longer agrees with and snaps at the next
 // launch.
 - (void)resetSettings:(id)sender {
-    [AppSettings.sharedInstance resetToDefaults];
+    if (sender == _factoryResetButton) {
+        [AppSettings.sharedInstance factoryReset];
+    } else {
+        [AppSettings.sharedInstance resetToDefaults];
+    }
     MainPlayerController *player = self.playerController;
     [player applySettingsLiveEffects:VibeSettingsLiveEffectAll];
     [player resetWindowToDefaultShape];
@@ -214,7 +226,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 }
 
 - (void)clearCache:(id)sender {
-    _clearCacheButton.enabled = NO;
+    [SettingsRowView setControl:_clearCacheButton enabled:NO];
     MainPlayerController *player = self.playerController;
     __block NSUInteger pending = 2;
     __weak __typeof(self) weakSelf = self;
@@ -224,7 +236,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
             if (--pending == 0) {
                 __typeof(self) strongSelf = weakSelf;
                 if (strongSelf) {
-                    strongSelf->_clearCacheButton.enabled = YES;
+                    [SettingsRowView setControl:strongSelf->_clearCacheButton enabled:YES];
                     NSTabViewController *tabs = (NSTabViewController *)strongSelf.parentViewController;
                     NSInteger selected = tabs.selectedTabViewItemIndex;
                     BOOL stillSelected = selected >= 0 && selected < (NSInteger)tabs.tabViewItems.count

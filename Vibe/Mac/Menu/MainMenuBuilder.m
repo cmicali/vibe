@@ -244,9 +244,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     VibeEditMenuCleaner *editMenuCleaner = [VibeEditMenuCleaner new];
     editItem.representedObject = editMenuCleaner;
     editMenu.delegate = editMenuCleaner;
-    AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), player, @"z", NSEventModifierFlagCommand, kVibeMenuEditUndo);
+    AddSymbolItem(editMenu, STR_MENU_EDIT_UNDO, @"arrow.uturn.backward", @selector(undo:), nil, @"z", NSEventModifierFlagCommand, kVibeMenuEditUndo);
     // ⇧⌘Z — capital "Z", same contract as Copy Name's "C" below.
-    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), player, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
+    AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), nil, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     // The cleaner keeps only menu_edit_*-identified items, the separator
     // included.
     AddSeparator(editMenu).identifier = @"menu_edit_separator";

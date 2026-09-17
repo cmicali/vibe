@@ -72,7 +72,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSPopUpButton *_dockIconPopUp;
     NSSwitch *_appIconShapeSwitch;
     NSSwitch *_customCornerRadiusSwitch;
-    NSSwitch *_buttonGradientSwitch;
+    NSPopUpButton *_buttonGradientPopUp;
     // The image fields' preview clusters by field key (kVibeThemeImage*): the
     // preview button, its hover-revealed clear badge and its missing badge.
     // One builder, one refresh loop and one hover handler serve all seven.
@@ -99,6 +99,8 @@ static const CGFloat kAppearancePopUpWidth = 220;
     NSPopUpButton *_waveformPopUp;
     NSSlider *_waveformBarDensitySlider;
     NSTextField *_waveformBarDensityValue;
+    NSSlider *_waveformBarWidthSlider;
+    NSTextField *_waveformBarWidthValue;
     NSPopUpButton *_waveformThemePopUp;
     // A played/unplayed pair per appearance — one pair cannot read on both
     // backdrops.
@@ -136,10 +138,11 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // the other. selectWaveformStyle:in: shows the default style for an unknown
 // persisted identifier — the waveform view's own fallback.
 - (NSPopUpButton *)waveformStylePopUpButton;
+- (NSImageView *)waveformPreviewView;
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp;
 
-// Copies the active theme and edits the copy — the Add pulldown's Duplicate
-// and the read-only editor page's Duplicate button both mean this.
+// Copies the active working record and edits it, preserving built-in changes.
+// Shared by Customize, the Add menu and the editor's Duplicate button.
 - (IBAction)duplicateTheme:(nullable id)sender;
 
 @end

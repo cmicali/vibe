@@ -292,8 +292,8 @@
     };
     // The transport buttons pick their light or dark color from the art
     // under them, which the controller samples at every install.
-    _artworkController.transportBackdropDidChangeHandler = ^(BOOL dark) {
-        [weakControllerForArt.playerContentView setTransportBackdropDark:dark];
+    _artworkController.transportBackdropDidChangeHandler = ^(BOOL dark, BOOL hasArtwork) {
+        [weakControllerForArt.playerContentView setTransportBackdropDark:dark hasArtwork:hasArtwork];
     };
     // The header art tint depends on the appearance — a dark wash against a
     // light pastel — so re-derive it whenever the window's appearance flips.

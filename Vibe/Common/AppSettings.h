@@ -57,8 +57,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 // (Mac/AppSettings+Mac.m).
 - (void)applicationDidFinishLaunching;
 
-// Settings > Advanced > Factory reset. Covers every AppSettings key
-// and nothing else — granted-folder bookmarks, stats and window frames are
+// Settings > Advanced > Reset. Preserves custom themes on macOS;
+// granted-folder bookmarks, stats and window frames are
 // other objects' stores. Resetting only clears the store; the caller owns the
 // running-app effects and restores window shape separately, since that action
 // writes geometry and its own settings.

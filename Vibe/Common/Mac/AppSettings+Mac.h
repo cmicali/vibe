@@ -135,6 +135,9 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // Built-ins first, then the user themes in creation order.
 - (NSArray<NSString *> *)orderedThemeIdentifiers;
 
+// Reset settings and delete custom themes and their unused images.
+- (void)factoryReset;
+
 // A user theme's stored name; the built-ins' localized names. nil for an
 // identifier that names nothing.
 - (nullable NSString *)displayNameForThemeIdentifier:(NSString *)identifier;
@@ -143,20 +146,16 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // apply installs. An unknown identifier answers vibe's (the empty record).
 - (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
 
-// The theme editor's undo. currentThemeDidChange pushes the stored entry
-// each edit of a USER theme replaced — fields and name, so a committed
-// rename (renameUserThemeWithIdentifier:toName:) is an entry too — and a
-// continuous gesture's ticks (the continuous form below), moving the same
-// keys within two seconds of each other, coalesce onto the first tick's
-// entry, while discrete edits never do, so two menu picks of one field are
-// two undos; fifty deep. A theme apply drops the stack, so an undo never
-// lands on another theme, and a built-in's edits are divergence rather than
-// the theme's and are not recorded. undoThemeEdit puts the top entry's name
-// and fields back and persists them without recording; the caller requests
-// ThemeApply. The image sweep keeps a custom image a stacked entry still
-// names, so an undo can put a cleared picture back.
+// Edits and removals share fifty undo/redo entries; continuous edits coalesce.
+// Explicit theme selection clears history. Removed records and their images
+// remain available until undone or evicted. The caller applies ThemeApply.
 @property (readonly, nonatomic) BOOL canUndoThemeEdit;
+@property (readonly, nonatomic) BOOL canRedoThemeEdit;
+@property (readonly, nonatomic) BOOL themeUndoRemovesTheme;
+@property (readonly, nonatomic) BOOL themeRedoRemovesTheme;
+@property (readonly, nonatomic) BOOL currentThemeIsModified;
 - (void)undoThemeEdit;
+- (void)redoThemeEdit;
 
 // Repopulates currentTheme from the named record and makes it active. Store
 // only — the caller requests VibeSettingsLiveEffectThemeApply, per the
@@ -177,7 +176,8 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 // User-theme CRUD. Every mutation refuses a built-in identifier; names are
 // deduped against every display name. addUserThemeWithRecord returns the
 // minted id; duplicateThemeWithIdentifier resolves built-ins and user themes
-// alike and returns the copy's id, nil for an unknown source. Removing the
+// alike and returns the copy's id, nil for an unknown source. The active
+// theme copies its working record, including built-in divergence. Removing the
 // active theme applies the successor — nil, or one that names nothing, is
 // vibe — and the caller requests VibeSettingsLiveEffectThemeApply as it
 // would for any apply. Every path that can drop the last reference to a

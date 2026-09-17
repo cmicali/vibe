@@ -35,7 +35,8 @@
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
-    return kBasicBarWidth / MAX((CGFloat)1, self.barDensity);
+    return [self scaledBarWidth:kBasicBarWidth / MAX((CGFloat)1, self.barDensity)
+                         pitch:width / count];
 }
 
 // Discrete blocks with gaps, so the fill and the hover quantize to whole

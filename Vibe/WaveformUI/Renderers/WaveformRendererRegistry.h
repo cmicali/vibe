@@ -9,6 +9,7 @@
 #import <QuartzCore/QuartzCore.h>
 
 @class AudioWaveformRenderer;
+@class WaveformTheme;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,6 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)displayNameForIdentifier:(NSString *)identifier;
 
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
++ (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;
++ (BOOL)supportsLevelsForIdentifier:(NSString *)identifier;
+// A static sample rendered by the actual style and current display settings.
++ (nullable CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
+                                        theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
+                                     barWidth:(CGFloat)barWidth
+                                    normalize:(BOOL)normalize gainDB:(float)gainDB CF_RETURNS_RETAINED;
 
 // The full resolution chain for a persisted style: the given identifier if
 // registered, else the app default, else an arbitrary registered style (a

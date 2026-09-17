@@ -11,7 +11,6 @@
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
 #import "SettingsAppearanceViewController.h"
-#import "SettingsConvertViewController.h"
 #import "SettingsFilesViewController.h"
 #import "SettingsGeneralViewController.h"
 #import "SettingsPaneViewController.h"
@@ -50,6 +49,35 @@ static const CGFloat kSettingsSidebarWidth = 200;
 
 @implementation SettingsWindow {
     BOOL _resizeUnlocked;
+}
+
+- (IBAction)undo:(id)sender {
+    if ([self.firstResponder isKindOfClass:NSTextView.class]) {
+        [self.firstResponder.undoManager undo];
+    } else {
+        [NSApp sendAction:@selector(undo:) to:self.windowController from:sender];
+    }
+}
+
+- (IBAction)redo:(id)sender {
+    if ([self.firstResponder isKindOfClass:NSTextView.class]) {
+        [self.firstResponder.undoManager redo];
+    } else {
+        [NSApp sendAction:@selector(redo:) to:self.windowController from:sender];
+    }
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(undo:) || item.action == @selector(redo:)) {
+        if ([self.firstResponder isKindOfClass:NSTextView.class]) {
+            NSUndoManager *manager = self.firstResponder.undoManager;
+            BOOL redo = item.action == @selector(redo:);
+            item.title = redo ? manager.redoMenuItemTitle : manager.undoMenuItemTitle;
+            return redo ? manager.canRedo : manager.canUndo;
+        }
+        return [(id<NSMenuItemValidation>)self.windowController validateMenuItem:item];
+    }
+    return [super validateMenuItem:item];
 }
 
 // Strictly scoped: the engine's snap fires inside the very next layout
@@ -342,9 +370,6 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"paintbrush")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
-    // The Convert label reuses the Convert menu's string too.
-    [tabs addTabViewItem:PaneItem([[SettingsConvertViewController alloc] initWithPlayerController:playerController],
-                                  @"convert", STR_MENU_CONVERT, @"arrow.triangle.2.circlepath")];
     [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
     [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithPlayerController:playerController],
@@ -522,22 +547,24 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
  willBeInsertedIntoToolbar:(BOOL)flag {
     if ([itemIdentifier isEqualToString:kRandomizeItemIdentifier]) {
         // The theme editor's dice, beside the preview toggle: the die rolls
-        // the settings, the palette the colors, and the arrow undoes the
-        // last edit — the pane's own model, as everything in this toolbar
-        // is. Enabled only on the editor page over a user theme
-        // (updateThemeNavigation).
+        // the settings, the palette the colors, and the arrows traverse
+        // theme history. Dice require an editable page; undo and redo
+        // are available on both pages.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"dice"
                           accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS],
                 [NSImage imageWithSystemSymbolName:@"paintpalette"
                           accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS],
                 [NSImage imageWithSystemSymbolName:@"arrow.uturn.backward"
-                          accessibilityDescription:STR_MENU_EDIT_UNDO]]
+                          accessibilityDescription:STR_MENU_EDIT_UNDO],
+                [NSImage imageWithSystemSymbolName:@"arrow.uturn.forward"
+                          accessibilityDescription:STR_MENU_EDIT_REDO]]
                 trackingMode:NSSegmentSwitchTrackingMomentary
                       target:self action:@selector(randomizeTheme:)];
         [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS forSegment:0];
         [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_COLORS forSegment:1];
         [control setToolTip:STR_MENU_EDIT_UNDO forSegment:2];
+        [control setToolTip:STR_MENU_EDIT_REDO forSegment:3];
         _randomizeControl = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
@@ -549,9 +576,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         // titlebar: a dual-mode theme keeps a palette per appearance, and
         // flipping the main window's is how you see the other one — on the
         // theme list, where it previews the theme being picked, as much as
-        // inside the editor. Never disabled: under a single-mode theme the
-        // preview still lands, it is only outranked by the pinned dark
-        // appearance until the mode flips back.
+        // inside the editor. A single-mode theme disables the toggle because
+        // its palette pins the window dark.
         NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"sun.max"
                           accessibilityDescription:STR_MENU_APPEARANCE_LIGHT],
@@ -562,7 +588,10 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
         _appearanceToggle = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
-        item.label = STR_MENU_VIEW_APPEARANCE;
+        item.label = STR_SETTINGS_THEME_PREVIEW;
+        control.accessibilityLabel = STR_SETTINGS_THEME_PREVIEW;
+        [control setToolTip:STR_SETTINGS_THEME_PREVIEW forSegment:0];
+        [control setToolTip:STR_SETTINGS_THEME_PREVIEW forSegment:1];
         return item;
     }
     if ([itemIdentifier isEqualToString:kThemeNavigationItemIdentifier]) {
@@ -659,12 +688,20 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     [_randomizeControl setEnabled:canRandomize forSegment:0];
     [_randomizeControl setEnabled:canRandomize forSegment:1];
     [_randomizeControl setEnabled:(selected && pane.canUndoEdit) forSegment:2];
+    [_randomizeControl setEnabled:(selected && pane.canRedoEdit) forSegment:3];
     // windowAppearance owns the style-to-appearance ladder, preview and a
     // single-mode theme's pin folded in; its nil (Auto) shows the side the
     // system is on right now.
     NSAppearance *appearance =
             AppSettings.sharedInstance.windowAppearance ?: NSApp.effectiveAppearance;
     _appearanceToggle.selectedSegment = appearance.isDark ? 1 : 0;
+    BOOL canPreview = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
+    [_appearanceToggle setEnabled:canPreview forSegment:0];
+    [_appearanceToggle setEnabled:canPreview forSegment:1];
+    [_randomizeControl setToolTip:(AppSettings.sharedInstance.themeUndoRemovesTheme
+            ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT) forSegment:2];
+    [_randomizeControl setToolTip:(AppSettings.sharedInstance.themeRedoRemovesTheme
+            ? STR_SETTINGS_THEME_REDO_REMOVE : STR_SETTINGS_THEME_REDO_EDIT) forSegment:3];
 }
 
 // A PREVIEW, not a choice — the pane owns it, as it owns the pages the
@@ -679,7 +716,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     switch (sender.selectedSegment) {
         case 0: [pane randomizeThemeSettings]; break;
         case 1: [pane randomizeThemeColors]; break;
-        default: [pane undoEdit]; break;
+        case 2: [pane undoEdit]; break;
+        case 3: [pane redoEdit]; break;
     }
 }
 
@@ -705,7 +743,25 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 // The File menu owns one nil-targeted Close item. Its previous validation may
 // have run through the player and named it "Close All Files", so every other
 // closeFile: target restores the title that describes its own action.
+- (IBAction)undo:(id)sender {
+    if ([self appearancePaneIsSelected]) [self.appearancePane undoEdit];
+}
+
+- (IBAction)redo:(id)sender {
+    if ([self appearancePaneIsSelected]) [self.appearancePane redoEdit];
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if (menuItem.action == @selector(undo:)) {
+        menuItem.title = AppSettings.sharedInstance.themeUndoRemovesTheme
+                ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT;
+        return [self appearancePaneIsSelected] && self.appearancePane.canUndoEdit;
+    }
+    if (menuItem.action == @selector(redo:)) {
+        menuItem.title = AppSettings.sharedInstance.themeRedoRemovesTheme
+                ? STR_SETTINGS_THEME_REDO_REMOVE : STR_SETTINGS_THEME_REDO_EDIT;
+        return [self appearancePaneIsSelected] && self.appearancePane.canRedoEdit;
+    }
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
     }

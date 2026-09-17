@@ -2,16 +2,13 @@
 //  SettingsAppearanceViewController.m
 //  Vibe
 //
-// Two pages in one pane, System Settings style. The LIST page holds the
-// common settings — appearance and traffic lights, the two appearance choices
-// that live outside any theme — and the theme list, where selection IS
-// activation. The EDITOR page, a sibling of the pane's section stack that
-// swaps in over it, edits the active theme's every field; a built-in shows
-// read-only with Duplicate as the customization path.
+// The overview holds the current theme's quick waveform edit, the theme
+// library and common display preferences. The editor swaps in as a sibling
+// of that section stack; opening a built-in first copies its working record.
 //
 // The editor deliberately never joins the shared pane-size settlement: it
 // scrolls inside whatever size the panes settled at, because its ~20 rows
-// would otherwise grow every pane of a window that cannot be resized. The
+// would otherwise grow every pane. The
 // page swap is therefore size-neutral, and the editor's conditional rows
 // reflow only their own scrolled stack.
 //
@@ -28,9 +25,11 @@
 #import "SettingsAppearanceViewController+Editor.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
+#import "NSView+DarkMode.h"
 #import "AppSettings+Mac.h"
 #import "AppTheme+Archive.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "Formatters.h"
@@ -61,6 +60,11 @@ static const double kWaveformGainDetentDB = 0.75;
     // The list page's shortcut to the same theme field as _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
     NSSwitch *_waveformNormalizeSwitch;
+    SettingsRowView *_appearanceRow, *_waveformLevelsRow, *_currentThemeRow;
+    NSArray<SettingsRowView *> *_waveformLevelRows;
+    NSButton *_waveformLevelsDisclosure, *_editThemeButton, *_revertThemeButton;
+    NSMutableArray<NSImageView *> *_waveformPreviews;
+    NSArray *_waveformPreviewKey;
     NSSlider *_waveformGainSlider; // a VibeDetentSlider, typed by what is read of it
     NSTextField *_waveformGainValue;
     BOOL _editorShown;
@@ -90,7 +94,11 @@ static const double kWaveformGainDetentDB = 0.75;
 
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
 
-    _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[kThemeCellIdentifier] delegate:self];
+    _themeTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", kThemeCellIdentifier] delegate:self];
+    NSTableColumn *name = _themeTable.tableColumns[1];
+    name.title = STR_SETTINGS_THEME_NAME_LABEL;
+    name.width = 440;
+    name.minWidth = 160;
     _themeTable.allowsMultipleSelection = NO;
     _themeTable.allowsEmptySelection = NO;
     _themeTable.target = self;
@@ -112,12 +120,12 @@ static const double kWaveformGainDetentDB = 0.75;
     addButton.lastItem.action = @selector(importTheme:);
     _removeThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REMOVE
                                             target:self action:@selector(removeTheme:)];
-    NSButton *editButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EDIT
-                                              target:self action:@selector(editTheme:)];
+    _editThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EDIT
+                                        target:self action:@selector(editTheme:)];
     NSButton *exportButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EXPORT
                                                 target:self action:@selector(exportTheme:)];
     NSStackView *buttons = [NSStackView stackViewWithViews:
-            @[addButton, _removeThemeButton, editButton, exportButton]];
+            @[addButton, _removeThemeButton, exportButton]];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
@@ -127,9 +135,7 @@ static const double kWaveformGainDetentDB = 0.75;
     // in the divergence key rather than dirtying the theme.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
-    // The level mapping's two common settings sit beside it. The gain takes
-    // the corner-radius cluster's shape: a detent slider and a fixed-width
-    // readout, so the changing digit count never nudges the slider.
+    // Fixed-width readout keeps changing digits from nudging the gain slider.
     _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
     VibeDetentSlider *gainSlider = [VibeDetentSlider sliderWithValue:0
                                                             minValue:-kVibeWaveformGainMaxDB
@@ -146,19 +152,42 @@ static const double kWaveformGainDetentDB = 0.75;
     NSStackView *gainCluster = [NSStackView stackViewWithViews:@[_waveformGainSlider, _waveformGainValue]];
     gainCluster.spacing = 10;
 
+    _appearanceRow = [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp];
+    _waveformLevelsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_NORMALIZE_WAVEFORM
+            control:_waveformNormalizeSwitch];
+    _waveformLevelRows = @[_waveformLevelsRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DISPLAY_GAIN control:gainCluster]];
+    for (SettingsRowView *row in _waveformLevelRows) {
+        row.hidden = YES;
+    }
+    _waveformLevelsDisclosure = [NSButton buttonWithTitle:@""
+            target:self action:@selector(toggleWaveformLevels:)];
+    _waveformLevelsDisclosure.bezelStyle = NSBezelStyleDisclosure;
+    [_waveformLevelsDisclosure setButtonType:NSButtonTypePushOnPushOff];
+    _waveformLevelsDisclosure.accessibilityLabel = STR_SETTINGS_WAVEFORM_LEVELS;
+    _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
+            target:self action:@selector(revertTheme:)];
+    NSStackView *themeActions = [NSStackView stackViewWithViews:@[_revertThemeButton, _editThemeButton]];
+    themeActions.spacing = 8;
+    _currentThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CURRENT
+            control:themeActions];
+
     _listSections = @[
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
-        ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LABEL control:_listWaveformPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE control:_waveformNormalizeSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_GAIN control:gainCluster],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_CURRENT rows:@[
+            _currentThemeRow,
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             listRow,
             buttonRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_DISPLAY_PREFERENCES rows:@[
+            _appearanceRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS control:_trafficLightsSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_LEVELS
+                    caption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION control:_waveformLevelsDisclosure],
+            _waveformLevelRows[0], _waveformLevelRows[1],
         ]],
     ];
     // The sunk list's edge is the divider above the buttons; the hairline the
@@ -223,13 +252,11 @@ static const double kWaveformGainDetentDB = 0.75;
     [self refreshFromSettings];
 }
 
-#pragma mark - Undo
+#pragma mark - Undo and redo
 
-// The stack is the store's (AppSettings.canUndoThemeEdit), pushed by the
-// same funnel every edit persists through; the page only decides when the
-// arrow is live and applies the restored theme whole.
+// The store owns history; either direction applies the restored theme whole.
 - (BOOL)canUndoEdit {
-    return self.canRandomize && AppSettings.sharedInstance.canUndoThemeEdit;
+    return AppSettings.sharedInstance.canUndoThemeEdit;
 }
 
 - (void)undoEdit {
@@ -237,6 +264,17 @@ static const double kWaveformGainDetentDB = 0.75;
         return;
     }
     [AppSettings.sharedInstance undoThemeEdit];
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self refreshFromSettings];
+}
+
+- (BOOL)canRedoEdit {
+    return AppSettings.sharedInstance.canRedoThemeEdit;
+}
+
+- (void)redoEdit {
+    if (!self.canRedoEdit) return;
+    [AppSettings.sharedInstance redoThemeEdit];
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
@@ -263,12 +301,17 @@ static const double kWaveformGainDetentDB = 0.75;
 }
 
 - (void)showThemeEditorForActiveTheme {
+    if ([AppTheme isBuiltInIdentifier:AppSettings.sharedInstance.activeThemeIdentifier]) {
+        [self duplicateTheme:nil];
+        return;
+    }
     _editorShown = YES;
     _editorForwardAvailable = NO;
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
 }
 
 - (void)previewAppearanceDark:(BOOL)dark {
+    if (AppSettings.sharedInstance.currentTheme.requiredWindowAppearance) return;
     AppSettings.sharedInstance.windowAppearancePreviewStyle =
             dark ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
                  : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
@@ -312,6 +355,18 @@ static const double kWaveformGainDetentDB = 0.75;
     _waveformNormalizeSwitch.state = StateForBOOL(settings.waveformNormalize);
     _waveformGainSlider.doubleValue = settings.waveformGainDB;
     [self refreshWaveformGainValue];
+    BOOL levels = [WaveformRendererRegistry supportsLevelsForIdentifier:theme.waveformStyle];
+    [SettingsRowView setControl:_waveformNormalizeSwitch enabled:levels];
+    [SettingsRowView setControl:_waveformGainSlider enabled:levels];
+    [_waveformLevelsRow setCaption:levels ? nil : [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE,
+            [WaveformRendererRegistry displayNameForIdentifier:theme.waveformStyle]]];
+    BOOL single = theme.requiredWindowAppearance != nil;
+    [SettingsRowView setControl:_appearancePopUp enabled:!single];
+    [_appearanceRow setCaption:single ? STR_SETTINGS_THEME_SINGLE_CAPTION : nil];
+    NSString *name = [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier];
+    [_currentThemeRow setRowTitle:settings.currentThemeIsModified
+            ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
+    _revertThemeButton.hidden = !settings.currentThemeIsModified;
 
     // The theme list. Selection mirrors activation, so reselect the active
     // row after every reload.
@@ -330,8 +385,10 @@ static const double kWaveformGainDetentDB = 0.75;
     }
     _refreshingThemeList = NO;
     BOOL builtIn = [AppTheme isBuiltInIdentifier:active];
-    _removeThemeButton.enabled = !builtIn;
+    _editThemeButton.title = builtIn ? STR_SETTINGS_THEME_CUSTOMIZE : STR_SETTINGS_THEME_EDIT;
+    [SettingsRowView setControl:_removeThemeButton enabled:!builtIn];
 
+    [self refreshWaveformPreviews];
     [self refreshEditorFromSettings];
     [self resolveLayoutStateFromSettings];
 }
@@ -348,12 +405,49 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous {
     [AppSettings.sharedInstance currentThemeDidChangeContinuous:continuous];
     [self.playerController applySettingsLiveEffects:effect];
+    if (effect & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme)) {
+        [self refreshWaveformPreviews];
+    }
     // The undo arrow follows the stack this edit just pushed onto — the
     // toolbar alone, so a drag's ticks never re-read the page under it.
     [(SettingsWindowController *)self.view.window.windowController updateThemeNavigation];
 }
 
 #pragma mark - Waveform style, on both pages
+
+- (NSImageView *)waveformPreviewView {
+    NSImageView *preview = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    preview.imageScaling = NSImageScaleProportionallyUpOrDown;
+    [preview.heightAnchor constraintEqualToConstant:64].active = YES;
+    if (!_waveformPreviews) _waveformPreviews = [NSMutableArray array];
+    [_waveformPreviews addObject:preview];
+    return preview;
+}
+
+- (void)refreshWaveformPreviews {
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
+    BOOL dark = self.view.isDark;
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
+    WaveformTheme *palette = [WaveformTheme themeForIdentifier:theme.waveformTheme isDark:dark
+            artworkColor:nil customPlayed:[theme waveformPlayedColorForDark:dark]
+            customUnplayed:[theme waveformUnplayedColorForDark:dark]];
+    palette.flatFill = !theme.waveformGradient;
+    NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
+            @(palette.flatFill), @(theme.waveformBarDensity), @(theme.waveformBarWidth),
+            @(settings.waveformNormalize), @(settings.waveformGainDB)];
+    if ([_waveformPreviewKey isEqualToArray:key]) return;
+    CGImageRef bitmap = [WaveformRendererRegistry newPreviewForIdentifier:style dark:dark theme:palette
+            barDensity:theme.waveformBarDensity barWidth:theme.waveformBarWidth
+            normalize:settings.waveformNormalize gainDB:settings.waveformGainDB];
+    NSImage *image = bitmap ? [[NSImage alloc] initWithCGImage:bitmap size:NSMakeSize(360, 64)] : nil;
+    if (bitmap) CGImageRelease(bitmap);
+    _waveformPreviewKey = key;
+    for (NSImageView *preview in _waveformPreviews) {
+        preview.image = image;
+        preview.accessibilityLabel = [WaveformRendererRegistry displayNameForIdentifier:style];
+    }
+}
 
 // The style popup, built once per surface — the editor's row and the list
 // page's shortcut. Identifiers travel in representedObject, localized names
@@ -428,15 +522,25 @@ static const double kWaveformGainDetentDB = 0.75;
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSString *identifier = [self identifierForRow:row];
+    if ([tableColumn.identifier isEqualToString:@"icon"]) {
+        NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
+                inTableView:tableView imagePosition:NSImageOnly];
+        BOOL builtIn = identifier && [AppTheme isBuiltInIdentifier:identifier];
+        NSString *kind = builtIn ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER;
+        cell.imageView.image = identifier ? [NSImage imageWithSystemSymbolName:builtIn ? @"paintpalette" : @"person"
+                accessibilityDescription:kind] : nil;
+        cell.toolTip = identifier ? kind : nil;
+        return cell;
+    }
     if (!identifier) {
         return [self groupCellInTableView:tableView title:
                 (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
     }
-    // The selected row identifies the active theme; the cell only needs its name.
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
                                                         inTableView:tableView imagePosition:NSNoImage];
     cell.textField.stringValue =
             [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    cell.toolTip = cell.textField.stringValue;
     return cell;
 }
 
@@ -518,6 +622,22 @@ static const double kWaveformGainDetentDB = 0.75;
     [self refreshFromSettings];
 }
 
+- (void)duplicateTheme:(id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *identifier = [settings duplicateThemeWithIdentifier:settings.activeThemeIdentifier];
+    if (!identifier) {
+        return;
+    }
+    [self activateThemeWithIdentifier:identifier];
+    [self showThemeEditorForActiveTheme];
+    [self.view.window makeFirstResponder:_nameField];
+    [_nameField selectText:nil];
+}
+
+- (void)revertTheme:(id)sender {
+    [self activateThemeWithIdentifier:AppSettings.sharedInstance.activeThemeIdentifier];
+}
+
 - (void)addNewTheme:(id)sender {
     NSString *identifier = [AppSettings.sharedInstance
             addUserThemeWithRecord:AppSettings.sharedInstance.currentTheme.dictionaryRepresentation
@@ -525,18 +645,7 @@ static const double kWaveformGainDetentDB = 0.75;
     [self activateThemeWithIdentifier:identifier];
 }
 
-// Copy the active theme and edit the copy. Selection IS activation, so the
-// Add pulldown's Duplicate and the read-only editor page's both mean this.
-- (void)duplicateTheme:(id)sender {
-    NSString *identifier = [AppSettings.sharedInstance duplicateThemeWithIdentifier:
-            AppSettings.sharedInstance.activeThemeIdentifier];
-    if (identifier) {
-        [self activateThemeWithIdentifier:identifier];
-    }
-}
-
-// No confirmation, following the Files pane's Remove — and a sheet would
-// block settings_click.
+// Removal shares the theme undo history, including its custom images.
 - (void)removeTheme:(id)sender {
     NSString *selected = [self selectedThemeIdentifier];
     if (!selected || [AppTheme isBuiltInIdentifier:selected]) {
@@ -686,6 +795,13 @@ static const double kWaveformGainDetentDB = 0.75;
 
 #pragma mark - Common settings
 
+- (void)toggleWaveformLevels:(NSButton *)sender {
+    for (SettingsRowView *row in _waveformLevelRows) {
+        row.hidden = sender.state != NSControlStateValueOn;
+    }
+    [self paneContentDidChange];
+}
+
 - (void)toggleTrafficLights:(id)sender {
     AppSettings.sharedInstance.showTrafficLights =
             (_trafficLightsSwitch.state == NSControlStateValueOn);
@@ -696,6 +812,7 @@ static const double kWaveformGainDetentDB = 0.75;
     AppSettings.sharedInstance.waveformNormalize =
             (_waveformNormalizeSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
+    [self refreshWaveformPreviews];
 }
 
 - (void)waveformGainChanged:(id)sender {
@@ -709,6 +826,7 @@ static const double kWaveformGainDetentDB = 0.75;
     _waveformGainSlider.doubleValue = AppSettings.sharedInstance.waveformGainDB;
     [self refreshWaveformGainValue];
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
+    [self refreshWaveformPreviews];
 }
 
 - (void)refreshWaveformGainValue {

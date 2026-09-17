@@ -183,7 +183,8 @@ static const CGFloat kInlineTitleInset = 10;
 }
 
 - (void)loadPaneWithSections:(NSArray<__kindof NSView *> *)sections {
-    NSStackView *stack = [NSStackView stackViewWithViews:sections];
+    NSStackView *stack = [[SettingsStackView alloc] initWithFrame:NSZeroRect];
+    for (NSView *section in sections) [stack addArrangedSubview:section];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeLeading;
     stack.spacing = 20;
@@ -233,14 +234,21 @@ static const CGFloat kInlineTitleInset = 10;
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     _sharedPaneSize = paneSize;
 
-    [view addSubview:stack];
-    // The safe-area top, not the view's: the settings window's titlebar
-    // overlays the content (full-size content view), and the pane's design
-    // height budgets the area below it.
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    scroll.hasVerticalScroller = YES;
+    scroll.drawsBackground = NO;
+    scroll.automaticallyAdjustsContentInsets = NO;
+    scroll.documentView = stack;
+    [view addSubview:scroll];
     [NSLayoutConstraint activateConstraints:@[
-        [stack.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:kPanePadding],
-        [stack.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:kPanePadding],
-        [stack.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-kPanePadding],
+        [scroll.topAnchor constraintEqualToAnchor:view.safeAreaLayoutGuide.topAnchor constant:kPanePadding],
+        [scroll.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:kPanePadding],
+        [scroll.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-kPanePadding],
+        [scroll.bottomAnchor constraintEqualToAnchor:view.bottomAnchor constant:-kPanePadding],
+        [stack.topAnchor constraintEqualToAnchor:scroll.contentView.topAnchor],
+        [stack.leadingAnchor constraintEqualToAnchor:scroll.contentView.leadingAnchor],
+        [stack.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor],
     ]];
 
     self.view = view;
@@ -251,7 +259,7 @@ static const CGFloat kInlineTitleInset = 10;
 - (NSSize)naturalPaneSize {
     NSSize fitting = _sectionStack.fittingSize;
     return NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
-                      MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding));
+                      MIN(620, MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding)));
 }
 
 // YES when the pane's size actually moved, which is what the host needs to
