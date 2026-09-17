@@ -183,7 +183,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
     BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
-    [SettingsRowView setControl:_bitPerfectSwitch enabled:on || eligible]; // an unavailable saved device must not trap the mode on
+    BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
+    // TRAP: until the bind settles, mode writes still name the old saved UID.
+    [SettingsRowView setControl:_bitPerfectSwitch enabled:!pending && (on || eligible)];
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *caption;
     if (!eligible) {
@@ -201,7 +203,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
             device.isSystemDefault);
     BOOL exclusiveSupported = exclusiveEligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
-    [SettingsRowView setControl:_exclusiveOutputSwitch enabled:on && exclusiveSupported];
+    [SettingsRowView setControl:_exclusiveOutputSwitch enabled:!pending && on && exclusiveSupported];
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT

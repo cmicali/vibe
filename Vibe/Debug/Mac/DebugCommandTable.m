@@ -12,6 +12,7 @@
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
+#import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
 #if DEBUG
@@ -403,6 +404,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_bit_perfect <on|off>");
+                }
+                if (controller.devicesMenuController.outputDeviceSelectionPending) {
+                    return VibeErrorJSON(@"output device selection is still pending");
                 }
                 AppSettings.sharedInstance.bitPerfectOutput = on;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];

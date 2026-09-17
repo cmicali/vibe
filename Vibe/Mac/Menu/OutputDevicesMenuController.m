@@ -4,11 +4,12 @@
 //
 
 #import "OutputDevicesMenuController.h"
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
+#import "AppDelegate.h"
+#import "SettingsWindowController.h"
+#import "SettingsGeneralViewController.h"
 #import "VibeStrings.h"
 
 @interface OutputDevicesMenuController () <AudioDeviceManagerObserver>
@@ -20,6 +21,7 @@
     // be rebuilt in place when a device is plugged or unplugged, or the
     // default changes.
     __weak NSMenu *_openMenu;
+    NSUInteger _pendingOutputDeviceSelections;
 }
 
 - (instancetype)init {
@@ -121,12 +123,20 @@
     }
 }
 
+- (BOOL)outputDeviceSelectionPending {
+    return _pendingOutputDeviceSelections != 0;
+}
+
 - (void)selectOutputDevice:(NSInteger)deviceId {
-    NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:deviceId].uid;
-    AppSettings *settings = AppSettings.sharedInstance;
-    [self.audioPlayer setOutputDevice:deviceId
-                     bitPerfectOutput:[settings bitPerfectOutputForDeviceUID:uid]
-                      exclusiveOutput:[settings exclusiveOutputForDeviceUID:uid]];
+    if (!self.audioPlayer) {
+        return;
+    }
+    _pendingOutputDeviceSelections++;
+    [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshBitPerfectRows];
+    [self.audioPlayer setOutputDevice:deviceId completion:^{
+        self->_pendingOutputDeviceSelections--;
+        [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
+    }];
 }
 
 @end

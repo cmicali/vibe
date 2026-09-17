@@ -10,7 +10,7 @@
 
 **`+PlayerEvents` and `+Delivery` implement the root doc's staleness guarantee**: every callback can be stale and must match the delivered track against the playlist's current one, and `stop` fires no callback. The decisions are seams, both tested: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
-**TRAP: a device-change callback may arrive after a later switch is queued or bound.** The callback persists the settled device and applies dependent settings effects with `updatingOutputModes:NO`; sending its modes back would overwrite the later device's own preferences. Explicit settings edits use the same effect mapping with output-mode updates enabled.
+**TRAP: a device-change callback may arrive after a later switch is queued or bound.** The callback persists the settled device and applies dependent settings effects with `updatingOutputModes:NO`; sending its modes back would overwrite the later device's own preferences. Explicit settings edits use the same effect mapping with output-mode updates enabled; on execution the player queries the current UID through the controller's read-only `outputModesForDeviceUID` delegate method, which touches only the thread-safe settings getters.
 
 ## Folder art invalidation
 

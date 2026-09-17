@@ -10,6 +10,7 @@
 @interface OutputDevicesMenuController : NSObject <NSMenuDelegate>
 
 @property (weak) AudioPlayer *audioPlayer;
+@property (readonly) BOOL outputDeviceSelectionPending;
 
 // The one way the shell switches output: the device with the two output modes
 // AppSettings remembers for its UID, in one player call. -1 is System Output.

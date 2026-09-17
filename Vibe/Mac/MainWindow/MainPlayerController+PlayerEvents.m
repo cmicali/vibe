@@ -316,6 +316,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 
 }
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    outputModesForDeviceUID:(NSString *)deviceUID
+          bitPerfectOutput:(BOOL *)bitPerfectOutput
+           exclusiveOutput:(BOOL *)exclusiveOutput {
+    AppSettings *settings = AppSettings.sharedInstance;
+    *bitPerfectOutput = [settings bitPerfectOutputForDeviceUID:deviceUID];
+    *exclusiveOutput = [settings exclusiveOutputForDeviceUID:deviceUID];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
     AppSettings *settings = AppSettings.sharedInstance;
