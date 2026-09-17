@@ -76,6 +76,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Only the state a category also touches lives here; the rest stays private to
 // AudioPlayer.m.
 @interface AudioPlayer () {
+    BOOL                    _fxEnabled; // queue-side preference; bit-perfect outranks it
     dispatch_queue_t        _queue;
     AVAudioEngine           *_engine;
     AVAudioPlayerNode       *_node;
@@ -168,7 +169,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
     // ---- Bit-perfect output, owned by AudioPlayer+Devices.m.
     // The settings' queue-side intent, delivered together by
-    // setBitPerfectOutput:exclusiveOutput:.
+    // setBitPerfectOutput:exclusiveOutput:enableFX:.
     BOOL                    _bitPerfectWanted;
     // The device configureOutputDeviceOnQueue: is rebinding the engine to,
     // for the duration of that call, else kAudioObjectUnknown. The mode's
@@ -347,6 +348,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Wires the master bus on a fresh engine: the FX segment, or, with FX
 // disabled, the mixer straight to the output. The rebuild's second half.
 - (void)installMasterBusOnQueue;
+- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format;
 // The audio-time clock for fades, sweeps, drains and the idle stop: the debug
 // pump's under manual rendering, else dispatch_after on _queue. Wall-clock
 // deadlines (the open timeout, the system-output bind retry) use dispatch_after

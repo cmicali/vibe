@@ -46,7 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic) NSInteger crossfadeMilliseconds;
 
 // Whether a tap publishes band levels for active equalizer indicators. Off by
-// default and demand-driven rather than fixed at init like enableFX below. The
+// default and demand-driven. The
 // shells enable it only for counted indicator demand, modeled output audio and
 // material presentation visibility. Setting it installs or removes the tap on
 // the player queue, and a media-services rebuild re-installs to match.
@@ -62,13 +62,9 @@ NS_ASSUME_NONNULL_BEGIN
 // for the main-thread snapshot poller.
 - (BOOL)copyBandLevels:(float *)out count:(NSUInteger)count sequence:(uint64_t *)sequence;
 
-// The DJ performance effects: low kill and its boost, the reverb and delay
-// sends, and the delay's tempo feed. See AudioFX.h. With enableFX it is
-// non-nil from init, so a caller can set intent immediately; the graph work
-// lands once the async engine init runs. Without enableFX it is nil for the
-// player's lifetime — no FX node is ever created or attached, the main mixer
-// wires straight to the output, and every fx message is a safe no-op —
-// which is how the macOS FX-off setting and the FX-less iOS app run.
+// The macOS FX controls exist from init so intent and tempo survive live
+// toggles. Audio nodes are created on first enable, then bypassed while off.
+// The iOS player has no FX object.
 @property (nonatomic, readonly, nullable) AudioFX *fx;
 
 // deviceUID and deviceName name the persisted output device. Empty means follow
@@ -77,8 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
 // where VibeCanBindSavedOutputDevice allows — Stopped, or Loading while the
 // engine is not running; the rule and its trap live on that function
 // (AudioPlayer+Devices) — and only committed after the HAL bind succeeds;
-// later eligible transitions retry a pending match. enableFX decides for the
-// player's lifetime whether the FX graph segment exists at all; see fx.
+// later eligible transitions retry a pending match. enableFX selects the initial FX route; see fx.
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
@@ -226,16 +221,15 @@ NS_ASSUME_NONNULL_BEGIN
 // Bit-perfect output. While on, each track's settlement sets the chosen
 // device to the file's rate and word length, and the chain is pruned to
 // player node -> mixer -> output, without varispeed. The shell owns the
-// rest of the pruning (no FX, the
-// crossfade at the declick minimum, the pitch fader gone) and only ever turns
+// rest of the pruning (minimum crossfade, hidden pitch fader) and only turns
 // this on for an eligible device — explicitly chosen, on a transport that
 // carries bits unchanged (OutputFormatRules.h). Either direction restores the
 // current track in place, as a device switch onto the same device; off also
 // puts the device's format back and releases the hog. Main thread, like every
 // other transport-facing setter; the work lands on the player queue.
-// Both preferences land together. Exclusive access is optional and only
-// applies while bit-perfect output is on; the build flag can remove it.
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput;
+// All three preferences land together; bit-perfect outranks the saved FX choice.
+// Exclusive access applies only in bit-perfect mode; the build flag can remove it.
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
 
 // Restores any device format this run changed and releases the hog,
 // synchronously on the player queue. The app delegate's

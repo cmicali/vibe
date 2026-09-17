@@ -175,13 +175,11 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey,
                                     (__bridge void *)self, NULL);
-        // Created before the async engine init so that fx is non-nil from the
-        // caller's first moment. Intent set early, by a key press or the BPM
-        // feed, is recorded and applied when installInEngine: runs below.
-        // Without enableFX it stays nil forever: no FX node is ever minted,
-        // and installMasterBusOnQueue wires the mixer straight to the output.
+        // Keep the macOS controls and BPM feed stable across live toggles;
+        // the FX nodes themselves are created only when first connected.
+        _fxEnabled = enableFX;
         __weak AudioPlayer *weakPlayer = self;
-        _fx = enableFX ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
+        _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
         }] : nil;
 #if DEBUG
@@ -337,19 +335,22 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // Apple's default SRC leaves measurable ultrasonic aliases when reducing
     // the output rate. The render suite holds their RMS below -90 dBFS.
     _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
-    if (_fx) {
-        [_fx installInEngine:_engine];
+    [self reconnectMasterBusOnQueueWithFormat:[_engine.mainMixerNode outputFormatForBus:0]];
+}
+
+// Engine stopped. Initialization, mode changes and device rates share this wiring.
+- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format {
+    [_levelTap remove];
+    _levelTap = nil;
+    BOOL enableFX = _fxEnabled;
+#if TARGET_OS_OSX
+    enableFX &= !_bitPerfectWanted;
+#endif
+    [_fx setConnected:enableFX inEngine:_engine format:format];
+    if (!_fx.masterBusOutputNode) {
+        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
     }
-    else {
-        [_engine connect:_engine.mainMixerNode to:_engine.outputNode
-                  format:[_engine.mainMixerNode outputFormatForBus:0]];
-    }
-    // TRAP: this is the only rebuild edge that re-reconciles the level tap.
-    // This method is what the iOS media-services rebuild re-runs, so a tap
-    // installed outside applyLevelTapOnQueue dies with the old engine and
-    // never comes back — no error, no log, the bars simply stop moving.
-    // Reconciling here also re-reads the sample rate, which a reset is free
-    // to change.
+    // TRAP: every master-bus rewire must reconcile the tap on the new output path.
     [self applyLevelTapOnQueue];
 }
 
@@ -667,7 +668,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // Bit-perfect playback removes it: even at ratio 1.0 it changes the samples.
 - (void)ensureVarispeedOnQueue {
 #if TARGET_OS_OSX
-    if (_bitPerfectWanted && !self.fx) {
+    if (_bitPerfectWanted) {
         if (_varispeed) {
             [self detachNodeAfterFailedConnect:_varispeed];
             _varispeed = nil;
@@ -1391,6 +1392,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                    @"running": @(self->_engine.isRunning),
                    @"frames": @(self->_manualPump.renderedFrames),
                    @"varispeed": @(self->_varispeed != nil),
+                   @"fxConnected": @(self->_fx.masterBusOutputNode != nil),
                    @"nodeVolume": @(self->_node.volume),
                    @"latency": @(self->_node.outputPresentationLatency),
                    @"varispeedLatency": @(self->_varispeed.latency),

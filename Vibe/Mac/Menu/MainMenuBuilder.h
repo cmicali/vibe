@@ -49,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)applyConvertMenuVisibility;
 
 // Shows or hides the FX menu and withdraws or restores its bare shortcuts when
-// this run has an FX graph. The graph itself remains a launch-time choice.
+// the setting allows FX. The menu is always built, including an FX-off launch.
 + (void)applyFXMenuVisibility;
 
 @end

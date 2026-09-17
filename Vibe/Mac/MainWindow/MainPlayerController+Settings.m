@@ -73,10 +73,6 @@
             [self updateRateDependentUI];
             [self updateNowPlaying];
         }
-        // The header's lock and the Settings caption redraw from
-        // audioPlayerDidChangeBitPerfectReport: once this lands on the
-        // player queue; reading the report here would show the previous one.
-        [self.audioPlayer setBitPerfectOutput:bitPerfect exclusiveOutput:settings.exclusiveOutput];
     }
     if (effects & VibeSettingsLiveEffectUIUpdateRate) {
         [self syncUITimerRate];
@@ -150,6 +146,12 @@
             self.shortDelaySendActive = NO;
         }
         [MainMenuBuilder applyFXMenuVisibility];
+    }
+    if (effects & (VibeSettingsLiveEffectBitPerfect | VibeSettingsLiveEffectFXControls)) {
+        // Send one graph decision after clearing FX; the report redraws on settlement.
+        [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
+                             exclusiveOutput:settings.exclusiveOutput
+                                    enableFX:settings.audioFXEnabled];
     }
 }
 

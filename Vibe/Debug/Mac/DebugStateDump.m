@@ -30,7 +30,6 @@ static NSString *VibeDebugBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
         case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
         case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
-        case VibeBitPerfectStatusFXGraphPresent:    return @"fxGraphPresent";
     }
     return @"unknown";
 }
@@ -50,7 +49,6 @@ static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
         @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),
-        @"fxGraph": @(r.fxGraph),
         @"systemDefault": @(r.systemDefault),
         @"rateExact": @(r.rateExact),
         @"formatConfirmed": @(r.formatConfirmed),

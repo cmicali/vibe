@@ -72,17 +72,12 @@ static NSString *const kOnEndPause = @"pause";
         _crossfadePopUp.lastItem.tag = kVibeCrossfadePresets[i];
     }
 
-    // A missing graph can only be added on the next launch. When it already
-    // exists, the switch changes the controls and their state immediately.
     _enableFXSwitch = [self switchWithAction:@selector(toggleEnableFX:)];
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
     // How the key is written and colored is Appearance's business; this pane
     // only decides whether it is detected at all.
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    // Both rows recaption in refreshFromSettings: "reopen" on the FX row while
-    // the run has no graph, "off while bit-perfect" on both while that mode
-    // outranks them, nothing otherwise.
     _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:_crossfadePopUp];
     _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
     [self loadPaneWithSections:@[
@@ -114,17 +109,14 @@ static NSString *const kOnEndPause = @"pause";
     _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     // Bit-perfect output outranks both: it holds the crossfade at the declick
     // minimum and turns FX off, so neither control has anything to govern
-    // while it is on. The FX row's caption otherwise says "reopen" only while
-    // this run has no graph, which is the one case a change waits.
+    // while it is on.
     // The pane is remeasured by the caller of every refresh, so the captions'
     // change answers go unread here.
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
     [SettingsRowView setControl:_crossfadePopUp enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
     [_crossfadeRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
-    [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT
-            : (self.playerController.audioPlayer.fx ? nil
-               : [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()]))];
+    [_enableFXRow setCaption:(bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil)];
     _detectBPMSwitch.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeySwitch.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }

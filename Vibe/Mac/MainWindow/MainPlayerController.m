@@ -146,7 +146,8 @@
     // The mode is wanted from the first play; the saved device binds
     // asynchronously and the report follows it.
     [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
-                         exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput];
+                         exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput
+                              enableFX:AppSettings.sharedInstance.audioFXEnabled];
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];

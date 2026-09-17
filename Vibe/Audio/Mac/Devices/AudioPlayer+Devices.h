@@ -56,7 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// Hog for the bound device, when both settings, an eligible device, no FX graph
+// Hog for the bound device, when both settings, an eligible device
 // and VibeBitPerfectShouldHog all hold. Idempotent through the HAL read; a
 // rebuild on the device already hogged keeps the hog.
 - (void)acquireExclusiveOutputOnQueue;

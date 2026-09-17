@@ -81,7 +81,7 @@ V="$PWD/build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe"
 "$V" --debug-cmd set_bit_perfect off
 ```
 
-Disable **Audio FX** in Settings > Playback and relaunch if its graph is present: disabling active effects does not remove that graph. Set pitch to zero. Grant the **fixture directory** through Launch Services, then close playback. This covers temporary M3U files created beside the audio as well as the WAVs:
+Enabling bit-perfect bypasses Audio FX live, including a run launched with effects enabled. Set pitch to zero. Grant the **fixture directory** through Launch Services, then close playback. This covers temporary M3U files created beside the audio as well as the WAVs:
 
 ```bash
 open -a "$PWD/build/DerivedData/Build/Products/Debug/Vibe.app" "$PWD/build/audio-fixtures"

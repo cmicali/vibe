@@ -67,8 +67,6 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // Everything held, but the file is lossy: the decoded audio is delivered
     // unchanged.
     VibeBitPerfectStatusSourceLossy,
-    // This run was launched with the FX graph; the mode is inert until relaunch.
-    VibeBitPerfectStatusFXGraphPresent,
 };
 
 // Every input to the fold plus what it produced, so the caption, the glyph
@@ -84,7 +82,6 @@ typedef struct {
     BOOL enabled;
     BOOL eligibleDevice;
     BOOL hasTrack;
-    BOOL fxGraph;
     BOOL rateExact;
     BOOL formatConfirmed;   // the bound device has the requested format; its gain reads succeeded
     BOOL channelsMatch;     // unchanged source channels, verified output routing
@@ -106,7 +103,7 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
             && a.softwareVolume == b.softwareVolume && a.balance == b.balance && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
-            && a.fxGraph == b.fxGraph && a.rateExact == b.rateExact
+            && a.rateExact == b.rateExact
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
             && a.depthOK == b.depthOK && a.muted == b.muted
             && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
@@ -316,19 +313,15 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 }
 
 // The fold over the report's inputs, in priority order, so two breakers never
-// race for the caption: Off > FXGraphPresent > Idle > SwitchFailed >
+// race for the caption: Off > Idle > SwitchFailed >
 // RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
-// SourceLossy > Active. FXGraphPresent sits second because the mode is inert
-// in such a run — nothing below it was even attempted. SourceLossy is last
+// SourceLossy > Active. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
 // and the file is not. There is no pitch input: under the mode there is no
 // varispeed to have a pitch.
 static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (!r.enabled || !r.eligibleDevice) {
         return VibeBitPerfectStatusOff;
-    }
-    if (r.fxGraph) {
-        return VibeBitPerfectStatusFXGraphPresent;
     }
     if (!r.hasTrack) {
         return VibeBitPerfectStatusIdle;

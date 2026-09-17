@@ -9,6 +9,7 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
+#import "AudioFX.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #import <AudioToolbox/AudioToolbox.h>
@@ -363,6 +364,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
                 @"Could not switch audio output device", nil)];
         return NO;
     }
+    if ((self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
+        [self installMasterBusOnQueue];
+    }
     // A toggle off during a pending open must restore the incoming chain too.
     // Ordinary playback already created it when the play was submitted.
     if (_bitPerfectWanted || priorState == VibePlayerStateLoading || shouldRestore) {
@@ -469,7 +473,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     // Choosing the already-active System Output device can make a wanted
     // mode eligible for the first time. Rebuild so the current track gets
     // prepared too; merely pinning the unit would leave its old rate behind.
-    BOOL needsPreparation = (_bitPerfectWanted && !self.fx && outputDeviceID >= 0
+    BOOL needsPreparation = (_bitPerfectWanted && outputDeviceID >= 0
             && _preparedDeviceID != newDeviceID)
             || (!_bitPerfectWanted && _node && !self.varispeed);
     if (newDeviceID != currentDeviceID || needsPreparation) {
@@ -544,10 +548,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     return (device && VibeBitPerfectDeviceEligible(device.transportType)) ? device : nil;
 }
 
-// The device the mode can apply to right now, else nil. Off and the FX graph
-// are the report's own early outs; manual rendering is the debug pump's.
+// The device the mode can apply to right now, else nil.
 - (nullable AudioDevice *)bitPerfectDeviceOnQueue {
-    if (!_bitPerfectWanted || self.fx) {
+    if (!_bitPerfectWanted) {
         return nil;
     }
 #if DEBUG
@@ -767,14 +770,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 #endif
 
-// Used only while entering, changing or leaving bit-perfect output.
-- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format {
-    [_levelTap remove];
-    _levelTap = nil;
-    [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
-    [self applyLevelTapOnQueue];
-}
-
 // Watch the output binding and the prepared device's volume/balance/mute.
 // kAudioObjectUnknown removes both listeners. Copy the HAL block before adding
 // it, because removal must receive the same block object.
@@ -904,8 +899,10 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // Restore the original format, forget the prepared device and release it.
 // Every step is idempotent, so this is free to call with nothing owed.
 - (void)leaveOutputDeviceOnQueue {
-    if (_masterBusFormatBeforeBitPerfect) {
-        [self reconnectMasterBusOnQueueWithFormat:_masterBusFormatBeforeBitPerfect];
+    if (_masterBusFormatBeforeBitPerfect
+            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
+        [self reconnectMasterBusOnQueueWithFormat:_masterBusFormatBeforeBitPerfect
+                ?: [_engine.mainMixerNode outputFormatForBus:0]];
         _masterBusFormatBeforeBitPerfect = nil;
     }
     [self restoreOutputFormatOnQueue];
@@ -928,7 +925,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     }
     VibeBitPerfectReport report = {0};
     report.enabled = _bitPerfectWanted;
-    report.fxGraph = _bitPerfectWanted && self.fx != nil;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -939,7 +935,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        report.formatConfirmed = readFormat && _outputLevelListener != nil && _outputDeviceListener != NULL
+        report.formatConfirmed = readFormat && !self.varispeed && !self.fx.masterBusOutputNode
+                && _outputLevelListener != nil && _outputDeviceListener != NULL
                 && [self activeOutputDeviceID] == _preparedDeviceID
                 && VibePhysicalFormatsEquivalent(physical, _preparedFormat)
                 && mixerFormat.sampleRate == physical.mSampleRate
@@ -1027,9 +1024,11 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 #pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
 
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX {
     dispatch_async(_queue, ^{
-        BOOL changed = self->_bitPerfectWanted != bitPerfectOutput;
+        BOOL changed = self->_bitPerfectWanted != bitPerfectOutput
+                || (self->_fxEnabled && !self->_bitPerfectWanted) != (enableFX && !bitPerfectOutput);
+        self->_fxEnabled = enableFX;
         self->_bitPerfectWanted = bitPerfectOutput;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         changed |= bitPerfectOutput && self->_exclusiveOutputWanted != exclusiveOutput;
@@ -1043,23 +1042,13 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         if (bitPerfectOutput) {
             [self resolvePendingSavedOutputDeviceOnQueue];
         }
-        if (self.fx) {
-            // Inert until relaunch: the graph is not a pass-through, so
-            // switching the device for it would be theater.
-            [self publishBitPerfectReportOnQueue];
-            return;
-        }
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
         // A saved device can be absent at launch. Turning the mode off on
         // System Output must restore varispeed on the current track too.
         AudioDeviceID deviceID = requested >= 0 ? (AudioDeviceID)requested : kAudioObjectUnknown;
-        if (requested >= 0 || !bitPerfectOutput) {
-            // Rebind even during an open: a warm engine would otherwise skip
-            // acquiring exclusive access when the incoming file settles.
-            // The rebuild restores a loaded track at its current position;
-            // an in-flight open keeps its request and starts when it settles.
-            [self configureOutputDeviceOnQueue:deviceID];
-        }
+        // Rebuild the route even without a resolved device or during an open.
+        // A loaded track resumes in place; an open keeps its pending intent.
+        [self configureOutputDeviceOnQueue:deviceID];
         [self publishBitPerfectReportOnQueue];
     });
 }

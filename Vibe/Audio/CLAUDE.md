@@ -34,7 +34,7 @@ The main mixer uses maximum render quality for sample-rate conversion; `make tes
 
 `AVAudioPlayerNode` smooths volume writes internally. After a fade writes zero, teardown waits another 20 ms for that smoothing to reach silence; the envelope test covers 44.1–192 kHz. The completion still checks its generation or retired membership, so a later transport action wins during that interval.
 
-**A track change crossfades on two independent chains, and a live node is never rerouted**, because reconnecting one reconfigures the graph and clicks. Each ordinary track gets its own `AVAudioUnitVarispeed`, minted at play submission; the outgoing node fades out on its own and is detached, varispeed and all, once silent. Bit-perfect playback creates no varispeed and connects the node directly to the mixer. It reconciles the chain again at settlement because the mode can toggle during the open; disabling it restores the ordinary chain even while Loading. A varispeed at ratio 1.0 is not sample-exact, so ordinary playback keeps it connected but bypasses it at zero pitch. Pitch writes update both rate and bypass; the render suite requires exact PCM on this path.
+**A track change crossfades on two independent chains without rerouting a sounding node**, because reconnecting one reconfigures the graph and clicks. Explicit FX and bit-perfect setting changes instead stop the engine and rebuild the current track in place. Each ordinary track gets its own `AVAudioUnitVarispeed`, minted at play submission; the outgoing node fades out on its own and is detached, varispeed and all, once silent. Bit-perfect playback creates no varispeed and connects the node directly to the mixer. It reconciles the chain again at settlement because the mode can toggle during the open; disabling it restores the ordinary chain even while Loading. A varispeed at ratio 1.0 is not sample-exact, so ordinary playback keeps it connected but bypasses it at zero pitch. Pitch writes update both rate and bypass; the render suite requires exact PCM on this path.
 
 **A settlement may park before it is consumed.** On macOS `finishPlayOnQueueWithFile:…` parks when bit-perfect output must switch the device format while outgoing audio is still counted. `completeRetiredFadePair:` re-enters it once silent; `consumeRequest:` remains the supersession guard, preserving Loading intent and a newer play’s precedence.
 
@@ -78,7 +78,7 @@ CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossles
 
 **`levelsEnabled` installs the demand-driven tap in `Levels/`**; `copyBandLevels:count:sequence:` reads the latest coherent snapshot without the player queue or an allocation. `outputAudioActive` is the shell-facing liveness fact: a current playing node or a counted retired fade is active, Loading intent alone is not.
 
-**TRAP: `applyLevelTapOnQueue` is the only tap reconciliation point, `installMasterBusOnQueue` the only rebuild edge, and `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine.** The ownership, callback, FFT, publication, demand and `--silent` contracts are `Levels/CLAUDE.md`'s.
+**TRAP: every master-bus rewire must reconcile the tap on the new output path.** `reconnectMasterBusOnQueueWithFormat:` removes the old tap and calls `applyLevelTapOnQueue`; init, live FX routing and device-rate changes share it. `dropEngineBoundStateOnQueue` abandons rather than removes a tap bound to a defunct engine. The ownership, callback, FFT, publication, demand and `--silent` contracts are `Levels/CLAUDE.md`'s.
 
 ### Error text
 

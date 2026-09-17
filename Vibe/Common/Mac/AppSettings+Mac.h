@@ -275,13 +275,9 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
-// NO keeps the DJ performance-FX graph segment — low kill, reverb and delay
-// returns — out of the audio engine entirely: AudioPlayer is created with FX
-// off, fx reads nil, and the main mixer wires straight to the output. The FX
-// graph choice is read once at launch. When a graph exists, switching this off
-// clears every active effect and withdraws its macOS menu and Q/W/E/R/T controls
-// immediately; without one the controls remain absent until relaunch. iOS
-// passes a hard NO and never consults this; see PlayerViewController.
+// The DJ performance FX — low kill, reverb and delay returns. Off routes the
+// mixer straight to output; nodes are created on first enable and retained.
+// Changes apply through the player's stopped-engine rebuild. iOS has no FX.
 // The stored choice, which the Playback pane's switch displays. Whether FX
 // exist for the user is audioFXAllowed below, which bit-perfect output
 // outranks.
@@ -290,7 +286,7 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // Settings > General > Audio > Bit-perfect output, default NO. While on, the
 // chain is pruned to the exact one — no FX (this outranks audioFXEnabled at
-// every gate, and the next launch builds no FX graph), no varispeed, the
+// every gate, bypassing the FX graph immediately), no varispeed, the
 // crossfade at the declick minimum, the pitch fader gone — and each track's
 // settlement sets the chosen device to the file's rate and word length.
 // The shell only turns it on for an eligible device (OutputFormatRules.h):

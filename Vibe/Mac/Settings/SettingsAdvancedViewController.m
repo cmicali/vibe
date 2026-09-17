@@ -159,8 +159,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 #pragma mark - Reset to defaults
 
 // The reset only clears the store, so this applies every running-app effect;
-// the audio FX graph and output device land at the next launch exactly as
-// their captions say. Each pane resolves the rows the reset hid before the
+// the output-device preference lands at the next launch.
+// Each pane resolves the rows the reset hid before the
 // shared size is retaken, but hidden panes defer their full refresh until
 // selected. TRAP: the window's own two settings are cleared by the same pass
 // and no pane shows them, so the window is put back to its shipping shape

@@ -332,20 +332,17 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // toggles, from a hold, which is momentary. While exposed, they stay
     // enabled because they are deck controls that persist across tracks and
     // apply to whatever is playing or starts to play. Validation shows each
-    // one's state as a checkmark. The graph is a launch-time choice; when one
-    // exists, the stored setting can still hide these controls immediately.
-    if (player.audioPlayer.fx) {
-        NSMenuItem *fxItem = Submenu(mainMenu, STR_MENU_FX);
-        fxItem.identifier = @"menu_fx";
-        NSMenu *fxMenu = fxItem.submenu;
-        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", kVibeMenuFXLowKill);
-        AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", kVibeMenuFXLowKillBoost);
-        AddSeparator(fxMenu);
-        AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", kVibeMenuFXReverb);
-        AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
-        AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
-        [self applyFXMenuVisibility:fxItem];
-    }
+    // one's state as a checkmark. The stored setting hides these controls.
+    NSMenuItem *fxItem = Submenu(mainMenu, STR_MENU_FX);
+    fxItem.identifier = @"menu_fx";
+    NSMenu *fxMenu = fxItem.submenu;
+    AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL, @"dial.min", @selector(toggleLowKill:), player, @"q", kVibeMenuFXLowKill);
+    AddFXItem(fxMenu, STR_MENU_FX_LOW_KILL_BOOST, @"dial.max.fill", @selector(toggleLowKillBoost:), player, @"w", kVibeMenuFXLowKillBoost);
+    AddSeparator(fxMenu);
+    AddFXItem(fxMenu, STR_MENU_FX_REVERB, @"water.waves", @selector(toggleReverbSend:), player, @"e", kVibeMenuFXReverb);
+    AddFXItem(fxMenu, STR_MENU_FX_DELAY_8, @"repeat", @selector(toggleDelaySend:), player, @"r", kVibeMenuFXDelay);
+    AddFXItem(fxMenu, STR_MENU_FX_DELAY_16, @"repeat.circle", @selector(toggleShortDelaySend:), player, @"t", kVibeMenuFXShortDelay);
+    [self applyFXMenuVisibility:fxItem];
 }
 
 + (void)buildViewMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
