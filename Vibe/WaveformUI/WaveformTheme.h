@@ -16,6 +16,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AppTheme;
+
 @interface WaveformTheme : NSObject
 
 // The played side of the progress boundary: the hue at the side's resting
@@ -52,9 +54,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) BOOL unplayedSharesPlayedHue;
 
 // NO vertical ramp: every stop a renderer builds is the side's color as-is.
-// Set by macOS's resolution site from the app theme's waveformGradient after
-// construction; iOS never sets it, so its bars keep the ramp.
+// Set by macOS's resolution from the app theme's waveformGradient; iOS never
+// sets it, so its bars keep the ramp.
 @property (nonatomic) BOOL flatFill;
+
+#if TARGET_OS_OSX
+// The macOS resolution: the theme record's identifier, its custom pair for
+// this appearance and its gradient switch, plus the view's artwork color.
+// Every mac surface that draws a waveform — the player view, the settings
+// preview — maps the record through here, so a new waveform field is mapped
+// once.
++ (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
+                       artworkColor:(nullable VibeColor *)artworkColor;
+#endif
 
 // Mono's answer: the pre-theme monochrome palette for the appearance. The
 // renderers' default before a view resolves anything.

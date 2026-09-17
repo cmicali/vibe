@@ -51521,7 +51521,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "settings.appearance.waveform_levels_caption": {
       "comment": "macOS Settings: Applies to all themes. Changes the waveform display only. Playback volume is unchanged.",

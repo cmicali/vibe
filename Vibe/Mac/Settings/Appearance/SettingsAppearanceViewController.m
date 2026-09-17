@@ -60,7 +60,7 @@ static const double kWaveformGainDetentDB = 0.75;
     // The list page's shortcut to the same theme field as _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
     NSSwitch *_waveformNormalizeSwitch;
-    SettingsRowView *_appearanceRow, *_waveformLevelsRow, *_currentThemeRow;
+    SettingsRowView *_appearanceRow, *_currentThemeRow;
     NSArray<SettingsRowView *> *_waveformLevelRows;
     NSButton *_waveformLevelsDisclosure, *_editThemeButton, *_revertThemeButton;
     NSMutableArray<NSImageView *> *_waveformPreviews;
@@ -135,27 +135,14 @@ static const double kWaveformGainDetentDB = 0.75;
     // in the divergence key rather than dirtying the theme.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
-    // Fixed-width readout keeps changing digits from nudging the gain slider.
     _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
-    VibeDetentSlider *gainSlider = [VibeDetentSlider sliderWithValue:0
-                                                            minValue:-kVibeWaveformGainMaxDB
-                                                            maxValue:kVibeWaveformGainMaxDB
-                                                              target:self action:@selector(waveformGainChanged:)];
-    gainSlider.detentValue = 0;
-    gainSlider.continuous = YES;
-    [gainSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
-    _waveformGainSlider = gainSlider;
-    _waveformGainValue = [NSTextField labelWithString:@""];
-    _waveformGainValue.textColor = NSColor.secondaryLabelColor;
-    _waveformGainValue.alignment = NSTextAlignmentRight;
-    [_waveformGainValue.widthAnchor constraintEqualToConstant:50].active = YES;
-    NSStackView *gainCluster = [NSStackView stackViewWithViews:@[_waveformGainSlider, _waveformGainValue]];
-    gainCluster.spacing = 10;
+    NSStackView *gainCluster = [self detentSliderClusterWithDetent:0
+            min:-kVibeWaveformGainMaxDB max:kVibeWaveformGainMaxDB
+            action:@selector(waveformGainChanged:) slider:&_waveformGainSlider valueLabel:&_waveformGainValue];
 
     _appearanceRow = [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp];
-    _waveformLevelsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_NORMALIZE_WAVEFORM
-            control:_waveformNormalizeSwitch];
-    _waveformLevelRows = @[_waveformLevelsRow,
+    _waveformLevelRows = @[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_NORMALIZE_WAVEFORM control:_waveformNormalizeSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DISPLAY_GAIN control:gainCluster]];
     for (SettingsRowView *row in _waveformLevelRows) {
         row.hidden = YES;
@@ -254,27 +241,18 @@ static const double kWaveformGainDetentDB = 0.75;
 
 #pragma mark - Undo and redo
 
-// The store owns history; either direction applies the restored theme whole.
-- (BOOL)canUndoEdit {
-    return AppSettings.sharedInstance.canUndoThemeEdit;
+// The store owns history; the pane applies the restored theme whole.
+- (BOOL)canRestoreThemeHistoryForward:(BOOL)forward {
+    AppSettings *settings = AppSettings.sharedInstance;
+    return forward ? settings.canRedoThemeEdit : settings.canUndoThemeEdit;
 }
 
-- (void)undoEdit {
-    if (!self.canUndoEdit) {
+- (void)restoreThemeHistoryForward:(BOOL)forward {
+    if (![self canRestoreThemeHistoryForward:forward]) {
         return;
     }
-    [AppSettings.sharedInstance undoThemeEdit];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
-    [self refreshFromSettings];
-}
-
-- (BOOL)canRedoEdit {
-    return AppSettings.sharedInstance.canRedoThemeEdit;
-}
-
-- (void)redoEdit {
-    if (!self.canRedoEdit) return;
-    [AppSettings.sharedInstance redoThemeEdit];
+    if (forward) [AppSettings.sharedInstance redoThemeEdit];
+    else [AppSettings.sharedInstance undoThemeEdit];
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
@@ -358,15 +336,15 @@ static const double kWaveformGainDetentDB = 0.75;
     BOOL levels = [WaveformRendererRegistry supportsLevelsForIdentifier:theme.waveformStyle];
     [SettingsRowView setControl:_waveformNormalizeSwitch enabled:levels];
     [SettingsRowView setControl:_waveformGainSlider enabled:levels];
-    [_waveformLevelsRow setCaption:levels ? nil : [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE,
+    [_waveformLevelRows.firstObject setCaption:levels ? nil : [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE,
             [WaveformRendererRegistry displayNameForIdentifier:theme.waveformStyle]]];
     BOOL single = theme.requiredWindowAppearance != nil;
     [SettingsRowView setControl:_appearancePopUp enabled:!single];
     [_appearanceRow setCaption:single ? STR_SETTINGS_THEME_SINGLE_CAPTION : nil];
     NSString *name = [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier];
-    [_currentThemeRow setRowTitle:settings.currentThemeIsModified
-            ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
-    _revertThemeButton.hidden = !settings.currentThemeIsModified;
+    BOOL modified = settings.currentThemeIsModified;
+    [_currentThemeRow setRowTitle:modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
+    _revertThemeButton.hidden = !modified;
 
     // The theme list. Selection mirrors activation, so reselect the active
     // row after every reload.
@@ -429,10 +407,8 @@ static const double kWaveformGainDetentDB = 0.75;
     AppTheme *theme = settings.currentTheme;
     BOOL dark = self.view.isDark;
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
-    WaveformTheme *palette = [WaveformTheme themeForIdentifier:theme.waveformTheme isDark:dark
-            artworkColor:nil customPlayed:[theme waveformPlayedColorForDark:dark]
-            customUnplayed:[theme waveformUnplayedColorForDark:dark]];
-    palette.flatFill = !theme.waveformGradient;
+    // The synthetic sample carries no artwork, so album_art resolves to Mono's answer.
+    WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
     NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
             @(palette.flatFill), @(theme.waveformBarDensity), @(theme.waveformBarWidth),
             @(settings.waveformNormalize), @(settings.waveformGainDB)];

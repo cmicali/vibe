@@ -347,14 +347,12 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldShowTransportButtons, player, @"showTransportButtons", @YES, BoolField())];
         [rows addObject:Field(kFieldButtonGradient, player, @"buttonGradient",
                 SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS, ^id(id raw) {
-            // Preserve the appearance of records exported before the hover choice.
+            // The field was a switch before the hover and artwork choices;
+            // a stored or exported BOOL keeps the look it had.
             if ([raw isKindOfClass:NSNumber.class]) {
                 return [raw boolValue] ? SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS : SETTINGS_VALUE_BUTTON_GRADIENT_NONE;
             }
-            return [raw isKindOfClass:NSString.class] && [@[SETTINGS_VALUE_BUTTON_GRADIENT_NONE,
-                    SETTINGS_VALUE_BUTTON_GRADIENT_HOVER, SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK,
-                    SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS] containsObject:raw]
-                    ? raw : nil;
+            return LadderField(VibeNormalizedButtonGradient)(raw);
         })];
         // The font clamps are narrow on purpose: the labels sit in fixed frames.
         [rows addObject:Field(kFieldTitleFontFace, player, @"titleFontFace", @"", TextField())];
@@ -1518,9 +1516,7 @@ static id RandomPick(NSArray *choices) {
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformGradient = RandomChance(50);
-    self.buttonGradient = RandomPick(@[SETTINGS_VALUE_BUTTON_GRADIENT_NONE,
-            SETTINGS_VALUE_BUTTON_GRADIENT_HOVER, SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK,
-            SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS]);
+    self.buttonGradient = RandomPick(VibeButtonGradientModes());
     self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
     NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());
     self.playButtonGlyph = pair[0];

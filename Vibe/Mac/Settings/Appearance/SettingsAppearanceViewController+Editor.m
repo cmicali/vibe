@@ -367,16 +367,18 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     return [theme buttonImageForKey:key] ?: PreviewGlyphImage([self glyphForImageKey:key]);
 }
 
-- (NSStackView *)waveformBarControlWithSlider:(NSSlider *__strong *)outSlider
-                                 valueLabel:(NSTextField *__strong *)outLabel {
-    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:kVibeThemeWaveformBarScaleDefault
-            minValue:kVibeThemeWaveformBarScaleMin maxValue:kVibeThemeWaveformBarScaleMax
-            target:self action:@selector(waveformBarSizingChanged:)];
-    slider.detentValue = kVibeThemeWaveformBarScaleDefault;
+- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
+                                        action:(SEL)action slider:(NSSlider *__strong *)outSlider
+                                    valueLabel:(NSTextField *__strong *)outLabel {
+    VibeDetentSlider *slider = [VibeDetentSlider sliderWithValue:detent minValue:min maxValue:max
+                                                          target:self action:action];
+    slider.detentValue = detent;
     slider.continuous = YES;
     [slider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
     NSTextField *label = [NSTextField labelWithString:@""];
     label.textColor = NSColor.secondaryLabelColor;
+    // Right-aligned at a fixed width, so the readout's changing digit count
+    // never nudges the slider.
     label.alignment = NSTextAlignmentRight;
     [label.widthAnchor constraintEqualToConstant:50].active = YES;
     *outSlider = slider;
@@ -480,22 +482,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    VibeDetentSlider *radiusSlider = [VibeDetentSlider sliderWithValue:kVibeThemeCornerRadiusDefault
-                                                              minValue:0 maxValue:kVibeThemeCornerRadiusMax
-                                                                target:self action:@selector(cornerRadiusChanged:)];
-    radiusSlider.detentValue = kVibeThemeCornerRadiusDefault;
-    _cornerRadiusSlider = radiusSlider;
-    _cornerRadiusSlider.continuous = YES;
-    [_cornerRadiusSlider.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
-    _cornerRadiusValue = [NSTextField labelWithString:@""];
-    _cornerRadiusValue.textColor = NSColor.secondaryLabelColor;
-    // Right-aligned at a fixed width, so the readout's changing digit count
-    // never nudges the slider.
-    _cornerRadiusValue.alignment = NSTextAlignmentRight;
-    [_cornerRadiusValue.widthAnchor constraintEqualToConstant:50].active = YES;
-    NSStackView *radiusCluster = [NSStackView stackViewWithViews:
-            @[_cornerRadiusSlider, _cornerRadiusValue]];
-    radiusCluster.spacing = 10;
+    NSStackView *radiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
+            min:0 max:kVibeThemeCornerRadiusMax action:@selector(cornerRadiusChanged:)
+            slider:&_cornerRadiusSlider valueLabel:&_cornerRadiusValue];
 
     _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                    action:@selector(playlistBackgroundStyleChanged:)];
@@ -531,10 +520,14 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             effect:VibeSettingsLiveEffectTrackDisplay];
 
     _waveformPopUp = [self waveformStylePopUpButton];
-    NSStackView *densityCluster = [self waveformBarControlWithSlider:&_waveformBarDensitySlider
-            valueLabel:&_waveformBarDensityValue];
-    NSStackView *widthCluster = [self waveformBarControlWithSlider:&_waveformBarWidthSlider
-            valueLabel:&_waveformBarWidthValue];
+    NSStackView *densityCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
+            min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
+            action:@selector(waveformBarSizingChanged:)
+            slider:&_waveformBarDensitySlider valueLabel:&_waveformBarDensityValue];
+    NSStackView *widthCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
+            min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
+            action:@selector(waveformBarSizingChanged:)
+            slider:&_waveformBarWidthSlider valueLabel:&_waveformBarWidthValue];
     _waveformThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformThemeChanged:)];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_MONO value:SETTINGS_VALUE_WAVEFORM_THEME_MONO to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
@@ -822,24 +815,13 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     [self applyEditorVisibility];
 }
 
-// One depth-first descendant walk; the leaf actions (enable, deactivate)
-// ride it rather than re-rolling the recursion each time.
+// One depth-first descendant walk for the leaf actions that need every
+// view, not only the controls.
 static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     for (NSView *subview in view.subviews) {
         block(subview);
         ForEachDescendantView(subview, block);
     }
-}
-
-static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
-    ForEachDescendantView(view, ^(NSView *subview) {
-        if ([subview isKindOfClass:NSControl.class]) {
-            [SettingsRowView setControl:(NSControl *)subview enabled:enabled];
-            if (!enabled && [subview isKindOfClass:NSColorWell.class]) {
-                [(NSColorWell *)subview deactivate];
-            }
-        }
-    });
 }
 
 // The editor, from the working theme. (The name/built-in row swap lives in
@@ -915,7 +897,7 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
 
     // Read-only built-ins: every editor control disables, honestly reported
     // by the debug walker; then the always-live sub-rules re-apply.
-    SetDescendantControlsEnabled(_editorStack, !builtIn);
+    [SettingsRowView setControlsInView:_editorStack enabled:!builtIn];
     // The built-in page's one live control sits inside the swept stack now
     // that the caption row is a card row: without this, a built-in could
     // never be duplicated from its own page. Observed, not hypothetical.
@@ -923,13 +905,14 @@ static void SetDescendantControlsEnabled(NSView *view, BOOL enabled) {
     if (!builtIn) {
         BOOL info = theme.showFileInfo;
         for (SettingsRowView *row in _fileInfoRows) {
-            SetDescendantControlsEnabled(row, info);
+            [SettingsRowView setControlsInView:row enabled:info];
         }
         // These readouts share one font, even when only one group is visible.
-        SetDescendantControlsEnabled(_infoFontRow, info || theme.showStatusIcons || theme.showTimeLabels);
-        SetDescendantControlsEnabled(_transportSection, theme.showTransportButtons);
+        [SettingsRowView setControlsInView:_infoFontRow
+                                   enabled:info || theme.showStatusIcons || theme.showTimeLabels];
+        [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
         [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
-        SetDescendantControlsEnabled(_timeSection, theme.showTimeLabels);
+        [SettingsRowView setControlsInView:_timeSection enabled:theme.showTimeLabels];
         [SettingsRowView setControl:_timeLabelsSwitch enabled:YES];
         // Key notation and key colors additionally require Show key.
         [SettingsRowView setControl:_keyNotationPopUp enabled:info && showKey];

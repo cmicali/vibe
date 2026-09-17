@@ -1568,6 +1568,36 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     XCTAssertEqualObjects([settings displayNameForThemeIdentifier:identifier], @"Renamed");
 }
 
+- (void)testAddingOrDuplicatingThemesDiscardsHistoryWithoutChangingCurrentTheme {
+    for (NSNumber *duplicate in @[@NO, @YES]) {
+        AppSettings *settings = self.editingSettings;
+        [settings applyThemeWithIdentifier:@"vibe"];
+        AppTheme *working = settings.currentTheme;
+        working.showFileInfo = NO;
+        [settings currentThemeDidChange];
+        working.showTimeLabels = NO;
+        [settings currentThemeDidChange];
+        [settings undoThemeEdit];
+        XCTAssertTrue(settings.canUndoThemeEdit);
+        XCTAssertTrue(settings.canRedoThemeEdit);
+        NSDictionary *record = working.dictionaryRepresentation;
+        NSString *added = duplicate.boolValue
+                ? [settings duplicateThemeWithIdentifier:@"vibe"]
+                : [settings addUserThemeWithRecord:record name:@"Imported"];
+        NSArray *order = settings.orderedThemeIdentifiers;
+        XCTAssertFalse(settings.canUndoThemeEdit);
+        XCTAssertFalse(settings.canRedoThemeEdit);
+        [settings undoThemeEdit];
+        [settings redoThemeEdit];
+        XCTAssertEqualObjects(settings.orderedThemeIdentifiers, order);
+        XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
+        XCTAssertEqual(settings.currentTheme, working);
+        XCTAssertEqualObjects(working.dictionaryRepresentation, record);
+        XCTAssertTrue(settings.currentThemeIsModified);
+        XCTAssertEqualObjects([[AppSettings new] recordForThemeIdentifier:added], record);
+    }
+}
+
 - (void)testThemeDragCoalescesFromTheFirstEditAndExtendsItsQuietPeriod {
     AppSettings *settings = self.editingSettings;
     for (NSUInteger i = 0; i < 4; i++) {
@@ -1766,6 +1796,48 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     [settings currentThemeDidChange];
     [settings applyThemeWithIdentifier:settings.activeThemeIdentifier]; // begin with clean history
     return [_artDir stringByAppendingPathComponent:[reference substringFromIndex:7]];
+}
+
+- (void)testInactiveRenameDiscardsHistoryButUnchangedNameKeepsIt {
+    AppSettings *settings = self.editingSettings;
+    NSString *other = [settings addUserThemeWithRecord:@{} name:@"Other"];
+    NSString *active = settings.activeThemeIdentifier;
+    NSString *path = [self installEditingImageInSettings:settings];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChange];
+    settings.currentTheme.showFileInfo = NO;
+    [settings currentThemeDidChange];
+    [settings undoThemeEdit];
+    NSDictionary *working = settings.currentTheme.dictionaryRepresentation;
+    [settings renameUserThemeWithIdentifier:other toName:@"Other"];
+    XCTAssertTrue(settings.canUndoThemeEdit);
+    XCTAssertTrue(settings.canRedoThemeEdit);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:path]);
+    [settings renameUserThemeWithIdentifier:other toName:@"Renamed"];
+    XCTAssertFalse(settings.canUndoThemeEdit);
+    XCTAssertFalse(settings.canRedoThemeEdit);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:path]);
+    [settings undoThemeEdit];
+    [settings redoThemeEdit];
+    XCTAssertEqualObjects([[AppSettings new] displayNameForThemeIdentifier:other], @"Renamed");
+    XCTAssertEqualObjects(settings.activeThemeIdentifier, active);
+    XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, working);
+}
+
+- (void)testAddingThemeSweepsDiscardedHistoryAfterRetainingImportedImages {
+    AppSettings *settings = self.editingSettings;
+    NSString *oldPath = [self installEditingImageInSettings:settings];
+    [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
+    [settings currentThemeDidChange];
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:oldPath]);
+    NSString *imported = [AppTheme storeCustomImageData:SquarePNG(128) error:NULL];
+    XCTAssertNotNil(imported);
+    NSString *importedPath = [_artDir stringByAppendingPathComponent:[imported substringFromIndex:7]];
+    XCTAssertNotEqualObjects(oldPath, importedPath);
+    NSString *added = [settings addUserThemeWithRecord:@{@"defaultArtworkDark": imported} name:@"Imported"];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:oldPath]);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:importedPath]);
+    XCTAssertEqualObjects([settings recordForThemeIdentifier:added][@"defaultArtworkDark"], imported);
 }
 
 - (void)testRemovalUndoRestoresIdentityOrderImagesAndEarlierEdits {

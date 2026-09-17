@@ -654,6 +654,16 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     [self updateThemeNavigation];
 }
 
+// The Edit menu item and the toolbar arrow name what a step would put back:
+// a removed theme, or an edit.
+static NSString *ThemeHistoryTitle(BOOL forward) {
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (forward) {
+        return settings.themeRedoRemovesTheme ? STR_SETTINGS_THEME_REDO_REMOVE : STR_SETTINGS_THEME_REDO_EDIT;
+    }
+    return settings.themeUndoRemovesTheme ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT;
+}
+
 - (void)updateThemeNavigation {
     SettingsAppearanceViewController *pane = [self appearancePane];
     BOOL selected = [self appearancePaneIsSelected];
@@ -687,8 +697,10 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     BOOL canRandomize = selected && pane.canRandomize;
     [_randomizeControl setEnabled:canRandomize forSegment:0];
     [_randomizeControl setEnabled:canRandomize forSegment:1];
-    [_randomizeControl setEnabled:(selected && pane.canUndoEdit) forSegment:2];
-    [_randomizeControl setEnabled:(selected && pane.canRedoEdit) forSegment:3];
+    [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:NO]) forSegment:2];
+    [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:YES]) forSegment:3];
+    [_randomizeControl setToolTip:ThemeHistoryTitle(NO) forSegment:2];
+    [_randomizeControl setToolTip:ThemeHistoryTitle(YES) forSegment:3];
     // windowAppearance owns the style-to-appearance ladder, preview and a
     // single-mode theme's pin folded in; its nil (Auto) shows the side the
     // system is on right now.
@@ -698,10 +710,6 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     BOOL canPreview = AppSettings.sharedInstance.currentTheme.requiredWindowAppearance == nil;
     [_appearanceToggle setEnabled:canPreview forSegment:0];
     [_appearanceToggle setEnabled:canPreview forSegment:1];
-    [_randomizeControl setToolTip:(AppSettings.sharedInstance.themeUndoRemovesTheme
-            ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT) forSegment:2];
-    [_randomizeControl setToolTip:(AppSettings.sharedInstance.themeRedoRemovesTheme
-            ? STR_SETTINGS_THEME_REDO_REMOVE : STR_SETTINGS_THEME_REDO_EDIT) forSegment:3];
 }
 
 // A PREVIEW, not a choice — the pane owns it, as it owns the pages the
@@ -716,8 +724,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     switch (sender.selectedSegment) {
         case 0: [pane randomizeThemeSettings]; break;
         case 1: [pane randomizeThemeColors]; break;
-        case 2: [pane undoEdit]; break;
-        case 3: [pane redoEdit]; break;
+        case 2: [pane restoreThemeHistoryForward:NO]; break;
+        case 3: [pane restoreThemeHistoryForward:YES]; break;
     }
 }
 
@@ -744,23 +752,18 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 // have run through the player and named it "Close All Files", so every other
 // closeFile: target restores the title that describes its own action.
 - (IBAction)undo:(id)sender {
-    if ([self appearancePaneIsSelected]) [self.appearancePane undoEdit];
+    if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:NO];
 }
 
 - (IBAction)redo:(id)sender {
-    if ([self appearancePaneIsSelected]) [self.appearancePane redoEdit];
+    if ([self appearancePaneIsSelected]) [self.appearancePane restoreThemeHistoryForward:YES];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if (menuItem.action == @selector(undo:)) {
-        menuItem.title = AppSettings.sharedInstance.themeUndoRemovesTheme
-                ? STR_SETTINGS_THEME_UNDO_REMOVE : STR_SETTINGS_THEME_UNDO_EDIT;
-        return [self appearancePaneIsSelected] && self.appearancePane.canUndoEdit;
-    }
-    if (menuItem.action == @selector(redo:)) {
-        menuItem.title = AppSettings.sharedInstance.themeRedoRemovesTheme
-                ? STR_SETTINGS_THEME_REDO_REMOVE : STR_SETTINGS_THEME_REDO_EDIT;
-        return [self appearancePaneIsSelected] && self.appearancePane.canRedoEdit;
+    if (menuItem.action == @selector(undo:) || menuItem.action == @selector(redo:)) {
+        BOOL forward = menuItem.action == @selector(redo:);
+        menuItem.title = ThemeHistoryTitle(forward);
+        return [self appearancePaneIsSelected] && [self.appearancePane canRestoreThemeHistoryForward:forward];
     }
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;

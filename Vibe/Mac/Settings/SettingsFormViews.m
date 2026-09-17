@@ -134,25 +134,46 @@ static SettingsFillView *Hairline(NSView *in) {
     NSArray<NSLayoutConstraint *> *_captionConstraints;
 }
 
-+ (void)setControl:(NSControl *)control enabled:(BOOL)enabled {
-    control.enabled = enabled;
-    control.alphaValue = enabled ? 1 : 0.5;
-    NSView *view = control.superview;
-    while (view && ![view isKindOfClass:SettingsRowView.class]) view = view.superview;
-    [(SettingsRowView *)view refreshControlAppearance];
-}
-
-- (void)collectControlsInView:(NSView *)view into:(NSMutableArray<NSControl *> *)controls {
+// AppKit owns a control's internal subviews, so the walk stops at a control.
+static void CollectControls(NSView *view, NSMutableArray<NSControl *> *controls) {
     if ([view isKindOfClass:NSControl.class]) {
         [controls addObject:(NSControl *)view];
-        return; // AppKit owns a control's internal subviews.
+        return;
     }
-    for (NSView *child in view.subviews) [self collectControlsInView:child into:controls];
+    for (NSView *child in view.subviews) CollectControls(child, controls);
+}
+
++ (SettingsRowView *)rowContaining:(NSView *)view {
+    for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
+        if ([ancestor isKindOfClass:self]) return (SettingsRowView *)ancestor;
+    }
+    return nil;
+}
+
++ (void)setControl:(NSControl *)control enabled:(BOOL)enabled {
+    control.enabled = enabled;
+    SettingsRowView *row = [self rowContaining:control];
+    if (row) [row refreshControlAppearance];
+    else control.alphaValue = enabled ? 1 : 0.5;
+}
+
++ (void)setControlsInView:(NSView *)view enabled:(BOOL)enabled {
+    NSMutableArray<NSControl *> *controls = [NSMutableArray array];
+    CollectControls(view, controls);
+    NSMutableSet<SettingsRowView *> *rows = [NSMutableSet set];
+    for (NSControl *control in controls) {
+        control.enabled = enabled;
+        if (!enabled && [control isKindOfClass:NSColorWell.class]) [(NSColorWell *)control deactivate];
+        SettingsRowView *row = [self rowContaining:control];
+        if (row) [rows addObject:row];
+        else control.alphaValue = enabled ? 1 : 0.5;
+    }
+    for (SettingsRowView *row in rows) [row refreshControlAppearance];
 }
 
 - (void)refreshControlAppearance {
     NSMutableArray<NSControl *> *controls = [NSMutableArray array];
-    [self collectControlsInView:self into:controls];
+    CollectControls(self, controls);
     BOOL hasControl = NO, enabled = NO;
     for (NSControl *control in controls) {
         if ([control isKindOfClass:NSTextField.class] && ![(NSTextField *)control isEditable]) continue;

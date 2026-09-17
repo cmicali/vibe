@@ -29,6 +29,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Every caller is a page leave or a switch to a built-in.
 - (void)closeEditorPanels;
 
+// A detent slider with a fixed-width, right-aligned readout beside it — the
+// shape the corner radius, the two waveform bar sliders and the list page's
+// gain all take. The slider starts on its detent.
+- (NSStackView *)detentSliderClusterWithDetent:(double)detent min:(double)min max:(double)max
+                                        action:(SEL)action
+                                        slider:(NSSlider *__strong _Nonnull *_Nonnull)outSlider
+                                    valueLabel:(NSTextField *__strong _Nonnull *_Nonnull)outLabel;
+
 // resolveLayoutStateFromSettings — the base class's layout-only hook — is
 // implemented here as well: every conditional row the pane has is the
 // editor's, and the pass ends in the class file's applyEditorVisibility.

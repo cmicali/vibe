@@ -259,7 +259,7 @@ static const CGFloat kInlineTitleInset = 10;
 - (NSSize)naturalPaneSize {
     NSSize fitting = _sectionStack.fittingSize;
     return NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
-                      MIN(620, MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding)));
+                      MIN(kSettingsPaneMaxHeight, MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding)));
 }
 
 // YES when the pane's size actually moved, which is what the host needs to

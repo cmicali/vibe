@@ -37,9 +37,13 @@ static const CGFloat kSettingsRowInset = 16;
 
 @interface SettingsRowView : NSView
 
-// Updates the control and its row's readout labels together, including
-// asynchronous enablement changes outside a pane refresh.
+// Enablement goes through here rather than .enabled so the row's readout
+// labels follow: a row whose controls are all disabled dims its title and
+// caption with them. The second form takes every control under a view — a
+// section's rows, or one row's cluster — with one appearance pass per row,
+// and deactivates a color well it disables.
 + (void)setControl:(NSControl *)control enabled:(BOOL)enabled;
++ (void)setControlsInView:(NSView *)view enabled:(BOOL)enabled;
 
 // The title may end with a localized colon (the strings are shared with the
 // old form layout); it is stripped for display. nil title: the control

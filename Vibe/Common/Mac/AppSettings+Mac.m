@@ -196,6 +196,28 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     return entry;
 }
 
+// One side of a history entry: the whole user-theme list, the active
+// identifier and the working record. An edit, a rename and a removal each
+// move some of the three, so there is one entry kind and one restore.
+static NSDictionary *ThemeStoreSnapshot(NSArray<NSDictionary *> *themes, NSString *active,
+                                        NSDictionary *working) {
+    return @{@"themes": [themes copy], @"active": active, @"working": [working copy]};
+}
+
+// Every record a history entry can put back, for the image sweep.
+static NSArray<NSDictionary *> *ThemeHistoryRecords(NSDictionary *change) {
+    NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
+    for (NSDictionary *snapshot in change.allValues) {
+        [records addObjectsFromArray:snapshot[@"themes"]];
+        [records addObject:snapshot[@"working"]];
+    }
+    return records;
+}
+
+static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
+    return [change[@"before"][@"themes"] count] > [change[@"after"][@"themes"] count];
+}
+
 // Sanitized on read: an entry without a usable id and name is dropped, and
 // every entry's fields go back through AppTheme's gate, so an external
 // defaults write cannot smuggle in what an import would refuse. Memoized —
@@ -323,16 +345,24 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     return _currentTheme;
 }
 
-- (void)applyThemeWithIdentifier:(NSString *)identifier {
+// Store-only activation: the working record becomes the named theme's, the
+// active key moves and the divergence key clears. A history restore and a
+// removal's fallback call this so the entries survive; the user's explicit
+// pick is applyThemeWithIdentifier:, which starts history afresh.
+- (void)activateThemeWithIdentifier:(NSString *)identifier {
     NSString *resolved = [self resolvedThemeIdentifier:identifier];
     [self.currentTheme replaceWithRecord:[self recordForThemeIdentifier:resolved]];
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setObject:resolved forKey:SETTING_ACTIVE_THEME];
     [defaults removeObjectForKey:SETTING_CURRENT_THEME];
-    if (!_themeHistoryRestoring) [self clearThemeHistory];
-    // Dropping the divergence record can drop the last reference to a custom
-    // image picked while a built-in was active.
-    if (!_themeHistoryRestoring) [self sweepUnreferencedThemeImages];
+}
+
+- (void)applyThemeWithIdentifier:(NSString *)identifier {
+    [self activateThemeWithIdentifier:identifier];
+    [self clearThemeHistory];
+    // Dropping the divergence record and the history can drop the last
+    // reference to a custom image picked while a built-in was active.
+    [self sweepUnreferencedThemeImages];
 }
 
 - (void)currentThemeDidChange {
@@ -350,18 +380,15 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSDictionary *record = _currentTheme.dictionaryRepresentation;
     NSString *active = self.activeThemeIdentifier;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    // What this write replaces: the divergence record or the entry. Its
-    // artwork references against the new record's decide the sweep below,
-    // so a replaced or cleared placeholder image cannot strand its file —
-    // and a color drag, which changes no reference, never lists the
+    // What this write replaces: the divergence record or the stored record.
+    // Its artwork references against the new record's decide the sweep
+    // below, so a replaced or cleared placeholder image cannot strand its
+    // file — and a color drag, which changes no reference, never lists the
     // container.
-    NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
-    // Undo restores the named entry or the built-in working record.
-    NSDictionary *replaced = [self storedUserThemeWithIdentifier:active]
-            ?: UserThemeEntry(previous ?: [self recordForThemeIdentifier:active], active,
-                              [self displayNameForThemeIdentifier:active]);
+    NSDictionary *previous = [defaults dictionaryForKey:SETTING_CURRENT_THEME]
+            ?: [self recordForThemeIdentifier:active];
+    NSDictionary *before = ThemeStoreSnapshot([self storedUserThemes], active, previous);
     if ([AppTheme isBuiltInIdentifier:active]) {
-        previous = previous ?: [AppTheme builtInRecordForIdentifier:active];
         // A built-in stays pristine; the working record carries the
         // divergence, and only while there is one.
         if ([record isEqualToDictionary:[AppTheme builtInRecordForIdentifier:active]]) {
@@ -375,7 +402,6 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
         for (NSUInteger i = 0; i < themes.count; i++) {
             if ([themes[i][kVibeThemeRecordIdentifierKey] isEqualToString:active]) {
-                previous = previous ?: themes[i];
                 themes[i] = UserThemeEntry(record, active, themes[i][kVibeThemeRecordNameKey]);
                 break;
             }
@@ -383,8 +409,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [self persistUserThemes:themes];
         [defaults removeObjectForKey:SETTING_CURRENT_THEME];
     }
-    BOOL retiredHistoryImages = replaced && !_themeHistoryRestoring
-            && [self recordThemeChange:replaced replacedBy:UserThemeEntry(record, active, [self displayNameForThemeIdentifier:active])
+    BOOL retiredHistoryImages = !_themeHistoryRestoring
+            && [self recordThemeChange:before
+                            replacedBy:ThemeStoreSnapshot([self storedUserThemes], active, record)
                             continuous:continuous atTime:time];
     if (retiredHistoryImages || ![[AppTheme customImageFilesInRecord:previous]
             isEqualToSet:[AppTheme customImageFilesInRecord:record]]) {
@@ -401,6 +428,9 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
     NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
     [themes addObject:UserThemeEntry([AppTheme sanitizedRecord:record], identifier, deduped)];
     [self persistUserThemes:themes];
+    // Older store snapshots cannot preserve this unrecorded addition.
+    [self clearThemeHistory];
+    [self sweepUnreferencedThemeImages];
     return identifier;
 }
 
@@ -416,49 +446,49 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 
 - (void)removeUserThemeWithIdentifier:(NSString *)identifier
                         fallingBackTo:(NSString *)successor {
-    NSMutableArray<NSDictionary *> *themes = [[self storedUserThemes] mutableCopy];
-    NSUInteger index = [themes indexOfObjectPassingTest:^BOOL(NSDictionary *entry, NSUInteger i, BOOL *stop) {
+    NSArray<NSDictionary *> *stored = [self storedUserThemes];
+    NSUInteger index = [stored indexOfObjectPassingTest:^BOOL(NSDictionary *entry, NSUInteger i, BOOL *stop) {
         return [entry[kVibeThemeRecordIdentifierKey] isEqualToString:identifier];
     }];
     if (index == NSNotFound) return;
-    NSMutableDictionary *removed = [themes[index] mutableCopy];
-    removed[@"themeIndex"] = @(index);
-    removed[@"activeTheme"] = self.activeThemeIdentifier;
-    removed[@"workingRecord"] = self.currentTheme.dictionaryRepresentation;
+    NSString *active = self.activeThemeIdentifier;
+    NSDictionary *before = ThemeStoreSnapshot(stored, active, self.currentTheme.dictionaryRepresentation);
+    NSMutableArray<NSDictionary *> *themes = [stored mutableCopy];
     [themes removeObjectAtIndex:index];
     [self persistUserThemes:themes];
-    if ([removed[@"activeTheme"] isEqualToString:identifier]) {
-        _themeHistoryRestoring = YES;
-        [self applyThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
-        _themeHistoryRestoring = NO;
+    if ([active isEqualToString:identifier]) {
+        // The successor resolves to vibe when it names nothing, the removed
+        // theme itself included.
+        [self activateThemeWithIdentifier:successor ?: kVibeThemeIdentifierVibe];
     }
-    NSMutableDictionary *after = [removed mutableCopy];
-    after[@"removed"] = @YES;
-    after[@"activeTheme"] = self.activeThemeIdentifier;
-    after[@"workingRecord"] = self.currentTheme.dictionaryRepresentation;
-    [self recordThemeChange:removed replacedBy:after continuous:NO atTime:NSDate.timeIntervalSinceReferenceDate];
-    [self sweepUnreferencedThemeImages];
+    // The entry keeps everything the removal dropped, so only an eviction at
+    // the cap can retire an image here.
+    if ([self recordThemeChange:before
+                     replacedBy:ThemeStoreSnapshot(themes, self.activeThemeIdentifier,
+                                                   self.currentTheme.dictionaryRepresentation)
+                     continuous:NO atTime:NSDate.timeIntervalSinceReferenceDate]) {
+        [self sweepUnreferencedThemeImages];
+    }
 }
 
+// The divergence key is written exactly while the working record differs
+// from the active theme's own (currentThemeDidChangeContinuous:atTime:).
 - (BOOL)currentThemeIsModified {
-    return ![self.currentTheme.dictionaryRepresentation
-            isEqualToDictionary:[self recordForThemeIdentifier:self.activeThemeIdentifier]];
+    return [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_CURRENT_THEME] != nil;
 }
 
 - (BOOL)themeUndoRemovesTheme {
-    return self.canUndoThemeEdit && _themeHistory[_themeHistoryIndex - 1][@"before"][@"themeIndex"] != nil;
+    return self.canUndoThemeEdit && ThemeHistoryChangeRemovesTheme(_themeHistory[_themeHistoryIndex - 1]);
 }
 
 - (BOOL)themeRedoRemovesTheme {
-    return self.canRedoThemeEdit && _themeHistory[_themeHistoryIndex][@"after"][@"themeIndex"] != nil;
+    return self.canRedoThemeEdit && ThemeHistoryChangeRemovesTheme(_themeHistory[_themeHistoryIndex]);
 }
 
 // Deletes every stored custom image no record names any more.
 // The files are content-hash-named and shared by reference
 // (AppTheme.storeCustomImageData:), so each store write that can drop the
-// last reference — the field funnel when its artwork keys move, a theme
-// removal, a theme apply (it drops the divergence record), a factory reset —
-// runs this after its write.
+// last reference, including by discarding history, runs this after its write.
 - (void)sweepUnreferencedThemeImages {
     NSMutableArray<NSDictionary *> *records = [NSMutableArray array];
     for (NSString *identifier in [self orderedThemeIdentifiers]) {
@@ -474,10 +504,7 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         [records addObject:diverged];
     }
     for (NSDictionary *change in _themeHistory) {
-        for (NSDictionary *record in change.allValues) {
-            [records addObject:record];
-            if (record[@"workingRecord"]) [records addObject:record[@"workingRecord"]];
-        }
+        [records addObjectsFromArray:ThemeHistoryRecords(change)];
     }
     [AppTheme removeCustomImageFilesUnreferencedByRecords:records];
 }
@@ -489,37 +516,40 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 }
 
 - (BOOL)themeHistoryChangeUsesImages:(NSDictionary *)change {
-    for (NSDictionary *record in change.allValues) {
-        if ([AppTheme customImageFilesInRecord:record].count > 0
-                || [AppTheme customImageFilesInRecord:record[@"workingRecord"]].count > 0) return YES;
+    for (NSDictionary *record in ThemeHistoryRecords(change)) {
+        if ([AppTheme customImageFilesInRecord:record].count > 0) return YES;
     }
     return NO;
 }
 
 // A continuous gesture updates the latest after-state, keeping its first
-// before-state. A new edit drops the redo branch. Return whether discarded
+// before-state. A new edit drops the redo branch. Returns whether discarded
 // history held images, so callers sweep only when needed.
-- (BOOL)recordThemeChange:(NSDictionary *)before replacedBy:(NSDictionary *)record
+- (BOOL)recordThemeChange:(NSDictionary *)before replacedBy:(NSDictionary *)after
                 continuous:(BOOL)continuous atTime:(NSTimeInterval)now {
-    if ([before isEqualToDictionary:record]) return NO;
+    if ([before isEqualToDictionary:after]) return NO;
     BOOL retiredImages = NO;
     while (_themeHistory.count > _themeHistoryIndex) {
         retiredImages |= [self themeHistoryChangeUsesImages:_themeHistory.lastObject];
         [_themeHistory removeLastObject];
     }
+    // What moved: the working record's keys, and the theme list as one key,
+    // so a rename or a removal never folds into the drag that follows it.
+    NSDictionary *from = before[@"working"], *to = after[@"working"];
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
-    for (NSString *key in [[NSSet setWithArray:before.allKeys] setByAddingObjectsFromArray:record.allKeys]) {
-        if (![before[key] isEqual:record[key]]) [changed addObject:key];
+    for (NSString *key in [[NSSet setWithArray:from.allKeys] setByAddingObjectsFromArray:to.allKeys]) {
+        if (![from[key] isEqual:to[key]]) [changed addObject:key];
     }
+    if (![before[@"themes"] isEqual:after[@"themes"]]) [changed addObject:@"themes"];
     if (continuous && _themeHistoryChangedKeys && [changed isEqualToSet:_themeHistoryChangedKeys]
             && now - _themeHistoryPushTime < 2) {
         _themeHistory[_themeHistoryIndex - 1] = @{@"before": _themeHistory.lastObject[@"before"],
-                                                 @"after": [record copy]};
+                                                 @"after": after};
         _themeHistoryPushTime = now;
         return retiredImages;
     }
     if (!_themeHistory) _themeHistory = [NSMutableArray array];
-    [_themeHistory addObject:@{@"before": [before copy], @"after": [record copy]}];
+    [_themeHistory addObject:@{@"before": before, @"after": after}];
     if (_themeHistory.count > 50) {
         retiredImages |= [self themeHistoryChangeUsesImages:_themeHistory.firstObject];
         [_themeHistory removeObjectAtIndex:0];
@@ -549,37 +579,18 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
 - (void)restoreThemeHistoryForward:(BOOL)forward {
     if (forward ? !self.canRedoThemeEdit : !self.canUndoThemeEdit) return;
     NSUInteger index = forward ? _themeHistoryIndex : _themeHistoryIndex - 1;
-    NSDictionary *change = _themeHistory[index];
+    NSDictionary *snapshot = _themeHistory[index][forward ? @"after" : @"before"];
     _themeHistoryIndex = forward ? index + 1 : index;
-    NSDictionary *entry = change[forward ? @"after" : @"before"];
+    // The restore is not itself an edit, and the next edit starts a fresh
+    // entry rather than coalescing onto the one just crossed. Nothing it puts
+    // back can be unreferenced — the entry still holds it — so no sweep.
     _themeHistoryChangedKeys = nil;
     _themeHistoryRestoring = YES;
-    NSNumber *themeIndex = entry[@"themeIndex"];
-    if (themeIndex != nil) {
-        NSMutableArray *themes = [[self storedUserThemes] mutableCopy];
-        NSString *identifier = entry[kVibeThemeRecordIdentifierKey];
-        if ([entry[@"removed"] boolValue]) {
-            [themes removeObjectsAtIndexes:[themes indexesOfObjectsPassingTest:
-                    ^BOOL(NSDictionary *theme, NSUInteger i, BOOL *stop) {
-                return [theme[kVibeThemeRecordIdentifierKey] isEqualToString:identifier];
-            }]];
-        } else {
-            NSString *name = [AppTheme dedupedThemeName:entry[kVibeThemeRecordNameKey]
-                    fallback:STR_THEME_NAME_CUSTOM existingNames:[self allThemeDisplayNames]];
-            NSDictionary *restored = UserThemeEntry([AppTheme sanitizedRecord:entry], identifier, name);
-            [themes insertObject:restored atIndex:MIN(themeIndex.unsignedIntegerValue, themes.count)];
-        }
-        [self persistUserThemes:themes];
-        [self applyThemeWithIdentifier:entry[@"activeTheme"]];
-        [self.currentTheme replaceWithRecord:entry[@"workingRecord"]];
-    } else {
-        [self renameUserThemeWithIdentifier:self.activeThemeIdentifier
-                                     toName:entry[kVibeThemeRecordNameKey]];
-        [self.currentTheme replaceWithRecord:entry];
-    }
+    [self persistUserThemes:snapshot[@"themes"]];
+    [self activateThemeWithIdentifier:snapshot[@"active"]];
+    [self.currentTheme replaceWithRecord:snapshot[@"working"]];
     [self currentThemeDidChange];
     _themeHistoryRestoring = NO;
-    [self sweepUnreferencedThemeImages];
 }
 
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name {
@@ -596,17 +607,22 @@ static NSDictionary *UserThemeEntry(NSDictionary *record, NSString *identifier, 
         NSString *deduped = [AppTheme dedupedThemeName:name
                                               fallback:STR_THEME_NAME_CUSTOM
                                          existingNames:otherNames];
-        NSDictionary *replaced = themes[i];
-        NSMutableDictionary *entry = [replaced mutableCopy];
+        if ([deduped isEqualToString:themes[i][kVibeThemeRecordNameKey]]) return;
+        NSDictionary *working = self.currentTheme.dictionaryRepresentation;
+        NSDictionary *before = ThemeStoreSnapshot([self storedUserThemes], self.activeThemeIdentifier, working);
+        NSMutableDictionary *entry = [themes[i] mutableCopy];
         entry[kVibeThemeRecordNameKey] = deduped;
         themes[i] = entry;
         [self persistUserThemes:themes];
         // A committed rename of the theme being edited is an edit of it.
-        if ([identifier isEqualToString:self.activeThemeIdentifier] && !_themeHistoryRestoring) {
-            if ([self recordThemeChange:replaced replacedBy:entry continuous:NO
-                                   atTime:NSDate.timeIntervalSinceReferenceDate]) {
+        if ([identifier isEqualToString:self.activeThemeIdentifier]) {
+            if ([self recordThemeChange:before replacedBy:ThemeStoreSnapshot(themes, identifier, working)
+                             continuous:NO atTime:NSDate.timeIntervalSinceReferenceDate]) {
                 [self sweepUnreferencedThemeImages];
             }
+        } else {
+            [self clearThemeHistory];
+            [self sweepUnreferencedThemeImages];
         }
         return;
     }

@@ -37,10 +37,10 @@
 @property (readonly, nonatomic) BOOL canRandomize;
 - (void)randomizeThemeSettings;
 - (void)randomizeThemeColors;
-// Theme history is shared by the toolbar and Edit menu on both pages.
-@property (readonly, nonatomic) BOOL canUndoEdit;
-@property (readonly, nonatomic) BOOL canRedoEdit;
-- (void)undoEdit;
-- (void)redoEdit;
+// The store's theme history, shared by the toolbar arrows and Edit > Undo
+// and Redo on both pages: backward is undo, forward redo. A restore applies
+// the restored theme whole.
+- (BOOL)canRestoreThemeHistoryForward:(BOOL)forward;
+- (void)restoreThemeHistoryForward:(BOOL)forward;
 
 @end

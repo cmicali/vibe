@@ -26,6 +26,10 @@ static const CGFloat kSettingsPaneWidth = 480;
 // size instead of hugging its panes' content.
 static const CGFloat kSettingsPaneMinHeight = 480;
 
+// The shared height stops growing here; a longer pane scrolls instead of
+// pushing every pane's floor up with it.
+static const CGFloat kSettingsPaneMaxHeight = 620;
+
 // The content inset every pane page uses — the base section stack and the
 // Appearance pane's editor page alike.
 static const CGFloat kPanePadding = 20;

@@ -12,7 +12,7 @@ Root `CLAUDE.md` carries the guarantee — the theme beats the style's palette, 
 
 **Each color carries its side's resting level in its alpha; renderers own only their ramp shapes**, scaling every stop relative to that level (`VibeColorWithScaledAlpha`, `Common/PlatformColor.h`). The alphas are the levels that used to be renderer constants (`WaveformTheme.m` names them), which is what keeps Mono color-identical to the pre-theme look and Orange on Sonic Cirrus to the pre-theme Sonic Cirrus; a custom well's alpha dials its side's whole intensity and persists in the hex (`#RRGGBBAA`). A renderer that hard-codes an alpha breaks every theme at once.
 
-**`flatFill` drops the ramp, never the level.** macOS's resolution site sets it from `AppTheme.waveformGradient` after construction; iOS never sets it.
+**`flatFill` drops the ramp, never the level.** macOS sets it from `AppTheme.waveformGradient`; iOS never sets it. **The record-to-palette mapping on macOS is `themeForAppTheme:isDark:artworkColor:`**, guarded `TARGET_OS_OSX` because `AppTheme` is Mac-only: the player view and the settings preview both call it, so a new waveform field is mapped once.
 
 **The album-art clamp tests perceptual luminance, not HSB brightness**, which is hue-blind and passes a too-dark pure blue; it blends toward the appearance's contrast pole, then desaturates toward the color's own luminance gray so the clamp still holds. The hover color derives from the played hue by the same luminance test, so the highlight survives any custom palette. `WaveformThemeTests` pins both.
 

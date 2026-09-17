@@ -129,6 +129,8 @@ void VibeDebugSettingsRefreshSelectedPane(void) {
 @property (nonatomic, copy) NSString *kind;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy, nullable) NSString *label;
+// The grouped-form row the element sits in, nil outside one.
+@property (nonatomic, weak, nullable) SettingsRowView *row;
 @end
 
 @implementation VibeSettingsElement
@@ -209,7 +211,7 @@ static NSString *VibeElementName(NSView *view, NSString *kind, NSString *rowLabe
     return kind;
 }
 
-static void VibeCollectElements(NSView *view, NSString *rowLabel,
+static void VibeCollectElements(NSView *view, NSString *rowLabel, SettingsRowView *row,
                                 NSMutableArray<VibeSettingsElement *> *out) {
     // A scroll view's scrollers are NSControls, and nothing a caller would ever
     // aim at; the document view inside it still gets collected.
@@ -229,7 +231,7 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel,
             if (subview == row.titleLabel || subview == row.captionLabel) {
                 continue;
             }
-            VibeCollectElements(subview, label, out);
+            VibeCollectElements(subview, label, row, out);
         }
         return;
     }
@@ -241,7 +243,7 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel,
             if (subview == section.headerLabel) {
                 continue;
             }
-            VibeCollectElements(subview, label, out);
+            VibeCollectElements(subview, label, row, out);
         }
         return;
     }
@@ -251,6 +253,7 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel,
         element.view = view;
         element.kind = kind;
         element.label = rowLabel;
+        element.row = row;
         element.name = VibeElementName(view, kind, rowLabel);
         [out addObject:element];
         // A control's own subviews are its innards, never separate controls;
@@ -260,13 +263,13 @@ static void VibeCollectElements(NSView *view, NSString *rowLabel,
     // A stack view or a scroll view: pass the row label through, so the radios
     // inside one still answer to the row they sit in.
     for (NSView *subview in view.subviews) {
-        VibeCollectElements(subview, rowLabel, out);
+        VibeCollectElements(subview, rowLabel, row, out);
     }
 }
 
 static NSArray<VibeSettingsElement *> *VibeElementsForPane(NSViewController *pane) {
     NSMutableArray<VibeSettingsElement *> *elements = [NSMutableArray array];
-    VibeCollectElements(pane.view, nil, elements);
+    VibeCollectElements(pane.view, nil, nil, elements);
     return elements;
 }
 
@@ -403,6 +406,15 @@ static NSDictionary *VibeViewPresentationJSON(NSView *view, NSWindow *window) {
     return node;
 }
 
+// A row's structural label beside its controls: its text and presentation,
+// so a dimmed row can be asserted on without a view-tree walk.
+static void VibeAddLabelJSON(NSMutableDictionary *node, NSString *key, NSTextField *label, NSWindow *window) {
+    if (!label) return;
+    NSMutableDictionary *text = [VibeViewPresentationJSON(label, window) mutableCopy];
+    text[@"value"] = label.stringValue;
+    node[key] = text;
+}
+
 static NSDictionary *VibeElementJSON(VibeSettingsElement *element, NSUInteger index, NSWindow *window) {
     NSMutableDictionary *node = [VibeElementStateJSON(element) mutableCopy];
     [node addEntriesFromDictionary:VibeViewPresentationJSON(element.view, window)];
@@ -412,21 +424,8 @@ static NSDictionary *VibeElementJSON(VibeSettingsElement *element, NSUInteger in
     if (element.label.length) {
         node[@"label"] = element.label;
     }
-    for (NSView *ancestor = element.view.superview; ancestor; ancestor = ancestor.superview) {
-        if (![ancestor isKindOfClass:SettingsRowView.class]) {
-            continue;
-        }
-        SettingsRowView *row = (SettingsRowView *)ancestor;
-        for (NSString *key in @[@"rowTitle", @"rowCaption"]) {
-            NSTextField *label = [key isEqualToString:@"rowTitle"] ? row.titleLabel : row.captionLabel;
-            if (label) {
-                NSMutableDictionary *text = [VibeViewPresentationJSON(label, window) mutableCopy];
-                text[@"value"] = label.stringValue;
-                node[key] = text;
-            }
-        }
-        break;
-    }
+    VibeAddLabelJSON(node, @"rowTitle", element.row.titleLabel, window);
+    VibeAddLabelJSON(node, @"rowCaption", element.row.captionLabel, window);
     return node;
 }
 
@@ -879,10 +878,10 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                                         ?: @""});
             }
             if (undo) {
-                if (!pane.canUndoEdit) {
+                if (![pane canRestoreThemeHistoryForward:NO]) {
                     return VibeErrorJSON(@"undo is not available here");
                 }
-                [pane undoEdit];
+                [pane restoreThemeHistoryForward:NO];
                 return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone"});
             }
             if (randomize) {

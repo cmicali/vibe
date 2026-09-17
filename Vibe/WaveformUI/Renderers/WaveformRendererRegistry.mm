@@ -14,6 +14,29 @@
 
 static NSString *const kWiggleMCIdentifier = @"wiggle";
 static NSString *const kWiggleIdentifier = @"wiggle_centered";
+static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
+
+// The preview's synthetic sample, built once: the envelope carries fine
+// transients so the Detailed family's sampling differences survive a
+// thumbnail, and it depends on nothing the caller passes.
+static AudioWaveform *VibePreviewWaveform(void) {
+    static AudioWaveform *waveform;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        waveform = new AudioWaveform;
+        NSUInteger chunks = waveform->getNumChunks();
+        for (NSUInteger i = 0; i < chunks; i++) {
+            float x = (float)i / (float)chunks;
+            float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
+                    + 0.16f * fabsf(sinf(x * 109));
+            float level = envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
+            AudioWaveformCacheChunk chunk;
+            chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, level * level * 0.5f, 1);
+            waveform->setChunkAtIndex(chunk, i);
+        }
+    });
+    return waveform;
+}
 
 @implementation WaveformRendererRegistry
 
@@ -59,11 +82,11 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
 }
 
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier {
-    return [identifier isEqualToString:@"cupertino_basic"] || [self supportsBarDensityForIdentifier:identifier];
+    return [identifier isEqualToString:kCupertinoBasicIdentifier] || [self supportsBarDensityForIdentifier:identifier];
 }
 
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier {
-    return ![identifier isEqualToString:@"cupertino_basic"];
+    return ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
 + (CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
@@ -74,17 +97,6 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
     CALayer *layer = [CALayer layer];
     layer.bounds = bounds;
     layer.contentsScale = 2;
-    AudioWaveform waveform;
-    for (NSUInteger i = 0; i < waveform.getNumChunks(); i++) {
-        float x = (float)i / (float)waveform.getNumChunks();
-        float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
-                + 0.16f * fabsf(sinf(x * 109));
-        // Fine transients keep the higher-resolution styles visible in a thumbnail.
-        float level = envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
-        AudioWaveformCacheChunk chunk;
-        chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, level * level * 0.5f, 1);
-        waveform.setChunkAtIndex(chunk, i);
-    }
     AudioWaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
             layer:layer bounds:bounds isDark:dark];
     renderer.theme = theme;
@@ -95,7 +107,7 @@ static NSString *const kWiggleIdentifier = @"wiggle_centered";
     [renderer updateColors:dark];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [renderer updateWaveform:bounds progress:0.4 waveform:&waveform];
+    [renderer updateWaveform:bounds progress:0.4 waveform:VibePreviewWaveform()];
     [renderer settleMorphImmediately];
     [CATransaction commit];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();

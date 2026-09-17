@@ -8,6 +8,7 @@
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
+#import "AppTheme.h"
 #else
 #import <UIKit/UIKit.h>
 #endif
@@ -82,6 +83,19 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     return [self themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:isDark
                        artworkColor:nil customPlayed:nil customUnplayed:nil];
 }
+
+#if TARGET_OS_OSX
++ (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
+                       artworkColor:(VibeColor *)artworkColor {
+    WaveformTheme *resolved = [self themeForIdentifier:theme.waveformTheme
+                                                isDark:isDark
+                                          artworkColor:artworkColor
+                                          customPlayed:[theme waveformPlayedColorForDark:isDark]
+                                        customUnplayed:[theme waveformUnplayedColorForDark:isDark]];
+    resolved.flatFill = !theme.waveformGradient;
+    return resolved;
+}
+#endif
 
 + (WaveformTheme *)themeForIdentifier:(NSString *)identifier
                                isDark:(BOOL)isDark

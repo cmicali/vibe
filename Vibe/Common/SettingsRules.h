@@ -112,6 +112,18 @@ static inline NSString *VibeNormalizedDockIcon(NSString *_Nullable identifier) {
             : SETTINGS_VALUE_DOCK_ICON_ALBUM_ART;
 }
 
+// When the darkening behind the transport buttons shows, in the editor's
+// menu order; an unknown value snaps to the factory always-on.
+static inline NSArray<NSString *> *VibeButtonGradientModes(void) {
+    return @[SETTINGS_VALUE_BUTTON_GRADIENT_NONE, SETTINGS_VALUE_BUTTON_GRADIENT_HOVER,
+             SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK, SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS];
+}
+
+static inline NSString *VibeNormalizedButtonGradient(NSString *_Nullable identifier) {
+    return identifier && [VibeButtonGradientModes() containsObject:identifier]
+            ? identifier : SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS;
+}
+
 // The transport buttons' glyph choices, as the theme editor offers them —
 // SF Symbol names every macOS the app runs on carries. The theme's glyph
 // fields are free text (AppTheme), so these are the editor's menu and the
