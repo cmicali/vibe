@@ -30,11 +30,22 @@
         self.delegate = self;
         // Vibe opens what is already there; it authors nothing.
         self.allowsDocumentCreation = NO;
-        // Several items at once, so didPickDocumentsAtURLs: and the action
-        // below can both take a set. iOS 26's browser offers no "Select" mode
-        // of its own on iPhone, so in practice this only widens what an iPad
-        // drag selection or a future OS may hand over.
-        self.allowsPickingMultipleItems = YES;
+        // TRAP: multiple-item picking BREAKS the browser's Open button. With it
+        // on, Open runs the browser's confirm-an-open flow, which replaces the
+        // button with a progress indicator and holds it until the app presents
+        // a document view controller for what was picked. Vibe presents none —
+        // it switches to the Playlist tab and raises the card — so the open
+        // lands and plays while the browser spins on that button forever, one
+        // per Open, for the rest of the session. Off, the same press is a plain
+        // pick: the button stays, and the Open button, folder opens and file
+        // taps all behave. Tapping a file row never spun either way.
+        //
+        // It bought nothing on iPhone, where iOS 26's browser has no "Select"
+        // mode; what it cost was Open. An iPad drag selection or a future OS
+        // could have handed several items over, and now cannot — the delegate
+        // below still takes a set, so restoring it is one line if a browser
+        // ever both selects several items AND leaves Open alone.
+        self.allowsPickingMultipleItems = NO;
         __weak PlaybackController *weakPlayback = playback;
         UIDocumentBrowserAction *add = [[UIDocumentBrowserAction alloc]
                 initWithIdentifier:@"com.commonwealthrecordings.vibe.add-to-playlist"
