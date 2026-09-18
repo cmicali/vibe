@@ -108,7 +108,7 @@ struct VibeNowPlayingWidget: Widget {
             VibeWidgetView(entry: entry)
         }
         .configurationDisplayName("Vibe")
-        .description("What Vibe is playing.")
+        .description(LocalizedStringResource(stringLiteral: VibeWidgetStrings.widgetDescription))
         .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
     }

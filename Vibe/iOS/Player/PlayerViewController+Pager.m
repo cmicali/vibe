@@ -71,7 +71,19 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 }
 
 - (void)requestWaveformForIndex:(NSUInteger)index {
-    [_waveformCoordinator requestIndex:index track:[_playlist trackAtIndex:index]];
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    [_waveformCoordinator requestIndex:index track:track];
+    // TRAP: a page whose waveform is already complete starts no load and
+    // therefore DELIVERS NOTHING — the request is a no-op by design, since the
+    // snapshot in hand is what hydration draws. The widget's only publish hook
+    // is that delivery, and a track change clears its strip, so returning to an
+    // already-played track left it blank until the track changed again. The
+    // cached envelope is offered here for exactly the case the delivery cannot
+    // cover; the publisher drops it if it is not the track it is describing.
+    if ([_waveformCoordinator isCompleteAtIndex:index]) {
+        [_playback offerWaveformToWidget:[_waveformCoordinator snapshotAtIndex:index]
+                                forTrack:track];
+    }
 }
 
 // Reloaded and recycled cells come back blank; the latest snapshot puts the

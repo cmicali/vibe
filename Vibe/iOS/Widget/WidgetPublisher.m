@@ -128,10 +128,15 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
         _artworkOnDisk = (artwork != nil);
     }
     if (trackChanged) {
-        // The retained envelope belongs to the outgoing track; drop it so a
-        // settings change cannot re-bake it under the new title.
-        _waveform       = nil;
-        _waveformTrack  = nil;
+        // The envelope is kept only if it was offered FOR the track being
+        // adopted. The card can offer before this call or after it — returning
+        // to an already-played track offers first, because the coordinator has
+        // the snapshot in hand and starts no load — so the pairing is checked
+        // rather than the order assumed.
+        if (!track || _waveformTrack != track) {
+            _waveform      = nil;
+            _waveformTrack = nil;
+        }
         _bakedSignature = nil;
     }
 
@@ -153,6 +158,11 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
         [next save];
         [VibeWidgetReloader reload];
     });
+
+    // An offer that arrived before its track was adopted bakes now.
+    if (trackChanged && _waveform) {
+        [self bakeWaveformIfNeeded];
+    }
 }
 
 // Republished on a structural change or a seek, never on the tick that merely
@@ -197,12 +207,17 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
 #pragma mark - The waveform strip
 
 - (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
-    if (!waveform || !track || track != _publishedTrack) {
+    if (!waveform || !track) {
         return;
     }
+    // Kept whichever side of the adoption it lands on; only the bake waits for
+    // the track to be the published one, so an offer for a page the user is
+    // merely swiping past cannot overwrite the strip.
     _waveform      = waveform;
     _waveformTrack = track;
-    [self bakeWaveformIfNeeded];
+    if (track == _publishedTrack) {
+        [self bakeWaveformIfNeeded];
+    }
 }
 
 // A settings change re-bakes only when it moved something the bake reads.
@@ -217,7 +232,7 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
 
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
-    if (!waveform || !_waveformTrack) {
+    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack) {
         return;
     }
     AppSettings *settings = AppSettings.sharedInstance;

@@ -529,6 +529,13 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_SECTION_WAVEFORM_THEME NSLS(@"settings.section.waveform_theme", @"Waveform theme", @"iOS settings screen: heading above the list of waveform color themes.")
 #define STR_SETTINGS_SECTION_WIDGET_WAVEFORM NSLS(@"settings.section.widget_waveform", @"Widget waveform", @"iOS settings screen: row title for the drawing style the home-screen widget uses for its waveform, which can differ from the one the app itself draws. 'Widget' is the iOS home-screen widget.")
 #define STR_SETTINGS_WIDGET_WAVEFORM_MATCH NSLS(@"settings.widget_waveform.match_app", @"Match app", @"iOS settings screen, widget waveform style list: the first row, meaning the widget draws in whatever style the app is set to rather than one of its own. Keep it short — it sits in a narrow value column.")
+
+#pragma mark - Home-screen widget
+
+#define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is playing.", @"iOS widget gallery: the one-line description under the widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
+#define STR_WIDGET_INTENT_PLAY    NSLS(@"widget.intent.play_pause", @"Play or Pause",      @"Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.")
+#define STR_WIDGET_INTENT_NEXT    NSLS(@"widget.intent.next",      @"Next Track",          @"Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
+#define STR_WIDGET_INTENT_SEEK    NSLS(@"widget.intent.seek",      @"Seek",                @"Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"Settings and theme editor: heading above the time display settings, including total duration versus remaining time.")
 
 #define STR_SETTINGS_SECTION_FOLDER_SORT    NSLS(@"settings.section.folder_sort",    @"When opening a folder", @"iOS settings screen: heading above the choice of what order a folder's songs are added to the playlist in when that folder is opened.")

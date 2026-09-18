@@ -572,9 +572,17 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
       - path: Vibe/iOS/Widget/VibeWidgetState.h
       - path: Vibe/iOS/Widget/VibeWidgetState.m
+      - path: Vibe/iOS/Widget/VibeWidgetStrings.h
+      - path: Vibe/iOS/Widget/VibeWidgetStrings.m
       # Shared with the app, which owns the bodies (VIBE_APP). The extension
       # needs the TYPES so its buttons can name them.
       - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
+      # TRAP: NSBundle.mainBundle inside an appex is the APPEX's bundle, so the
+      # extension needs its own copy of the catalog. Without it every widget
+      # string silently falls back to its English default, and nothing in the
+      # build or make check-translations would say so.
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
     info:
       path: VibeWidget/Info.plist
       properties:
