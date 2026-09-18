@@ -22,6 +22,10 @@ static NSString *const kAdditionBookmarksKey = @"VibeiOSAdditionBookmarks";
 // shipped spelling so an installed build's parked track survives the update —
 // a bare filename left by one restores through the match's filename tier.
 static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
+// The bound on a launch restore's concurrent bookmark resolutions, the same
+// one SearchFolderStore's restore uses and for the same reason: one stalled
+// provider must not head-of-line every other bookmark.
+static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 @interface FolderSession () <UIDocumentPickerDelegate>
 @end
@@ -184,16 +188,30 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
     }
     NSArray *additions =
             [NSUserDefaults.standardUserDefaults arrayForKey:kAdditionBookmarksKey] ?: @[];
+    // The base first, then the additions in persisted order. Everything below
+    // keeps that order: it is what the worker's base-first dedupe and the
+    // first-contributor base rule rest on.
+    NSMutableArray<NSData *> *bookmarks = [NSMutableArray arrayWithObject:bookmark];
+    for (id data in additions) {
+        if ([data isKindOfClass:NSData.class]) {
+            [bookmarks addObject:data];
+        }
+        else {
+            LogWarn(@"FolderSession: an addition bookmark is not data");
+        }
+    }
     uint64_t openIntentGeneration = [self beginOpenIntent];
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
     dispatch_async(_workQueue, ^{
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
             return;
         }
-        NSError *error = nil;
-        NSURL *base = [self resolveBookmark:bookmark error:&error];
-        if (!base) {
-            LogWarn(@"FolderSession: bookmark no longer resolves (%@)", error);
+        NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
+                                             openIntentGeneration:openIntentGeneration];
+        if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
+            if (urls.count == 0) {
+                LogWarn(@"FolderSession: the base bookmark no longer resolves");
+            }
             run_on_main_thread({
                 if ([self isCurrentOpenIntent:openIntentGeneration]) {
                     [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
@@ -206,25 +224,77 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
         // No pre-adopt refresh of a stale bookmark: minting bookmark data
         // needs the security scope OPEN, and the landing re-persists after the
         // scope starts anyway — the refresh before it always failed.
-        NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithObject:base];
-        for (id data in additions) {
-            NSURL *url = [data isKindOfClass:NSData.class]
-                    ? [self resolveBookmark:data error:NULL] : nil;
-            if (url) {
-                [urls addObject:url];
-            }
-            else {
-                // Nothing prunes the list: the landing rewrites both keys from
-                // what actually resolved and listed, so a dead or emptied
-                // addition drops itself here.
-                LogWarn(@"FolderSession: an addition bookmark no longer resolves");
-            }
-        }
         [self openURLsOnWorkQueue:urls appending:NO restored:YES fromSearchRoots:NO
                          sortedBy:sort coveringRootPaths:@[] holds:@[] grants:@[]
              openIntentGeneration:openIntentGeneration];
     });
     return YES;
+}
+
+// Resolves a launch restore's bookmarks off main, at most
+// kMaximumConcurrentBookmarkRestorations at a time, and answers the URLs that
+// resolved IN THE ORDER THEY WERE PASSED. An empty answer means the base — the
+// first bookmark — did not resolve; a dead addition is simply missing from the
+// answer, and nothing prunes the persisted list, since the landing rewrites
+// both keys from what actually contributed.
+//
+// Resolution is provider IPC that can take seconds per bookmark, and a
+// CONCURRENT QUEUE DOES NOT PARALLELIZE WORK INSIDE ONE BLOCK: resolving them
+// in a row made every launch cost their sum. Bounded exactly as
+// SearchFolderStore's launch restore is (Search/CLAUDE.md), so one slow
+// provider cannot head-of-line the rest.
+//
+// It does NOT stop a stalled provider from delaying launch. The walk needs the
+// whole union, so this waits for the slowest bookmark whatever the bound does;
+// bounded concurrency only lets the other bookmarks make progress meanwhile.
+// The directory LISTING that follows, and the bookmark minting after it, are
+// still serial: deliberately, because the dedupe, the contributor list and the
+// first-contributor base rule are all order-dependent walks of one loop that
+// also owns each URL's scope start and its paired stop, and splitting that loop
+// would put the scope balance at risk for a second-order win.
+- (NSArray<NSURL *> *)resolveBookmarksConcurrently:(NSArray<NSData *> *)bookmarks
+                              openIntentGeneration:(uint64_t)openIntentGeneration {
+    NSMutableArray *slots = [NSMutableArray arrayWithCapacity:bookmarks.count];
+    for (NSUInteger i = 0; i < bookmarks.count; i++) {
+        [slots addObject:NSNull.null];
+    }
+    NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+    queue.name = @"FolderSession.restore";
+    queue.qualityOfService = NSQualityOfServiceUserInitiated;
+    queue.maxConcurrentOperationCount = kMaximumConcurrentBookmarkRestorations;
+    [bookmarks enumerateObjectsUsingBlock:^(NSData *data, NSUInteger index, BOOL *stop) {
+        [queue addOperationWithBlock:^{
+            // A user open landing mid-restore wins: the rest of this restore
+            // costs the provider nothing.
+            if (![self isCurrentOpenIntent:openIntentGeneration]) {
+                return;
+            }
+            NSError *error = nil;
+            NSURL *url = [self resolveBookmark:data error:&error];
+            if (!url) {
+                LogWarn(@"FolderSession: a bookmark no longer resolves (%@)", error);
+                return;
+            }
+            // Completion order is not playlist order. Each result goes back
+            // into its own slot and the union is read out below in persisted
+            // order, so a fast addition can never overtake the base or another
+            // addition and claim its place.
+            @synchronized (slots) {
+                slots[index] = url;
+            }
+        }];
+    }];
+    [queue waitUntilAllOperationsAreFinished];
+    if (slots.firstObject == NSNull.null) {
+        return @[];
+    }
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:slots.count];
+    for (id slot in slots) {
+        if (slot != NSNull.null) {
+            [urls addObject:slot];
+        }
+    }
+    return urls;
 }
 
 - (NSString *)persistedTrackPath {

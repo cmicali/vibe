@@ -108,6 +108,11 @@ NS_ASSUME_NONNULL_BEGIN
 // the main thread, so the outcome arrives later: folderSession:didOpenTracks:…
 // on success, folderSessionRestoreDidFail: otherwise. All delegate calls land
 // on main.
+//
+// The bookmarks resolve a bounded few at a time and merge in persisted order.
+// That keeps one stalled provider from making every other bookmark wait its
+// turn; it does NOT keep one from delaying launch, since the walk needs the
+// whole union. The listing and the minting after it stay serial.
 - (BOOL)restorePersistedFolder;
 
 // Mints a fresh bookmark for the base folder so something outside this session
