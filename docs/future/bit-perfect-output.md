@@ -140,8 +140,9 @@ captures. `VIBE_NOW_PLAYING=1` explicitly enables media-integration testing.
   release; `make check-translations` is the release gate.
 - The everyday FX chain is not promised sample-exact. Bit-perfect routes around
   the FX segment entirely; live setting changes briefly interrupt playback.
-- iOS, raw integer IO bypassing AVAudioEngine, DSD/DoP, user-selectable upsampling,
-  per-device mode preferences, and app volume controls are outside this feature.
+- iOS, raw integer IO bypassing AVAudioEngine, DSD/DoP, user-selectable upsampling
+  and app volume controls are outside this feature. Bit-perfect and exclusive
+  output are remembered per device UID (`Audio/Mac/Devices/CLAUDE.md`).
 
 ## API references
 

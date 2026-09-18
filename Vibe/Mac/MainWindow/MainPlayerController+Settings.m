@@ -32,6 +32,10 @@
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
+    [self applySettingsLiveEffects:effects updatingOutputModes:YES];
+}
+
+- (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects updatingOutputModes:(BOOL)updatingOutputModes {
     NSAssert(NSThread.isMainThread, @"Settings live effects are main-thread only");
     AppSettings *settings = AppSettings.sharedInstance;
 
@@ -138,9 +142,11 @@
         [MainMenuBuilder applyConvertMenuVisibility];
     }
     if (effects & (VibeSettingsLiveEffectBitPerfect | VibeSettingsLiveEffectFXControls)) {
-        [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
-                             exclusiveOutput:settings.exclusiveOutput
-                                    enableFX:settings.audioFXEnabled];
+        if (updatingOutputModes) {
+            [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
+                                 exclusiveOutput:settings.exclusiveOutput
+                                        enableFX:settings.audioFXEnabled];
+        }
         [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];
     }

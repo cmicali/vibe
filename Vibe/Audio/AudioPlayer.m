@@ -648,6 +648,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // that hook's async window.)
     BOOL replacingAudibleTrack = (oldNode != nil && _engine.isRunning
                                   && _state == VibePlayerStatePlaying);
+#if TARGET_OS_OSX
+    // A device's mode lands before main applies its dependent settings.
+    declick |= _bitPerfectWanted;
+#endif
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds,
                                                              replacingAudibleTrack,
                                                              declick,
@@ -812,6 +816,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // gate themselves on the mode.
     [self prepareOutputOnQueueForFile:file];
     [self ensureVarispeedOnQueue]; // a toggle during the open may have changed the chain
+    if (_bitPerfectWanted) {
+        _incomingFadeMilliseconds = kFadeDurationMilliseconds;
+    }
 #endif
     AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
     if (!node) {

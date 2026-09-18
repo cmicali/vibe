@@ -215,8 +215,10 @@ NS_ASSUME_NONNULL_BEGIN
 // outputDeviceID is a CoreAudio AudioDeviceID held as an NSInteger, or -1 to
 // follow the system default output. It is not a menu or array index. Device
 // IDs do not survive a reboot, so persistence goes by UID and name; see
-// initWithDeviceUID:.
-- (void)setOutputDevice:(NSInteger)outputDeviceID;
+// initWithDeviceUID:. The delegate supplies the destination UID's modes
+// before its one rebuild. Completion runs on main after settlement (including
+// failure), so the shell can keep mode edits disabled until persistence settles.
+- (void)setOutputDevice:(NSInteger)outputDeviceID completion:(dispatch_block_t)completion;
 
 // Bit-perfect output. While on, each track's settlement sets the chosen
 // device to the file's rate and word length, and the chain is pruned to
@@ -227,7 +229,9 @@ NS_ASSUME_NONNULL_BEGIN
 // current track in place, as a device switch onto the same device; off also
 // puts the device's format back and releases the hog. Main thread, like every
 // other transport-facing setter; the work lands on the player queue.
-// All three preferences land together; bit-perfect outranks the saved FX choice.
+// The delegate rereads the current UID's modes on the player queue; explicit
+// flags supply submission-time FX cleanup and the fallback without a provider.
+// Bit-perfect outranks the saved FX choice.
 // Exclusive access applies only in bit-perfect mode; the build flag can remove it.
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
 
@@ -284,6 +288,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 
 @optional
+// macOS device settings, read on main at submission and on the player queue
+// before a bind or mode edit. The provider must support both threads.
+// No UI work: the UID can differ from the shell's last settled preference.
+// Without this provider the explicit setter arguments remain authoritative.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    outputModesForDeviceUID:(nullable NSString *)deviceUID
+          bitPerfectOutput:(BOOL *)bitPerfectOutput
+           exclusiveOutput:(BOOL *)exclusiveOutput;
+
 // Main-thread delivery, only when actual modeled output crosses between active
 // and inactive. Read outputAudioActive for the current value when refreshing.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer

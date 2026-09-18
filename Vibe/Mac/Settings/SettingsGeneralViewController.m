@@ -13,6 +13,7 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
+#import "OutputDevicesMenuController.h"
 #import "OutputFormatRules.h"
 #import "VibeStrings.h"
 
@@ -112,6 +113,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 - (void)loadAudioPane {
+    // TRAP: tiling the table below runs before the first refreshOutputDevice,
+    // and AppKit, denied an empty selection, selects row 0 on its own. Read as
+    // a request that switched the output to System Output, and persisted it,
+    // every time this pane was first shown.
+    _refreshingOutputList = YES;
     _outputTable = [SettingsRowView listTableWithColumnIdentifiers:@[@"icon", @"name", @"type"] delegate:self];
     _outputTable.allowsEmptySelection = NO;
     _outputTable.accessibilityLabel = STR_SETTINGS_OUTPUT_LABEL;
@@ -146,6 +152,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
 #endif
         ]],
     ]];
+    _refreshingOutputList = NO;
 }
 
 - (void)refreshFromSettings {
@@ -174,9 +181,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
-    BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
-    [SettingsRowView setControl:_bitPerfectSwitch enabled:on || eligible]; // an unavailable saved device must not trap the mode on
+    BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
+    // TRAP: until the bind settles, mode writes still name the old saved UID.
+    [SettingsRowView setControl:_bitPerfectSwitch enabled:!pending && (on || eligible)];
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *caption;
     if (!eligible) {
@@ -190,11 +199,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }
     BOOL captionChanged = [_bitPerfectRow setCaption:caption];
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    BOOL exclusiveEligible = device && VibeBitPerfectShouldHog(YES, device.transportType,
+    BOOL exclusiveEligible = eligible && VibeBitPerfectShouldHog(YES, device.transportType,
             device.isSystemDefault);
     BOOL exclusiveSupported = exclusiveEligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
-    [SettingsRowView setControl:_exclusiveOutputSwitch enabled:on && exclusiveSupported];
+    [SettingsRowView setControl:_exclusiveOutputSwitch enabled:!pending && on && exclusiveSupported];
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
@@ -302,14 +311,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     return (NSInteger)_outputDevices.count + 1;
 }
 
-- (BOOL)tableView:(NSTableView *)tableView shouldSelectRow:(NSInteger)row {
-    if (row < 0 || row >= (NSInteger)_outputDevices.count + 1) {
-        return NO;
-    }
-    return !AppSettings.sharedInstance.bitPerfectOutput
-            || (row >= 1 && VibeBitPerfectDeviceEligible([self outputDeviceAtRow:row].transportType));
-}
-
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     BOOL iconColumn = [tableColumn.identifier isEqualToString:@"icon"];
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
@@ -318,8 +319,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioDevice *device = [self outputDeviceAtRow:row];
     NSString *symbolName;
     NSString *typeName = [self typeNameForDevice:device symbolName:&symbolName];
-    BOOL enabled = [self tableView:tableView shouldSelectRow:row];
-    cell.alphaValue = enabled ? 1 : 0.5;
     if (iconColumn) {
         cell.imageView.image = [NSImage imageWithSystemSymbolName:row == 0 ? @"desktopcomputer" : symbolName
                                        accessibilityDescription:row == 0 ? STR_MENU_OUTPUT_SYSTEM : typeName];
@@ -343,13 +342,13 @@ static const CGFloat kGeneralPopUpWidth = 280;
         return;
     }
     NSInteger row = _outputTable.selectedRow;
-    if (![self tableView:_outputTable shouldSelectRow:row]) {
-        [self refreshOutputDevice];
+    if (row < 0) {
+        [self refreshOutputDevice]; // the list has no empty selection
         return;
     }
     NSInteger deviceId = row == 0 ? -1 : [self outputDeviceAtRow:row].deviceId;
     if (deviceId != self.playerController.audioPlayer.currentlyRequestedAudioDeviceId) {
-        [self.playerController.audioPlayer setOutputDevice:deviceId];
+        [self.playerController.devicesMenuController selectOutputDevice:deviceId];
     }
 }
 

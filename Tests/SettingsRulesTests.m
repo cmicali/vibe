@@ -147,6 +147,57 @@
     }
 }
 
+// The store is keyed by device UID and never asks whether the device is
+// present, which is what lets an unplugged device keep its modes.
+- (void)testOutputModesAreRememberedPerDeviceAndOffStoresNothing {
+    AppSettings *settings = [self freshSettings];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSString *key = @"AudioPlayer.outputModesByDeviceUID";
+
+    settings.bitPerfectOutput = YES; // System Output has no UID to remember it under
+    XCTAssertFalse(settings.bitPerfectOutput);
+    XCTAssertNil([defaults objectForKey:key]);
+
+    settings.audioOutputDeviceUID = @"dac";
+    settings.bitPerfectOutput = YES;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    settings.exclusiveOutput = YES;
+    XCTAssertTrue(settings.exclusiveOutput);
+#endif
+    XCTAssertTrue(settings.bitPerfectOutput);
+    XCTAssertFalse(settings.audioFXAllowed);
+
+    // The fallback after an unplug: the saved device moves, nothing is written.
+    settings.audioOutputDeviceUID = @"";
+    XCTAssertFalse(settings.bitPerfectOutput);
+    XCTAssertFalse(settings.exclusiveOutput);
+    XCTAssertTrue(settings.audioFXAllowed);
+    settings.audioOutputDeviceUID = @"speakers";
+    XCTAssertFalse(settings.bitPerfectOutput);
+    XCTAssertTrue([settings bitPerfectOutputForDeviceUID:@"dac"]);
+
+    settings.audioOutputDeviceUID = @"dac";
+    XCTAssertTrue(settings.bitPerfectOutput);
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    // Exclusive survives a bit-perfect toggle, so the entry stays for it alone.
+    settings.bitPerfectOutput = NO;
+    XCTAssertEqualObjects([defaults dictionaryForKey:key], @{@"dac": @{@"exclusive": @YES}});
+    settings.exclusiveOutput = NO;
+#else
+    settings.bitPerfectOutput = NO;
+#endif
+    XCTAssertNil([defaults objectForKey:key]);
+    settings.bitPerfectOutput = YES;
+    [settings resetToDefaults];
+    XCTAssertNil([defaults objectForKey:key]);
+
+    [defaults setObject:@{@"dac": @"yes"} forKey:key]; // an external write of the wrong shape
+    settings.audioOutputDeviceUID = @"dac";
+    XCTAssertFalse(settings.bitPerfectOutput);
+    settings.bitPerfectOutput = YES;
+    XCTAssertTrue(settings.bitPerfectOutput);
+}
+
 - (void)testPitchRangeNormalizesToSupportedValues {
     XCTAssertEqual(VibeNormalizedPitchRange(8), 8);
     XCTAssertEqual(VibeNormalizedPitchRange(16), 16);

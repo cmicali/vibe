@@ -108,15 +108,7 @@ static NSString *VibePaneNameList(NSTabViewController *tabs) {
 }
 
 void VibeDebugSettingsRefreshSelectedPane(void) {
-    NSString *unusedError = nil;
-    NSTabViewController *tabs = VibeSettingsTabs(&unusedError);
-    if (!tabs) {
-        return;
-    }
-    NSViewController *pane = VibeSelectedPane(tabs).viewController;
-    if ([pane isKindOfClass:SettingsPaneViewController.class]) {
-        [(SettingsPaneViewController *)pane refreshSettingsAndPaneSize];
-    }
+    [(SettingsWindowController *)VibeSettingsWindow().windowController refreshSelectedPane];
 }
 
 #pragma mark - Control inventory
