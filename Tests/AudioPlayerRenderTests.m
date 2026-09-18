@@ -3,8 +3,12 @@
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
+#import "AudioPlayerInternal.h"
 #import "AudioFX.h"
+#import "CoreAudioUtil.h"
+#import "AudioDevice.h"
 #import "VibeManualRenderPump.h"
+#import <objc/runtime.h>
 #include <float.h>
 
 // Independent Apple AAC decodes can differ by a few float rounding bits.
@@ -93,6 +97,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSMutableData *_capture;
     NSArray<AudioTrack *> *_chain;
     NSUInteger _nextPrefetch;
+    void (^_outputModesProvider)(NSString *, BOOL *, BOOL *);
 }
 - (void)setUp {
     [super setUp]; self.continueAfterFailure = NO;
@@ -186,7 +191,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
     XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"mixerRate"] doubleValue], rate, 0);
-    [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO];
+    [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx];
 }
 - (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
     AudioTrack *track = [AudioTrack withURL:url];
@@ -552,14 +557,258 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     for (NSString *file in @[@"noise-44100-16-1.wav",@"noise-96000-24-2.wav",@"noise-48000-32-1.wav",@"noise-48000-24-2.wav"]) {
         [self play:[self fixture:file] paused:NO position:0]; [self assertFinite:[self renderSeconds:0.1] peak:0.6];
     }
-    [_player setBitPerfectOutput:YES exclusiveOutput:NO];
+    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:NO];
     // A new play settles on the mode's chain even without a HAL destination.
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
     XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
-    [_player setBitPerfectOutput:NO exclusiveOutput:NO]; [self render:2048];
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO]; [self render:2048];
     XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
     XCTAssertFalse(_player.bitPerfectReport.enabled);
 }
+- (void)testLiveFXAndBitPerfectRouting {
+    for (NSNumber *rate in @[@44100, @48000, @96000]) for (NSNumber *initialFX in @[@NO, @YES]) {
+        [self startPlayerAt:rate.doubleValue channels:2 fx:initialFX.boolValue bitPerfect:NO automatic:NO];
+        if (!initialFX.boolValue) {
+            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue], 2u);
+        }
+        NSURL *url = [self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav", rate]];
+        AudioTrack *track = [self play:url paused:YES position:0.25];
+        NSUInteger installedNodes = 0;
+        for (int i = 0; i < 8; i++) {
+            BOOL bitPerfect = i % 2;
+            [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:YES];
+            NSDictionary *counts = _player.debugEngineCounts;
+            XCTAssertEqual([counts[@"fxConnected"] boolValue], !bitPerfect);
+            XCTAssertEqual([counts[@"varispeed"] boolValue], !bitPerfect);
+            XCTAssertTrue(_player.isPaused);
+            XCTAssertEqual(_player.currentTrack, track);
+            XCTAssertEqualWithAccuracy(_player.position, 0.25, 1.0 / _rate);
+            if (i == 0) installedNodes = [counts[@"attachedNodes"] unsignedIntegerValue];
+            XCTAssertLessThanOrEqual([counts[@"attachedNodes"] unsignedIntegerValue], installedNodes);
+        }
+        [_player resume];
+        [self render:4096];
+        for (NSNumber *enabled in @[@YES, @NO, @YES]) {
+            double position = _player.position;
+            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:enabled.boolValue];
+            NSDictionary *counts = _player.debugEngineCounts;
+            XCTAssertEqual([counts[@"fxConnected"] boolValue], enabled.boolValue);
+            XCTAssertTrue(_player.isPlaying);
+            XCTAssertEqual(_player.currentTrack, track);
+            XCTAssertEqualWithAccuracy(_player.position, position, 1.0 / _rate);
+            [self assertFinite:[self renderSeconds:0.1] peak:0.3];
+        }
+        XCTAssertEqual([self count:@"finish"], 0u);
+        XCTAssertEqual([self count:@"start"], 1u);
+        [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+        [self play:url paused:NO position:0];
+        [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
+                         skip:(NSUInteger)(_rate * 0.05) tolerance:0];
+        XCTAssertEqual([self count:@"finish"], 1u);
+    }
+}
+
+- (void)testBitPerfectDeviceSelectionConstrainsQueuedCrossfade {
+    AudioDevice *a = [[AudioDevice alloc] initWithName:@"A" uid:@"a" deviceId:1 isSystemDefault:YES transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDevice *b = [[AudioDevice alloc] initWithName:@"B" uid:@"b" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[a, b]; } retryScheduler:nil];
+    Method method = class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance));
+    IMP replacement = imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        _outputModesProvider = ^(NSString *uid, BOOL *bitPerfect, BOOL *exclusive) {
+            *bitPerfect = [uid isEqualToString:@"b"];
+            *exclusive = NO;
+        };
+        for (NSNumber *selectBeforePlay in @[@YES, @NO]) {
+            [self startPlayerAt:44100 channels:2 fx:YES bitPerfect:NO automatic:NO];
+            _player.crossfadeMilliseconds = 2000;
+            [self play:[self fixture:@"noise-44100-24-2.wav"] paused:NO position:0];
+            [self render:4410];
+            NSUInteger starts = [self count:@"start"];
+            __weak AudioPlayer *weakPlayer = _player;
+            AudioTrack *next = [AudioTrack withURL:[self fixture:@"noise-44100-16-2.wav"]];
+            // Queue both submissions before either can settle or main can apply
+            // dependent settings. The mode can land before or during the open.
+            [_player runSyncOnQueue:^{
+                if (selectBeforePlay.boolValue) {
+                    [weakPlayer setOutputDevice:2 completion:^{ weakPlayer.crossfadeMilliseconds = 10; }];
+                    [weakPlayer play:next];
+                } else {
+                    [weakPlayer play:next];
+                    [weakPlayer setOutputDevice:2 completion:^{ weakPlayer.crossfadeMilliseconds = 10; }];
+                }
+            }];
+            [_player runSyncOnQueue:^{}];
+            [self settleUntil:^BOOL { return [self count:@"start"] > starts || self->_playError; }];
+            XCTAssertNil(_playError);
+            XCTAssertTrue(_player.bitPerfectReport.enabled);
+            XCTAssertEqual(_player.crossfadeMilliseconds, 10);
+            [_capture setLength:0];
+            [self render:4410];
+            XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 0u,
+                           @"Bit-perfect playback retained a two-second crossfade: %@", _player.debugEngineCounts);
+            XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"nodeVolume"] doubleValue], 1, 1e-6);
+            [self render:88200];
+            [self assertReference:PCM([self read:[self fixture:@"noise-44100-16-2.wav"]])
+                          capture:_capture skip:2205 tolerance:0];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+}
+
+- (void)testFailedDeviceSwitchReconcilesOutputGraph {
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+        return @[];
+    } retryScheduler:nil];
+    // Replace only the device I/O boundaries; the real rebuild and PCM path run.
+    __block BOOL defaultReadSucceeds = NO;
+    __block BOOL defaultBindRefused = NO;
+    Method methods[] = {
+        class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
+        class_getInstanceMethod(AudioPlayer.class, @selector(setOutputUnitDevice:)),
+    };
+    IMP replacements[] = {
+        imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
+        imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
+        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *device) {
+            *device = defaultBindRefused ? 1 : kAudioObjectUnknown;
+            return defaultReadSucceeds;
+        }),
+        imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
+    };
+    IMP originals[4];
+    for (NSUInteger i = 0; i < 4; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    @try {
+        for (NSString *failure in @[@"concrete", @"system-refused", @"system-unreadable", @"system-missing"])
+        for (NSString *state in @[@"stopped", @"paused", @"playing"]) {
+            BOOL systemOutput = [failure hasPrefix:@"system-"];
+            defaultBindRefused = [failure isEqualToString:@"system-refused"];
+            defaultReadSucceeds = defaultBindRefused || [failure isEqualToString:@"system-missing"];
+            BOOL committedSystemOutput = systemOutput && !defaultBindRefused;
+            [self startPlayerAt:44100 channels:2 fx:YES bitPerfect:YES automatic:NO];
+            NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
+            if (![state isEqualToString:@"stopped"]) {
+                [self play:url paused:[state isEqualToString:@"paused"] position:0];
+                [self render:4096];
+            }
+            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            if (systemOutput) {
+                [_player runSyncOnQueue:^{ self->_player.currentlyRequestedAudioDeviceId = 2; }];
+            }
+            NSInteger requestedDevice = _player.currentlyRequestedAudioDeviceId;
+            NSTimeInterval position = _player.position;
+            AudioTrack *track = _player.currentTrack;
+            NSUInteger deviceChanges = [self count:@"device"];
+            __block BOOL completed = NO;
+            __weak AudioPlayerRenderTests *weakSelf = self;
+            // An absent destination has no saved modes, as when a device
+            // disappears after selection but before the queued bind.
+            [_player setOutputDevice:(systemOutput ? -1 : 3) completion:^{
+                AudioPlayerRenderTests *strongSelf = weakSelf;
+                NSArray *deviceEvents = [strongSelf->_events filteredArrayUsingPredicate:
+                        [NSPredicate predicateWithFormat:@"event == 'device'"]];
+                XCTAssertEqual(deviceEvents.count, deviceChanges + 1);
+                XCTAssertEqualObjects(deviceEvents.lastObject[@"device"],
+                                      @(committedSystemOutput ? -1 : requestedDevice));
+                completed = YES;
+            }];
+            [self settleUntil:^BOOL { return completed; }];
+            XCTAssertNotNil(_playError);
+            XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, committedSystemOutput ? -1 : requestedDevice);
+            XCTAssertEqual(_player.bitPerfectReport.enabled, !committedSystemOutput);
+            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
+            if (committedSystemOutput && ![state isEqualToString:@"stopped"]) {
+                XCTAssertEqual(_player.currentTrack, track);
+                XCTAssertEqualWithAccuracy(_player.position, position, 1.0 / _rate);
+                XCTAssertEqual(_player.isPaused, defaultReadSucceeds || [state isEqualToString:@"paused"]);
+                XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            } else {
+                XCTAssertTrue(_player.isStopped);
+            }
+            // Unchanged modes stay a no-op; replay must still render exact PCM.
+            [_player setBitPerfectOutput:!committedSystemOutput exclusiveOutput:NO enableFX:YES];
+            _playError = nil;
+            [self play:url paused:NO position:0];
+            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
+            XCTAssertEqual([_player.debugEngineCounts[@"varispeed"] boolValue], committedSystemOutput);
+            [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
+                             skip:(NSUInteger)(_rate * 0.05) tolerance:(committedSystemOutput ? 1e-10 : 0)];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        for (NSUInteger i = 0; i < 4; i++) {
+            method_setImplementation(methods[i], originals[i]);
+            imp_removeBlock(replacements[i]);
+        }
+    }
+}
+
+- (void)testFXBypassClearsWetTails {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    _player.fx.reverbSendEnabled = YES;
+    _player.fx.delaySendEnabled = YES;
+    _player.fx.shortDelaySendEnabled = YES;
+    [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+    NSData *wet = [self renderSeconds:0.6];
+    XCTAssertGreaterThan(RMS(wet, 2, 0, NSMakeRange(24000, 4800)), 0.000001);
+    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+    [self render:2048];
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+    NSData *dry = [self renderSeconds:1];
+    XCTAssertFalse(_player.fx.reverbSendEnabled);
+    XCTAssertFalse(_player.fx.delaySendEnabled);
+    XCTAssertFalse(_player.fx.shortDelaySendEnabled);
+    XCTAssertEqual(RMS(dry, 2, 0, NSMakeRange(0, dry.length / 8)), 0);
+    XCTAssertEqual([self count:@"finish"], 0u);
+}
+
+- (void)testQueuedFXBypassPreservesLaterEffectActions {
+    for (NSNumber *bitPerfect in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.fx.lowKillEnabled = YES;
+        _player.fx.lowKillBoostActive = YES;
+        _player.fx.reverbSendEnabled = YES;
+        _player.fx.delaySendEnabled = YES;
+        _player.fx.shortDelaySendEnabled = YES;
+        (void)_player.debugEngineCounts;
+        // Hold engine work until the later UI actions have published their intent.
+        dispatch_queue_t queue = [_player valueForKey:@"queue"];
+        dispatch_suspend(queue);
+        @try {
+            [_player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue];
+            XCTAssertFalse(_player.fx.lowKillEnabled);
+            XCTAssertFalse(_player.fx.lowKillBoostActive);
+            XCTAssertFalse(_player.fx.reverbSendEnabled);
+            XCTAssertFalse(_player.fx.delaySendEnabled);
+            XCTAssertFalse(_player.fx.shortDelaySendEnabled);
+            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+            _player.fx.lowKillEnabled = YES;
+            _player.fx.lowKillBoostActive = YES;
+            _player.fx.reverbSendEnabled = YES;
+            _player.fx.delaySendEnabled = YES;
+            _player.fx.shortDelaySendEnabled = YES;
+        }
+        @finally {
+            dispatch_resume(queue);
+        }
+        XCTAssertTrue([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+        XCTAssertTrue(_player.fx.lowKillEnabled);
+        XCTAssertTrue(_player.fx.lowKillBoostActive);
+        XCTAssertTrue(_player.fx.reverbSendEnabled);
+        XCTAssertTrue(_player.fx.delaySendEnabled);
+        XCTAssertTrue(_player.fx.shortDelaySendEnabled);
+        [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+        NSData *wet = [self renderSeconds:0.6];
+        XCTAssertGreaterThan(RMS(wet, 2, 0, NSMakeRange(24000, 4800)), 0.000001);
+    }
+}
+
 - (void)testFailedAndEmptyOpenRecover {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *empty=[_temporary URLByAppendingPathComponent:@"empty.wav"];
@@ -693,6 +942,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 - (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
-- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d {}
+- (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid
+  bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {
+    if (_outputModesProvider) _outputModesProvider(uid, bitPerfect, exclusive);
+}
+- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d {
+    [_events addObject:@{@"event": @"device", @"device": @(d)}];
+}
 - (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
 @end

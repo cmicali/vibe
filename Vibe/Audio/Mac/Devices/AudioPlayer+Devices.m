@@ -9,6 +9,7 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
+#import "AudioFX.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
 #import <AudioToolbox/AudioToolbox.h>
@@ -98,7 +99,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
                 strongSelf->_pendingSavedDeviceLookupInFlight = NO;
                 return;
             }
-            if ([strongSelf setOutputDeviceOnQueue:device.deviceId]) {
+            if ([strongSelf selectOutputDeviceOnQueue:device.deviceId]) {
                 strongSelf->_pendingSavedDeviceUID = nil;
                 strongSelf->_pendingSavedDeviceName = nil;
             }
@@ -288,6 +289,58 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 #pragma mark - Output device mutation
 
+- (void)readOutputModesForDeviceUID:(NSString *)deviceUID
+                  bitPerfectOutput:(BOOL *)bitPerfectOutput
+                   exclusiveOutput:(BOOL *)exclusiveOutput {
+    id<AudioPlayerDelegate> delegate = self.delegate;
+    if ([delegate respondsToSelector:@selector(audioPlayer:outputModesForDeviceUID:bitPerfectOutput:exclusiveOutput:)]) {
+        [delegate audioPlayer:self outputModesForDeviceUID:deviceUID
+             bitPerfectOutput:bitPerfectOutput exclusiveOutput:exclusiveOutput];
+    }
+}
+
+- (BOOL)selectOutputDeviceOnQueue:(NSInteger)outputDeviceID {
+    BOOL bitPerfectOutput = NO, exclusiveOutput = NO;
+    NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
+    // TRAP: a name fallback can resolve a different UID; read its own modes
+    // before preparing or hogging it, never the missing device's flags.
+    [self readOutputModesForDeviceUID:uid bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
+    BOOL previousBitPerfect = _bitPerfectWanted;
+    _bitPerfectWanted = bitPerfectOutput;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    BOOL previousExclusive = _exclusiveOutputWanted;
+    _exclusiveOutputWanted = exclusiveOutput;
+#endif
+    BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
+    if (self.currentlyRequestedAudioDeviceId != outputDeviceID) {
+        _bitPerfectWanted = previousBitPerfect;
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        _exclusiveOutputWanted = previousExclusive;
+#endif
+        // TRAP: a failed rebuild may already have rewired or prepared the
+        // destination. A failed pin leaves live playback untouched.
+        if (_state == VibePlayerStateStopped) {
+            [_engine stop];
+            [self leaveOutputDeviceOnQueue];
+        }
+        // Reset may have cleared Settings before this failed bind. Reannounce
+        // the retained choice, unless a saved launch preference still owns it.
+        if (_pendingSavedDeviceUID.length || _pendingSavedDeviceName.length) {
+            [self publishBitPerfectReportOnQueue];
+        }
+        else {
+            [self notifyRequestedOutputDeviceOnQueue];
+        }
+    }
+    else if (!didBind && previousBitPerfect != _bitPerfectWanted) {
+        // System Output commits even without a resolved device. Its mode
+        // change must still restore the ordinary graph on the current binding.
+        [self configureOutputDeviceOnQueue:kAudioObjectUnknown];
+        [self publishBitPerfectReportOnQueue];
+    }
+    return didBind;
+}
+
 - (void)scheduleSystemOutputBindRetryOnQueue {
     if (_systemOutputBindRetryScheduled) {
         return;
@@ -327,6 +380,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
     _segmentGeneration++;
     [self preemptRampsOnQueue];
+    if (_bitPerfectWanted) {
+        [self preemptRetiredFadesOnQueue]; // the mode may land during an incoming open
+    }
     [self setGaplessQueuedOnQueue:NO]; // the queued segment dies with the old node
 
     // Unpublish the node before detaching it: the position getter uses its
@@ -362,6 +418,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
                 @"Could not switch audio output device", nil)];
         return NO;
+    }
+    if ((self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
+        [self installMasterBusOnQueue];
     }
     // A toggle off during a pending open must restore the incoming chain too.
     // Ordinary playback already created it when the play was submitted.
@@ -469,9 +528,13 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     // Choosing the already-active System Output device can make a wanted
     // mode eligible for the first time. Rebuild so the current track gets
     // prepared too; merely pinning the unit would leave its old rate behind.
-    BOOL needsPreparation = (_bitPerfectWanted && !self.fx && outputDeviceID >= 0
-            && _preparedDeviceID != newDeviceID)
-            || (!_bitPerfectWanted && _node && !self.varispeed);
+    // The same holds for a switch whose destination wants the mode off while
+    // this device is its system default too: the unit does not move, but the
+    // prepared device and the FX route are still the mode's.
+    BOOL needsPreparation = (_bitPerfectWanted
+            ? outputDeviceID >= 0 && _preparedDeviceID != newDeviceID
+            : (_node && !self.varispeed) || _preparedDeviceID != kAudioObjectUnknown)
+            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted);
     if (newDeviceID != currentDeviceID || needsPreparation) {
         if (![self configureOutputDeviceOnQueue:newDeviceID]) {
             // configureOutputDeviceOnQueue has already reported the error.
@@ -544,10 +607,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     return (device && VibeBitPerfectDeviceEligible(device.transportType)) ? device : nil;
 }
 
-// The device the mode can apply to right now, else nil. Off and the FX graph
-// are the report's own early outs; manual rendering is the debug pump's.
+// The device the mode can apply to right now, else nil.
 - (nullable AudioDevice *)bitPerfectDeviceOnQueue {
-    if (!_bitPerfectWanted || self.fx) {
+    if (!_bitPerfectWanted) {
         return nil;
     }
 #if DEBUG
@@ -600,8 +662,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 // The chosen device vanished: the mode cannot follow the fallback onto System
 // Output. The off path verbatim — a confirmed removal retires any restore
-// obligation. The shell reads the report's enabled flag going false on the
-// -1 announcement and persists it.
+// obligation. The shell persists System Output on the -1 announcement;
+// the vanished device keeps its remembered modes.
 - (void)abandonBitPerfectForVanishedDeviceOnQueue {
     if (!_bitPerfectWanted) {
         return;
@@ -767,14 +829,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 #endif
 
-// Used only while entering, changing or leaving bit-perfect output.
-- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format {
-    [_levelTap remove];
-    _levelTap = nil;
-    [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
-    [self applyLevelTapOnQueue];
-}
-
 // Watch the output binding and the prepared device's volume/balance/mute.
 // kAudioObjectUnknown removes both listeners. Copy the HAL block before adding
 // it, because removal must receive the same block object.
@@ -904,8 +958,10 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // Restore the original format, forget the prepared device and release it.
 // Every step is idempotent, so this is free to call with nothing owed.
 - (void)leaveOutputDeviceOnQueue {
-    if (_masterBusFormatBeforeBitPerfect) {
-        [self reconnectMasterBusOnQueueWithFormat:_masterBusFormatBeforeBitPerfect];
+    if (_masterBusFormatBeforeBitPerfect
+            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
+        [self reconnectMasterBusOnQueueWithFormat:_masterBusFormatBeforeBitPerfect
+                ?: [_engine.mainMixerNode outputFormatForBus:0]];
         _masterBusFormatBeforeBitPerfect = nil;
     }
     [self restoreOutputFormatOnQueue];
@@ -928,7 +984,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
     }
     VibeBitPerfectReport report = {0};
     report.enabled = _bitPerfectWanted;
-    report.fxGraph = _bitPerfectWanted && self.fx != nil;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
@@ -939,7 +994,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        report.formatConfirmed = readFormat && _outputLevelListener != nil && _outputDeviceListener != NULL
+        report.formatConfirmed = readFormat && !self.varispeed && !self.fx.masterBusOutputNode
+                && _outputLevelListener != nil && _outputDeviceListener != NULL
                 && [self activeOutputDeviceID] == _preparedDeviceID
                 && VibePhysicalFormatsEquivalent(physical, _preparedFormat)
                 && mixerFormat.sampleRate == physical.mSampleRate
@@ -998,7 +1054,22 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
 @implementation AudioPlayer (Devices)
 
-- (void)setOutputDevice:(NSInteger)outputDeviceID {
+- (void)clearFXIntent {
+    // Clear at submission: a queued bypass must not erase newer FX actions.
+    self.fx.lowKillBoostActive = NO;
+    self.fx.lowKillEnabled = NO;
+    self.fx.reverbSendEnabled = NO;
+    self.fx.delaySendEnabled = NO;
+    self.fx.shortDelaySendEnabled = NO;
+}
+
+- (void)setOutputDevice:(NSInteger)outputDeviceID completion:(dispatch_block_t)completion {
+    NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
+    BOOL bitPerfectOutput = NO, exclusiveOutput = NO;
+    [self readOutputModesForDeviceUID:uid bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
+    if (bitPerfectOutput) {
+        [self clearFXIntent];
+    }
     dispatch_async(_queue, ^{
         // System Output is a policy intent, so it supersedes a saved concrete
         // device even when no output currently exists. Clear before binding to
@@ -1008,7 +1079,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             self->_pendingSavedDeviceName = nil;
         }
 
-        BOOL didBind = [self setOutputDeviceOnQueue:outputDeviceID];
+        BOOL didBind = [self selectOutputDeviceOnQueue:outputDeviceID];
         if (didBind && outputDeviceID >= 0) {
             // A concrete choice owns the intent only once the HAL accepted it.
             // On failure, Settings still names the saved launch preference, so
@@ -1016,50 +1087,47 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             self->_pendingSavedDeviceUID = nil;
             self->_pendingSavedDeviceName = nil;
         }
-        // Persistence itself is setOutputDeviceOnQueue:'s, which announces every
-        // committed outcome — the two -1 failures that still commit the policy
-        // (a HAL read failure, and no output device existing at all) included.
-        // A failed graph reconfiguration is the one case that commits nothing:
-        // the engine did not move, so neither the requested id nor Settings may
-        // claim it did.
+        run_on_main_thread({ completion(); });
     });
 }
 
 #pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
 
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput {
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX {
+    if (bitPerfectOutput || !enableFX) {
+        [self clearFXIntent];
+    }
     dispatch_async(_queue, ^{
-        BOOL changed = self->_bitPerfectWanted != bitPerfectOutput;
-        self->_bitPerfectWanted = bitPerfectOutput;
+        BOOL desiredBitPerfect = bitPerfectOutput, desiredExclusive = exclusiveOutput;
+        NSInteger requested = self.currentlyRequestedAudioDeviceId;
+        NSString *uid = requested >= 0
+                ? [AudioDeviceManager.sharedInstance outputDeviceForId:requested].uid
+                : self->_pendingSavedDeviceUID;
+        // A global FX edit can queue behind a device switch. Its captured
+        // modes belong to the old device, so resolve the queue's current UID.
+        [self readOutputModesForDeviceUID:uid bitPerfectOutput:&desiredBitPerfect exclusiveOutput:&desiredExclusive];
+        BOOL changed = self->_bitPerfectWanted != desiredBitPerfect
+                || (self->_fxEnabled && !self->_bitPerfectWanted) != (enableFX && !desiredBitPerfect);
+        self->_fxEnabled = enableFX;
+        self->_bitPerfectWanted = desiredBitPerfect;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        changed |= bitPerfectOutput && self->_exclusiveOutputWanted != exclusiveOutput;
-        self->_exclusiveOutputWanted = exclusiveOutput;
+        changed |= desiredBitPerfect && self->_exclusiveOutputWanted != desiredExclusive;
+        self->_exclusiveOutputWanted = desiredExclusive;
 #endif
         // Reapplying settings must not interrupt playback. An exclusive
         // preference saved while bit-perfect is off cannot affect the graph.
         if (!changed) {
             return;
         }
-        if (bitPerfectOutput) {
+        if (desiredBitPerfect) {
             [self resolvePendingSavedOutputDeviceOnQueue];
         }
-        if (self.fx) {
-            // Inert until relaunch: the graph is not a pass-through, so
-            // switching the device for it would be theater.
-            [self publishBitPerfectReportOnQueue];
-            return;
-        }
-        NSInteger requested = self.currentlyRequestedAudioDeviceId;
         // A saved device can be absent at launch. Turning the mode off on
         // System Output must restore varispeed on the current track too.
         AudioDeviceID deviceID = requested >= 0 ? (AudioDeviceID)requested : kAudioObjectUnknown;
-        if (requested >= 0 || !bitPerfectOutput) {
-            // Rebind even during an open: a warm engine would otherwise skip
-            // acquiring exclusive access when the incoming file settles.
-            // The rebuild restores a loaded track at its current position;
-            // an in-flight open keeps its request and starts when it settles.
-            [self configureOutputDeviceOnQueue:deviceID];
-        }
+        // Rebuild the route even without a resolved device or during an open.
+        // A loaded track resumes in place; an open keeps its pending intent.
+        [self configureOutputDeviceOnQueue:deviceID];
         [self publishBitPerfectReportOnQueue];
     });
 }

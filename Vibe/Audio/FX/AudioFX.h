@@ -7,6 +7,7 @@
 
 @class AVAudioEngine;
 @class AVAudioNode;
+@class AVAudioFormat;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,14 +43,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
                     scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
 
-// Builds, attaches and wires the whole FX segment, then applies any intent
-// recorded before the engine existed. It must run on the queue, once, before
-// the engine first starts, and AudioPlayer's async init calls it.
-- (void)installInEngine:(AVAudioEngine *)engine;
+// Connects or bypasses the segment with the engine stopped, on its queue.
+// Nodes are created on first enable and retained across toggles. Disconnecting
+// resets processing and tails without changing intent; the caller clears intent
+// before submitting a bypass and wires the direct route.
+- (void)setConnected:(BOOL)connected inEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)format;
 
-// The last node of the segment — the sum of the dry path and every wet return,
-// and what installInEngine: connects to the engine's outputNode. nil until
-// then.
+// The last node of the connected segment, or nil while bypassed/uninstalled.
 //
 // It exists for the band-level tap, which has to sit on whatever feeds the
 // output if the bars are to follow what is actually heard. mainMixerNode is

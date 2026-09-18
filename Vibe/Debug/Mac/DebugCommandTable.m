@@ -12,6 +12,7 @@
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
+#import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
 #if DEBUG
@@ -396,10 +397,16 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // The pane's toggle, minus the pane's eligibility gate: the
                 // mode can be forced on over an ineligible device here, and
                 // the report then reads off — which is what a test of that
-                // gate wants to see.
+                // gate wants to see. Like the pane it writes the SAVED
+                // device's mode, so it follows a device switch only once
+                // dump_state shows the new binding, and System Output, having
+                // no UID to remember it under, answers off.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_bit_perfect <on|off>");
+                }
+                if (controller.devicesMenuController.outputDeviceSelectionPending) {
+                    return VibeErrorJSON(@"output device selection is still pending");
                 }
                 AppSettings.sharedInstance.bitPerfectOutput = on;
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];

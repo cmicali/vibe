@@ -32,8 +32,10 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
-#define SETTING_BIT_PERFECT_OUTPUT                  @"AudioPlayer.bitPerfectOutput"
-#define SETTING_EXCLUSIVE_OUTPUT                    @"AudioPlayer.exclusiveOutput"
+// { device UID: { mode: YES } }, holding only the modes that are on.
+#define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
+#define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
+#define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -103,10 +105,6 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
-            SETTING_BIT_PERFECT_OUTPUT:             @(NO),
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            SETTING_EXCLUSIVE_OUTPUT:               @(NO),
-#endif
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
@@ -117,6 +115,7 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
 
 - (void)addMacNullableSettingKeysTo:(NSMutableArray<NSString *> *)keys {
     [keys addObject:SETTING_CURRENT_THEME];
+    [keys addObject:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
 }
 
 - (void)factoryReset {
@@ -808,25 +807,67 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_AUDIO_FX_ENABLED];
 }
 
+// Off is the absence of the mode, and a device with no mode on has no entry,
+// so the store names only devices the user turned something on for. An entry
+// outlives its device being unplugged: nothing here asks whether the UID is
+// present.
+- (BOOL)outputMode:(NSString *)mode forDeviceUID:(NSString *)deviceUID {
+    if (deviceUID.length == 0) {
+        return NO;
+    }
+    NSDictionary *modes = [[NSUserDefaults standardUserDefaults] dictionaryForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID][deviceUID];
+    NSNumber *enabled = [modes isKindOfClass:NSDictionary.class] ? modes[mode] : nil;
+    return [enabled isKindOfClass:NSNumber.class] && enabled.boolValue;
+}
+
+- (void)setOutputMode:(NSString *)mode enabled:(BOOL)enabled {
+    NSString *deviceUID = self.audioOutputDeviceUID;
+    if (deviceUID.length == 0) {
+        return; // System Output is a policy, not a device
+    }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *devices = [[defaults dictionaryForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID] mutableCopy]
+            ?: [NSMutableDictionary dictionary];
+    NSDictionary *stored = devices[deviceUID];
+    NSMutableDictionary *modes = [stored isKindOfClass:NSDictionary.class]
+            ? [stored mutableCopy] : [NSMutableDictionary dictionary];
+    modes[mode] = enabled ? @YES : nil;
+    devices[deviceUID] = modes.count ? modes : nil;
+    if (devices.count) {
+        [defaults setObject:devices forKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
+    }
+    else {
+        [defaults removeObjectForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
+    }
+}
+
+- (BOOL)bitPerfectOutputForDeviceUID:(NSString *)deviceUID {
+    return [self outputMode:OUTPUT_MODE_BIT_PERFECT forDeviceUID:deviceUID];
+}
+
 - (BOOL)bitPerfectOutput {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_BIT_PERFECT_OUTPUT];
+    return [self bitPerfectOutputForDeviceUID:self.audioOutputDeviceUID];
 }
 
 - (void)setBitPerfectOutput:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_BIT_PERFECT_OUTPUT];
+    [self setOutputMode:OUTPUT_MODE_BIT_PERFECT enabled:enabled];
 }
 
-- (BOOL)exclusiveOutput {
+- (BOOL)exclusiveOutputForDeviceUID:(NSString *)deviceUID {
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_EXCLUSIVE_OUTPUT];
+    return [self outputMode:OUTPUT_MODE_EXCLUSIVE forDeviceUID:deviceUID];
 #else
     return NO;
 #endif
 }
 
+- (BOOL)exclusiveOutput {
+    return [self exclusiveOutputForDeviceUID:self.audioOutputDeviceUID];
+}
+
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:SETTING_EXCLUSIVE_OUTPUT];
+    [self setOutputMode:OUTPUT_MODE_EXCLUSIVE enabled:enabled];
 }
 #endif
 

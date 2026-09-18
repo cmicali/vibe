@@ -32,6 +32,10 @@
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
+    [self applySettingsLiveEffects:effects updatingOutputModes:YES];
+}
+
+- (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects updatingOutputModes:(BOOL)updatingOutputModes {
     NSAssert(NSThread.isMainThread, @"Settings live effects are main-thread only");
     AppSettings *settings = AppSettings.sharedInstance;
 
@@ -73,10 +77,6 @@
             [self updateRateDependentUI];
             [self updateNowPlaying];
         }
-        // The header's lock and the Settings caption redraw from
-        // audioPlayerDidChangeBitPerfectReport: once this lands on the
-        // player queue; reading the report here would show the previous one.
-        [self.audioPlayer setBitPerfectOutput:bitPerfect exclusiveOutput:settings.exclusiveOutput];
     }
     if (effects & VibeSettingsLiveEffectUIUpdateRate) {
         [self syncUITimerRate];
@@ -141,14 +141,13 @@
     if (effects & VibeSettingsLiveEffectConvertMenu) {
         [MainMenuBuilder applyConvertMenuVisibility];
     }
-    if (effects & VibeSettingsLiveEffectFXControls) {
-        if (!settings.audioFXAllowed) {
-            self.lowKillBoostActive = NO;
-            self.lowKillActive = NO;
-            self.reverbSendActive = NO;
-            self.delaySendActive = NO;
-            self.shortDelaySendActive = NO;
+    if (effects & (VibeSettingsLiveEffectBitPerfect | VibeSettingsLiveEffectFXControls)) {
+        if (updatingOutputModes) {
+            [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
+                                 exclusiveOutput:settings.exclusiveOutput
+                                        enableFX:settings.audioFXEnabled];
         }
+        [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];
     }
 }

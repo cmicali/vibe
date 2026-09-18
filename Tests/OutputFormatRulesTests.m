@@ -481,7 +481,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 // to name it.
 static VibeBitPerfectReport Perfect(void) {
     return (VibeBitPerfectReport){
-        .enabled = YES, .eligibleDevice = YES, .hasTrack = YES, .fxGraph = NO,
+        .enabled = YES, .eligibleDevice = YES, .hasTrack = YES,
         .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
         .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f,
         .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
@@ -568,8 +568,6 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
     r.hasTrack = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusIdle);
-    r.fxGraph = YES;
-    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusFXGraphPresent);
     r.eligibleDevice = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusOff);
     VibeBitPerfectReport off = Perfect();

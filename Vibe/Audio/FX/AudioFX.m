@@ -191,10 +191,46 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 #pragma mark - Graph construction
 
 - (AVAudioNode *)masterBusOutputNode {
-    return _masterMix;
+    return _masterMix && [_masterMix.engine outputConnectionPointsForNode:_masterMix outputBus:0].count
+            ? _masterMix : nil;
 }
 
-- (void)installInEngine:(AVAudioEngine *)engine {
+- (void)setConnected:(BOOL)connected inEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)format {
+    if (connected && !_masterMix) {
+        [self installInEngine:engine format:format];
+        return;
+    }
+    if (connected == (self.masterBusOutputNode != nil)) {
+        return;
+    }
+    if (connected) {
+        [engine connect:engine.mainMixerNode to:_lowKillEQ format:[_lowKillEQ inputFormatForBus:0]];
+        [engine connect:_masterMix to:engine.outputNode format:[_masterMix outputFormatForBus:0]];
+        return;
+    }
+    [engine disconnectNodeOutput:engine.mainMixerNode];
+    [engine disconnectNodeOutput:_masterMix];
+    // A bypass must not freeze a wet tail or an unfinished sweep for the next enable.
+    _lowKillRampGeneration++;
+    _reverbSendRampGeneration++;
+    [self setLowKillBandsFlat:YES];
+    for (AVAudioUnitEQFilterParameters *band in _lowKillEQ.bands) {
+        band.frequency = kLowKillParkedHz;
+    }
+    _reverbSendGate.outputVolume = 0;
+    for (AVAudioNode *node in @[_lowKillEQ, _reverb, _reverbLowCut]) {
+        [node reset];
+    }
+    for (VibeDelaySend *send in @[_delayEighth, _delaySixteenth]) {
+        send->_rampGeneration++;
+        send.gate.outputVolume = 0;
+        for (AVAudioNode *node in @[send.half, send.left, send.right, send.lowCut]) {
+            [node reset];
+        }
+    }
+}
+
+- (void)installInEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)mixerFormat {
     // Master-bus low kill: mainMixer -> EQ -> and so on. The explicit connects
     // below replace the implicit mixer-to-output one. Both bands stay live and
     // un-bypassed for the engine's lifetime (see kLowKillParkedHz); the
@@ -257,7 +293,6 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     _delayEighth = [self createDelaySendWithBeatsPerTap:kDelayTapBeats engine:engine];
     _delaySixteenth = [self createDelaySendWithBeatsPerTap:kShortDelayTapBeats engine:engine];
 
-    AVAudioFormat *mixerFormat = [engine.mainMixerNode outputFormatForBus:0];
     [engine connect:engine.mainMixerNode to:_lowKillEQ format:mixerFormat];
     // One-to-many: the post-low-kill master signal feeds the dry path, on
     // masterMix bus 0, and every send tap in parallel.

@@ -275,13 +275,9 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
-// NO keeps the DJ performance-FX graph segment — low kill, reverb and delay
-// returns — out of the audio engine entirely: AudioPlayer is created with FX
-// off, fx reads nil, and the main mixer wires straight to the output. The FX
-// graph choice is read once at launch. When a graph exists, switching this off
-// clears every active effect and withdraws its macOS menu and Q/W/E/R/T controls
-// immediately; without one the controls remain absent until relaunch. iOS
-// passes a hard NO and never consults this; see PlayerViewController.
+// The DJ performance FX — low kill, reverb and delay returns. Off routes the
+// mixer straight to output; nodes are created on first enable and retained.
+// Changes apply through the player's stopped-engine rebuild. iOS has no FX.
 // The stored choice, which the Playback pane's switch displays. Whether FX
 // exist for the user is audioFXAllowed below, which bit-perfect output
 // outranks.
@@ -290,22 +286,35 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 
 // Settings > General > Audio > Bit-perfect output, default NO. While on, the
 // chain is pruned to the exact one — no FX (this outranks audioFXEnabled at
-// every gate, and the next launch builds no FX graph), no varispeed, the
+// every gate, bypassing the FX graph immediately), no varispeed, the
 // crossfade at the declick minimum, the pitch fader gone — and each track's
 // settlement sets the chosen device to the file's rate and word length.
+//
+// This and exclusiveOutput are remembered PER DEVICE, keyed by the CoreAudio
+// UID so a device keeps its choice while unplugged and gets it back when it
+// is chosen again. The plain accessors are the saved device's
+// (audioOutputDeviceUID); System Output, having no UID, is always off, which
+// is why the device-vanished fallback needs no write to turn the mode off.
+// Only a mode that is on is stored: turning one off deletes it, and the
+// device's entry with its last mode.
+//
 // The shell only turns it on for an eligible device (OutputFormatRules.h):
-// the General pane disables the switch
-// otherwise, the Output menu grays ineligible devices out while it is on, and
-// the device-vanished fallback turns it off. A writer requests
-// VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade.
+// the General pane disables the switch otherwise. A writer requests
+// VibeSettingsLiveEffectBitPerfect | FXControls | Crossfade, and so does the
+// saved device moving (didChangeOutputDevice:), since every reader below
+// moves with it.
 - (BOOL)bitPerfectOutput;
 - (void)setBitPerfectOutput:(BOOL)enabled;
+// What a switch to that device hands the player with the device itself.
+- (BOOL)bitPerfectOutputForDeviceUID:(nullable NSString *)deviceUID;
 
-// Optional exclusive access while bit-perfect output is on, default NO.
-// The system output and virtual devices remain shared. Compiled-out builds
-// always read NO, even if an earlier build stored YES. Writers request
-// VibeSettingsLiveEffectBitPerfect; the FX and crossfade choices do not move.
+// Optional exclusive access while bit-perfect output is on, default NO and
+// per device like it. The system output and virtual devices remain shared.
+// Compiled-out builds always read NO, even if an earlier build stored YES.
+// Writers request VibeSettingsLiveEffectBitPerfect; the FX and crossfade
+// choices do not move.
 - (BOOL)exclusiveOutput;
+- (BOOL)exclusiveOutputForDeviceUID:(nullable NSString *)deviceUID;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled;
 #endif

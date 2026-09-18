@@ -30,7 +30,6 @@ static NSString *VibeDebugBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
         case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
         case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
-        case VibeBitPerfectStatusFXGraphPresent:    return @"fxGraphPresent";
     }
     return @"unknown";
 }
@@ -50,7 +49,6 @@ static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
         @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),
-        @"fxGraph": @(r.fxGraph),
         @"systemDefault": @(r.systemDefault),
         @"rateExact": @(r.rateExact),
         @"formatConfirmed": @(r.formatConfirmed),
@@ -160,6 +158,10 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"waveformDragBehavior": AppSettings.sharedInstance.waveformDragBehavior,
             @"artworkDragAction": AppSettings.sharedInstance.artworkDragAction,
             @"outputDeviceName": AppSettings.sharedInstance.audioOutputDeviceName ?: @"",
+            @"outputDeviceUID": AppSettings.sharedInstance.audioOutputDeviceUID ?: @"",
+            // The saved device's remembered modes, not the player's report.
+            @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
+            @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
             @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),

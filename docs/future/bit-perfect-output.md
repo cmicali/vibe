@@ -18,8 +18,9 @@ implementation plan is available in git history.
   routing and format, matching channel counts, sufficient source precision,
   unity volume, centered balance, no mute, and a lossless source. When exclusive
   access was requested for a device that permits it, ownership must also hold.
-- A run that already built the FX graph needs a relaunch before bit-perfect output
-  can become active. Turning the mode off restores the saved FX/crossfade choices.
+- FX and bit-perfect switches apply live through the same playback-preserving
+  rebuild. Bit-perfect bypasses retained FX nodes; turning it off restores the
+  saved FX/crossfade choices. A first FX enable creates its nodes without relaunch.
 - First use remembers the device's original physical format. Changing devices,
   disabling the mode, or quitting restores it. Exclusive access is released after
   an idle engine stop (6 seconds in both modes).
@@ -137,11 +138,11 @@ captures. `VIBE_NOW_PLAYING=1` explicitly enables media-integration testing.
   that hardware. Built-in speakers provide the live non-default hog test.
 - The new bit-perfect/exclusive strings require the normal translation pass before
   release; `make check-translations` is the release gate.
-- The everyday chain with varispeed and/or FX is not promised sample-exact. Making
-  the FX graph transparent without relaunch requires separate measurement of EQ
-  bypass and transition clicks.
-- iOS, raw integer IO bypassing AVAudioEngine, DSD/DoP, user-selectable upsampling,
-  per-device mode preferences, and app volume controls are outside this feature.
+- The everyday FX chain is not promised sample-exact. Bit-perfect routes around
+  the FX segment entirely; live setting changes briefly interrupt playback.
+- iOS, raw integer IO bypassing AVAudioEngine, DSD/DoP, user-selectable upsampling
+  and app volume controls are outside this feature. Bit-perfect and exclusive
+  output are remembered per device UID (`Audio/Mac/Devices/CLAUDE.md`).
 
 ## API references
 

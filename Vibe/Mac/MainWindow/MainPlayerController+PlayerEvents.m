@@ -316,22 +316,22 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 
 }
 
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    outputModesForDeviceUID:(NSString *)deviceUID
+          bitPerfectOutput:(BOOL *)bitPerfectOutput
+           exclusiveOutput:(BOOL *)exclusiveOutput {
+    AppSettings *settings = AppSettings.sharedInstance;
+    *bitPerfectOutput = [settings bitPerfectOutputForDeviceUID:deviceUID];
+    *exclusiveOutput = [settings exclusiveOutputForDeviceUID:deviceUID];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL bitPerfectBefore = settings.bitPerfectOutput;
     if (newDeviceIndex == -1) {
-        AppSettings.sharedInstance.audioOutputDeviceName = @"";
-        AppSettings.sharedInstance.audioOutputDeviceUID = @"";
-        // The one place the app turns bit-perfect output off rather than the
-        // user: the chosen device vanished or was absent at launch, and the player abandoned the mode
-        // before falling back to System Output. The report's enabled flag is
-        // the player's word for it — the launch-time announcement of System
-        // Output, made while the saved device is still binding, leaves the
-        // mode wanted and must not be read as a fallback.
-        if (AppSettings.sharedInstance.bitPerfectOutput && !audioPlayer.bitPerfectReport.enabled) {
-            LogInfo(@"bit-perfect: output fell back to System Output; persisting the mode off");
-            AppSettings.sharedInstance.bitPerfectOutput = NO;
-            [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
-        }
+        settings.audioOutputDeviceName = @"";
+        settings.audioOutputDeviceUID = @"";
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -339,11 +339,18 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // failed transiently. Keep the previous persisted choice rather than
         // erasing it.
         if (device) {
-            AppSettings.sharedInstance.audioOutputDeviceName = device.name;
-            AppSettings.sharedInstance.audioOutputDeviceUID = device.uid;
+            settings.audioOutputDeviceName = device.name;
+            settings.audioOutputDeviceUID = device.uid;
         }
     }
-    [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
+    // TRAP: a later switch may already be queued or bound. This callback may
+    // refresh dependent controls, but must not send this device's modes back.
+    SettingsWindowController *settingsWindow = [(AppDelegate *)NSApp.delegate settingsWindowController];
+    if (settings.bitPerfectOutput != bitPerfectBefore) {
+        [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply updatingOutputModes:NO];
+        [settingsWindow refreshSelectedPane];
+    }
+    [settingsWindow.audioPane refreshOutputDevice];
 }
 
 // The one edge the two report readouts redraw from: the header's lock glyph

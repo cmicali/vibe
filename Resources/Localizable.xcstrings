@@ -43900,12 +43900,6 @@
     "settings.appearance.theme.playlist_number_column": {
       "comment": "Theme editor, Playlist group: switch showing or hiding the playlist's leading row-number column, which also carries the playing indicator.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show number column"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -43934,6 +43928,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Εμφάνιση στήλης αριθμού"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show number column"
           }
         },
         "es": {
@@ -68258,192 +68258,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "啟用音效"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.playback.enable_fx_restart": {
-      "comment": "Settings, Playback pane: small caption shown only when this run has no audio-FX graph, explaining that enabling FX requires reopening. %@ is the app name.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Влиза в сила след повторно отваряне на %@"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Projeví se po opětovném otevření aplikace %@"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Træder i kraft, når %@ åbnes igen"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wird wirksam, nachdem %@ neu geöffnet wurde"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ισχύει μετά το εκ νέου άνοιγμα του %@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Takes effect after %@ is reopened"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se aplica después de volver a abrir %@"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tulee voimaan, kun %@ avataan uudelleen"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prend effet après la réouverture de %@"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stupa na snagu nakon ponovnog otvaranja aplikacije %@"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A(z) %@ újranyitása után lép érvénybe"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Berlaku setelah %@ dibuka kembali"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ha effetto dopo la riapertura di %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@を再起動すると有効になります"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@을(를) 다시 열면 적용됩니다"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trer i kraft når %@ åpnes på nytt"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wordt van kracht nadat %@ opnieuw is geopend"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zacznie obowiązywać po ponownym otwarciu aplikacji %@"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entra em vigor depois que o %@ for reaberto"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tem efeito depois de %@ ser reaberto"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se aplică după redeschiderea aplicației %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вступит в силу после повторного открытия %@"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prejaví sa po opätovnom otvorení aplikácie %@"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Börjar gälla när %@ öppnas igen"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "จะมีผลหลังจากเปิด %@ อีกครั้ง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ yeniden açıldıktan sonra geçerli olur"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Набуде чинності після повторного відкриття %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Có hiệu lực sau khi mở lại %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新打开 %@ 后生效"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新開啟 %@ 後生效"
           }
         }
       },

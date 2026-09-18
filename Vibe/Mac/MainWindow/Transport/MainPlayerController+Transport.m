@@ -226,8 +226,6 @@ static double SkipBaseBars(void) {
             return STR_SETTINGS_BIT_PERFECT_EXCLUSIVE_REFUSED;
         case VibeBitPerfectStatusSourceLossy:
             return STR_SETTINGS_BIT_PERFECT_LOSSY;
-        case VibeBitPerfectStatusFXGraphPresent:
-            return [NSString stringWithFormat:STR_SETTINGS_ENABLE_FX_RESTART, VibeAppName()];
     }
     return @"";
 }

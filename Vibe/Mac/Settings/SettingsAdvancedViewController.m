@@ -12,6 +12,7 @@
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h"
 #import "NSBundle+BuildInfo.h"
+#import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
 static const CGFloat kAdvancedPopUpWidth = 200;
@@ -158,15 +159,9 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Reset to defaults
 
-// The reset only clears the store, so this applies every running-app effect;
-// the audio FX graph and output device land at the next launch exactly as
-// their captions say. Each pane resolves the rows the reset hid before the
-// shared size is retaken, but hidden panes defer their full refresh until
-// selected. TRAP: the window's own two settings are cleared by the same pass
-// and no pane shows them, so the window is put back to its shipping shape
-// separately — that action writes its own state and frame. Without it the
-// window keeps a shape the store no longer agrees with and snaps at the next
-// launch.
+// Hidden panes resolve layout before remeasurement but defer their full refresh.
+// TRAP: reset clears both window-shape settings; no pane applies them, so
+// restore the window separately or its shape disagrees with the store until launch.
 - (void)resetSettings:(id)sender {
     if (sender == _factoryResetButton) {
         [AppSettings.sharedInstance factoryReset];
@@ -175,6 +170,9 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     }
     MainPlayerController *player = self.playerController;
     [player applySettingsLiveEffects:VibeSettingsLiveEffectAll];
+    // TRAP: a cleared device UID with the old binding leaves mode switches
+    // enabled for a device their setters cannot write to.
+    [player.devicesMenuController selectOutputDevice:-1];
     [player resetWindowToDefaultShape];
     for (__kindof NSViewController *pane in self.parentViewController.childViewControllers) {
         if ([pane isKindOfClass:SettingsPaneViewController.class]) {
