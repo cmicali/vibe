@@ -81,7 +81,7 @@ static NSString *const kSliderCellIdentifier = @"slider";
 // Unset is the default and reads as Match app — NOT as the app's style name,
 // which would say the widget is pinned to it when it is actually following.
 - (NSString *)widgetWaveformStyleValueText {
-    NSString *identifier = VibeWidgetWaveformStyle();
+    NSString *identifier = AppSettings.sharedInstance.widgetWaveformStyle;
     return identifier ? [WaveformRendererRegistry displayNameForIdentifier:identifier]
                       : STR_SETTINGS_WIDGET_WAVEFORM_MATCH;
 }
@@ -207,11 +207,18 @@ static NSString *const kSliderCellIdentifier = @"slider";
 // The picker is handed display names and hands back a row index; the identifier
 // it stands for is resolved here, against the same sorted array the names came
 // from, so the two cannot get out of step.
-- (SettingsChoiceViewController *)waveformStylePicker {
+// The styles' localized names, in _waveformStyles' order — both pickers list
+// the same styles and differ only in what precedes them.
+- (NSMutableArray<NSString *> *)waveformStyleNames {
     NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:_waveformStyles.count];
     for (NSString *identifier in _waveformStyles) {
         [names addObject:[WaveformRendererRegistry displayNameForIdentifier:identifier]];
     }
+    return names;
+}
+
+- (SettingsChoiceViewController *)waveformStylePicker {
+    NSMutableArray<NSString *> *names = [self waveformStyleNames];
     NSArray<NSString *> *styles = _waveformStyles;
     NSInteger selected = (NSInteger)[styles indexOfObject:[self currentWaveformStyle]];
     return [[SettingsChoiceViewController alloc]
@@ -228,13 +235,10 @@ static NSString *const kSliderCellIdentifier = @"slider";
 // other row is offset by one against the style array. The offset is the whole
 // mapping and it lives here, beside the array it indexes.
 - (SettingsChoiceViewController *)widgetWaveformStylePicker {
-    NSMutableArray<NSString *> *names =
-            [NSMutableArray arrayWithObject:STR_SETTINGS_WIDGET_WAVEFORM_MATCH];
-    for (NSString *identifier in _waveformStyles) {
-        [names addObject:[WaveformRendererRegistry displayNameForIdentifier:identifier]];
-    }
+    NSMutableArray<NSString *> *names = [self waveformStyleNames];
+    [names insertObject:STR_SETTINGS_WIDGET_WAVEFORM_MATCH atIndex:0];
     NSArray<NSString *> *styles = _waveformStyles;
-    NSString *current = VibeWidgetWaveformStyle();
+    NSString *current = AppSettings.sharedInstance.widgetWaveformStyle;
     NSInteger selected = 0;
     if (current) {
         NSUInteger index = [styles indexOfObject:current];
@@ -247,7 +251,8 @@ static NSString *const kSliderCellIdentifier = @"slider";
                   choices:names
             selectedIndex:selected
                  onSelect:^(NSInteger index) {
-        VibeSetWidgetWaveformStyle(index == 0 ? nil : styles[(NSUInteger)index - 1]);
+        AppSettings.sharedInstance.widgetWaveformStyle =
+                index == 0 ? nil : styles[(NSUInteger)index - 1];
         VibeNotifyDisplaySettingsChanged();
     }];
 }

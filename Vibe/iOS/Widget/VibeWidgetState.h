@@ -30,23 +30,11 @@ extern NSString *const kVibeWidgetAppGroup;
 @property (nonatomic) BOOL playing;
 @property (nonatomic) NSTimeInterval duration;
 
-// AudioTrack.cacheKey for the published track, or nil for none. The widget
-// never reads it; the app compares it against the last publish to decide
-// whether the artwork and waveform files still describe this track, which is
-// what keeps a 3 Hz tick from re-encoding a JPEG.
-@property (nonatomic, copy, nullable) NSString *trackKey;
-
 // position is where the playhead was AT positionDate. The widget advances it
 // itself while playing, which is the only way a WidgetKit view can show motion
 // between timeline entries.
 @property (nonatomic) NSTimeInterval position;
 @property (nonatomic, copy, nullable) NSDate *positionDate;
-
-// Bumped on every publish. The widget keys its image loads on it so a track
-// change cannot draw the previous track's artwork against the new title: the
-// three files are written before the plist, so a reader that has the plist has
-// the images that go with it.
-@property (nonatomic) NSInteger generation;
 
 #pragma mark - Where it lives
 

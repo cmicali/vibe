@@ -8,11 +8,10 @@
 //
 //  These are iOS-owned NSUserDefaults keys, beside FolderSession's and the
 //  waveform zoom's, rather than AppSettings' equivalents: on macOS those are
-//  AppTheme fields now, and iOS has no theme system. The card's waveform style
-//  is deliberately NOT here — both platforms draw waveforms, so it stays an
-//  AppSettings property (iOS-compiled; on macOS the theme owns it). The
-//  WIDGET's override below is here for that same rule read the other way:
-//  there is no widget on macOS, so nothing about it belongs in AppSettings.
+//  AppTheme fields now, and iOS has no theme system. The discriminator is that
+//  COLLISION, not platform — a key whose macOS counterpart is an AppTheme
+//  field cannot be an AppSettings property without lying. The waveform styles,
+//  which have no such counterpart, stay in AppSettings (iOS-compiled).
 //
 
 #import <Foundation/Foundation.h>
@@ -47,20 +46,5 @@ void VibeSetShowsRemainingTime(BOOL remaining);
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 
-// The home-screen widget's waveform style, as a registry identifier. **nil
-// means match the app**, which is the default — so the widget follows
-// AppSettings.waveformStyle until the user picks something here, and goes back
-// to following it if they pick Match app again.
-//
-// It is a style only. Theme, normalize and gain stay the app's: the widget
-// draws on its own dark background, and a second copy of every waveform
-// setting would be four more things to keep in step for one surface.
-//
-// Writers end on VibeNotifyDisplaySettingsChanged() like every other setting
-// here, which is what re-bakes the published strip — the widget's images are
-// rendered at publish time, so a style change that posted nothing would not
-// show until the next track.
-NSString *_Nullable VibeWidgetWaveformStyle(void);
-void VibeSetWidgetWaveformStyle(NSString *_Nullable identifier);
 
 NS_ASSUME_NONNULL_END

@@ -65,11 +65,10 @@ struct VibeWidgetView: View {
     private var background: some View {
         ZStack {
             Color.black
-            if let artwork = entry.artwork {
-                Image(uiImage: artwork)
+            if let blurred = entry.blurredArtwork {
+                Image(uiImage: blurred)
                     .resizable()
                     .scaledToFill()
-                    .blur(radius: 40, opaque: true)
                     .opacity(0.55)
             }
             LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.7)],
@@ -101,8 +100,8 @@ struct VibeWidgetView: View {
             .frame(maxHeight: .infinity, alignment: .center)
             Spacer(minLength: 4)
             if state != nil {
-                transportButton(.playPause, diameter: 38)
-                transportButton(.next, diameter: 34)
+                playPauseButton(diameter: 38)
+                nextButton(diameter: 34)
             }
         }
         .frame(height: kMediumHeaderHeight)
@@ -129,32 +128,26 @@ struct VibeWidgetView: View {
     // of the tile, and a disc centred in that box sits visibly left — the eye
     // measures to the tile's edge, not to a content box it cannot see.
     private var small: some View {
-        GeometryReader { geometry in
-            let side = min(kSmallArtworkSide,
-                           max(kSmallArtworkMin,
-                               min(geometry.size.width - kSmallTransportWidth,
-                                   geometry.size.height - kSmallTextHeight - kSmallMinGap)))
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 0) {
-                    artworkTile(side: side)
-                    if state != nil {
-                        // Spotify's 39pt disc, centred both ways in exactly what
-                        // the artwork leaves — artwork's right edge to the
-                        // tile's right edge. The flexible frame IS the centring;
-                        // there is no offset to re-tune on another tile size.
-                        transportButton(.playPause, diameter: kSmallPlayDiameter)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                artworkTile(side: kSmallArtworkSide)
+                if state != nil {
+                    // Spotify's 39pt disc, centred both ways in exactly what the
+                    // artwork leaves — its right edge to the tile's right edge.
+                    // The flexible frame IS the centring; there is no offset to
+                    // re-tune on another tile size.
+                    playPauseButton(diameter: kSmallPlayDiameter)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(height: side)
-                Spacer(minLength: kSmallMinGap)
-                VStack(alignment: .leading, spacing: 1) {
-                    titleText(size: kSmallTextSize, weight: .bold)
-                    artistText(size: kSmallTextSize)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, kSmallPadding)   // the side body does not inset
             }
+            .frame(height: kSmallArtworkSide)
+            Spacer(minLength: kSmallMinGap)
+            VStack(alignment: .leading, spacing: 1) {
+                titleText(size: kSmallTextSize, weight: .bold)
+                artistText(size: kSmallTextSize)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, kSmallPadding)   // the side body does not inset
         }
         .padding(.leading, kSmallPadding)
         .padding(.vertical, kSmallPadding)
@@ -203,35 +196,30 @@ struct VibeWidgetView: View {
         .clipShape(RoundedRectangle(cornerRadius: kCornerRadius, style: .continuous))
     }
 
-    private enum Transport { case playPause, next }
-
-    // Play/pause is a filled disc and next is a bare glyph: one primary action
-    // per widget, which is what makes the row readable at a glance rather than
-    // a strip of equal controls.
-    private func transportButton(_ kind: Transport, diameter: CGFloat) -> some View {
-        let playing = entry.state?.playing == true
-        let name = kind == .next ? "forward.end.fill" : (playing ? "pause.fill" : "play.fill")
-        return Group {
-            if kind == .playPause {
-                Button(intent: VibePlayPauseIntent()) {
-                    ZStack {
-                        Circle().fill(.white.opacity(0.92))
-                        Image(systemName: name)
-                            .font(.system(size: diameter * 0.4))
-                            .foregroundStyle(.black.opacity(0.85))
-                    }
-                    .frame(width: diameter, height: diameter)
-                    .contentShape(Circle())
-                }
-            } else {
-                Button(intent: VibeNextIntent()) {
-                    Image(systemName: name)
-                        .font(.system(size: diameter * 0.46))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: diameter, height: diameter)
-                        .contentShape(Rectangle())
-                }
+    // Play/pause is a filled disc and next a bare glyph: one primary action per
+    // widget, which is what makes the row readable at a glance rather than a
+    // strip of equal controls.
+    private func playPauseButton(diameter: CGFloat) -> some View {
+        Button(intent: VibePlayPauseIntent()) {
+            ZStack {
+                Circle().fill(.white.opacity(0.92))
+                Image(systemName: entry.state?.playing == true ? "pause.fill" : "play.fill")
+                    .font(.system(size: diameter * 0.4))
+                    .foregroundStyle(.black.opacity(0.85))
             }
+            .frame(width: diameter, height: diameter)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func nextButton(diameter: CGFloat) -> some View {
+        Button(intent: VibeNextIntent()) {
+            Image(systemName: "forward.end.fill")   // the mac's glyph, and the mini player's
+                .font(.system(size: diameter * 0.46))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: diameter, height: diameter)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -254,7 +242,9 @@ struct VibeWidgetView: View {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
                 }
-                seekZones
+                if state != nil {
+                    seekZones
+                }
             }
         }
     }
@@ -273,7 +263,6 @@ struct VibeWidgetView: View {
                 .buttonStyle(.plain)
             }
         }
-        .opacity(state == nil ? 0 : 1)   // nothing to seek in the empty state
     }
 
 

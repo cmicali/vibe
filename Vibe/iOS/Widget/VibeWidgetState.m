@@ -20,12 +20,10 @@ static NSString *const kKeyVersion      = @"version";
 static NSString *const kKeyTitle        = @"title";
 static NSString *const kKeyArtist       = @"artist";
 static NSString *const kKeyHasTrack     = @"hasTrack";
-static NSString *const kKeyTrackKey     = @"trackKey";
 static NSString *const kKeyPlaying      = @"playing";
 static NSString *const kKeyDuration     = @"duration";
 static NSString *const kKeyPosition     = @"position";
 static NSString *const kKeyPositionDate = @"positionDate";
-static NSString *const kKeyGeneration   = @"generation";
 
 // Bumped when a field's meaning changes. A reader that does not recognize the
 // version draws the empty state, which is always safe: the app republishes on
@@ -62,12 +60,10 @@ static const NSInteger kStateVersion = 1;
     state.title        = plist[kKeyTitle];
     state.artist       = plist[kKeyArtist];
     state.hasTrack     = [plist[kKeyHasTrack] boolValue];
-    state.trackKey     = plist[kKeyTrackKey];
     state.playing      = [plist[kKeyPlaying] boolValue];
     state.duration     = [plist[kKeyDuration] doubleValue];
     state.position     = [plist[kKeyPosition] doubleValue];
     state.positionDate = plist[kKeyPositionDate];
-    state.generation   = [plist[kKeyGeneration] integerValue];
     return state;
 }
 
@@ -81,12 +77,10 @@ static const NSInteger kStateVersion = 1;
     plist[kKeyTitle]        = self.title;
     plist[kKeyArtist]       = self.artist;
     plist[kKeyHasTrack]     = @(self.hasTrack);
-    plist[kKeyTrackKey]     = self.trackKey;
     plist[kKeyPlaying]      = @(self.playing);
     plist[kKeyDuration]     = @(self.duration);
     plist[kKeyPosition]     = @(self.position);
     plist[kKeyPositionDate] = self.positionDate;
-    plist[kKeyGeneration]   = @(self.generation);
     return [plist writeToURL:url error:NULL];
 }
 

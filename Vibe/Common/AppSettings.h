@@ -73,6 +73,15 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (NSString *)waveformStyle;
 - (void)setWaveformStyle:(NSString *)identifier;
 
+// The home-screen widget's own style, or nil to match the app's above. Here
+// rather than in PlayerDisplaySettings for the same reason as its neighbours:
+// what sends a key to that store is a macOS AppTheme field of the same name
+// making an AppSettings property a lie, and the widget has no macOS
+// counterpart to collide with. nil is the default and the "match app" answer;
+// an empty string normalizes to it.
+- (nullable NSString *)widgetWaveformStyle;
+- (void)setWidgetWaveformStyle:(nullable NSString *)identifier;
+
 // The waveform color theme, normalized on read: an identifier no picker can
 // produce snaps to mono. WaveformTheme resolves it to colors.
 - (NSString *)waveformTheme;

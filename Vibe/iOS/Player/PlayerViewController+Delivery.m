@@ -50,11 +50,12 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView showWaveform:waveform animated:complete];
     // The home-screen widget draws this same envelope, and this is the app's
     // one waveform load — so it is offered from here rather than loaded again.
-    // Whether the delivery is for the track the widget is describing is the
-    // model's call, not this view's.
-    [_playback publishWidgetWaveform:waveform
-                            forTrack:[_playback.playlist trackAtIndex:index]
-                            complete:complete];
+    // Only a complete one: the cache delivers about ten times a second, and a
+    // bake is two renders and two file writes.
+    if (complete) {
+        [_playback offerWaveformToWidget:waveform
+                                forTrack:[_playback.playlist trackAtIndex:index]];
+    }
 }
 
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline

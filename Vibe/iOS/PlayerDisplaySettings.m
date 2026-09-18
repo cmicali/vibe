@@ -17,7 +17,6 @@ void VibeNotifyDisplaySettingsChanged(void) {
 
 static NSString *const kShowRemainingTimeKey = @"VibeiOSShowRemainingTime";
 static NSString *const kShowFileInfoKey      = @"VibeiOSShowFileInfo";
-static NSString *const kWidgetWaveformStyleKey = @"VibeiOSWidgetWaveformStyle";
 
 BOOL VibeShowsRemainingTime(void) {
     return [NSUserDefaults.standardUserDefaults boolForKey:kShowRemainingTimeKey];
@@ -40,21 +39,3 @@ void VibeSetShowsFileInfo(BOOL show) {
     [NSUserDefaults.standardUserDefaults setBool:show forKey:kShowFileInfoKey];
 }
 
-NSString *VibeWidgetWaveformStyle(void) {
-    // Absent OR empty reads as "match the app": the picker writes nil for that
-    // row, and an empty string from a hand-edited defaults plist should not
-    // resolve to some arbitrary registered style.
-    NSString *identifier = [NSUserDefaults.standardUserDefaults
-            stringForKey:kWidgetWaveformStyleKey];
-    return identifier.length ? identifier : nil;
-}
-
-void VibeSetWidgetWaveformStyle(NSString *identifier) {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    if (identifier.length) {
-        [defaults setObject:identifier forKey:kWidgetWaveformStyleKey];
-    }
-    else {
-        [defaults removeObjectForKey:kWidgetWaveformStyleKey];
-    }
-}

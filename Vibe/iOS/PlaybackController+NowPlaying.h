@@ -23,14 +23,12 @@ NS_ASSUME_NONNULL_BEGIN
 // The home-screen widget's snapshot rides this: same concern, one trigger.
 - (void)publishNowPlaying;
 
-// The card's waveform delivery, offered to the widget. The card owns the one
-// load (PageWaveformCoordinator) and this is the model half deciding what to
-// do with it, as the card already does for publishNowPlaying: a delivery for
-// anything but the displayed track is dropped, and a partial one is ignored —
-// the widget shows a whole envelope or none.
-- (void)publishWidgetWaveform:(CodableAudioWaveform *)waveform
-                     forTrack:(AudioTrack *)track
-                     complete:(BOOL)complete;
+// The card's waveform delivery, offered for the widget's strip. The card owns
+// the app's one waveform load, so re-reading the file model-side would be a
+// second decode of it; whether the delivery is for the track the widget is
+// describing is the model's call, not the view's. Partial envelopes are the
+// caller's to filter — it already knows.
+- (void)offerWaveformToWidget:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
 
 @end
 

@@ -9,6 +9,7 @@
 //
 
 #import "PlaybackControllerInternal.h"
+#import "WidgetPublisher.h"
 #import "PlaybackController+NowPlaying.h"
 #import "PlaybackController+PlayerEvents.h"   // AudioPlayerDelegate, adopted by the category
 
@@ -47,6 +48,7 @@ static const NSUInteger kUIUpdateHz = 3;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
+        _widgetPublisher = [[WidgetPublisher alloc] init];
         // TRAP: this must precede the player, and cannot move down to where
         // the session controller is created. AVAudioEngine wires its master
         // bus on the player's own queue moments after this init returns, and

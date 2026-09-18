@@ -7,6 +7,8 @@
 //  playlist and no audio session, and never reads an audio file.
 //
 
+import CoreImage
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 import WidgetKit
 
@@ -26,11 +28,15 @@ struct VibeEntry: TimelineEntry {
     // from disk per render: the same three files back all of them, and the
     // extension's memory limit is small.
     let artwork: UIImage?
+    // Pre-blurred once per timeline rather than per entry: the background is
+    // pixel-identical across every entry, and a 40pt blur in a process with a
+    // hard memory cap is not something to repeat 24 times for one result.
+    let blurredArtwork: UIImage?
     let played: UIImage?
     let unplayed: UIImage?
 
-    static let empty = VibeEntry(date: Date(), state: nil,
-                                 artwork: nil, played: nil, unplayed: nil)
+    static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
+                                 blurredArtwork: nil, played: nil, unplayed: nil)
 }
 
 struct VibeProvider: TimelineProvider {
@@ -58,6 +64,7 @@ struct VibeProvider: TimelineProvider {
         let entries = (0..<steps).map { step in
             VibeEntry(date: now.addingTimeInterval(Double(step) * kPlayheadStep),
                       state: state, artwork: first.artwork,
+                      blurredArtwork: first.blurredArtwork,
                       played: first.played, unplayed: first.unplayed)
         }
         completion(Timeline(entries: entries, policy: .atEnd))
@@ -65,8 +72,10 @@ struct VibeProvider: TimelineProvider {
 
     private func loadEntry(at date: Date) -> VibeEntry {
         guard let state = VibeWidgetState.load() else { return .empty }
+        let artwork = image(VibeWidgetState.artworkURL)
         return VibeEntry(date: date, state: state,
-                         artwork: image(VibeWidgetState.artworkURL),
+                         artwork: artwork,
+                         blurredArtwork: artwork.map(blurred),
                          played: image(VibeWidgetState.waveformPlayedURL),
                          unplayed: image(VibeWidgetState.waveformUnplayedURL))
     }
@@ -74,6 +83,17 @@ struct VibeProvider: TimelineProvider {
     private func image(_ url: URL?) -> UIImage? {
         guard let url, let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
+    }
+
+    private func blurred(_ artwork: UIImage) -> UIImage {
+        guard let input = CIImage(image: artwork),
+              let filter = CIFilter(name: "CIGaussianBlur",
+                                    parameters: [kCIInputImageKey: input,
+                                                 kCIInputRadiusKey: 40]),
+              let output = filter.outputImage,
+              let cgImage = CIContext().createCGImage(output, from: input.extent)
+        else { return artwork }
+        return UIImage(cgImage: cgImage)
     }
 }
 

@@ -14,6 +14,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 #define SETTING_WAVEFORM_STYLE                      @"Settings.waveformStyle"
+#define SETTING_WIDGET_WAVEFORM_STYLE               @"Settings.widgetWaveformStyle"
 #define SETTING_WAVEFORM_THEME                      @"Settings.waveformTheme"
 #define SETTING_WAVEFORM_CUSTOM_PLAYED_DARK         @"Settings.waveformCustomPlayedColorDark"
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK       @"Settings.waveformCustomUnplayedColorDark"

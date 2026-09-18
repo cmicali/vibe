@@ -525,11 +525,10 @@ targets:
         # entitlements for the sandbox; this file exists only for that group,
         # and the extension carries a matching copy.
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/iOS/Vibe.entitlements"
-        # The target's ONE Swift file, VibeWidgetReloader: WidgetCenter has no
-        # Objective-C API, so telling WidgetKit a snapshot is stale cannot be
-        # written in the language the rest of this target is. It needs no
-        # bridging header — nothing in it reads an app class — and ObjC reaches
-        # it through the generated Vibe-Swift.h.
+        # The target's Swift is the WidgetKit reloader and the widget's App
+        # Intent bodies: WidgetCenter and AppIntents have no Objective-C API.
+        # The bridging header is what lets the intents reach VibeiOSSceneDelegate
+        # and PlaybackController; ObjC reaches the Swift through Vibe-Swift.h.
         SWIFT_VERSION: "5.0"
         SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/iOS/Widget/Vibe-Bridging-Header.h"
         # VIBE_APP switches on the App Intent bodies in VibeWidgetIntents.swift,
@@ -603,10 +602,6 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/VibeWidget/VibeWidget-Bridging-Header.h"
         GCC_PREFIX_HEADER: ""                 # no app pch: this target links no app class
         SKIP_INSTALL: YES
-        LD_RUNPATH_SEARCH_PATHS:
-          - "$(inherited)"
-          - "@executable_path/Frameworks"
-          - "@executable_path/../../Frameworks"
     dependencies:
       - sdk: AppIntents.framework
       - sdk: SwiftUI.framework
