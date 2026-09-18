@@ -131,6 +131,14 @@ settings:
       ONLY_ACTIVE_ARCH: YES
     Release:
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
+      # STRIP_INSTALLED_PRODUCT is already YES and STRIP_STYLE `all`, but a
+      # `build` action leaves DEPLOYMENT_POSTPROCESSING off and an `archive`
+      # turns it on — so every shipped DMG and pkg was stripped while a local
+      # `make build CONFIG=Release` kept a 41k-entry symbol table, two products
+      # of one configuration 1.7x apart. Arming it here is what makes the local
+      # build and `make install` the thing that ships. Symbolication comes from
+      # the dSYM above either way.
+      DEPLOYMENT_POSTPROCESSING: YES
       ENABLE_NS_ASSERTIONS: NO
       GCC_OPTIMIZATION_LEVEL: s
       # NDEBUG is used in TagLib

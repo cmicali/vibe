@@ -13,8 +13,8 @@
   "player" : {
     "artistColorDark" : "#A8A8AD",
     "artistColorLight" : "#515156",
-    "defaultArtworkDark" : "bundled:cupertino_dark.png",
-    "defaultArtworkLight" : "bundled:cupertino_light.png",
+    "defaultArtworkDark" : "bundled:cupertino_dark.jpg",
+    "defaultArtworkLight" : "bundled:cupertino_light.jpg",
     "titleColorDark" : "#F5F5F7",
     "titleColorLight" : "#1D1D1F"
   },
