@@ -9,6 +9,7 @@
 
 #import "DocumentTypes.h"
 #import "PlaybackController.h"
+#import "VibeStrings.h"
 
 @interface FilesViewController () <UIDocumentBrowserViewControllerDelegate>
 @end
@@ -29,21 +30,63 @@
         self.delegate = self;
         // Vibe opens what is already there; it authors nothing.
         self.allowsDocumentCreation = NO;
-        self.allowsPickingMultipleItems = NO;
+        // Several items at once, so didPickDocumentsAtURLs: and the action
+        // below can both take a set. iOS 26's browser offers no "Select" mode
+        // of its own on iPhone, so in practice this only widens what an iPad
+        // drag selection or a future OS may hand over.
+        self.allowsPickingMultipleItems = YES;
+        __weak PlaybackController *weakPlayback = playback;
+        UIDocumentBrowserAction *add = [[UIDocumentBrowserAction alloc]
+                initWithIdentifier:@"com.commonwealthrecordings.vibe.add-to-playlist"
+                    localizedTitle:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
+                      availability:UIDocumentBrowserActionAvailabilityMenu
+                                 | UIDocumentBrowserActionAvailabilityNavigationBar
+                           handler:^(NSArray<NSURL *> *urls) {
+            [weakPlayback addURLs:urls];
+        }];
+        add.image = [UIImage systemImageNamed:@"text.badge.plus"];
+        add.supportsMultipleItems = YES;
+        // TRAP: a folder row matches public.DIRECTORY, not public.folder.
+        // Listing UTTypeFolder — what the browser itself filters on — hides
+        // this action from every folder while the files still show it, which
+        // looks like the action being unsupported on folders altogether.
+        add.supportedContentTypes = [@[UTTypeDirectory.identifier]
+                arrayByAddingObjectsFromArray:
+                        [DocumentTypes.declaredFileTypes valueForKey:@"identifier"]];
+        self.customActions = @[add];
+        // The visible road to Add. iOS 26's browser has no "Select" mode on
+        // iPhone, so the long-press menu above would otherwise be the only
+        // one — and a context menu is never meant to be that.
+        // TRAP: it must go on the LEADING side. The browser draws its own
+        // overflow "•••" exactly where it lays a trailing additional item out,
+        // so a trailing button renders nowhere and its touches reach the
+        // browser's menu instead — a button that looks simply absent.
+        UIBarButtonItem *addItem = [[UIBarButtonItem alloc]
+                initWithImage:[UIImage systemImageNamed:@"text.badge.plus"]
+                        style:UIBarButtonItemStylePlain
+                       target:self
+                       action:@selector(addTapped)];
+        addItem.accessibilityLabel = STR_A11Y_FILES_ADD_TO_PLAYLIST;
+        self.additionalLeadingNavigationBarButtonItems = @[addItem];
     }
     return self;
+}
+
+// The system picker, not this browser: a custom action needs rows the user has
+// already selected, and there is no way to select any here.
+- (void)addTapped {
+    [_playback presentPickerFromViewController:self appending:YES];
 }
 
 #pragma mark - UIDocumentBrowserViewControllerDelegate
 
 - (void)documentBrowser:(UIDocumentBrowserViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)documentURLs {
-    NSURL *url = documentURLs.firstObject;
-    if (url) {
-        // openInPlace:YES — the browser hands back the real file, never a copy
-        // in the inbox, so the security scope FolderSession opens is the one
-        // that covers the folder this file came from.
-        [_playback openExternalURL:url openInPlace:YES];
+    if (documentURLs.count > 0) {
+        // openInPlace:YES — the browser hands back the real files, never copies
+        // in the inbox, so the security scopes FolderSession opens are the ones
+        // that cover the folders they came from.
+        [_playback openURLs:documentURLs openInPlace:YES];
     }
 }
 

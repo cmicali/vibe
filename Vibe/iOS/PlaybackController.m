@@ -533,6 +533,22 @@ static const NSUInteger kUIUpdateHz = 3;
     [_metadataCache setNeighborhoodAroundIndex:_playlist.currentIndex inTracks:_playlist];
 }
 
+#pragma mark - Transport follow-ups
+
+// TRAP: the Stopped gate is load-bearing. A parked restored track is Stopped
+// and holds no file, and prefetching over a mere list edit would open one — on
+// a cloud folder, a download the user never asked for. A new play re-prefetches
+// at start anyway; same rule as the mac's reconcileAfterPlaylistStructureEdit.
+- (void)prefetchSuccessor {
+    if (_player.isStopped) {
+        return;
+    }
+    // Through successorPrefetchTrack, never around it: that is the single
+    // home of the On track end = Pause rule, and a bypass would splice past a
+    // track end the setting says to park on (root CLAUDE.md).
+    [_player prefetchTrack:self.successorPrefetchTrack];
+}
+
 #pragma mark - The deferred metadata sweep
 
 // The playlist-wide sweep waits for the track the user picked to settle. Four
@@ -567,26 +583,31 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - Opening
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter {
-    [_folderSession presentPickerFromViewController:presenter];
+- (void)presentPickerFromViewController:(UIViewController *)presenter
+                              appending:(BOOL)appending {
+    [_folderSession presentPickerFromViewController:presenter appending:appending];
 }
 
-// One external open at a time: the session's playlist model is a directory,
-// not an ad-hoc set. A multi-file share adopts the filename-sorted first —
-// deterministic, unlike NSSet's anyObject — and when a folder grant covers
-// its parent, the expansion pulls the siblings in anyway.
+// One external open at a time: a share can mix in-place URLs with inbox
+// copies, which open differently. The filename-sorted first is deterministic,
+// unlike NSSet's anyObject, and when a folder grant covers its parent the
+// expansion pulls the siblings in anyway.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts {
     UIOpenURLContext *context = [contexts.allObjects
             sortedArrayUsingComparator:^NSComparisonResult(UIOpenURLContext *a, UIOpenURLContext *b) {
         return [a.URL.lastPathComponent localizedStandardCompare:b.URL.lastPathComponent];
     }].firstObject;
     if (context) {
-        [_folderSession openExternalURL:context.URL openInPlace:context.options.openInPlace];
+        [_folderSession openURLs:@[context.URL] openInPlace:context.options.openInPlace];
     }
 }
 
-- (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace {
-    [_folderSession openExternalURL:url openInPlace:openInPlace];
+- (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
+    [_folderSession openURLs:urls openInPlace:openInPlace];
+}
+
+- (void)addURLs:(NSArray<NSURL *> *)urls {
+    [_folderSession addURLs:urls];
 }
 
 - (NSURL *)folderURL {
@@ -599,15 +620,15 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 // The whole search scope, composed here and nowhere else: the session's own
-// transient root — the open folder — ahead of the persistent ones, which are
-// the folders added in Settings plus the ones starred on the Favorites tab.
+// transient roots — the base folder and every added folder — ahead of the
+// persistent ones, which are the folders added in Settings plus the ones
+// starred on the Favorites tab.
 // Nesting among them is FileSearchIndex's to prune, so a folder that is both
 // starred and added is walked once.
 - (NSArray<NSURL *> *)searchRoots {
-    NSURL *sessionRoot = _folderSession.searchRoot;
-    NSArray<NSURL *> *persistent = [SearchFolderStore.shared.searchRoots
+    return [[_folderSession.searchRoots
+            arrayByAddingObjectsFromArray:SearchFolderStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
-    return sessionRoot ? [@[sessionRoot] arrayByAddingObjectsFromArray:persistent] : persistent;
 }
 
 - (void)openSearchResultURL:(NSURL *)url {
@@ -685,6 +706,42 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
     // After the park or the play, so a waiter finds a track to drive.
     [self settleLaunchOpen];
+}
+
+// iOS has no remove UI, so a double Add would be permanent: files already in
+// the playlist are skipped, by standardized path like the selectedURL match
+// above — Playlist's own URL index is NSURL isEqual:, which a picker URL and a
+// listing URL of the same file need not satisfy. A shell decision; the model
+// keeps allowing duplicates for the mac.
+- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<NSURL *> *)urls {
+    NSMutableSet<NSString *> *present = [NSMutableSet set];
+    for (AudioTrack *track in _playlist.tracks) {
+        [present addObject:track.url.URLByStandardizingPath.path];
+    }
+    NSMutableArray<NSURL *> *fresh = [NSMutableArray array];
+    for (NSURL *url in urls) {
+        NSString *path = url.URLByStandardizingPath.path;
+        // One delivery already names each file once (FolderSession); the insert
+        // keeps this loop correct on its own terms rather than on that promise.
+        if (![present containsObject:path]) {
+            [present addObject:path];
+            [fresh addObject:url];
+        }
+    }
+    if (fresh.count == 0) {
+        return;                              // nothing new: no event, no sweep restart
+    }
+    [_playlist appendURLs:fresh];
+    // The mac's re-queue; already-parsed tracks are skipped when it fires. No
+    // cancelScan — that belongs to a replacement.
+    [self scheduleDeferredMetadataLoad];
+    [self updateMetadataNeighborhood];
+    // A playing last row now has a successor: this arms the auto-advance into
+    // the addition.
+    [self prefetchSuccessor];
+    // Publishes Now Playing (hasNext may have flipped) and then ticks; the 3 Hz
+    // timer is off while parked or paused.
+    [self notifyDidTick];
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {

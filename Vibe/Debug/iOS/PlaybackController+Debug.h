@@ -31,6 +31,7 @@
 @property (nonatomic, readonly) BOOL debugWidgetPlaced;
 
 - (void)debugOpenPath:(NSString *)path;
+- (void)debugAppendPath:(NSString *)path;
 
 @end
 

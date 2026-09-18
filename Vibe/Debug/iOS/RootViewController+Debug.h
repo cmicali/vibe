@@ -23,6 +23,7 @@
 
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
+@class FavoriteFolder;
 @class PlaybackController;
 @class PlayerViewController;
 
@@ -50,6 +51,12 @@
 // synthesize the tap — the same reason expand_player and select_tab exist.
 @interface LibraryViewController (DebugSurface)
 - (void)favoriteTapped;
+@end
+
+// A row's Add is the action's own method, so the resolve and the unavailable
+// alert are the ones a real tap gets — the same reason favoriteTapped is here.
+@interface FavoritesViewController (DebugSurface)
+- (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending;
 @end
 
 // The search field takes KEYSTROKES, which the channel cannot synthesize and
@@ -91,9 +98,11 @@
 // asynchronously because the bookmark has to be minted off main. Returns NO
 // when there is no Playlist tab yet or no open folder to star.
 - (BOOL)debugTapFavoriteStar;
-// Exactly what tapping a favorite row does, resolve and alert included. NO
-// means the Favorites tab was never visited, or the index is past the list.
-- (BOOL)debugTapFavoriteAtIndex:(NSUInteger)index;
+// Exactly what a favorite row's tap and its Add action do, resolve and alert
+// included — appending picks which. By the store's own list, which is what
+// dump_favorites indexes; the screen's copy of it can lag a notification turn.
+// NO means the Favorites tab was never visited, or the index is past the list.
+- (BOOL)debugOpenFavoriteAtIndex:(NSUInteger)index appending:(BOOL)appending;
 // Runs a query through the search screen and reports both sections as it draws
 // them. The files half is asynchronous, so this settles on the table rather
 // than on the keystroke; NO means the Search tab was never visited.
@@ -107,6 +116,7 @@
 // only way to see the off-device renderings, which the simulator never reports.
 - (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name;
 - (void)debugOpenPath:(NSString *)path;
+- (void)debugAppendPath:(NSString *)path;
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;
 

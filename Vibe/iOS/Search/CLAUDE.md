@@ -6,7 +6,7 @@ The shell is `../CLAUDE.md`.
 
 **There is no public API that searches the Files app** — no search hook on the picker or browser, and `NSFileProviderSearchQuery` is the extension's side. The app can only walk trees it holds, so scope is granted folder by folder.
 
-**`PlaybackController.searchRoots` composes the scope, and nothing else does.** Transient: `FolderSession.searchRoot`, the open folder, whose grant covers the subtree the flat listing never reaches — gone at the next open. Persistent: `SearchFolderStore.searchRoots` (the Settings list plus the app's own Documents directory, which needs no grant) and `FavoritesStore`'s resolved bookmarks. `FileSearchIndex` prunes nested and duplicate roots.
+**`PlaybackController.searchRoots` composes the scope, and nothing else does.** Transient: `FolderSession.searchRoots` — the base folder and every folder an Add brought in — whose grants cover the subtrees the flat listing never reaches, gone at the next open. A single added FILE is a scope, not a root, so it never appears here. Persistent: `SearchFolderStore.searchRoots` (the Settings list plus the app's own Documents directory, which needs no grant) and `FavoritesStore`'s resolved bookmarks. `FileSearchIndex` prunes nested and duplicate roots.
 
 ## SearchViewController
 
@@ -44,7 +44,9 @@ The folders the user handed the app to search: persisted security-scoped bookmar
 
 ## FavoritesStore and FavoritesViewController
 
-Starred folders, name over containing folder. **Tapping a row is a pick**: the store resolves the bookmark off main and hands the URL to `openExternalURL:openInPlace:YES`, which is `FolderSession.adoptURL:`. Nothing about opening is reimplemented.
+Starred folders, name over containing folder. **Tapping a row is a pick**: the store resolves the bookmark off main and hands the URL to `openURLs:openInPlace:YES`, which is `FolderSession`'s open prologue. Nothing about opening is reimplemented.
+
+**A row's secondary actions are Add to Playlist and Remove from Favorites**, and both are reached twice, since Apple's guidance is that a context menu is never the only road to an action: a long press gives Play / Add to Playlist / Remove from Favorites, a **leading** swipe gives Add, and the trailing swipe stays the legacy system Delete (`canEditRowAtIndexPath:` plus `commitEditingStyle:`, which UIKit draws and localizes itself — implementing a trailing configuration would take that over). **Every one of them goes through `openFavorite:appending:`**, so an Add resolves the bookmark, deselects and alerts on an unreachable folder exactly as a tap does; only the `appending:` flag differs. Remove acts on the favorite's own path, never the row index, because the list can move while the menu is up.
 
 **A favorite is a place to go, not a grant to hold**, which is why this store is smaller than `SearchFolderStore`:
 

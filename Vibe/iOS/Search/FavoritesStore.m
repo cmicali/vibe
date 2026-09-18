@@ -333,7 +333,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 
 // Unlike SearchFolderStore's, this scope needs no refcounted grant handed to
 // the playlist, because FolderSession never reads on the strength of it: a
-// favorite tapped on its own tab goes through adoptURL:, and a search hit
+// favorite tapped on its own tab goes through the open prologue, and a search hit
 // inside one goes through openFileFromSearchRoots:, which asks
 // resolvedRootCoveringURL: and then takes a hold of its OWN. Both own their
 // readability, so dropping this one cannot leave a playlist unreadable.

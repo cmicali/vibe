@@ -556,11 +556,16 @@ static inline NSString *VibeAppName(void) {
 #define STR_LABEL_FAVORITES_EMPTY_MESSAGE NSLS(@"label.favorites.empty.message", @"Star a folder you have open to keep it here.", @"iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.")
 #define STR_ERROR_FAVORITE_UNAVAILABLE    NSLS(@"error.favorite.unavailable",    @"This folder can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out.", @"iOS: alert message shown when tapping a favorite whose folder could not be found. The alert’s title is the folder’s name. Uses a curly apostrophe (’).")
 
+#define STR_MENU_CONTEXT_PLAY            NSLS(@"menu.context.play",            @"Play",                  @"iOS: long-press menu item on a Favorites row. Opens the starred folder as the playlist and starts playing it, replacing whatever was queued — the same as tapping the row.")
+#define STR_MENU_CONTEXT_ADD_TO_PLAYLIST NSLS(@"menu.context.add_to_playlist", @"Add to Playlist",       @"iOS: long-press menu item and swipe action on a Favorites row, and the long-press action on a file or folder in the Files tab. Adds that item's tracks to the end of the playlist without interrupting what is playing.")
+#define STR_MENU_CONTEXT_REMOVE_FAVORITE NSLS(@"menu.context.remove_favorite", @"Remove from Favorites", @"iOS: destructive long-press menu item on a Favorites row; takes the folder off the Favorites tab. Same wording as the playlist screen's star button label.")
+
 #define STR_A11Y_MINIPLAYER_EXPAND NSLS(@"a11y.miniplayer.expand", @"Now Playing",  @"iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.")
 #define STR_A11Y_PLAYER_MINIMIZE   NSLS(@"a11y.player.minimize",   @"Minimize",     @"iOS: accessibility label for the full-screen player's grabber, which returns it to the mini player strip.")
 #define STR_A11Y_PLAYER_OUTPUT_ROUTE NSLS(@"a11y.player.output_route", @"Output Device", @"iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.")
 #define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
 #define STR_A11Y_REMOVE_FAVORITE   NSLS(@"a11y.favorite.remove",   @"Remove from Favorites", @"iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.")
+#define STR_A11Y_FILES_ADD_TO_PLAYLIST NSLS(@"a11y.files.add_to_playlist", @"Add to Playlist", @"iOS: accessibility label for the button on the Files tab's bar that opens the system picker to choose files or folders to add to the end of the playlist without interrupting playback.")
 
 
 #pragma mark - macOS settings clarity

@@ -48,7 +48,7 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // Every root that is searchable no matter what is open: folderURLs plus the
 // app's own Documents directory, which is what the Files app shows as "On My
 // iPhone -> Vibe" and needs no grant at all. The transient half of the scope is
-// FolderSession.searchRoot, and PlaybackController.searchRoots composes them.
+// FolderSession.searchRoots, and PlaybackController.searchRoots composes them.
 //
 // Documents is deliberately here rather than beside the session's root: it is a
 // permanent fact about the app, and coverage — what addFolderURL: refuses as

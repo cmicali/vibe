@@ -63,7 +63,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 
 ```bash
 "$V" --debug-cmd open ~/Music/album  # {ok, opening} — file or dir through the direct expand/filter/replace path, bypassing the AppDelegate funnel; poll dump_state
-"$V" --debug-cmd append ~/Music/track.flac  # {ok, appending} — the real deliberate-open funnel with appending:YES, then addURLs:; poll dump_state
+"$V" --debug-cmd append ~/Music/track.flac  # {ok, appending} — a common verb, defined once for both shells; on the mac it enters the real deliberate-open funnel with appending:YES, then addURLs:. Poll dump_state
 "$V" --debug-cmd file_drag_hover 520 275   # {ok, well} — synthetic external-file drag-over at a window point, through the real FileDropDelegate. Direct delegate calls, with no mouse events or native drag session. well = replace|add|none
 "$V" --debug-cmd file_drag_drop 520 275 ~/Music/track.wav  # {ok, dropping, well} — completes the drag: delivers the drop at that point (none→replace), tears the drag-over UI down. ABSOLUTE path; same sandbox caveat as open
 "$V" --debug-cmd file_drag_end       # {ok} — the drag left without a drop

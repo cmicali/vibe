@@ -2,10 +2,11 @@
 //  FolderSession.h
 //  Vibe (iOS)
 //
-//  Owns exactly one picked location: the document picker, the
-//  security-scoped access to its result, the bookmark that restores it on
-//  relaunch, and the directory-as-playlist listing. The player screen feeds
-//  the resulting URL list into Playlist; this class never touches playback.
+//  Owns the picked locations of the current playlist — one base folder or file
+//  plus any additions: the document picker, the security-scoped access to each
+//  result, the bookmarks that restore them on relaunch, and the
+//  directory-as-playlist listing. The player screen feeds the resulting URL
+//  list into Playlist; this class never touches playback.
 //
 
 #import <UIKit/UIKit.h>
@@ -28,6 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
           selectedURL:(nullable NSURL *)selectedURL
              restored:(BOOL)restored;
 
+// An Add landed: urls (never empty, already in playlist order) go on the end
+// of the current playlist. Nothing about the base — folder, star, bookmark —
+// changed, and nothing plays. May carry URLs the playlist already holds; the
+// controller decides what to do with those.
+- (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<NSURL *> *)urls;
+
 // The picked location held no audio files.
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session;
 
@@ -42,32 +49,47 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<FolderSessionDelegate> delegate;
 
-// The current folder's display name, or nil before anything was opened (or
-// after a single-file open).
+// The base folder's display name, or nil before anything was opened (or after
+// a single-file open).
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
 
-// The open folder, or nil — a single-file playlist has none. The same URL
-// searchRoot reports, named for what it is at the call sites that are not
-// about search.
+// The BASE folder — the Playlist tab's title, the star, the bookmark — or nil:
+// a single-file playlist has none. An Add never moves it, so a single-file
+// base with an appended folder keeps the title "Playlist" and no star: the
+// star bookmarks the playlist's identity, and a single file has none.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
 
-// This session's contribution to the search scope: the open folder, or nil. A
-// folder grant covers the WHOLE subtree, so its subfolders are searchable even
-// though the directory-as-playlist listing is flat.
+// This session's contribution to the search scope: the base folder, if any,
+// then every added folder. A folder grant covers the WHOLE subtree, so its
+// subfolders are searchable even though the directory-as-playlist listing is
+// flat. Files never appear here — a single-file pick is a scope, not a root.
 //
-// TRANSIENT, unlike the roots SearchFolderStore holds — it is gone at the next
-// open. That is why adding a folder inside it in Settings is not redundant, and
-// so why coverage there is tested against the persistent roots and never
-// against this one. PlaybackController.searchRoots composes the two.
-@property (nonatomic, readonly, nullable) NSURL *searchRoot;
+// TRANSIENT, unlike the roots SearchFolderStore holds — they are gone at the
+// next open. That is why adding a folder inside one in Settings is not
+// redundant, and so why coverage there is tested against the persistent roots
+// and never against these. PlaybackController.searchRoots composes the two.
+@property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
-// Presents the system document picker (folders + the declared audio types,
-// in place, single selection).
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
+// Presents the system document picker (folders + the declared audio types, in
+// place). appending decides both what the pick does and what it may pick: NO
+// is the empty state's Open — one folder or file, replacing the playlist — and
+// YES is the Files tab's Add button, which takes several items at once and
+// lands through the same prologue an Add from anywhere else does.
+- (void)presentPickerFromViewController:(UIViewController *)presenter
+                              appending:(BOOL)appending;
 
-// Adopts a URL delivered from outside the picker ("Open in Vibe" from Files
-// or the share sheet). openInPlace mirrors UIOpenURLContext.options.
-- (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
+// Opens URLs delivered from outside the picker ("Open in Vibe" from Files or
+// the share sheet, the Files tab's browser, a favorite). N URLs in pick order
+// — the browser's multi-select Open; one is the common case. openInPlace
+// mirrors UIOpenURLContext.options: NO means a copy in the inbox, readable
+// without a scope, never bookmarked, and one track whatever it sits beside.
+- (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
+
+// Appends the tracks of each URL — a folder's listing, or a file as one track,
+// never a file's directory — to the current playlist. Onto a session that has
+// never landed a playlist this IS an open: it plays and presents, which is the
+// mac's addURLs: empty-playlist rule, owned here.
+- (void)addURLs:(NSArray<NSURL *> *)urls;
 
 // A file found under one of searchRoots, so already covered by a grant in hand.
 // Expands to its OWN directory as the playlist with it selected, exactly as
@@ -79,22 +101,23 @@ NS_ASSUME_NONNULL_BEGIN
 // root to it.
 - (void)openFileFromSearchRoots:(NSURL *)url;
 
-// Kicks off resolving the persisted bookmark; the folder re-delivers through
-// the delegate with restored:YES. NO means nothing was persisted and no
-// attempt starts. YES means an attempt is in flight — resolution and the
-// directory listing are provider I/O and run off the main thread, so the
-// outcome arrives later: folderSession:didOpenTracks:… on success,
-// folderSessionRestoreDidFail: otherwise. All delegate calls land on main.
+// Kicks off resolving the persisted bookmarks — the base and every addition;
+// the union re-delivers through the delegate with restored:YES. NO means
+// nothing was persisted and no attempt starts. YES means an attempt is in
+// flight — resolution and the directory listings are provider I/O and run off
+// the main thread, so the outcome arrives later: folderSession:didOpenTracks:…
+// on success, folderSessionRestoreDidFail: otherwise. All delegate calls land
+// on main.
 - (BOOL)restorePersistedFolder;
 
-// Mints a fresh bookmark for the open folder so something outside this session
+// Mints a fresh bookmark for the base folder so something outside this session
 // can reopen it later — Favorites is the only caller. The mint runs off main
-// under a temporary hold on the live scope, the same hold every adoption takes,
+// under a temporary hold on the live scope, the same hold every open takes,
 // because minting needs that scope OPEN and an open landing meanwhile releases
-// it. completion lands on main; both arguments are nil when there is no open
+// it. completion lands on main; both arguments are nil when there is no base
 // folder or the mint failed.
 //
-// It carries no openIntentGeneration, unlike an adoption: it changes no session
+// It carries no openIntentGeneration, unlike an open: it changes no session
 // state, and the user starred the folder that was open when they asked — a
 // newer open landing first does not retract that.
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,

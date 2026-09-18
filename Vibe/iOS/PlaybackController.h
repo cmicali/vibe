@@ -178,7 +178,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Opening
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter;
+// The system document picker. appending:NO is the empty state's Open, which
+// replaces the playlist with one pick; appending:YES is the Files tab's Add
+// button, which takes several files or folders and lands in addURLs:.
+- (void)presentPickerFromViewController:(UIViewController *)presenter
+                              appending:(BOOL)appending;
 
 // "Open in Vibe" from Files or the share sheet, forwarded by the scene
 // delegate.
@@ -194,11 +198,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)performWhenLaunchOpenSettled:(void (^)(void))block
         NS_SWIFT_NAME(performWhenLaunchOpenSettled(_:));
 
-// One URL adopted from outside the picker: the Files tab's browser, a share
-// sheet, or a favorite whose bookmark just resolved. openInPlace mirrors
-// UIOpenURLContext.options — YES means the real file, so the security scope
-// covers the folder it came from and the usual expand-to-directory applies.
-- (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
+// URLs adopted from outside the picker: the Files tab's browser, a share
+// sheet, or a favorite whose bookmark just resolved. In pick order; one is the
+// common case. openInPlace mirrors UIOpenURLContext.options — YES means the
+// real files, so the security scopes cover the folders they came from and the
+// usual expand-to-directory applies.
+- (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
+
+// Appends without touching playback, the tab or the card: the Files tab's Add
+// action and a Favorites row's. Lands in folderSession:didAppendTracks:, the
+// iOS twin of the mac's MainPlayerController.addURLs:. The empty-playlist case
+// is FolderSession's: an Add onto nothing is an Open.
+- (void)addURLs:(NSArray<NSURL *> *)urls;
 
 // The open folder, or nil for a single-file playlist and before anything was
 // opened. The Playlist tab's star draws from it: there is nothing to favorite
@@ -213,11 +224,12 @@ NS_ASSUME_NONNULL_BEGIN
                                                    NSData *_Nullable bookmark))completion;
 
 // The file trees the search screen may walk, composed in one place: the
-// session's transient root (FolderSession.searchRoot — the open folder) plus the
-// persistent ones (SearchFolderStore.searchRoots — the folders the user added in
-// Settings, and the app's own Documents directory — and FavoritesStore.searchRoots,
-// the starred folders, once that store has resolved them). Nesting among them is
-// FileSearchIndex's to prune, so a folder both starred and added is walked once.
+// session's transient roots (FolderSession.searchRoots — the base folder and
+// every added folder) plus the persistent ones (SearchFolderStore.searchRoots —
+// the folders the user added in Settings, and the app's own Documents
+// directory — and FavoritesStore.searchRoots, the starred folders, once that
+// store has resolved them). Nesting among them is FileSearchIndex's to prune,
+// so a folder both starred and added is walked once.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // A file the search screen found under one of searchRoots. Its own directory

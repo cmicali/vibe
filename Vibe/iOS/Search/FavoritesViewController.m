@@ -113,20 +113,88 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     }
 }
 
+// Apple's guidance is that a context menu is never the only road to an action,
+// so Add gets this swipe as well. Leading only: the trailing side stays the
+// legacy Delete above, which UIKit draws and localizes itself.
+- (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
+        leadingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
+    FavoriteFolder *favorite = _favorites[(NSUInteger)indexPath.row];
+    __weak FavoritesViewController *weakSelf = self;
+    UIContextualAction *add = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleNormal
+                                title:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
+                              handler:^(UIContextualAction *action, UIView *source,
+                                        void (^completion)(BOOL)) {
+        [weakSelf openFavorite:favorite appending:YES];
+        completion(YES);
+    }];
+    add.image = [UIImage systemImageNamed:@"text.badge.plus"];
+    add.backgroundColor = self.view.tintColor;
+    UISwipeActionsConfiguration *config =
+            [UISwipeActionsConfiguration configurationWithActions:@[add]];
+    config.performsFirstActionWithFullSwipe = YES;
+    return config;
+}
+
+- (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
+        contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
+                                            point:(CGPoint)point {
+    FavoriteFolder *favorite = _favorites[(NSUInteger)indexPath.row];
+    __weak FavoritesViewController *weakSelf = self;
+    return [UIContextMenuConfiguration configurationWithIdentifier:nil
+                                                   previewProvider:nil
+                                                    actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
+        UIAction *play = [UIAction actionWithTitle:STR_MENU_CONTEXT_PLAY
+                                             image:[UIImage systemImageNamed:@"play.fill"]
+                                        identifier:nil
+                                           handler:^(UIAction *action) {
+            [weakSelf openFavorite:favorite appending:NO];
+        }];
+        UIAction *add = [UIAction actionWithTitle:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
+                                            image:[UIImage systemImageNamed:@"text.badge.plus"]
+                                       identifier:nil
+                                          handler:^(UIAction *action) {
+            [weakSelf openFavorite:favorite appending:YES];
+        }];
+        UIAction *remove = [UIAction actionWithTitle:STR_MENU_CONTEXT_REMOVE_FAVORITE
+                                               image:[UIImage systemImageNamed:@"star.slash"]
+                                          identifier:nil
+                                             handler:^(UIAction *action) {
+            // By the favorite's own path, not the row index: the list can move
+            // while the menu is up.
+            [FavoritesStore.shared removeFolderURL:[NSURL fileURLWithPath:favorite.path]];
+        }];
+        remove.attributes = UIMenuElementAttributesDestructive;
+        UIMenu *destructive = [UIMenu menuWithTitle:@""
+                                              image:nil
+                                         identifier:nil
+                                            options:UIMenuOptionsDisplayInline
+                                           children:@[remove]];
+        return [UIMenu menuWithTitle:@"" children:@[play, add, destructive]];
+    }];
+}
+
 #pragma mark - Opening
 
 // The row stays selected while the bookmark resolves — on a file provider that
 // is IPC and can take a beat, and the highlight is the only thing saying the
 // tap landed.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    FavoriteFolder *favorite = _favorites[(NSUInteger)indexPath.row];
+    [self openFavorite:_favorites[(NSUInteger)indexPath.row] appending:NO];
+}
+
+// The one opening path: the tap and every row action take it, so the resolve
+// and the unreachable-folder alert are the same for all of them.
+- (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
-        [weakSelf finishOpeningFavorite:favorite folderURL:folderURL];
+        [weakSelf finishOpeningFavorite:favorite folderURL:folderURL appending:appending];
     }];
 }
 
-- (void)finishOpeningFavorite:(FavoriteFolder *)favorite folderURL:(NSURL *)folderURL {
+- (void)finishOpeningFavorite:(FavoriteFolder *)favorite
+                    folderURL:(NSURL *)folderURL
+                    appending:(BOOL)appending {
     for (NSIndexPath *path in self.tableView.indexPathsForSelectedRows) {
         [self.tableView deselectRowAtIndexPath:path animated:YES];
     }
@@ -134,9 +202,14 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         [self showUnavailableAlertForFavorite:favorite];
         return;
     }
-    // openInPlace:YES — the real folder, so this lands in FolderSession's
-    // adoptURL: exactly where the document picker's own delegate does.
-    [_playback openExternalURL:folderURL openInPlace:YES];
+    // openInPlace:YES — the real folder, so this lands in FolderSession's open
+    // prologue exactly where the document picker's own delegate does.
+    if (appending) {
+        [_playback addURLs:@[folderURL]];
+    }
+    else {
+        [_playback openURLs:@[folderURL] openInPlace:YES];
+    }
 }
 
 // The row is deliberately left in place. A provider signed out or a volume not

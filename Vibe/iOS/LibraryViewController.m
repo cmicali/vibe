@@ -209,7 +209,7 @@ static const CGFloat kArtTextGap = 14;
 }
 
 - (void)openTapped {
-    [_playback presentPickerFromViewController:self];
+    [_playback presentPickerFromViewController:self appending:NO];
 }
 
 // Pushed rather than presented: the mini strip and the tabs stay up, and the

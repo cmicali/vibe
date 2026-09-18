@@ -63,6 +63,17 @@
     }];
 }
 
+- (void)debugAppendPath:(NSString *)path {
+    // Enters the actual deliberate-open funnel. The shared `open` verb
+    // intentionally bypasses it so it can serve both shells.
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    if (![delegate isKindOfClass:AppDelegate.class]) {
+        LogWarn(@"debugAppendPath: the app delegate is not ready");
+        return;
+    }
+    [delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:YES];
+}
+
 - (AudioTrackMetadataCache *)debugMetadataCache {
     return self.metadataCache;
 }

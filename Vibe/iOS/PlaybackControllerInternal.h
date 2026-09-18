@@ -113,6 +113,14 @@ NS_ASSUME_NONNULL_BEGIN
 // splice past a track end the setting says to park on (root CLAUDE.md).
 - (nullable AudioTrack *)successorPrefetchTrack;
 
+#pragma mark - Transport follow-ups
+
+// Re-parks the player's successor handle on whatever successorPrefetchTrack
+// answers, or drops it. Called from the append landing, whose addition may
+// have given a playing last row a successor. It decides WHETHER to re-arm;
+// successorPrefetchTrack decides WHAT to arm.
+- (void)prefetchSuccessor;
+
 #pragma mark - The deferred metadata sweep
 
 // Starts the playlist-wide sweep if one is still pending. The player-event
