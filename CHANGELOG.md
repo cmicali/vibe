@@ -1,13 +1,19 @@
 # v1.12 (unreleased)
 
-* mac: Added new waveform style: Wiggle
-* mac: Added bit-perfect playback and exclusive mode for audio output devices  
+* mac: Added bit-perfect playback and exclusive mode for audio output devices
 * mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file
 * mac: Added Settings > General > Load last playlist on launch
-* mac: Added more theme customizations, including customizing transport controls and app icon
-* mac: Settings UI improvements, including new audio output device picker
-* mac: Reduced the download by a quarter (15.0 MB to 11.2 MB)
+* mac: Added more theme customizations, including customizing transport controls, app icon, and more
+* mac: Added Glassy theme, theme editor undo, and randomize buttons for theme settings and colors
+* mac: Settings UI improved, including new audio device picker
+* mac: Enabling audio effects no longer requires restarting the app
+* ios: Improved playlist handling, including add to playlist
+* ios: Added small and medium size widgets
+* Added new waveform styles (Wiggle and Wiggle MC)
+* Improved waveform normalize to only boost quiet tracks
+* Improved performance of large folder loads and window resizing
 * Fixed audio now unchanged when low-cut FX is disabled (was slightly colored before)
+* Fixed Dock album art not updating after switching themes
 
 # v1.11
 
