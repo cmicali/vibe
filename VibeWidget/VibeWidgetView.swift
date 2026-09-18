@@ -28,19 +28,17 @@ private let kCornerRadius: CGFloat = 8
 private let kMediumHeaderHeight: CGFloat = 54
 // Small: MEASURED off Spotify's small widget in the reference screenshot, on a
 // 170pt tile — artwork 67pt at a 16pt inset, title and artist both ~22pt (bold
-// and regular), ~17pt from artwork to title. The artwork side is a CAP, not a
-// floor: it is Spotify's size on the device the reference came from, and gives
-// way only on a tile too short to hold it plus the two text lines.
+// and regular), ~17pt from artwork to title.
 private let kSmallPadding: CGFloat = 16
 private let kSmallArtworkSide: CGFloat = 67
-private let kSmallArtworkMin: CGFloat = 52
-// The play/pause disc, measured off Spotify's at 39pt, and the width it
-// reserves beside the artwork so the two can never touch.
+// The play/pause disc, measured off Spotify's at 39pt.
 private let kSmallPlayDiameter: CGFloat = 39
-private let kSmallTransportWidth: CGFloat = kSmallPlayDiameter + 16
-private let kSmallTextSize: CGFloat = 22
-private let kSmallTextHeight: CGFloat = 53       // two ~22pt lines plus their 1pt spacing
 private let kSmallMinGap: CGFloat = 4
+// That measured type size, and not the small family's alone: BOTH families set
+// both their lines at it, so a track reads identically in either tile. At 1pt
+// spacing the pair needs ~53pt, which is what keeps it inside the medium
+// header's 54 — widen that spacing and the artist loses its descenders.
+private let kTextSize: CGFloat = 22
 
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
@@ -93,9 +91,9 @@ struct VibeWidgetView: View {
     private var mediumHeader: some View {
         HStack(spacing: 10) {
             artworkTile(side: kMediumHeaderHeight)
-            VStack(alignment: .leading, spacing: 2) {
-                titleText(size: 20)
-                artistText(size: 15)
+            VStack(alignment: .leading, spacing: 1) {
+                titleText(size: kTextSize, weight: .bold)
+                artistText(size: kTextSize)
             }
             .frame(maxHeight: .infinity, alignment: .center)
             Spacer(minLength: 4)
@@ -116,12 +114,8 @@ struct VibeWidgetView: View {
     // reference's. No next button here: a second control squeezed the artwork
     // on every tile but the largest.
     //
-    // The artwork is a fixed 67pt — Spotify's — except where a tile cannot hold
-    // that and the two text lines, when it gives way rather than the text. It
-    // is boxed in on two sides: the disc caps its WIDTH and the text block caps
-    // its HEIGHT, and which binds depends on the tile, so both are checked. The
-    // leftover height goes between artwork and title, which on a 170pt tile
-    // comes out at Spotify's ~17pt.
+    // The artwork is a fixed 67pt — Spotify's — and the leftover height goes
+    // between it and the title, which on a 170pt tile comes out at ~17pt.
     //
     // TRAP: this family insets THREE sides, and the text carries the fourth.
     // Padding the trailing side here too would end the artwork row 16pt short
@@ -143,8 +137,8 @@ struct VibeWidgetView: View {
             .frame(height: kSmallArtworkSide)
             Spacer(minLength: kSmallMinGap)
             VStack(alignment: .leading, spacing: 1) {
-                titleText(size: kSmallTextSize, weight: .bold)
-                artistText(size: kSmallTextSize)
+                titleText(size: kTextSize, weight: .bold)
+                artistText(size: kTextSize)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, kSmallPadding)   // the side body does not inset
