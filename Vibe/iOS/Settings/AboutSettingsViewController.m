@@ -42,26 +42,24 @@ static const CGFloat kHeaderBottomPadding = 12;
 
 static NSString *const kValueCellIdentifier = @"value";
 
-// The app icon, for the header. UIKit has no NSApp.applicationIconImage, so
-// there are two ways to it and the order matters:
+// The app icon, for the header. UIKit has no NSApp.applicationIconImage, and
+// the asset catalog cannot supply one: Resources/AppIcon.icon is an Icon
+// Composer package, so ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS puts
+// "AppIcon" in the catalog as a layered IconImageStack with no flat rendition.
+// The composed 1024px renditions are in there, but only private API reaches
+// them.
 //
-//   1. the asset catalog's own "AppIcon", which is only addressable by name
-//      because ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS is on
-//      (project.yml). This is the 1024pt rendition, and it carries the light,
-//      dark and tintable variants, so it also tracks the appearance.
-//   2. the loose PNG actool writes beside the executable, named by the
-//      bundle's CFBundleIcons declaration.
+// TRAP: [UIImage imageNamed:@"AppIcon"] does not return nil for that stack —
+// it THROWS out of _UIImageCGImageContent, so a nil-check fallback never runs
+// and this screen aborted on every open.
 //
-// The fallback is worth keeping even though (1) works today: it is one build
-// setting away from vanishing, and it is 120px against a header drawn at 88pt,
-// which is the difference between a crisp icon and a visibly soft one. Nil is a
-// real outcome — the header drops the image rather than drawing a placeholder
-// that would itself read as the icon failing to load.
+// What is left is the loose PNG actool writes beside the executable, named by
+// the bundle's CFBundleIcons declaration. It is 120px against a header drawn
+// at 88pt, so it is soft on a 3x phone; a crisper one means shipping a second
+// copy of the artwork, which nothing regenerates from the .icon. Nil is a real
+// outcome — the header drops the image rather than drawing a placeholder that
+// would itself read as the icon failing to load.
 static UIImage *AppIconImage(void) {
-    UIImage *catalogIcon = [UIImage imageNamed:@"AppIcon"];
-    if (catalogIcon) {
-        return catalogIcon;
-    }
     NSDictionary *icons = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleIcons"];
     NSDictionary *primary = icons[@"CFBundlePrimaryIcon"];
     NSArray<NSString *> *files = primary[@"CFBundleIconFiles"];

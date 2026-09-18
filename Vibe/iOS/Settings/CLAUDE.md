@@ -12,4 +12,6 @@ The screens behind the Playlist tab's gear, **pushed onto that navigation stack 
 
 **TRAP: a table header view is positioned by autoresizing, not constraints**, so it keeps whatever height it was given. The About screen sizes its identity block in `viewDidLayoutSubviews` and re-assigns `tableHeaderView` only on a real size change, since assigning re-enters layout.
 
+**TRAP: the app icon is not reachable through the asset catalog.** `Resources/AppIcon.icon` is an Icon Composer package, so `AppIcon` is a layered stack there and `[UIImage imageNamed:@"AppIcon"]` *throws* rather than returning nil. The About header takes the loose PNG named by `CFBundleIcons`, and accepts that it is 120px.
+
 **The `AppStats` counters are fed from the shell, not from here**: `FolderSession.finishOpenIntent` records opens, skipping `restored` or every cold start would add a folder, and `PlaybackController+PlayerEvents` brackets the listening clock. The About screen only reads.
