@@ -162,8 +162,8 @@ static const double kWaveformGainDetentDB = 0.75;
     _listSections = @[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_CURRENT rows:@[
             _currentThemeRow,
-            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             listRow,
