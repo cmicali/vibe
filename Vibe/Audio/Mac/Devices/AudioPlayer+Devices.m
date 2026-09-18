@@ -323,7 +323,14 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             [_engine stop];
             [self leaveOutputDeviceOnQueue];
         }
-        [self publishBitPerfectReportOnQueue];
+        // Reset may have cleared Settings before this failed bind. Reannounce
+        // the retained choice, unless a saved launch preference still owns it.
+        if (_pendingSavedDeviceUID.length || _pendingSavedDeviceName.length) {
+            [self publishBitPerfectReportOnQueue];
+        }
+        else {
+            [self notifyRequestedOutputDeviceOnQueue];
+        }
     }
     else if (!didBind && previousBitPerfect != _bitPerfectWanted) {
         // System Output commits even without a resolved device. Its mode
@@ -373,6 +380,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
     _segmentGeneration++;
     [self preemptRampsOnQueue];
+    if (_bitPerfectWanted) {
+        [self preemptRetiredFadesOnQueue]; // the mode may land during an incoming open
+    }
     [self setGaplessQueuedOnQueue:NO]; // the queued segment dies with the old node
 
     // Unpublish the node before detaching it: the position getter uses its

@@ -181,7 +181,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
-    BOOL eligible = device && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
     BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
     // TRAP: until the bind settles, mode writes still name the old saved UID.
@@ -199,7 +199,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }
     BOOL captionChanged = [_bitPerfectRow setCaption:caption];
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    BOOL exclusiveEligible = device && VibeBitPerfectShouldHog(YES, device.transportType,
+    BOOL exclusiveEligible = eligible && VibeBitPerfectShouldHog(YES, device.transportType,
             device.isSystemDefault);
     BOOL exclusiveSupported = exclusiveEligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
