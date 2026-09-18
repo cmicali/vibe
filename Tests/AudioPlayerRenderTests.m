@@ -3,6 +3,7 @@
 #import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
+#import "AudioPlayerInternal.h"
 #import "AudioFX.h"
 #import "CoreAudioUtil.h"
 #import "VibeManualRenderPump.h"
@@ -605,25 +606,34 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     }
 }
 
-- (void)testFailedDeviceSwitchRestoresBitPerfectGraph {
+- (void)testFailedDeviceSwitchReconcilesOutputGraph {
     AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
         return @[];
     } retryScheduler:nil];
     // Replace only the device I/O boundaries; the real rebuild and PCM path run.
+    __block BOOL defaultReadSucceeds = NO;
     Method methods[] = {
         class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
         class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
         class_getInstanceMethod(AudioPlayer.class, @selector(setOutputUnitDevice:)),
     };
     IMP replacements[] = {
         imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
         imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
+        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *device) {
+            *device = kAudioObjectUnknown;
+            return defaultReadSucceeds;
+        }),
         imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
     };
-    IMP originals[3];
-    for (NSUInteger i = 0; i < 3; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    IMP originals[4];
+    for (NSUInteger i = 0; i < 4; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
     @try {
+        for (NSString *failure in @[@"concrete", @"system-unreadable", @"system-missing"])
         for (NSString *state in @[@"stopped", @"paused", @"playing"]) {
+            BOOL systemOutput = ![failure isEqualToString:@"concrete"];
+            defaultReadSucceeds = [failure isEqualToString:@"system-missing"];
             [self startPlayerAt:44100 channels:2 fx:YES bitPerfect:YES automatic:NO];
             NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
             if (![state isEqualToString:@"stopped"]) {
@@ -631,29 +641,41 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
                 [self render:4096];
             }
             XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            if (systemOutput) {
+                [_player runSyncOnQueue:^{ self->_player.currentlyRequestedAudioDeviceId = 1; }];
+            }
             NSInteger requestedDevice = _player.currentlyRequestedAudioDeviceId;
+            NSTimeInterval position = _player.position;
+            AudioTrack *track = _player.currentTrack;
             __block BOOL completed = NO;
             // An absent destination has no saved modes, as when a device
             // disappears after selection but before the queued bind.
-            [_player setOutputDevice:2 completion:^{ completed = YES; }];
+            [_player setOutputDevice:(systemOutput ? -1 : 2) completion:^{ completed = YES; }];
             [self settleUntil:^BOOL { return completed; }];
             XCTAssertNotNil(_playError);
-            XCTAssertTrue(_player.isStopped);
-            XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, requestedDevice);
-            XCTAssertTrue(_player.bitPerfectReport.enabled);
-            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, systemOutput ? -1 : requestedDevice);
+            XCTAssertEqual(_player.bitPerfectReport.enabled, !systemOutput);
+            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], systemOutput);
+            if (systemOutput && ![state isEqualToString:@"stopped"]) {
+                XCTAssertEqual(_player.currentTrack, track);
+                XCTAssertEqualWithAccuracy(_player.position, position, 1.0 / _rate);
+                XCTAssertEqual(_player.isPaused, defaultReadSucceeds || [state isEqualToString:@"paused"]);
+                XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            } else {
+                XCTAssertTrue(_player.isStopped);
+            }
             // Unchanged modes stay a no-op; replay must still render exact PCM.
-            [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+            [_player setBitPerfectOutput:!systemOutput exclusiveOutput:NO enableFX:YES];
             _playError = nil;
             [self play:url paused:NO position:0];
-            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
-            XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], systemOutput);
+            XCTAssertEqual([_player.debugEngineCounts[@"varispeed"] boolValue], systemOutput);
             [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
-                             skip:(NSUInteger)(_rate * 0.05) tolerance:0];
+                             skip:(NSUInteger)(_rate * 0.05) tolerance:(systemOutput ? 1e-10 : 0)];
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
-        for (NSUInteger i = 0; i < 3; i++) {
+        for (NSUInteger i = 0; i < 4; i++) {
             method_setImplementation(methods[i], originals[i]);
             imp_removeBlock(replacements[i]);
         }

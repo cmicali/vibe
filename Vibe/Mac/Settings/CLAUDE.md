@@ -28,7 +28,7 @@ Disabled controls use `SettingsRowView.setControl:enabled:` (one control) or `se
 
 **TRAP: `loadView` runs before `resolveLayoutStateFromSettings`, so a row that hides itself is first measured visible** and would hold every pane at that height. `paneContentDidChange` therefore remeasures **all** panes after each selected-pane refresh, in one transaction with the stack layout and the window frame. Remeasuring is the only way: an inequality against the stack leaves the stack under-determined, and the solver spends the slack stretching the top card.
 
-The selected pane calls `refreshFromSettings` on appearance, on regaining key, and after menu tracking ends. The sizing pass never calls it: Files probes folders and Advanced enumerates caches only while selected.
+The selected pane calls `refreshFromSettings` on appearance, on regaining key, and after menu tracking ends. `SettingsWindowController.refreshSelectedPane` also refreshes it after a settled device switch changes bit-perfect mode, because menu tracking can end before the bind settles; the debug channel uses the same refresh entry. The sizing pass never calls it: Files probes folders and Advanced enumerates caches only while selected.
 
 ## TRAP: the fitting-size snap, and the one resize path
 

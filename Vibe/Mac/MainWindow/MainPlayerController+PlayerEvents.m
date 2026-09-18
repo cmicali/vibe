@@ -345,10 +345,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     }
     // TRAP: a later switch may already be queued or bound. This callback may
     // refresh dependent controls, but must not send this device's modes back.
+    SettingsWindowController *settingsWindow = [(AppDelegate *)NSApp.delegate settingsWindowController];
     if (settings.bitPerfectOutput != bitPerfectBefore) {
         [self applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply updatingOutputModes:NO];
+        [settingsWindow refreshSelectedPane];
     }
-    [[(AppDelegate *)NSApp.delegate settingsWindowController].audioPane refreshOutputDevice];
+    [settingsWindow.audioPane refreshOutputDevice];
 }
 
 // The one edge the two report readouts redraw from: the header's lock glyph

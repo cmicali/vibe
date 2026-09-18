@@ -639,6 +639,16 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
 }
 
+- (void)refreshSelectedPane {
+    if (!self.window.isVisible) return;
+    NSInteger index = _tabs.selectedTabViewItemIndex;
+    if (index < 0 || index >= (NSInteger)_tabs.tabViewItems.count) return;
+    NSViewController *pane = _tabs.tabViewItems[(NSUInteger)index].viewController;
+    if ([pane isKindOfClass:SettingsPaneViewController.class]) {
+        [(SettingsPaneViewController *)pane refreshSettingsAndPaneSize];
+    }
+}
+
 - (BOOL)appearancePaneIsSelected {
     NSTabViewItem *item = [self appearanceTabItem];
     return item != nil

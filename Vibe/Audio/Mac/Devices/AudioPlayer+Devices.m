@@ -325,6 +325,12 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         }
         [self publishBitPerfectReportOnQueue];
     }
+    else if (!didBind && previousBitPerfect != _bitPerfectWanted) {
+        // System Output commits even without a resolved device. Its mode
+        // change must still restore the ordinary graph on the current binding.
+        [self configureOutputDeviceOnQueue:kAudioObjectUnknown];
+        [self publishBitPerfectReportOnQueue];
+    }
     return didBind;
 }
 

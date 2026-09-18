@@ -619,7 +619,7 @@ if acceptance || blackholeCheck {
         // NSWorkspace can report a finished launch before the channel listens.
         var ready = false
         while Date() < deadline && !ready {
-            ready = NSWorkspace.shared.runningApplications.contains { $0.executableURL?.path == binary && $0.isFinishedLaunching }
+            ready = NSWorkspace.shared.runningApplications.contains { $0.executableURL?.standardizedFileURL.resolvingSymlinksInPath().path == binary && $0.isFinishedLaunching }
                 && !debug(binary, ["dump_state"], required: false).isEmpty
             if !ready { pause(0.05) }
         }
@@ -1051,6 +1051,9 @@ if acceptance || blackholeCheck {
         }
         report(["case": "blackhole-aggregate-ineligible", "report": aggregateReport])
         _ = debug(binary, ["quiesce"])
+        // Removal retains per-device preferences; retire this test-only UID
+        // while it is still selected and its mode can be edited.
+        _ = debug(binary, ["set_bit_perfect", "off"])
         guard AudioHardwareDestroyAggregateDevice(aggregate) == noErr else { fail("aggregate destruction failed") }
         aggregate = 0
         waitFor("aggregate removed") { deviceNamed(aggregateName) == nil && player(binary)["requestedOutputDeviceId"] as? Int == -1 }
@@ -1106,7 +1109,7 @@ if acceptance || blackholeCheck {
         requireRestored(device, before, formatsBefore, label: "blackhole-lifecycle-baseline")
         _ = debug(binary, ["set_bit_perfect", "on"])
         _ = debug(binary, ["open", fixture("silence.wav")]); started(fixture("silence.wav"), active: true)
-        guard let process = NSWorkspace.shared.runningApplications.first(where: { $0.executableURL?.path == binary }) else {
+        guard let process = NSWorkspace.shared.runningApplications.first(where: { $0.executableURL?.standardizedFileURL.resolvingSymlinksInPath().path == binary }) else {
             fail("cannot identify the test app for crash recovery")
         }
         let crashedPID = process.processIdentifier
@@ -1133,7 +1136,7 @@ if acceptance || blackholeCheck {
     _ = debug(binary, ["open", second]); started(second, active: true)
     appQuit = true
     _ = debug(binary, ["quit"])
-    waitFor("app quit") { !NSWorkspace.shared.runningApplications.contains { $0.executableURL?.path == binary } }
+    waitFor("app quit") { !NSWorkspace.shared.runningApplications.contains { $0.executableURL?.standardizedFileURL.resolvingSymlinksInPath().path == binary } }
     requireRestored(device, before, formatsBefore, label: "quit-restoration")
     relaunch()
     let restored = cleanup()
