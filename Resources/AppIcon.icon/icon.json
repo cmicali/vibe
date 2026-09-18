@@ -23,7 +23,14 @@
           "glass" : true,
           "hidden" : false,
           "image-name" : "waveform.png",
-          "name" : "waveform"
+          "name" : "waveform",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              -12
+            ]
+          }
         }
       ],
       "lighting" : "combined",
@@ -59,9 +66,6 @@
     }
   ],
   "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
     "squares" : "shared"
   }
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Source of Resources/AppIcon.icon/Assets/waveform.png. Icon Composer recolours the
+     layer from its own solid fill, so only the alpha here matters. Render with:
+     rsvg-convert -w 1024 -h 1024 -b none Assets/waveform.svg -o Resources/AppIcon.icon/Assets/waveform.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" fill="#fff">
+  <rect x="122" y="482" width="44" height="84"  rx="22"/>
+  <rect x="211" y="421" width="44" height="206" rx="22"/>
+  <rect x="300" y="360" width="44" height="328" rx="22"/>
+  <rect x="395" y="299" width="44" height="450" rx="22"/>
+  <rect x="490" y="238" width="44" height="572" rx="22"/>
+  <g fill-opacity="0.5">
+    <rect x="585" y="376" width="44" height="296" rx="22"/>
+    <rect x="680" y="416" width="44" height="216" rx="22"/>
+    <rect x="769" y="474" width="44" height="100"  rx="22"/>
+    <rect x="858" y="483" width="44" height="82"  rx="22"/>
+  </g>
+</svg>
