@@ -72,12 +72,15 @@ struct VibeProvider: TimelineProvider {
 
     private func loadEntry(at date: Date) -> VibeEntry {
         guard let state = VibeWidgetState.load() else { return .empty }
-        let artwork = image(VibeWidgetState.artworkURL)
+        // The state's OWN images, named by its track: three separate reads,
+        // but a publish landing between them can only make one of these nil,
+        // never hand this title another track's cover.
+        let artwork = image(state.artworkURL)
         return VibeEntry(date: date, state: state,
                          artwork: artwork,
                          blurredArtwork: artwork.map(blurred),
-                         played: image(VibeWidgetState.waveformPlayedURL),
-                         unplayed: image(VibeWidgetState.waveformUnplayedURL))
+                         played: image(state.waveformPlayedURL),
+                         unplayed: image(state.waveformUnplayedURL))
     }
 
     private func image(_ url: URL?) -> UIImage? {

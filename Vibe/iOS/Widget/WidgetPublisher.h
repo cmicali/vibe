@@ -14,6 +14,12 @@
 //  publishes is derived from what it is handed here, so nothing else needs to
 //  know the widget exists.
 //
+//  It writes only while a widget is placed. With none on any Home screen every
+//  publish was two renders, two PNG encodes and ~220 KB of writes per track
+//  change for nobody, so the writes are gated on `widgetPlaced` — while the
+//  bookkeeping never is, so a widget that appears mid-track is handed the
+//  current snapshot at once (republish) rather than at the next event.
+//
 //  Main thread only, like the controller that drives it. Every file write and
 //  every WidgetKit reload lands on its own serial queue.
 //
@@ -26,6 +32,21 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WidgetPublisher : NSObject
+
+// Whether at least one widget is on a Home screen, as last known. Turned off
+// only by WidgetKit's own answer (refreshPlaced); turned on by that answer or
+// by the extension's read signal (kVibeWidgetReadNotification), whichever
+// comes first.
+@property (nonatomic, readonly) BOOL widgetPlaced;
+
+// Asks WidgetKit. Called at init and by the controller on every return to the
+// foreground — the one moment a widget can have been REMOVED, since removing
+// one means leaving the app. Adding one is covered by the read signal.
+- (void)refreshPlaced;
+
+// The identity a snapshot carries for its track, and the one a seek from the
+// widget must present to be applied. nil for nil.
++ (nullable NSString *)trackKeyForTrack:(nullable AudioTrack *)track;
 
 // Called from the Now Playing publish, with the values that call already
 // holds — the widget's snapshot must never disagree with the lock screen's,

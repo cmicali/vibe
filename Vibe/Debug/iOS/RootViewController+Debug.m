@@ -67,6 +67,9 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
     };
+    // Whether the publisher believes a widget is placed — the gate on every
+    // write to the shared container, so a widget test asserts it first.
+    state[@"widget"] = @{ @"placed": @(playback.debugWidgetPlaced) };
     return state;
 }
 

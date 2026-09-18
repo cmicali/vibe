@@ -249,9 +249,12 @@ struct VibeWidgetView: View {
     // there is no waveform yet, so a tap never falls through to the widget's
     // open-the-app action and silently does the wrong thing.
     private var seekZones: some View {
-        HStack(spacing: 0) {
+        // Each zone names the track whose strip it sits on, so a tap on a render
+        // WidgetKit has not yet replaced cannot seek the track that followed.
+        let trackKey = state?.trackKey ?? ""
+        return HStack(spacing: 0) {
             ForEach(0..<kVibeSeekZoneCount, id: \.self) { zone in
-                Button(intent: VibeSeekIntent(zone: zone)) {
+                Button(intent: VibeSeekIntent(zone: zone, trackKey: trackKey)) {
                     Rectangle().fill(.clear).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

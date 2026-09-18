@@ -7,18 +7,24 @@
 
 #import "VibeWidgetState.h"
 
-NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
+#import <notify.h>
 
-static NSString *const kStateFileName    = @"state.plist";
-static NSString *const kArtworkFileName  = @"artwork.jpg";
-static NSString *const kPlayedFileName   = @"waveform-played.png";
-static NSString *const kUnplayedFileName = @"waveform-unplayed.png";
+NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
+const char *const kVibeWidgetReadNotification = "com.commonwealthrecordings.Vibe.widget.read";
+
+static NSString *const kStateFileName = @"state.plist";
+// The image files carry their track's key, so the container can hold two
+// tracks' sets at once and a plist always names its own.
+static NSString *const kArtworkFormat  = @"artwork-%@.jpg";
+static NSString *const kPlayedFormat   = @"waveform-%@-played.png";
+static NSString *const kUnplayedFormat = @"waveform-%@-unplayed.png";
 
 // Plist keys. Spelled once: a typo on one side of the app/extension boundary
 // reads as an absent field, which draws an empty widget rather than failing.
 static NSString *const kKeyVersion      = @"version";
 static NSString *const kKeyTitle        = @"title";
 static NSString *const kKeyArtist       = @"artist";
+static NSString *const kKeyTrackKey     = @"trackKey";
 static NSString *const kKeyHasTrack     = @"hasTrack";
 static NSString *const kKeyPlaying      = @"playing";
 static NSString *const kKeyDuration     = @"duration";
@@ -28,7 +34,7 @@ static NSString *const kKeyPositionDate = @"positionDate";
 // Bumped when a field's meaning changes. A reader that does not recognize the
 // version draws the empty state, which is always safe: the app republishes on
 // its next track event anyway.
-static const NSInteger kStateVersion = 1;
+static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named by it
 
 @implementation VibeWidgetState
 
@@ -42,11 +48,49 @@ static const NSInteger kStateVersion = 1;
     return container ? [container URLByAppendingPathComponent:name] : nil;
 }
 
-+ (NSURL *)artworkURL          { return [self fileNamed:kArtworkFileName]; }
-+ (NSURL *)waveformPlayedURL   { return [self fileNamed:kPlayedFileName]; }
-+ (NSURL *)waveformUnplayedURL { return [self fileNamed:kUnplayedFileName]; }
++ (nullable NSURL *)fileNamed:(NSString *)format trackKey:(nullable NSString *)trackKey {
+    return trackKey.length ? [self fileNamed:[NSString stringWithFormat:format, trackKey]] : nil;
+}
+
++ (NSURL *)artworkURLForTrackKey:(NSString *)key          { return [self fileNamed:kArtworkFormat trackKey:key]; }
++ (NSURL *)waveformPlayedURLForTrackKey:(NSString *)key   { return [self fileNamed:kPlayedFormat trackKey:key]; }
++ (NSURL *)waveformUnplayedURLForTrackKey:(NSString *)key { return [self fileNamed:kUnplayedFormat trackKey:key]; }
+- (NSURL *)artworkURL          { return [self.class artworkURLForTrackKey:self.trackKey]; }
+- (NSURL *)waveformPlayedURL   { return [self.class waveformPlayedURLForTrackKey:self.trackKey]; }
+- (NSURL *)waveformUnplayedURL { return [self.class waveformUnplayedURLForTrackKey:self.trackKey]; }
+
++ (NSArray<NSURL *> *)imageURLsNotForTrackKeys:(NSArray<NSString *> *)trackKeys {
+    NSURL *container = self.containerURL;
+    if (!container) {
+        return @[];
+    }
+    NSMutableSet<NSString *> *keep = [NSMutableSet set];
+    for (NSString *key in trackKeys) {
+        if (key.length) {
+            [keep addObject:[NSString stringWithFormat:kArtworkFormat, key]];
+            [keep addObject:[NSString stringWithFormat:kPlayedFormat, key]];
+            [keep addObject:[NSString stringWithFormat:kUnplayedFormat, key]];
+        }
+    }
+    NSMutableArray<NSURL *> *stale = [NSMutableArray array];
+    NSArray<NSURL *> *contents = [NSFileManager.defaultManager
+            contentsOfDirectoryAtURL:container includingPropertiesForKeys:nil
+                             options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL];
+    for (NSURL *url in contents) {
+        NSString *name = url.lastPathComponent;
+        BOOL image = [name hasPrefix:@"artwork-"] || [name hasPrefix:@"waveform-"];
+        if (image && ![keep containsObject:name]) {
+            [stale addObject:url];
+        }
+    }
+    return stale;
+}
 
 + (VibeWidgetState *)loadState {
+    // Before the read, not after a successful one: an empty container is still
+    // a widget asking, and it is exactly the widget that needs the app to
+    // start publishing.
+    notify_post(kVibeWidgetReadNotification);
     NSURL *url = [self fileNamed:kStateFileName];
     if (!url) {
         return nil;
@@ -59,6 +103,7 @@ static const NSInteger kStateVersion = 1;
     VibeWidgetState *state = [[VibeWidgetState alloc] init];
     state.title        = plist[kKeyTitle];
     state.artist       = plist[kKeyArtist];
+    state.trackKey     = plist[kKeyTrackKey];
     state.hasTrack     = [plist[kKeyHasTrack] boolValue];
     state.playing      = [plist[kKeyPlaying] boolValue];
     state.duration     = [plist[kKeyDuration] doubleValue];
@@ -76,6 +121,7 @@ static const NSInteger kStateVersion = 1;
     plist[kKeyVersion]      = @(kStateVersion);
     plist[kKeyTitle]        = self.title;
     plist[kKeyArtist]       = self.artist;
+    plist[kKeyTrackKey]     = self.trackKey;
     plist[kKeyHasTrack]     = @(self.hasTrack);
     plist[kKeyPlaying]      = @(self.playing);
     plist[kKeyDuration]     = @(self.duration);

@@ -7,8 +7,11 @@
 
 #import "WidgetPublisher.h"
 
+#import <notify.h>
+
 #import "AppSettings.h"
 #import "AudioTrack.h"
+#import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "PlayerDisplaySettings.h"
 #import "UIImage+SquareFill.h"
@@ -42,16 +45,22 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
 }
 
 @implementation WidgetPublisher {
-    // What the widget was last told. nil until the first publish.
+    // What the widget was last told. nil until the first update. Kept current
+    // whether or not anything is written, so the moment a widget appears the
+    // truth is in hand rather than a tick away — and a tick is not guaranteed
+    // in the background, where that moment usually comes.
     VibeWidgetState      *_published;
     // The track that snapshot describes, held only to compare identity on the
     // 3 Hz tick. A pointer compare, deliberately: AudioTrack.cacheKey stats the
     // file and hashes its path, and its failure path does not memoize — on a
     // dropped mount that would be a blocking syscall three times a second.
     __weak AudioTrack    *_publishedTrack;
-    // Whether artwork.jpg on disk belongs to _publishedTrack. Cleared on a
+    // Whether the published track's artwork has been written. Cleared on a
     // track change, set once a decode has actually been written.
     BOOL                  _artworkOnDisk;
+    // The track the plist on disk names, so the sweep after the next commit
+    // can keep that track's images through one more publish.
+    NSString             *_committedKey;
 
     // The last complete envelope offered, and the track it came from, so a
     // settings change can re-bake without the card being asked again.
@@ -62,6 +71,15 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     // VibeDisplaySettingsDidChangeNotification, whose posters include a
     // continuous slider and a colour well.
     NSString             *_bakedSignature;
+
+    // Whether at least one widget is on a Home screen, as last known. Two
+    // sources, because each can only be right about one direction: WidgetKit's
+    // own answer (refreshPlaced) is authoritative but asked only at launch and
+    // on foreground, so it is what turns this OFF; the extension's read signal
+    // arrives the instant a widget renders, wherever the app is, so it is what
+    // turns it ON. Nothing is written while NO — see updateWithTrack:.
+    BOOL                  _widgetPlaced;
+    int                   _readToken;
 
     dispatch_queue_t      _queue;
 }
@@ -79,11 +97,79 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
                                                selector:@selector(displaySettingsDidChange)
                                                    name:VibeDisplaySettingsDidChangeNotification
                                                  object:nil];
+        // The extension's "a widget just read the snapshot", on main so it is
+        // ordered with everything else that touches _published.
+        __weak WidgetPublisher *weakSelf = self;
+        _readToken = NOTIFY_TOKEN_INVALID;
+        notify_register_dispatch(kVibeWidgetReadNotification, &_readToken,
+                                 dispatch_get_main_queue(), ^(int token) {
+            [weakSelf setWidgetPlaced:YES];
+        });
+        [self refreshPlaced];
     }
     return self;
 }
 
+- (void)dealloc {
+    if (_readToken != NOTIFY_TOKEN_INVALID) {
+        notify_cancel(_readToken);
+    }
+}
+
+#pragma mark - Whether anyone is looking
+
+- (BOOL)widgetPlaced {
+    return _widgetPlaced;
+}
+
+- (void)refreshPlaced {
+    __weak WidgetPublisher *weakSelf = self;
+    [VibeWidgetReloader queryPlaced:^(BOOL placed) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf setWidgetPlaced:placed];
+        });
+    }];
+}
+
+- (void)setWidgetPlaced:(BOOL)placed {
+    if (_widgetPlaced == placed) {
+        return;
+    }
+    _widgetPlaced = placed;
+    if (placed) {
+        [self republish];
+    }
+}
+
+// The gate has just opened. Everything a widget needs is already in hand —
+// the snapshot, the track's decoded art, the offered envelope — so it is
+// written as if the track had just changed, which from the widget's side is
+// exactly what happened. A widget added while a track plays in the background
+// renders once from whatever was on disk, its read lands here, and the next
+// render is current.
+- (void)republish {
+    VibeWidgetState *state = _published;
+    if (!state) {
+        return;     // nothing handed over yet; the first update publishes
+    }
+    UIImage *artwork = _publishedTrack.cachedArt;
+    _artworkOnDisk  = (artwork != nil);
+    _bakedSignature = nil;
+    [self commitState:state artwork:artwork writeArtwork:YES];
+    [self bakeWaveformIfNeeded];
+}
+
 #pragma mark - What is playing
+
++ (NSString *)trackKeyForTrack:(AudioTrack *)track {
+    // The path, not cacheKey: the key must survive a rewrite of the file, or
+    // a seek on the very track on screen would be refused after its tags were
+    // edited elsewhere — and cacheKey stats. The standardized path is what the
+    // shell itself matches a track by (folderSession:didOpenTracks:). Hashed
+    // because it rides in every one of the strip's 32 seek buttons per render.
+    NSString *path = track.url.URLByStandardizingPath.path;
+    return path ? [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex] : nil;
+}
 
 - (void)updateWithTrack:(AudioTrack *)track
                position:(NSTimeInterval)position
@@ -97,9 +183,13 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     // landed the track had stopped being new. _artworkOnDisk is the state that
     // makes the write re-fire: nil art leaves it clear, and the next tick that
     // sees decoded art writes it.
+    //
+    // The gate is folded in here rather than tested below so that a quiet tick
+    // with no widget placed stays allocation-free: republish writes the art
+    // fresh from the track when one appears, so nothing is owed meanwhile.
     UIImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
-    BOOL writeArtwork = trackChanged || (artwork && !_artworkOnDisk);
+    BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
 
     NSTimeInterval effectivePosition = startPending ? 0 : position;
     if (!writeArtwork
@@ -117,6 +207,7 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     next.hasTrack     = (track != nil);
     next.title        = track.displayTitle;
     next.artist       = track.displayArtist;
+    next.trackKey     = trackChanged ? [self.class trackKeyForTrack:track] : _published.trackKey;
     next.playing      = playing;
     next.duration     = duration;
     next.position     = effectivePosition;
@@ -124,9 +215,6 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
 
     _published      = next;
     _publishedTrack = track;
-    if (writeArtwork) {
-        _artworkOnDisk = (artwork != nil);
-    }
     if (trackChanged) {
         // The envelope is kept only if it was offered FOR the track being
         // adopted. The card can offer before this call or after it — returning
@@ -138,31 +226,47 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
             _waveformTrack = nil;
         }
         _bakedSignature = nil;
+        _artworkOnDisk  = NO;
     }
-
-    dispatch_async(_queue, ^{
-        // TRAP: the images must land before the plist. The widget reads the
-        // plist first and loads the files it names, so a plist that arrives
-        // first pairs the new title with the previous track's artwork for as
-        // long as the encode takes.
-        if (writeArtwork) {
-            [self writeArtwork:artwork];
-        }
-        if (trackChanged) {
-            // The strip on disk is the OUTGOING track's.
-            [NSFileManager.defaultManager removeItemAtURL:VibeWidgetState.waveformPlayedURL
-                                                    error:NULL];
-            [NSFileManager.defaultManager removeItemAtURL:VibeWidgetState.waveformUnplayedURL
-                                                    error:NULL];
-        }
-        [next save];
-        [VibeWidgetReloader reload];
-    });
+    if (!_widgetPlaced) {
+        return;     // bookkeeping only: nobody is looking
+    }
+    if (writeArtwork) {
+        _artworkOnDisk = (artwork != nil);
+    }
+    [self commitState:next artwork:artwork writeArtwork:writeArtwork];
 
     // An offer that arrived before its track was adopted bakes now.
     if (trackChanged && _waveform) {
         [self bakeWaveformIfNeeded];
     }
+}
+
+// The one place the plist is written. TRAP: the images must land before the
+// plist. The widget reads the plist first and loads the files it names, so a
+// plist that arrives first pairs the new title with no artwork for as long as
+// the encode takes. The images are named by track, so the plist can never
+// name another track's; the sweep runs LAST and spares the outgoing track's
+// set, so an extension that read the previous plist a moment ago still finds
+// the images it names.
+- (void)commitState:(VibeWidgetState *)state artwork:(UIImage *)artwork
+       writeArtwork:(BOOL)writeArtwork {
+    NSString *outgoingKey = _committedKey;
+    _committedKey = state.trackKey;
+    BOOL sweep = !VibeWidgetEqualStrings(outgoingKey, state.trackKey);
+    dispatch_async(_queue, ^{
+        if (writeArtwork) {
+            [self writeArtwork:artwork toURL:[VibeWidgetState artworkURLForTrackKey:state.trackKey]];
+        }
+        [state save];
+        [VibeWidgetReloader reload];
+        if (sweep) {
+            NSArray<NSString *> *keep = @[state.trackKey ?: @"", outgoingKey ?: @""];
+            for (NSURL *url in [VibeWidgetState imageURLsNotForTrackKeys:keep]) {
+                [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+            }
+        }
+    });
 }
 
 // Republished on a structural change or a seek, never on the tick that merely
@@ -235,6 +339,9 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack) {
         return;
     }
+    if (!_widgetPlaced) {
+        return;     // before the signature is taken, so the bake is still owed
+    }
     AppSettings *settings = AppSettings.sharedInstance;
     // The widget's own style when the user picked one, else the app's. nil
     // means "match app", and resolveStyleIdentifier: turns an unregistered or
@@ -262,25 +369,22 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
                                                 artworkColor:nil
                                                 customPlayed:played
                                               customUnplayed:unplayed];
+    NSString *key = _published.trackKey;
     dispatch_async(_queue, ^{
-        [self writeWaveform:waveform style:style theme:theme
-                  normalize:normalize gainDB:gainDB];
+        // 1 and 0: the whole envelope in each side's colours. The widget reveals
+        // the played one up to the playhead, which is what keeps a moving
+        // playhead free of a re-render.
+        [self writeWaveformImage:waveform progress:1 style:style theme:theme
+                       normalize:normalize gainDB:gainDB
+                           toURL:[VibeWidgetState waveformPlayedURLForTrackKey:key]];
+        [self writeWaveformImage:waveform progress:0 style:style theme:theme
+                       normalize:normalize gainDB:gainDB
+                           toURL:[VibeWidgetState waveformUnplayedURLForTrackKey:key]];
         // The plist names nothing about the waveform, but the widget only
         // re-renders when WidgetKit is told to, so the reload is the whole
         // point of writing it.
         [VibeWidgetReloader reload];
     });
-}
-
-- (void)writeWaveform:(CodableAudioWaveform *)waveform style:(NSString *)style
-                theme:(WaveformTheme *)theme normalize:(BOOL)normalize gainDB:(float)gainDB {
-    // 1 and 0: the whole envelope in each side's colours. The widget reveals
-    // the played one up to the playhead, which is what keeps a moving playhead
-    // free of a re-render.
-    [self writeWaveformImage:waveform progress:1 style:style theme:theme
-                   normalize:normalize gainDB:gainDB toURL:VibeWidgetState.waveformPlayedURL];
-    [self writeWaveformImage:waveform progress:0 style:style theme:theme
-                   normalize:normalize gainDB:gainDB toURL:VibeWidgetState.waveformUnplayedURL];
 }
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
@@ -307,10 +411,9 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
 #pragma mark - Artwork
 
 // Removing the file for a track with no art is as load-bearing as writing one:
-// the widget draws whatever is on disk, so a leftover cover would outlive the
-// track it belonged to.
-- (void)writeArtwork:(UIImage *)artwork {
-    NSURL *url = VibeWidgetState.artworkURL;
+// the widget draws whatever the plist names, and the file would otherwise
+// survive from an earlier decode of the same track.
+- (void)writeArtwork:(UIImage *)artwork toURL:(NSURL *)url {
     if (!url) {
         return;
     }

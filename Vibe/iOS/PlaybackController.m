@@ -212,6 +212,8 @@ static const NSUInteger kUIUpdateHz = 3;
     _updateTimer.windowVisible = sceneActive;
     [self syncLevelsEnabled];
     if (sceneActive) {
+        // The one moment a widget can have been removed — see WidgetPublisher.h.
+        [_widgetPublisher refreshPlaced];
         [self notifyDidTick];
     }
 }
@@ -585,6 +587,27 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)restorePersistedSession {
     if (![_folderSession restorePersistedFolder]) {
         [self notifyHasNothingToRestore];
+        [self settleLaunchOpen];
+    }
+}
+
+- (void)performWhenLaunchOpenSettled:(void (^)(void))block {
+    if (_launchOpenSettled) {
+        block();
+        return;
+    }
+    if (!_launchOpenWaiters) {
+        _launchOpenWaiters = [NSMutableArray array];
+    }
+    [_launchOpenWaiters addObject:[block copy]];
+}
+
+- (void)settleLaunchOpen {
+    _launchOpenSettled = YES;
+    NSArray<void (^)(void)> *waiters = _launchOpenWaiters;
+    _launchOpenWaiters = nil;
+    for (void (^waiter)(void) in waiters) {
+        waiter();
     }
 }
 
@@ -633,9 +656,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             }
         }
     }
+    // After the park or the play, so a waiter finds a track to drive.
+    [self settleLaunchOpen];
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
+    [self settleLaunchOpen];
     if (_playlist.count > 0) {
         return;   // a good playlist is never wiped by a bad pick
     }
@@ -647,6 +673,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)folderSessionRestoreDidFail:(FolderSession *)session {
+    [self settleLaunchOpen];
     if (_playlist.count == 0) {
         [self notifyHasNothingToRestore];
     }

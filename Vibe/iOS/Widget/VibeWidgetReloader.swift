@@ -25,4 +25,17 @@ public final class VibeWidgetReloader: NSObject {
     public static func reload() {
         WidgetCenter.shared.reloadAllTimelines()
     }
+
+    // Whether any widget is placed, from the one party that knows. The answer
+    // arrives on WidgetKit's queue. Fails OPEN: a wrong NO silences the widget
+    // until the next foreground, a wrong YES costs one publish nobody reads.
+    @objc(queryPlaced:)
+    public static func queryPlaced(_ completion: @escaping (Bool) -> Void) {
+        WidgetCenter.shared.getCurrentConfigurations { result in
+            switch result {
+            case .success(let placed): completion(!placed.isEmpty)
+            case .failure: completion(true)
+            }
+        }
+    }
 }

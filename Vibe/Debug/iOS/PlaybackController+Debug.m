@@ -10,6 +10,7 @@
 #if DEBUG
 
 #import "PlaybackControllerInternal.h"
+#import "WidgetPublisher.h"
 
 @implementation PlaybackController (Debug)
 
@@ -27,6 +28,10 @@
 
 - (BOOL)debugTrackStartPending {
     return _trackStartPending;
+}
+
+- (BOOL)debugWidgetPlaced {
+    return _widgetPublisher.widgetPlaced;
 }
 
 - (void)debugOpenPath:(NSString *)path {
