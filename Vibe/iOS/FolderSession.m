@@ -115,13 +115,24 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             == openIntentGeneration;
 }
 
-// The session folder — base or addition — whose subtree contains path, or nil.
-// Deliberately NOT _scopedURLs: that list holds only URLs whose
-// startAccessingSecurityScopedResource returned YES, and a container folder is
-// not security-scoped, so _folderURL can be set while _scopedURLs is empty. A
-// file picked inside the open container folder must still expand.
-- (NSURL *)heldRootCoveringPath:(NSString *)path {
-    for (NSURL *root in self.searchRoots) {
+// The session URL covering path, or nil. Two lists answer two different
+// questions, and conflating them cost a playlist its access:
+//
+// self.searchRoots — the LOGICAL base and additions — answers what may be
+// LISTED. A container folder is never security-scoped, so _folderURL can be
+// set while _scopedURLs is empty, and a file picked inside the open container
+// folder must still expand to it.
+//
+// _scopedURLs answers what may be HELD. TRAP: a security scope is acquired
+// through the URL the system granted, never through a path-equivalent one this
+// app derived. A search hit leaves _folderURL pointing at a parent derived
+// from the hit, so a later open under it picked that derived URL,
+// startAccessingSecurityScopedResource refused it, no hold was collected, and
+// the landing then stopped the real grant with no successor — leaving the
+// player, TagLib and the waveform loader reading a playlist they had just lost
+// access to.
+- (NSURL *)rootCoveringPath:(NSString *)path in:(NSArray<NSURL *> *)roots {
+    for (NSURL *root in roots) {
         if (VibeSearchRootCoversPath(root.URLByStandardizingPath.path, path)) {
             return root;
         }
@@ -360,7 +371,10 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         completion(nil, nil);
         return;
     }
-    NSURL *scopedURL = [self heldRootCoveringPath:folderURL.URLByStandardizingPath.path];
+    // From the scoped list, not the search roots: the hold has to be taken on
+    // the granted URL, and _folderURL can be one this session derived.
+    NSURL *scopedURL = [self rootCoveringPath:folderURL.URLByStandardizingPath.path
+                                           in:_scopedURLs];
     BOOL scopeHoldStarted = [scopedURL startAccessingSecurityScopedResource];
     dispatch_async(_workQueue, ^{
         NSData *bookmark = [self bookmarkForURL:folderURL];
@@ -414,7 +428,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];
     for (NSURL *url in urls) {
         NSString *path = url.URLByStandardizingPath.path;
-        NSURL *root = [self heldRootCoveringPath:path];
+        // The scoped list, never the search roots: this answer is started, and
+        // only the granted URL can be. A logical root that is merely
+        // path-equivalent refuses the start and would collect nothing, while
+        // still masking the favorites lookup below.
+        NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
         SearchFolderGrant *grant = [SearchFolderStore.shared grantCoveringURL:url];
         if (!grant) {
             // The row may have been removed after it produced the current
@@ -768,9 +786,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         // Without this, adding the same favorite twice lists it twice and
         // persists a second bookmark the next launch resolves and lists for
         // nothing. Its scope is still adopted above: that is lifetime, not
-        // reach.
+        // reach — which is why this one asks the SEARCH ROOTS and not the
+        // scoped list.
         for (NSURL *folder in addedFolders) {
-            if (![self heldRootCoveringPath:folder.URLByStandardizingPath.path]) {
+            if (![self rootCoveringPath:folder.URLByStandardizingPath.path
+                                     in:self.searchRoots]) {
                 [_addedFolderURLs addObject:folder];
             }
         }
