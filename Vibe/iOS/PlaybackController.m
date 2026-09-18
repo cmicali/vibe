@@ -684,14 +684,30 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 
     if (restored) {
-        NSString *fileName = session.persistedTrackFileName;
-        if (!selectedURL && fileName) {
+        NSString *remembered = session.persistedTrackPath;
+        if (!selectedURL && remembered) {
+            // Two tiers, exact path first. TRAP: the path alone is not enough —
+            // a provider can hand the same file back under a different absolute
+            // path, and the simulator's data-container UUID rotates on every
+            // reinstall — so the filename remains the fallback, which is also
+            // what restores a bare filename left by an older build. The scan
+            // runs on: an exact hit anywhere outranks a filename hit, which is
+            // the whole point once the playlist spans folders.
+            NSString *rememberedName = remembered.lastPathComponent;
             NSArray<AudioTrack *> *tracks = _playlist.tracks;
+            NSUInteger match = NSNotFound;
             for (NSUInteger i = 0; i < tracks.count; i++) {
-                if ([tracks[i].url.lastPathComponent isEqualToString:fileName]) {
-                    _playlist.currentIndex = i;
+                NSString *path = tracks[i].url.URLByStandardizingPath.path;
+                if ([path isEqualToString:remembered]) {
+                    match = i;
                     break;
                 }
+                if (match == NSNotFound && [path.lastPathComponent isEqualToString:rememberedName]) {
+                    match = i;
+                }
+            }
+            if (match != NSNotFound) {
+                _playlist.currentIndex = match;
             }
         }
         [self parkCurrentTrack];

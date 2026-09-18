@@ -18,7 +18,10 @@
 // app-layer state, and the shared settings file stays untouched.
 static NSString *const kFolderBookmarkKey = @"VibeiOSFolderBookmark";
 static NSString *const kAdditionBookmarksKey = @"VibeiOSAdditionBookmarks";
-static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
+// The value is a standardized path now, not a filename; the key keeps its
+// shipped spelling so an installed build's parked track survives the update —
+// a bare filename left by one restores through the match's filename tier.
+static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
 
 @interface FolderSession () <UIDocumentPickerDelegate>
 @end
@@ -54,9 +57,11 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     // Adds land in tap order.
     dispatch_queue_t _appendQueue;
     _Atomic(uint64_t) _openIntentGeneration;
-    // The generation of the last LANDED replace. An append lands only against
-    // the base it was requested on; zero means nothing has ever landed, so an
-    // Add is promoted to an Open. Main-confined.
+    // The generation of the last SETTLED replace — one that delivered a
+    // playlist, or one that found nothing and so left the last delivered one
+    // standing. An append lands only against the playlist it was requested on;
+    // zero means nothing has ever landed, so an Add is promoted to an Open.
+    // Main-confined.
     uint64_t _landedOpenIntentGeneration;
 }
 
@@ -222,16 +227,16 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     return YES;
 }
 
-- (NSString *)persistedTrackFileName {
-    return [NSUserDefaults.standardUserDefaults stringForKey:kLastTrackFileNameKey];
+- (NSString *)persistedTrackPath {
+    return [NSUserDefaults.standardUserDefaults stringForKey:kLastTrackPathKey];
 }
 
-- (void)setPersistedTrackFileName:(NSString *)fileName {
-    if (fileName) {
-        [NSUserDefaults.standardUserDefaults setObject:fileName forKey:kLastTrackFileNameKey];
+- (void)setPersistedTrackPath:(NSString *)path {
+    if (path) {
+        [NSUserDefaults.standardUserDefaults setObject:path forKey:kLastTrackPathKey];
     }
     else {
-        [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackFileNameKey];
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
     }
 }
 
@@ -519,7 +524,14 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
         }
         [contributors addObject:url];
         if (isDir) {
-            if (!appending && !folderURL) {
+            // The base is the FIRST contributor, whatever it is: a file first
+            // means a single-file base with no folderURL, and every later
+            // folder is an addition. TRAP: a folder may not claim the base
+            // merely because the contributor ahead of it was a file — a
+            // restore delivers base-then-additions, so that would rewrite the
+            // base bookmark to the addition, demote the original base to an
+            // addition, and reorder the union at the next relaunch.
+            if (!appending && contributors.count == 1) {
                 folderURL = url;
             }
             else {
@@ -529,25 +541,21 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     }
 
     if (tracks.count == 0) {
+        // Nothing here reaches the playlist, so every scope this pass started
+        // is released whatever the generation.
         for (NSURL *hold in holds) {
             [hold stopAccessingSecurityScopedResource];
         }
         for (NSURL *owned in ownedScopes) {
             [owned stopAccessingSecurityScopedResource];
         }
+        // Still a landing: an open that found nothing leaves the previous
+        // playlist standing, and finishOpenIntent: is the one place allowed to
+        // say so and to touch the main-confined state.
         run_on_main_thread({
-            if (![self isCurrentOpenIntent:openIntentGeneration]) {
-                return;
-            }
-            if (appending) {
-                LogInfo(@"FolderSession: nothing to append");
-            }
-            else if (restored) {
-                [self.delegate folderSessionRestoreDidFail:self];
-            }
-            else {
-                [self.delegate folderSessionDidOpenEmptyFolder:self];
-            }
+            [self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
+                         folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
+                       ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
         });
         return;
     }
@@ -587,16 +595,21 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     NSURL *base = appending ? nil : (folderURL ?: contributors.firstObject);
     if ([self isCurrentOpenIntent:openIntentGeneration]) {
         // A one-file open never replaces a folder bookmark: that broader grant
-        // is what powers sibling expansion and relaunch restore.
+        // is what powers sibling expansion and relaunch restore. An open that
+        // brought a folder in at all is not that case, whichever contributor
+        // the base turned out to be — a multi-select of a file and a folder
+        // owns the next launch, and refusing to persist it would restore a
+        // playlist that no longer exists.
+        BOOL openedNoFolder = !folderURL && addedFolders.count == 0;
         BOOL persistedBaseIsFolder = NO;
-        if (base && !fromSearchRoots && !folderURL) {
+        if (base && !fromSearchRoots && openedNoFolder) {
             NSNumber *isDirectory = nil;
             [resolvePersistedBase() getResourceValue:&isDirectory
                                               forKey:NSURLIsDirectoryKey
                                                error:NULL];
             persistedBaseIsFolder = isDirectory.boolValue;
         }
-        if (base && !fromSearchRoots && (folderURL || !persistedBaseIsFolder)) {
+        if (base && !fromSearchRoots && (!openedNoFolder || !persistedBaseIsFolder)) {
             baseBookmark = [self bookmarkForURL:base];
         }
         if (appending || baseBookmark) {
@@ -617,9 +630,11 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     });
 }
 
-// Main thread only. A stale request releases only the scopes it started; the
-// current session stays untouched. Bookmark persistence is here too, under the
-// same intent check, so late provider work cannot overwrite a newer open.
+// Main thread only, and the one place the session's own state moves. Every
+// request ends here, an empty result included — a stale one releases only the
+// scopes it started and leaves the current session untouched. Bookmark
+// persistence is here too, under the same intent check, so late provider work
+// cannot overwrite a newer open.
 - (void)finishOpenIntent:(uint64_t)openIntentGeneration
                appending:(BOOL)appending
                   tracks:(NSArray<NSURL *> *)tracks
@@ -641,6 +656,30 @@ static NSString *const kLastTrackFileNameKey = @"VibeiOSLastTrackFileName";
     if (!current) {
         for (NSURL *url in ownedScopes) {
             [url stopAccessingSecurityScopedResource];
+        }
+        return;
+    }
+    if (tracks.count == 0) {
+        // TRAP: an open that delivered nothing still SETTLES its generation.
+        // The playlist it left standing is the one the last landing installed,
+        // so that playlist answers for this generation too. Without the carry
+        // every Add made after an empty-folder open captures a generation no
+        // landing ever matched and is dropped — one empty folder killed Add
+        // for the rest of the session. Zero stays zero, so an Add onto a
+        // session that never landed anything is still promoted to an Open
+        // (restore fails at launch, then Add plays), and an append carries
+        // nothing: a bad Add must not make itself the base.
+        if (!appending && _landedOpenIntentGeneration != 0) {
+            _landedOpenIntentGeneration = openIntentGeneration;
+        }
+        if (appending) {
+            LogInfo(@"FolderSession: nothing to append");
+        }
+        else if (restored) {
+            [self.delegate folderSessionRestoreDidFail:self];
+        }
+        else {
+            [self.delegate folderSessionDidOpenEmptyFolder:self];
         }
         return;
     }

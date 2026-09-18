@@ -123,9 +123,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
                                                    NSData *_Nullable bookmark))completion;
 
-// The last track filename the player screen wants restored next launch.
-// Stored alongside the bookmark; nil clears it.
-@property (nonatomic, copy, nullable) NSString *persistedTrackFileName;
+// The standardized PATH of the last track the player screen wants restored
+// next launch. Stored alongside the bookmark; nil clears it. A path and not a
+// filename because the playlist spans folders once an Add has landed, and two
+// albums both holding "01.wav" parked on the wrong one. The path is not
+// sufficient on its own either — a provider can hand the same file back under
+// a different absolute path — so the restore match is two-tier: exact path,
+// then filename. A value written by an older build IS a bare filename and
+// restores through that second tier unchanged.
+@property (nonatomic, copy, nullable) NSString *persistedTrackPath;
 
 @end
 
