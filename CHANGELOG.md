@@ -6,6 +6,7 @@
 * mac: Added Settings > General > Load last playlist on launch
 * mac: Added more theme customizations, including customizing transport controls and app icon
 * mac: Settings UI improvements, including new audio output device picker
+* mac: Reduced the download by a quarter (15.0 MB to 11.2 MB)
 * Fixed audio now unchanged when low-cut FX is disabled (was slightly colored before)
 
 # v1.11

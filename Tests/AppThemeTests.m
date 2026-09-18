@@ -517,7 +517,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     theme.showFileInfo = NO;
     theme.keyNotation = @"musical";
     theme.dockIcon = @"app_icon";
-    [theme setImageReference:@"bundled:cupertino_dark.png" forKey:kVibeThemeImagePlayButtonDark];
+    [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
     NSArray<NSString *> *styles = @[@"detailed", @"basic"];
     NSSet<NSString *> *faces = [NSSet setWithArray:AppTheme.randomizableFontFaces];
     NSSet<NSNumber *> *radii = [NSSet setWithArray:@[@0, @8, @12, @16, @20, @28, @36]];
@@ -529,7 +529,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertEqualObjects(theme.keyNotation, @"musical");
         XCTAssertEqualObjects(theme.dockIcon, @"app_icon");
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
-                              @"bundled:cupertino_dark.png");
+                              @"bundled:cupertino_dark.jpg");
         XCTAssertTrue([styles containsObject:theme.waveformStyle]);
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
         XCTAssertNotEqualObjects(theme.windowTint, @"custom");
@@ -835,7 +835,7 @@ static CGFloat Brightness(NSString *hex) {
 // The artwork-carrying themes must also name their own bundled pair, one
 // image per side.
 - (void)testDualModeBuiltInsAreCompleteAndOwnTheirArtwork {
-    NSArray *artworked = @[@"field", @"signal_workshop"];
+    NSDictionary *artworked = @{@"field": @"png", @"signal_workshop": @"jpg"};
     for (NSString *identifier in @[@"field", @"signal_workshop",
                                    @"technical", @"technical_bars"]) {
         NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
@@ -859,11 +859,12 @@ static CGFloat Brightness(NSString *hex) {
         // Dual, so a solid background never outranks the appearance setting.
         XCTAssertNil(theme.requiredWindowAppearance, @"%@", identifier);
 
-        if ([artworked containsObject:identifier]) {
+        NSString *ext = artworked[identifier];
+        if (ext) {
             XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
-                    ([NSString stringWithFormat:@"bundled:%@_dark.png", identifier]));
+                    ([NSString stringWithFormat:@"bundled:%@_dark.%@", identifier, ext]));
             XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
-                    ([NSString stringWithFormat:@"bundled:%@_light.png", identifier]));
+                    ([NSString stringWithFormat:@"bundled:%@_light.%@", identifier, ext]));
         }
     }
 }
@@ -942,9 +943,9 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testDefaultArtworkSanitizesByShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:
-            @{@"defaultArtworkDark": @"bundled:signal_workshop_dark.png"}];
+            @{@"defaultArtworkDark": @"bundled:signal_workshop_dark.jpg"}];
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
-            @"bundled:signal_workshop_dark.png");
+            @"bundled:signal_workshop_dark.jpg");
     [theme setImageReference:@"custom:0123456789abcdef0123456789abcdef01234567.png"
                        forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
@@ -961,11 +962,11 @@ static CGFloat Brightness(NSString *hex) {
     // Single mode reads and writes the dark slot from either side; the light
     // half lies dormant, so a mode flip round-trips.
     theme.mode = @"single";
-    [theme setImageReference:@"bundled:signal_workshop_light.png" forKey:kVibeThemeImageDefaultArtworkLight];
+    [theme setImageReference:@"bundled:signal_workshop_light.jpg" forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"],
-            @"bundled:signal_workshop_light.png");
+            @"bundled:signal_workshop_light.jpg");
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
-            @"bundled:signal_workshop_light.png");
+            @"bundled:signal_workshop_light.jpg");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
 }
@@ -1153,20 +1154,21 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 - (void)testBuiltInArtworkTravelsInTheArchiveUnderSlotNames {
     NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"signal_workshop"];
     XCTAssertEqualObjects(record[@"defaultArtworkDark"],
-            @"bundled:signal_workshop_dark.png", @"the fixture this test rests on");
+            @"bundled:signal_workshop_dark.jpg", @"the fixture this test rests on");
 
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Signal Workshop"];
     XCTAssertNotNil(zip, @"a built-in with bundled art must export as an archive");
-    XCTAssertGreaterThan(zip.length, 1000000u, @"the images themselves, not just their names");
+    XCTAssertGreaterThan(zip.length, 50000u, @"the images themselves, not just their names");
 
     // Entries are named by SLOT: where the bytes came from is not the reader's
     // business, and a hash or a build's filename reads as nothing to a person
-    // opening the ZIP.
+    // opening the ZIP. The extension is the source image's, so the pair this
+    // build ships as JPEG travels as JPEG.
     NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
-    XCTAssertTrue([bytes containsString:@"artwork_default_front.png"]);
-    XCTAssertTrue([bytes containsString:@"artwork_default_back.png"]);
+    XCTAssertTrue([bytes containsString:@"artwork_default_front.jpg"]);
+    XCTAssertTrue([bytes containsString:@"artwork_default_back.jpg"]);
     XCTAssertFalse([bytes containsString:@"bundled:"], @"no prefix survives into the archive");
-    XCTAssertFalse([bytes containsString:@"signal_workshop_dark.png"],
+    XCTAssertFalse([bytes containsString:@"signal_workshop_dark.jpg"],
             @"nor the name this build happens to keep the image under");
 
     // Re-importing lands both sides in the container under their content
@@ -1248,7 +1250,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     XCTAssertNotNil([AppTheme imageForReference:stored]);
 
     // A bundled name this build ships, against one it does not.
-    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:signal_workshop_dark.png"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:signal_workshop_dark.jpg"]);
     XCTAssertTrue([AppTheme referenceIsMissing:@"bundled:not_in_any_build.png"]);
 }
 
@@ -2143,7 +2145,7 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     for (NSString *button in buttons) {
         AppTheme *theme = [[AppTheme alloc] initWithRecord:@{}];
         for (NSString *other in buttons) for (NSString *slot in [AppTheme imageKeysForButton:other]) {
-            [theme setImageReference:@"bundled:cupertino_dark.png" forKey:slot];
+            [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:slot];
         }
         NSString *glyph = [button isEqualToString:kVibeThemeImagePlayButtonDark] ? @"play.circle.fill" : @"star.fill";
         [theme setGlyph:glyph forButtonImageKey:button];

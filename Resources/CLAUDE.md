@@ -5,7 +5,7 @@ file, first.** It is the authoring guide for everything in `Themes/` — the
 file format, the identifier/display-name split, `bundled:` artwork, and the
 `vibe.json` must-stay-empty rule. The short version:
 
-- A theme is one `Themes/<identifier>.json` (plus its `bundled:` PNGs if it
+- A theme is one `Themes/<identifier>.json` (plus its `bundled:` artwork if it
   carries artwork). No code changes, no project edits, no xcodegen run.
 - The shipped themes in `Themes/` are working examples; the full field set is
   `ThemeJSONGroups()` in `Vibe/Common/Mac/Theme/AppTheme.m`.

@@ -58,3 +58,10 @@ with the `custom:` prefix optional — and is normalized to the stored
 `custom:<sha1>.<ext>` form on import. Built-in themes may only use bundled
 references; the validation test enforces that each file resolves, is square,
 and stays within the pixel and byte caps.
+
+**Author it at 640px, and JPEG unless it needs alpha.** `imageForReference:`
+decodes every theme image bounded to `kVibeArchivedDisplayArtDimension` — 640
+on macOS — so pixels beyond that are decoded away on the way in and only ever
+cost bundle size. The shipped pair is JPEG where the art is opaque and PNG
+where transparency is load-bearing (`glassy.png` is transparent by design, and
+its whole look depends on it).
