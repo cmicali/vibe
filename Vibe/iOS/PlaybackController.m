@@ -610,6 +610,14 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession addURLs:urls];
 }
 
+- (uint64_t)addRequestToken {
+    return _folderSession.addRequestToken;
+}
+
+- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
+    [_folderSession addURLs:urls token:token];
+}
+
 - (NSURL *)folderURL {
     return _folderSession.folderURL;
 }

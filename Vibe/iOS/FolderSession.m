@@ -182,7 +182,25 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     [self beginOpenURLs:urls appending:NO fromSearchRoots:NO];
 }
 
+- (uint64_t)addRequestToken {
+    return atomic_load_explicit(&_openIntentGeneration, memory_order_acquire);
+}
+
 - (void)addURLs:(NSArray<NSURL *> *)urls {
+    [self addURLs:urls token:[self addRequestToken]];
+}
+
+- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
+    // The generation an Add is judged against is captured when the USER asks,
+    // not when the caller finally has a URL. Without this, a favorite whose
+    // provider took its time resolved after the user had opened something else
+    // and appended to that new playlist, having captured ITS generation on the
+    // way in — the one case the append guard cannot catch, since by then the
+    // request looks freshly made.
+    if (![self isCurrentOpenIntent:token]) {
+        LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
+        return;
+    }
     [self beginOpenURLs:urls appending:YES fromSearchRoots:NO];
 }
 

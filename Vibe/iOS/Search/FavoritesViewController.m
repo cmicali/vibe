@@ -186,15 +186,24 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 // The one opening path: the tap and every row action take it, so the resolve
 // and the unreachable-folder alert are the same for all of them.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
+    // The Add's identity is taken HERE, before the resolve, and carried to the
+    // completion. The bookmark resolve is provider IPC, and an Add judged only
+    // when it finishes captured whatever playlist had been opened meanwhile and
+    // appended to that one instead of being dropped. A replace needs none of
+    // this: it bumps the generation itself when it finally reaches the session,
+    // and the newest replace is meant to win.
+    uint64_t token = appending ? [_playback addRequestToken] : 0;
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
-        [weakSelf finishOpeningFavorite:favorite folderURL:folderURL appending:appending];
+        [weakSelf finishOpeningFavorite:favorite folderURL:folderURL
+                              appending:appending token:token];
     }];
 }
 
 - (void)finishOpeningFavorite:(FavoriteFolder *)favorite
                     folderURL:(NSURL *)folderURL
-                    appending:(BOOL)appending {
+                    appending:(BOOL)appending
+                        token:(uint64_t)token {
     for (NSIndexPath *path in self.tableView.indexPathsForSelectedRows) {
         [self.tableView deselectRowAtIndexPath:path animated:YES];
     }
@@ -205,7 +214,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     // openInPlace:YES — the real folder, so this lands in FolderSession's open
     // prologue exactly where the document picker's own delegate does.
     if (appending) {
-        [_playback addURLs:@[folderURL]];
+        [_playback addURLs:@[folderURL] token:token];
     }
     else {
         [_playback openURLs:@[folderURL] openInPlace:YES];

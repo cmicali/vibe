@@ -211,6 +211,13 @@ NS_ASSUME_NONNULL_BEGIN
 // is FolderSession's: an Add onto nothing is an Open.
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
+// Both FolderSession's, unchanged: a caller with asynchronous work of its own
+// before it has a URL takes the token when the USER asks and hands it back
+// with the URLs, so a request a replace has since superseded is dropped rather
+// than landing on the new playlist. Favorites is the one caller.
+- (uint64_t)addRequestToken;
+- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
+
 // The open folder, or nil for a single-file playlist and before anything was
 // opened. The Playlist tab's star draws from it: there is nothing to favorite
 // when the playlist is not a folder.

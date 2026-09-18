@@ -91,6 +91,20 @@ NS_ASSUME_NONNULL_BEGIN
 // mac's addURLs: empty-playlist rule, owned here.
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
+// The token a caller takes on MAIN at the moment the user asks for an Add,
+// when it has asynchronous work of its own to do before it has a URL — a
+// favorite's bookmark resolve. Handing it back to addURLs:token: judges the
+// request by when the user asked rather than by when the provider answered, so
+// an Add whose resolve outlived a replace is dropped instead of landing on a
+// playlist the user has since replaced. addURLs: is the token-free form for a
+// caller that already has its URLs: it takes the token itself.
+//
+// Staleness only. It does NOT reserve a place in the append lane, so a later
+// Add with a URL in hand can still overtake one waiting on a slow provider;
+// both land, in provider order rather than tap order.
+- (uint64_t)addRequestToken;
+- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
+
 // A file found under one of searchRoots, so already covered by a grant in hand.
 // Expands to its OWN directory as the playlist with it selected, exactly as
 // picking it would — a search hit deep in the tree is not a one-track playlist.
