@@ -345,8 +345,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // Forgets every reference bound to the current engine without messaging it;
 // the iOS media-services-reset rebuild's first half.
 - (void)dropEngineBoundStateOnQueue;
-// Wires the master bus on a fresh engine: the FX segment, or, with FX
-// disabled, the mixer straight to the output. The rebuild's second half.
+// Wires the master bus: the FX segment, or, with FX disabled or bit-perfect
+// on, the mixer straight to the output. The iOS rebuild's second half; the
+// macOS device rebind calls it too, to change the route live.
 - (void)installMasterBusOnQueue;
 - (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format;
 // The audio-time clock for fades, sweeps, drains and the idle stop: the debug

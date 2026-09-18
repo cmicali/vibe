@@ -325,12 +325,13 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #endif
 }
 
-// Wires the master bus — everything from the main mixer to the output — on a
-// fresh engine: the FX segment when FX is enabled, otherwise a direct
+// Wires the master bus — everything from the main mixer to the output: the FX
+// segment when FX is enabled and bit-perfect is off, otherwise a direct
 // mixer -> output connection. The explicit connect stands in for the implicit
 // one AVAudioEngine makes on mainMixerNode access, so the wiring is the same
-// deterministic step in both configurations. Runs on _queue; the engine init
-// and the iOS media-services-reset rebuild are the callers.
+// deterministic step in every configuration. Runs on _queue with the engine
+// stopped: the engine init, the iOS media-services-reset rebuild, and the
+// macOS device rebind whenever the standing route disagrees with the flags.
 - (void)installMasterBusOnQueue {
     // Apple's default SRC leaves measurable ultrasonic aliases when reducing
     // the output rate. The render suite holds their RMS below -90 dBFS.

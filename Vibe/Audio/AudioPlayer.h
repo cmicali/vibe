@@ -46,10 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic) NSInteger crossfadeMilliseconds;
 
 // Whether a tap publishes band levels for active equalizer indicators. Off by
-// default and demand-driven. The
-// shells enable it only for counted indicator demand, modeled output audio and
-// material presentation visibility. Setting it installs or removes the tap on
-// the player queue, and a media-services rebuild re-installs to match.
+// default and demand-driven. The shells enable it only for counted indicator
+// demand, modeled output audio and material presentation visibility. Setting
+// it installs or removes the tap on the player queue, and every master-bus
+// rewire re-installs to match.
 //
 // Main thread only, like every other transport-facing setter here.
 @property (nonatomic) BOOL levelsEnabled;
