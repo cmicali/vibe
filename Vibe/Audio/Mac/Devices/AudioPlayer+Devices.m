@@ -317,6 +317,12 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         _exclusiveOutputWanted = previousExclusive;
 #endif
+        // TRAP: a failed rebuild may already have rewired or prepared the
+        // destination. A failed pin leaves live playback untouched.
+        if (_state == VibePlayerStateStopped) {
+            [_engine stop];
+            [self leaveOutputDeviceOnQueue];
+        }
         [self publishBitPerfectReportOnQueue];
     }
     return didBind;

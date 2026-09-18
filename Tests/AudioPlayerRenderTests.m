@@ -4,7 +4,9 @@
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioFX.h"
+#import "CoreAudioUtil.h"
 #import "VibeManualRenderPump.h"
+#import <objc/runtime.h>
 #include <float.h>
 
 // Independent Apple AAC decodes can differ by a few float rounding bits.
@@ -600,6 +602,61 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
                          skip:(NSUInteger)(_rate * 0.05) tolerance:0];
         XCTAssertEqual([self count:@"finish"], 1u);
+    }
+}
+
+- (void)testFailedDeviceSwitchRestoresBitPerfectGraph {
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+        return @[];
+    } retryScheduler:nil];
+    // Replace only the device I/O boundaries; the real rebuild and PCM path run.
+    Method methods[] = {
+        class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
+        class_getInstanceMethod(AudioPlayer.class, @selector(setOutputUnitDevice:)),
+    };
+    IMP replacements[] = {
+        imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
+        imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
+        imp_implementationWithBlock(^BOOL(id player, AudioDeviceID device) { return NO; }),
+    };
+    IMP originals[3];
+    for (NSUInteger i = 0; i < 3; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    @try {
+        for (NSString *state in @[@"stopped", @"paused", @"playing"]) {
+            [self startPlayerAt:44100 channels:2 fx:YES bitPerfect:YES automatic:NO];
+            NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
+            if (![state isEqualToString:@"stopped"]) {
+                [self play:url paused:[state isEqualToString:@"paused"] position:0];
+                [self render:4096];
+            }
+            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            NSInteger requestedDevice = _player.currentlyRequestedAudioDeviceId;
+            __block BOOL completed = NO;
+            // An absent destination has no saved modes, as when a device
+            // disappears after selection but before the queued bind.
+            [_player setOutputDevice:2 completion:^{ completed = YES; }];
+            [self settleUntil:^BOOL { return completed; }];
+            XCTAssertNotNil(_playError);
+            XCTAssertTrue(_player.isStopped);
+            XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, requestedDevice);
+            XCTAssertTrue(_player.bitPerfectReport.enabled);
+            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            // Unchanged modes stay a no-op; replay must still render exact PCM.
+            [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+            _playError = nil;
+            [self play:url paused:NO position:0];
+            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
+                             skip:(NSUInteger)(_rate * 0.05) tolerance:0];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        for (NSUInteger i = 0; i < 3; i++) {
+            method_setImplementation(methods[i], originals[i]);
+            imp_removeBlock(replacements[i]);
+        }
     }
 }
 
