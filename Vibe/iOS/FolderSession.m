@@ -206,8 +206,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         if (![self isCurrentOpenIntent:openIntentGeneration]) {
             return;
         }
+        // No pre-adopt refresh of a stale bookmark: minting bookmark data
+        // needs the security scope OPEN, and the landing re-persists after the
+        // scope starts anyway — the refresh before it always failed.
         NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
-                                             openIntentGeneration:openIntentGeneration];
+                                              openIntentGeneration:openIntentGeneration];
         if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
             if (urls.count == 0) {
                 LogWarn(@"FolderSession: the base bookmark no longer resolves");
@@ -221,9 +224,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             });
             return;
         }
-        // No pre-adopt refresh of a stale bookmark: minting bookmark data
-        // needs the security scope OPEN, and the landing re-persists after the
-        // scope starts anyway — the refresh before it always failed.
         [self openURLsOnWorkQueue:urls appending:NO restored:YES fromSearchRoots:NO
                          sortedBy:sort coveringRootPaths:@[] holds:@[] grants:@[]
              openIntentGeneration:openIntentGeneration];
