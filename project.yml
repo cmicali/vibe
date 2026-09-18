@@ -577,12 +577,11 @@ targets:
       # Shared with the app, which owns the bodies (VIBE_APP). The extension
       # needs the TYPES so its buttons can name them.
       - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
-      # TRAP: NSBundle.mainBundle inside an appex is the APPEX's bundle, so the
-      # extension needs its own copy of the catalog. Without it every widget
-      # string silently falls back to its English default, and nothing in the
-      # build or make check-translations would say so.
-      - path: Resources/Localizable.xcstrings
-        buildPhase: resources
+      # Its catalog is VibeWidget/Localizable.xcstrings, picked up by the entry
+      # above: NSBundle.mainBundle inside an appex is the APPEX's bundle, so it
+      # needs one of its own, and the full catalog is ~950 KB for the four keys
+      # it reads. That file is the widget.* subset, written by `make strings`
+      # (scripts/extract-strings.sh) and never edited by hand.
     info:
       path: VibeWidget/Info.plist
       properties:

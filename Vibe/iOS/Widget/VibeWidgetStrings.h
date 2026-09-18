@@ -12,9 +12,11 @@
 //
 //  TRAP: the lookups resolve against NSBundle.mainBundle, which inside an
 //  appex is the APPEX's bundle, not the app's. The widget target therefore
-//  carries Resources/Localizable.xcstrings in its own resources (project.yml);
-//  without it every language falls back to the macro's English default, and
-//  nothing — not the build, not make check-translations — would say so.
+//  carries a catalog of its own — VibeWidget/Localizable.xcstrings, the
+//  widget.* subset `make strings` derives from the main one. Without it every
+//  language falls back to the macro's English default, and nothing — not the
+//  build, not make check-translations — would say so. Which is why every key
+//  the widget reads is widget.*: make check-strings refuses any other.
 //
 
 #import <Foundation/Foundation.h>
