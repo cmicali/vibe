@@ -18,6 +18,7 @@
 
 typedef NS_ENUM(NSInteger, VibeAppearanceRow) {
     VibeAppearanceRowWaveformStyle = 0,
+    VibeAppearanceRowWidgetWaveformStyle,
     VibeAppearanceRowWaveformTheme,
     VibeAppearanceRowWaveformNormalize,
     VibeAppearanceRowWaveformGain,
@@ -75,6 +76,14 @@ static NSString *const kSliderCellIdentifier = @"slider";
 
 - (NSString *)waveformStyleValueText {
     return [WaveformRendererRegistry displayNameForIdentifier:[self currentWaveformStyle]];
+}
+
+// Unset is the default and reads as Match app — NOT as the app's style name,
+// which would say the widget is pinned to it when it is actually following.
+- (NSString *)widgetWaveformStyleValueText {
+    NSString *identifier = VibeWidgetWaveformStyle();
+    return identifier ? [WaveformRendererRegistry displayNameForIdentifier:identifier]
+                      : STR_SETTINGS_WIDGET_WAVEFORM_MATCH;
 }
 
 // The stored value re-read through the half-dB ladder, so the number shown is
@@ -154,6 +163,10 @@ static NSString *const kSliderCellIdentifier = @"slider";
             content.text = STR_SETTINGS_SECTION_WAVEFORM;
             content.secondaryText = [self waveformStyleValueText];
             break;
+        case VibeAppearanceRowWidgetWaveformStyle:
+            content.text = STR_SETTINGS_SECTION_WIDGET_WAVEFORM;
+            content.secondaryText = [self widgetWaveformStyleValueText];
+            break;
         case VibeAppearanceRowWaveformTheme:
             content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
             content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
@@ -175,6 +188,9 @@ static NSString *const kSliderCellIdentifier = @"slider";
     switch ((VibeAppearanceRow)indexPath.row) {
         case VibeAppearanceRowWaveformStyle:
             next = [self waveformStylePicker];
+            break;
+        case VibeAppearanceRowWidgetWaveformStyle:
+            next = [self widgetWaveformStylePicker];
             break;
         case VibeAppearanceRowWaveformTheme:
             next = [[WaveformThemeSettingsViewController alloc] init];
@@ -204,6 +220,34 @@ static NSString *const kSliderCellIdentifier = @"slider";
             selectedIndex:selected
                  onSelect:^(NSInteger index) {
         AppSettings.sharedInstance.waveformStyle = styles[(NSUInteger)index];
+        VibeNotifyDisplaySettingsChanged();
+    }];
+}
+
+// The same list with Match app on the front, so row 0 is "follow" and every
+// other row is offset by one against the style array. The offset is the whole
+// mapping and it lives here, beside the array it indexes.
+- (SettingsChoiceViewController *)widgetWaveformStylePicker {
+    NSMutableArray<NSString *> *names =
+            [NSMutableArray arrayWithObject:STR_SETTINGS_WIDGET_WAVEFORM_MATCH];
+    for (NSString *identifier in _waveformStyles) {
+        [names addObject:[WaveformRendererRegistry displayNameForIdentifier:identifier]];
+    }
+    NSArray<NSString *> *styles = _waveformStyles;
+    NSString *current = VibeWidgetWaveformStyle();
+    NSInteger selected = 0;
+    if (current) {
+        NSUInteger index = [styles indexOfObject:current];
+        // A style that is no longer registered falls back to Match app rather
+        // than leaving the list with no checkmark at all.
+        selected = index == NSNotFound ? 0 : (NSInteger)index + 1;
+    }
+    return [[SettingsChoiceViewController alloc]
+            initWithTitle:STR_SETTINGS_SECTION_WIDGET_WAVEFORM
+                  choices:names
+            selectedIndex:selected
+                 onSelect:^(NSInteger index) {
+        VibeSetWidgetWaveformStyle(index == 0 ? nil : styles[(NSUInteger)index - 1]);
         VibeNotifyDisplaySettingsChanged();
     }];
 }

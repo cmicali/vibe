@@ -14,6 +14,8 @@
 
 #import "AudioTrack.h"
 #import "Formatters.h"
+#import "PlaybackController+NowPlaying.h"
+#import "Playlist.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "WaveformZoomMath.h"
@@ -44,8 +46,15 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index {
-    [[self cellAtIndex:index].waveformView showWaveform:waveform
-                                              animated:[pipeline isCompleteAtIndex:index]];
+    BOOL complete = [pipeline isCompleteAtIndex:index];
+    [[self cellAtIndex:index].waveformView showWaveform:waveform animated:complete];
+    // The home-screen widget draws this same envelope, and this is the app's
+    // one waveform load — so it is offered from here rather than loaded again.
+    // Whether the delivery is for the track the widget is describing is the
+    // model's call, not this view's.
+    [_playback publishWidgetWaveform:waveform
+                            forTrack:[_playback.playlist trackAtIndex:index]
+                            complete:complete];
 }
 
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline

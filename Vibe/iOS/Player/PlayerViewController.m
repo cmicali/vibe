@@ -13,6 +13,8 @@
 
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
+#import "PlaybackController+NowPlaying.h"
+#import "Playlist.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "Formatters.h"
@@ -132,6 +134,23 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
         [cell.waveformView syncWaveformLevels];
     }
     [self repaintTimesOnVisiblePages];
+    [self republishWidgetWaveform];
+}
+
+// The widget's strip is BAKED at publish time, so unlike the scrubbers above it
+// does not re-read a style on its own — a widget waveform style change would
+// otherwise not show until the next track. Re-offering the waveform already in
+// hand is enough: the publish re-resolves the style and re-bakes. A page with
+// no complete waveform yet has nothing to offer, and its own delivery will
+// publish in the new style when it lands.
+- (void)republishWidgetWaveform {
+    NSUInteger index = _playback.currentIndex;
+    if (![_waveformCoordinator isCompleteAtIndex:index]) {
+        return;
+    }
+    [_playback publishWidgetWaveform:[_waveformCoordinator snapshotAtIndex:index]
+                            forTrack:[_playback.playlist trackAtIndex:index]
+                            complete:YES];
 }
 
 // Reachable because the display link holds the weak proxy, not the

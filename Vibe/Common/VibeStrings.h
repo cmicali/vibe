@@ -527,6 +527,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_TITLE            NSLS(@"settings.title",            @"Settings",       @"iOS: title of the settings screen, and the label of the gear button on the playlist screen that opens it. Use the name Apple gives the Settings app in this language.")
 #define STR_SETTINGS_SECTION_WAVEFORM NSLS(@"settings.section.waveform", @"Waveform style", @"iOS settings screen: heading above the list of waveform drawing styles.")
 #define STR_SETTINGS_SECTION_WAVEFORM_THEME NSLS(@"settings.section.waveform_theme", @"Waveform theme", @"iOS settings screen: heading above the list of waveform color themes.")
+#define STR_SETTINGS_SECTION_WIDGET_WAVEFORM NSLS(@"settings.section.widget_waveform", @"Widget waveform", @"iOS settings screen: row title for the drawing style the home-screen widget uses for its waveform, which can differ from the one the app itself draws. 'Widget' is the iOS home-screen widget.")
+#define STR_SETTINGS_WIDGET_WAVEFORM_MATCH NSLS(@"settings.widget_waveform.match_app", @"Match app", @"iOS settings screen, widget waveform style list: the first row, meaning the widget draws in whatever style the app is set to rather than one of its own. Keep it short — it sits in a narrow value column.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"Settings and theme editor: heading above the time display settings, including total duration versus remaining time.")
 
 #define STR_SETTINGS_SECTION_FOLDER_SORT    NSLS(@"settings.section.folder_sort",    @"When opening a folder", @"iOS settings screen: heading above the choice of what order a folder's songs are added to the playlist in when that folder is opened.")

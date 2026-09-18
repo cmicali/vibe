@@ -27,6 +27,7 @@
 @class DownloadProgressMonitor;
 @class NowPlayingController;
 @class UIUpdateTimer;
+@class VibeWidgetState;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -64,6 +65,20 @@ NS_ASSUME_NONNULL_BEGIN
     // otherwise.
     DownloadProgressMonitor *_downloadMonitor;
     uint64_t                 _downloadMonitorOpenRequestIdentifier;
+
+    // What the home-screen widget was last told, for the change gate in
+    // publishWidgetSnapshot. It rides the Now Playing publish, which runs at
+    // 3 Hz; a file write and a WidgetKit reload at that rate would be neither
+    // affordable nor useful, since the widget advances the playhead itself
+    // from the instant stamped in here.
+    VibeWidgetState         *_publishedWidgetState;
+
+    // The track whose artwork is actually ON DISK, which is NOT the same as
+    // the published track: cachedArt reads nil until the art decodes, so a
+    // track change usually publishes before there is anything to write.
+    // Keeping the two apart is what lets the write re-fire when the decode
+    // lands. nil means the file was cleared and is owed one.
+    NSString                *_publishedWidgetArtworkKey;
 
     // The deferred playlist-wide metadata sweep; see scheduleDeferredMetadataLoad.
     // The generation pairs each open's fallback timer with its own playlist, so

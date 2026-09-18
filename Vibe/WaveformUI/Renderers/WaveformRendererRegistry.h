@@ -9,6 +9,7 @@
 #import <QuartzCore/QuartzCore.h>
 
 @class AudioWaveformRenderer;
+@class CodableAudioWaveform;
 @class WaveformTheme;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -34,6 +35,20 @@ NS_ASSUME_NONNULL_BEGIN
                                         theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
                                      barWidth:(CGFloat)barWidth
                                     normalize:(BOOL)normalize gainDB:(float)gainDB CF_RETURNS_RETAINED;
+
+// A REAL track's envelope, baked at an explicit size for a consumer that
+// cannot host a renderer — the home-screen widget, which is a second process.
+// It shares the preview's machinery, so a widget strip is the same style the
+// app draws rather than a second approximation of it. progress draws the whole
+// envelope in one side of the palette: bake 0 and 1, reveal one over the other.
++ (nullable CGImageRef)newImageForCodableWaveform:(CodableAudioWaveform *)waveform
+                                       identifier:(NSString *)identifier
+                                        pointSize:(CGSize)size scale:(CGFloat)scale
+                                         progress:(CGFloat)progress dark:(BOOL)dark
+                                            theme:(WaveformTheme *)theme
+                                       barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                                        normalize:(BOOL)normalize
+                                           gainDB:(float)gainDB CF_RETURNS_RETAINED;
 
 // The full resolution chain for a persisted style: the given identifier if
 // registered, else the app default, else an arbitrary registered style (a

@@ -30,6 +30,7 @@ DerivedData/
 /Vibe.xcodeproj/
 Vibe/Mac/App/Info.plist
 Vibe/iOS/Info.plist
+VibeWidget/Info.plist
 
 # Claude Code worktrees are checkouts of this repo living inside it; the rest
 # of .claude/ (skills, commands) stays tracked.

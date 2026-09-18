@@ -89,14 +89,25 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
-+ (CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
-                              theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
-                           barWidth:(CGFloat)barWidth
-                          normalize:(BOOL)normalize gainDB:(float)gainDB {
-    CGRect bounds = CGRectMake(0, 0, 360, 64);
+// The one offscreen bake, shared by the Settings preview and the home-screen
+// widget's published strip. It hosts the REAL renderer in a detached layer, so
+// what it produces is what the view would draw — the reason the preview was
+// written this way, and the reason the widget reuses it rather than growing a
+// second, simpler waveform drawer that would drift from the styles.
++ (CGImageRef)newBakedImageForWaveform:(AudioWaveform *)waveform
+                            identifier:(NSString *)identifier
+                             pointSize:(CGSize)size scale:(CGFloat)scale
+                              progress:(CGFloat)progress dark:(BOOL)dark
+                                 theme:(WaveformTheme *)theme
+                            barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                             normalize:(BOOL)normalize gainDB:(float)gainDB {
+    if (size.width <= 0 || size.height <= 0 || scale <= 0) {
+        return NULL;
+    }
+    CGRect bounds = CGRectMake(0, 0, size.width, size.height);
     CALayer *layer = [CALayer layer];
     layer.bounds = bounds;
-    layer.contentsScale = 2;
+    layer.contentsScale = scale;
     AudioWaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
             layer:layer bounds:bounds isDark:dark];
     renderer.theme = theme;
@@ -107,19 +118,53 @@ static AudioWaveform *VibePreviewWaveform(void) {
     [renderer updateColors:dark];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [renderer updateWaveform:bounds progress:0.4 waveform:VibePreviewWaveform()];
+    [renderer updateWaveform:bounds progress:progress waveform:waveform];
+    // Without this the bars are wherever the morph's first frame left them:
+    // there is no display link here to ease them to their targets.
     [renderer settleMorphImmediately];
     [CATransaction commit];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(NULL, 720, 128, 8, 0, space,
+    CGContextRef context = CGBitmapContextCreate(NULL, (size_t)llround(size.width * scale),
+            (size_t)llround(size.height * scale), 8, 0, space,
             kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
     if (!context) return NULL;
-    CGContextScaleCTM(context, 2, 2);
+    CGContextScaleCTM(context, scale, scale);
     [layer renderInContext:context];
     CGImageRef image = CGBitmapContextCreateImage(context);
     CGContextRelease(context);
     return image;
+}
+
++ (CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
+                              theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
+                           barWidth:(CGFloat)barWidth
+                          normalize:(BOOL)normalize gainDB:(float)gainDB {
+    return [self newBakedImageForWaveform:VibePreviewWaveform() identifier:identifier
+                                pointSize:CGSizeMake(360, 64) scale:2 progress:0.4
+                                     dark:dark theme:theme barDensity:barDensity
+                                 barWidth:barWidth normalize:normalize gainDB:gainDB];
+}
+
+// The ObjC-safe door onto the bake above: AudioWaveform is a C++ type, so a
+// plain .m caller (the widget publish, which lives beside the Now Playing one)
+// cannot name it, but it can hold the Codable wrapper the cache already hands
+// it. progress picks which side of the palette the whole envelope is drawn in
+// — the widget bakes 0 and 1 and reveals one over the other, which is what
+// lets its playhead move without re-rendering anything.
++ (CGImageRef)newImageForCodableWaveform:(CodableAudioWaveform *)waveform
+                              identifier:(NSString *)identifier
+                               pointSize:(CGSize)size scale:(CGFloat)scale
+                                progress:(CGFloat)progress dark:(BOOL)dark
+                                   theme:(WaveformTheme *)theme
+                              barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                               normalize:(BOOL)normalize gainDB:(float)gainDB {
+    AudioWaveform *raw = waveform.waveform;
+    return raw ? [self newBakedImageForWaveform:raw identifier:identifier pointSize:size
+                                          scale:scale progress:progress dark:dark theme:theme
+                                     barDensity:barDensity barWidth:barWidth
+                                      normalize:normalize gainDB:gainDB]
+               : NULL;
 }
 
 + (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier

@@ -521,12 +521,30 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CODE_SIGN_STYLE: Automatic
+        # The app group the widget reads through. The mac target has its own
+        # entitlements for the sandbox; this file exists only for that group,
+        # and the extension carries a matching copy.
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/iOS/Vibe.entitlements"
+        # The target's ONE Swift file, VibeWidgetReloader: WidgetCenter has no
+        # Objective-C API, so telling WidgetKit a snapshot is stale cannot be
+        # written in the language the rest of this target is. It needs no
+        # bridging header — nothing in it reads an app class — and ObjC reaches
+        # it through the generated Vibe-Swift.h.
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/iOS/Widget/Vibe-Bridging-Header.h"
+        # VIBE_APP switches on the App Intent bodies in VibeWidgetIntents.swift,
+        # which compiles into this target AND the extension; only this one can
+        # link the classes they drive. settingPresets is none, so nothing sets
+        # this for us.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VIBE_APP"
         ENABLE_USER_SCRIPT_SANDBOXING: NO     # generate-git-info.sh reads .git
         PROVISIONING_PROFILE_SPECIFIER: ""
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/Frameworks"
     dependencies:
+      - target: VibeWidget        # embedded into PlugIns/; see that target
+      - sdk: AppIntents.framework           # the widget's transport intents
       - sdk: AVFoundation.framework
       - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
@@ -535,6 +553,64 @@ targets:
       - sdk: MediaPlayer.framework
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework
+
+  # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
+  # session, and it never opens an audio file. Everything it draws is the
+  # snapshot the app publishes into the shared app group, which is why its only
+  # shared sources are VibeWidgetState's pair — named file by file, because the
+  # rest of Vibe/iOS/Widget/ is app-side code that reaches for app classes.
+  #
+  # Its own sources live OUTSIDE Vibe/, as Tests/ does and for the same reason:
+  # the app targets recurse whole subsystem directories, so a file under Vibe/
+  # would compile into the shipping apps as well. check-layout asserts the
+  # top level of Vibe/ is in BOTH app targets, which an iOS-only extension
+  # directory could never be.
+  VibeWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VibeWidget
+        excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
+      - path: Vibe/iOS/Widget/VibeWidgetState.h
+      - path: Vibe/iOS/Widget/VibeWidgetState.m
+      # Shared with the app, which owns the bodies (VIBE_APP). The extension
+      # needs the TYPES so its buttons can name them.
+      - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
+    info:
+      path: VibeWidget/Info.plist
+      properties:
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundleDisplayName: Vibe
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      groups: [vibe-version]
+      base:
+        PRODUCT_NAME: VibeWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe.Widget
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/VibeWidget/VibeWidget.entitlements"
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/VibeWidget/VibeWidget-Bridging-Header.h"
+        GCC_PREFIX_HEADER: ""                 # no app pch: this target links no app class
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+          - "@executable_path/../../Frameworks"
+    dependencies:
+      - sdk: AppIntents.framework
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
 
   # Not a test suite: the interactive touch driver for agentic workflows —
   # the iOS counterpart of the debug channel's key/click injection, which
