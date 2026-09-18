@@ -30,7 +30,12 @@ BUNDLE_ID="com.commonwealthrecordings.Vibe"
 # and blocks until ready (a no-op when already booted), so no guessed sleep.
 UDID="$("$DIR/sim-udid.sh" --create)"
 xcrun simctl bootstatus "$UDID" -b >/dev/null
-open -a Simulator   # surface the window; input/screenshot tooling needs it visible
+# TRAP: Xcode 27 REMOVED Simulator.app — devices moved into DeviceHub.app — so
+# `open -a Simulator` fails, and under `set -e` that aborted this script before
+# it installed or launched anything. Nothing here needs a window: the debug
+# channel, simctl screenshots and the XCUITest touch driver are all headless.
+# This only surfaces a window for a human watching, so it must never fail.
+open -a "Device Hub" 2>/dev/null || true
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
 # install-ios.sh installs only when the built binary is newer, which is what
