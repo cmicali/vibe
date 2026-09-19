@@ -90,9 +90,6 @@ typedef struct {
     BOOL hogWanted;
     BOOL exclusive;
     BOOL sourceLossless;
-    // Not a fold input: why hogWanted is NO on a device that would otherwise
-    // be hogged, for the caption to say so.
-    BOOL systemDefault;
 } VibeBitPerfectReport;
 
 static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
@@ -107,7 +104,7 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
             && a.depthOK == b.depthOK && a.muted == b.muted
             && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
-            && a.sourceLossless == b.sourceLossless && a.systemDefault == b.systemDefault;
+            && a.sourceLossless == b.sourceLossless;
 }
 
 // PCM: mBitsPerChannel. ALAC and FLAC: the kAppleLosslessFormatFlag_*
@@ -199,15 +196,6 @@ static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
         default:
             return NO;
     }
-}
-
-// Exclusive output is opt-in; HAL capability is checked before acquiring it.
-// Never take the system default output device. TRAP: hogging the default makes
-// coreaudiod move the default elsewhere and AVAudioEngine's output unit
-// follow it, off the device it was bound to, at a moment of its own
-// choosing; the measurements are Q8 of docs/future/bit-perfect-output.md.
-static inline BOOL VibeBitPerfectShouldHog(BOOL exclusiveOutput, UInt32 transportType, BOOL isSystemDefault) {
-    return exclusiveOutput && VibeBitPerfectDeviceEligible(transportType) && !isSystemDefault;
 }
 
 static inline BOOL VibeRangedFormatOffersRate(AudioStreamRangedDescription format, double rate) {

@@ -1,6 +1,11 @@
-// The measurement behind "the system default output device is never hogged"
-// (Audio/Mac/Devices/CLAUDE.md; docs/future/bit-perfect-output.md, system-output experiment). Run
-// it against the device that IS the default: hogfollow <deviceID>.
+// The measurement behind the output-unit follow that taking the system default
+// causes, and the settle that answers it (Audio/Mac/Devices/CLAUDE.md;
+// docs/future/bit-perfect-output.md, system-output experiment). Run it against
+// the device that IS the default: hogfollow <deviceID>.
+//
+// TRAP: `running` alone is not success. This never calls play(), so it cannot
+// see the failure that matters — an engine started while the follow is still in
+// flight reports running and then never gets an IO cycle.
 //
 // Phase 1, engine running: does hogging the default move the default, and
 // does AVAudioEngine's output unit follow it off the device it was bound to?

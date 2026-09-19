@@ -198,7 +198,6 @@ static double SkipBaseBars(void) {
             return STR_SETTINGS_BIT_PERFECT_IDLE;
         case VibeBitPerfectStatusActive: {
             NSString *formatString = report.exclusive ? STR_SETTINGS_BIT_PERFECT_FORMAT_EXCLUSIVE
-                    : report.systemDefault ? STR_SETTINGS_BIT_PERFECT_FORMAT_SHARED_DEFAULT
                     : STR_SETTINGS_BIT_PERFECT_FORMAT;
             NSString *format = [NSString stringWithFormat:formatString,
                     [formatters sampleRateString:report.sampleRate],

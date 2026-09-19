@@ -21,6 +21,10 @@ static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
+// Taking the system default costs one output-unit follow, measured at about
+// 50 ms. This is the ceiling on waiting for it and for the re-bind after it.
+static const NSTimeInterval kHogSettleDeadlineSeconds = 0.5;
+
 #pragma mark - Output devices (internal surface + device-change observing)
 
 @implementation AudioPlayer (DevicesInternal)
@@ -779,16 +783,46 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// The engine is stopped at both ownership edges. Read the default live: a
-// failed read cannot establish that this device is safe to take exclusively.
+// TRAP: taking the device macOS currently points at makes coreaudiod move the
+// system default elsewhere, and AVAudioEngine's output unit — a default output
+// unit whatever kAudioOutputUnitProperty_CurrentDevice last named — then
+// follows the default off the device it was just bound to. Measured on a
+// Fireface 802: the default has already moved when the hog write returns, but
+// the unit follows about 50 ms LATER, so reading the unit straight after the
+// take still names our device and means nothing. Pinning inside that window is
+// simply followed again, and an engine started inside it never gets an IO
+// cycle — [AVAudioPlayerNode play] then blocks 5 s in awaitIOCycle and the
+// recovery rebuilds the graph underneath it. So wait for the follow to land
+// and only then pin the unit back, leaving the caller's engine start the one
+// configuration edge outstanding. Reproducible in hogfollow.swift (vibe-debug);
+// the engine is stopped at every ownership edge, so none of this is audible.
+// TRAP: do not reach for -[AVAudioEngine prepare] here. It dispatch_syncs onto
+// the AVAudioIOUnit queue, which is draining the property listener for the very
+// re-bind above and is blocked in CoreAudio while the HAL reorganizes around
+// the take: the player queue then deadlocks against it and the whole app hangs.
+- (void)settleOutputUnitAfterHoggingSystemDefaultOnQueue:(AudioDeviceID)deviceID {
+    NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + kHogSettleDeadlineSeconds;
+    // The unit leaving is the observable end of the default move that caused
+    // it, so this needs no second reading of the default.
+    while (NSProcessInfo.processInfo.systemUptime < deadline
+            && [self activeOutputDeviceID] == deviceID) {
+        usleep(kFormatSwitchPollMicroseconds);
+    }
+    while (NSProcessInfo.processInfo.systemUptime < deadline) {
+        if ([self activeOutputDeviceID] == deviceID) {
+            return;
+        }
+        [self setOutputUnitDevice:deviceID];
+        usleep(kFormatSwitchPollMicroseconds);
+    }
+    LogWarn(@"bit-perfect: output unit did not settle on device %u after taking exclusive use", deviceID);
+}
+
+// The engine is stopped at both ownership edges.
 - (void)acquireExclusiveOutputOnQueue {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     AudioDeviceID deviceID = device ? (AudioDeviceID)device.deviceId : kAudioObjectUnknown;
-    AudioDeviceID systemDefault = kAudioObjectUnknown;
     if (!device || !_exclusiveOutputWanted
-            || ![CoreAudioUtil readSystemDefaultOutputDeviceID:&systemDefault]
-            || !VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType,
-                                        deviceID == systemDefault)
             || ![CoreAudioUtil supportsHogModeForDeviceID:deviceID]) {
         [self releaseExclusiveOutputOnQueue];
         return;
@@ -799,6 +833,15 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             return; // never overwrite an outstanding release with a second device
         }
     }
+    // A follow is coming only when the take has a default to move AND the unit
+    // is bound to the device being taken. Both are read BEFORE the take, which
+    // moves them. An unreadable default counts as "this is it": the settle is
+    // bounded, while skipping it strands the engine on whichever device the
+    // HAL moved to.
+    AudioDeviceID systemDefault = kAudioObjectUnknown;
+    BOOL followExpected = (![CoreAudioUtil readSystemDefaultOutputDeviceID:&systemDefault]
+                    || systemDefault == deviceID)
+            && [self activeOutputDeviceID] == deviceID;
     // A successful write followed by a failed read-back may still own the
     // device. Record the cleanup obligation BEFORE asking the HAL to take it.
     _hoggedDeviceID = deviceID;
@@ -806,6 +849,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         LogWarn(@"bit-perfect: could not confirm exclusive access to %@", device.name);
         [self releaseExclusiveOutputOnQueue]; // publishes
         return;
+    }
+    if (followExpected) {
+        [self settleOutputUnitAfterHoggingSystemDefaultOnQueue:deviceID];
     }
     [self publishBitPerfectReportOnQueue];
 }
@@ -1001,9 +1047,8 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
                 && mixerFormat.sampleRate == physical.mSampleRate
                 && outputInputFormat.sampleRate == physical.mSampleRate
                 && [_engine.outputNode outputFormatForBus:0].sampleRate == physical.mSampleRate;
-        report.systemDefault = (_preparedDeviceID == [CoreAudioUtil systemDefaultOutputDeviceID]);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        report.hogWanted = VibeBitPerfectShouldHog(_exclusiveOutputWanted, device.transportType, report.systemDefault);
+        report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
         pid_t owner = -1;
         report.exclusive = _hoggedDeviceID == _preparedDeviceID
                 && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();

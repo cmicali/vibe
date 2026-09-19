@@ -11,8 +11,9 @@ implementation plan is available in git history.
   output device. It matches the file's rate and depth, removes varispeed, disables
   FX and pitch controls, and holds crossfades to the 10 ms declick minimum.
 - **Exclusive output** is a separate opt-in immediately below it. Physical and virtual devices
-  may request it when the HAL hog property is writable; the current system output
-  stays shared. Shared output can still deliver
+  may request it when the HAL hog property is writable, the device that is currently
+  the system output included — taking that one makes macOS move the system default to
+  another device until Vibe releases it. Shared output can still deliver
   Vibe's samples unchanged; it does not prevent other applications from mixing in.
 - The header lock and Settings caption read one report. Active requires confirmed
   routing and format, matching channel counts, sufficient source precision,
@@ -65,12 +66,26 @@ Hogging the current system output makes coreaudiod move the default elsewhere.
 AVAudioEngine's default output unit follows that move despite an explicit
 `kAudioOutputUnitProperty_CurrentDevice` binding. In the app this caused a recovery
 loop roughly twice a second, five-second engine-start stalls, and audio on the
-wrong device after a switch.
+wrong device after a switch. The mode refused the default for that reason until
+the follow was measured precisely.
 
-Rebinding and preparing after the take held in a standalone experiment but did
-not fix the app. The rule therefore refuses to hog the current system output and
-refuses the take when the default cannot be read. See the reproducible
-[`hogfollow.swift`](../../.claude/skills/vibe-debug/scripts/hogfollow.swift) experiment.
+Measured 2026-09-19, macOS 26.6, RME Fireface 802 as the system default
+(`hogfollow.swift` in the vibe-debug skill, plus a poll of the unit and the
+default from inside the player queue):
+
+| Observation | Result |
+| --- | --- |
+| Default move | Already done when the hog write returns; the write itself takes ~207 ms. |
+| Output-unit follow | Lands ~50 ms AFTER the default moved, so a unit read taken immediately after the take still names the hogged device and proves nothing. |
+| Pinning before the follow | Overwritten by it. The engine then starts against a binding that moves under it. |
+| Engine started inside that window | No IO cycle ever arrives: `[AVAudioPlayerNode play]` blocks 5 s in `AVAudioClock awaitIOCycle:`, then the recovery rebuilds. Total resume cost 6 s, versus 0.25 s with the mode off. |
+| Waiting for the follow, then re-pinning | Resume settles in 0.36–0.64 s, `formatConfirmed` true, hog owned, playback uninterrupted across repeated toggles, idle-stop releases and device switches. |
+| `-[AVAudioEngine prepare]` after the re-pin | **Deadlock.** It `dispatch_sync`s onto the AVAudioIOUnit queue, which is draining the property listener for that re-bind and blocked in CoreAudio (`HALC_ProxyObject::HasProperty`) while the HAL reorganizes around the take. The player queue waits on it and the app hangs. |
+| Release | The system default returns to the device by itself; quit restores the format and releases ownership. |
+
+So the rule is not "never hog the default" but "wait for the follow the take
+causes, then take the binding back" — `settleOutputUnitAfterHoggingSystemDefaultOnQueue:`,
+entered only when the device was the default *and* the unit was bound to it.
 While a bit-perfect device is prepared, a listener on the output unit also catches
 same-rate default moves that produce no AVAudioEngine configuration notification,
 using the normal recovery path.

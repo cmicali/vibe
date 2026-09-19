@@ -199,15 +199,13 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }
     BOOL captionChanged = [_bitPerfectRow setCaption:caption];
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-    BOOL exclusiveEligible = eligible && VibeBitPerfectShouldHog(YES, device.transportType,
-            device.isSystemDefault);
-    BOOL exclusiveSupported = exclusiveEligible
+    BOOL exclusiveSupported = eligible
             && [CoreAudioUtil supportsHogModeForDeviceID:(AudioDeviceID)device.deviceId];
     [SettingsRowView setControl:_exclusiveOutputSwitch enabled:!pending && on && exclusiveSupported];
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
-            : !exclusiveEligible ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_DEVICE
+            : !eligible ? STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE
             : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];

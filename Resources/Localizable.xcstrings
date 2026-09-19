@@ -61751,7 +61751,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "settings.general.bit_perfect.idle": {
       "comment": "Settings, Audio pane: caption under the bit-perfect output switch while it is on and playback is stopped or paused.",
@@ -64355,7 +64355,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "settings.general.exclusive_output.unsupported": {
       "comment": "Settings: the selected device does not expose writable exclusive access. No trailing period.",

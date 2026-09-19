@@ -49,7 +49,6 @@ static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
         @"muted": @(r.muted),
         @"eligibleDevice": @(r.eligibleDevice),
         @"hasTrack": @(r.hasTrack),
-        @"systemDefault": @(r.systemDefault),
         @"rateExact": @(r.rateExact),
         @"formatConfirmed": @(r.formatConfirmed),
         @"depthOK": @(r.depthOK),

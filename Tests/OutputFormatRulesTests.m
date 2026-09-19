@@ -463,18 +463,6 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
 }
 
-- (void)testExclusiveOutputRequiresOptInAndAnEligibleNonDefaultDevice {
-    XCTAssertFalse(VibeBitPerfectShouldHog(NO, kAudioDeviceTransportTypeUSB, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBluetooth, NO));
-    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(NO, kAudioDeviceTransportTypeVirtual, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeVirtual, YES));
-    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, NO));
-    XCTAssertTrue(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBuiltIn, NO));
-    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeUSB, YES));
-    XCTAssertFalse(VibeBitPerfectShouldHog(YES, kAudioDeviceTransportTypeBuiltIn, YES));
-}
-
 #pragma mark - The fold
 
 // Everything perfect; each test below breaks one input and expects the fold
@@ -525,9 +513,6 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
     r = Perfect();
     r.status = VibeBitPerfectStatusIdle;
-    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
-    r = Perfect();
-    r.systemDefault = YES;
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
     r = Perfect();
     r.channelsMatch = NO;
