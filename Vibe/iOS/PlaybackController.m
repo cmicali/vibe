@@ -414,6 +414,19 @@ static const NSUInteger kUIUpdateHz = 3;
     [self notifyDidRenderCurrentTrack];
     [self notifyDidChangePlayState];
     [self notifyDidTick];
+    // LAST, and it has to be last. Clearing during a launch restore supersedes
+    // that restore, so none of the four delegate methods that would settle the
+    // launch waiters ever fires — and _launchOpenSettled is a LATCH, so the
+    // miss is permanent: every later performWhenLaunchOpenSettled: parks too,
+    // and they all fire at once against whatever playlist exists whenever some
+    // later open settles. A widget transport intent presents that as the app
+    // skipping a track for no reason. A clear settles the launch open the same
+    // way a restore that found nothing does: there is nothing more to wait for.
+    //
+    // At the END for the reason the chrome rebuild sits where it does — a
+    // waiter runs arbitrary work, a widget intent driving transport among it,
+    // so it must not see a half-reset controller.
+    [self settleLaunchOpen];
 }
 
 // Parks a restored track: everything renders, nothing plays.
