@@ -8744,186 +8744,186 @@
       "extractionState": "manual"
     },
     "menu.context.add_favorite": {
-      "comment": "iOS: long-press menu item on a FOLDER in the Files tab; stars it so it appears on the Favorites tab, without opening it or changing the playlist. Same wording as the playlist screen's star button label.",
+      "comment": "iOS: long-press menu item on a FOLDER in the Files tab; stars it so it appears on the Favorites tab, without opening it or changing the playlist. %@ is the app name. It is named because the system's own 'Favorite' item sits in the same menu, and without it the two read as near-duplicates and neither says whose favorites it means. Keep the %@ — the app name is not translated, but the grammar around it is.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавяне към любими"
+            "value": "Добавяне към любими на %@"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Přidat mezi oblíbené"
+            "value": "Přidat mezi oblíbené v %@"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Føj til favoritter"
+            "value": "Føj til %@-favoritter"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zu Favoriten hinzufügen"
+            "value": "Zu %@-Favoriten hinzufügen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Προσθήκη στα αγαπημένα"
+            "value": "Προσθήκη στα αγαπημένα του %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add to Favorites"
+            "value": "Add to %@ Favorites"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir a favoritos"
+            "value": "Añadir a favoritos de %@"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lisää suosikkeihin"
+            "value": "Lisää %@-suosikkeihin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajouter aux favoris"
+            "value": "Ajouter aux favoris de %@"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodaj u favorite"
+            "value": "Dodaj u %@ favorite"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hozzáadás a kedvencekhez"
+            "value": "Hozzáadás a %@ kedvencekhez"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tambahkan ke Favorit"
+            "value": "Tambahkan ke Favorit %@"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiungi ai preferiti"
+            "value": "Aggiungi ai preferiti di %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "お気に入りに追加"
+            "value": "%@のお気に入りに追加"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "즐겨찾기에 추가"
+            "value": "%@ 즐겨찾기에 추가"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legg til i favoritter"
+            "value": "Legg til i %@-favoritter"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Voeg toe aan favorieten"
+            "value": "Voeg toe aan %@-favorieten"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodaj do ulubionych"
+            "value": "Dodaj do ulubionych w %@"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adicionar aos favoritos"
+            "value": "Adicionar aos favoritos do %@"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adicionar aos favoritos"
+            "value": "Adicionar aos favoritos do %@"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adaugă la favorite"
+            "value": "Adaugă la favorite în %@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавить в избранное"
+            "value": "Добавить в избранное в %@"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pridať medzi obľúbené"
+            "value": "Pridať medzi obľúbené v %@"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lägg till i favoriter"
+            "value": "Lägg till i %@-favoriter"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เพิ่มไปยังรายการโปรด"
+            "value": "เพิ่มไปยังรายการโปรดใน %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Favorilere Ekle"
+            "value": "%@ Favorilerine Ekle"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Додати у вибране"
+            "value": "Додати у вибране в %@"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thêm vào mục yêu thích"
+            "value": "Thêm vào mục yêu thích của %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加到收藏"
+            "value": "添加到 %@ 收藏"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "加入收藏"
+            "value": "加入 %@ 收藏"
           }
         }
       },

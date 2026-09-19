@@ -72,7 +72,8 @@
         // user has selected, and this browser has no Select mode on iPhone.
         UIDocumentBrowserAction *favorite = [[UIDocumentBrowserAction alloc]
                 initWithIdentifier:@"com.commonwealthrecordings.vibe.add-to-favorites"
-                    localizedTitle:STR_MENU_CONTEXT_ADD_FAVORITE
+                    localizedTitle:[NSString stringWithFormat:STR_MENU_CONTEXT_ADD_FAVORITE,
+                                                              VibeAppName()]
                       availability:UIDocumentBrowserActionAvailabilityMenu
                            handler:^(NSArray<NSURL *> *urls) {
             for (NSURL *folder in urls) {
