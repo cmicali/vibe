@@ -46,5 +46,4 @@ void VibeSetShowsRemainingTime(BOOL remaining);
 BOOL VibeShowsFileInfo(void);
 void VibeSetShowsFileInfo(BOOL show);
 
-
 NS_ASSUME_NONNULL_END

@@ -38,4 +38,3 @@ BOOL VibeShowsFileInfo(void) {
 void VibeSetShowsFileInfo(BOOL show) {
     [NSUserDefaults.standardUserDefaults setBool:show forKey:kShowFileInfoKey];
 }
-

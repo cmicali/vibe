@@ -78,10 +78,6 @@
 
 #pragma mark - The widget's way in
 
-- (PlaybackController *)playback {
-    return _playback;
-}
-
 // Multi-scene is off, so "the connected scene" is at most one — but a scene
 // can be connected and not yet have built its controller, and the app can be
 // launched with no scene at all, which is exactly the state an intent fired

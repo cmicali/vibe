@@ -181,20 +181,15 @@ normalize() {
 }
 
 # ---------------------------------------------------------------------------
-# The widget's subset.
-#
-# The extension resolves strings against ITS OWN bundle (NSBundle.mainBundle
-# inside an appex is the appex's), so it needs a catalog of its own — but the
-# full one is 400-odd keys in 30 languages, ~950 KB, for the four keys the
-# widget reads. VibeWidget/Localizable.xcstrings is those keys and nothing
-# else, DERIVED from the main catalog here and never authored: translations
-# flow down, and the same basename keeps the table name so no lookup changes.
-# Deliberately not a check-translations catalog: every key in it is in the
-# main one and would report twice.
-#
-# The subset is prefix-defined, so the prefix is a checked rule. A widget
-# source that reached for any other key would fall back to English in the
-# widget alone, silently — the failure VibeWidgetStrings.h's TRAP describes.
+# The widget's subset. The extension resolves strings against its own bundle
+# (the TRAP in Vibe/iOS/Widget/VibeWidgetIntents.swift), so it carries
+# VibeWidget/Localizable.xcstrings: the widget.* keys and nothing else, DERIVED
+# from the main catalog here and never authored — translations flow down, and
+# the same basename keeps the table name so no lookup changes. Not a
+# check-translations catalog: every key in it is in the main one and would
+# report twice. The subset is prefix-defined, so the prefix is a checked rule:
+# a widget source reaching for any other key would fall back to English in the
+# widget alone, silently.
 WIDGET_CATALOG="$REPO_ROOT/VibeWidget/Localizable.xcstrings"
 widget_subset() {
     jq --indent 2 '.strings |= with_entries(select(.key | startswith("widget.")))' "$1" > "$2"

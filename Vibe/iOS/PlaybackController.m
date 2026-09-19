@@ -49,6 +49,7 @@ static const NSUInteger kUIUpdateHz = 3;
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
+        _launchOpenWaiters = [NSMutableArray array];
         // TRAP: this must precede the player, and cannot move down to where
         // the session controller is created. AVAudioEngine wires its master
         // bus on the player's own queue moments after this init returns, and
@@ -602,16 +603,13 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         block();
         return;
     }
-    if (!_launchOpenWaiters) {
-        _launchOpenWaiters = [NSMutableArray array];
-    }
     [_launchOpenWaiters addObject:[block copy]];
 }
 
 - (void)settleLaunchOpen {
     _launchOpenSettled = YES;
-    NSArray<void (^)(void)> *waiters = _launchOpenWaiters;
-    _launchOpenWaiters = nil;
+    NSArray<void (^)(void)> *waiters = [_launchOpenWaiters copy];
+    [_launchOpenWaiters removeAllObjects];
     for (void (^waiter)(void) in waiters) {
         waiter();
     }

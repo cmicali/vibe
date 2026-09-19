@@ -26,25 +26,28 @@
 // republishes the card when it lands. Until then cachedArt reads nil and the
 // card falls back to the thumbnail, which is more than large enough for it.
 - (void)publishNowPlaying {
-    NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(_player.isPlaying,
-                                                                 _player.isPaused);
+    // Each player read is a lock round-trip, so each is taken once and both
+    // surfaces are told the same facts from the same locals: two surfaces
+    // describing one playback must never be able to disagree.
+    BOOL playing = _player.isPlaying;
+    NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(playing, _player.isPaused);
     AudioTrack *track = self.displayedTrack;
+    NSTimeInterval position = _trackStartPending ? 0 : _player.position;
     // The player's duration is 0 while pending or parked-unopened; the
     // track's metadata duration keeps the card's timeline real there.
     NSTimeInterval playerDuration = _player.duration;
+    NSTimeInterval duration = playerDuration > 0 ? playerDuration : track.duration;
     [_nowPlaying updateWithTrack:track
-                        position:(_trackStartPending ? 0 : _player.position)
-                        duration:(playerDuration > 0 ? playerDuration : track.duration)
+                        position:position
+                        duration:duration
                            state:state
                             rate:1.0
                          hasNext:_playlist.hasNextTrack
                      hasPrevious:_playlist.hasPreviousTrack];
-    // The widget is told the same facts, from the same locals: two surfaces
-    // describing one playback must never be able to disagree.
     [_widgetPublisher updateWithTrack:track
-                             position:(_trackStartPending ? 0 : _player.position)
-                             duration:(playerDuration > 0 ? playerDuration : track.duration)
-                              playing:_player.isPlaying
+                             position:position
+                             duration:duration
+                              playing:playing
                          startPending:_trackStartPending];
 }
 

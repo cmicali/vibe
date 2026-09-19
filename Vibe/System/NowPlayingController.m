@@ -329,7 +329,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     if (_publishedURL != nil) {
         BOOL unchanged = [_publishedURL isEqualToString:track.url.absoluteString]
                 && [title isEqualToString:_publishedTitle]
-                && (artist == _publishedArtist || [artist isEqualToString:_publishedArtist])
+                && VibeNowPlayingStringsEqual(artist, _publishedArtist)
                 && state == _publishedState
                 && rate == _publishedRate
                 && duration == _publishedDuration

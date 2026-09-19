@@ -44,17 +44,13 @@ NS_ASSUME_NONNULL_BEGIN
 // one means leaving the app. Adding one is covered by the read signal.
 - (void)refreshPlaced;
 
-// The identity a snapshot carries for its track, and the one a seek from the
-// widget must present to be applied. nil for nil.
-+ (nullable NSString *)trackKeyForTrack:(nullable AudioTrack *)track;
-
 // Called from the Now Playing publish, with the values that call already
 // holds — the widget's snapshot must never disagree with the lock screen's,
 // and re-reading the player would be four more lock round-trips per tick.
 //
 // This runs at 3 Hz. It is cheap on a tick that changes nothing: the gate is
-// scalars and a pointer compare, and no snapshot object is built unless
-// something is actually going to be published.
+// scalars, a pointer compare and the two line compares, and no snapshot
+// object is built unless something is actually going to be published.
 //
 // `startPending` is the controller's `_trackStartPending`. While it is set the
 // player reports playing with a pinned position, so the seek detector is

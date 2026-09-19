@@ -39,7 +39,7 @@ extern const char *const kVibeWidgetReadNotification;
 @property (nonatomic) NSTimeInterval duration;
 
 // Which track this snapshot describes — an opaque key the app derives from
-// the file (WidgetPublisher.trackKeyForTrack:), nil when there is no track.
+// the file (NSURL.pathKey), nil when there is no track.
 // It does two jobs. It names the image files, so a snapshot can only ever
 // pair with its own track's artwork and strip: the extension reads the plist
 // and the images as separate reads, and with fixed filenames a publish landing
@@ -60,14 +60,10 @@ extern const char *const kVibeWidgetReadNotification;
 // state rather than failing.
 @property (class, nonatomic, readonly, nullable) NSURL *containerURL;
 
-// This snapshot's own images, named by its trackKey; nil with no key. The
-// class forms are the writer's, for a key it is about to publish.
+// This snapshot's own images, named by its trackKey; nil with no key.
 @property (nonatomic, readonly, nullable) NSURL *artworkURL;
 @property (nonatomic, readonly, nullable) NSURL *waveformPlayedURL;
 @property (nonatomic, readonly, nullable) NSURL *waveformUnplayedURL;
-+ (nullable NSURL *)artworkURLForTrackKey:(nullable NSString *)trackKey;
-+ (nullable NSURL *)waveformPlayedURLForTrackKey:(nullable NSString *)trackKey;
-+ (nullable NSURL *)waveformUnplayedURLForTrackKey:(nullable NSString *)trackKey;
 // Every image file in the container that belongs to neither key. The writer
 // keeps the outgoing track's set through one more publish, so an extension
 // that read the previous plist a moment ago still finds the images it names.

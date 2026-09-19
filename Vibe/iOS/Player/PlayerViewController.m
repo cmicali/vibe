@@ -134,7 +134,6 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [self repaintTimesOnVisiblePages];
 }
 
-
 // Reachable because the display link holds the weak proxy, not the
 // controller; the invalidate releases the link's run-loop registration.
 - (void)dealloc {

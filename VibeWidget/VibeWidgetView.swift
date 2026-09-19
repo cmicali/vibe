@@ -91,11 +91,8 @@ struct VibeWidgetView: View {
     private var mediumHeader: some View {
         HStack(spacing: 10) {
             artworkTile(side: kMediumHeaderHeight)
-            VStack(alignment: .leading, spacing: 1) {
-                titleText(size: kTextSize, weight: .bold)
-                artistText(size: kTextSize)
-            }
-            .frame(maxHeight: .infinity, alignment: .center)
+            textLines
+                .frame(maxHeight: .infinity, alignment: .center)
             Spacer(minLength: 4)
             if state != nil {
                 playPauseButton(diameter: 38)
@@ -136,12 +133,9 @@ struct VibeWidgetView: View {
             }
             .frame(height: kSmallArtworkSide)
             Spacer(minLength: kSmallMinGap)
-            VStack(alignment: .leading, spacing: 1) {
-                titleText(size: kTextSize, weight: .bold)
-                artistText(size: kTextSize)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, kSmallPadding)   // the side body does not inset
+            textLines
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, kSmallPadding)   // the side body does not inset
         }
         .padding(.leading, kSmallPadding)
         .padding(.vertical, kSmallPadding)
@@ -149,27 +143,26 @@ struct VibeWidgetView: View {
 
     // MARK: - Shared pieces
 
-    // Both lines shrink to fit rather than truncating, which is what the card
-    // does on the phone: at this type size a long title would otherwise lose
-    // its end to an ellipsis on most tracks.
-    private func titleText(size: CGFloat, weight: Font.Weight = .semibold) -> some View {
-        // A nil artist means the title is the filename-derived single line, and
-        // it still takes the TITLE's colour — the rule both apps draw by.
-        Text(state?.title ?? "Vibe")
-            .font(.system(size: size, weight: weight))
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-    }
-
-    @ViewBuilder
-    private func artistText(size: CGFloat) -> some View {
-        if let artist = state?.artist, !artist.isEmpty {
-            Text(artist)
-                .font(.system(size: size))
-                .foregroundStyle(.white.opacity(0.7))
+    // Title over artist, the same block in both families. Both lines shrink to
+    // fit rather than truncating, which is what the card does on the phone: at
+    // this type size a long title would otherwise lose its end to an ellipsis
+    // on most tracks. A nil artist means the title is the filename-derived
+    // single line, and it still takes the TITLE's colour — the rule both apps
+    // draw by.
+    private var textLines: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(state?.title ?? "Vibe")
+                .font(.system(size: kTextSize, weight: .bold))
+                .foregroundStyle(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
+            if let artist = state?.artist, !artist.isEmpty {
+                Text(artist)
+                    .font(.system(size: kTextSize))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
     }
 
@@ -261,6 +254,5 @@ struct VibeWidgetView: View {
             }
         }
     }
-
 
 }

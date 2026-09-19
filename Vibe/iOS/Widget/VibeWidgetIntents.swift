@@ -46,6 +46,13 @@ import AppIntents
 // this is only the lookup. supportedModes is read the same way, which is why
 // the three identical literals are not one constant.
 //
+// TRAP: these resolve against NSBundle.mainBundle, which inside an appex is
+// the APPEX's bundle — which is why VibeWidget/Localizable.xcstrings exists,
+// the widget.* subset `make strings` derives from the main catalog. Without it
+// every language would fall back to the English default, and nothing — not
+// the build, not make check-translations — would say so. Hence every key the
+// widget reads is widget.*, which make check-strings enforces.
+//
 // Not a symptom: the extension logs "Failed to fetch metadata for <intent>"
 // once per button on every render, for all three. The intents still reach the
 // app and perform (the app-side log shows the whole pipeline), so that line
@@ -113,7 +120,7 @@ struct VibeSeekIntent: AudioPlaybackIntent {
         try await VibeWidgetTransport.perform(self) { playback in
             // Dropped, not escalated: the tap was on a render that no longer
             // describes anything, and there is nothing right to do with it.
-            guard WidgetPublisher.trackKey(for: playback.displayedTrack) == trackKey else { return }
+            guard (playback.displayedTrack?.url as NSURL?)?.pathKey() == trackKey else { return }
             // The zone's CENTRE, so a tap lands in the middle of what it covers
             // rather than at its leading edge — half a zone of bias otherwise,
             // in one direction, every time.

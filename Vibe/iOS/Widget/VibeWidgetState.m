@@ -39,8 +39,15 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
 @implementation VibeWidgetState
 
 + (NSURL *)containerURL {
-    return [NSFileManager.defaultManager
-            containerURLForSecurityApplicationGroupIdentifier:kVibeWidgetAppGroup];
+    // Resolved once: the container manager answers over XPC, and every file
+    // this class names went back to it.
+    static NSURL *container;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        container = [NSFileManager.defaultManager
+                containerURLForSecurityApplicationGroupIdentifier:kVibeWidgetAppGroup];
+    });
+    return container;
 }
 
 + (nullable NSURL *)fileNamed:(NSString *)name {
@@ -52,12 +59,9 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     return trackKey.length ? [self fileNamed:[NSString stringWithFormat:format, trackKey]] : nil;
 }
 
-+ (NSURL *)artworkURLForTrackKey:(NSString *)key          { return [self fileNamed:kArtworkFormat trackKey:key]; }
-+ (NSURL *)waveformPlayedURLForTrackKey:(NSString *)key   { return [self fileNamed:kPlayedFormat trackKey:key]; }
-+ (NSURL *)waveformUnplayedURLForTrackKey:(NSString *)key { return [self fileNamed:kUnplayedFormat trackKey:key]; }
-- (NSURL *)artworkURL          { return [self.class artworkURLForTrackKey:self.trackKey]; }
-- (NSURL *)waveformPlayedURL   { return [self.class waveformPlayedURLForTrackKey:self.trackKey]; }
-- (NSURL *)waveformUnplayedURL { return [self.class waveformUnplayedURLForTrackKey:self.trackKey]; }
+- (NSURL *)artworkURL          { return [self.class fileNamed:kArtworkFormat trackKey:self.trackKey]; }
+- (NSURL *)waveformPlayedURL   { return [self.class fileNamed:kPlayedFormat trackKey:self.trackKey]; }
+- (NSURL *)waveformUnplayedURL { return [self.class fileNamed:kUnplayedFormat trackKey:self.trackKey]; }
 
 + (NSArray<NSURL *> *)imageURLsNotForTrackKeys:(NSArray<NSString *> *)trackKeys {
     NSURL *container = self.containerURL;

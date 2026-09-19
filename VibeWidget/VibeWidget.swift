@@ -42,6 +42,11 @@ struct VibeEntry: TimelineEntry {
 }
 
 struct VibeProvider: TimelineProvider {
+    // One per process, not per timeline: a CIContext is a Metal device and its
+    // pipelines, tens of milliseconds and several MB, in a process with a hard
+    // memory cap.
+    private static let blurContext = CIContext()
+
     func placeholder(in context: Context) -> VibeEntry { .empty }
 
     func getSnapshot(in context: Context, completion: @escaping (VibeEntry) -> Void) {
@@ -98,7 +103,7 @@ struct VibeProvider: TimelineProvider {
                                     parameters: [kCIInputImageKey: input,
                                                  kCIInputRadiusKey: 40]),
               let output = filter.outputImage,
-              let cgImage = CIContext().createCGImage(output, from: input.extent)
+              let cgImage = Self.blurContext.createCGImage(output, from: input.extent)
         else { return artwork }
         return UIImage(cgImage: cgImage)
     }
@@ -115,7 +120,9 @@ struct VibeNowPlayingWidget: Widget {
             VibeWidgetView(entry: entry)
         }
         .configurationDisplayName("Vibe")
-        .description(LocalizedStringResource(stringLiteral: VibeWidgetStrings.widgetDescription))
+        // A literal for the same reason the intents' titles are (VibeWidgetIntents.swift's
+        // TRAP); it MUST match STR_WIDGET_DESCRIPTION, which is what puts the key in the catalog.
+        .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
         .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
     }

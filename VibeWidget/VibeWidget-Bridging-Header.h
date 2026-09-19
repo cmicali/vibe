@@ -9,4 +9,3 @@
 //
 
 #import "VibeWidgetState.h"
-#import "VibeWidgetStrings.h"
