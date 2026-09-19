@@ -44,6 +44,10 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     ui[@"screenState"] = @(playback.screenState);
     ui[@"parked"] = @(playback.debugParked);
     ui[@"trackStartPending"] = @(playback.debugTrackStartPending);
+    // A seek in flight and its target — including one parked on a metadata
+    // delivery (seekToProgress:), which nothing else on screen shows.
+    ui[@"seekInFlight"] = @(playback.seekInFlight);
+    ui[@"pendingSeekProgress"] = @(playback.pendingSeekProgress);
     ui[@"error"] = playback.errorText ?: @"";
     // The model's answer beside the indicator's drawn one, so the publish path
     // is checkable end to end.

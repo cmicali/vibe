@@ -14,10 +14,12 @@ import WidgetKit
 
 // A widget is not a live view: WidgetKit renders each entry once, ahead of
 // time, and the home screen shows the entry whose date has arrived. So motion
-// costs entries, and entries are budgeted. These two numbers are that trade —
-// a step fine enough that the playhead visibly moves, over a horizon long
-// enough that a track played through does not run out of timeline before the
-// app publishes again.
+// costs entries, and entries are budgeted. The budget is spread over whatever
+// is left of the track: the step is the finest that still reaches the end,
+// never finer than kPlayheadStep. TRAP: a fixed step ran out — 24 entries at
+// 5 s is 115 s — and a longer track's head then FROZE there, because ordinary
+// playback publishes nothing (the widget's own arithmetic is the playhead) and
+// .atEnd asks for a fresh timeline on WidgetKit's schedule, not the track's.
 private let kPlayheadStep: TimeInterval = 5
 private let kMaxEntries = 24
 
@@ -55,14 +57,16 @@ struct VibeProvider: TimelineProvider {
             completion(Timeline(entries: [first], policy: .never))
             return
         }
-        // Step the playhead to the end of the track or the entry budget,
-        // whichever comes first. The app reloads on every transport event, so
-        // running out of timeline only happens when it was killed mid-track —
-        // and .atEnd then asks for a fresh one.
+        // Step the playhead to the end of the track within the entry budget:
+        // 5 s apart on a short remainder, minutes apart on an hour-long mix,
+        // always landing the last entry at the end. The app reloads on every
+        // transport event, and the track's end is one, so .atEnd is only the
+        // fallback for an app killed mid-track.
         let remaining = max(0, state.duration - state.position(at: now))
-        let steps = min(kMaxEntries, max(1, Int(remaining / kPlayheadStep)))
-        let entries = (0..<steps).map { step in
-            VibeEntry(date: now.addingTimeInterval(Double(step) * kPlayheadStep),
+        let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
+        let steps = min(kMaxEntries, Int(remaining / step) + 1)
+        let entries = (0..<steps).map { index in
+            VibeEntry(date: now.addingTimeInterval(Double(index) * step),
                       state: state, artwork: first.artwork,
                       blurredArtwork: first.blurredArtwork,
                       played: first.played, unplayed: first.unplayed)

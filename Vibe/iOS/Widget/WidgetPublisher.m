@@ -14,6 +14,7 @@
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "PlayerDisplaySettings.h"
+#import "UIImage+DominantColor.h"
 #import "UIImage+SquareFill.h"
 #import "Vibe-Swift.h"                 // VibeWidgetReloader; WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
@@ -167,8 +168,22 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     // edited elsewhere — and cacheKey stats. The standardized path is what the
     // shell itself matches a track by (folderSession:didOpenTracks:). Hashed
     // because it rides in every one of the strip's 32 seek buttons per render.
+    //
+    // TRAP: relative to the app's home for a file inside it. The data
+    // container MOVES — on every simulator install, and iOS may move it on an
+    // update — and a key over the absolute path then disagrees with every
+    // widget rendered before the move, so each of their seeks is dropped as
+    // stale until something republishes. A provider file lives outside the
+    // container at a path that does not move, and keeps the whole of it.
     NSString *path = track.url.URLByStandardizingPath.path;
-    return path ? [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex] : nil;
+    if (!path) {
+        return nil;
+    }
+    NSString *home = NSHomeDirectory().stringByStandardizingPath;
+    if ([path hasPrefix:[home stringByAppendingString:@"/"]]) {
+        path = [@"~" stringByAppendingString:[path substringFromIndex:home.length]];
+    }
+    return [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex];
 }
 
 - (void)updateWithTrack:(AudioTrack *)track
@@ -236,8 +251,10 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     }
     [self commitState:next artwork:artwork writeArtwork:writeArtwork];
 
-    // An offer that arrived before its track was adopted bakes now.
-    if (trackChanged && _waveform) {
+    // An offer that arrived before its track was adopted bakes now; so does
+    // art that decoded after the offer, for the one theme that reads it — the
+    // signature decides, so for every other theme this is a compare and out.
+    if (_waveform && (trackChanged || writeArtwork)) {
         [self bakeWaveformIfNeeded];
     }
 }
@@ -353,22 +370,27 @@ static BOOL VibeWidgetEqualStrings(NSString *a, NSString *b) {
     VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
     VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 
-    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%@|%d|%.4f|%p",
-                           style, settings.waveformTheme, played, unplayed,
+    // The widget's own background is always dark, so it resolves dark — there
+    // is no appearance to follow in a view this process does not own. The
+    // artwork colour is the cover's, memoized on the image by the page that
+    // installed it, so this read is free; nil until the art decodes, or for
+    // art too gray to read, and the album_art theme then resolves to Mono's
+    // until it does.
+    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
+                                                      isDark:YES
+                                                artworkColor:_publishedTrack.cachedArt.vibeDominantColor
+                                                customPlayed:played
+                                              customUnplayed:unplayed];
+    // The signature is the RESOLVED palette, not the inputs: a cover arriving
+    // under a theme that ignores it changes nothing here and bakes nothing,
+    // while under album_art it moves both colours and bakes once more.
+    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%d|%.4f|%p",
+                           style, theme.playedColor, theme.unplayedColor,
                            normalize, gainDB, (void *)_waveformTrack];
     if (VibeWidgetEqualStrings(signature, _bakedSignature)) {
         return;
     }
     _bakedSignature = signature;
-
-    // The widget's own background is always dark, so it resolves dark — there
-    // is no appearance to follow in a view this process does not own. A nil
-    // artwork colour is a real answer: the album_art theme resolves to Mono's.
-    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                      isDark:YES
-                                                artworkColor:nil
-                                                customPlayed:played
-                                              customUnplayed:unplayed];
     NSString *key = _published.trackKey;
     dispatch_async(_queue, ^{
         // 1 and 0: the whole envelope in each side's colours. The widget reveals
