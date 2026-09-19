@@ -29,7 +29,7 @@
     "gradient" : false,
     "playedColorDark" : "#8DE8B0",
     "playedColorLight" : "#E04A28",
-    "style" : "detailed",
+    "style" : "basic",
     "theme" : "custom",
     "unplayedColorDark" : "#3C5A48",
     "unplayedColorLight" : "#A9A9A3"

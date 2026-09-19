@@ -801,11 +801,11 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertFalse([AppTheme isBuiltInIdentifier:@"Vibe"]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:nil]);
     XCTAssertFalse([AppTheme isBuiltInIdentifier:NSUUID.UUID.UUIDString]);
-    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"signal_workshop"]);
+    XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"signal_workshop",
-                              @"sonic_cirrus", @"technical", @"technical_bars"]));
+                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"snake",
+                              @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 
 // The Vibe theme is the empty record BY CONSTRUCTION: it cannot drift from
@@ -835,9 +835,8 @@ static CGFloat Brightness(NSString *hex) {
 // The artwork-carrying themes must also name their own bundled pair, one
 // image per side.
 - (void)testDualModeBuiltInsAreCompleteAndOwnTheirArtwork {
-    NSDictionary *artworked = @{@"field": @"png", @"signal_workshop": @"jpg"};
-    for (NSString *identifier in @[@"field", @"signal_workshop",
-                                   @"technical", @"technical_bars"]) {
+    NSDictionary *artworked = @{@"cupertino": @"jpg", @"field": @"png"};
+    for (NSString *identifier in @[@"cupertino", @"field", @"technical"]) {
         NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
         AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
         XCTAssertEqualObjects(theme.dictionaryRepresentation, record, @"%@", identifier);
@@ -943,16 +942,16 @@ static CGFloat Brightness(NSString *hex) {
 
 - (void)testDefaultArtworkSanitizesByShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:
-            @{@"defaultArtworkDark": @"bundled:signal_workshop_dark.jpg"}];
+            @{@"defaultArtworkDark": @"bundled:cupertino_dark.jpg"}];
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
-            @"bundled:signal_workshop_dark.jpg");
+            @"bundled:cupertino_dark.jpg");
     [theme setImageReference:@"custom:0123456789abcdef0123456789abcdef01234567.png"
                        forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
     // Wrong shapes drop to the default.
     for (NSString *bad in @[@"vinyl_red", @"bundled:Vinyl.png", @"bundled:../etc.png",
-                            @"bundled:signal_workshop.webp", @"custom:short.png",
+                            @"bundled:cupertino.webp", @"custom:short.png",
                             @"custom:0123456789abcdef0123456789abcdef01234567.gif"]) {
         [theme setImageReference:bad forKey:kVibeThemeImageDefaultArtworkDark];
         XCTAssertNil(theme.dictionaryRepresentation[@"defaultArtworkDark"], @"%@", bad);
@@ -962,11 +961,11 @@ static CGFloat Brightness(NSString *hex) {
     // Single mode reads and writes the dark slot from either side; the light
     // half lies dormant, so a mode flip round-trips.
     theme.mode = @"single";
-    [theme setImageReference:@"bundled:signal_workshop_light.jpg" forKey:kVibeThemeImageDefaultArtworkLight];
+    [theme setImageReference:@"bundled:cupertino_light.jpg" forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"],
-            @"bundled:signal_workshop_light.jpg");
+            @"bundled:cupertino_light.jpg");
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
-            @"bundled:signal_workshop_light.jpg");
+            @"bundled:cupertino_light.jpg");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
 }
@@ -1152,11 +1151,11 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 // built-in exports as bare JSON and lands on the factory record on any build
 // that does not ship that image.
 - (void)testBuiltInArtworkTravelsInTheArchiveUnderSlotNames {
-    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"signal_workshop"];
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"cupertino"];
     XCTAssertEqualObjects(record[@"defaultArtworkDark"],
-            @"bundled:signal_workshop_dark.jpg", @"the fixture this test rests on");
+            @"bundled:cupertino_dark.jpg", @"the fixture this test rests on");
 
-    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Signal Workshop"];
+    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Cupertino"];
     XCTAssertNotNil(zip, @"a built-in with bundled art must export as an archive");
     XCTAssertGreaterThan(zip.length, 50000u, @"the images themselves, not just their names");
 
@@ -1168,7 +1167,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     XCTAssertTrue([bytes containsString:@"artwork_default_front.jpg"]);
     XCTAssertTrue([bytes containsString:@"artwork_default_back.jpg"]);
     XCTAssertFalse([bytes containsString:@"bundled:"], @"no prefix survives into the archive");
-    XCTAssertFalse([bytes containsString:@"signal_workshop_dark.jpg"],
+    XCTAssertFalse([bytes containsString:@"cupertino_dark.jpg"],
             @"nor the name this build happens to keep the image under");
 
     // Re-importing lands both sides in the container under their content
@@ -1176,7 +1175,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     // on this build shipping the image.
     NSString *name = nil;
     NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
-    XCTAssertEqualObjects(name, @"Signal Workshop");
+    XCTAssertEqualObjects(name, @"Cupertino");
     XCTAssertTrue([back[@"defaultArtworkDark"] hasPrefix:@"custom:"], @"%@", back);
     XCTAssertTrue([back[@"defaultArtworkLight"] hasPrefix:@"custom:"], @"%@", back);
     XCTAssertNotEqualObjects(back[@"defaultArtworkDark"], back[@"defaultArtworkLight"],
@@ -1250,7 +1249,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     XCTAssertNotNil([AppTheme imageForReference:stored]);
 
     // A bundled name this build ships, against one it does not.
-    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:signal_workshop_dark.jpg"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:cupertino_dark.jpg"]);
     XCTAssertTrue([AppTheme referenceIsMissing:@"bundled:not_in_any_build.png"]);
 }
 
