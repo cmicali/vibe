@@ -208,8 +208,14 @@ static const CGFloat kArtTextGap = 14;
     }
 }
 
+// The Files tab, not the modal picker. The app already has a whole surface
+// whose job is finding something to play, it is ours — our actions, our Add
+// and Add to Favorites on every row — and it leaves the user somewhere they
+// can keep looking, which a modal that dismisses itself does not.
 - (void)openTapped {
-    [_playback presentPickerFromViewController:self appending:NO];
+    if (_openFilesHandler) {
+        _openFilesHandler();
+    }
 }
 
 // Pushed rather than presented: the mini strip and the tabs stay up, and the

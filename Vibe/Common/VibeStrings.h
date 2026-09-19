@@ -548,7 +548,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_TAB_PLAYLIST        NSLS(@"tab.playlist",        @"Playlist",                    @"iOS: title of the tab showing the tracks queued to play.")
 #define STR_TAB_FAVORITES       NSLS(@"tab.favorites",       @"Favorites",                   @"iOS: title of the tab listing the folders the user starred, to reopen one in a tap.")
 #define STR_TAB_FILES           NSLS(@"tab.files",           @"Files",                       @"iOS: title of the tab showing the system file browser, for picking music to play.")
-#define STR_BUTTON_OPEN         NSLS(@"button.open",         @"Open",                        @"iOS: button that opens the system document picker to choose a folder or file to play.")
+#define STR_BUTTON_OPEN         NSLS(@"button.open",         @"Open",                        @"iOS: button on the empty playlist screen; it brings the Files tab forward so the user can browse for a folder or file to play.")
 #define STR_LABEL_EMPTY_TITLE   NSLS(@"label.library.empty.title",   @"Nothing to Play",     @"iOS: headline of the empty library screen, shown when no folder or file has been opened.")
 #define STR_LABEL_EMPTY_MESSAGE NSLS(@"label.library.empty.message", @"Choose a folder or file to get started.", @"iOS: explanatory line under the empty library headline, above the Open button.")
 

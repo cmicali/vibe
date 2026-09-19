@@ -178,11 +178,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Opening
 
-// The system document picker. appending:NO is the empty state's Open, which
-// replaces the playlist with one pick; appending:YES is the Files tab's Add
-// button, which takes several files or folders and lands in addURLs:.
-- (void)presentPickerFromViewController:(UIViewController *)presenter
-                              appending:(BOOL)appending;
+// The system document picker: multi-selection, appending, one caller — the
+// Files tab's Add button. The empty state's Open brings the Files tab forward
+// rather than presenting this, which is what left the picker a single mode.
+- (void)presentPickerFromViewController:(UIViewController *)presenter;
 
 // "Open in Vibe" from Files or the share sheet, forwarded by the scene
 // delegate.

@@ -2606,7 +2606,7 @@
       "extractionState": "manual"
     },
     "button.open": {
-      "comment": "iOS: button that opens the system document picker to choose a folder or file to play.",
+      "comment": "iOS: button on the empty playlist screen; it brings the Files tab forward so the user can browse for a folder or file to play.",
       "localizations": {
         "bg": {
           "stringUnit": {

@@ -583,9 +583,8 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 #pragma mark - Opening
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter
-                              appending:(BOOL)appending {
-    [_folderSession presentPickerFromViewController:presenter appending:appending];
+- (void)presentPickerFromViewController:(UIViewController *)presenter {
+    [_folderSession presentPickerFromViewController:presenter];
 }
 
 // One external open at a time: a share can mix in-place URLs with inbox

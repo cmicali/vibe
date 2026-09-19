@@ -142,23 +142,20 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 #pragma mark - Picker
 
-- (void)presentPickerFromViewController:(UIViewController *)presenter
-                              appending:(BOOL)appending {
+- (void)presentPickerFromViewController:(UIViewController *)presenter {
     NSArray<UTType *> *types = [@[UTTypeFolder] arrayByAddingObjectsFromArray:DocumentTypes.declaredFileTypes];
     UIDocumentPickerViewController *picker =
         [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:NO];
-    // An Add takes several items — the whole point of a second road to it on a
-    // tab with no Select mode — while a replace stays one location, which is
-    // the directory-as-playlist model. The delegate reads the mode back off
-    // this, so there is no second copy of it to keep in step.
-    picker.allowsMultipleSelection = appending;
+    // Several items at once: this is the app's only multi-select road now that
+    // the browser's own multi-item picking is off (FilesViewController).
+    picker.allowsMultipleSelection = YES;
     picker.delegate = self;
     [presenter presentViewController:picker animated:YES completion:nil];
 }
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    [self beginOpenURLs:urls appending:controller.allowsMultipleSelection fromSearchRoots:NO];
+    [self addURLs:urls];
 }
 
 #pragma mark - External opens

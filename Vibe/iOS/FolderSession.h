@@ -71,12 +71,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // Presents the system document picker (folders + the declared audio types, in
-// place). appending decides both what the pick does and what it may pick: NO
-// is the empty state's Open — one folder or file, replacing the playlist — and
-// YES is the Files tab's Add button, which takes several items at once and
-// lands through the same prologue an Add from anywhere else does.
-- (void)presentPickerFromViewController:(UIViewController *)presenter
-                              appending:(BOOL)appending;
+// place), multi-selection, appending. It has one caller — the Files tab's Add
+// button — and one mode: the empty state's Open brings the Files tab forward
+// instead of presenting this, so a pick here is always an Add. An Add onto a
+// playlist that has never landed is still promoted to an Open by addURLs:,
+// which is what makes this the first-run road too.
+- (void)presentPickerFromViewController:(UIViewController *)presenter;
 
 // Opens URLs delivered from outside the picker ("Open in Vibe" from Files or
 // the share sheet, the Files tab's browser, a favorite). N URLs in pick order

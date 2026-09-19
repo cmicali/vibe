@@ -115,7 +115,7 @@
 // The system picker, not this browser: a custom action needs rows the user has
 // already selected, and there is no way to select any here.
 - (void)addTapped {
-    [_playback presentPickerFromViewController:self appending:YES];
+    [_playback presentPickerFromViewController:self];
 }
 
 #pragma mark - UIDocumentBrowserViewControllerDelegate
