@@ -1,9 +1,18 @@
-* Themes — several built-in designs, and an editor for making your own
-* Playlist editing — select several tracks, remove them, or drag to reorder
-* New waveform styles, plus Normalize and a Gain slider for how tall it draws
-* VoiceOver support for the waveform and the pitch fader
-* Voice memo recordings (.qta) now play
-* A switch for showing or hiding the window buttons
-* Faster playlist scrolling in large libraries
-* More reliable loading of slow and cloud-backed files
-* Fixed opening folders reached through a symlink
+Fourth beta of Vibe 1.12 for macOS.
+
+Changes since beta 3:
+
+- Exclusive output now works on the system output device, which for most setups is the same interface everything else plays through. Taking it no longer refuses with "Choose an output device other than system output".
+- Reshuffled the built-in themes: Snake and Tangerine are new, Signal Workshop is gone, and Technical Bars folded into Technical.
+- The app is about a quarter smaller to download and install.
+- Updated app icon.
+
+Vibe 1.12 also adds Wiggle waveforms, bit-perfect playback with optional exclusive output, an audio output device picker, M3U playlist export, reopening the last playlist, and expanded theme customization. Bit-perfect output and audio effects switch on and off without restarting, and each audio device remembers its own modes.
+
+Downloads:
+
+- Universal: Apple silicon and Intel Macs.
+- arm64: Apple silicon Macs only.
+- Use the DMG to drag Vibe into Applications. ZIP files are available as an alternative.
+
+Both app builds and their disk images are Developer ID signed, notarized, and stapled. Requires macOS 13 or later.
