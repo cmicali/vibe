@@ -245,9 +245,16 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         // scope starts anyway — the refresh before it always failed.
         NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
                                               openIntentGeneration:openIntentGeneration];
+        // Only a restore where NOTHING resolved is a failed restore. A base
+        // that has been deleted while its additions are still readable
+        // restores from those: the first survivor becomes the base, and the
+        // landing rewrites both keys from the contributors, the same
+        // self-healing that already prunes a dead addition. Erasing the
+        // addition list because the base died threw away folders the user
+        // could still play.
         if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
             if (urls.count == 0) {
-                LogWarn(@"FolderSession: the base bookmark no longer resolves");
+                LogWarn(@"FolderSession: no persisted bookmark resolves");
             }
             run_on_main_thread({
                 if ([self isCurrentOpenIntent:openIntentGeneration]) {
@@ -267,10 +274,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 // Resolves a launch restore's bookmarks off main, at most
 // kMaximumConcurrentBookmarkRestorations at a time, and answers the URLs that
-// resolved IN THE ORDER THEY WERE PASSED. An empty answer means the base — the
-// first bookmark — did not resolve; a dead addition is simply missing from the
-// answer, and nothing prunes the persisted list, since the landing rewrites
-// both keys from what actually contributed.
+// resolved IN THE ORDER THEY WERE PASSED. Whatever failed is simply missing
+// from the answer — the BASE included, which is not special here: a base that
+// no longer resolves must not take still-readable additions down with it, so
+// the first survivor becomes the base by the first-contributor rule and the
+// landing rewrites both keys from what actually contributed. Nothing prunes
+// the persisted list; that rewrite is the pruning. An empty answer means
+// nothing resolved at all, which is the one genuine failure.
 //
 // Resolution is provider IPC that can take seconds per bookmark, and a
 // CONCURRENT QUEUE DOES NOT PARALLELIZE WORK INSIDE ONE BLOCK: resolving them
@@ -319,9 +329,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         }];
     }];
     [queue waitUntilAllOperationsAreFinished];
-    if (slots.firstObject == NSNull.null) {
-        return @[];
-    }
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:slots.count];
     for (id slot in slots) {
         if (slot != NSNull.null) {
