@@ -179,7 +179,7 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Opening
 
 // The system document picker: multi-selection, appending, one caller — the
-// Files tab's Add button. The empty state's Open brings the Files tab forward
+// Playlist tab's plus. The empty state's Open brings the Files tab forward
 // rather than presenting this, which is what left the picker a single mode.
 - (void)presentPickerFromViewController:(UIViewController *)presenter;
 
@@ -204,10 +204,11 @@ NS_ASSUME_NONNULL_BEGIN
 // usual expand-to-directory applies.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
 
-// Appends without touching playback, the tab or the card: the Files tab's Add
-// action and a Favorites row's. Lands in folderSession:didAppendTracks:, the
-// iOS twin of the mac's MainPlayerController.addURLs:. The empty-playlist case
-// is FolderSession's: an Add onto nothing is an Open.
+// Appends without touching playback, the tab or the card: the Playlist tab's
+// plus, the Files tab's long-press action and a Favorites row's. Lands in
+// folderSession:didAppendTracks:, the iOS twin of the mac's
+// MainPlayerController.addURLs:. The empty-playlist case is FolderSession's:
+// an Add onto nothing is an Open.
 - (void)addURLs:(NSArray<NSURL *> *)urls;
 
 // Both FolderSession's, unchanged: a caller with asynchronous work of its own

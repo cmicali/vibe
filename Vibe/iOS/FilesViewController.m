@@ -94,28 +94,8 @@
         // this action has.
         favorite.supportedContentTypes = @[UTTypeDirectory.identifier];
         self.customActions = @[add, favorite];
-        // The visible road to Add. iOS 26's browser has no "Select" mode on
-        // iPhone, so the long-press menu above would otherwise be the only
-        // one — and a context menu is never meant to be that.
-        // TRAP: it must go on the LEADING side. The browser draws its own
-        // overflow "•••" exactly where it lays a trailing additional item out,
-        // so a trailing button renders nowhere and its touches reach the
-        // browser's menu instead — a button that looks simply absent.
-        UIBarButtonItem *addItem = [[UIBarButtonItem alloc]
-                initWithImage:[UIImage systemImageNamed:@"text.badge.plus"]
-                        style:UIBarButtonItemStylePlain
-                       target:self
-                       action:@selector(addTapped)];
-        addItem.accessibilityLabel = STR_A11Y_FILES_ADD_TO_PLAYLIST;
-        self.additionalLeadingNavigationBarButtonItems = @[addItem];
     }
     return self;
-}
-
-// The system picker, not this browser: a custom action needs rows the user has
-// already selected, and there is no way to select any here.
-- (void)addTapped {
-    [_playback presentPickerFromViewController:self];
 }
 
 #pragma mark - UIDocumentBrowserViewControllerDelegate

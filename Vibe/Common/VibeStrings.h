@@ -566,7 +566,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_A11Y_PLAYER_OUTPUT_ROUTE NSLS(@"a11y.player.output_route", @"Output Device", @"iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.")
 #define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
 #define STR_A11Y_REMOVE_FAVORITE   NSLS(@"a11y.favorite.remove",   @"Remove from Favorites", @"iOS: accessibility label for the star button on the playlist screen, when the open folder is already starred; activating it takes the folder off the Favorites tab.")
-#define STR_A11Y_FILES_ADD_TO_PLAYLIST NSLS(@"a11y.files.add_to_playlist", @"Add to Playlist", @"iOS: accessibility label for the button on the Files tab's bar that opens the system picker to choose files or folders to add to the end of the playlist without interrupting playback.")
+#define STR_A11Y_PLAYLIST_ADD      NSLS(@"a11y.playlist.add",      @"Add to Playlist",       @"iOS: accessibility label for the plus button on the playlist screen's bar; it opens the system picker to choose files or folders to add to the end of the playlist without interrupting playback.")
 
 
 #pragma mark - macOS settings clarity

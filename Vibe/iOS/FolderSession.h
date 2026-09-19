@@ -71,8 +71,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // Presents the system document picker (folders + the declared audio types, in
-// place), multi-selection, appending. It has one caller — the Files tab's Add
-// button — and one mode: the empty state's Open brings the Files tab forward
+// place), multi-selection, appending. It has one caller — the Playlist tab's
+// plus — and one mode: the empty state's Open brings the Files tab forward
 // instead of presenting this, so a pick here is always an Add. An Add onto a
 // playlist that has never landed is still promoted to an Open by addURLs:,
 // which is what makes this the first-run road too.
