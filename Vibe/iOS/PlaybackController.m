@@ -387,9 +387,13 @@ static const NSUInteger kUIUpdateHz = 3;
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
-    // Fires playlistDidReplaceAllTracks:, which is what reloads the table and
-    // rebuilds the chrome — the title, the star and the plus all drop out
-    // together on an empty playlist without this method touching the UI.
+    // TRAP: the session goes BEFORE the model. Clearing the model fires
+    // playlistDidReplaceAllTracks:, and that one event is what rebuilds the
+    // chrome — so everything it reads has to be final by the time it lands.
+    // Clearing the session afterwards left the observer looking at a live
+    // folderURL: the playlist emptied and the plus went, but the bar kept the
+    // old folder's title and its star.
+    [_folderSession clearSession];
     [_playlist clear];
     // Nothing will play to start the sweep later, so cancel the armed fallback
     // and release the scan. The generation bump is what makes an in-flight
@@ -397,7 +401,6 @@ static const NSUInteger kUIUpdateHz = 3;
     _metadataLoadPending = NO;
     _metadataLoadGeneration++;
     [_metadataCache cancelScan];
-    [_folderSession clearSession];
     _errorText = nil;
     _parked = NO;
     _seekInFlight = NO;
