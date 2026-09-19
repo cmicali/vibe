@@ -72,6 +72,13 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     // Set only by a promotion, so a launch restore that failed leaves it NO and
     // the Add after it still plays. Main-confined.
     BOOL _promotedOpenInFlight;
+    // The generation a promotion created, or zero. A promotion bumps the
+    // generation like any replace, but it is itself an Add and has no business
+    // cancelling the Adds tapped alongside it: their tokens are one below this,
+    // and addURLs:token: lets those through so the waiter path can park them.
+    // Self-invalidating — a real replace or a clear bumps past this value, and
+    // the "is it still live" test then fails on its own.
+    uint64_t _promotedOpenIntentGeneration;
     // Adds parked behind that promoted open, each delivered exactly once when
     // it settles — landed, empty, or beaten by a user's replace. Main-confined.
     NSMutableArray<void (^)(void)> *_addWaiters;
@@ -202,7 +209,20 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     // and appended to that new playlist, having captured ITS generation on the
     // way in — the one case the append guard cannot catch, since by then the
     // request looks freshly made.
-    if (![self isCurrentOpenIntent:token]) {
+    //
+    // TRAP: a PROMOTION is not a supersession. The first of several Adds tapped
+    // onto an empty playlist is promoted to an Open, and that bumps the
+    // generation — which used to drop its own siblings here, before they could
+    // reach the waiter path that exists for exactly them. Invisible on local
+    // files, where a resolve is a millisecond; wide open on a cold provider,
+    // where it is seconds. A token one below the generation a promotion created
+    // is therefore still the user's request, as long as that promotion is still
+    // the live generation: a real replace or a clear bumps past it and drops
+    // these siblings as it should.
+    BOOL supersededByOwnPromotion = _promotedOpenIntentGeneration != 0
+            && token + 1 == _promotedOpenIntentGeneration
+            && [self isCurrentOpenIntent:_promotedOpenIntentGeneration];
+    if (![self isCurrentOpenIntent:token] && !supersededByOwnPromotion) {
         LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
         return;
     }
@@ -232,6 +252,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     // Open and plays, exactly as the first Add of a fresh session does.
     _landedOpenIntentGeneration = 0;
     _promotedOpenInFlight = NO;
+    _promotedOpenIntentGeneration = 0;
     _addWaiters = nil;
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
     [NSUserDefaults.standardUserDefaults removeObjectForKey:kAdditionBookmarksKey];
@@ -495,6 +516,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     // a stale Add is wanted, two Adds beating each other is not. The rest park
     // as waiters and are replayed once the promoted open settles, whichever way
     // it settles.
+    BOOL promoting = NO;
     if (appending && _landedOpenIntentGeneration == 0) {
         if (_promotedOpenInFlight) {
             if (!_addWaiters) {
@@ -512,11 +534,15 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
             return;
         }
         appending = NO;
+        promoting = YES;
         _promotedOpenInFlight = YES;
     }
     uint64_t openIntentGeneration = appending
             ? atomic_load_explicit(&_openIntentGeneration, memory_order_acquire)
             : [self beginOpenIntent];
+    if (promoting) {
+        _promotedOpenIntentGeneration = openIntentGeneration;
+    }
     // The listing order rides the snapshot for the same reason the rest of it
     // does: an open must not straddle a Settings change.
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
