@@ -230,6 +230,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
                                                    NSData *_Nullable bookmark))completion;
 
+// The same mint for a folder the session does not own — the Files tab starring
+// a browser-picked folder without opening it. Off main, completion on main,
+// bookmark nil when the mint failed. See FolderSession.
+- (void)bookmarkFolderURL:(NSURL *)folderURL
+               completion:(void (^)(NSData *_Nullable bookmark))completion;
+
 // The file trees the search screen may walk, composed in one place: the
 // session's transient roots (FolderSession.searchRoots — the base folder and
 // every added folder) plus the persistent ones (SearchFolderStore.searchRoots —

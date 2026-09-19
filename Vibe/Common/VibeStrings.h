@@ -558,6 +558,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_MENU_CONTEXT_PLAY            NSLS(@"menu.context.play",            @"Play",                  @"iOS: long-press menu item on a Favorites row. Opens the starred folder as the playlist and starts playing it, replacing whatever was queued — the same as tapping the row.")
 #define STR_MENU_CONTEXT_ADD_TO_PLAYLIST NSLS(@"menu.context.add_to_playlist", @"Add to Playlist",       @"iOS: long-press menu item and swipe action on a Favorites row, and the long-press action on a file or folder in the Files tab. Adds that item's tracks to the end of the playlist without interrupting what is playing.")
+#define STR_MENU_CONTEXT_ADD_FAVORITE    NSLS(@"menu.context.add_favorite",    @"Add to Favorites",      @"iOS: long-press menu item on a FOLDER in the Files tab; stars it so it appears on the Favorites tab, without opening it or changing the playlist. Same wording as the playlist screen's star button label.")
 #define STR_MENU_CONTEXT_REMOVE_FAVORITE NSLS(@"menu.context.remove_favorite", @"Remove from Favorites", @"iOS: destructive long-press menu item on a Favorites row; takes the folder off the Favorites tab. Same wording as the playlist screen's star button label.")
 
 #define STR_A11Y_MINIPLAYER_EXPAND NSLS(@"a11y.miniplayer.expand", @"Now Playing",  @"iOS: accessibility label for the mini player strip above the tab bar; activating it opens the full-screen player.")

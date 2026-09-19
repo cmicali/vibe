@@ -405,6 +405,29 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
 }
 
+// The browser's own grant, not this session's: the URL arrives granted, so the
+// hold is started on it directly rather than looked up in the scoped list.
+- (void)bookmarkFolderURL:(NSURL *)folderURL
+               completion:(void (^)(NSData *bookmark))completion {
+    if (!folderURL) {
+        completion(nil);
+        return;
+    }
+    // A NO return is not failure — the app's own container is not
+    // security-scoped and mints without a hold — so only a start that returned
+    // YES is stopped, the same pairing the open path uses.
+    BOOL scopeHoldStarted = [folderURL startAccessingSecurityScopedResource];
+    dispatch_async(_workQueue, ^{
+        NSData *bookmark = [self bookmarkForURL:folderURL];
+        if (scopeHoldStarted) {
+            [folderURL stopAccessingSecurityScopedResource];
+        }
+        run_on_main_thread({
+            completion(bookmark);
+        });
+    });
+}
+
 #pragma mark - Opening
 
 // The one funnel for a URL list from any source. Each request owns an intent

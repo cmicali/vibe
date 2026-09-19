@@ -142,6 +142,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
                                                    NSData *_Nullable bookmark))completion;
 
+// Mints a bookmark for a folder this session does NOT own — one the document
+// browser just handed over with its own grant, so the Files tab can star it
+// without opening it. Minting stays here, with the other minter, because it
+// needs the URL's scope OPEN and that is this class's business;
+// FavoritesStore only records what it is handed (its header's rule 3).
+//
+// The two minters differ in one thing, and it is the whole reason there are
+// two: the open folder's hold comes from the scoped list, since the base can
+// be a URL this session derived, while this one arrives granted and is started
+// directly. completion lands on main; bookmark is nil when the mint failed.
+- (void)bookmarkFolderURL:(NSURL *)folderURL
+               completion:(void (^)(NSData *_Nullable bookmark))completion;
+
 // The standardized PATH of the last track the player screen wants restored
 // next launch. Stored alongside the bookmark; nil clears it. A path and not a
 // filename because the playlist spans folders once an Add has landed, and two

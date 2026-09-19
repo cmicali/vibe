@@ -627,6 +627,11 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_folderSession bookmarkOpenFolderWithCompletion:completion];
 }
 
+- (void)bookmarkFolderURL:(NSURL *)folderURL
+               completion:(void (^)(NSData *bookmark))completion {
+    [_folderSession bookmarkFolderURL:folderURL completion:completion];
+}
+
 // The whole search scope, composed here and nowhere else: the session's own
 // transient roots — the base folder and every added folder — ahead of the
 // persistent ones, which are the folders added in Settings plus the ones

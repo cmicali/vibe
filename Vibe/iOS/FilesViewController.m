@@ -8,6 +8,7 @@
 #import "FilesViewController.h"
 
 #import "DocumentTypes.h"
+#import "FavoritesStore.h"
 #import "PlaybackController.h"
 #import "VibeStrings.h"
 
@@ -64,7 +65,35 @@
         add.supportedContentTypes = [@[UTTypeDirectory.identifier]
                 arrayByAddingObjectsFromArray:
                         [DocumentTypes.declaredFileTypes valueForKey:@"identifier"]];
-        self.customActions = @[add];
+        // Starring without opening. Until this existed the only road to a
+        // favorite was to open the folder — replacing the playlist — and then
+        // tap the star, so keeping a place for later cost you the place you
+        // were. Menu availability only: the navigation-bar half needs rows the
+        // user has selected, and this browser has no Select mode on iPhone.
+        UIDocumentBrowserAction *favorite = [[UIDocumentBrowserAction alloc]
+                initWithIdentifier:@"com.commonwealthrecordings.vibe.add-to-favorites"
+                    localizedTitle:STR_MENU_CONTEXT_ADD_FAVORITE
+                      availability:UIDocumentBrowserActionAvailabilityMenu
+                           handler:^(NSArray<NSURL *> *urls) {
+            for (NSURL *folder in urls) {
+                // The mint needs the folder's scope open, which only
+                // FolderSession promises; FavoritesStore refuses a row without
+                // a bookmark, so a failed mint adds nothing rather than a row
+                // that draws and cannot be opened.
+                [weakPlayback bookmarkFolderURL:folder completion:^(NSData *bookmark) {
+                    if (bookmark) {
+                        [FavoritesStore.shared addFolderURL:folder bookmark:bookmark];
+                    }
+                }];
+            }
+        }];
+        favorite.image = [UIImage systemImageNamed:@"star"];
+        // Folders only — a favorite is a place to go back to, never a file.
+        // TRAP: the same public.DIRECTORY rule as the action above; spelling it
+        // UTTypeFolder hides the action from every folder, which is every row
+        // this action has.
+        favorite.supportedContentTypes = @[UTTypeDirectory.identifier];
+        self.customActions = @[add, favorite];
         // The visible road to Add. iOS 26's browser has no "Select" mode on
         // iPhone, so the long-press menu above would otherwise be the only
         // one — and a context menu is never meant to be that.
