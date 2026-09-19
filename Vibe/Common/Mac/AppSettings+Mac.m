@@ -23,12 +23,12 @@
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
 #define SETTING_SHOW_FILE_INFO                      @"MainWindow.showFileInfo"
+#define SETTING_WAVEFORM_NORMALIZE                  @"Appearance.waveformNormalize"
+#define SETTING_WAVEFORM_GAIN_DB                    @"Appearance.waveformGainDB"
 #define SETTING_WAVEFORM_DRAG_BEHAVIOR              @"Settings.waveformDragBehavior"
 #define SETTING_ARTWORK_DRAG_ACTION                 @"Settings.artworkDragAction"
 #define SETTING_DELETE_ORIGINAL_AFTER_CONVERT       @"Convert.deleteOriginal"
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
-#define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
-#define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
@@ -59,27 +59,9 @@
 const NSInteger kVibeSkipBasePresets[] = {4, 8, 16};
 const size_t kVibeSkipBasePresetCount =
         sizeof(kVibeSkipBasePresets) / sizeof(kVibeSkipBasePresets[0]);
-const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
-const size_t kVibeCrossfadePresetCount =
-        sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]);
 const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 const size_t kVibeUIUpdateHzCapPresetCount =
         sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]);
-
-// See the preset declarations in the header: an out-of-list persisted value
-// reads as the nearest preset, so display and behavior cannot disagree.
-static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
-    // Clamp before subtracting: external defaults can contain integer extremes.
-    if (value <= presets[0]) return presets[0];
-    if (value >= presets[count - 1]) return presets[count - 1];
-    NSInteger best = presets[0];
-    for (size_t i = 1; i < count; i++) {
-        if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
-            best = presets[i];
-        }
-    }
-    return best;
-}
 
 @implementation AppSettings (Mac)
 
@@ -100,8 +82,6 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_DELETE_ORIGINAL_AFTER_CONVERT:  @(NO),
             SETTING_CONVERT_ENABLED:                @(YES),
             SETTING_SKIP_BASE_BARS:                 @(8),
-            SETTING_CROSSFADE_MILLISECONDS:         @(10),
-            SETTING_PAUSE_AT_TRACK_END:             @(NO),
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
@@ -110,6 +90,8 @@ static NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, si
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
             SETTING_ACTIVE_THEME:                   kVibeThemeIdentifierVibe,
+            SETTING_WAVEFORM_NORMALIZE:             @(YES),
+            SETTING_WAVEFORM_GAIN_DB:               @(0.0),
     }];
 }
 
@@ -763,21 +745,21 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setInteger:bars forKey:SETTING_SKIP_BASE_BARS];
 }
 
-- (NSInteger)crossfadeMilliseconds {
-    NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
-    return VibeNearestPreset(stored, kVibeCrossfadePresets, kVibeCrossfadePresetCount);
+- (BOOL)waveformNormalize {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_NORMALIZE];
 }
 
-- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
-    [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+- (void)setWaveformNormalize:(BOOL)normalize {
+    [[NSUserDefaults standardUserDefaults] setBool:normalize forKey:SETTING_WAVEFORM_NORMALIZE];
 }
 
-- (BOOL)pauseAtTrackEnd {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PAUSE_AT_TRACK_END];
+- (double)waveformGainDB {
+    return VibeNormalizedWaveformGainDB(
+            [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WAVEFORM_GAIN_DB]);
 }
 
-- (void)setPauseAtTrackEnd:(BOOL)pause {
-    [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
+- (void)setWaveformGainDB:(double)gainDB {
+    [[NSUserDefaults standardUserDefaults] setDouble:gainDB forKey:SETTING_WAVEFORM_GAIN_DB];
 }
 
 - (BOOL)reopenLastPlaylist {

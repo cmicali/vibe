@@ -17,11 +17,11 @@ static const CGFloat kPlaybackPopUpWidth = 200;
 static NSString *const kOnEndPlayNext = @"play_next";
 static NSString *const kOnEndPause = @"pause";
 
-// The preset values live in AppSettings+Mac.h (kVibeSkipBasePresets: the smallest
-// skip's bar count, the three sizes being the base, twice and four times it;
-// kVibeCrossfadePresets in milliseconds, 10 the declick minimum the engine
-// always applies — effectively instant), because the getters snap persisted
-// values to them.
+// The preset values live beside their getters, which snap persisted values to
+// them: kVibeSkipBasePresets in AppSettings+Mac.h (the smallest skip's bar
+// count, the three sizes being the base, twice and four times it) and
+// kVibeCrossfadePresets in AppSettings.h (milliseconds, 10 the declick minimum
+// the engine always applies — effectively instant; iOS offers the same three).
 
 @implementation SettingsPlaybackViewController {
     NSPopUpButton *_onEndPopUp;

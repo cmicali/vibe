@@ -20,9 +20,9 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK       @"Settings.waveformCustomUnplayedColorDark"
 #define SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT        @"Settings.waveformCustomPlayedColorLight"
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
-#define SETTING_WAVEFORM_NORMALIZE                  @"Appearance.waveformNormalize"
-#define SETTING_WAVEFORM_GAIN_DB                    @"Appearance.waveformGainDB"
 #define SETTING_FOLDER_OPEN_SORT                    @"Files.folderOpenSort"
+#define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
+#define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
 
 #if TARGET_OS_OSX
 

@@ -7,6 +7,7 @@
 //
 
 #import "DebugInternal.h"
+#import "MainPlayerController+Settings.h"
 
 #if DEBUG
 
@@ -102,6 +103,10 @@
 
 - (double)debugPlaybackRate {
     return self.playbackRate;
+}
+
+- (void)debugApplyEndOfTrackSetting {
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
 - (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations {

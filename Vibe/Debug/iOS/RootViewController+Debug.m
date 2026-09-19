@@ -70,6 +70,9 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
+        @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+        // The stored choice, which iOS pushes to the player as is.
+        @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
     };
     // Whether the publisher believes a widget is placed — the gate on every
     // write to the shared container, so a widget test asserts it first.
@@ -249,6 +252,10 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 
 - (void)debugOpenPath:(NSString *)path {
     [self.playback debugOpenPath:path];
+}
+
+- (void)debugApplyEndOfTrackSetting {
+    [self.playback applyTrackTransitionSettings];
 }
 
 - (AudioTrackMetadataCache *)debugMetadataCache {

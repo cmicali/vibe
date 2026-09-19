@@ -25,6 +25,7 @@
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
+#import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioLoadTiming.h"
 #import "MusicalKey.h"
@@ -126,6 +127,7 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"duration": @(player.duration),
             @"numChannels": @(player.numChannels),
             @"gaplessArmed": @(player.isGaplessArmed),
+            @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
             @"silent": @([arguments containsObject:@"--silent"]),
             @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
         } mutableCopy],
@@ -501,6 +503,20 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 VibeBurstJumps(surface, count, (uint32_t)seed);
                 return VibeJSONString(@{@"ok": @YES, @"jumps": @(count),
                                         @"playlist": @(surface.debugPlaylistCount)});
+            }),
+            VibeDebugCmd(@"set_pause_at_track_end <on|off>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                if (![arg isEqualToString:@"on"] && ![arg isEqualToString:@"off"]) {
+                    return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
+                }
+                AppSettings.sharedInstance.pauseAtTrackEnd = [arg isEqualToString:@"on"];
+                [surface debugApplyEndOfTrackSetting];
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+                });
             }),
             VibeDebugCmd(@"play_index <n>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                             id<VibeDebugPlayerSurface> surface) {

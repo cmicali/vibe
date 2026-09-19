@@ -97,7 +97,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"outputDeviceId": @(outputDeviceID),
         @"outputDeviceUID": outputDeviceUID ?: @"",
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
-        @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
         @"bitPerfect": VibeDebugBitPerfectDictionary(player),
         // The flag asked; this is what actually happened. They differ when
         // enableManualRenderingMode fails and the output device opens
@@ -163,6 +162,8 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
             @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
+            // The stored choice; player.crossfadeMilliseconds is the effective one.
+            @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),
             @"reopenLastPlaylist": @(AppSettings.sharedInstance.reopenLastPlaylist),
             @"convertEnabled": @(AppSettings.sharedInstance.convertEnabled),
             @"showBPM": @(theme.showBPM),

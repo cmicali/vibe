@@ -371,18 +371,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"keyNotation": notation,
                                         @"keyColors": @(colorsOn)});
             }),
-            VibeDebugCmd(@"set_pause_at_track_end <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                BOOL on;
-                if (!VibeParseOnOff(tokens, &on)) {
-                    return VibeErrorJSON(@"usage: set_pause_at_track_end <on|off>");
-                }
-                AppSettings.sharedInstance.pauseAtTrackEnd = on;
-                [controller applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
-                return VibeJSONString(@{
-                    @"ok": @YES,
-                    @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
-                });
-            }),
+
             VibeDebugCmd(@"set_saved_output_device <uid> <name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count != 3) {
                     return VibeErrorJSON(@"usage: set_saved_output_device <uid> <name>");

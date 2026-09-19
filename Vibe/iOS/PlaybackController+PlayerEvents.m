@@ -18,12 +18,14 @@
 #import "PlaybackControllerInternal.h"
 #import "PlaybackController+NowPlaying.h"
 
+#import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioErrorRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
 #import "DownloadProgressMonitor.h"
+#import "PlaybackDeliveryRules.h"
 #import "UIUpdateTimer.h"
 
 @implementation PlaybackController (PlayerEvents)
@@ -120,8 +122,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // derives it from its own claim table, and the prefetch's registration
     // preempts any background transfer that beat it to the lane. Same rule as
     // the mac's MainPlayerController+PlayerEvents.
-    NSUInteger nextIndex = _playlist.currentIndex + 1;
-    [_player prefetchTrack:_playlist.hasNextTrack ? [_playlist trackAtIndex:nextIndex] : nil];
+    [_player prefetchTrack:self.successorPrefetchTrack];
     _folderSession.persistedTrackFileName = track.url.lastPathComponent;
     // The landing can be parked — a pause verdict during the load, or the
     // media-reset re-park — in which case playback is idle, so the session is
@@ -199,11 +200,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Folds the finished run. An advance restarts it through didStartPlaying:;
     // a park leaves it stopped.
     [[AppStats sharedInstance] playbackStopped];
-    if ([_playlist next]) {
+    // Settings > Playback > On track end = Pause parks on the finished track
+    // exactly as the end of the playlist does. Both reads of the setting are
+    // load-bearing: successorPrefetchTrack parked nothing to splice, and this
+    // one decides from the playlist alone (root CLAUDE.md).
+    if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
+                                            AppSettings.sharedInstance.pauseAtTrackEnd)
+            && [_playlist next]) {
         [self playCurrentTrack];
         return;
     }
-    // End of playlist: park on the last track, ready to replay.
+    // End of playlist, or Pause: park on the finished track, ready to replay.
     _parked = YES;
     _updateTimer.wanted = NO;
     [_audioSession deactivateWhenIdle];

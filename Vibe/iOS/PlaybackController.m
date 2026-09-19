@@ -13,6 +13,7 @@
 #import "PlaybackController+NowPlaying.h"
 #import "PlaybackController+PlayerEvents.h"   // AudioPlayerDelegate, adopted by the category
 
+#import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayer+Seek.h"
@@ -20,6 +21,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "FavoritesStore.h"
+#import "PlaybackDeliveryRules.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
 
@@ -64,6 +66,9 @@ static const NSUInteger kUIUpdateHz = 3;
         // A hard NO, not the shared audioFXEnabled setting, so the mac default
         // cannot reach in here.
         _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
+        // The stored choice as is: no bit-perfect mode here to hold it down.
+        _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+
 
         __weak PlaybackController *weakSelf = self;
         _updateTimer = [[UIUpdateTimer alloc] initWithHz:kUIUpdateHz handler:^{
@@ -417,6 +422,24 @@ static const NSUInteger kUIUpdateHz = 3;
     else {
         [_player seekToPosition:0];
     }
+}
+
+#pragma mark - Settings
+
+- (AudioTrack *)successorPrefetchTrack {
+    if (!VibePlaybackShouldAdvanceAtTrackEnd(_playlist.hasNextTrack,
+                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
+        return nil;
+    }
+    return [_playlist trackAtIndex:_playlist.currentIndex + 1];
+}
+
+- (void)applyTrackTransitionSettings {
+    _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+    // Re-park the successor, or drop it: prefetchTrack: with nil unschedules
+    // an armed splice, which is what keeps a mid-track switch to Pause from
+    // advancing anyway. Same shape as the mac's applyEndOfTrackAction.
+    [_player prefetchTrack:self.successorPrefetchTrack];
 }
 
 // Clamped because a list's rows can be stale — an external "Open in Vibe"

@@ -50,6 +50,12 @@ NS_ASSUME_NONNULL_BEGIN
 // only acks; poll dump_state for the resulting playlist.
 - (void)debugOpenPath:(NSString *)path;
 
+// Settings > Playback > On track end was written behind the pane's back (the
+// set_pause_at_track_end verb). Apply what the pane's own writer would — the
+// mac's EndOfTrack live effect, the iOS model's applyTrackTransitionSettings
+// — so the parked successor is re-parked or dropped at once.
+- (void)debugApplyEndOfTrackSetting;
+
 // clear_caches empties both of these; file_cache and file_clear_cache drive
 // the waveform one per file.
 - (AudioTrackMetadataCache *)debugMetadataCache;

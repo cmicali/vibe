@@ -7,7 +7,7 @@
 //  settings are macOS-only (see Vibe/Common/CLAUDE.md), so this is the whole of
 //  what there is to set here.
 //
-//  Four rows and no lists: each choice with more than two answers pushes its
+//  Five rows and no lists: each choice with more than two answers pushes its
 //  own picker, so this screen stays the summary you read the current settings
 //  off. Writing any of them ends on VibeNotifyDisplaySettingsChanged().
 //

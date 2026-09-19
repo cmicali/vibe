@@ -2,11 +2,13 @@
 
 The screens behind the Playlist tab's gear, **pushed onto that navigation stack rather than presented**, so the mini strip and the card behind it stay up. The shell is `../CLAUDE.md`.
 
-**These screens write settings and post; they never reach for the screens that draw them.** Every writer ends on `VibeNotifyDisplaySettingsChanged()`, never a hand-composed post, and the card's `displaySettingsDidChange` (`../Player/CLAUDE.md`) is the reader. A notification is right here where macOS uses its synchronous named-effect mapping (`Common/CLAUDE.md`), because the settings screens and the card share no owner below `RootViewController`.
+**These screens write settings and never reach for the screens that draw them.** A display setting's writer ends on `VibeNotifyDisplaySettingsChanged()`, never a hand-composed post, and the card's `displaySettingsDidChange` (`../Player/CLAUDE.md`) is the reader. A notification is right here where macOS uses its synchronous named-effect mapping (`Common/CLAUDE.md`), because the settings screens and the card share no owner below `RootViewController`.
+
+**The Playback screen posts nothing, because nothing draws from it.** On track end and Crossfade — the mac pane's Track transitions group, the only part of that pane iOS has — are played, so each write ends on `PlaybackController.applyTrackTransitionSettings`, which is what the gear hands the model down the stack for. The rule it enforces is the root doc's.
 
 **"When opening a folder" notifies nothing.** No screen draws from it; it governs the next open. Its case writes `AppSettings.folderOpenSort`, reloads its section for the checkmark, and returns.
 
-**`PlayerDisplaySettings`** holds `VibeiOSShowRemainingTime` and `VibeiOSShowFileInfo`: iOS-owned keys, not `AppSettings` — on macOS those are `AppTheme` fields, and iOS has no theme system. File info defaults on, so the key's absence is tested rather than registered. The waveform style stays an `AppSettings` property (both platforms offer the picker), and Normalize and Gain are shared `AppSettings` outright: they are set for a library's mastering level, not a look.
+**`PlayerDisplaySettings`** holds `VibeiOSShowRemainingTime` and `VibeiOSShowFileInfo`: iOS-owned keys, not `AppSettings` — on macOS those are `AppTheme` fields, and iOS has no theme system. File info defaults on, so the key's absence is tested rather than registered. The waveform style stays an `AppSettings` property (both platforms offer the picker); Normalize and Gain are macOS-only (`AppSettings+Mac.h`) — the scrubber draws the normalized mapping, and this screen offers no knob.
 
 **TRAP: two `reloadSections:` calls in one turn coalesce into one batch update**, whose validation raises `_Bug_Detected_In_Client_Of_UITableView_Invalid_Batch_Updates` when a section's row count changed with no insert or delete. A lone `reloadSections:` is fine (the Files screen's folder list); the theme screen, which must move a checkmark and empty the colors section together, reloads the whole table.
 
