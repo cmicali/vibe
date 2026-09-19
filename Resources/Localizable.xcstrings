@@ -5024,186 +5024,186 @@
       "extractionState": "manual"
     },
     "label.favorites.empty.message": {
-      "comment": "iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.",
+      "comment": "iOS: explanatory line under the empty favorites headline. It names both ways to make a favorite, each in the words its own screen uses: the Files tab's long-press menu item says 'Add to Favorites', while the playlist screen's control is a star. 'Here' is the Favorites tab the line is shown on.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Докоснете звездата при отворена папка, за да я запазите тук."
+            "value": "Добавете папка от раздела „Файлове“ или докоснете звездата при отворена папка, за да я запазите тук."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "U otevřené složky klepněte na hvězdičku a zůstane tady."
+            "value": "Přidejte složku z karty Soubory nebo u otevřené složky klepněte na hvězdičku a zůstane tady."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tryk på stjernen, når en mappe er åben, for at beholde den her."
+            "value": "Tilføj en mappe fra fanen Filer, eller tryk på stjernen, når en mappe er åben, for at beholde den her."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tippe bei einem geöffneten Ordner auf den Stern, um ihn hier zu behalten."
+            "value": "Füge einen Ordner im Tab „Dateien“ hinzu oder tippe bei einem geöffneten Ordner auf den Stern, um ihn hier zu behalten."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αγγίξτε το αστέρι σε έναν ανοιχτό φάκελο για να τον κρατήσετε εδώ."
+            "value": "Προσθέστε έναν φάκελο από την καρτέλα «Αρχεία» ή αγγίξτε το αστέρι σε έναν ανοιχτό φάκελο για να τον κρατήσετε εδώ."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Star a folder you have open to keep it here."
+            "value": "Add a folder from the Files tab, or star the one you have open, to keep it here."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toca la estrella con una carpeta abierta para guardarla aquí."
+            "value": "Añade una carpeta desde la pestaña Archivos o toca la estrella con una carpeta abierta para guardarla aquí."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pidä kansio täällä napauttamalla tähteä, kun kansio on avoinna."
+            "value": "Pidä kansio täällä lisäämällä se Tiedostot-välilehdeltä tai napauttamalla tähteä, kun kansio on avoinna."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Touchez l’étoile lorsqu’un dossier est ouvert pour le conserver ici."
+            "value": "Ajoutez un dossier depuis l’onglet Fichiers ou touchez l’étoile lorsqu’un dossier est ouvert pour le conserver ici."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodirnite zvjezdicu kad je mapa otvorena da biste je zadržali ovdje."
+            "value": "Dodajte mapu s kartice Datoteke ili dodirnite zvjezdicu kad je mapa otvorena da biste je zadržali ovdje."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Érintsd meg a csillagot egy megnyitott mappánál, hogy itt maradjon."
+            "value": "Adj hozzá egy mappát a Fájlok lapról, vagy érintsd meg a csillagot egy megnyitott mappánál, hogy itt maradjon."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ketuk bintang saat folder terbuka untuk menyimpannya di sini."
+            "value": "Tambahkan folder dari tab File atau ketuk bintang saat folder terbuka untuk menyimpannya di sini."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tocca la stella con una cartella aperta per tenerla qui."
+            "value": "Aggiungi una cartella dalla scheda File o tocca la stella con una cartella aperta per tenerla qui."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フォルダを開いた状態で星をタップすると、ここに残ります。"
+            "value": "「ファイル」タブからフォルダを追加するか、フォルダを開いた状態で星をタップすると、ここに残ります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "폴더를 연 상태에서 별을 탭하면 여기에 보관됩니다."
+            "value": "파일 탭에서 폴더를 추가하거나 폴더를 연 상태에서 별을 탭하면 여기에 보관됩니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trykk på stjernen når en mappe er åpen, for å beholde den her."
+            "value": "Legg til en mappe fra Filer-fanen, eller trykk på stjernen når en mappe er åpen, for å beholde den her."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tik op de ster bij een geopende map om deze hier te bewaren."
+            "value": "Voeg een map toe via het tabblad Bestanden of tik op de ster bij een geopende map om deze hier te bewaren."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stuknij w gwiazdkę przy otwartym folderze, aby zachować go tutaj."
+            "value": "Dodaj folder z karty Pliki lub stuknij w gwiazdkę przy otwartym folderze, aby zachować go tutaj."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+            "value": "Adicione uma pasta na aba Arquivos ou toque na estrela com uma pasta aberta para mantê‑la aqui."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+            "value": "Adicione uma pasta no separador Ficheiros ou toque na estrela com uma pasta aberta para mantê‑la aqui."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atingeți steaua când un dosar este deschis pentru a‑l păstra aici."
+            "value": "Adăugați un dosar din fila Fișiere sau atingeți steaua când un dosar este deschis pentru a‑l păstra aici."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нажмите звёздочку при открытой папке, чтобы сохранить её здесь."
+            "value": "Добавьте папку на вкладке «Файлы» или нажмите звёздочку при открытой папке, чтобы сохранить её здесь."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pri otvorenom priečinku ťuknite na hviezdičku a zostane tu."
+            "value": "Pridajte priečinok z karty Súbory alebo pri otvorenom priečinku ťuknite na hviezdičku a zostane tu."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tryck på stjärnan när en mapp är öppen för att behålla den här."
+            "value": "Lägg till en mapp från fliken Filer eller tryck på stjärnan när en mapp är öppen för att behålla den här."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แตะรูปดาวขณะเปิดโฟลเดอร์อยู่ เพื่อเก็บโฟลเดอร์นั้นไว้ที่นี่"
+            "value": "เพิ่มโฟลเดอร์จากแท็บไฟล์ หรือแตะรูปดาวขณะเปิดโฟลเดอร์อยู่ เพื่อเก็บโฟลเดอร์นั้นไว้ที่นี่"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bir klasör açıkken yıldıza dokunarak klasörü burada tutun."
+            "value": "Dosyalar sekmesinden bir klasör ekleyin veya bir klasör açıkken yıldıza dokunarak klasörü burada tutun."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Торкніться зірочки за відкритої папки, щоб зберегти її тут."
+            "value": "Додайте папку на вкладці «Файли» або торкніться зірочки за відкритої папки, щоб зберегти її тут."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chạm vào ngôi sao khi đang mở một thư mục để giữ thư mục đó ở đây."
+            "value": "Thêm thư mục từ tab Tệp hoặc chạm vào ngôi sao khi đang mở một thư mục để giữ thư mục đó ở đây."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开文件夹后轻点星标，即可保留在这里。"
+            "value": "在“文件”标签页中添加文件夹，或打开文件夹后轻点星标，即可保留在这里。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開檔案夾後點一下星號，即可保留在這裡。"
+            "value": "在「檔案」標籤頁中加入檔案夾，或打開檔案夾後點一下星號，即可保留在這裡。"
           }
         }
       },
