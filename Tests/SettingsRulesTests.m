@@ -107,14 +107,15 @@
     XCTAssertEqual(reloaded.folderOpenSort, VibeFolderOpenSortNewestFirst);
 }
 
-- (void)testExternalSharedSettingsNormalizeOnRead {
+- (void)testExternalSettingsNormalizeOnRead {
     AppSettings *settings = [self freshSettings];
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults setObject:@"date" forKey:SETTING_FOLDER_OPEN_SORT];
     XCTAssertEqual(settings.folderOpenSort, VibeFolderOpenSortName);
-    [defaults setDouble:30 forKey:SETTING_WAVEFORM_GAIN_DB];
+    // The setter stores the raw double, so it is the external write.
+    settings.waveformGainDB = 30;
     XCTAssertEqual(settings.waveformGainDB, kVibeWaveformGainMaxDB);
-    [defaults setDouble:-6.74 forKey:SETTING_WAVEFORM_GAIN_DB];
+    settings.waveformGainDB = -6.74;
     XCTAssertEqual(settings.waveformGainDB, -6.5);
     settings.waveformDragBehavior = @"Seek";
     settings.artworkDragAction = @"copy_name";

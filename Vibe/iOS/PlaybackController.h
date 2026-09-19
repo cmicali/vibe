@@ -161,6 +161,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)seekToProgress:(float)progress;
 - (void)seekToPosition:(NSTimeInterval)position;
 
+#pragma mark - Settings
+
+// Settings > Playback > Track transitions were written. The store never
+// applies effects (Common/CLAUDE.md), so the writer calls this — the iOS
+// spelling of the mac's EndOfTrack and Crossfade live effects: the crossfade
+// is pushed to the player, and the prefetched successor is re-parked or
+// dropped through the rule the track-end path reads, which is what keeps a
+// mid-track switch to Pause from advancing through an armed splice.
+- (void)applyTrackTransitionSettings;
+
 // The priority metadata lane, for a screen that needs one track's tags before
 // the playlist-wide scan would reach them — the pager's art prefetch, whose
 // dispatch hangs off the metadata object. A no-op once the track is parsed.

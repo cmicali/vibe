@@ -113,7 +113,7 @@ static inline NSString *VibeAppName(void) {
 // "More"/"Most" are progressively larger jumps (8/16/32 bars, or 10/30/60
 // seconds when the tempo is unknown) — not comparatives of a quantity.
 
-#define STR_MENU_PLAYBACK          NSLS(@"menu.playback",                   @"Playback",          @"Menu bar: the Playback menu.")
+#define STR_MENU_PLAYBACK          NSLS(@"menu.playback",                   @"Playback",          @"Menu bar: the Playback menu; also the Playback pane's sidebar item in the macOS Settings window, and the Playback row and screen title on iOS settings.")
 #define STR_MENU_PLAY_SELECTED     NSLS(@"menu.playback.play_selected",     @"Play Selected Track", @"Playback menu item: play the playlist row the user has selected, rather than the one already playing.")
 #define STR_MENU_SKIP_FORWARD      NSLS(@"menu.playback.skip_forward",      @"Skip Forward",      @"Playback menu item: seek forward a short step.")
 #define STR_MENU_SKIP_FORWARD_MORE NSLS(@"menu.playback.skip_forward_more", @"Skip Forward More", @"Playback menu item: seek forward a medium step, larger than 'Skip Forward'.")
@@ -564,7 +564,7 @@ static inline NSString *VibeAppName(void) {
 
 
 #pragma mark - macOS settings clarity
-#define STR_SETTINGS_TRANSITIONS_SECTION NSLS(@"settings.playback.transitions", @"Track transitions", @"macOS Settings: Track transitions")
+#define STR_SETTINGS_TRANSITIONS_SECTION NSLS(@"settings.playback.transitions", @"Track transitions", @"Settings, Playback: heading above the On track end and Crossfade settings, on both platforms.")
 #define STR_SETTINGS_CONTROLS_SECTION NSLS(@"settings.playback.controls", @"Playback controls", @"macOS Settings: Playback controls")
 #define STR_SETTINGS_CONVERT_SECTION NSLS(@"settings.files.conversion", @"FLAC conversion", @"macOS Settings: FLAC conversion")
 #define STR_SETTINGS_WAVEFORM_LEVELS_CAPTION NSLS(@"settings.appearance.waveform_levels_caption", @"Applies to all themes. Changes the waveform display only. Playback volume is unchanged.", @"macOS Settings: Applies to all themes. Changes the waveform display only. Playback volume is unchanged.")

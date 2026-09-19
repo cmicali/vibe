@@ -105,6 +105,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)notifyDidFinishLoading;
 - (void)notifyDidFailCurrentTrack;
 
+#pragma mark - On track end
+
+// The playlist's next track, or nil at the end of the playlist and under
+// Settings > Playback > On track end = Pause. Every prefetchTrack: call site
+// asks this: the prefetch is the player's gapless arm point, so a bypass would
+// splice past a track end the setting says to park on (root CLAUDE.md).
+- (nullable AudioTrack *)successorPrefetchTrack;
+
 #pragma mark - The deferred metadata sweep
 
 // Starts the playlist-wide sweep if one is still pending. The player-event

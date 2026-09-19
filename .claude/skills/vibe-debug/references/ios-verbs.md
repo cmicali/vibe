@@ -16,6 +16,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render into the container; the HOST reads the path directly, no TCC. UIVisualEffectView blurs only approximate; `simctl io screenshot` is the ground truth
 "$S" play_pause          # compact {ok, state, index, count, position, parked}; also next, previous
 "$S" seek 90             # seconds, through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real release
+"$S" set_pause_at_track_end on  # a common verb: {ok, pauseAtTrackEnd} — writes Settings > Playback > On track end and applies it at once (re-parks or drops the prefetched successor). Read back in dump_state.settings, beside crossfadeMilliseconds (the stored choice; player.crossfadeMilliseconds is what the engine holds)
 "$S" open <path>         # a file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
 "$S" expand_player       # the card without a gesture; also minimize_player. The shell presents it only on an open, so this is the other way in
 "$S" set_waveform_zoom 0.12  # the DJ zoom, 0-1 = fraction of the track visible, through the delegate callback a released pinch takes, so it fans out across pages and persists. Replies {waveformZoomRequested, waveformZoomEffective}; they DIFFER when the layout cannot draw the depth asked — the only way to check the clamp

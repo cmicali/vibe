@@ -9,9 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
 
-// Both ways a macOS track end advances use this: parking a successor in the
-// engine, and handling the end callback on main. A setting change must reach
-// both even when no prefetched handle ever arrived.
+// Both ways a track end advances use this, on either shell: parking a
+// successor in the engine, and handling the end callback on main. A setting
+// change must reach both even when no prefetched handle ever arrived.
 static inline BOOL VibePlaybackShouldAdvanceAtTrackEnd(BOOL hasNextTrack, BOOL pauseAtTrackEnd) {
     return hasNextTrack && !pauseAtTrackEnd;
 }

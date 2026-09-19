@@ -14510,7 +14510,7 @@
       "extractionState": "manual"
     },
     "menu.playback": {
-      "comment": "Menu bar: the Playback menu.",
+      "comment": "Menu bar: the Playback menu; also the Playback pane's sidebar item in the macOS Settings window, and the Playback row and screen title on iOS settings.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -69566,7 +69566,7 @@
       "extractionState": "manual"
     },
     "settings.playback.transitions": {
-      "comment": "macOS Settings: Track transitions",
+      "comment": "Settings, Playback: heading above the On track end and Crossfade settings, on both platforms.",
       "localizations": {
         "bg": {
           "stringUnit": {

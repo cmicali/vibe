@@ -13,6 +13,10 @@
 #import "SettingsRules.h"
 #import "PlatformColor.h"
 
+const NSInteger kVibeCrossfadePresets[] = {10, 500, 2000};
+const size_t kVibeCrossfadePresetCount =
+        sizeof(kVibeCrossfadePresets) / sizeof(kVibeCrossfadePresets[0]);
+
 @implementation AppSettings
 
 #pragma mark - Both platforms
@@ -46,9 +50,9 @@
     NSMutableDictionary *appDefaults = [@{
             SETTING_WAVEFORM_STYLE: SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT,
             SETTING_WAVEFORM_THEME: SETTINGS_VALUE_WAVEFORM_THEME_MONO,
-            SETTING_WAVEFORM_NORMALIZE: @(YES),
-            SETTING_WAVEFORM_GAIN_DB: @(0.0),
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
+            SETTING_CROSSFADE_MILLISECONDS: @(10),
+            SETTING_PAUSE_AT_TRACK_END: @(NO),
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
@@ -203,23 +207,6 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 #endif  // !TARGET_OS_OSX
 
 
-- (BOOL)waveformNormalize {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_NORMALIZE];
-}
-
-- (void)setWaveformNormalize:(BOOL)normalize {
-    [[NSUserDefaults standardUserDefaults] setBool:normalize forKey:SETTING_WAVEFORM_NORMALIZE];
-}
-
-- (double)waveformGainDB {
-    return VibeNormalizedWaveformGainDB(
-            [[NSUserDefaults standardUserDefaults] doubleForKey:SETTING_WAVEFORM_GAIN_DB]);
-}
-
-- (void)setWaveformGainDB:(double)gainDB {
-    [[NSUserDefaults standardUserDefaults] setDouble:gainDB forKey:SETTING_WAVEFORM_GAIN_DB];
-}
-
 - (VibeFolderOpenSort)folderOpenSort {
     return VibeNormalizedFolderOpenSort(
             [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_FOLDER_OPEN_SORT]);
@@ -228,6 +215,23 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setFolderOpenSort:(VibeFolderOpenSort)sort {
     [[NSUserDefaults standardUserDefaults] setObject:VibeFolderOpenSortIdentifier(sort)
                                               forKey:SETTING_FOLDER_OPEN_SORT];
+}
+
+- (NSInteger)crossfadeMilliseconds {
+    NSInteger stored = [[NSUserDefaults standardUserDefaults] integerForKey:SETTING_CROSSFADE_MILLISECONDS];
+    return VibeNearestPreset(stored, kVibeCrossfadePresets, kVibeCrossfadePresetCount);
+}
+
+- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds {
+    [[NSUserDefaults standardUserDefaults] setInteger:milliseconds forKey:SETTING_CROSSFADE_MILLISECONDS];
+}
+
+- (BOOL)pauseAtTrackEnd {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_PAUSE_AT_TRACK_END];
+}
+
+- (void)setPauseAtTrackEnd:(BOOL)pause {
+    [[NSUserDefaults standardUserDefaults] setBool:pause forKey:SETTING_PAUSE_AT_TRACK_END];
 }
 
 #if !TARGET_OS_OSX

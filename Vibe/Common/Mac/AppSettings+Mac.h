@@ -57,18 +57,20 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH               @"copy_path"
 #define SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE       @"copy_artist_title"
 
-// The preset ladders Settings > Playback offers, shared with the pane that
-// builds its popups from them. The getters snap a persisted value that
-// matches no preset — an external defaults write — to the nearest one,
-// normalize-on-read like keyNotation, so the pane's selection, the engine,
-// and the skip math always agree instead of the pane displaying one value
-// while the audio uses another.
+// The mac-only preset ladders (the crossfade's is AppSettings.h's), shared
+// with the panes that build their popups from them. The getters snap a
+// persisted value that matches no preset — an external defaults write — to
+// the nearest one, normalize-on-read like keyNotation, so the pane's
+// selection, the engine, and the skip math always agree instead of the pane
+// displaying one value while the audio uses another.
 FOUNDATION_EXPORT const NSInteger kVibeSkipBasePresets[];
 FOUNDATION_EXPORT const size_t kVibeSkipBasePresetCount;
-FOUNDATION_EXPORT const NSInteger kVibeCrossfadePresets[];
-FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 FOUNDATION_EXPORT const NSInteger kVibeUIUpdateHzCapPresets[];
 FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
+
+// The waveform Gain reaches this far either side of 0 dB, in half-dB steps
+// (SettingsRules.h).
+static const double kVibeWaveformGainMaxDB = 12;
 
 @interface AppSettings (Mac)
 
@@ -237,26 +239,24 @@ FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
 - (NSInteger)skipBaseBars;
 - (void)setSkipBaseBars:(NSInteger)bars;
 
-// Track-change crossfade length: 10 (instant, the declick minimum), 500 or
-// 2000. The stored choice the popup displays; what the player is told is
-// effectiveCrossfadeMilliseconds, which VibeSettingsLiveEffectCrossfade
-// pushes. Pause, seek and stop declicks never scale with it.
-- (NSInteger)crossfadeMilliseconds;
-- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
-
 // The crossfade the player is told: the declick minimum while bit-perfect
-// output is on (two tracks summed is not bit-perfect), else the stored choice.
-// The one push site reads this, never crossfadeMilliseconds.
+// output is on (two tracks summed is not bit-perfect), else the stored
+// choice (AppSettings.crossfadeMilliseconds). The one push site,
+// VibeSettingsLiveEffectCrossfade, reads this, never the stored choice.
 - (NSInteger)effectiveCrossfadeMilliseconds;
 
-// Settings > Playback > On track end. NO, the default, plays the next track
-// in the playlist when one ends; YES parks on the finished track exactly as
-// the end of the playlist does. It is enforced in one place — the successor
-// prefetch, which is also the player's gapless arm point (MainPlayerController's
-// successorPrefetchTrack) — so a writer must request
-// VibeSettingsLiveEffectEndOfTrack to re-park or drop the handle.
-- (BOOL)pauseAtTrackEnd;
-- (void)setPauseAtTrackEnd:(BOOL)pause;
+// The waveform's level mapping, two plain settings rather than theme fields
+// — they are set for a library's mastering level and must survive a theme
+// switch — and one live effect, VibeSettingsLiveEffectWaveformLevels.
+// Normalize (default YES) draws every track with its loudest passage at
+// full height; the gain, in dB with 0 the plain mapping, applies over that.
+// What each does to the bars is WaveformLevelMath.h's. macOS-only: the iOS
+// scrubber draws the normalized mapping and offers no knob. The gain getter
+// answers the half-dB ladder, so a knob re-reads what landed.
+- (BOOL)waveformNormalize;
+- (void)setWaveformNormalize:(BOOL)normalize;
+- (double)waveformGainDB;
+- (void)setWaveformGainDB:(double)gainDB;
 
 // Settings > General > Startup > Load last playlist on launch. NO, the
 // default, starts empty; YES has the mac shell mirror the playlist to the

@@ -314,17 +314,11 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     _rendererHost.bounds = [self virtualBounds];
     _renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style layer:_rendererHost
                                                         bounds:[self virtualBounds] isDark:self.isDark];
-    [self applyLevelSettings];
+    // The mac's Normalize default, fixed: every track draws its loudest
+    // passage at full height (WaveformLevelMath.h). Normalize and Gain are
+    // macOS settings (AppSettings+Mac.h); this scrubber offers no knob.
+    _renderer.normalizesLevels = YES;
     [self applyResolvedTheme];
-}
-
-// Normalize and Gain into the renderer's level mapping, the mac view's two
-// lines. Not part of the theme: they are set for a library's mastering level
-// and survive a theme switch (AppSettings.h).
-- (void)applyLevelSettings {
-    AppSettings *settings = AppSettings.sharedInstance;
-    _renderer.normalizesLevels = settings.waveformNormalize;
-    _renderer.gainDB = (float)settings.waveformGainDB;
 }
 
 // The one resolution site on this view: settings + appearance + this page's
@@ -383,22 +377,6 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     [self scheduleEnvelopeBakeAfter:0];
 }
 
-- (void)syncWaveformLevels {
-    if (!_renderer) {
-        return;  // nothing on screen: the next install reads the settings
-    }
-    AppSettings *settings = AppSettings.sharedInstance;
-    if (_renderer.normalizesLevels == settings.waveformNormalize &&
-        _renderer.gainDB == (float)settings.waveformGainDB) {
-        return;
-    }
-    // The bake is a picture of the old level mapping, so it comes down with
-    // it — syncWaveformTheme's shape, and for the same reason.
-    [self teardownBakedWaveform];
-    [self applyLevelSettings];
-    [self applyScrollAndProgress];
-    [self scheduleEnvelopeBakeAfter:0];
-}
 
 - (void)syncWaveformStyle {
     NSString *style = [WaveformRendererRegistry

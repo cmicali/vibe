@@ -39,9 +39,13 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
-// The waveform Gain reaches this far either side of 0 dB, in half-dB steps
-// (SettingsRules.h).
-static const double kVibeWaveformGainMaxDB = 12;
+// The crossfade ladder Settings > Playback offers on both platforms, in
+// milliseconds: 10 (instant — the declick minimum the engine always
+// applies), 500 and 2000. The getter snaps a persisted value that matches no
+// preset — an external defaults write — to the nearest one
+// (SettingsRules.h), so the picker's selection and the engine always agree.
+FOUNDATION_EXPORT const NSInteger kVibeCrossfadePresets[];
+FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 
 // The folder-open order's identifiers are in FolderOpenSort.h instead, beside
 // the enum the app passes around — Util/NSURLUtil needs the enum and must not
@@ -97,18 +101,27 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 #endif  // !TARGET_OS_OSX
 
-// The waveform's level mapping, two common settings rather than theme fields
-// — they are set for a library's mastering level and must survive a theme
-// switch — and on macOS one live effect, VibeSettingsLiveEffectWaveformLevels.
-// Normalize (default YES) draws every track with its loudest passage at
-// full height; the gain, in dB with 0 the plain mapping, applies over that.
-// What each does to the bars is WaveformLevelMath.h's, which both platforms'
-// renderers already draw through. The gain getter answers the half-dB ladder,
-// so a knob re-reads what landed.
-- (BOOL)waveformNormalize;
-- (void)setWaveformNormalize:(BOOL)normalize;
-- (double)waveformGainDB;
-- (void)setWaveformGainDB:(double)gainDB;
+// Settings > Playback > Track transitions, on both platforms. The store never
+// applies either (Common/CLAUDE.md): the mac writer requests the named live
+// effect, the iOS writer calls PlaybackController.applyTrackTransitionSettings.
+//
+// Track-change crossfade length: 10 (instant, the declick minimum), 500 or
+// 2000, the stored choice the picker displays. iOS pushes it to the player as
+// is; the mac pushes effectiveCrossfadeMilliseconds (Mac/AppSettings+Mac.h),
+// which bit-perfect output holds at the minimum. Pause, seek and stop
+// declicks never scale with it.
+- (NSInteger)crossfadeMilliseconds;
+- (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
+
+// On track end. NO, the default, plays the next track in the playlist when
+// one ends; YES parks on the finished track exactly as the end of the
+// playlist does. Each shell enforces it at both places a track end can
+// advance from (root CLAUDE.md): the successor prefetch, which is also the
+// player's gapless arm point, and the end callback. A writer must then
+// re-park or drop the parked handle, or a mid-track switch to Pause leaves an
+// armed splice that advances anyway.
+- (BOOL)pauseAtTrackEnd;
+- (void)setPauseAtTrackEnd:(BOOL)pause;
 
 // The order a folder's tracks land in the playlist — see FolderOpenSort.h.
 // Normalized on read: an identifier no picker can produce reads as Name.

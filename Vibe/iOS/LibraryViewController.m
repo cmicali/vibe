@@ -215,7 +215,7 @@ static const CGFloat kArtTextGap = 14;
 // Pushed rather than presented: the mini strip and the tabs stay up, and the
 // settings on it are all things the strip and the card behind it draw.
 - (void)settingsTapped {
-    [self.navigationController pushViewController:[[SettingsViewController alloc] init]
+    [self.navigationController pushViewController:[[SettingsViewController alloc] initWithPlayback:_playback]
                                          animated:YES];
 }
 

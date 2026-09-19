@@ -10,6 +10,7 @@
 #import "AboutSettingsViewController.h"
 #import "AppearanceSettingsViewController.h"
 #import "FilesSettingsViewController.h"
+#import "PlaybackSettingsViewController.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibeSettingsSection) {
@@ -21,17 +22,24 @@ typedef NS_ENUM(NSInteger, VibeSettingsSection) {
 };
 
 typedef NS_ENUM(NSInteger, VibeSettingsGroupRow) {
-    VibeSettingsGroupRowAppearance = 0,
+    VibeSettingsGroupRowPlayback = 0,
+    VibeSettingsGroupRowAppearance,
     VibeSettingsGroupRowFiles,
     VibeSettingsGroupRowCount,
 };
 
 static NSString *const kGroupCellIdentifier = @"group";
 
-@implementation SettingsViewController
+@implementation SettingsViewController {
+    PlaybackController *_playback;
+}
 
-- (instancetype)init {
-    return [super initWithStyle:UITableViewStyleInsetGrouped];
+- (instancetype)initWithPlayback:(PlaybackController *)playback {
+    self = [super initWithStyle:UITableViewStyleInsetGrouped];
+    if (self) {
+        _playback = playback;
+    }
+    return self;
 }
 
 - (void)viewDidLoad {
@@ -57,15 +65,22 @@ static NSString *const kGroupCellIdentifier = @"group";
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionAbout) {
         return STR_SETTINGS_ABOUT;
     }
-    return indexPath.row == VibeSettingsGroupRowFiles ? STR_SETTINGS_FILES
-                                                      : STR_MENU_VIEW_APPEARANCE;
+    switch ((VibeSettingsGroupRow)indexPath.row) {
+        case VibeSettingsGroupRowPlayback: return STR_MENU_PLAYBACK;
+        case VibeSettingsGroupRowFiles:    return STR_SETTINGS_FILES;
+        default:                           return STR_MENU_VIEW_APPEARANCE;
+    }
 }
 
 - (NSString *)symbolNameForRowAtIndexPath:(NSIndexPath *)indexPath {
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionAbout) {
         return @"info.circle";
     }
-    return indexPath.row == VibeSettingsGroupRowFiles ? @"folder" : @"paintbrush";
+    switch ((VibeSettingsGroupRow)indexPath.row) {
+        case VibeSettingsGroupRowPlayback: return @"play.circle";
+        case VibeSettingsGroupRowFiles:    return @"folder";
+        default:                           return @"paintbrush";
+    }
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -88,6 +103,9 @@ static NSString *const kGroupCellIdentifier = @"group";
     UIViewController *next;
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionAbout) {
         next = [[AboutSettingsViewController alloc] init];
+    }
+    else if (indexPath.row == VibeSettingsGroupRowPlayback) {
+        next = [[PlaybackSettingsViewController alloc] initWithPlayback:_playback];
     }
     else if (indexPath.row == VibeSettingsGroupRowFiles) {
         next = [[FilesSettingsViewController alloc] init];

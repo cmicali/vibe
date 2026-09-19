@@ -342,8 +342,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     // absent identifier into the default either way.
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    BOOL normalize = settings.waveformNormalize;
-    float gainDB = (float)settings.waveformGainDB;
+    // The app's scrubber draws the normalized mapping with no gain — Normalize
+    // and Gain are macOS settings (AppSettings+Mac.h) — and the strip matches it.
+    const BOOL normalize = YES;
+    const float gainDB = 0;
     VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
     VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 

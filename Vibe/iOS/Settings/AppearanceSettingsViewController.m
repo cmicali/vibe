@@ -8,10 +8,8 @@
 #import "AppearanceSettingsViewController.h"
 
 #import "AppSettings.h"
-#import "Formatters.h"
 #import "PlayerDisplaySettings.h"
 #import "SettingsChoiceViewController.h"
-#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformThemeSettingsViewController.h"
@@ -20,8 +18,6 @@ typedef NS_ENUM(NSInteger, VibeAppearanceRow) {
     VibeAppearanceRowWaveformStyle = 0,
     VibeAppearanceRowWidgetWaveformStyle,
     VibeAppearanceRowWaveformTheme,
-    VibeAppearanceRowWaveformNormalize,
-    VibeAppearanceRowWaveformGain,
     VibeAppearanceRowTimeDisplay,
     VibeAppearanceRowFileInfo,
     VibeAppearanceRowCount,
@@ -34,7 +30,6 @@ static const NSInteger kTimeRowRemaining = 1;
 
 static NSString *const kValueCellIdentifier  = @"value";
 static NSString *const kSwitchCellIdentifier = @"switch";
-static NSString *const kSliderCellIdentifier = @"slider";
 
 @implementation AppearanceSettingsViewController {
     // Style IDENTIFIERS, sorted by their localized display names so the list
@@ -86,14 +81,6 @@ static NSString *const kSliderCellIdentifier = @"slider";
                       : STR_SETTINGS_WIDGET_WAVEFORM_MATCH;
 }
 
-// The stored value re-read through the half-dB ladder, so the number shown is
-// the number kept — the mac readout's rule, and the same formatter, since a
-// signed decimal is locale-dependent.
-- (NSString *)waveformGainValueText {
-    return [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_GAIN_VALUE,
-            [Formatters.sharedInstance signedDecimalString:AppSettings.sharedInstance.waveformGainDB]];
-}
-
 - (NSString *)timeDisplayValueText {
     return VibeShowsRemainingTime() ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
 }
@@ -106,48 +93,21 @@ static NSString *const kSliderCellIdentifier = @"slider";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowWaveformGain) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSliderCellIdentifier];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                          reuseIdentifier:kSliderCellIdentifier];
-            cell.selectionStyle = UITableViewCellSelectionStyleNone;
-            UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(0, 0, 140, 30)];
-            slider.minimumValue = (float)-kVibeWaveformGainMaxDB;
-            slider.maximumValue = (float)kVibeWaveformGainMaxDB;
-            [slider addTarget:self action:@selector(gainChanged:)
-             forControlEvents:UIControlEventValueChanged];
-            cell.accessoryView = slider;
-        }
-        UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-        content.text = STR_SETTINGS_WAVEFORM_GAIN;
-        content.secondaryText = [self waveformGainValueText];
-        cell.contentConfiguration = content;
-        ((UISlider *)cell.accessoryView).value = (float)AppSettings.sharedInstance.waveformGainDB;
-        return cell;
-    }
-
-    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowFileInfo ||
-        (VibeAppearanceRow)indexPath.row == VibeAppearanceRowWaveformNormalize) {
+    if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowFileInfo) {
         UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
         if (!cell) {
             cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                           reuseIdentifier:kSwitchCellIdentifier];
             cell.selectionStyle = UITableViewCellSelectionStyleNone;
             UISwitch *toggle = [[UISwitch alloc] init];
-            [toggle addTarget:self action:@selector(switchToggled:)
+            [toggle addTarget:self action:@selector(fileInfoToggled:)
              forControlEvents:UIControlEventValueChanged];
             cell.accessoryView = toggle;
         }
-        BOOL isFileInfo = ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowFileInfo);
         UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-        content.text = isFileInfo ? STR_SETTINGS_FILE_INFO : STR_SETTINGS_WAVEFORM_NORMALIZE;
+        content.text = STR_SETTINGS_FILE_INFO;
         cell.contentConfiguration = content;
-        // The row the toggle stands for: one identifier serves both, so a
-        // reused cell must be re-pointed rather than trusted.
-        UISwitch *toggle = (UISwitch *)cell.accessoryView;
-        toggle.tag = indexPath.row;
-        toggle.on = isFileInfo ? VibeShowsFileInfo() : AppSettings.sharedInstance.waveformNormalize;
+        ((UISwitch *)cell.accessoryView).on = VibeShowsFileInfo();
         return cell;
     }
 
@@ -199,7 +159,7 @@ static NSString *const kSliderCellIdentifier = @"slider";
             next = [self timeDisplayPicker];
             break;
         default:
-            return;     // the switch and slider rows' own controls change those
+            return;     // the switch row's own control changes it
     }
     [self.navigationController pushViewController:next animated:YES];
 }
@@ -268,29 +228,8 @@ static NSString *const kSliderCellIdentifier = @"slider";
     }];
 }
 
-- (void)switchToggled:(UISwitch *)toggle {
-    if ((VibeAppearanceRow)toggle.tag == VibeAppearanceRowFileInfo) {
-        VibeSetShowsFileInfo(toggle.isOn);
-    } else {
-        AppSettings.sharedInstance.waveformNormalize = toggle.isOn;
-    }
-    VibeNotifyDisplaySettingsChanged();
-}
-
-// Continuous, and deliberately not throttled here: the store lands every write
-// on the half-dB ladder, so a drag writes the same value repeatedly between
-// steps and the pages' syncWaveformLevels compares equal and does nothing.
-// The readout is updated in place rather than by reloading the row, which
-// would rebuild the cell under the finger holding the slider.
-- (void)gainChanged:(UISlider *)slider {
-    AppSettings.sharedInstance.waveformGainDB = slider.value;
-    NSIndexPath *path = [NSIndexPath indexPathForRow:VibeAppearanceRowWaveformGain inSection:0];
-    UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:path];
-    if ([cell.contentConfiguration isKindOfClass:UIListContentConfiguration.class]) {
-        UIListContentConfiguration *content = (UIListContentConfiguration *)cell.contentConfiguration;
-        content.secondaryText = [self waveformGainValueText];
-        cell.contentConfiguration = content;
-    }
+- (void)fileInfoToggled:(UISwitch *)toggle {
+    VibeSetShowsFileInfo(toggle.isOn);
     VibeNotifyDisplaySettingsChanged();
 }
 

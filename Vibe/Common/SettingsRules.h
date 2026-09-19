@@ -18,6 +18,22 @@ static inline NSInteger VibeNormalizedPitchRange(NSInteger range) {
     return range == 16 ? 16 : 8;
 }
 
+// The preset ladders (the crossfade on both platforms; the mac's skip steps
+// and playhead refresh): an out-of-list persisted value reads as the nearest
+// preset, so display and behavior cannot disagree. Ties break downward.
+static inline NSInteger VibeNearestPreset(NSInteger value, const NSInteger *presets, size_t count) {
+    // Clamp before subtracting: external defaults can contain integer extremes.
+    if (value <= presets[0]) return presets[0];
+    if (value >= presets[count - 1]) return presets[count - 1];
+    NSInteger best = presets[0];
+    for (size_t i = 1; i < count; i++) {
+        if (llabs((long long)(value - presets[i])) < llabs((long long)(value - best))) {
+            best = presets[i];
+        }
+    }
+    return best;
+}
+
 // An unknown stored waveform-theme identifier snaps to mono, like
 // keyNotation's snap to Camelot.
 static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifier) {
@@ -31,18 +47,6 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
 
 // The folder-open order, both ways: an unknown stored identifier snaps to
 // Name, the default and the order every folder open used before the setting.
-// The waveform gain's ladder: an external write outside the slider's range
-// clamps, NaN reads as the plain mapping, and every value lands on the
-// nearest half dB — the slider's step — so the pane's knob and readout never
-// show a value the store did not keep.
-static inline double VibeNormalizedWaveformGainDB(double gainDB) {
-    if (isnan(gainDB)) {
-        return 0;
-    }
-    double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
-    return round(clamped * 2) / 2;
-}
-
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;
@@ -192,6 +196,18 @@ static inline NSString *VibeNormalizedArtworkDragAction(NSString *_Nullable iden
         return identifier;
     }
     return SETTINGS_VALUE_ARTWORK_DRAG_COPY_FILE;
+}
+
+// The waveform gain's ladder: an external write outside the slider's range
+// clamps, NaN reads as the plain mapping, and every value lands on the
+// nearest half dB — the slider's step — so the pane's knob and readout never
+// show a value the store did not keep.
+static inline double VibeNormalizedWaveformGainDB(double gainDB) {
+    if (isnan(gainDB)) {
+        return 0;
+    }
+    double clamped = MAX(-kVibeWaveformGainMaxDB, MIN(kVibeWaveformGainMaxDB, gainDB));
+    return round(clamped * 2) / 2;
 }
 #endif  // TARGET_OS_OSX
 
