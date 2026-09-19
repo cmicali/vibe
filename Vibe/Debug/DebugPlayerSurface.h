@@ -56,6 +56,11 @@ NS_ASSUME_NONNULL_BEGIN
 // — so the parked successor is re-parked or dropped at once.
 - (void)debugApplyEndOfTrackSetting;
 
+// The same path APPENDED to the playlist instead of replacing it, through
+// whatever each shell's Add is: the mac's open funnel with appending:YES, the
+// iOS folder session's addURLs:. Asynchronous on both, like the open above.
+- (void)debugAppendPath:(NSString *)path;
+
 // clear_caches empties both of these; file_cache and file_clear_cache drive
 // the waveform one per file.
 - (AudioTrackMetadataCache *)debugMetadataCache;

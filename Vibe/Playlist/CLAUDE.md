@@ -34,4 +34,4 @@ These files come from other people's software, so two traps are load-bearing rat
 
 ## Where opens come from
 
-`Mac/App/CLAUDE.md` owns the open funnel — Launch Services burst coalescing, out-of-order expansion results and supersession. This directory only receives the resulting `loadURLs:selectingIndex:` / `append:`.
+`Mac/App/CLAUDE.md` owns the open funnel — Launch Services burst coalescing, out-of-order expansion results and supersession. This directory only receives the resulting `loadURLs:selectingIndex:` / `append:`; iOS's own append lands through `PlaybackController.folderSession:didAppendTracks:`.

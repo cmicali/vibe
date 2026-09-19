@@ -155,6 +155,11 @@ static NSString *const kTabSearch = @"search";
         LibraryViewController *library =
                 [[LibraryViewController alloc] initWithPlayback:root->_playback];
         root->_library = library;
+        // The empty state's Open. The library knows nothing about tabs; this
+        // is the one place that turns "find something to play" into one.
+        library.openFilesHandler = ^{
+            [weakSelf setSelectedTabIdentifier:kTabFiles];
+        };
         [root syncTabSurfaces];
         return [[UINavigationController alloc] initWithRootViewController:library];
     }];

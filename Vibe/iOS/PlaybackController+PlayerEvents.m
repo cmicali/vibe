@@ -123,7 +123,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // preempts any background transfer that beat it to the lane. Same rule as
     // the mac's MainPlayerController+PlayerEvents.
     [_player prefetchTrack:self.successorPrefetchTrack];
-    _folderSession.persistedTrackFileName = track.url.lastPathComponent;
+    _folderSession.persistedTrackPath = track.url.URLByStandardizingPath.path;
     // The landing can be parked — a pause verdict during the load, or the
     // media-reset re-park — in which case playback is idle, so the session is
     // released just as a pause releases it.

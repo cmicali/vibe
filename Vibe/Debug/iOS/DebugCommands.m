@@ -303,7 +303,21 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 if (index < 0) {
                     return VibeErrorJSON(@"usage: open_favorite <index in dump_favorites.favorites>");
                 }
-                if (![controller debugTapFavoriteAtIndex:(NSUInteger)index]) {
+                if (![controller debugOpenFavoriteAtIndex:(NSUInteger)index appending:NO]) {
+                    return VibeErrorJSON(@"no such favorite row (select_tab favorites first)");
+                }
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // The same row, ADDED instead of opened: it drives the screen's own
+            // openFavorite:appending:, so the resolve, the append and the
+            // unreachable-folder alert are the action's. Same lazy-provider
+            // caveat as open_favorite.
+            VibeDebugCmd(@"append_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
+                if (index < 0) {
+                    return VibeErrorJSON(@"usage: append_favorite <index in dump_favorites.favorites>");
+                }
+                if (![controller debugOpenFavoriteAtIndex:(NSUInteger)index appending:YES]) {
                     return VibeErrorJSON(@"no such favorite row (select_tab favorites first)");
                 }
                 return VibeJSONString(@{@"ok": @YES});

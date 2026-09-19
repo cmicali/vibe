@@ -82,6 +82,7 @@ static const CGFloat kArtTextGap = 14;
     // Kept because refreshChrome rebuilds the bar's items whenever the star
     // comes and goes, and the gear is the constant beside it.
     UIBarButtonItem    *_settingsItem;
+    UIBarButtonItem    *_addItem;
 }
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback {
@@ -96,12 +97,42 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    // A menu, not a direct push: Settings first, then Clear Playlist alone in
+    // a destructive inline group at the bottom — the same construction the
+    // Favorites long-press menu uses for Remove from Favorites, so the two
+    // menus in this app read the same way.
+    __weak LibraryViewController *weakSelf = self;
+    UIAction *settings = [UIAction actionWithTitle:STR_SETTINGS_TITLE
+                                             image:[UIImage systemImageNamed:@"gearshape"]
+                                        identifier:nil
+                                           handler:^(UIAction *action) {
+        [weakSelf settingsTapped];
+    }];
+    UIAction *clear = [UIAction actionWithTitle:STR_MENU_PLAYLIST_CLEAR
+                                          image:[UIImage systemImageNamed:@"trash"]
+                                     identifier:nil
+                                        handler:^(UIAction *action) {
+        [weakSelf clearTapped];
+    }];
+    clear.attributes = UIMenuElementAttributesDestructive;
+    UIMenu *destructive = [UIMenu menuWithTitle:@""
+                                          image:nil
+                                     identifier:nil
+                                        options:UIMenuOptionsDisplayInline
+                                       children:@[clear]];
     _settingsItem =
             [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gearshape"]
-                                             style:UIBarButtonItemStylePlain
-                                            target:self
-                                            action:@selector(settingsTapped)];
-    _settingsItem.accessibilityLabel = STR_SETTINGS_TITLE;
+                                              menu:[UIMenu menuWithTitle:@""
+                                                               children:@[settings, destructive]]];
+    _settingsItem.accessibilityLabel = STR_A11Y_PLAYLIST_MENU;
+    // A plain plus, not the Files tab's text.badge.plus: that symbol named the
+    // thing being added TO, which a file browser needs and the playlist screen
+    // does not — here the list is the screen.
+    _addItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus"]
+                                                style:UIBarButtonItemStylePlain
+                                               target:self
+                                               action:@selector(addTapped)];
+    _addItem.accessibilityLabel = STR_A11Y_PLAYLIST_ADD;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
@@ -208,8 +239,30 @@ static const CGFloat kArtTextGap = 14;
     }
 }
 
-- (void)openTapped {
+// Adding is an action on the PLAYLIST, which is why it lives on the playlist's
+// bar and not in the file browser: a button inside a browser that opens a
+// second browser does not read. Same picker, same appending mode the Files
+// tab's button presented — this moved, it did not change.
+- (void)addTapped {
     [_playback presentPickerFromViewController:self];
+}
+
+// The Files tab, not the modal picker. The app already has a whole surface
+// whose job is finding something to play, it is ours — our actions, our Add
+// and Add to Favorites on every row — and it leaves the user somewhere they
+// can keep looking, which a modal that dismisses itself does not.
+- (void)openTapped {
+    if (_openFilesHandler) {
+        _openFilesHandler();
+    }
+}
+
+// No confirmation sheet. Nothing leaves the disk — this unloads what is
+// queued — and the playlist is rebuilt by reopening the folder, which is how
+// clearing a queue behaves elsewhere on the platform. The destructive styling
+// on the item carries the warning instead.
+- (void)clearTapped {
+    [_playback clearPlaylist];
 }
 
 // Pushed rather than presented: the mini strip and the tabs stay up, and the
@@ -253,7 +306,17 @@ static const CGFloat kArtTextGap = 14;
 // been and the star takes the place beside it. The star is absent, not
 // disabled, when the playlist is a single file or nothing at all: there is no
 // folder to name, so there is nothing the control could act on.
+//
+// The plus goes on the LEADING side rather than joining them: three trailing
+// items crowd the large title, and the two sides then read as what they are —
+// the trailing pair acts on the folder that is open, the plus acts on the
+// playlist. It follows the star's absent-not-disabled rule for the same
+// reason: with an empty playlist there is nothing to add to, and the empty
+// state's own Open button already owns that moment. Two roads to "find
+// something to play" on one screen, one a modal picker and the other the Files
+// tab, is worse than the one the empty state already draws.
 - (void)refreshBarButtons {
+    self.navigationItem.leftBarButtonItem = _playlist.count > 0 ? _addItem : nil;
     NSURL *folderURL = _playback.folderURL;
     if (!folderURL) {
         self.navigationItem.rightBarButtonItems = @[_settingsItem];

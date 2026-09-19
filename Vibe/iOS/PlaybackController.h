@@ -178,6 +178,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Opening
 
+// The system document picker: multi-selection, appending, one caller — the
+// Playlist tab's plus. The empty state's Open brings the Files tab forward
+// rather than presenting this, which is what left the picker a single mode.
 - (void)presentPickerFromViewController:(UIViewController *)presenter;
 
 // "Open in Vibe" from Files or the share sheet, forwarded by the scene
@@ -194,11 +197,38 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)performWhenLaunchOpenSettled:(void (^)(void))block
         NS_SWIFT_NAME(performWhenLaunchOpenSettled(_:));
 
-// One URL adopted from outside the picker: the Files tab's browser, a share
-// sheet, or a favorite whose bookmark just resolved. openInPlace mirrors
-// UIOpenURLContext.options — YES means the real file, so the security scope
-// covers the folder it came from and the usual expand-to-directory applies.
-- (void)openExternalURL:(NSURL *)url openInPlace:(BOOL)openInPlace;
+// URLs adopted from outside the picker: the Files tab's browser, a share
+// sheet, or a favorite whose bookmark just resolved. In pick order; one is the
+// common case. openInPlace mirrors UIOpenURLContext.options — YES means the
+// real files, so the security scopes cover the folders they came from and the
+// usual expand-to-directory applies.
+- (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
+
+// Unloads everything and returns to the empty state: the iOS twin of the mac's
+// File > Close. Stops the player, drops the parked successor, clears the model,
+// cancels the deferred sweep and the scan, and clears the session — scopes,
+// base, additions and the persisted bookmarks with them, so the next launch
+// restores nothing.
+//
+// Safe where a partial edit would not be BECAUSE it is the whole playlist:
+// there is no surviving cursor to strand and no row for the player to be
+// sounding afterwards. AudioPlayer.stop fires no transport or track-end
+// callback, so nothing auto-advances and this method owns the UI reset.
+- (void)clearPlaylist;
+
+// Appends without touching playback, the tab or the card: the Playlist tab's
+// plus, the Files tab's long-press action and a Favorites row's. Lands in
+// folderSession:didAppendTracks:, the iOS twin of the mac's
+// MainPlayerController.addURLs:. The empty-playlist case is FolderSession's:
+// an Add onto nothing is an Open.
+- (void)addURLs:(NSArray<NSURL *> *)urls;
+
+// Both FolderSession's, unchanged: a caller with asynchronous work of its own
+// before it has a URL takes the token when the USER asks and hands it back
+// with the URLs, so a request a replace has since superseded is dropped rather
+// than landing on the new playlist. Favorites is the one caller.
+- (uint64_t)addRequestToken;
+- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
 // The open folder, or nil for a single-file playlist and before anything was
 // opened. The Playlist tab's star draws from it: there is nothing to favorite
@@ -212,12 +242,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *_Nullable folderURL,
                                                    NSData *_Nullable bookmark))completion;
 
+// The same mint for a folder the session does not own — the Files tab starring
+// a browser-picked folder without opening it. Off main, completion on main,
+// bookmark nil when the mint failed. See FolderSession.
+- (void)bookmarkFolderURL:(NSURL *)folderURL
+               completion:(void (^)(NSData *_Nullable bookmark))completion;
+
 // The file trees the search screen may walk, composed in one place: the
-// session's transient root (FolderSession.searchRoot — the open folder) plus the
-// persistent ones (SearchFolderStore.searchRoots — the folders the user added in
-// Settings, and the app's own Documents directory — and FavoritesStore.searchRoots,
-// the starred folders, once that store has resolved them). Nesting among them is
-// FileSearchIndex's to prune, so a folder both starred and added is walked once.
+// session's transient roots (FolderSession.searchRoots — the base folder and
+// every added folder) plus the persistent ones (SearchFolderStore.searchRoots —
+// the folders the user added in Settings, and the app's own Documents
+// directory — and FavoritesStore.searchRoots, the starred folders, once that
+// store has resolved them). Nesting among them is FileSearchIndex's to prune,
+// so a folder both starred and added is walked once.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // A file the search screen found under one of searchRoots. Its own directory

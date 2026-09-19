@@ -27,6 +27,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "FavoritesStore.h"
 #import "LibraryViewController.h"
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
@@ -187,13 +188,15 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
     return YES;
 }
 
-- (BOOL)debugTapFavoriteAtIndex:(NSUInteger)index {
+// The screen's own opening path, which its row tap and both Add actions all
+// take, so the resolve and the unreachable-folder alert are the real ones.
+- (BOOL)debugOpenFavoriteAtIndex:(NSUInteger)index appending:(BOOL)appending {
     FavoritesViewController *favorites = self.favorites;
-    if (!favorites || index >= (NSUInteger)[favorites.tableView numberOfRowsInSection:0]) {
+    NSArray<FavoriteFolder *> *rows = FavoritesStore.shared.favorites;
+    if (!favorites || index >= rows.count) {
         return NO;
     }
-    NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)index inSection:0];
-    [favorites tableView:favorites.tableView didSelectRowAtIndexPath:path];
+    [favorites openFavorite:rows[index] appending:appending];
     return YES;
 }
 
@@ -256,6 +259,10 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 
 - (void)debugApplyEndOfTrackSetting {
     [self.playback applyTrackTransitionSettings];
+}
+
+- (void)debugAppendPath:(NSString *)path {
+    [self.playback debugAppendPath:path];
 }
 
 - (AudioTrackMetadataCache *)debugMetadataCache {

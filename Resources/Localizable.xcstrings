@@ -1117,6 +1117,378 @@
       },
       "extractionState": "manual"
     },
+    "a11y.playlist.add": {
+      "comment": "iOS: accessibility label for the plus button on the playlist screen's bar; it opens the system picker to choose files or folders to add to the end of the playlist without interrupting playback.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добави към плейлиста"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat do playlistu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj til spilleliste"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Wiedergabeliste hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη στη λίστα αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a la lista de reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää soittolistaan"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à la liste de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj na popis pjesama"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáadás a lejátszási listához"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan ke Playlist"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi alla playlist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレイリストに追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생목록에 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til i spilleliste"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg toe aan afspeellijst"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj do playlisty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar à Playlist"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar à lista de reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adăugați la playlist"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить в плейлист"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať do playlistu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till i spellista"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มไปยังเพลย์ลิสต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalma Listesine Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати до плейлиста"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào danh sách phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入播放列表"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "a11y.playlist.menu": {
+      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опции"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Možnosti"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valg"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optionen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Επιλογές"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Options"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opciones"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valinnat"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Options"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcije"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beállítások"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opsi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opzioni"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オプション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "옵션"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valg"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opties"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcje"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opções"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opções"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opțiuni"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Параметры"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Možnosti"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternativ"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัวเลือก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçenekler"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Параметри"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tùy chọn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选项"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選項"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "a11y.playlist.open": {
       "comment": "Accessibility label for the empty playlist pane's drop well, which opens the file picker when pressed.",
       "localizations": {
@@ -2420,7 +2792,7 @@
       "extractionState": "manual"
     },
     "button.open": {
-      "comment": "iOS: button that opens the system document picker to choose a folder or file to play.",
+      "comment": "iOS: button on the empty playlist screen; it brings the Files tab forward so the user can browse for a folder or file to play.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4838,186 +5210,186 @@
       "extractionState": "manual"
     },
     "label.favorites.empty.message": {
-      "comment": "iOS: explanatory line under the empty favorites headline. It says how a favorite is made: open a folder, then tap the star button on the playlist screen.",
+      "comment": "iOS: explanatory line under the empty favorites headline. It names both ways to make a favorite, each in the words its own screen uses: the Files tab's long-press menu item says 'Add to Favorites', while the playlist screen's control is a star. 'Here' is the Favorites tab the line is shown on.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Докоснете звездата при отворена папка, за да я запазите тук."
+            "value": "Добавете папка от раздела „Файлове“ или докоснете звездата при отворена папка, за да я запазите тук."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "U otevřené složky klepněte na hvězdičku a zůstane tady."
+            "value": "Přidejte složku z karty Soubory nebo u otevřené složky klepněte na hvězdičku a zůstane tady."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tryk på stjernen, når en mappe er åben, for at beholde den her."
+            "value": "Tilføj en mappe fra fanen Filer, eller tryk på stjernen, når en mappe er åben, for at beholde den her."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tippe bei einem geöffneten Ordner auf den Stern, um ihn hier zu behalten."
+            "value": "Füge einen Ordner im Tab „Dateien“ hinzu oder tippe bei einem geöffneten Ordner auf den Stern, um ihn hier zu behalten."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αγγίξτε το αστέρι σε έναν ανοιχτό φάκελο για να τον κρατήσετε εδώ."
+            "value": "Προσθέστε έναν φάκελο από την καρτέλα «Αρχεία» ή αγγίξτε το αστέρι σε έναν ανοιχτό φάκελο για να τον κρατήσετε εδώ."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Star a folder you have open to keep it here."
+            "value": "Add a folder from the Files tab, or star the one you have open, to keep it here."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toca la estrella con una carpeta abierta para guardarla aquí."
+            "value": "Añade una carpeta desde la pestaña Archivos o toca la estrella con una carpeta abierta para guardarla aquí."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pidä kansio täällä napauttamalla tähteä, kun kansio on avoinna."
+            "value": "Pidä kansio täällä lisäämällä se Tiedostot-välilehdeltä tai napauttamalla tähteä, kun kansio on avoinna."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Touchez l’étoile lorsqu’un dossier est ouvert pour le conserver ici."
+            "value": "Ajoutez un dossier depuis l’onglet Fichiers ou touchez l’étoile lorsqu’un dossier est ouvert pour le conserver ici."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dodirnite zvjezdicu kad je mapa otvorena da biste je zadržali ovdje."
+            "value": "Dodajte mapu s kartice Datoteke ili dodirnite zvjezdicu kad je mapa otvorena da biste je zadržali ovdje."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Érintsd meg a csillagot egy megnyitott mappánál, hogy itt maradjon."
+            "value": "Adj hozzá egy mappát a Fájlok lapról, vagy érintsd meg a csillagot egy megnyitott mappánál, hogy itt maradjon."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ketuk bintang saat folder terbuka untuk menyimpannya di sini."
+            "value": "Tambahkan folder dari tab File atau ketuk bintang saat folder terbuka untuk menyimpannya di sini."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tocca la stella con una cartella aperta per tenerla qui."
+            "value": "Aggiungi una cartella dalla scheda File o tocca la stella con una cartella aperta per tenerla qui."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フォルダを開いた状態で星をタップすると、ここに残ります。"
+            "value": "「ファイル」タブからフォルダを追加するか、フォルダを開いた状態で星をタップすると、ここに残ります。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "폴더를 연 상태에서 별을 탭하면 여기에 보관됩니다."
+            "value": "파일 탭에서 폴더를 추가하거나 폴더를 연 상태에서 별을 탭하면 여기에 보관됩니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trykk på stjernen når en mappe er åpen, for å beholde den her."
+            "value": "Legg til en mappe fra Filer-fanen, eller trykk på stjernen når en mappe er åpen, for å beholde den her."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tik op de ster bij een geopende map om deze hier te bewaren."
+            "value": "Voeg een map toe via het tabblad Bestanden of tik op de ster bij een geopende map om deze hier te bewaren."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stuknij w gwiazdkę przy otwartym folderze, aby zachować go tutaj."
+            "value": "Dodaj folder z karty Pliki lub stuknij w gwiazdkę przy otwartym folderze, aby zachować go tutaj."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+            "value": "Adicione uma pasta na aba Arquivos ou toque na estrela com uma pasta aberta para mantê‑la aqui."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toque na estrela com uma pasta aberta para mantê‑la aqui."
+            "value": "Adicione uma pasta no separador Ficheiros ou toque na estrela com uma pasta aberta para mantê‑la aqui."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atingeți steaua când un dosar este deschis pentru a‑l păstra aici."
+            "value": "Adăugați un dosar din fila Fișiere sau atingeți steaua când un dosar este deschis pentru a‑l păstra aici."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нажмите звёздочку при открытой папке, чтобы сохранить её здесь."
+            "value": "Добавьте папку на вкладке «Файлы» или нажмите звёздочку при открытой папке, чтобы сохранить её здесь."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pri otvorenom priečinku ťuknite na hviezdičku a zostane tu."
+            "value": "Pridajte priečinok z karty Súbory alebo pri otvorenom priečinku ťuknite na hviezdičku a zostane tu."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tryck på stjärnan när en mapp är öppen för att behålla den här."
+            "value": "Lägg till en mapp från fliken Filer eller tryck på stjärnan när en mapp är öppen för att behålla den här."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แตะรูปดาวขณะเปิดโฟลเดอร์อยู่ เพื่อเก็บโฟลเดอร์นั้นไว้ที่นี่"
+            "value": "เพิ่มโฟลเดอร์จากแท็บไฟล์ หรือแตะรูปดาวขณะเปิดโฟลเดอร์อยู่ เพื่อเก็บโฟลเดอร์นั้นไว้ที่นี่"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bir klasör açıkken yıldıza dokunarak klasörü burada tutun."
+            "value": "Dosyalar sekmesinden bir klasör ekleyin veya bir klasör açıkken yıldıza dokunarak klasörü burada tutun."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Торкніться зірочки за відкритої папки, щоб зберегти її тут."
+            "value": "Додайте папку на вкладці «Файли» або торкніться зірочки за відкритої папки, щоб зберегти її тут."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chạm vào ngôi sao khi đang mở một thư mục để giữ thư mục đó ở đây."
+            "value": "Thêm thư mục từ tab Tệp hoặc chạm vào ngôi sao khi đang mở một thư mục để giữ thư mục đó ở đây."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开文件夹后轻点星标，即可保留在这里。"
+            "value": "在“文件”标签页中添加文件夹，或打开文件夹后轻点星标，即可保留在这里。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開檔案夾後點一下星號，即可保留在這裡。"
+            "value": "在「檔案」標籤頁中加入檔案夾，或打開檔案夾後點一下星號，即可保留在這裡。"
           }
         }
       },
@@ -8552,6 +8924,750 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示全部"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.context.add_favorite": {
+      "comment": "iOS: long-press menu item on a FOLDER in the Files tab; stars it so it appears on the Favorites tab, without opening it or changing the playlist. %@ is the app name. It is named because the system's own 'Favorite' item sits in the same menu, and without it the two read as near-duplicates and neither says whose favorites it means. Keep the %@ — the app name is not translated, but the grammar around it is.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне към любими на %@"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat mezi oblíbené v %@"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Føj til %@-favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu %@-Favoriten hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη στα αγαπημένα του %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to %@ Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a favoritos de %@"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää %@-suosikkeihin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter aux favoris de %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj u %@ favorite"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáadás a %@ kedvencekhez"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan ke Favorit %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi ai preferiti di %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@のお気に入りに追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 즐겨찾기에 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til i %@-favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg toe aan %@-favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj do ulubionych w %@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar aos favoritos do %@"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar aos favoritos do %@"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adaugă la favorite în %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить в избранное в %@"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať medzi obľúbené v %@"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till i %@-favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มไปยังรายการโปรดใน %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Favorilerine Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати у вибране в %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào mục yêu thích của %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到 %@ 收藏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入 %@ 收藏"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.context.add_to_playlist": {
+      "comment": "iOS: long-press menu item and swipe action on a Favorites row, and the long-press action on a file or folder in the Files tab. Adds that item's tracks to the end of the playlist without interrupting what is playing.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добави към плейлиста"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat do playlistu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj til spilleliste"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Wiedergabeliste hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη στη λίστα αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a la lista de reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää soittolistaan"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à la liste de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj na popis pjesama"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hozzáadás a lejátszási listához"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan ke Playlist"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi alla playlist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレイリストに追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생목록에 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til i spilleliste"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg toe aan afspeellijst"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj do playlisty"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar à Playlist"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar à lista de reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adăugați la playlist"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить в плейлист"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať do playlistu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till i spellista"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มไปยังเพลย์ลิสต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalma Listesine Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати до плейлиста"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào danh sách phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入播放列表"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.context.play": {
+      "comment": "iOS: long-press menu item on a Favorites row. Opens the starred folder as the playlist and starts playing it, replacing whatever was queued — the same as tapping the row.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пусни"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přehrát"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abspielen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αναπαραγωγή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducir"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduciraj"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lejátszás"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riproduci"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spill av"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speel af"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odtwórz"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduzir"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduzir"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redați"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Воспроизвести"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prehrať"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spela upp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เล่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çal"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відтворити"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.context.remove_favorite": {
+      "comment": "iOS: destructive long-press menu item on a Favorites row; takes the folder off the Favorites tab. Same wording as the playlist screen's star button label.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахване от любими"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odebrat z oblíbených"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra favoritter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Favoriten entfernen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση από τα αγαπημένα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Favorites"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar de favoritos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poista suosikeista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retirer des favoris"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni iz favorita"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eltávolítás a kedvencekből"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus dari Favorit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi dai preferiti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "お気に入りから削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즐겨찾기에서 제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern fra favoritter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder uit favorieten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń z ulubionych"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover dos favoritos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover dos favoritos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimină de la favorite"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить из избранного"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstrániť z obľúbených"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bort från favoriter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "นำออกจากรายการโปรด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favorilerden Kaldır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вилучити з вибраного"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa khỏi mục yêu thích"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从收藏中移除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從收藏中移除"
           }
         }
       },
@@ -16550,6 +17666,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "前進一大段"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.playlist.clear": {
+      "comment": "iOS: destructive menu item on the playlist screen's bar button; empties the playlist and stops playback. It deletes no files — it only unloads what is queued — so the wording says Clear rather than Delete.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изчистване на плейлиста"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vymazat playlist"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ryd afspilningsliste"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabeliste löschen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εκκαθάριση λίστας αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaciar lista de reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tyhjennä soittolista"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vider la liste de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Očisti popis za reprodukciju"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lejátszási lista törlése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kosongkan Daftar Putar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svuota playlist"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレイリストを消去"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생목록 비우기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tøm spillelisten"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wis afspeellijst"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyczyść playlistę"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limpar playlist"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limpar lista de reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Golește lista de redare"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить плейлист"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vymazať playlist"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rensa spellistan"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ล้างเพลย์ลิสต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalma Listesini Temizle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистити плейлист"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa danh sách phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空播放列表"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除播放列表"
           }
         }
       },

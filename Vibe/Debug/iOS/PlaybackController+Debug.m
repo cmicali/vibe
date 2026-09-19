@@ -35,7 +35,11 @@
 }
 
 - (void)debugOpenPath:(NSString *)path {
-    [_folderSession openExternalURL:[NSURL fileURLWithPath:path] openInPlace:YES];
+    [_folderSession openURLs:@[[NSURL fileURLWithPath:path]] openInPlace:YES];
+}
+
+- (void)debugAppendPath:(NSString *)path {
+    [_folderSession addURLs:@[[NSURL fileURLWithPath:path]]];
 }
 
 @end

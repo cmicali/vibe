@@ -416,21 +416,13 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 #pragma mark - PlaybackObserver
 
 // Re-filter rather than reload: the matches are indexes into a playlist that
-// has just been replaced, so every one of them is stale. The new playlist is
-// also a new exclusion set, and — when the open changed folders — new search
-// roots, which discard the index and re-walk on the next appearance.
-- (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
+// has just changed, so every one of them is stale. The new playlist is also a
+// new exclusion set, and — when the open changed folders, or an Add brought a
+// new one in — new search roots, which discard the index and re-walk on the
+// next appearance. A replace and an append need exactly this, so they share it.
+- (void)playlistDidChange {
     [self rebuildPlaylistPaths];
     [self applySearchRoots];
-    [self refreshAfterPlaylistChange];
-}
-
-- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
-    [self rebuildPlaylistPaths];
-    [self refreshAfterPlaylistChange];
-}
-
-- (void)refreshAfterPlaylistChange {
     if ([self isMateriallyVisible]) {
         [self filterWithQuery:[self currentQuery]];
     }
@@ -439,6 +431,14 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         _fileHits = @[];
         [_fileIndex cancelPendingHitRequests];
     }
+}
+
+- (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
+    [self playlistDidChange];
+}
+
+- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+    [self playlistDidChange];
 }
 
 // Tags can change what a row says and what the query matches, but a folder

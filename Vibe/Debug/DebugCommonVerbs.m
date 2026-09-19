@@ -544,6 +544,19 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugOpenPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"opening": path});
             }),
+            VibeDebugCmd(@"append <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                                       id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: append <file-or-directory>");
+                }
+                NSString *path = VibePathArgument(tokens);
+                if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+                    return VibeErrorJSON(@"no file or directory at '%@'", path);
+                }
+                // Asynchronous like `open`, and under the same sandbox caveat.
+                [surface debugAppendPath:path];
+                return VibeJSONString(@{@"ok": @YES, @"appending": path});
+            }),
             // clientTimeout 20 exceeds the 15-second dispatch_group_wait
             // below: the waveform clear queues behind any in-flight waveform
             // load, and a flat 5-second client wait could give up on a clear

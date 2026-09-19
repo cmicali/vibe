@@ -5,9 +5,10 @@
 //  The folders the user starred, and the bookmarks that reopen them: a
 //  persisted list of places to go back to.
 //
-//  It exists because the app remembers exactly one folder — FolderSession's,
-//  overwritten by the next open — so without this the only road back to
-//  yesterday's album is another walk through the Files browser.
+//  It exists because the app remembers only the current playlist's own
+//  locations — FolderSession's base folder and its additions, replaced by the
+//  next open — so without this the only road back to yesterday's album is
+//  another walk through the Files browser.
 //
 //  It is NOT the iOS twin of SearchFolderStore, and the three differences are
 //  the whole design:

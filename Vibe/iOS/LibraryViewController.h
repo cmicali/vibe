@@ -32,6 +32,13 @@ NS_ASSUME_NONNULL_BEGIN
 // appearance and the playing row's actual scroll/window intersection.
 @property (nonatomic) BOOL equalizerSurfaceVisible;
 
+// What the empty state's Open button asks for. Set by the shell, which is the
+// only thing that knows the app has tabs: this screen says "the user wants to
+// find something to play" and the shell decides that means bringing the Files
+// tab forward. Same direction as the property above — the shell configures the
+// library, the library holds no reference back.
+@property (nonatomic, copy, nullable) void (^openFilesHandler)(void);
+
 @end
 
 NS_ASSUME_NONNULL_END
