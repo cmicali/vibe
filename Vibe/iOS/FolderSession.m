@@ -67,6 +67,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     // zero means nothing has ever landed, so an Add is promoted to an Open.
     // Main-confined.
     uint64_t _landedOpenIntentGeneration;
+    // YES between promoting an Add to an Open and that open settling. Only the
+    // FIRST Add onto a never-landed session may promote; the rest park below.
+    // Set only by a promotion, so a launch restore that failed leaves it NO and
+    // the Add after it still plays. Main-confined.
+    BOOL _promotedOpenInFlight;
+    // Adds parked behind that promoted open, each delivered exactly once when
+    // it settles — landed, empty, or beaten by a user's replace. Main-confined.
+    NSMutableArray<void (^)(void)> *_addWaiters;
 }
 
 - (instancetype)init {
@@ -446,7 +454,34 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     // An Add onto nothing IS an open: it plays and presents the card. "Restore
     // failed at launch, then Add" deliberately lands here and plays.
-    appending = appending && _landedOpenIntentGeneration != 0;
+    //
+    // TRAP: only the FIRST such Add may promote. Promoting every Add made
+    // before anything had landed made two Adds onto an empty playlist cancel
+    // each other — each became an Open, each bumped the generation, and the
+    // second superseded the first, so a selection the user made was silently
+    // discarded. That is not the drop rule: a user's explicit replace beating
+    // a stale Add is wanted, two Adds beating each other is not. The rest park
+    // as waiters and are replayed once the promoted open settles, whichever way
+    // it settles.
+    if (appending && _landedOpenIntentGeneration == 0) {
+        if (_promotedOpenInFlight) {
+            if (!_addWaiters) {
+                _addWaiters = [NSMutableArray array];
+            }
+            NSArray<NSURL *> *parked = [urls copy];
+            // Weak: the waiter is stored ON this session, so a strong capture
+            // would be a cycle. A session torn down before the open settles
+            // takes its parked Adds with it, which is what a gone playlist
+            // should do.
+            __weak FolderSession *weakSelf = self;
+            [_addWaiters addObject:^{
+                [weakSelf beginOpenURLs:parked appending:YES fromSearchRoots:fromSearchRoots];
+            }];
+            return;
+        }
+        appending = NO;
+        _promotedOpenInFlight = YES;
+    }
     uint64_t openIntentGeneration = appending
             ? atomic_load_explicit(&_openIntentGeneration, memory_order_acquire)
             : [self beginOpenIntent];
@@ -807,6 +842,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         else {
             [self.delegate folderSessionDidOpenEmptyFolder:self];
         }
+        // A replace settling empty is still a settle, so an Add parked behind a
+        // promoted open that found nothing is replayed rather than left hanging;
+        // the first replayed one promotes to an Open in its turn.
+        if (!appending) {
+            [self releaseAddWaitersAfterSettle];
+        }
         return;
     }
     // The one place every entry point lands, so the counters cannot miss an
@@ -862,6 +903,27 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     }
     [self.delegate folderSession:self didOpenTracks:tracks folderURL:folderURL
                      selectedURL:selectedURL restored:restored];
+    // Last, so a replayed Add appends to the playlist this landing just
+    // installed rather than to the one it replaced.
+    [self releaseAddWaitersAfterSettle];
+}
+
+// Every parked Add is replayed through the prologue, which decides afresh what
+// it is now: an append when this settle landed a playlist, and a promotion when
+// it did not. Drained into a local first, so a waiter that parks again — the
+// promoted open failed and the next Add takes its place — parks behind the new
+// open instead of being run inside this loop.
+//
+// Called for a REPLACE settling, whichever way it settled, which is also what
+// covers a promoted open the user's own replace superseded: that replace's own
+// settle is what releases them.
+- (void)releaseAddWaitersAfterSettle {
+    _promotedOpenInFlight = NO;
+    NSArray<void (^)(void)> *waiters = _addWaiters;
+    _addWaiters = nil;
+    for (void (^waiter)(void) in waiters) {
+        waiter();
+    }
 }
 
 @end
