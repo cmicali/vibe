@@ -1,7 +1,7 @@
 # Shared App Store Connect credential resolution — sourced, never run:
 #
 #   release.sh            Developer ID + notarize (direct download)
-#   release-appstore.sh   Apple Distribution + upload (Mac App Store)
+#   release-appstore.sh   Apple Distribution + upload (App Store, either platform)
 #
 # ONE App Store Connect API key covers both pipelines. It authenticates three
 # separate things, which is why neither script wants a second credential:

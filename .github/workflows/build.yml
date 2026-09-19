@@ -168,22 +168,32 @@ jobs:
       - name: Static analyzer (${{ matrix.leg }})
         run: scripts/analyze.sh Release ${{ matrix.leg }}
 
-  # Compile coverage for the shared subset against the iOS SDK. One
-  # configuration and no signing (CODE_SIGNING_ALLOWED=NO): the point is that
-  # a TARGET_OS_OSX guard or an AppKit leak into a shared directory fails
-  # here, not when someone next opens the iOS target. The generic simulator
-  # destination builds without booting a simulator.
+  # Compile coverage for the shared subset against the iOS SDK, with no
+  # signing (CODE_SIGNING_ALLOWED=NO): the point is that a TARGET_OS_OSX guard
+  # or an AppKit leak into a shared directory fails here, not when someone next
+  # opens the iOS target. The generic simulator destination builds without
+  # booting a simulator.
+  #
+  # Both configurations, matching the macOS `build` job, because they compile
+  # different code: every source under Vibe/Debug wraps its body in #if DEBUG,
+  # so Release is the only leg that compiles those translation units empty —
+  # and Release is what `make appstore-build-ios` archives. A Release-only
+  # break would otherwise surface for the first time during a release.
   build-ios:
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-xcodegen
 
-      - name: Build VibeiOS (Debug, simulator)
-        run: make build-ios CONFIG=Debug
+      - name: Build VibeiOS (${{ matrix.configuration }}, simulator)
+        run: make build-ios CONFIG=${{ matrix.configuration }}
 
   # Everything that needs no XcodeGen, no generated project and no build —
   # only clang + xcstringstool (Xcode), jq (ships with macOS 15+), swiftc and

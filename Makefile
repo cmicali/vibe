@@ -198,6 +198,19 @@ appstore-build:
 appstore-upload-signed-build:
 	scripts/release-appstore.sh --upload
 
+# The same two steps for the iOS app: an arm64 .ipa with the widget embedded,
+# signed for the iOS App Store. Both platforms ship under one bundle id, so
+# these upload to the SAME app record as the two targets above — a separate
+# version train on it, whose version string must already match the number in
+# project.yml. The script's header has the prerequisites.
+appstore-build-ios:
+	scripts/release-appstore.sh --platform ios
+
+# Same, then actually upload the build to App Store Connect (TestFlight sees
+# it as soon as processing finishes).
+appstore-upload-signed-build-ios:
+	scripts/release-appstore.sh --platform ios --upload
+
 # Remove build/ and the generated Vibe.xcodeproj.
 clean:
 	scripts/clean.sh

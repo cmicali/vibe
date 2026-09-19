@@ -2,7 +2,7 @@
 # sourced, never run:
 #
 #   release.sh            Developer ID + notarize (direct download)
-#   release-appstore.sh   Apple Distribution + upload (Mac App Store)
+#   release-appstore.sh   Apple Distribution + upload (App Store, either platform)
 #
 # Callers own policy — the export method, the ExportOptions.plist contents and
 # what happens to the exported product; this file owns the mechanics that are
@@ -25,14 +25,16 @@ asc_require_translations() {
     "$(dirname "${BASH_SOURCE[0]}")/check-translations.sh"
 }
 
-# Archive Release into $ARCHIVE. The optional arguments are passed to
-# xcodebuild as build-setting overrides; release callers use them to make the
-# architecture set explicit rather than inheriting whichever host runs them.
+# Archive Release into $ARCHIVE. The optional arguments are spliced into the
+# xcodebuild command line ahead of the `archive` action, so they may be build
+# setting overrides or flags; release callers use them to pin the architecture
+# set rather than inheriting whichever host runs them, and to pin the
+# destination rather than letting a single-platform scheme resolve a simulator.
 # Keeping this command here means every archive retains the same signing rule
 # below, including a second architecture-specific archive in one release run.
 #
 #   $1  progress label
-#   ... optional xcodebuild build-setting overrides
+#   ... optional xcodebuild arguments (build-setting overrides or flags)
 #
 # No signing overrides on the archive, deliberately. It keeps project.yml's
 # CODE_SIGN_IDENTITY "-" (sign to run locally); distribution signing happens at

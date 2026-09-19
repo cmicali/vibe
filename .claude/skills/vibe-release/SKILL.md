@@ -1,6 +1,6 @@
 ---
 name: vibe-release
-description: Build, sign, notarize, and ship Vibe — the Developer ID (make release) and App Store (make appstore-build) paths, the GitHub release publish (make github-release), the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
+description: Build, sign, notarize, and ship Vibe on both platforms — the macOS Developer ID (make release) and App Store (make appstore-build) paths, the iOS App Store path (make appstore-build-ios), the GitHub release publish (make github-release), the localized product-page metadata upload (make appstore-upload-metadata), the shared App Store Connect API key and its Admin-role requirement, and the signing traps each script preflights. Use when cutting a release, distributing a build, shipping or TestFlighting the iOS app, updating App Store copy or screenshots, or debugging a signing/notarization/upload failure.
 ---
 
 # Releasing Vibe
@@ -11,15 +11,27 @@ description: Build, sign, notarize, and ship Vibe — the Developer ID (make rel
 
 **Why a disk image and not the zip.** The zip remains available as the bare-bundle alternate and is also what notarytool accepts for each app submission, but the DMG is the default download. A zip expands wherever the browser drops it, and a quarantined app launched from `~/Downloads` runs *translocated*, from a read-only random mount point that vanishes on quit. For this app that is not cosmetic: Settings > Set Vibe as Default Music Player registers with Launch Services from the path it is running at, so a click from a translocated copy registers a path that ceases to exist — and `DefaultAppRegistration` already has to reason about several copies of the app. Dragging out of a disk image is what clears translocation, and the `/Applications` alias is what makes that the obvious gesture. **The window is deliberately plain**: no background image, no icon placement. Those need Finder driven over AppleScript to write a `.DS_Store`, which wants Automation permission and is the flakiest step in any DMG script, and two icons side by side carry the whole point. Four notarization submissions are required — each architecture's app before packaging and its image after — and every staple is checked at publish because a missing one makes Gatekeeper re-check online.
 
-There are two release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
+There are three release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
 
-| | `make release` | `make appstore-build` / `make appstore-upload-signed-build` |
-|---|---|---|
-| script | `scripts/release.sh` | `scripts/release-appstore.sh` |
-| certificate | Developer ID Application | Apple Distribution (+ Mac Installer) |
-| architecture | universal plus arm64-only | universal (`arm64` + `x86_64`) |
-| output | two stapled `.dmg`s plus zipped apps | universal `.pkg` uploaded to App Store Connect |
-| verification | notarize + staple + `spctl`, app and image both | App Store Connect validation |
+| | `make release` | `make appstore-build` | `make appstore-build-ios` |
+|---|---|---|---|
+| platform | macOS | macOS | iOS |
+| script | `scripts/release.sh` | `scripts/release-appstore.sh` | the same, `--platform ios` |
+| scheme | `Vibe` | `Vibe` | `VibeiOS` |
+| certificate | Developer ID Application | Apple Distribution (+ Mac Installer) | Apple Distribution |
+| architecture | universal plus arm64-only | universal (`arm64` + `x86_64`) | `arm64` |
+| output | two stapled `.dmg`s plus zipped apps | universal `.pkg` to App Store Connect | `.ipa` to App Store Connect |
+| verification | notarize + staple + `spctl`, app and image both | App Store Connect validation | App Store Connect validation |
+
+Each App Store pair works the same way: `appstore-build[-ios]` stops after validation, `appstore-upload-signed-build[-ios]` submits.
+
+**Both apps ship under one bundle id**, `com.commonwealthrecordings.Vibe` — Universal Purchase, so one app record with the name, subtitle, category, age rating and privacy answers shared, and a separate version train per platform. `project.yml` declares the version once for both targets, so a release cuts the same number on each, but **each platform needs its own version record open in ASC carrying that string**, or the build has nothing to attach to. A platform freshly added to the record does not start at your number — a new iOS platform opened at `1.0` against a `1.12` build is the shape of it.
+
+**iOS has no direct-download path.** `make release` is macOS-only, so for iOS the store is the only channel and a beta is TestFlight rather than a GitHub prerelease. Internal testing needs no beta review and lands minutes after processing; external testing needs Beta App Review for the first build of each version train, plus a beta description, a feedback email and Beta App Review Information.
+
+**Two postflights run on the exported `.ipa`**, because neither thing exists until the archive has been re-signed for distribution: the widget executable must be present in `PlugIns/VibeWidget.appex/`, and the embedded profile must grant `group.com.commonwealthrecordings.Vibe`. The widget draws nothing but what it reads from that container, so a distribution profile that quietly dropped the entitlement would ship a permanently blank widget to every user, and no earlier step would have said so. On failure the decoded profile is left at `build/appstore-ios/embedded.mobileprovision.plist`.
+
+**TRAP: `.release-env` is gitignored, so it exists only in the checkout that created it.** Every release script fails its credential preflight from a git worktree. Release from the main checkout, or pass `ASC_KEY_ID` / `ASC_ISSUER_ID` in the environment.
 
 Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
 
@@ -41,7 +53,9 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
-## Product-page metadata
+## Product-page metadata (macOS only)
+
+**This whole section is the macOS product page.** ASC localizations hang off a version and versions are per platform, so the iOS page needs its own description, keywords, promotional text, what's-new and screenshots — and neither `Assets/app-store/` nor the uploader carries them yet (`ASCUpload.swift` filters `.platform([.macOS])` and writes the `APP_DESKTOP` screenshot set; `appstore-generate-store-screenshots.sh` composites macOS window captures onto a 2880x1800 canvas). Until that changes, **the iOS page is edited by hand in App Store Connect** — and the macOS description cannot be pasted into it, because it sells BPM and key analysis, the pitch fader and the FX rack, all macOS-only, and claims the formats are "decoded by macOS". A page describing features the app does not have is a review rejection. The running list is `docs/ios-release-punchlist.md`.
 
 The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).
 
@@ -77,4 +91,4 @@ Each was learned the hard way, and each is now guarded by a preflight or an erro
 - **The Developer ID certificate cannot be automated.** Apple gates `DEVELOPER_ID_APPLICATION_MANAGED` to the team's *Account Holder*, a person role no API key can hold, so `-allowProvisioningUpdates` gets a 403 even with an Admin key that signs App Store builds fine. Create it once in Xcode → Settings → Accounts → Manage Certificates, where the cap is five per account. `release.sh` preflights for it, so this fails instantly rather than after a full archive.
 - **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with different guidance per certificate type.
 
-`make appstore-build` stops after validation; only `make appstore-upload-signed-build` submits. Both signing identities are applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
+`make appstore-build[-ios]` stops after validation; only `make appstore-upload-signed-build[-ios]` submits. Every signing identity is applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
