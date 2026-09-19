@@ -204,6 +204,18 @@ NS_ASSUME_NONNULL_BEGIN
 // usual expand-to-directory applies.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
 
+// Unloads everything and returns to the empty state: the iOS twin of the mac's
+// File > Close. Stops the player, drops the parked successor, clears the model,
+// cancels the deferred sweep and the scan, and clears the session — scopes,
+// base, additions and the persisted bookmarks with them, so the next launch
+// restores nothing.
+//
+// Safe where a partial edit would not be BECAUSE it is the whole playlist:
+// there is no surviving cursor to strand and no row for the player to be
+// sounding afterwards. AudioPlayer.stop fires no transport or track-end
+// callback, so nothing auto-advances and this method owns the UI reset.
+- (void)clearPlaylist;
+
 // Appends without touching playback, the tab or the card: the Playlist tab's
 // plus, the Files tab's long-press action and a Favorites row's. Lands in
 // folderSession:didAppendTracks:, the iOS twin of the mac's

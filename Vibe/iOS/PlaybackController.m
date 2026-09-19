@@ -20,6 +20,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "DownloadProgressMonitor.h"
 #import "FavoritesStore.h"
 #import "PlaybackDeliveryRules.h"
 #import "SearchFolderStore.h"
@@ -374,6 +375,42 @@ static const NSUInteger kUIUpdateHz = 3;
     [_metadataCache loadMetadataNow:track];
     [_player play:track];
     [self notifyDidChangePlayState];
+}
+
+// The iOS twin of the mac's closeFile:, in its order and for its reasons.
+// TRAP: stop fires no transport or track-end callback, so nothing here
+// auto-advances — and the stale-track guards in +PlayerEvents drop any
+// callback already in flight, since the playlist it names is gone.
+- (void)clearPlaylist {
+    [_player stop];
+    [_player prefetchTrack:nil];          // drop the parked successor handle
+    [_downloadMonitor cancel];
+    _downloadMonitor = nil;
+    _downloadMonitorOpenRequestIdentifier = 0;
+    // Fires playlistDidReplaceAllTracks:, which is what reloads the table and
+    // rebuilds the chrome — the title, the star and the plus all drop out
+    // together on an empty playlist without this method touching the UI.
+    [_playlist clear];
+    // Nothing will play to start the sweep later, so cancel the armed fallback
+    // and release the scan. The generation bump is what makes an in-flight
+    // timer a no-op rather than a sweep over an empty playlist.
+    _metadataLoadPending = NO;
+    _metadataLoadGeneration++;
+    [_metadataCache cancelScan];
+    [_folderSession clearSession];
+    _errorText = nil;
+    _parked = NO;
+    _seekInFlight = NO;
+    _trackStartPending = NO;
+    _updateTimer.wanted = NO;
+    [_audioSession deactivateWhenIdle];
+    // The card and the strip render from the now-absent current track. No
+    // playbackDidOpenNewFolder: — nothing was opened, and that event means
+    // "show what just opened", which would bring the card up over an empty
+    // playlist.
+    [self notifyDidRenderCurrentTrack];
+    [self notifyDidChangePlayState];
+    [self notifyDidTick];
 }
 
 // Parks a restored track: everything renders, nothing plays.

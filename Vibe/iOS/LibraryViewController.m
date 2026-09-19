@@ -97,12 +97,34 @@ static const CGFloat kArtTextGap = 14;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    // A menu, not a direct push: Settings first, then Clear Playlist alone in
+    // a destructive inline group at the bottom — the same construction the
+    // Favorites long-press menu uses for Remove from Favorites, so the two
+    // menus in this app read the same way.
+    __weak LibraryViewController *weakSelf = self;
+    UIAction *settings = [UIAction actionWithTitle:STR_SETTINGS_TITLE
+                                             image:[UIImage systemImageNamed:@"gearshape"]
+                                        identifier:nil
+                                           handler:^(UIAction *action) {
+        [weakSelf settingsTapped];
+    }];
+    UIAction *clear = [UIAction actionWithTitle:STR_MENU_PLAYLIST_CLEAR
+                                          image:[UIImage systemImageNamed:@"trash"]
+                                     identifier:nil
+                                        handler:^(UIAction *action) {
+        [weakSelf clearTapped];
+    }];
+    clear.attributes = UIMenuElementAttributesDestructive;
+    UIMenu *destructive = [UIMenu menuWithTitle:@""
+                                          image:nil
+                                     identifier:nil
+                                        options:UIMenuOptionsDisplayInline
+                                       children:@[clear]];
     _settingsItem =
             [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"gearshape"]
-                                             style:UIBarButtonItemStylePlain
-                                            target:self
-                                            action:@selector(settingsTapped)];
-    _settingsItem.accessibilityLabel = STR_SETTINGS_TITLE;
+                                              menu:[UIMenu menuWithTitle:@""
+                                                               children:@[settings, destructive]]];
+    _settingsItem.accessibilityLabel = STR_A11Y_PLAYLIST_MENU;
     // A plain plus, not the Files tab's text.badge.plus: that symbol named the
     // thing being added TO, which a file browser needs and the playlist screen
     // does not — here the list is the screen.
@@ -233,6 +255,14 @@ static const CGFloat kArtTextGap = 14;
     if (_openFilesHandler) {
         _openFilesHandler();
     }
+}
+
+// No confirmation sheet. Nothing leaves the disk — this unloads what is
+// queued — and the playlist is rebuilt by reopening the folder, which is how
+// clearing a queue behaves elsewhere on the platform. The destructive styling
+// on the item carries the warning instead.
+- (void)clearTapped {
+    [_playback clearPlaylist];
 }
 
 // Pushed rather than presented: the mini strip and the tabs stay up, and the

@@ -213,6 +213,31 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     [self beginOpenURLs:@[url] appending:NO fromSearchRoots:YES];
 }
 
+- (void)clearSession {
+    // FIRST, so an open still in flight is superseded: its result is dropped
+    // and its own holds and owned scopes are released by its own path, which
+    // is what keeps every start balanced by exactly one stop. Acquire before
+    // release does not apply — there is no successor playlist to keep
+    // readable, which is the whole point of a clear.
+    [self beginOpenIntent];
+    for (NSURL *url in _scopedURLs) {
+        [url stopAccessingSecurityScopedResource];
+    }
+    _scopedURLs = [NSMutableArray array];
+    _searchGrants = [NSMutableArray array];
+    _folderURL = nil;
+    _addedFolderURLs = [NSMutableArray array];
+    _additionsPersisted = NO;
+    // Back to "nothing has ever landed", so the next Add is promoted to an
+    // Open and plays, exactly as the first Add of a fresh session does.
+    _landedOpenIntentGeneration = 0;
+    _promotedOpenInFlight = NO;
+    _addWaiters = nil;
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kAdditionBookmarksKey];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
+}
+
 #pragma mark - Persistence
 
 - (BOOL)restorePersistedFolder {

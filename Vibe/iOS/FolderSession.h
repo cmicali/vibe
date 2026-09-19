@@ -115,6 +115,17 @@ NS_ASSUME_NONNULL_BEGIN
 // root to it.
 - (void)openFileFromSearchRoots:(NSURL *)url;
 
+// Returns the session to the state it had before anything was opened: every
+// scope released, the base, additions and grants dropped, and the persisted
+// bookmarks and remembered track REMOVED, so the next launch restores nothing.
+// Clearing a playlist the user asked to be rid of and then restoring it at the
+// next launch would be the opposite of what they asked for.
+//
+// It supersedes any open in flight, whose own result is then dropped and whose
+// own scopes its own path releases. Main thread; no delegate call — the caller
+// is the one clearing, so there is nothing to tell it.
+- (void)clearSession;
+
 // Kicks off resolving the persisted bookmarks — the base and every addition;
 // the union re-delivers through the delegate with restored:YES. NO means
 // nothing was persisted and no attempt starts. YES means an attempt is in
