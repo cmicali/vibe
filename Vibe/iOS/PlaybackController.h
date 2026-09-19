@@ -174,6 +174,16 @@ NS_ASSUME_NONNULL_BEGIN
 // delegate.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
 
+// Runs the block once the launch's one open has settled — the persisted
+// session restored, or found nothing to restore, or a cold "Open in Vibe"
+// landed — and at once if it already has. A waiter: parked, delivered exactly
+// once, on main. The widget's intents wait on this: a background launch has
+// no scene, the foreground continuation connects one, and its controller has
+// an empty playlist until the restore lands, so an action driven before then
+// does nothing.
+- (void)performWhenLaunchOpenSettled:(void (^)(void))block
+        NS_SWIFT_NAME(performWhenLaunchOpenSettled(_:));
+
 // One URL adopted from outside the picker: the Files tab's browser, a share
 // sheet, or a favorite whose bookmark just resolved. openInPlace mirrors
 // UIOpenURLContext.options — YES means the real file, so the security scope

@@ -26,6 +26,9 @@
 @property (nonatomic, readonly) AudioTrackMetadataCache *debugMetadataCache;
 @property (nonatomic, readonly) BOOL debugParked;
 @property (nonatomic, readonly) BOOL debugTrackStartPending;
+// WidgetPublisher.widgetPlaced: whether the app believes a widget is placed,
+// and so whether track changes are reaching the shared container at all.
+@property (nonatomic, readonly) BOOL debugWidgetPlaced;
 
 - (void)debugOpenPath:(NSString *)path;
 

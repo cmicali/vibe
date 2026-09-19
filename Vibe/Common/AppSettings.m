@@ -139,6 +139,25 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setWaveformStyle:(NSString *)identifier {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_STYLE];
 }
+
+// Absent OR empty reads as nil, "match the app": the picker writes nil for
+// that row, and an empty string from a hand-edited defaults plist must not
+// resolve to some arbitrary registered style.
+- (NSString *)widgetWaveformStyle {
+    NSString *identifier = [[NSUserDefaults standardUserDefaults]
+            stringForKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    return identifier.length ? identifier : nil;
+}
+
+- (void)setWidgetWaveformStyle:(NSString *)identifier {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (identifier.length) {
+        [defaults setObject:identifier forKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    }
+    else {
+        [defaults removeObjectForKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    }
+}
 #endif
 
 // The style/theme split left existing Sonic Cirrus users' orange to this

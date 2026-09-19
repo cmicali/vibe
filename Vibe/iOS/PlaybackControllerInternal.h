@@ -27,6 +27,7 @@
 @class DownloadProgressMonitor;
 @class NowPlayingController;
 @class UIUpdateTimer;
+@class WidgetPublisher;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -65,6 +66,17 @@ NS_ASSUME_NONNULL_BEGIN
     DownloadProgressMonitor *_downloadMonitor;
     uint64_t                 _downloadMonitorOpenRequestIdentifier;
 
+    // The home-screen widget's publisher, beside _nowPlaying because it is the
+    // same concern pointed at a second process. It owns every piece of state
+    // the widget needs, so this header carries the collaborator and none of it.
+    WidgetPublisher         *_widgetPublisher;
+
+    // performWhenLaunchOpenSettled:'s waiters, and whether the launch open has
+    // settled (settleLaunchOpen). An array, not one slot: two widget taps can
+    // land in the seconds the restore takes.
+    NSMutableArray<void (^)(void)> *_launchOpenWaiters;
+    BOOL                     _launchOpenSettled;
+
     // The deferred playlist-wide metadata sweep; see scheduleDeferredMetadataLoad.
     // The generation pairs each open's fallback timer with its own playlist, so
     // a timer armed by playlist A and firing after a replacement cannot start
@@ -86,6 +98,9 @@ NS_ASSUME_NONNULL_BEGIN
 // screens.
 - (void)notifyDidTick;
 - (void)notifyDidBeginLoading;
+// Marks the launch open settled and delivers its waiters. Idempotent, since
+// every later pick reaches the same delegate methods.
+- (void)settleLaunchOpen;
 - (void)notifyDidUpdateLoadingProgress:(float)fraction;
 - (void)notifyDidFinishLoading;
 - (void)notifyDidFailCurrentTrack;

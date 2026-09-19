@@ -9,6 +9,7 @@
 //
 
 #import "PlaybackControllerInternal.h"
+#import "WidgetPublisher.h"
 #import "PlaybackController+NowPlaying.h"
 #import "PlaybackController+PlayerEvents.h"   // AudioPlayerDelegate, adopted by the category
 
@@ -47,6 +48,8 @@ static const NSUInteger kUIUpdateHz = 3;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
+        _widgetPublisher = [[WidgetPublisher alloc] init];
+        _launchOpenWaiters = [NSMutableArray array];
         // TRAP: this must precede the player, and cannot move down to where
         // the session controller is created. AVAudioEngine wires its master
         // bus on the player's own queue moments after this init returns, and
@@ -210,6 +213,8 @@ static const NSUInteger kUIUpdateHz = 3;
     _updateTimer.windowVisible = sceneActive;
     [self syncLevelsEnabled];
     if (sceneActive) {
+        // The one moment a widget can have been removed — see WidgetPublisher.h.
+        [_widgetPublisher refreshPlaced];
         [self notifyDidTick];
     }
 }
@@ -435,16 +440,26 @@ static const NSUInteger kUIUpdateHz = 3;
         return;
     }
     // Parked with nothing open — a relaunch restore, or the end of the
-    // playlist. The player holds no file, so its duration is 0 and there is
-    // nothing to seek IN; the metadata knows the length, so the file is opened
-    // AT the scrubbed position instead, and opened PAUSED. A scrub is a request
-    // to move the playhead and nothing else.
+    // playlist — or an open still in flight. The player holds no file, so its
+    // duration is 0 and there is nothing to seek IN; the metadata knows the
+    // length, so the file is opened AT the scrubbed position instead, and
+    // opened PAUSED. A scrub is a request to move the playhead and nothing
+    // else. Anything else has no open for a seek to land in.
     AudioTrack *track = _playlist.currentTrack;
-    if (track.duration <= 0) {
+    if (!track || !(_parked || _player.isLoading)) {
         return;
     }
     _pendingSeekProgress = progress;
     _seekInFlight = YES;
+    if (track.duration <= 0) {
+        // Before the metadata landed. A widget seek on a cold launch arrives
+        // here every time: the launch open settles the moment the track is
+        // parked, and its tags are still on the metadata lane. The target is
+        // kept — the card already draws an in-flight seek at its target — and
+        // didLoadMetadata: re-enters with the duration in hand. A play before
+        // then starts from 0 and clears it, like any track event.
+        return;
+    }
     if (_parked) {
         // Holds the waveform on the target through the parked open. play:
         // rebinds an existing same-file request, so a second seek updates its
@@ -454,11 +469,7 @@ static const NSUInteger kUIUpdateHz = 3;
         [_player play:track atPosition:track.duration * progress startPaused:YES];
         return;
     }
-    if (_player.isLoading) {
-        [_player seekToPosition:track.duration * progress];
-        return;
-    }
-    _seekInFlight = NO;
+    [_player seekToPosition:track.duration * progress];
 }
 
 - (void)seekToPosition:(NSTimeInterval)position {
@@ -583,6 +594,24 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)restorePersistedSession {
     if (![_folderSession restorePersistedFolder]) {
         [self notifyHasNothingToRestore];
+        [self settleLaunchOpen];
+    }
+}
+
+- (void)performWhenLaunchOpenSettled:(void (^)(void))block {
+    if (_launchOpenSettled) {
+        block();
+        return;
+    }
+    [_launchOpenWaiters addObject:[block copy]];
+}
+
+- (void)settleLaunchOpen {
+    _launchOpenSettled = YES;
+    NSArray<void (^)(void)> *waiters = [_launchOpenWaiters copy];
+    [_launchOpenWaiters removeAllObjects];
+    for (void (^waiter)(void) in waiters) {
+        waiter();
     }
 }
 
@@ -631,9 +660,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
             }
         }
     }
+    // After the park or the play, so a waiter finds a track to drive.
+    [self settleLaunchOpen];
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
+    [self settleLaunchOpen];
     if (_playlist.count > 0) {
         return;   // a good playlist is never wiped by a bad pick
     }
@@ -645,6 +677,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 }
 
 - (void)folderSessionRestoreDidFail:(FolderSession *)session {
+    [self settleLaunchOpen];
     if (_playlist.count == 0) {
         [self notifyHasNothingToRestore];
     }
@@ -715,6 +748,12 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         }
     }
     if ([_playlist isCurrentTrack:track]) {
+        // A seek that arrived parked before this delivery (seekToProgress:)
+        // lands now, through the same funnel. !_trackStartPending is what says
+        // it has not already opened: the parked open sets it.
+        if (_seekInFlight && _parked && !_trackStartPending && track.duration > 0) {
+            [self seekToProgress:_pendingSeekProgress];
+        }
         // The full tick, not just the publish: a parked track's time labels
         // render from this delivery's duration.
         [self notifyDidTick];

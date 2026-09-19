@@ -8,9 +8,10 @@
 //
 //  These are iOS-owned NSUserDefaults keys, beside FolderSession's and the
 //  waveform zoom's, rather than AppSettings' equivalents: on macOS those are
-//  AppTheme fields now, and iOS has no theme system. The waveform style is
-//  deliberately NOT here — both platforms draw waveforms, so it stays an
-//  AppSettings property (iOS-compiled; on macOS the theme owns it).
+//  AppTheme fields now, and iOS has no theme system. The discriminator is that
+//  COLLISION, not platform — a key whose macOS counterpart is an AppTheme
+//  field cannot be an AppSettings property without lying. The waveform styles,
+//  which have no such counterpart, stay in AppSettings (iOS-compiled).
 //
 
 #import <Foundation/Foundation.h>

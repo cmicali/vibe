@@ -27,6 +27,14 @@ static inline NowPlayingPlaybackState VibeNowPlayingStateForPlayer(BOOL isPlayin
     return NowPlayingPlaybackStateStopped;
 }
 
+// Whether two published lines are the same line. nil equals nil: a track
+// legitimately has no artist, and -isEqual: on nil would read two absences as
+// a change and republish on every tick. Both publishers — the lock screen's
+// and the widget's — compare through this, so they cannot drift.
+static inline BOOL VibeNowPlayingStringsEqual(NSString *_Nullable a, NSString *_Nullable b) {
+    return a == b || [a isEqualToString:b];
+}
+
 // A published position further than this from what the system's own
 // extrapolation predicts is a jump, from a seek or a pitch rescale, and must
 // be republished. Anything inside it is natural playback advance, which the

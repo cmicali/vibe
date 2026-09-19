@@ -25,4 +25,17 @@
 // caching on nil.
 - (nullable NSString *)cacheKey;
 
+// A stat-free identity for naming a file the app itself lists — the widget's
+// snapshot and its seek buttons carry it: lowercase hex SHA-1 of the
+// standardized path, taken RELATIVE to the app's home for a file inside it.
+// Unlike cacheKey it survives a rewrite of the file (no size or mtime), which
+// a "which track is this" key must, and it never touches the disk. nil for a
+// URL with no path.
+//
+// TRAP: the data container MOVES — on every simulator install, and iOS may
+// move it on an update — so a key over the absolute path disagrees with every
+// consumer that captured it before the move. A provider file lives outside
+// the container at a path that does not move, and keeps the whole of it.
+- (nullable NSString *)pathKey;
+
 @end

@@ -180,6 +180,29 @@ normalize() {
     ' "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
+# ---------------------------------------------------------------------------
+# The widget's subset. The extension resolves strings against its own bundle
+# (the TRAP in Vibe/iOS/Widget/VibeWidgetIntents.swift), so it carries
+# VibeWidget/Localizable.xcstrings: the widget.* keys and nothing else, DERIVED
+# from the main catalog here and never authored — translations flow down, and
+# the same basename keeps the table name so no lookup changes. Not a
+# check-translations catalog: every key in it is in the main one and would
+# report twice. The subset is prefix-defined, so the prefix is a checked rule:
+# a widget source reaching for any other key would fall back to English in the
+# widget alone, silently.
+WIDGET_CATALOG="$REPO_ROOT/VibeWidget/Localizable.xcstrings"
+widget_subset() {
+    jq --indent 2 '.strings |= with_entries(select(.key | startswith("widget.")))' "$1" > "$2"
+}
+STRAY=$(grep -rhoE 'STR_[A-Z_]+|LocalizedStringResource\("[^"]+"' \
+            "$REPO_ROOT/VibeWidget" "$REPO_ROOT/Vibe/iOS/Widget" \
+        | sort -u | grep -vE '^STR_WIDGET_|^LocalizedStringResource\("widget\.' || true)
+if [ -n "$STRAY" ]; then
+    echo "error: widget sources reference keys outside widget.*, which the widget's own catalog does not carry:" >&2
+    echo "$STRAY" | sed 's/^/  /' >&2
+    exit 1
+fi
+
 if [ "${1:-}" = "--check" ]; then
     # The copy MUST keep the catalog's filename: xcstringstool matches a
     # catalog to its .stringsdata by table name, which comes from the file's
@@ -195,10 +218,16 @@ if [ "${1:-}" = "--check" ]; then
         echo "error: Localizable.xcstrings is out of date — run: make strings" >&2
         exit 1
     fi
-    echo "🔊 string catalog is in sync"
+    widget_subset "$COPY" "$WORK/check/widget.xcstrings"
+    if ! diff -u "$WIDGET_CATALOG" "$WORK/check/widget.xcstrings"; then
+        echo "error: VibeWidget/Localizable.xcstrings is out of date — run: make strings" >&2
+        exit 1
+    fi
+    echo "🔊 string catalogs are in sync"
 else
     unshield "$CATALOG"
     xcrun xcstringstool sync "$CATALOG" --stringsdata "$WORK"/*.stringsdata
     normalize "$CATALOG"
-    echo "🔊 $(jq '.strings | length' "$CATALOG") keys in Localizable.xcstrings"
+    widget_subset "$CATALOG" "$WIDGET_CATALOG"
+    echo "🔊 $(jq '.strings | length' "$CATALOG") keys in Localizable.xcstrings, $(jq '.strings | length' "$WIDGET_CATALOG") of them in the widget's"
 fi

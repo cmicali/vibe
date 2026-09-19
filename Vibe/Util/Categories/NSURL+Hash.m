@@ -29,6 +29,18 @@
 
 @implementation NSURL (Hash)
 
+- (nullable NSString *)pathKey {
+    NSString *path = self.URLByStandardizingPath.path;
+    if (!path) {
+        return nil;
+    }
+    NSString *home = NSHomeDirectory().stringByStandardizingPath;
+    if ([path hasPrefix:[home stringByAppendingString:@"/"]]) {
+        path = [@"~" stringByAppendingString:[path substringFromIndex:home.length]];
+    }
+    return [[path dataUsingEncoding:NSUTF8StringEncoding] sha1Hex];
+}
+
 - (nullable NSString *)cacheKey {
     // Resolve symlinks first, so that the hashed path is the target's: a link
     // and its target then share one entry, and retagging the target

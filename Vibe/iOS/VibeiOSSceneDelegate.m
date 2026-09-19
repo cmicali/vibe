@@ -76,4 +76,22 @@
     [_playback handleOpenURLContexts:URLContexts];
 }
 
+#pragma mark - The widget's way in
+
+// Multi-scene is off, so "the connected scene" is at most one — but a scene
+// can be connected and not yet have built its controller, and the app can be
+// launched with no scene at all, which is exactly the state an intent fired
+// from the home screen may find.
++ (PlaybackController *)connectedPlayback {
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if ([scene.delegate isKindOfClass:VibeiOSSceneDelegate.class]) {
+            PlaybackController *playback = ((VibeiOSSceneDelegate *)scene.delegate).playback;
+            if (playback) {
+                return playback;
+            }
+        }
+    }
+    return nil;
+}
+
 @end
