@@ -1,0 +1,20 @@
+{
+  "version" : 1,
+  "name" : "Snake",
+  "description" : "The factory look, loosened: a centered wiggle waveform in the artwork's own color, the playlist tinted from the same art, and the info line dimmed so the cover carries the window.",
+  "player" : {
+    "buttonGradient" : "artwork"
+  },
+  "info" : {
+    "colorDark" : "#FBFFFF7F"
+  },
+  "waveform" : {
+    "barDensity" : 1.1,
+    "barWidth" : 1.2,
+    "style" : "wiggle_centered",
+    "theme" : "album_art"
+  },
+  "playlist" : {
+    "tint" : "artwork"
+  }
+}

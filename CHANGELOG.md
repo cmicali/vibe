@@ -5,6 +5,7 @@
 * mac: Added Settings > General > Load last playlist on launch
 * mac: Added more theme customizations, including customizing transport controls, app icon, and more
 * mac: Added Glassy theme, theme editor undo, and randomize buttons for theme settings and colors
+* mac: Added Snake and Tangerine themes; dropped Signal Workshop and folded Technical Bars into Technical
 * mac: Settings UI improved, including new audio device picker
 * mac: Enabling audio effects no longer requires restarting the app
 * ios: Improved playlist handling, including add to playlist

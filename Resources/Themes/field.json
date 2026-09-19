@@ -13,6 +13,7 @@
   "player" : {
     "artistColorDark" : "#8F8E88",
     "artistColorLight" : "#6E6D68",
+    "buttonGradient" : "hover",
     "defaultArtworkDark" : "bundled:field_dark.png",
     "defaultArtworkLight" : "bundled:field_light.png",
     "titleColorDark" : "#EAE9E4",

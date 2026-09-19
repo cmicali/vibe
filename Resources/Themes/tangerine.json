@@ -1,0 +1,19 @@
+{
+  "version" : 1,
+  "name" : "Tangerine",
+  "description" : "Near-neutral grounds under one warm orange: flat bars played in tangerine over a plain gray remainder, dark and light sharing the same unplayed tone.",
+  "window" : {
+    "backgroundColorDark" : "#1C1C1CF2",
+    "backgroundColorLight" : "#EDEDEDF2"
+  },
+  "waveform" : {
+    "barDensity" : 1.15,
+    "gradient" : false,
+    "playedColorDark" : "#E67B2B",
+    "playedColorLight" : "#000000BF",
+    "style" : "basic",
+    "theme" : "custom",
+    "unplayedColorDark" : "#808080BF",
+    "unplayedColorLight" : "#808080BF"
+  }
+}

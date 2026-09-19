@@ -13,6 +13,7 @@
   "player" : {
     "artistColorDark" : "#A8A8AD",
     "artistColorLight" : "#515156",
+    "buttonGradient" : "hover",
     "defaultArtworkDark" : "bundled:cupertino_dark.jpg",
     "defaultArtworkLight" : "bundled:cupertino_light.jpg",
     "titleColorDark" : "#F5F5F7",

@@ -1660,11 +1660,11 @@ def collect_themes(channel):
     # The menu ids are the display path; the built-ins are named ones the
     # set_theme matcher resolves either way, so a run whose dump_menu happened
     # before the delegate filled the submenu still has something to apply.
-    for built_in in ("vibe", "cupertino", "field", "signal_workshop",
-                     "sonic_cirrus", "technical", "technical_bars"):
+    for built_in in ("vibe", "cupertino", "field", "glassy", "snake",
+                     "sonic_cirrus", "tangerine", "technical"):
         if built_in not in ids:
             ids.append(built_in)
-    for candidate in ("signal_workshop", "technical", "vibe"):
+    for candidate in ("cupertino", "technical", "vibe"):
         code, payload, _ = channel.run(["dump_theme", candidate], timeout=20)
         if code == 0 and isinstance((payload or {}).get("theme"), dict):
             base = payload["theme"]
