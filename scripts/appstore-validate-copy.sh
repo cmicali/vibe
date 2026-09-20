@@ -5,8 +5,8 @@
 # non-empty and within ASC's character limits (counted in characters, not
 # bytes), description free of leftover markdown (bold, links, headings and
 # bullets — it uploads verbatim), the shared support-url.txt,
-# marketing-url.txt and privacy-url.txt each a bare URL, and screenshots.json holding a non-empty headline and subhead for
-# every shot, each fitting the screenshot layout
+# marketing-url.txt and privacy-url.txt each a bare URL, and screenshots.json
+# holding a caption for every shot that fits every canvas that platform ships
 # (compose-app-store-overlay.swift --measure).
 set -euo pipefail
 
@@ -51,31 +51,64 @@ check_text() { # <lang> <dir>
     fi
 }
 
-check_captions() { # <label> <lang> <screenshots.json> <shot ids…>
-    local label="$1" lang="$2" json="$3"
-    shift 3
-    local id h s
+check_captions() { # <label> <lang> <platform> <screenshots.json> <shot ids…>
+    local label="$1" lang="$2" plat="$3" json="$4"
+    shift 4
+    local id h s canvas hscale
+    hscale="$(headline_scale "$plat")"
     jq -e 'type == "array"' "$json" >/dev/null 2>&1 || { err "$label: $json is not a JSON array"; return; }
     for id in "$@"; do
         h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$json")"
         s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$json")"
-        [ -n "$h" ] && [ -n "$s" ] || { err "$label: shot '$id' missing headline or subhead"; continue; }
+        [ -n "$h" ] || { err "$label: shot '$id' missing headline"; continue; }
+        # An iOS caption is the headline alone, and that is enforced in both
+        # directions: the store draws a phone screenshot too small for a
+        # second, smaller line to be read, so the headline runs at 1.9x and
+        # carries the message. A subhead written for one locale would not be
+        # dropped — it would render, and that locale alone would be laid out
+        # differently from the other 29.
+        if [ "$plat" = ios ]; then
+            [ -z "$s" ] || err "$label: shot '$id' has a subhead; iOS captions are headline-only"
+        else
+            [ -n "$s" ] || { err "$label: shot '$id' missing subhead"; continue; }
+        fi
         # --lang is the LANGUAGE, not the label: the measurement picks the font
         # and line-breaking rules from it, and "en/macos" is not a language.
-        "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
-            || err "$label: shot '$id' captions do not fit the layout"
+        # Every canvas the platform ships is measured, because one caption is
+        # written for all of them and each has its own type size and width cap.
+        for canvas in $(canvases "$plat"); do
+            "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
+                --canvas "$canvas" --headline-scale "$hscale" \
+                || err "$label: shot '$id' captions do not fit $canvas"
+        done
     done
 }
 
 # The shots each platform's screenshots.json must caption, in display order.
-# iOS has none yet — its screenshot pipeline is section D of
-# docs/ios-release-punchlist.md — and an empty list means captions are not
-# checked for that platform. Stated here rather than silently skipped.
 shot_ids() {
     case "$1" in
         macos) echo "player playlist themes pitch" ;;
-        ios)   echo "" ;;
+        ios)   echo "player seek playlist widget" ;;
         *)     echo "" ;;
+    esac
+}
+
+# The canvases one caption has to fit. macOS has a single screenshot set;
+# iOS has two, because iPhone and iPad are separate ASC sets rather than two
+# sizes of one, and they share the caption between them.
+canvases() {
+    case "$1" in
+        macos) echo "2880x1800" ;;
+        ios)   echo "1290x2796 2048x2732" ;;
+    esac
+}
+
+# Must match the generator. Getting this wrong makes the fit check pass copy
+# that fails the build, which is the one thing it exists to prevent.
+headline_scale() {
+    case "$1" in
+        ios) echo 1.9 ;;
+        *)   echo 1.0 ;;
     esac
 }
 
@@ -126,13 +159,22 @@ while read -r l; do
         if [ -f "$DIR/screenshots.json" ]; then
             # Unquoted on purpose: ids is a space-separated list.
             # shellcheck disable=SC2086
-            check_captions "$l/$plat" "$l" "$DIR/screenshots.json" $ids
+            check_captions "$l/$plat" "$l" "$plat" "$DIR/screenshots.json" $ids
+        elif [ "$plat" = ios ] && [ "$l" != en ]; then
+            # The iOS captions are translated LAST, after the English
+            # headlines stop moving — four headlines across 29 locales is a
+            # pass nobody wants to run twice (punchlist D4). English is
+            # excluded from the tolerance on purpose, so the fit check still
+            # has something to fail on. Delete this branch with D4, the way
+            # the same tolerance for a wholly absent ios/ was deleted once
+            # its copy landed.
+            PENDING=$((PENDING + 1))
         else
             err "$l/$plat: missing $DIR/screenshots.json"
         fi
     done
 done <<< "$LANGS"
 
-[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING platform directory/ies not written yet (iOS copy: docs/ios-release-punchlist.md C1-C2)"
+[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING iOS file(s) not written yet (docs/ios-release-punchlist.md D4)"
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

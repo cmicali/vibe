@@ -145,6 +145,9 @@ if [ "$PLATFORM" = ios ]; then
     # room from the one line that is, so the headline carries the message
     # alone — which is why the iOS captions are short enough to wrap to two
     # lines at this size rather than shrink back down.
+    #
+    # appstore-validate-copy.sh measures captions at this same scale. The two
+    # must agree, or the fit check passes copy that fails the build here.
     HEADLINE_SCALE="${HEADLINE_SCALE:-1.9}"
     # One- and two-line headlines sit side by side in this set, so the device
     # is pinned and the text centred above it rather than the whole stack

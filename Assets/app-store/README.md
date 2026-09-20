@@ -32,20 +32,30 @@ copy/<lang>/<platform>/   platform is macos or ios
                          for EVERY release (ASC blocks submission when a
                          locale lacks it); "* " bullets upload verbatim
   screenshots.json       captions per shot, in App Store display order
-screenshots/<lang>/macos/  composited 2880x1800 shots (make appstore-generate-store-screenshots)
+screenshots/<lang>/macos/        composited 2880x1800 shots
+screenshots/<lang>/ios/iphone/   composited 1290x2796 shots
+screenshots/<lang>/ios/ipad/     composited 2048x2732 shots
+                                 (all three: make appstore-generate-store-screenshots)
 ```
 
-`screenshots.json` is an ordered array of `{id, headline, subhead}`. The shot
-ids (`player`, `playlist`, `pitch`, `keys`) are defined in
-`scripts/appstore-generate-store-screenshots.sh`, which maps each to a window capture
+`screenshots.json` is an ordered array of `{id, headline, subhead}`, and the
+shot ids are per platform — `player`, `playlist`, `themes`, `pitch` on macOS;
+`player`, `seek`, `playlist`, `widget` on iOS. They are defined in
+`scripts/appstore-generate-store-screenshots.sh`, which maps each to a capture
 and an output file; the captions here are the only per-language part.
 
-**iOS is partly wired.** `copy/en/ios/` holds the four text fields and uploads
-with `make appstore-upload-metadata ARGS="--platform ios --skip-screenshots"`.
-The other languages, the iOS screenshot pipeline and its `screenshots.json`
-shot ids are still to do — `docs/ios-release-punchlist.md`, sections C and D.
+**iOS captions carry no subhead**, and `appstore-validate-copy` rejects one
+written into an iOS `screenshots.json`. At the size the store draws a phone
+screenshot a second, smaller line is unreadable and only takes room from the
+one line that is, so the headline runs at 1.9x nominal and says the whole
+thing. iPhone and iPad share the caption but are **separate ASC screenshot
+sets** (`APP_IPHONE_67`, `APP_IPAD_PRO_3GEN_129`), which is why iOS has a
+directory per device and macOS does not. iPad is required, not optional —
+`TARGETED_DEVICE_FAMILY` is `1,2`.
+
 The iOS copy deliberately does NOT reuse the macOS text: BPM and key analysis,
 the pitch fader, the FX rack, folder art and conversion are all macOS-only.
+A page describing features the app does not have is a review rejection.
 
 - `make appstore-validate-copy` validates every catalog language has all five files
   within ASC limits and captions that fit the screenshot layout.

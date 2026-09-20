@@ -8,8 +8,9 @@
 // default) or ios — since ASC localizations hang off a version and versions are
 // per platform. Both apps share a bundle id (Universal Purchase), so the two
 // platforms are separate version trains on the same app record and upload
-// independently. Text fields are PATCHed only when they differ; screenshots
-// replace the locale's set wholesale, ordered by file name.
+// independently. Text fields are PATCHed only when they differ; each screenshot
+// set is replaced wholesale, ordered by file name. macOS has one set per
+// locale, iOS two (iPhone and iPad are separate sets, not two sizes of one).
 
 import BagbutikAppStore
 import BagbutikAppStoreModels
@@ -52,16 +53,23 @@ enum TargetPlatform: String {
 
     var asc: Platform { self == .macos ? .macOS : .iOS }
 
-    // The screenshot set ASC expects. iOS is deliberately nil: there is no iOS
-    // screenshot pipeline yet, and WHICH iPhone display type the store now
-    // accepts is unresolved — the pinned Bagbutik's ScreenshotDisplayType has
-    // no APP_IPHONE_69 at all (section D of docs/ios-release-punchlist.md).
-    // nil means this platform can only upload with --skip-screenshots, which
-    // loadCopy enforces rather than leaving to a confusing empty upload. iOS
-    // also needs TWO sets when it lands (iPhone and iPad, the latter required
-    // because TARGETED_DEVICE_FAMILY is 1,2), so this becomes a list then —
-    // not now, with no files to put in it.
-    var screenshotSet: ScreenshotDisplayType? { self == .macos ? .appDesktop : nil }
+    // The ASC screenshot sets this platform ships, and the subdirectory of
+    // screenshots/<lang>/<platform>/ each one's files come from. macOS has a
+    // single set and keeps its flat directory; iOS has two, because iPhone
+    // and iPad are separate sets rather than two sizes of one, and the iPad
+    // set is REQUIRED — TARGETED_DEVICE_FAMILY is 1,2.
+    //
+    // APP_IPHONE_69 does not exist: a deliberately invalid POST made ASC
+    // enumerate its valid values, and 6.7" is still the largest iPhone type.
+    // Do not "fix" this by bumping Bagbutik — 24.0.3 is upstream's latest and
+    // has no such case either.
+    var screenshotSets: [(dir: String, type: ScreenshotDisplayType)] {
+        switch self {
+        case .macos: return [(dir: "", type: .appDesktop)]
+        case .ios: return [(dir: "iphone", type: .appIphone67),
+                           (dir: "ipad", type: .appIpadPro3Gen129)]
+        }
+    }
 }
 
 struct Options {
@@ -129,7 +137,8 @@ struct LocaleCopy {
     let supportUrl: String     // shared across locales (copy/support-url.txt)
     let marketingUrl: String   // shared across locales (copy/marketing-url.txt)
     let privacyPolicyUrl: String  // shared (copy/privacy-url.txt); appInfo, not version
-    let screenshots: [URL]     // ordered
+    // One entry per ASC screenshot set, each ordered by file name.
+    let screenshotSets: [(type: ScreenshotDisplayType, files: [URL])]
 }
 
 func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
@@ -173,20 +182,21 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             guard !trimmed.isEmpty else { throw Fail("\(language): \(name) is empty") }
             return trimmed
         }
-        var screenshots: [URL] = []
+        var screenshotSets: [(type: ScreenshotDisplayType, files: [URL])] = []
         if !options.skipScreenshots {
-            guard options.platform.screenshotSet != nil else {
-                throw Fail("--platform \(options.platform.rawValue) has no screenshot set wired up yet — pass --skip-screenshots and upload its screenshots by hand (docs/ios-release-punchlist.md, section D)")
+            for set in options.platform.screenshotSets {
+                var shotDir = root.appendingPathComponent("screenshots")
+                    .appendingPathComponent(language).appendingPathComponent(platformDir)
+                if !set.dir.isEmpty { shotDir = shotDir.appendingPathComponent(set.dir) }
+                guard fm.fileExists(atPath: shotDir.path) else {
+                    throw Fail("\(language): missing \(shotDir.path) — run `make appstore-generate-store-screenshots-all` (or pass --skip-screenshots)")
+                }
+                let files = try fm.contentsOfDirectory(atPath: shotDir.path).sorted()
+                    .filter { $0.hasSuffix(".png") }
+                    .map { shotDir.appendingPathComponent($0) }
+                guard !files.isEmpty else { throw Fail("\(language): no .png in \(shotDir.path)") }
+                screenshotSets.append((type: set.type, files: files))
             }
-            let shotDir = root.appendingPathComponent("screenshots")
-                .appendingPathComponent(language).appendingPathComponent(platformDir)
-            guard fm.fileExists(atPath: shotDir.path) else {
-                throw Fail("\(language): missing \(shotDir.path) — run `make appstore-generate-store-screenshots-all` (or pass --skip-screenshots)")
-            }
-            screenshots = try fm.contentsOfDirectory(atPath: shotDir.path).sorted()
-                .filter { $0.hasSuffix(".png") }
-                .map { shotDir.appendingPathComponent($0) }
-            guard !screenshots.isEmpty else { throw Fail("\(language): no .png in \(shotDir.path)") }
         }
         out.append(LocaleCopy(
             language: language, locale: locale,
@@ -197,7 +207,7 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             supportUrl: supportUrl,
             marketingUrl: marketingUrl,
             privacyPolicyUrl: privacyPolicyUrl,
-            screenshots: screenshots))
+            screenshotSets: screenshotSets))
     }
     return out
 }
@@ -391,32 +401,34 @@ struct ASCUpload {
 
         guard !options.skipScreenshots else { return }
         guard let localizationId else {
-            print("\(copy.locale): would upload \(copy.screenshots.count) screenshots")
+            for set in copy.screenshotSets {
+                print("\(copy.locale): would upload \(set.files.count) \(set.type.rawValue) screenshots")
+            }
             return
         }
-        try await syncScreenshots(copy, localizationId: localizationId,
-                                  service: service, options: options)
+        for set in copy.screenshotSets {
+            try await syncScreenshots(copy, set: set, localizationId: localizationId,
+                                      service: service, options: options)
+        }
     }
 
-    static func syncScreenshots(_ copy: LocaleCopy, localizationId: String,
+    static func syncScreenshots(_ copy: LocaleCopy,
+                                set: (type: ScreenshotDisplayType, files: [URL]),
+                                localizationId: String,
                                 service: BagbutikService, options: Options) async throws {
-        // Guaranteed non-nil: loadCopy refuses a platform with no set unless
-        // --skip-screenshots, and --skip-screenshots never reaches here.
-        guard let displayType = options.platform.screenshotSet else {
-            throw Fail("no screenshot set for --platform \(options.platform.rawValue)")
-        }
+        let displayType = set.type
         let sets = try await service.request(.listAppScreenshotSetsForAppStoreVersionLocalizationV1(
             id: localizationId,
             filters: [.screenshotDisplayType([displayType])])).data
 
         if options.dryRun {
-            print("\(copy.locale): would replace \(displayType.rawValue) set with \(copy.screenshots.count) screenshots")
+            print("\(copy.locale): would replace \(displayType.rawValue) set with \(set.files.count) screenshots")
             return
         }
 
         let setId: String
-        if let set = sets.first {
-            setId = set.id
+        if let existing = sets.first {
+            setId = existing.id
             let shots = try await service.request(.listAppScreenshotsForAppScreenshotSetV1(
                 id: setId, limit: 50)).data
             for shot in shots {
@@ -430,10 +442,10 @@ struct ASCUpload {
             setId = created.data.id
         }
 
-        for file in copy.screenshots {
+        for file in set.files {
             try await upload(file, setId: setId, locale: copy.locale, service: service)
         }
-        print("\(copy.locale): uploaded \(copy.screenshots.count) screenshots")
+        print("\(copy.locale): uploaded \(set.files.count) \(displayType.rawValue) screenshots")
     }
 
     static func upload(_ file: URL, setId: String, locale: String,

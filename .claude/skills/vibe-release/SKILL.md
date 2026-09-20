@@ -53,9 +53,9 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
-## Product-page metadata (macOS only)
+## Product-page metadata
 
-**This whole section is the macOS product page.** ASC localizations hang off a version and versions are per platform, so the iOS page needs its own description, keywords, promotional text, what's-new and screenshots — and neither `Assets/app-store/` nor the uploader carries them yet (`ASCUpload.swift` filters `.platform([.macOS])` and writes the `APP_DESKTOP` screenshot set; `appstore-generate-store-screenshots.sh` composites macOS window captures onto a 2880x1800 canvas). Until that changes, **the iOS page is edited by hand in App Store Connect** — and the macOS description cannot be pasted into it, because it sells BPM and key analysis, the pitch fader and the FX rack, all macOS-only, and claims the formats are "decoded by macOS". A page describing features the app does not have is a review rejection. The running list is `docs/ios-release-punchlist.md`.
+**One run writes ONE platform's page.** ASC localizations hang off a version and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's-new, captions and screenshots; `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded — the macOS page sells BPM and key analysis, the pitch fader and the FX rack, all macOS-only, and says the formats are "decoded by macOS". A page describing features the app does not have is a review rejection.
 
 The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).
 
@@ -71,7 +71,8 @@ Flags via `ARGS`: `--locales de,fr`, `--skip-screenshots`, `--skip-text`, `--cre
 Traps and semantics:
 
 - **It targets the one *editable* macOS version.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build` build attaches to, so metadata-first is the normal order).
-- **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each locale's `APP_DESKTOP` screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
+- **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
+- **macOS has one screenshot set per locale, iOS has two.** `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129` — iPhone and iPad are separate sets, not two sizes of one, and the iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`. **`APP_IPHONE_69` does not exist**; ASC's own enumeration of valid values tops out at 6.7", and bumping Bagbutik will not add it.
 - **`bg` is skipped by design** — the App Store has no Bulgarian product page; the translation ships in-app only. Catalog `nb` maps to ASC `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
 - **The privacy policy URL is not a version field.** It lives on `appInfoLocalizations`, per locale, beside the app name and subtitle — so setting it by hand is the same edit 29 times. `copy/privacy-url.txt` uploads it: the tool finds the one editable `AppInfo`, then patches each locale whose URL differs. It only *patches*; creating an `appInfoLocalization` requires a `name`, and inventing an app name per locale is the mistake the out-of-scope rule below exists to prevent, so a locale with no localization is reported rather than created.
 - **Out of scope, on purpose:** app name and subtitle (the other `appInfoLocalizations` fields, rarely change — edit in ASC by hand).

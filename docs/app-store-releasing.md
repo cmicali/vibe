@@ -167,12 +167,16 @@ until the copy is complete.
 ## 4. Upload the product page
 
 `appstore-upload-metadata` writes to ONE platform's version train per run —
-`--platform macos` by default, `--platform ios` for the other. Screenshots are
-wired for macOS only, so iOS needs `--skip-screenshots`:
+`--platform macos` by default, `--platform ios` for the other. Each platform
+carries its own copy, captions and screenshots, so neither run needs a flag:
 
 ```bash
-make appstore-upload-metadata ARGS="--platform ios --skip-screenshots"
+make appstore-upload-metadata ARGS="--platform ios"
 ```
+
+macOS uploads one screenshot set per locale (`APP_DESKTOP`); iOS uploads two
+(`APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`), because iPhone and iPad are
+separate sets rather than two sizes of one, and the iPad set is required.
 
 The uploader only ever writes to an **editable** version — Prepare for
 Submission or a rejected state. The moment a release goes live, no such

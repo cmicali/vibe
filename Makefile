@@ -278,7 +278,7 @@ appstore-validate-copy:
 #   make appstore-upload-metadata                          # everything, macOS
 #   make appstore-upload-metadata ARGS="--dry-run"
 #   make appstore-upload-metadata ARGS="--locales de,fr --skip-screenshots"
-#   make appstore-upload-metadata ARGS="--platform ios --skip-screenshots"
+#   make appstore-upload-metadata ARGS="--platform ios"    # everything, iOS
 appstore-upload-metadata: appstore-validate-copy
 	scripts/appstore-upload-metadata.sh $(ARGS)
 
