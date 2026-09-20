@@ -71,8 +71,8 @@ to share. See [docs/themes.md](docs/themes.md) for the full guide.
 
 ## On iPhone and iPad
 
-The same engine and the same file handling, in a shape that suits a phone. It
-is one app record, so buying or installing either gets you both.
+The same engine and the same file handling, in a shape that suits a phone. One
+App Store listing covers both, free on each.
 
 <p>
 <img src="Assets/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
