@@ -87,7 +87,7 @@ every language.
 | G1 | `docs/app-store-releasing.md` covered only the Mac App Store. Retitled and extended: Universal Purchase framing, the iOS prerequisites, the per-platform version-record trap, both build paths and their differences table, the iOS export postflights, TestFlight-vs-GitHub betas, what the reviewer sees, and four new troubleshooting entries. | **done** |
 | G2 | The `vibe-release` skill described `release-appstore.sh` as the Mac App Store path. Rewritten: three-path table with the iOS column, Universal Purchase and the per-platform version record, TestFlight-vs-GitHub betas, the two `.ipa` postflights, the worktree `.release-env` trap, and the product-page section marked macOS-only. Its frontmatter description now names iOS, so the skill triggers on iOS release questions. | **done** |
 | G3 | `Assets/Web/index.html` is macOS-only (one App Store badge, five "macOS" mentions). Decide whether the page advertises iOS. `github-release.sh` stays correct — it publishes mac DMG/zip only, and iOS ships through the store alone. | **open** |
-| G4 | `README.md` and `CHANGELOG.md` framing for a two-platform release. | **open** |
+| G4 | `README.md` and `CHANGELOG.md` framed for two platforms. CHANGELOG leads 1.12 with the iOS launch itself, which the `ios:` feature lines were burying. README's tagline names iPhone and iPad, and a new section carries three iPhone captures, what the phone app does, and — said plainly rather than left to be discovered — which features are Mac-only and why. | **done** |
 
 ---
 

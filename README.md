@@ -1,6 +1,6 @@
 # Vibe
 
-A fast, minimal player for your music files on the Mac. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it. 
+A fast, minimal player for your music files, on the Mac and on iPhone and iPad. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it. 
 
 **[vibeplayer.app](https://vibeplayer.app)** — website, downloads, and [privacy policy](https://vibeplayer.app/privacy).
 
@@ -68,6 +68,32 @@ to share. See [docs/themes.md](docs/themes.md) for the full guide.
 ![Vibe screenshot](Assets/screenshot-pitch.png)
 
 ![Vibe screenshot](Assets/screenshot-playlist-pitch.png)
+
+## On iPhone and iPad
+
+The same engine and the same file handling, in a shape that suits a phone. It
+is one app record, so buying or installing either gets you both.
+
+<p>
+<img src="Assets/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
+<img src="Assets/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
+<img src="Assets/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
+</p>
+
+- **Your files, wherever they are** — open a folder from the Files app, iCloud
+  Drive, Dropbox or anywhere else a Files provider reaches, in place and
+  without copying. There is no library to import into
+- **The same waveform** — drag it to scrub; set its theme to Album Art and it
+  takes each track's own colours
+- **Favorites** — star a folder to reopen it in a tap, and search across every
+  folder you have given Vibe
+- **Home-screen widgets** — small and medium, with the artwork, a live
+  waveform, transport buttons, and tap-to-seek
+- **Background audio** — Lock Screen and Control Center transport, and
+  playback with the screen off
+
+The Mac-only features are the ones that need a Mac: BPM and key analysis, the
+pitch fader, the performance FX, the theme editor and FLAC conversion.
 
 # Development
 
