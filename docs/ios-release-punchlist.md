@@ -77,8 +77,8 @@ every language.
 | | Item | Status |
 |---|---|---|
 | F1 | **A reviewer will open Vibe to an empty app.** Notes written to `Assets/app-store/review-notes.txt`: what the empty first launch means and that it is correct, the three ways to get audio in, the formats, why the widget shows a placeholder until the app has played once, background audio, and the privacy answer. Tracked because A5 needs the same text for Beta App Review Information. **Nothing uploads it** — paste it into ASC. Two things left for you: read it, and either attach a sample track or delete the paragraph that promises one. | **open** — drafted, needs your read |
-| F2 | Verify background audio on a real device, not the simulator: lock-screen controls, Now Playing, playback with the screen off. `UIBackgroundModes: [audio]` is a claim review exercises. | **open** |
-| F3 | Exercise the widget on a clean install before submitting — the app-group container is empty until the app publishes its first snapshot, which is exactly the state a reviewer hits. | **open** |
+| F2 | Background audio verified on a real device — lock-screen controls, Now Playing, playback with the screen off. Confirmed by hand; the simulator cannot answer this one. | **done** |
+| F3 | Exercised on a genuinely clean install (a fresh session simulator, signed with `VIBE_SIGN_SIM=1` so the app group exists). The whole path holds: with no widget placed, `dump_state.widget.placed` is false and a **full track played end to end wrote nothing at all** to the shared container — the `widgetPlaced` gate is real, not incidental. The moment the extension first rendered (the widget gallery counts), its read signal flipped `placed` and the app republished at once: `state.plist` plus both waveform PNGs. Both sizes then tracked play, pause and seek, and tapping the widget's own pause button took the app from `playing` to `paused` with the snapshot republished to match. | **done** |
 
 ## G. Surrounding material
 
@@ -112,6 +112,12 @@ every language.
   `screenshot-lib.sh`, so every run since had died at its first cursor move.
   Fixed in `fed353d9`; global input is now a per-run `ALLOW_GLOBAL_INPUT=1`
   assertion rather than something a library claims on the caller's behalf.
+- **`codesign -d --entitlements` reads empty on a simulator build.** It shows
+  the signature's entitlements, and a simulator build carries its effective
+  ones in the binary's `__TEXT,__entitlements` section instead (the
+  `*-Simulated.xcent` the linker embeds). Reading the signature and concluding
+  `VIBE_SIGN_SIM=1` did nothing is a wrong turn; the honest check is whether
+  `simctl get_app_container <udid> <bundle-id> groups` resolves.
 - **An unsigned simulator build cannot show the widget working.** `make
   build-ios` passes `CODE_SIGNING_ALLOWED=NO`, which drops the entitlements,
   which means no app-group container, which means the widget never sees a
