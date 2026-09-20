@@ -29,10 +29,17 @@ than edited:
 | `img/icon-*.png` | `Resources/AppIcon.icon/Assets/` — the vinyl ground and the glass waveform, composited and masked to the rounded square |
 | `img/player.png` | `Assets/screenshot-basic.png` |
 | `img/playlist.png` | `Assets/screenshot-playlist.png` |
+| `img/ios.png` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
 
 The screenshots carry the window's own rounded corners and a transparent margin,
 which is why the page shadows them with `filter: drop-shadow` rather than
 `box-shadow` — a box shadow would trace the image rectangle instead of the window.
+A simulator capture is a plain rectangle, so `img/ios.png` is given the same
+treatment by hand: round at full resolution first and scale after, or the corner
+stair-steps instead of averaging.
+
+`.shot-phone` caps the phone at 300px. The window shots run to `.shot`'s 800px,
+which on a portrait image would be nearly 1800px tall.
 
 ## Copy
 

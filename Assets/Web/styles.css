@@ -214,6 +214,9 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
 .feature-row h2 { font-size: clamp(28px, 4.4vw, 38px); font-weight: 650; }
 .feature-row .copy > p { color: var(--ink-dim); margin-top: 14px; }
 .feature-row .shot { margin-top: clamp(19px, 3vw, 29px); }
+/* A phone is portrait: at the .shot width the window shots use it would stand
+   nearly 1800px tall and the section would be nothing but screenshot. */
+.shot-phone { max-width: 300px; }
 
 code {
   padding: 2px 6px;
