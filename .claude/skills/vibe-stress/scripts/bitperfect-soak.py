@@ -155,6 +155,10 @@ def main():
     ap.add_argument("--device-name", default=None,
                     help="text identifying the device's row in the Output list; "
                          "needed because that list shows names, not ids")
+    ap.add_argument("--also-device", action="append", default=[], metavar="ID:NAME",
+                    help="another eligible device to rotate onto between rounds, "
+                         "e.g. '122:Audient iD4'. Repeatable. Switching devices "
+                         "with the mode armed is where the documented traps are")
     ap.add_argument("--no-exclusive", action="store_true")
     ap.add_argument("--settle", type=float, default=SETTLE_SECONDS)
     args = ap.parse_args()
@@ -219,19 +223,50 @@ def main():
                  + "\n".join(f"  {i}: {r}" for i, r in enumerate(rows))
                  + f"\n\nPass --device-name with text from the right row, and make "
                    f"sure --device {args.device} is that device's CURRENT id.")
-    run(binary, "settings_click", "Output", str(row)); time.sleep(3)
-    run(binary, "set_bit_perfect", "on"); time.sleep(2)
-    if not args.no_exclusive:
-        run(binary, "settings_click", "Exclusive output", "on"); time.sleep(2.5)
+    def arm_on(row_index):
+        """Select a device and arm the mode on it. Modes belong to the device
+        UID, so the selection has to land BEFORE the toggles mean anything."""
+        run(binary, "settings_click", "Output", str(row_index)); time.sleep(3)
+        run(binary, "set_bit_perfect", "on"); time.sleep(2)
+        if not args.no_exclusive:
+            run(binary, "settings_click", "Exclusive output", "on"); time.sleep(2.5)
+        return run(binary, "dump_state").get("player", {}).get("bitPerfect", {})
 
+    arm_on(row)
     armed = run(binary, "dump_state").get("player", {}).get("bitPerfect", {})
     print(f"armed: status={armed.get('status')} exclusive={armed.get('exclusive')} "
           f"hog={armed.get('hoggedDeviceId')}", flush=True)
     if armed.get("status") in (None, "off"):
         sys.exit("bit-perfect did not arm on this device — is it eligible?")
 
+    # Each entry is (device id, row index, supported rates). The primary is
+    # first; --also-device adds the rest.
+    targets = [(args.device, row, supported)]
+    for spec in args.also_device:
+        did, _, dname = spec.partition(":")
+        if not dname:
+            sys.exit(f"--also-device wants ID:NAME, got {spec!r}")
+        cand = [(i, r) for i, r in enumerate(rows) if not r.startswith("System Output")]
+        r_i = next((i for i, r in cand if r == dname), None)
+        if r_i is None:
+            r_i = next((i for i, r in cand if dname in r), None)
+        if r_i is None:
+            sys.exit(f"--also-device {spec!r}: no Output row matches {dname!r}")
+        targets.append((int(did), r_i, device_rates(helper, int(did))))
+    if len(targets) > 1:
+        print(f"rotating across {len(targets)} devices between rounds: "
+              f"{[t[0] for t in targets]}", flush=True)
+
     for rnd in range(1, args.rounds + 1):
-        print(f"\n--- round {rnd}/{args.rounds} ---", flush=True)
+        device, row_i, supported = targets[(rnd - 1) % len(targets)]
+        if len(targets) > 1 and rnd > 1:
+            # Switching devices with the mode armed: the switch must prepare and
+            # hog the DESTINATION before committing, and must not strand the old
+            # device's format. Re-arm because modes are per device UID.
+            armed_now = arm_on(row_i)
+            if armed_now.get("status") in (None, "off"):
+                failures.append(f"round {rnd}: mode did not arm on device {device}")
+        print(f"\n--- round {rnd}/{args.rounds} (device {device}) ---", flush=True)
         for i, path in enumerate(files):
             run(binary, "play_index", str(i))
             time.sleep(args.settle)
@@ -240,8 +275,8 @@ def main():
             title = state.get("ui", {}).get("title")
             want_rate, _ = formats[path.name]
             before = len(failures)
-            check_track(report, want_rate, not args.no_exclusive, args.device,
-                        f"round {rnd} {path.name}", failures, supported)
+            check_track(report, want_rate, not args.no_exclusive, device,
+                        f"round {rnd} dev{device} {path.name}", failures, supported)
             checked += 1
             mark = "ok " if len(failures) == before else "FAIL"
             print(f"  {mark} {title:<20} want {want_rate and int(want_rate)} Hz  "
