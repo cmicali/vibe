@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Pustite svoje datoteke" },
+  { "id": "seek",      "headline": "Pomak po valnom obliku" },
+  { "id": "playlist",  "headline": "Otvorite mapu i pustite" },
+  { "id": "widget",    "headline": "Da, widgeti" }
+]

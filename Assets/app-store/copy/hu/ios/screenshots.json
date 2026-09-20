@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Játszd le a fájljaid" },
+  { "id": "seek",      "headline": "Tekerés a hullámformán" },
+  { "id": "playlist",  "headline": "Nyiss mappát, indítsd el" },
+  { "id": "widget",    "headline": "Igen, widgetek" }
+]

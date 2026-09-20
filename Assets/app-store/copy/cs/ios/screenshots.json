@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Přehrajte své soubory" },
+  { "id": "seek",      "headline": "Posun ve vlně" },
+  { "id": "playlist",  "headline": "Otevřete složku a přehrajte" },
+  { "id": "widget",    "headline": "Ano, widgety" }
+]

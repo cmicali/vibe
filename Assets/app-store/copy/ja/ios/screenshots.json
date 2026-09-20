@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "ファイルを再生" },
+  { "id": "seek",      "headline": "波形でシーク" },
+  { "id": "playlist",  "headline": "フォルダを開いて再生" },
+  { "id": "widget",    "headline": "ウィジェット対応" }
+]

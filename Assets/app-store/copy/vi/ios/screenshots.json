@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Phát tệp của bạn" },
+  { "id": "seek",      "headline": "Tua trên dạng sóng" },
+  { "id": "playlist",  "headline": "Mở thư mục, nhấn phát" },
+  { "id": "widget",    "headline": "Có, widget" }
+]

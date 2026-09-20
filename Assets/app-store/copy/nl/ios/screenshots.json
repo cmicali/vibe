@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Speel je bestanden af" },
+  { "id": "seek",      "headline": "Zoek in de golfvorm" },
+  { "id": "playlist",  "headline": "Open een map, druk op play" },
+  { "id": "widget",    "headline": "Ja, widgets" }
+]

@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Toque seus arquivos" },
+  { "id": "seek",      "headline": "Navegue pela onda" },
+  { "id": "playlist",  "headline": "Abra uma pasta e toque" },
+  { "id": "widget",    "headline": "Sim, widgets" }
+]

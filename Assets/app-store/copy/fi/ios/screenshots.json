@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Toista tiedostosi" },
+  { "id": "seek",      "headline": "Siirry aaltomuodossa" },
+  { "id": "playlist",  "headline": "Avaa kansio, paina toista" },
+  { "id": "widget",    "headline": "Kyllä, widgetit" }
+]

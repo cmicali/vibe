@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "내 파일 재생" },
+  { "id": "seek",      "headline": "파형으로 탐색" },
+  { "id": "playlist",  "headline": "폴더 열고 재생" },
+  { "id": "widget",    "headline": "위젯도 있습니다" }
+]

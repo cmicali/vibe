@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "播放你的文件" },
+  { "id": "seek",      "headline": "波形定位" },
+  { "id": "playlist",  "headline": "打开文件夹，播放" },
+  { "id": "widget",    "headline": "是的，小组件" }
+]

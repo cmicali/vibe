@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Putar file Anda" },
+  { "id": "seek",      "headline": "Geser di gelombang" },
+  { "id": "playlist",  "headline": "Buka folder, tekan putar" },
+  { "id": "widget",    "headline": "Ya, widget" }
+]

@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Redă fișierele tale" },
+  { "id": "seek",      "headline": "Derulează pe undă" },
+  { "id": "playlist",  "headline": "Deschide un folder, apasă play" },
+  { "id": "widget",    "headline": "Da, widgeturi" }
+]

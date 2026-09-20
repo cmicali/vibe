@@ -160,15 +160,6 @@ while read -r l; do
             # Unquoted on purpose: ids is a space-separated list.
             # shellcheck disable=SC2086
             check_captions "$l/$plat" "$l" "$plat" "$DIR/screenshots.json" $ids
-        elif [ "$plat" = ios ] && [ "$l" != en ]; then
-            # The iOS captions are translated LAST, after the English
-            # headlines stop moving — four headlines across 29 locales is a
-            # pass nobody wants to run twice (punchlist D4). English is
-            # excluded from the tolerance on purpose, so the fit check still
-            # has something to fail on. Delete this branch with D4, the way
-            # the same tolerance for a wholly absent ios/ was deleted once
-            # its copy landed.
-            PENDING=$((PENDING + 1))
         else
             err "$l/$plat: missing $DIR/screenshots.json"
         fi

@@ -44,6 +44,11 @@ if [ -z "${COMPOSE_BIN:-}" ]; then
 fi
 
 if [ "${1:-}" = --all ]; then
+    shift
+    # Everything after --all is forwarded to each child. This used to recurse
+    # with the language alone, so `--all --platform ios` accepted the flag and
+    # silently generated the macOS set for all 30 languages.
+    REST=("$@")
     # Capture first: a process substitution's exit status is never checked, so
     # a failing catalog-languages.sh would silently generate nothing.
     ALL_LANGS="$("$LANGS")"
@@ -53,9 +58,9 @@ if [ "${1:-}" = --all ]; then
     # override becomes the base, gaining a /<lang> suffix per child.
     while read -r l; do
         if [ -n "${OUT_DIR:-}" ]; then
-            OUT_DIR="$OUT_DIR/$l" "$0" "$l"
+            OUT_DIR="$OUT_DIR/$l" "$0" ${REST[@]+"${REST[@]}"} "$l"
         else
-            "$0" "$l"
+            "$0" ${REST[@]+"${REST[@]}"} "$l"
         fi
     done <<< "$ALL_LANGS"
     exit 0

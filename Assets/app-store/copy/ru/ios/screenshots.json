@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Слушайте свои файлы" },
+  { "id": "seek",      "headline": "Перемотка по волне" },
+  { "id": "playlist",  "headline": "Откройте папку и включите" },
+  { "id": "widget",    "headline": "Да, виджеты" }
+]

@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Παίξτε τα αρχεία σας" },
+  { "id": "seek",      "headline": "Μετάβαση στην κυματομορφή" },
+  { "id": "playlist",  "headline": "Ανοίξτε φάκελο, πατήστε play" },
+  { "id": "widget",    "headline": "Ναι, widgets" }
+]

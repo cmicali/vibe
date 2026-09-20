@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Odtwarzaj swoje pliki" },
+  { "id": "seek",      "headline": "Przewijaj po fali" },
+  { "id": "playlist",  "headline": "Otwórz folder, włącz" },
+  { "id": "widget",    "headline": "Tak, widżety" }
+]

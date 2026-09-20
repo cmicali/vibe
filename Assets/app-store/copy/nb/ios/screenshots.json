@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Spill av filene dine" },
+  { "id": "seek",      "headline": "Søk i bølgeformen" },
+  { "id": "playlist",  "headline": "Åpne en mappe, trykk spill" },
+  { "id": "widget",    "headline": "Ja, widgets" }
+]

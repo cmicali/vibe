@@ -1,0 +1,6 @@
+[
+  { "id": "player",    "headline": "Dosyalarını çal" },
+  { "id": "seek",      "headline": "Dalga formunda gezin" },
+  { "id": "playlist",  "headline": "Klasör aç, oynat" },
+  { "id": "widget",    "headline": "Evet, widget’lar" }
+]
