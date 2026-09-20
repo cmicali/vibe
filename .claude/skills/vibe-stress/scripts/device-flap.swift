@@ -8,6 +8,11 @@
 // is a strictly weaker stimulus, kept because it separates "the default moved"
 // from "the device vanished".
 //
+// `rotate` cycles the default across a list of REAL devices in one long-lived
+// process. It creates nothing, so it cannot degrade coreaudiod the way vanish
+// can, and it measures what a bind actually costs per interface — which varies
+// by 6x and NOT in the direction anyone guesses (see the table in SKILL.md).
+//
 // TRAP: this changes the SYSTEM default output, so it moves audio for every app
 // on the machine, not just Vibe. It restores the original default on every exit
 // path including SIGINT/SIGTERM, and destroys its aggregate before exiting —
@@ -55,7 +60,8 @@ func emit(_ d: [String: Any]) {
 
 let args = CommandLine.arguments
 guard args.count >= 4 else {
-    emit(["ok": false, "error": "usage: device-flap <vanish|move> <deviceA> <goneMillis> [deviceB]"])
+    emit(["ok": false, "error": "usage: device-flap <vanish|move|rotate> "
+            + "<deviceA|steps> <holdMillis> [deviceB|comma,separated,devices]"])
     exit(64)
 }
 let mode = args[1]
@@ -82,6 +88,30 @@ case "move":
     let ok = setDefault(target)
     Thread.sleep(forTimeInterval: goneMs / 1000.0)
     emit(["ok": ok, "mode": "move", "target": target, "defaultAfter": readDefault()])
+
+// Rotate the system default across REAL devices, one long-lived process so the
+// original default is restored once at the end rather than bounced back after
+// every step. Creates and destroys nothing, so unlike vanish it cannot degrade
+// coreaudiod — and it exercises each device's real bind cost, which differs by
+// an order of magnitude between interfaces (measured: built-in 26ms, FiiO and
+// Audient ~55ms, RME Fireface 223ms to engine start).
+case "rotate":
+    guard args.count >= 5 else {
+        emit(["ok": false, "error": "rotate needs a comma-separated device list"]); exit(64)
+    }
+    let devices = args[4].split(separator: ",").compactMap { AudioDeviceID($0) }
+    guard devices.count >= 2 else {
+        emit(["ok": false, "error": "rotate needs at least two devices"]); exit(64)
+    }
+    // devA carries the iteration count in this mode.
+    let steps = Int(devA)
+    for i in 0..<steps {
+        let target = devices[i % devices.count]
+        let ok = setDefault(target)
+        Thread.sleep(forTimeInterval: goneMs / 1000.0)
+        emit(["ok": ok, "mode": "rotate", "step": i + 1, "target": target,
+              "defaultAfter": readDefault()])
+    }
 
 case "vanish":
     guard let wrapUID = uid(devA) else {

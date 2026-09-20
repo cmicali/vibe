@@ -64,6 +64,19 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **TRAP: this moves audio for every app on the machine, not just Vibe** — which is why device changes are excluded from the stress profiles rather than added as a profile, and why this is run deliberately rather than left soaking unattended. It restores the original default on every exit path including SIGINT/SIGTERM, but a SIGKILL leaves the default moved and may strand a public aggregate.
 
+**Rotating real devices, when the question is what a bind COSTS.** The helper's `rotate` mode cycles the system default across a list of real devices in one process, creating nothing. Measured with Vibe on System Output over 42 changes, playback unbroken:
+
+| Destination | median settle | max |
+| --- | --- | --- |
+| RME Fireface 802 (USB, 30ch) | 0.525 s | 0.533 s |
+| Audient iD4 (USB, 4ch) | 0.314 s | 0.352 s |
+| FiiO USB DAC-E10 (USB, 2ch) | 0.127 s | 0.131 s |
+| Built-in speakers | 0.086 s | 0.394 s |
+
+**Bind cost does not track device quality** — the RME is 4x slower than the cheap FiiO, consistently. Do not assume a better interface binds faster.
+
+**TRAP: Vibe must be on System Output for a rotation to test anything.** An explicitly bound device does not follow the default, so rotating it produces zero rebinds while looking like a successful run. Verify `dump_state.player.outputDevice` is null before believing a result; a first attempt at the table above was invalid for exactly this.
+
 **TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
 
 **Sanitizer matrix.** Three builds catch disjoint classes; **TSan matters most** because the threading contract (engine mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
