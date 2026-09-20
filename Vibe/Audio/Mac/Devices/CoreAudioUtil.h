@@ -42,6 +42,16 @@ NS_ASSUME_NONNULL_BEGIN
 // device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID;
 
+// YES only for an aggregate this process created privately — the one CoreAudio
+// builds over the system default when the engine follows it, which is visible
+// to no other process and cannot be chosen as an output. Answered from the
+// composition dictionary's kAudioAggregateDeviceIsPrivateKey, so a public
+// aggregate the user built stays a real device. Deliberately not a tri-state:
+// every failure, including the property being absent on an ordinary device,
+// answers NO and keeps the device, because a device missing from the list is
+// worse than one wrongly kept.
++ (BOOL)isProcessPrivateAggregateDevice:(AudioDeviceID)deviceID;
+
 // The device's nominal sample rate: a physical-format write is applied
 // asynchronously by the HAL, so a caller that needs the new rate to be in
 // effect reads this back.
