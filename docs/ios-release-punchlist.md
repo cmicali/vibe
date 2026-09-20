@@ -24,7 +24,7 @@ Nothing in the repo can do these — they are account state.
 | A2 | Add the iOS platform to the app record. | **done** |
 | A3 | App ID must be multi-platform. Verified via the ASC API: both `com.commonwealthrecordings.Vibe` and `…Vibe.Widget` report `platform=UNIVERSAL`. | **done** |
 | A4 | App Groups must reach *distribution*, not just development. Both App IDs carry the `APP_GROUPS` capability, and the App Store distribution profile ("iOS Team Store Provisioning Profile") grants `group.com.commonwealthrecordings.Vibe` — proven by the export postflight in B1, which now enforces it on every run. | **done** |
-| A5 | Beta path. No iOS build has ever been uploaded; the only group is the auto-created internal "App Store Connect Users", and TestFlight Test Information is empty. Plan: internal TestFlight first (no beta review, minutes after processing), external once the copy is closer. Needs a feedback email set; external additionally needs a beta description and Beta App Review Information — that last one is F1's `review-notes.txt`, written once and used in both places. | **open** |
+| A5 | **The first iOS build is uploaded and internal TestFlight is live.** 1.12 (112), `platform=IOS`, `processingState=VALID`, `internalBuildState=IN_BETA_TESTING` — installable now by the internal "App Store Connect Users" group, whose feedback email was already set. Prior trains on the record are `MAC_OS`, so this is genuinely the first. **External** is `READY_FOR_BETA_SUBMISSION` and still wants three fields, none of which any script writes: the tester-facing beta description, this build's "what to test", and Beta App Review Information — that last one is F1's `review-notes.txt` verbatim. | **done** for internal; external needs the three fields |
 | A6 | The iOS version record was created at `1.0` against a `1.12` build, which would have had nothing to attach to. Both platform records now read 1.12. | **done** |
 
 ## B. Build and signing pipeline
@@ -112,6 +112,18 @@ every language.
   `screenshot-lib.sh`, so every run since had died at its first cursor move.
   Fixed in `fed353d9`; global input is now a per-run `ALLOW_GLOBAL_INPUT=1`
   assertion rather than something a library claims on the caller's behalf.
+- **A build takes minutes to appear in App Store Connect, and `UPLOAD
+  SUCCEEDED` is about bytes, not registration.** The 112 upload ended with two
+  warnings — `buildUploadFiles` timing out (-1001) and "Skipping validation"
+  — and the API still showed 111 as the newest build six minutes later. It
+  appeared, `VALID`, at about eight. Do not read an absent build as a failed
+  delivery and re-upload: the build number would be burnt for nothing. Query
+  until it appears, or wait.
+- **`curl` eats `filter[app]=…` silently.** `[` and `]` are curl's own
+  URL-glob syntax, so an unescaped ASC filter query returns an EMPTY body and
+  exit 0 — no error, no warning, and a poll built on it reports "not there
+  yet" forever whatever the truth. Pass `-g`/`--globoff`, or backslash the
+  brackets.
 - **`codesign -d --entitlements` reads empty on a simulator build.** It shows
   the signature's entitlements, and a simulator build carries its effective
   ones in the binary's `__TEXT,__entitlements` section instead (the
