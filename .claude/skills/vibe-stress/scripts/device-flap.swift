@@ -140,6 +140,37 @@ case "vanish":
     emit(["ok": became && wasDefault && destroyed, "mode": "vanish", "aggregate": aggID,
           "becameDefault": wasDefault, "destroyed": destroyed, "defaultAfter": readDefault()])
 
+// Read a device's CURRENT nominal rate from the HAL, for a caller checking that
+// bit-perfect put the format back. Only an external read can prove that: the
+// app's own report says what it believes it restored, which is the thing under
+// test. devA is the device; nothing is changed.
+case "rate":
+    var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate,
+                                          mScope: kAudioObjectPropertyScopeGlobal,
+                                          mElement: kAudioObjectPropertyElementMain)
+    var rate: Float64 = 0
+    var sz = UInt32(MemoryLayout<Float64>.size)
+    let st = AudioObjectGetPropertyData(devA, &addr, 0, nil, &sz, &rate)
+    emit(["ok": st == noErr, "mode": "rate", "device": devA, "rate": rate])
+
+// The rates a device can actually run at, so a caller can tell "correctly
+// reported rateUnsupported" from "failed to switch when it could have". Without
+// this the two are indistinguishable, and a DAC that simply lacks 88.2 kHz
+// reads as a bug (the FiiO DAC-E10 does exactly that).
+case "rates":
+    var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyAvailableNominalSampleRates,
+                                          mScope: kAudioObjectPropertyScopeGlobal,
+                                          mElement: kAudioObjectPropertyElementMain)
+    var sz: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(devA, &addr, 0, nil, &sz) == noErr, sz > 0 else {
+        emit(["ok": false, "mode": "rates", "device": devA, "error": "unreadable"]); exit(1)
+    }
+    var ranges = [AudioValueRange](repeating: AudioValueRange(mMinimum: 0, mMaximum: 0),
+                                   count: Int(sz) / MemoryLayout<AudioValueRange>.size)
+    let st = AudioObjectGetPropertyData(devA, &addr, 0, nil, &sz, &ranges)
+    emit(["ok": st == noErr, "mode": "rates", "device": devA,
+          "ranges": ranges.map { ["min": $0.mMinimum, "max": $0.mMaximum] }])
+
 default:
     emit(["ok": false, "error": "unknown mode \(mode)"]); exit(64)
 }

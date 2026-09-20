@@ -15,6 +15,7 @@ Three drivers, three questions:
 - **`torture.py`** loads one large playlist and hammers transport so track changes outrun everything async.
 - **`cloud-scenarios.py`** drives one named situation and asserts what the fake provider's trace must contain — the cloud guarantees are about *order*, which random driving cannot state.
 - **`device-flap.py`** makes the output device disappear and return, hundreds of times, and asserts playback survived — a named guarantee random driving cannot state either, and one deliberately kept out of the stress profiles.
+- **`bitperfect-soak.py`** plays a mixed-rate corpus at SETTLE pace and asserts the mode reaches Active on every track, drives the device to that file's own rate, holds exclusive access, and restores the device's format at the end.
 
 **Unattended stress must leave desktop input alone.** `Channel` allows only reviewed controller/delegate commands and a small set of app-only menu identifiers. It rejects raw `click`, `drag`, `mouse_*`, `key*`, arbitrary `script` wrappers and unknown verbs, including inside nested `block_main` calls. Single commands, batches, journals, replay and shrink all use this gate. An old journal containing input is rejected before replay/shrink launches the app; do not silently filter it and claim the same reproduction. There is no flag that unlocks random input. Launching Vibe and explicitly changing its window size still affect its presentation.
 
@@ -78,6 +79,19 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 **TRAP: Vibe must be on System Output for a rotation to test anything.** An explicitly bound device does not follow the default, so rotating it produces zero rebinds while looking like a successful run. Verify `dump_state.player.outputDevice` is null before believing a result; a first attempt at the table above was invalid for exactly this.
 
 **TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
+
+**Bit-perfect and exclusive output.** `bitperfect-soak.py` is the only suite that exercises them. Per track, at settle pace, it asserts: status Active, the device running at **that file's** rate (read from `afinfo`, never from the app — asserting the app against itself proves nothing), all three graph rates equal, no varispeed in the chain, `rateExact`/`formatConfirmed`/`channelsMatch`/`depthOK` all true, and the hog held on the chosen device. Then a mode toggle must return to Active and release the hog, and the device's nominal rate must be back where it started — read from the HAL, since the app's own report of what it restored is the thing under test.
+
+```bash
+.claude/skills/vibe-stress/scripts/bitperfect-soak.py --corpus Assets/test_audio_files/rates \
+    --device 110 --device-name "Fireface 802 (24240711)" --rounds 2
+```
+
+**TRAP: torture.py cannot test either mode, and passes anyway.** Torture runs at 10–70 ops/s; a bit-perfect format switch needs about a second to confirm. Under torture the switch never completes before the next track change, so the mode sits in `switchFailed` for the whole run — and since exclusive only acquires once bit-perfect confirms, **hog is never taken at all**. Measured: a 720-op run with both settings enabled reported `PASSED, no violations` having exercised neither. Same class as the folder-art trap: a disabled feature looks exactly like a clean run.
+
+**TRAP: the System Output row embeds the default device's name**, so `--device-name "Fireface 802 (24240711)"` matches `System Output (Fireface 802 (24240711))` first. That row is the -1 policy and is never eligible, so the mode refuses to arm and the run dies looking like a device fault. The matcher excludes System Output rows and prefers an exact match; keep it that way.
+
+**A rate the hardware lacks is not a failure.** The driver reads `kAudioDevicePropertyAvailableNominalSampleRates` and requires `rateUnsupported` for those tracks instead of Active. Measured: the FiiO USB DAC-E10 offers 32/44.1/48/96 kHz and no 88.2, so an 88.2 kHz file must report `rateUnsupported` on it and Active on an RME Fireface, which has it. Without that check a device limitation reads as a bug.
 
 **Sanitizer matrix.** Three builds catch disjoint classes; **TSan matters most** because the threading contract (engine mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
 
