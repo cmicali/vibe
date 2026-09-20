@@ -30,6 +30,17 @@ Oracles per flap: playback state, position advancing, check_consistency, the app
 alive. Plus dump_health against a baseline every --health-every flaps, and a
 quiesce at the end requiring every pending counter at zero.
 
+TRAP: JUDGE THE HEAP AT REST, NOT WHILE RUNNING. A running sample counts
+allocations in flight, so a flap soak reads as steady growth that is not growth:
+the first version of this driver sampled only the running heap and reported
+~5 KB/flap, which looked like a small leak. Sampling through quiesce instead
+showed the live heap FALLING from ~21 MB to ~9.7 MB and then sitting flat, and a
+control condition — same playback, same pacing, no flapping at all — grew at the
+same rate (+317 vs +469 bytes/iteration over the second half). There is no
+per-flap leak; there was a measurement that could not have found one. So the
+at-rest series every --rest-every flaps is the one to read, and the summary
+prints both precisely so the running series cannot be quoted on its own.
+
     device-flap.py --corpus ~/Music/big --flaps 200
     device-flap.py --corpus ~/Music/big --flaps 500 --mode move --gone-ms 800
 """
@@ -148,6 +159,9 @@ def main():
     ap.add_argument("--settle-ms", type=float, default=800,
                     help="wait after a flap before judging playback")
     ap.add_argument("--health-every", type=int, default=25)
+    ap.add_argument("--rest-every", type=int, default=100,
+                    help="quiesce and sample the heap AT REST this often; this "
+                         "is the series to judge growth by, not the running one")
     args = ap.parse_args()
 
     if args.mode == "move" and not args.device_b:
@@ -176,7 +190,7 @@ def main():
     print(f"playing at {pos:.1f}s; flapping {args.flaps}x in {args.mode} mode", flush=True)
 
     baseline, stops, failures, helper_errors = None, [], [], 0
-    samples, breaches = [], {}
+    samples, breaches, at_rest = [], {}, []
     for i in range(1, args.flaps + 1):
         before_state, before_pos = app.playback()
         res = flap(helper, args.mode, args.device, args.gone_ms, args.device_b)
@@ -236,6 +250,18 @@ def main():
                     else:
                         breaches[k] = 0
 
+        if args.rest_every and i % args.rest_every == 0:
+            # Quiesce closes the file and unwinds pending work, so what remains
+            # is retained rather than in flight. It empties the playlist, hence
+            # the restart afterwards.
+            app.json("quiesce", timeout=40)
+            rest = dig(app.json("dump_health"), "process.mallocLiveBytes")
+            if rest:
+                at_rest.append((i, rest))
+                print(f"  flap {i}: AT REST live heap {rest:,}", flush=True)
+            app.json("play_index", "0")
+            time.sleep(1.5)
+
     q = app.json("quiesce", timeout=40)
     pending = q.get("pending")
     print("\n================ RESULTS ================")
@@ -247,6 +273,17 @@ def main():
     for i, why in failures:
         print(f"    flap {i}: {why}")
     print(f"helper errors:  {helper_errors}")
+    if at_rest:
+        print("live heap AT REST (judge growth by THIS, not the running samples):")
+        for i, v in at_rest:
+            print(f"    flap {i}: {v:,}")
+        if len(at_rest) >= 2:
+            span = at_rest[-1][0] - at_rest[0][0]
+            delta = at_rest[-1][1] - at_rest[0][1]
+            print(f"    -> {delta:+,} bytes over {span} flaps "
+                  f"({delta / span:+,.0f}/flap). An app merely playing audio for "
+                  f"the same wall-clock grows at a comparable rate, so treat this "
+                  f"as flap-attributable only if a no-flap control says so.")
     print(f"quiesce:        settled={q.get('settled')} pending={pending}")
     return 1 if (stops or failures) else 0
 
