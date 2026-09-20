@@ -25,6 +25,12 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // 50 ms. This is the ceiling on waiting for it and for the re-bind after it.
 static const NSTimeInterval kHogSettleDeadlineSeconds = 0.5;
 
+// A rebind slower than this held the player queue long enough for the user to
+// feel it as a freeze; see #53 and the comment at configureOutputDeviceOnQueue:.
+// A bit-perfect switch legitimately reached 0.73s on healthy hardware, so a
+// tighter bound would warn about working correctly.
+static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
+
 #pragma mark - Output devices (internal surface + device-change observing)
 
 @implementation AudioPlayer (DevicesInternal)
@@ -164,7 +170,19 @@ static const NSTimeInterval kHogSettleDeadlineSeconds = 0.5;
 // publication is owed here.
 - (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
     _rebindDeviceID = deviceID;
+    // The whole rebuild holds the player queue, so every transport action
+    // submitted during it waits (#53). A device slow to deliver its first IO
+    // cycle can make that seconds. Warn level so it persists and a user can
+    // retrieve it with `log show` rather than having to catch it live; the
+    // narrower attribution, engine start vs node play, is AudioPlayer+Engine's.
+    uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
+    NSTimeInterval seconds =
+            (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - reboundAt) / NSEC_PER_SEC;
+    if (seconds > kSlowDeviceRebindLogThresholdSeconds) {
+        LogWarn(@"AudioPlayer: slow device rebind to %u took %.3fs (%@)",
+                deviceID, seconds, rebound ? @"bound" : @"FAILED");
+    }
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
         [self publishBitPerfectReportOnQueue];

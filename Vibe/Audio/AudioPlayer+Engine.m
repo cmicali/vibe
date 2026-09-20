@@ -9,6 +9,27 @@
 // Give the next track time to open before releasing the idle engine.
 static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 
+// Starting the engine and starting the node both run on the player queue, so
+// either one blocking delays every transport action queued behind it — a seek
+// included, which is how a slow device shows up as a slow SEEK (#53). On a
+// healthy device both are tens of milliseconds; a device that accepts the bind
+// and is slow to deliver its first IO cycle can hold [node play] for seconds.
+//
+// Logged at WARN rather than DEBUG so it PERSISTS: a user hitting this can
+// retrieve it afterwards with `log show`, instead of having to catch it live
+// with `log stream` while the app is frozen.
+//
+// One second, not a tighter bound, because normal operation is not free:
+// measured on healthy hardware, the engine start alone is ~0.22s and the node
+// play ~0.007s, and a bit-perfect device switch reached 0.73s. A threshold
+// under that would warn about working correctly, which is how an instrument
+// stops being read.
+static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 1.0;
+
+static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
+    return (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startNanos) / NSEC_PER_SEC;
+}
+
 @implementation AudioPlayer (Engine)
 
 // TRAP: [AVAudioPlayerNode play] throws if the engine stopped between the
@@ -19,13 +40,17 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
         *outError = nil;
     }
     _engineIdleStopGeneration++; // playback is starting: cancel any pending idle stop
+    NSTimeInterval engineStartSeconds = 0;
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
             [self acquireExclusiveOutputOnQueue]; // gates itself on both settings
 #endif
             NSError *startError = nil;
-            if (![_engine startAndReturnError:&startError]) {
+            uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+            BOOL started = [_engine startAndReturnError:&startError];
+            engineStartSeconds += VibeSecondsSince(startedAt);
+            if (!started) {
                 if (outError) {
                     *outError = startError;
                 }
@@ -44,7 +69,17 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
                 [node prepareWithFrameCount:_engine.manualRenderingMaximumFrameCount];
             }
 #endif
+            uint64_t playedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
             [node play];
+            NSTimeInterval nodePlaySeconds = VibeSecondsSince(playedAt);
+            // Attribute the stall to the call that actually held the queue:
+            // engine start and node play fail for different reasons, and the
+            // remedy differs, so a single total would not separate them.
+            if (engineStartSeconds + nodePlaySeconds > kSlowEngineStartLogThresholdSeconds) {
+                LogWarn(@"AudioPlayer: slow start — engine %.3fs, node play %.3fs "
+                        @"(the player queue was blocked for this long)",
+                        engineStartSeconds, nodePlaySeconds);
+            }
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }
