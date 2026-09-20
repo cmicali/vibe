@@ -188,8 +188,10 @@ release:
 # v<MARKETING_VERSION>, attaches universal and arm64 DMG/zip artifacts, and
 # uses notes from the App Store whats-new.txt. The website points to the
 # architecture-named universal DMG. See scripts/github-release.sh.
+# ARGS reaches the script's [--draft|--prerelease]; without it a beta silently
+# publishes as Latest and repoints the website at a test build.
 github-release:
-	scripts/github-release.sh
+	scripts/github-release.sh $(ARGS)
 
 # Publish Assets/Web to Cloudflare Pages, which serves the canonical
 # vibeplayer.app. Local-only on purpose: the API token stays
