@@ -24,6 +24,12 @@ copy/privacy-url.txt     one URL, shared by every locale. Unlike the two
                          appInfoLocalizations, beside the app name and
                          subtitle, and the uploader patches it per locale
                          so it is not 29 identical edits by hand
+review-notes.txt         App Review Information -> Notes, and the same text
+                         for TestFlight's Beta App Review Information. English
+                         only, not a version field, and nothing uploads it -
+                         paste it into App Store Connect. Tracked because it
+                         is needed twice per release and rewriting it from
+                         memory is how a reviewer ends up at an empty app
 copy/<lang>/<platform>/   platform is macos or ios
   promotional-text.txt   one line, ≤170 chars (ASC limit)
   description.txt        literal plain text as uploaded — no markdown

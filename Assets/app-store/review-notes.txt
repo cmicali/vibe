@@ -1,0 +1,60 @@
+Vibe is a local file player. It bundles no music, streams nothing, and has no
+account, no sign-in, and no network access of any kind. Everything it plays is
+a file already on the device or in the reviewer's own cloud storage.
+
+WHAT YOU WILL SEE ON FIRST LAUNCH
+
+An empty playlist reading "Nothing to Play". That is correct, not a broken
+build: iOS gives an app no access to a user's files until the user hands them
+over, so there is nothing to show until you do one of the following. Any one
+of the three is enough.
+
+1. THE APP'S OWN FOLDER (no permission prompt)
+   In the Files app, go to On My iPhone > Vibe and copy an audio file in.
+   Return to Vibe, open the Files tab, and the file is there. Tap it to play.
+
+2. OPEN A FOLDER FROM ANYWHERE (one system picker, no custom prompt)
+   In Vibe, tap the Files tab and browse to any folder - iCloud Drive, On My
+   iPhone, Dropbox, or any other Files provider. Tapping a folder loads every
+   track in it as the playlist; tapping a single file loads that file. Then
+   tap any row, or the play button in the strip above the tab bar, to start.
+   The access comes from the system picker and is remembered, so it is asked
+   once rather than per file.
+
+3. THE SHARE SHEET
+   From any app showing an audio file, share it to Vibe.
+
+A sample track is attached to this submission, if you would rather not supply
+one of your own.
+
+FORMATS
+
+MP3, MP2, AAC, M4A, MP4, AIFF/AIF, WAV/WAVE/BWF, FLAC, QTA. Playback is
+AVAudioEngine and CoreAudio only - there is no third-party audio library.
+
+THE HOME-SCREEN WIDGET
+
+Add it the usual way: long-press the home screen, Edit, Add Widget, Vibe.
+
+On a clean install it shows a placeholder until Vibe has played something at
+least once. This is by design, not a failure: the widget is a separate process
+that draws only the snapshot the app publishes into the shared app group, and
+a fresh install has published nothing yet. Play one track and the widget fills
+in with the artwork, the title, and a live waveform. Its buttons drive
+transport in the app, and tapping the waveform seeks.
+
+BACKGROUND AUDIO
+
+UIBackgroundModes includes audio. Playback continues with the screen locked,
+and the Lock Screen and Control Center show the current track with working
+transport controls.
+
+PRIVACY
+
+No data is collected, no analytics, no tracking, and no network requests. The
+app uses no permission-gated APIs, so it asks for nothing beyond the file
+access granted through the system picker. UIFileSharingEnabled is on so that
+method 1 above works; the folder it exposes holds only what the user puts
+there.
+
+Vibe is free and open source: https://github.com/cmicali/vibe

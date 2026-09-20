@@ -24,7 +24,7 @@ Nothing in the repo can do these — they are account state.
 | A2 | Add the iOS platform to the app record. | **done** |
 | A3 | App ID must be multi-platform. Verified via the ASC API: both `com.commonwealthrecordings.Vibe` and `…Vibe.Widget` report `platform=UNIVERSAL`. | **done** |
 | A4 | App Groups must reach *distribution*, not just development. Both App IDs carry the `APP_GROUPS` capability, and the App Store distribution profile ("iOS Team Store Provisioning Profile") grants `group.com.commonwealthrecordings.Vibe` — proven by the export postflight in B1, which now enforces it on every run. | **done** |
-| A5 | Beta path. No iOS build has ever been uploaded; the only group is the auto-created internal "App Store Connect Users", and TestFlight Test Information is empty. Plan: internal TestFlight first (no beta review, minutes after processing), external once the copy is closer. Needs a feedback email set; external additionally needs a beta description and Beta App Review Information — write it once and reuse it for F1. | **open** |
+| A5 | Beta path. No iOS build has ever been uploaded; the only group is the auto-created internal "App Store Connect Users", and TestFlight Test Information is empty. Plan: internal TestFlight first (no beta review, minutes after processing), external once the copy is closer. Needs a feedback email set; external additionally needs a beta description and Beta App Review Information — that last one is F1's `review-notes.txt`, written once and used in both places. | **open** |
 | A6 | The iOS version record was created at `1.0` against a `1.12` build, which would have had nothing to attach to. Both platform records now read 1.12. | **done** |
 
 ## B. Build and signing pipeline
@@ -76,7 +76,7 @@ every language.
 
 | | Item | Status |
 |---|---|---|
-| F1 | **A reviewer will open Vibe to an empty app.** No bundled library, no streaming — the model is "the current directory is the playlist". Without review notes explaining how to get audio in (Files tab, open-in-place from the share sheet, a file dropped into the Vibe folder), this is the likeliest rejection. Consider attaching a sample track. Same content as A5's Beta App Review Information. | **open** |
+| F1 | **A reviewer will open Vibe to an empty app.** Notes written to `Assets/app-store/review-notes.txt`: what the empty first launch means and that it is correct, the three ways to get audio in, the formats, why the widget shows a placeholder until the app has played once, background audio, and the privacy answer. Tracked because A5 needs the same text for Beta App Review Information. **Nothing uploads it** — paste it into ASC. Two things left for you: read it, and either attach a sample track or delete the paragraph that promises one. | **open** — drafted, needs your read |
 | F2 | Verify background audio on a real device, not the simulator: lock-screen controls, Now Playing, playback with the screen off. `UIBackgroundModes: [audio]` is a claim review exercises. | **open** |
 | F3 | Exercise the widget on a clean install before submitting — the app-group container is empty until the app publishes its first snapshot, which is exactly the state a reviewer hits. | **open** |
 
