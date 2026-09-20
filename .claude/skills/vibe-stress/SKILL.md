@@ -14,6 +14,7 @@ Three drivers, three questions:
 - **`stress.py`** randomizes controller actions for hours and notices when something breaks. Every profile is command-only: no raw mouse events, keyboard events or per-operation activation.
 - **`torture.py`** loads one large playlist and hammers transport so track changes outrun everything async.
 - **`cloud-scenarios.py`** drives one named situation and asserts what the fake provider's trace must contain — the cloud guarantees are about *order*, which random driving cannot state.
+- **`device-flap.py`** makes the output device disappear and return, hundreds of times, and asserts playback survived — a named guarantee random driving cannot state either, and one deliberately kept out of the stress profiles.
 
 **Unattended stress must leave desktop input alone.** `Channel` allows only reviewed controller/delegate commands and a small set of app-only menu identifiers. It rejects raw `click`, `drag`, `mouse_*`, `key*`, arbitrary `script` wrappers and unknown verbs, including inside nested `block_main` calls. Single commands, batches, journals, replay and shrink all use this gate. An old journal containing input is rejected before replay/shrink launches the app; do not silently filter it and claim the same reproduction. There is no flag that unlocks random input. Launching Vibe and explicitly changing its window size still affect its presentation.
 
@@ -51,6 +52,19 @@ make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 ```
 
 The first two corpus folders must each hold 6–40 playable files; larger folders outlive a scenario's bounds or rotate its finite trace. Clean report is **`PASS=24 XFAIL=1`** (S9), no `FAIL`/`ERROR`. `XFAIL` does not fail the run; `XPASS`, `FAIL` and `ERROR` do, and an `XPASS` is a finding to investigate — the gap closed or the scenario stopped reaching it. The scenario rules, the registry and the `block_main` instrument are `references/cloud-scenarios.md`.
+
+**Device flap.** One question: does playback survive the output device going away and coming back? `--mode vanish` builds a *public* aggregate over a real device, makes it the system default and destroys it, so the default device genuinely ceases to exist — what a USB DAC does when it sleeps. `--mode move` only reassigns the default between two devices that both persist, a strictly weaker stimulus kept to separate "the default moved" from "the device vanished". Oracles per flap: playback state and position, `check_consistency`, the app alive; `dump_health` against a min-of-first-three baseline every `--health-every`; a closing `quiesce` requiring every `pending` counter at zero.
+
+```bash
+.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device 87 --flaps 300
+.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device 87 --device-b 111 --mode move
+```
+
+`--device` is an `AudioDeviceID`, which **changes whenever the device re-enumerates** — read it fresh, never from a note. The Swift helper beside the script is rebuilt on demand.
+
+**TRAP: this moves audio for every app on the machine, not just Vibe** — which is why device changes are excluded from the stress profiles rather than added as a profile, and why this is run deliberately rather than left soaking unattended. It restores the original default on every exit path including SIGINT/SIGTERM, but a SIGKILL leaves the default moved and may strand a public aggregate.
+
+**TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
 
 **Sanitizer matrix.** Three builds catch disjoint classes; **TSan matters most** because the threading contract (engine mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
 
