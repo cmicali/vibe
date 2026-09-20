@@ -148,6 +148,7 @@ for f in "$TRACK_PLAYER" "$TRACK_PITCH" "${TRACK_PITCH_EXTRAS[@]}" "$FOLDER"; do
 done
 
 trap screenshot_cleanup EXIT INT TERM
+require_global_input
 require_debug_build
 mkdir -p "$OUT_DIR"
 pkill -x Vibe 2>/dev/null && sleep 1 || true

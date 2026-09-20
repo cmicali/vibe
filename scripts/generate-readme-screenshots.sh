@@ -83,9 +83,16 @@ for f in "$TRACK_BASIC" "${TRACK_BASIC_EXTRAS[@]}" "$TRACK_PITCH" "$FOLDER"; do
 done
 
 trap screenshot_cleanup EXIT INT TERM
+require_global_input
 require_debug_build
 mkdir -p "$OUT_DIR"
 pkill -x Vibe 2>/dev/null && sleep 1 || true
+# TRAP: --debug-cmd talks to a RUNNING app, and the pkill above just ended it,
+# so the appearance pin needs its own launch. Appearance and theme are both
+# persisted settings rather than window state, which is why they are pinned
+# once here instead of per shot — but that is also what makes it easy to
+# forget they need the app up to be written at all.
+launch
 quiet set_appearance "$APPEARANCE"
 
 if [ "$BACKDROP" = 1 ]; then

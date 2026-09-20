@@ -264,8 +264,41 @@ playing_row_point() { # <0-based row>
 # "<windowID> <pid> <x> <y> <w> <h>" — global screen points, top-left origin.
 win_geom() { swift "$SKILL/find-window.swift" "$(pgrep -x Vibe | head -1)" | head -1; }
 
+# Moving the real cursor means global CGEvents, and input.swift gates those
+# behind --isolated-desktop. That flag's own header says it ASSERTS isolation
+# rather than creating it, so the assertion has to come from a person, per run
+# — this library must never make it on a caller's behalf. Export
+# ALLOW_GLOBAL_INPUT=1 to make it yourself.
+#
+# TRAP: --isolated-desktop became mandatory in #32 (2026-09-16) and this
+# library kept calling input.swift without it, so every capture run since then
+# died at the first cursor move — after a full build, launch and shot setup.
+# require_global_input is called at the top of both capture scripts as well as
+# here, so the refusal arrives before that work rather than after it.
+require_global_input() {
+    [ "${ALLOW_GLOBAL_INPUT:-}" = 1 ] && return 0
+    cat >&2 <<'MSG'
+error: these captures move the REAL mouse pointer with global CGEvents.
+
+       They have to: the transport and traffic-light buttons are revealed by a
+       window-wide NSTrackingArea, tracking areas are driven by the window
+       server, and posted NSEvents (--debug-cmd mouse_move) never reach them.
+
+       input.swift requires --isolated-desktop for this, meaning a dedicated
+       test Mac or a disposable VM. The flag asserts isolation; it does not
+       create it. Running here takes over this machine's pointer for the whole
+       run, so assert it deliberately, per run:
+
+           ALLOW_GLOBAL_INPUT=1 make screenshots
+
+       Do not set it in a shell profile, in CI, or during unattended stress.
+MSG
+    exit 64
+}
+
 cursor_to() { # <global-x> <global-y>
-    swift "$SKILL/input.swift" move "$1" "$2"
+    require_global_input
+    swift "$SKILL/input.swift" --isolated-desktop move "$1" "$2"
     quiet sleep 0.3
 }
 
