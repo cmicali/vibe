@@ -167,7 +167,7 @@ bites:
    holding a copy under the old TTL will not ask again until it expires, so
    the fix appears not to work for hours.
 
-Only changing the URL solves (2). `scripts/web-stamp-css.sh` writes the
+Only changing the URL solves (2). `scripts/web-stamp-assets.sh` writes the
 stylesheet's content hash into the `?v=` on every page that links it, so a
 changed stylesheet is a changed URL and no cache anywhere is consulted.
 `deploy-web.sh` runs it with `--check` and refuses to publish a mismatch,

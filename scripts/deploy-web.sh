@@ -114,7 +114,7 @@ fi
 
 # A stylesheet whose hash does not match what the pages link is the one failure
 # that looks like the deploy did nothing: correct markup, cached old rules.
-scripts/web-stamp-css.sh --check
+scripts/web-stamp-assets.sh --check
 
 # The button's href is the one thing on the page that can be wrong in a way a
 # visitor notices immediately.
