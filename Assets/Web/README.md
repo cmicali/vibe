@@ -21,8 +21,11 @@ works too.
 
 ## Where the images come from
 
-`img/` is generated from assets already in the repo, so it is regenerated rather
-than edited:
+`img/` is generated from assets already in the repo by
+`scripts/web-build-images.sh`, so it is regenerated rather than edited.
+`--check` fails when a derivative no longer matches its source: these were
+hand-made once, nothing re-made them when the captures changed, and the site
+served month-old screenshots through a release deploy before anyone noticed.
 
 | Output | Source |
 | --- | --- |
@@ -36,8 +39,8 @@ The screenshots carry the window's own rounded corners and a transparent margin,
 which is why the page shadows them with `filter: drop-shadow` rather than
 `box-shadow` — a box shadow would trace the image rectangle instead of the window.
 A simulator capture is a plain rectangle, so `img/ios.png` is given the same
-treatment by hand: round at full resolution first and scale after, or the corner
-stair-steps instead of averaging.
+treatment by the script: round at full resolution first and scale after, or the
+corner stair-steps instead of averaging.
 
 `.shot-phone` caps the phone at 300px. The window shots run to `.shot`'s 800px,
 which on a portrait image would be nearly 1800px tall.
