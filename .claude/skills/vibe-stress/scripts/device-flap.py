@@ -80,6 +80,23 @@ BASELINE_SAMPLES = 3
 CONSECUTIVE_BREACHES = 3
 GROWTH_FACTOR = 3.0
 
+# TRAP: VANISH MODE DEGRADES coreaudiod, AND THE DAMAGE OUTLIVES THIS SCRIPT.
+# Each vanish publishes and destroys a system-wide aggregate. Around 400 of them
+# in an afternoon left the daemon unable to start IO on ANY device: a fresh Vibe
+# launch logged "node play threw (player did not see an IO cycle.); retrying"
+# and then "Could not start audio engine", and a standalone AVAudioEngine in an
+# unrelated process hung for 15s on the built-in speakers. Nothing was hogged,
+# no aggregates were stranded and no test process survived — the device layer
+# was clean and the daemon was not. It took `sudo killall coreaudiod` to clear,
+# which needs a password this script cannot supply.
+#
+# So: a large run is opt-in, and a long one pauses to let the daemon breathe.
+# These numbers are judgement, not measurement — 400 broke it and 300 did not,
+# and nobody has bisected the threshold.
+MAX_UNCAPPED_FLAPS = 250
+RECOVER_EVERY = 20.0      # seconds of quiet
+RECOVER_BATCH = 100       # ...every this many flaps
+
 
 def dig(d, dotted):
     for part in dotted.split("."):
@@ -103,6 +120,19 @@ class App:
             return json.loads(p.stdout)
         except Exception:
             return {}
+
+    def wait_for_channel(self, seconds=45):
+        """The process existing is not the channel answering. launch.sh polls
+        for it, but a relaunch racing a dying instance can return before the new
+        one is listening — and then the first verb reads as an empty reply, which
+        looks exactly like the app refusing to play. An unattended run must not
+        die two seconds in for that."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if self.json("dump_state", timeout=10).get("player"):
+                return True
+            time.sleep(0.5)
+        return False
 
     def alive(self):
         # The CLI client IS the app binary, so filter argv for the GUI process.
@@ -148,6 +178,13 @@ def main():
                          "sandbox grant covers it")
     ap.add_argument("--app", type=Path, default=DEFAULT_APP)
     ap.add_argument("--flaps", type=int, default=200)
+    ap.add_argument("--i-know-this-degrades-coreaudiod", action="store_true",
+                    help=f"permit more than {MAX_UNCAPPED_FLAPS} flaps in one "
+                         "run; see the trap on coreaudiod in the docstring")
+    ap.add_argument("--recover-every", type=int, default=RECOVER_EVERY,
+                    help="pause this many seconds every --recover-batch flaps "
+                         "to let coreaudiod settle; 0 disables")
+    ap.add_argument("--recover-batch", type=int, default=RECOVER_BATCH)
     ap.add_argument("--mode", choices=("vanish", "move"), default="vanish",
                     help="vanish: the default device ceases to exist (faithful). "
                          "move: the default merely moves (weaker, isolates which "
@@ -167,6 +204,19 @@ def main():
     if args.mode == "move" and not args.device_b:
         sys.exit("--mode move needs --device-b")
 
+    if (args.mode == "vanish" and args.flaps > MAX_UNCAPPED_FLAPS
+            and not args.i_know_this_degrades_coreaudiod):
+        sys.exit(
+            f"refusing {args.flaps} vanish flaps in one run.\n\n"
+            f"Each one publishes and destroys a system-wide aggregate, and "
+            f"about 400 in an afternoon left coreaudiod unable to start IO on "
+            f"any device — including for unrelated apps. Clearing it needs "
+            f"`sudo killall coreaudiod`.\n\n"
+            f"Either run {MAX_UNCAPPED_FLAPS} or fewer, use --mode move (which "
+            f"creates no devices), or pass "
+            f"--i-know-this-degrades-coreaudiod if you accept that risk on "
+            f"this machine.")
+
     helper = build_helper(HERE / "device-flap-helper")
     binary = args.app / "Contents/MacOS/Vibe"
     if not binary.exists():
@@ -181,12 +231,22 @@ def main():
     app = App(binary)
     if not app.alive():
         sys.exit("app did not come up")
+    if not app.wait_for_channel():
+        sys.exit("app is running but its debug channel never answered — a "
+                 "Release build, or a second instance holding the channel")
 
-    app.json("play_index", "0")
-    time.sleep(2.0)
-    state, pos = app.playback()
-    if state != "playing":
-        sys.exit(f"could not start playback (state={state})")
+    # Retry the start: the first play after launch can land while the metadata
+    # scan still has the file, and one empty reply is not a reason to abandon a
+    # run that was going to take an hour.
+    for attempt in range(3):
+        app.json("play_index", "0")
+        time.sleep(2.0)
+        state, pos = app.playback()
+        if state == "playing":
+            break
+        print(f"  start attempt {attempt + 1}: state={state}, retrying", flush=True)
+    else:
+        sys.exit(f"could not start playback after 3 attempts (state={state})")
     print(f"playing at {pos:.1f}s; flapping {args.flaps}x in {args.mode} mode", flush=True)
 
     baseline, stops, failures, helper_errors = None, [], [], 0
@@ -249,6 +309,12 @@ def main():
                                     f"{CONSECUTIVE_BREACHES} samples: {b} -> {v}"))
                     else:
                         breaches[k] = 0
+
+        if (args.mode == "vanish" and args.recover_every and args.recover_batch
+                and i % args.recover_batch == 0 and i < args.flaps):
+            print(f"  flap {i}: pausing {args.recover_every:.0f}s to let "
+                  f"coreaudiod settle", flush=True)
+            time.sleep(args.recover_every)
 
         if args.rest_every and i % args.rest_every == 0:
             # Quiesce closes the file and unwinds pending work, so what remains
