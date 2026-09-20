@@ -1,12 +1,14 @@
-* Bit-perfect playback and exclusive mode for audio output devices
-* File > Save Playlist... (⌘S) exports the playlist as an M3U file
-* A new setting to load the last playlist on launch
-* More theme customization, including transport controls and the app icon
-* New Glassy, Snake, and Tangerine themes, plus undo and randomize in the theme editor
-* New Wiggle and Wiggle MC waveform styles
-* Waveform normalize now only boosts quiet tracks
-* Reworked Settings, with a new audio device picker
-* Enabling audio effects no longer requires restarting the app
-* Faster loading of large folders, and smoother window resizing
-* Fixed audio being slightly colored when the low-cut effect was off
-* Fixed Dock album art not updating after switching themes
+This beta adds diagnostics for a reported playback delay on the System Output
+setting, and is not otherwise a feature release.
+
+* Output device changes that take longer than a second now record where the
+  time went — the graph teardown, the device format restore, the rebind, the
+  reschedule and the audio engine start are timed separately, so a slow one
+  can be attributed rather than guessed at.
+* The Output list no longer offers Vibe's own internal audio device as
+  something you can select.
+* Clearer wording when bit-perfect output is unavailable: the System Output
+  setting now says so directly instead of asking for a wired device.
+
+If you are helping diagnose the delay, these lines are recorded by the system
+and can be retrieved afterwards — there is no need to capture anything live.

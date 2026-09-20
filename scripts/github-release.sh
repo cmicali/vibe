@@ -2,7 +2,7 @@
 #
 # Publish the notarized Developer ID build as a GitHub release.
 #
-#   scripts/github-release.sh [--draft]
+#   scripts/github-release.sh [--draft|--prerelease]
 #
 # Takes the universal and arm64-only products from `make release`, verifies
 # every app/image staple and exact binary architecture, tags HEAD as v<version>
@@ -25,6 +25,14 @@
 # macOS direct download, and iOS has one of its own under copy/en/ios/.
 #
 # --draft creates the release unpublished, for a final look in the web UI.
+#
+# --prerelease publishes a beta. It marks the release so GitHub does not call it
+# "Latest", and — the load-bearing half — it does NOT repoint the marketing page.
+# A beta must never become vibeplayer.app's default download: web-set-version.sh
+# rewrites the button and the /download/latest redirect, and a beta landing there
+# would hand every visitor a test build. The v1.12-beta* releases predate this
+# flag and were marked by hand in the web UI, which is exactly the step that is
+# easy to forget once and hard to notice.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -42,10 +50,12 @@ NOTES="Assets/app-store/copy/en/macos/whats-new.txt"
 source scripts/asc-build-lib.sh
 
 DRAFT=""
+PRERELEASE=""
 case "${1:-}" in
     --draft) DRAFT="--draft" ;;
+    --prerelease) PRERELEASE="--prerelease" ;;
     "") ;;
-    *) echo "usage: scripts/github-release.sh [--draft]" >&2; exit 64 ;;
+    *) echo "usage: scripts/github-release.sh [--draft|--prerelease]" >&2; exit 64 ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -218,6 +228,9 @@ cp "$ARM64_ZIP" "$ASSET_ARM64_ZIP"
 if [[ -n "$DRAFT" ]]; then
     echo "🔊 draft — leaving the web page pointing at the previous release"
     echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
+elif [[ -n "$PRERELEASE" ]]; then
+    echo "🔊 prerelease — leaving the web page on the last stable release"
+    echo "   a beta must not become vibeplayer.app/download/latest"
 else
     scripts/web-set-version.sh "$VERSION"
     WEB_FILES=(Assets/Web/index.html Assets/Web/_redirects)
@@ -251,8 +264,8 @@ gh release create "$TAG" \
     --title "Vibe $VERSION" \
     --notes-file "$NOTES" \
     --target "$(git rev-parse HEAD)" \
-    ${DRAFT:+"$DRAFT"}
+    ${DRAFT:+"$DRAFT"} ${PRERELEASE:+"$PRERELEASE"}
 
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url
-[[ -n "$DRAFT" ]] || echo "🔊 next: make deploy-web    (publishes the page to Cloudflare)"
+[[ -n "$DRAFT$PRERELEASE" ]] || echo "🔊 next: make deploy-web    (publishes the page to Cloudflare)"
