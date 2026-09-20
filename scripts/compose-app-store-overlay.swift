@@ -53,6 +53,15 @@ let WINDOW_H_FRAC = 0.72
 // Vertical placement of the headline + window block within the free space.
 let BLOCK_Y_FRAC = 0.5
 
+// --center-text instead pins the window to this margin below it and centres
+// the text in whatever space is left above. Centring the whole stack (the
+// default) lets the window ride up and down as the headline wraps, which is
+// invisible when every shot's text is the same height and obvious as a jump
+// when it is not — the iOS set has one- and two-line headlines side by side.
+// Pinning keeps the device at one height across a set however long each
+// headline runs.
+let WINDOW_BOTTOM_FRAC = 0.063
+
 let GROOVE = "\(ROOT)/Assets/record background.png"
 
 // SF Pro through NSFont.systemFont, which matches the type inside the window
@@ -365,10 +374,20 @@ func buildBackground(art: Buffer, washColor: String?, w: Int, h: Int) -> Buffer 
 
 // --- text -------------------------------------------------------------------
 
-// Point size and leading of each line, as fractions of the canvas width.
+// Point size and leading of each line. The size fraction is of the canvas's
+// GEOMETRIC MEAN, sqrt(w*h), not its width.
+//
+// Width alone works while every canvas is landscape, and it is what this used
+// to do. It breaks on a portrait one: 1290x2796 is nearly the same area as
+// 2880x1800, but its width is 45% as large, so the headline came out at 43pt
+// against the macOS canvas's 95pt and read as a caption rather than a
+// headline. The geometric mean tracks area, so type scales with how big the
+// shot actually is rather than with which way round it happens to be. The
+// constants are derived from the macOS canvas, which therefore renders
+// byte-identically to before.
 // (kind, sizeFrac, leading, alpha)
 let LINES: [(String, Double, Double, Double)] = [
-    ("headline", 0.0330, 1.30, 255), ("subhead", 0.0180, 1.40, 195),
+    ("headline", 0.041742, 1.30, 255), ("subhead", 0.022768, 1.40, 195),
 ]
 // Widest a text line may run, as a fraction of the canvas. When a translation
 // exceeds it the point size shrinks (headline) or the line wraps then shrinks
@@ -439,25 +458,34 @@ extension String {
 // Resolve both strings into rendered lines. drawText and textHeight both
 // consume this, so the drawn stack and the vertical centering can never
 // disagree. Dies (exit 1) when a string cannot fit — the --measure contract.
-func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ lang: String) -> [Line] {
+// headlineScale multiplies ONLY the headline. iOS screenshots carry no
+// subhead — at store thumbnail size a second, smaller line is unreadable and
+// only steals room from the one line that is — so the headline is sized to
+// carry the whole message on its own.
+func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lang: String,
+                _ headlineScale: Double = 1.0) -> [Line] {
     let maxW = Double(w) * MAX_TEXT_W_FRAC
+    // Sizes scale with area; the line-width cap stays a fraction of WIDTH,
+    // since that is what a line actually has to fit inside.
+    let typeBase = (Double(w) * Double(h)).squareRoot()
     let headlineTracking = CJK_LANGS.contains(lang) ? 0.0 : HEADLINE_TRACKING
     var out: [Line] = []
     for ((kind, sizeFrac, leading, alpha), (content, trackingFrac)) in zip(
         LINES, [(headline, headlineTracking), (subhead, SUBHEAD_TRACKING)])
     {
         if content.isEmpty { continue }
-        let nominal = Double(Int(Double(w) * sizeFrac))
+        let roleScale = kind == "headline" ? headlineScale : 1.0
+        let nominal = Double(Int(typeBase * sizeFrac * roleScale))
         var size = nominal
         var lines: [String]?
         while true {
             let font = makeFont(kind, size)
             let tracking = trackingFrac * size
-            if kind == "headline" {
-                lines = lineWidth(content, font, tracking) <= maxW ? [content] : nil
-            } else {
-                lines = wrapTwo(content, font, tracking, maxW, lang)
-            }
+            // Both roles wrap to at most two lines. wrapTwo returns the
+            // single line unchanged when it already fits, so the macOS shots —
+            // whose headlines all fit at nominal size — render exactly as
+            // before; the wrap only engages for the much larger iOS headline.
+            lines = wrapTwo(content, font, tracking, maxW, lang)
             if lines != nil { break }
             size = (size * SHRINK_STEP).rounded(.down)
             if size < nominal * MIN_SHRINK {
@@ -601,7 +629,7 @@ func dropShadows(canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, sca
 func compose(
     shot: String, out: String, headline: String, subhead: String,
     canvasW: Int, canvasH: Int, widthFrac: Double, glyphs: [String], lang: String,
-    washColor: String?
+    washColor: String?, headlineScale: Double, centerText: Bool
 ) {
     let (rawWin, header) = loadWindow(shot)
     let art = crop(rawWin, x: 0, y: 0, w: header, h: header)
@@ -622,11 +650,16 @@ func compose(
         glyphGap = Double(canvasW) * GLYPH_BLOCK_GAP_FRAC
     }
 
-    let layout = layoutText(headline, subhead, canvasW, lang)
+    let layout = layoutText(headline, subhead, canvasW, canvasH, lang, headlineScale)
     let blockH = textHeight(layout)
     let gap = blockH > 0 ? Double(canvasW) * 0.032 : 0
     let stack = glyphH + glyphGap + blockH + gap + Double(win.h)
     var top = (Double(canvasH) - stack) * BLOCK_Y_FRAC
+    var windowTop = top + glyphH + glyphGap + blockH + gap
+    if centerText {
+        windowTop = Double(canvasH) - Double(win.h) - Double(canvasH) * WINDOW_BOTTOM_FRAC
+        top = (windowTop - (glyphH + glyphGap + blockH)) / 2
+    }
 
     if !glyphImages.isEmpty {
         let (scaled, total, rowH) = layoutGlyphs(glyphImages, canvasW)
@@ -651,7 +684,7 @@ func compose(
     }
 
     let x = (canvasW - win.w) / 2
-    let y = Int(top + blockH + gap)
+    let y = Int(windowTop)
     for shadow in dropShadows(canvasW: canvasW, canvasH: canvasH, window: win, x: x, y: y, scale: scale) {
         composite(&canvas, shadow, x: 0, y: 0)
     }
@@ -668,6 +701,8 @@ func compose(
 var shot: String?, outPath: String?
 var headline = "", subhead = "", lang = "en"
 var washColor: String? = nil
+var headlineScale = 1.0
+var centerText = false
 var widthFrac = WINDOW_W_FRAC
 var canvasSpec = "\(CANVAS_W)x\(CANVAS_H)"
 var glyphSpec = ""
@@ -690,6 +725,8 @@ while !args.isEmpty {
     // Override the album-art background with one colour, for a shot whose
     // artwork fights what it is advertising.
     case "--wash-color": washColor = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+    case "--headline-scale": headlineScale = Double(value()) ?? 1.0
+    case "--center-text": centerText = true
     case "--measure": measure = true
     default:
         if arg.hasPrefix("--") { die("unknown option \(arg)") }
@@ -701,7 +738,7 @@ let canvasParts = canvasSpec.split(separator: "x").compactMap { Int($0) }
 guard canvasParts.count == 2 else { die("bad --canvas \(canvasSpec)") }
 
 if measure {
-    _ = layoutText(headline, subhead, canvasParts[0], lang)
+    _ = layoutText(headline, subhead, canvasParts[0], canvasParts[1], lang, headlineScale)
     exit(0)
 }
 guard let shotPath = shot, let output = outPath else {
@@ -711,4 +748,5 @@ let glyphNames = glyphSpec.split(separator: ",").map { $0.trimmingCharacters(in:
 compose(
     shot: shotPath, out: output, headline: headline, subhead: subhead,
     canvasW: canvasParts[0], canvasH: canvasParts[1], widthFrac: widthFrac,
-    glyphs: glyphNames, lang: lang, washColor: washColor)
+    glyphs: glyphNames, lang: lang, washColor: washColor, headlineScale: headlineScale,
+    centerText: centerText)

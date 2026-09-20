@@ -217,6 +217,12 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the two are separate (root CLAUDE.md). An unknown identifier is
             // refused with the list rather than silently falling back, since
             // the fallback chain would otherwise make a typo look like a style.
+            //
+            // TRAP: the two wiggle identifiers read backwards. `wiggle` is
+            // displayed "Wiggle MC" (loops on a bottom baseline) and
+            // `wiggle_centered` is displayed "Wiggle" (a line about the
+            // midline). Asking for the one named after what you see gets the
+            // other, and both draw wiggles, so it looks like it worked.
             VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
                 if (tokens.count < 2) {

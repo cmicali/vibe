@@ -1,0 +1,6 @@
+[
+  { "id": "player",   "headline": "Play your files" },
+  { "id": "seek",     "headline": "Waveform seek" },
+  { "id": "playlist", "headline": "Open a folder, press play" },
+  { "id": "widget",   "headline": "Yes, widgets" }
+]

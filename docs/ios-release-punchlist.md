@@ -58,11 +58,11 @@ every language.
 | | Item | Status |
 |---|---|---|
 | D0 | The macOS shot set was reworked in passing: `keys` (keyboard shortcuts) replaced by `themes`, `pitch` moved to the compact capture, one built-in theme per shot, and window sizes pinned instead of inherited from the autosaved frame. Not iOS work, but it is why C2 has a caption to translate. | **done** |
-| D1 | There is no iOS screenshot pipeline. `appstore-generate-store-screenshots.sh` composites *macOS window captures* onto a 2880×1800 canvas. The building blocks exist: `xcrun simctl io <udid> screenshot` for ground-truth pixels, and the `vibe-debug` channel to stage the app before each shot. | **open** |
-| D2 | iPad screenshots are **required** — `TARGETED_DEVICE_FAMILY` is `1,2`. | **open** |
+| D1 | An iOS screenshot pipeline. `--platform ios` on `appstore-generate-store-screenshots.sh`, compositing simulator captures onto the two required canvases. Four shots — `player`, `seek`, `playlist`, `widget` — staged through the debug channel and captured with `xcrun simctl io <udid> screenshot`, so the pixels are the device's own. Three compositor changes were needed and **all three are no-ops on macOS, byte-verified after each**: type scaled by the canvas's geometric mean rather than its width, a headline that wraps to two lines, and `--center-text`. | **done** |
+| D2 | iPad screenshots are **required** — `TARGETED_DEVICE_FAMILY` is `1,2`. Same four shots at 2048×2732, captured on `iPad Pro (12.9-inch) (6th generation)`. | **done** |
 | D3 | **Resolved against Apple's own API.** A deliberately invalid POST made ASC enumerate the valid `screenshotDisplayType` values: `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129` are both there and **`APP_IPHONE_69` does not exist at all** — so the pinned Bagbutik 24.0.3 needs no bump (upstream has nothing newer either; 24.0.3 is the latest tag). Targets are **iPhone 6.7\" = 1290x2796** and **iPad 12.9\" = 2048x2732**, and simulators exist at exactly those sizes: `iPhone 16 Plus` and `iPad Pro (12.9-inch) (6th generation)`. | **done** |
-| D4 | New captions × 29 languages. The four macOS shot ids (`player`, `playlist`, `pitch`, `keys`) do not map to iOS — there is no pitch fader and no keyboard shortcuts. Think playlist / now-playing card / favorites / widget. | **blocked** on D1 |
-| D5 | The caption-fit validator (`compose-app-store-overlay.swift --measure`) is sized for the macOS canvas; it needs iOS geometry or the fit check means nothing. | **blocked** on D1 |
+| D4 | New captions × 29 languages. iOS carries a **headline only** — at the size the store draws a phone screenshot a second smaller line is unreadable, so the headline runs at 1.9× nominal and says the whole thing. English is settled: "Play your files", "Waveform seek", "Open a folder, press play", "Yes, widgets". The other 29 languages are deliberately **last in the release**, so the copy can still be tweaked without re-translating. | **open** |
+| D5 | The caption-fit validator (`compose-app-store-overlay.swift --measure`) is sized for the macOS canvas; `shot_ids ios` still returns nothing, so no iOS caption is fit-checked at all. Needs the iOS shot ids, both iOS canvases and the 1.9× headline scale. Matters more on iOS than macOS: at 1.9× with a two-line cap, a long translation shrinks to the 72% floor and then fails the build. | **open** |
 
 ## E. Bundle details
 
@@ -112,6 +112,17 @@ every language.
   `screenshot-lib.sh`, so every run since had died at its first cursor move.
   Fixed in `fed353d9`; global input is now a per-run `ALLOW_GLOBAL_INPUT=1`
   assertion rather than something a library claims on the caller's behalf.
+- **An unsigned simulator build cannot show the widget working.** `make
+  build-ios` passes `CODE_SIGNING_ALLOWED=NO`, which drops the entitlements,
+  which means no app-group container, which means the widget never sees a
+  snapshot and sits on its placeholder forever. It reads exactly like a
+  product bug. `VIBE_SIGN_SIM=1` signs ad-hoc with entitlements intact and is
+  what the screenshot loop needs.
+- **`set -o pipefail` plus a consumer that exits early is a landmine.** Both
+  `unzip -l … | grep -q` in the release postflights and `… | head -5` in the
+  screenshot generator killed their producer with SIGPIPE and failed the run,
+  the second one silently truncating an iPad loop mid-way. Capture the output
+  to a variable first, then filter it.
 - The iOS app uses **no permission-gated APIs and does no networking**, so App
   Privacy stays "no data collected", there are no usage-description strings to
   write, and `ITSAppUsesNonExemptEncryption: false` means no per-build export

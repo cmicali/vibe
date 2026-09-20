@@ -61,6 +61,14 @@ if [ "${1:-}" = --all ]; then
     exit 0
 fi
 
+# macOS by default; --platform ios composites the two iOS canvases instead.
+PLATFORM=macos
+case "${1:-}" in
+    --platform) shift; PLATFORM="${1:-}"; shift ;;
+    --platform=*) PLATFORM="${1#*=}"; shift ;;
+esac
+case "$PLATFORM" in macos|ios) ;; *) echo "--platform must be macos or ios" >&2; exit 64 ;; esac
+
 L="${1:-en}"
 if ! "$LANGS" | grep -qx "$L"; then
     echo "unknown language '$L' — catalog languages:" >&2
@@ -70,19 +78,22 @@ if ! "$LANGS" | grep -qx "$L"; then
 fi
 
 IN="$ROOT/Assets"
-COPY="$ROOT/Assets/app-store/copy/$L/macos/screenshots.json"
-OUT="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
+COPY="$ROOT/Assets/app-store/copy/$L/$PLATFORM/screenshots.json"
 
 [ -f "$COPY" ] || {
-    echo "missing: $COPY — translate Assets/app-store/copy/en/macos/screenshots.json for '$L'" >&2
+    echo "missing: $COPY — translate Assets/app-store/copy/en/$PLATFORM/screenshots.json for '$L'" >&2
     exit 1
 }
 
-mkdir -p "$OUT"
-# Every shot is regenerated on every run, so the directory is emptied first:
-# otherwise a renamed or removed shot survives here and the uploader, which
-# takes every .png in file-name order, ships it beside the current set.
-rm -f "$OUT"/*.png
+# Empties and recreates one output directory. Every shot is regenerated on
+# every run, so it is cleared first: otherwise a renamed or removed shot
+# survives there and the uploader, which takes every .png in file-name order,
+# ships it beside the current set.
+prepare_out() { # <dir>
+    OUT="$1"
+    mkdir -p "$OUT"
+    rm -f "$OUT"/*.png
+}
 
 # Optional row of SF Symbols drawn above the player headline, larger than it.
 # Empty means no row, which is the current design — the glyphs are OFF.
@@ -96,23 +107,62 @@ rm -f "$OUT"/*.png
 # through that same API.
 PLAYER_GLYPHS=""
 
+# The iOS sets are headline-only, so a missing subhead there is the format
+# rather than an omission; on macOS both are required and an empty one is an
+# error. Passing an empty subhead to the compositor drops the line entirely.
 caption() { # <id> <headline|subhead>
     local v
     v="$(jq -r --arg id "$1" --arg f "$2" \
         'first(.[] | select(.id == $id)) | .[$f] // empty' "$COPY")"
-    [ -n "$v" ] || { echo "missing or empty $2 for shot '$1' in $COPY" >&2; exit 1; }
+    if [ -z "$v" ] && ! { [ "$PLATFORM" = ios ] && [ "$2" = subhead ]; }; then
+        echo "missing or empty $2 for shot '$1' in $COPY" >&2; exit 1
+    fi
     printf '%s' "$v"
 }
 
 shot() { # <id> <source> <output> [glyphs] [wash-color]
     [ -f "$IN/$2" ] || { echo "missing: $IN/$2 — run generate-readme-screenshots.sh" >&2; exit 1; }
-    local wash=()
+    local wash=() canvas=() hscale=() centre=()
+    [ -n "${CENTER_TEXT:-}" ] && centre=(--center-text)
     [ -n "${5:-}" ] && wash=(--wash-color "$5")
+    [ -n "${CANVAS:-}" ] && canvas=(--canvas "$CANVAS")
+    [ -n "${HEADLINE_SCALE:-}" ] && hscale=(--headline-scale "$HEADLINE_SCALE")
     "$COMPOSE_BIN" "$IN/$2" "$OUT/$3" --lang "$L" \
         --headline "$(caption "$1" headline)" \
         --subhead "$(caption "$1" subhead)" \
-        --glyphs "${4:-}" ${wash[@]+"${wash[@]}"}
+        --glyphs "${4:-}" ${wash[@]+"${wash[@]}"} ${canvas[@]+"${canvas[@]}"} \
+        ${hscale[@]+"${hscale[@]}"} ${centre[@]+"${centre[@]}"}
 }
+
+# iOS: one directory per App Store Connect screenshot set, because iPhone and
+# iPad are SEPARATE sets (APP_IPHONE_67 and APP_IPAD_PRO_3GEN_129) rather than
+# two sizes of one. The canvases are those sets' exact pixel sizes, which are
+# also the simulators' native sizes, so nothing is resampled. macOS has a
+# single set (APP_DESKTOP) and keeps its flat directory.
+if [ "$PLATFORM" = ios ]; then
+    # No subhead, and a headline nearly twice nominal. At the size the store
+    # actually draws these, a second smaller line is unreadable and only takes
+    # room from the one line that is, so the headline carries the message
+    # alone — which is why the iOS captions are short enough to wrap to two
+    # lines at this size rather than shrink back down.
+    HEADLINE_SCALE="${HEADLINE_SCALE:-1.9}"
+    # One- and two-line headlines sit side by side in this set, so the device
+    # is pinned and the text centred above it rather than the whole stack
+    # being centred — otherwise the phone visibly jumps between shots.
+    CENTER_TEXT=1
+    for device in iphone:1290x2796 ipad:2048x2732; do
+        DEV="${device%%:*}"; CANVAS="${device##*:}"
+        prepare_out "${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/ios/$DEV}"
+        shot player   "screenshot-ios-$DEV-player.png"   01-player.png
+        shot seek     "screenshot-ios-$DEV-seek.png"     02-seek.png
+        shot playlist "screenshot-ios-$DEV-playlist.png" 03-playlist.png
+        shot widget   "screenshot-ios-$DEV-widget.png"   04-widget.png
+    done
+    echo "done — $ROOT/Assets/app-store/screenshots/$L/ios"
+    exit 0
+fi
+
+prepare_out "${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
 
 # The leading number is the App Store's display order: ASC sorts a locale's
 # screenshot set by file name. Renaming or reordering a shot therefore changes
