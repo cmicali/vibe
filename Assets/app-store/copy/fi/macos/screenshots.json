@@ -10,13 +10,13 @@
     "subhead": "Kansikuvat, tagit ja BPM luetaan taustalla ja pidetään välimuistissa."
   },
   {
+    "id": "themes",
+    "headline": "Teemat",
+    "subhead": "Muokkaa ulkoasua kattavalla teemaeditorilla."
+  },
+  {
     "id": "pitch",
     "headline": "DJ tuntee olonsa kotoisaksi",
     "subhead": "Levysoitintyylinen pitch-säädin, tahtitarkat hypyt ja performance-FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Kädet näppäimistöllä",
-    "subhead": "Toisto, tahtihypyt, performance-FX ja pitch."
   }
 ]

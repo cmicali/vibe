@@ -1,0 +1,8 @@
+Vibe for iPhone 與 iPad 的首個版本。
+
+* 從「檔案」App 或內建選擇器開啟檔案夾 —— 支援裝置本機、iCloud 雲碟與 Dropbox
+* 在整條波形上拖移定位，滑動切換曲目
+* 主畫面小型與中型小工具，附波形
+* 對開啟過的檔案夾進行收藏與搜尋
+* 背景播放，支援鎖定畫面與 AirPlay 控制
+* MP3、AAC、MP4/M4A、MP2、AIFF、WAV 與 FLAC，皆以完整精度播放

@@ -1,0 +1,8 @@
+Prva verzija Vibea za iPhone i iPad.
+
+* Otvorite mapu iz Datoteka ili iz ugrađenog odabirnika — na uređaju, u iCloud Driveu ili u Dropboxu
+* Pomicanje po cijelom valnom obliku, prelazak prstom mijenja pjesmu
+* Mali i srednji widget na početnom zaslonu, s valnim oblikom
+* Favoriti i pretraga po mapama koje ste otvorili
+* Reprodukcija u pozadini, s kontrolama na zaključanom zaslonu i AirPlayem
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC u punoj rezoluciji

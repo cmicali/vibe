@@ -10,13 +10,13 @@
     "subhead": "Okładki, tagi i BPM wczytywane w tle i buforowane dla szybkości."
   },
   {
+    "id": "themes",
+    "headline": "Motywy",
+    "subhead": "Dostosuj wygląd za pomocą rozbudowanego edytora motywów."
+  },
+  {
     "id": "pitch",
     "headline": "DJ-e poczują się jak w domu",
     "subhead": "Suwak pitcha jak w gramofonie, skoki o takty i FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Ręce na klawiaturze",
-    "subhead": "Transport, skoki o takty, FX i pitch."
   }
 ]

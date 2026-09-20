@@ -10,13 +10,13 @@
     "subhead": "Artwork, tags en BPM worden op de achtergrond gelezen en gecachet voor snelheid."
   },
   {
+    "id": "themes",
+    "headline": "Thema’s",
+    "subhead": "Pas het uiterlijk aan met een uitgebreide thema-editor."
+  },
+  {
     "id": "pitch",
     "headline": "DJs voelen zich thuis",
     "subhead": "Pitchfader als op een draaitafel, maatvaste sprongen en performance-FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Handen op het toetsenbord",
-    "subhead": "Transport, maatsprongen, performance-FX en pitch."
   }
 ]

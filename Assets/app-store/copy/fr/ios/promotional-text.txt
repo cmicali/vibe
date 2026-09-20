@@ -1,0 +1,1 @@
+Un lecteur rapide et minimaliste pour vos fichiers musicaux. Ouvrez un dossier depuis Fichiers, parcourez la forme d’onde, écoutez. Sans bibliothèque ni compte.

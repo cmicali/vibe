@@ -1,0 +1,19 @@
+Vibe er en rask, minimalistisk spiller for musikkfilene dine.
+
+Bølgeformvisning
+Vibe tegner hvert spor som en full bølgeform. Dra i den for å spole, og sveip til siden for å bytte spor.
+
+Spiller bare filene dine
+Spill filer på iPhonen din, i iCloud Drive eller i Dropbox — fra Filer-appen eller den innebygde filvelgeren.
+
+Ingen bibliotek å importere
+Det er ingen database å bygge opp igjen og ingenting å synkronisere.
+
+Dekodet av iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, alle spilt gjennom systemets API-er. Lossless-filer spilles i full oppløsning.
+
+Widgeter
+Den lille og den mellomstore widgeten viser sporet som spilles, med albumbilde og en bølgeform du kan spole i.
+
+Gratis og åpen kildekode
+Vibe samler ikke inn noe og viser ingen annonser. Hele kildekoden ligger på GitHub under Apache 2.0-lisensen.

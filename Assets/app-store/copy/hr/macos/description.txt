@@ -1,4 +1,4 @@
-Vibe je brz, minimalistički player za vaše glazbene datoteke. Bez vanjskih enginea, bez računa, bez pretplate. Slušajte glazbu koju već imate — gdje god je držali.
+Vibe je brz, minimalistički player za vaše glazbene datoteke.
 
 Prikaz valnog oblika
 Vibe crta svaku pjesmu kao cijeli valni oblik preko prozora. Kliknite bilo gdje na njemu i skočite tamo.
@@ -6,11 +6,14 @@ Vibe crta svaku pjesmu kao cijeli valni oblik preko prozora. Kliknite bilo gdje 
 Brz
 Vibe je građen da bude malen i brz. Tagovi, omoti i valni oblici čitaju se u pozadini i spremaju u predmemoriju, pa je sljedeće otvaranje trenutačno.
 
-Dekodira macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, svi reproducirani kroz sistemske API-je. Lossless datoteke sviraju u punoj rezoluciji, a format i frekvencija uzorkovanja svake pjesme stoje uz naslov.
+Jednostavno svira vaše datoteke
+Ispustite datoteku ili mapu — s diska, iz iCloud Drivea ili Dropboxa — i svira. Nema baze podataka za ponovnu izgradnju ni biblioteke za održavanje.
 
-Nema biblioteke za uvoz
-Ispustite datoteku ili mapu — s diska, iz iCloud Drivea ili Dropboxa — i svira. Nema baze podataka za ponovnu izgradnju ni biblioteke za održavanje. Omoti, tagovi i BPM popunjavaju se u pozadini dok prva pjesma već svira.
+Dekodira macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, svi reproducirani kroz sistemske API-je. Lossless datoteke sviraju u punoj rezoluciji.
+
+Bit-perfect način
+Bit-perfect i ekskluzivni način šalju zvuk na vaš izlazni uređaj točno onakav kakav jest, za najbolju moguću kvalitetu.
 
 Građen s DJ-evima na umu
 Vibe donosi pitch fader u stilu gramofona, analizu BPM-a i tonaliteta, skokove točne na takt i performance FX.

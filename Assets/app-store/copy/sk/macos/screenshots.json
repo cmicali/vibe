@@ -10,13 +10,13 @@
     "subhead": "Obaly, tagy a BPM sa načítajú na pozadí a ukladajú do cache."
   },
   {
+    "id": "themes",
+    "headline": "Motívy",
+    "subhead": "Upravte vzhľad pomocou rozsiahleho editora motívov."
+  },
+  {
     "id": "pitch",
     "headline": "DJ-i sa budú cítiť ako doma",
     "subhead": "Pitch fader ako na gramofóne, skoky po taktoch a FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Ruky na klávesnici",
-    "subhead": "Transport, skoky po taktoch, FX a pitch."
   }
 ]

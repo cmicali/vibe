@@ -1,0 +1,1 @@
+Brz, minimalistički player za vaše glazbene datoteke. Otvorite mapu iz Datoteka, pomičite se po valnom obliku i slušajte. Bez biblioteke i bez računa.

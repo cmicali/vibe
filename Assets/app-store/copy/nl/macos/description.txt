@@ -1,4 +1,4 @@
-Vibe is een snelle, minimalistische speler voor je muziekbestanden. Geen externe engine, geen account, geen abonnement. Speel de muziek die je al hebt — waar je die ook bewaart.
+Vibe is een snelle, minimalistische speler voor je muziekbestanden.
 
 Golfvormweergave
 Vibe tekent elk nummer als een volledige golfvorm over het venster. Klik er ergens op om te zoeken.
@@ -6,11 +6,14 @@ Vibe tekent elk nummer als een volledige golfvorm over het venster. Klik er erge
 Snel
 Vibe is klein en snel gebouwd. Tags, artwork en golfvormen worden op de achtergrond gelezen en gecachet, zodat de volgende keer openen meteen gaat.
 
-Gedecodeerd door macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, allemaal afgespeeld via de systeem-API’s. Lossless bestanden spelen op volle resolutie, en het formaat en de samplerate van elk nummer staan naast de titel.
+Speelt gewoon je bestanden
+Sleep een bestand of een map — vanaf je schijf, iCloud Drive of Dropbox — en het speelt. Er is geen database om opnieuw op te bouwen en geen bibliotheek om bij te houden.
 
-Geen bibliotheek om te importeren
-Sleep een bestand of een map — vanaf je schijf, iCloud Drive of Dropbox — en het speelt. Er is geen database om opnieuw op te bouwen en geen bibliotheek om bij te houden. Artwork, tags en BPM vullen zich achter je aan terwijl het eerste nummer al speelt.
+Gedecodeerd door macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, allemaal afgespeeld via de systeem-API’s. Lossless bestanden spelen op volle resolutie.
+
+Bit-perfect modus
+Bit-perfect en exclusieve modus sturen audio precies zoals het is naar je uitvoerapparaat, voor de best mogelijke geluidskwaliteit.
 
 Gemaakt met dj’s in gedachten
 Vibe heeft een pitchfader in turntable-stijl, BPM- en toonsoortanalyse, maatnauwkeurige sprongen en performance-FX.

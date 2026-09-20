@@ -1,0 +1,19 @@
+Vibe on nopea ja pelkistetty soitin musiikkitiedostoillesi.
+
+Aaltomuotonäkymä
+Vibe piirtää jokaisen kappaleen koko aaltomuotona. Vedä siitä kelataksesi ja pyyhkäise sivulle vaihtaaksesi kappaletta.
+
+Soittaa vain tiedostosi
+Soita tiedostoja iPhonessasi, iCloud Drivessa tai Dropboxissa — Tiedostot-apista tai sisäänrakennetusta valitsimesta.
+
+Ei kirjastoa tuotavaksi
+Ei tietokantaa rakennettavaksi uudelleen eikä mitään synkronoitavaa.
+
+iOS dekoodaa
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan järjestelmän omilla rajapinnoilla. Häviöttömät tiedostot soivat täydellä tarkkuudella.
+
+Widgetit
+Pieni ja keskikokoinen widget näyttävät soivan kappaleen kansikuvineen ja aaltomuodon, jota voit kelata.
+
+Ilmainen ja avoin lähdekoodi
+Vibe ei kerää mitään eikä näytä mainoksia. Koko lähdekoodi on GitHubissa Apache 2.0 -lisenssillä.

@@ -1,0 +1,1 @@
+Ein schneller, minimalistischer Player für deine Musikdateien. Ordner aus Dateien öffnen, Wellenform scrubben, abspielen. Keine Mediathek, kein Account, kein Abo.

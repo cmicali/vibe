@@ -1,4 +1,4 @@
-A Vibe gyors, minimalista lejátszó a zenei fájljaidhoz. Nincs külső lejátszómotor, nincs fiók, nincs előfizetés. Hallgasd azt a zenét, ami már megvan — bárhol is tartod.
+A Vibe gyors, minimalista lejátszó a zenei fájljaidhoz.
 
 Hullámforma nézet
 A Vibe minden számot teljes hullámformaként rajzol ki az ablakon át. Kattints rá bárhol, és odaugrik.
@@ -6,11 +6,14 @@ A Vibe minden számot teljes hullámformaként rajzol ki az ablakon át. Kattint
 Gyors
 A Vibe kicsire és gyorsra épült. A címkéket, a borítókat és a hullámformákat a háttérben olvassa be és gyorsítótárazza, így a következő megnyitás azonnali.
 
-A macOS dekódolja
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, mind a rendszer API-jain keresztül szól. A veszteségmentes fájlok teljes felbontásban szólnak, és minden szám formátuma és mintavételi frekvenciája ott van a cím mellett.
+Egyszerűen lejátssza a fájljaidat
+Dobj rá egy fájlt vagy egy mappát — a lemezedről, az iCloud Drive-ról vagy a Dropboxból — és szól. Nincs újraépítendő adatbázis és nincs karbantartandó könyvtár.
 
-Nincs importálandó könyvtár
-Dobj rá egy fájlt vagy egy mappát — a lemezedről, az iCloud Drive-ról vagy a Dropboxból — és szól. Nincs újraépítendő adatbázis és nincs karbantartandó könyvtár. A borítók, a címkék és a BPM mögötted töltődnek fel, miközben az első szám már játszik.
+A macOS dekódolja
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, mind a rendszer API-jain keresztül szól. A veszteségmentes fájlok teljes felbontásban szólnak.
+
+Bit-perfect mód
+A bit-perfect és a kizárólagos mód pontosan úgy küldi a hangot a kimeneti eszközödre, ahogy van, a lehető legjobb hangminőségért.
 
 DJ-kre szabva
 A Vibe-ban van lemezjátszó stílusú pitch fader, BPM- és hangnemelemzés, ütempontos ugrások és performance FX.

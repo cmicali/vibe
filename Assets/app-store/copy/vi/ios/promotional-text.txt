@@ -1,0 +1,1 @@
+Trình phát nhanh, tối giản cho các tệp nhạc của bạn. Mở một thư mục từ Tệp, kéo trên dạng sóng và nghe. Không thư viện, không tài khoản, không thuê bao.

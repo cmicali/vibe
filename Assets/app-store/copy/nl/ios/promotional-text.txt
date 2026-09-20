@@ -1,0 +1,1 @@
+Een snelle, minimalistische speler voor je muziekbestanden. Open een map vanuit Bestanden, zoek in de golfvorm en speel. Geen bibliotheek, geen account.

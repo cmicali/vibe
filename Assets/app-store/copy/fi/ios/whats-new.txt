@@ -1,0 +1,8 @@
+Vibe ensimmäinen versio iPhonelle ja iPadille.
+
+* Avaa kansio Tiedostot-apista tai sisäänrakennetusta valitsimesta — laitteella, iCloud Drivessa tai Dropboxissa
+* Kelaus koko aaltomuodon yli, pyyhkäisy vaihtaa kappaletta
+* Pieni ja keskikokoinen Koti-valikon widget aaltomuodolla
+* Suosikit ja haku avaamissasi kansioissa
+* Toisto taustalla, lukitusnäytön säätimillä ja AirPlaylla
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC täydellä tarkkuudella

@@ -1,4 +1,4 @@
-Vibe er en rask, minimalistisk spiller for musikkfilene dine. Ingen tredjepartsmotor, ingen konto, ingen abonnement. Spill musikken du allerede har — uansett hvor du oppbevarer den.
+Vibe er en rask, minimalistisk spiller for musikkfilene dine.
 
 Bølgeformvisning
 Vibe tegner hvert spor som en full bølgeform over vinduet. Klikk hvor som helst på den for å spole.
@@ -6,11 +6,14 @@ Vibe tegner hvert spor som en full bølgeform over vinduet. Klikk hvor som helst
 Rask
 Vibe er bygd liten og rask. Tagger, albumbilder og bølgeformer leses i bakgrunnen og bufres, så neste åpning skjer umiddelbart.
 
-Dekodet av macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, alle spilt gjennom systemets API-er. Lossless-filer spilles i full oppløsning, og formatet og samplingsraten til hvert spor står ved siden av tittelen.
+Spiller bare filene dine
+Slipp en fil eller en mappe — fra disken din, iCloud Drive eller Dropbox — og den spiller. Det er ingen database å bygge opp igjen og ingen bibliotek å holde orden på.
 
-Ingen bibliotek å importere
-Slipp en fil eller en mappe — fra disken din, iCloud Drive eller Dropbox — og den spiller. Det er ingen database å bygge opp igjen og ingen bibliotek å holde orden på. Albumbilder, tagger og BPM fylles inn bak deg mens det første sporet allerede spiller.
+Dekodet av macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, alle spilt gjennom systemets API-er. Lossless-filer spilles i full oppløsning.
+
+Bit-perfect-modus
+Bit-perfect og eksklusiv modus sender lyden til utgangsenheten din nøyaktig slik den er, for best mulig lydkvalitet.
 
 Bygd med DJ-er i tankene
 Vibe har en pitchfader i platespillerstil, BPM- og toneartsanalyse, taktnøyaktige hopp og performance-FX.

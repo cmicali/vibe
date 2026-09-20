@@ -1,9 +1,12 @@
-* Teman — flera inbyggda utseenden och en redigerare för egna
-* Redigering av spellistan — markera flera spår, ta bort dem eller dra för att ändra ordning
-* Nya vågformsstilar, plus Normalisera och ett Gain-reglage för ritningens höjd
-* VoiceOver-stöd för vågformen och Pitch-reglaget
-* Inspelningar av röstmemon (.qta) spelas nu upp
-* Ett reglage för att visa eller gömma fönsterknapparna
-* Snabbare rullning i stora spellistor
-* Mer tillförlitlig inläsning av långsamma filer och molnfiler
-* Åtgärdade öppning av mappar via en symbolisk länk
+* Bit-perfect-uppspelning och exklusivt läge för utgångsenheter
+* Arkiv > Spara spellista… (⌘S) exporterar spellistan som en M3U-fil
+* Ny inställning för att läsa in den senaste spellistan vid start
+* Mer temaanpassning, inklusive transportknappar och appsymbolen
+* Nya teman Glassy, Snake och Tangerine, plus ångra och slumpa i temaredigeraren
+* Nya vågformsstilar Wiggle och Wiggle MC
+* Vågformsnormalisering höjer nu bara tysta låtar
+* Omarbetade inställningar med en ny väljare för ljudenhet
+* Att slå på ljudeffekter kräver inte längre omstart
+* Snabbare inläsning av stora mappar och mjukare fönsterändring
+* Åtgärdat ett lätt färgat ljud när lågpassfiltret var avstängt
+* Åtgärdat att Dock-omslaget inte uppdaterades efter temabyte

@@ -1,9 +1,12 @@
-* Temaer — flere indbyggede udseender og en editor til dine egne
-* Redigering af spillelisten — vælg flere numre, fjern dem, eller træk for at omarrangere
-* Nye bølgeformstile samt Normaliser og en Gain-mærke til tegnehøjden
-* VoiceOver-understøttelse af bølgeformen og Pitch-mærket
-* Optagelser af talememoer (.qta) afspilles nu
-* En kontakt til at vise eller skjule vinduesknapperne
-* Hurtigere rulning i store spillelister
-* Mere pålidelig indlæsning af langsomme filer og skyfiler
-* Rettet åbning af mapper via et symbolsk link
+* Bit-perfect-afspilning og eksklusiv tilstand for udgangsenheder
+* Arkiv > Arkivér afspilningsliste… (⌘S) eksporterer listen som en M3U-fil
+* Ny indstilling til at indlæse den seneste afspilningsliste ved start
+* Mere tematilpasning, inklusive transportknapper og appsymbolet
+* Nye temaer Glassy, Snake og Tangerine, plus fortryd og tilfældig i temaeditoren
+* Nye bølgeformstile Wiggle og Wiggle MC
+* Bølgeformnormalisering hæver nu kun stille numre
+* Omarbejdede indstillinger med en ny vælger til lydenheder
+* Aktivering af lydeffekter kræver ikke længere genstart
+* Hurtigere indlæsning af store mapper og mere jævn ændring af vinduesstørrelse
+* Rettet en let farvet lyd, når lavpasfilteret var slået fra
+* Rettet at albumbilledet i Dock ikke blev opdateret efter temaskift

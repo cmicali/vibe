@@ -10,13 +10,13 @@
     "subhead": "Artwork, tag, dan BPM dibaca di latar belakang dan di-cache agar cepat."
   },
   {
+    "id": "themes",
+    "headline": "Tema",
+    "subhead": "Sesuaikan tampilan dengan editor tema yang lengkap."
+  },
+  {
     "id": "pitch",
     "headline": "DJ akan merasa seperti di rumah",
     "subhead": "Fader pitch gaya turntable, lompatan akurat per bar, dan FX performa."
-  },
-  {
-    "id": "keys",
-    "headline": "Tangan di keyboard",
-    "subhead": "Transport, lompatan bar, FX performa, dan pitch."
   }
 ]

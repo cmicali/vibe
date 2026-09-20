@@ -1,9 +1,12 @@
-* Motywy — kilka wbudowanych wyglądów oraz edytor do tworzenia własnych
-* Edycja playlisty — zaznacz wiele utworów, usuń je lub przeciągnij, aby zmienić kolejność
-* Nowe style kształtu fali, a do tego Normalizuj i suwak Wzmocnienie regulujący wysokość rysowania
-* Obsługa VoiceOver dla kształtu fali i suwaka Pitch
-* Nagrania notatek głosowych (.qta) są już odtwarzane
-* Przełącznik pokazywania i ukrywania przycisków okna
-* Szybsze przewijanie dużych playlist
-* Bardziej niezawodne wczytywanie wolnych plików i plików w chmurze
-* Poprawiono otwieranie folderów przez dowiązanie symboliczne
+* Odtwarzanie bit-perfect i tryb wyłączny dla urządzeń wyjściowych
+* Plik > Zapisz playlistę… (⌘S) eksportuje playlistę jako plik M3U
+* Nowe ustawienie wczytywania ostatniej playlisty przy starcie
+* Więcej personalizacji motywów, w tym przyciski transportu i ikona aplikacji
+* Nowe motywy Glassy, Snake i Tangerine, a w edytorze cofanie i losowanie
+* Nowe style fali Wiggle i Wiggle MC
+* Normalizacja fali podbija teraz tylko ciche utwory
+* Przeprojektowane ustawienia z nowym wyborem urządzenia audio
+* Włączenie efektów dźwiękowych nie wymaga już restartu aplikacji
+* Szybsze wczytywanie dużych folderów i płynniejsza zmiana rozmiaru okna
+* Poprawiono lekko zabarwiony dźwięk przy wyłączonym filtrze dolnoprzepustowym
+* Poprawiono okładkę w Docku, która nie odświeżała się po zmianie motywu

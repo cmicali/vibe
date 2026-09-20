@@ -1,0 +1,19 @@
+Vibe to szybki, minimalistyczny odtwarzacz Twoich plików muzycznych.
+
+Widok fali
+Vibe rysuje każdy utwór jako pełną falę. Przeciągnij po niej, aby się przewinąć, przesuń w bok, aby zmienić utwór.
+
+Po prostu odtwarza Twoje pliki
+Odtwarzaj pliki na iPhonie, w iCloud Drive lub w Dropboxie — z aplikacji Pliki albo z wbudowanego wyboru plików.
+
+Żadnej biblioteki do zaimportowania
+Nie ma bazy danych do przebudowania ani niczego do synchronizacji.
+
+Dekodowanie przez iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — wszystkie odtwarzane przez systemowe API. Pliki bezstratne grają w pełnej rozdzielczości.
+
+Widżety
+Mały i średni widżet pokazują odtwarzany utwór z okładką i falą, po której możesz się przewijać.
+
+Za darmo i open source
+Vibe niczego nie zbiera i nie wyświetla reklam. Cały kod źródłowy jest na GitHubie na licencji Apache 2.0.

@@ -1,4 +1,4 @@
-Vibe este un player rapid și minimalist pentru fișierele tale de muzică. Fără motor terț, fără cont, fără abonament. Ascultă muzica pe care o ai deja, oriunde ai ține-o.
+Vibe este un player rapid și minimalist pentru fișierele tale de muzică.
 
 Vizualizare formă de undă
 Vibe desenează fiecare piesă ca o formă de undă pe toată lățimea ferestrei. Dă clic oriunde pe ea ca să sari acolo.
@@ -6,11 +6,14 @@ Vibe desenează fiecare piesă ca o formă de undă pe toată lățimea ferestre
 Rapid
 Vibe e construit să fie mic și rapid. Etichetele, coperțile și formele de undă sunt citite în fundal și păstrate în cache, așa că următoarea deschidere e instantanee.
 
-Decodat de macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă, iar formatul și rata de eșantionare ale fiecărei piese apar lângă titlu.
+Pur și simplu îți redă fișierele
+Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut.
 
-Nicio bibliotecă de importat
-Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut. Coperțile, etichetele și BPM-ul se completează în urma ta în timp ce prima piesă rulează deja.
+Decodat de macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă.
+
+Mod bit-perfect
+Modul bit-perfect și modul exclusiv trimit sunetul către dispozitivul de ieșire exact așa cum este, pentru cea mai bună calitate posibilă.
 
 Gândit pentru DJ
 Vibe are un fader de pitch în stil pick-up, analiză de BPM și tonalitate, salturi exacte pe măsuri și FX de performance.

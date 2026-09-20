@@ -1,0 +1,8 @@
+Phiên bản đầu tiên của Vibe cho iPhone và iPad.
+
+* Mở một thư mục từ Tệp hoặc từ bộ chọn tích hợp — trên máy, trong iCloud Drive hoặc trong Dropbox
+* Đổi vị trí trên toàn bộ dạng sóng, vuốt để chuyển bản nhạc
+* Widget nhỏ và vừa trên Màn hình chính, có dạng sóng
+* Mục yêu thích và tìm kiếm trong các thư mục bạn đã mở
+* Phát ở nền, với điều khiển trên màn hình khoá và AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC ở độ phân giải đầy đủ

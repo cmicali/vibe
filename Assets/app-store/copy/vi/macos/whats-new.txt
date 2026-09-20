@@ -1,9 +1,12 @@
-* Chủ đề — nhiều thiết kế tích hợp sẵn và trình chỉnh sửa để tạo chủ đề của riêng bạn
-* Chỉnh sửa danh sách phát — chọn nhiều bản nhạc, xóa chúng hoặc kéo để sắp xếp lại
-* Kiểu dạng sóng mới, cùng với Chuẩn hóa và thanh trượt Độ khuếch đại cho chiều cao hiển thị
-* Hỗ trợ VoiceOver cho dạng sóng và thanh trượt Pitch
-* Bản ghi âm ghi chú giọng nói (.qta) giờ đã phát được
-* Công tắc hiện hoặc ẩn các điều khiển cửa sổ
-* Cuộn nhanh hơn trong danh sách phát lớn
-* Tải tệp chậm và tệp trên đám mây đáng tin cậy hơn
-* Đã sửa lỗi mở thư mục qua liên kết tượng trưng
+* Phát bit-perfect và chế độ độc quyền cho thiết bị đầu ra
+* Tệp > Lưu danh sách phát… (⌘S) xuất danh sách thành tệp M3U
+* Tuỳ chọn mới để nạp danh sách phát gần nhất khi khởi động
+* Nhiều tuỳ chỉnh chủ đề hơn, gồm cả nút điều khiển và biểu tượng ứng dụng
+* Chủ đề mới Glassy, Snake và Tangerine, kèm hoàn tác và ngẫu nhiên trong trình soạn chủ đề
+* Kiểu dạng sóng mới Wiggle và Wiggle MC
+* Chuẩn hoá dạng sóng giờ chỉ nâng những bản nhạc nhỏ tiếng
+* Thiết lập được làm lại, với bộ chọn thiết bị âm thanh mới
+* Bật hiệu ứng âm thanh không còn cần khởi động lại ứng dụng
+* Thư mục lớn nạp nhanh hơn và thay đổi kích thước cửa sổ mượt hơn
+* Sửa lỗi âm thanh hơi bị nhuốm màu khi tắt bộ lọc cắt trầm
+* Sửa lỗi ảnh bìa trên Dock không cập nhật sau khi đổi chủ đề

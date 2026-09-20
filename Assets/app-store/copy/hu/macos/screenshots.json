@@ -10,13 +10,13 @@
     "subhead": "Borítók, tagek és BPM a háttérben beolvasva, gyorsítótárazva."
   },
   {
+    "id": "themes",
+    "headline": "Témák",
+    "subhead": "Szabd testre a megjelenést egy részletes témaszerkesztővel."
+  },
+  {
     "id": "pitch",
     "headline": "A DJ-k otthon érzik magukat",
     "subhead": "Gramofonszerű pitch-csúszka, ütempontos ugrások és FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Kéz a billentyűzeten",
-    "subhead": "Transzport, ütemugrások, FX és pitch."
   }
 ]

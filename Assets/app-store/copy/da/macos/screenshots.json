@@ -10,13 +10,13 @@
     "subhead": "Artwork, tags og BPM læses i baggrunden og caches, så det går hurtigt."
   },
   {
+    "id": "themes",
+    "headline": "Temaer",
+    "subhead": "Tilpas udseendet med en komplet temaeditor."
+  },
+  {
     "id": "pitch",
     "headline": "DJs vil føle sig hjemme",
     "subhead": "Pitchfader som på en pladespiller, taktfaste hop og performance-FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Hænderne på tastaturet",
-    "subhead": "Transport, takthop, performance-FX og pitch."
   }
 ]

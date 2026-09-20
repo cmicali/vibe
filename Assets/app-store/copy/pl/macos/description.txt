@@ -1,4 +1,4 @@
-Vibe to szybki, minimalistyczny odtwarzacz Twoich plików muzycznych. Bez zewnętrznych silników, konta i subskrypcji. Odtwarzaj muzykę, którą już masz — gdziekolwiek ją trzymasz.
+Vibe to szybki, minimalistyczny odtwarzacz Twoich plików muzycznych.
 
 Widok fali
 Vibe rysuje każdy utwór jako pełną falę przez całe okno. Kliknij w dowolnym jej miejscu, aby tam przeskoczyć.
@@ -6,11 +6,14 @@ Vibe rysuje każdy utwór jako pełną falę przez całe okno. Kliknij w dowolny
 Szybki
 Vibe jest zbudowany tak, by był mały i szybki. Tagi, okładki i fale są odczytywane w tle i zapisywane w pamięci podręcznej, więc kolejne otwarcie jest natychmiastowe.
 
-Dekodowanie przez macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — wszystkie odtwarzane przez systemowe API. Pliki bezstratne grają w pełnej rozdzielczości, a format i częstotliwość próbkowania każdego utworu widnieją obok tytułu.
+Po prostu odtwarza Twoje pliki
+Upuść plik albo folder — z dysku, z iCloud Drive lub z Dropboxa — i gra. Nie ma bazy danych do przebudowania ani biblioteki do pielęgnowania.
 
-Żadnej biblioteki do zaimportowania
-Upuść plik albo folder — z dysku, z iCloud Drive lub z Dropboxa — i gra. Nie ma bazy danych do przebudowania ani biblioteki do pielęgnowania. Okładki, tagi i BPM uzupełniają się w tle, gdy pierwszy utwór już leci.
+Dekodowanie przez macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — wszystkie odtwarzane przez systemowe API. Pliki bezstratne grają w pełnej rozdzielczości.
+
+Tryb bit-perfect
+Tryb bit-perfect i tryb wyłączny wysyłają dźwięk do urządzenia wyjściowego dokładnie takim, jaki jest, dla najlepszej możliwej jakości.
 
 Z myślą o DJ-ach
 Vibe ma suwak pitch w stylu gramofonu, analizę BPM i tonacji, skoki co do taktu oraz performance FX.

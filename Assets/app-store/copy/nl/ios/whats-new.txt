@@ -1,0 +1,8 @@
+Eerste versie van Vibe voor iPhone en iPad.
+
+* Open een map vanuit Bestanden of de ingebouwde bestandskiezer — op je apparaat, in iCloud Drive of in Dropbox
+* Zoeken over de volledige golfvorm, vegen wisselt van nummer
+* Kleine en middelgrote widgets op het beginscherm, met golfvorm
+* Favorieten en zoeken in de mappen die je hebt geopend
+* Weergave op de achtergrond, met bediening op het toegangsscherm en AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC op volle resolutie

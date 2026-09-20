@@ -1,0 +1,19 @@
+Vibe è un lettore veloce ed essenziale per i tuoi file musicali.
+
+Vista a forma d’onda
+Vibe disegna ogni brano come una forma d’onda completa. Trascina per spostarti, scorri di lato per cambiare brano.
+
+Riproduce e basta
+Riproduci i file sul tuo iPhone, in iCloud Drive o in Dropbox — dall’app File o dal selettore integrato.
+
+Nessuna libreria da importare
+Non c’è nessun database da ricostruire e niente da sincronizzare.
+
+Decodificato da iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, tutti riprodotti tramite le API di sistema. I file lossless suonano a piena risoluzione.
+
+Widget
+I widget piccolo e medio mostrano il brano in riproduzione con la copertina e una forma d’onda su cui puoi spostarti.
+
+Gratuito e open source
+Vibe non raccoglie nulla e non mostra pubblicità. L’intero codice sorgente è su GitHub con licenza Apache 2.0.

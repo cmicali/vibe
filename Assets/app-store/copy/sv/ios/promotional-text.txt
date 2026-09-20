@@ -1,0 +1,1 @@
+En snabb, minimalistisk spelare för dina musikfiler. Öppna en mapp från Filer, sök i vågformen och spela. Inget bibliotek, inget konto, ingen prenumeration.

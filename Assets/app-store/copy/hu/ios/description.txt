@@ -1,0 +1,19 @@
+A Vibe gyors, minimalista lejátszó a zenei fájljaidhoz.
+
+Hullámforma nézet
+A Vibe minden számot teljes hullámformaként rajzol ki. Húzd a tekeréshez, csúsztass oldalra a számváltáshoz.
+
+Egyszerűen lejátssza a fájljaidat
+Játssz le fájlokat az iPhone-odról, az iCloud Drive-ról vagy a Dropboxból — a Fájlok appból vagy a beépített fájlválasztóból.
+
+Nincs importálandó könyvtár
+Nincs újraépítendő adatbázis és nincs mit szinkronizálni.
+
+Az iOS dekódolja
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC, mind a rendszer API-jain keresztül szól. A veszteségmentes fájlok teljes felbontásban szólnak.
+
+Widgetek
+A kis és a közepes widget a szóló számot mutatja a borítóval és egy hullámformával, amelyen tekerhetsz.
+
+Ingyenes és nyílt forráskódú
+A Vibe semmit nem gyűjt és nem mutat hirdetést. A teljes forráskód a GitHubon van, Apache 2.0 licenc alatt.

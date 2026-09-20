@@ -1,0 +1,8 @@
+Prima versiune Vibe pentru iPhone și iPad.
+
+* Deschide un folder din Fișiere sau din selectorul integrat — de pe dispozitiv, din iCloud Drive sau din Dropbox
+* Deplasare pe toată forma de undă, glisarea schimbă piesa
+* Widgeturi mic și mediu pe ecranul principal, cu formă de undă
+* Favorite și căutare în folderele pe care le-ai deschis
+* Redare în fundal, cu comenzi pe ecranul blocat și AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC la rezoluție completă

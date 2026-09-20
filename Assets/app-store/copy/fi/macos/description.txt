@@ -1,4 +1,4 @@
-Vibe on nopea ja pelkistetty soitin musiikkitiedostoillesi. Ei kolmannen osapuolen moottoria, ei tiliä, ei tilausta. Soita se musiikki, joka sinulla jo on — säilytit sen missä tahansa.
+Vibe on nopea ja pelkistetty soitin musiikkitiedostoillesi.
 
 Aaltomuotonäkymä
 Vibe piirtää jokaisen kappaleen koko ikkunan levyisenä aaltomuotona. Klikkaa sitä mistä tahansa kohdasta ja hyppää siihen.
@@ -6,11 +6,14 @@ Vibe piirtää jokaisen kappaleen koko ikkunan levyisenä aaltomuotona. Klikkaa 
 Nopea
 Vibe on rakennettu pieneksi ja nopeaksi. Tagit, kansikuvat ja aaltomuodot luetaan taustalla ja tallennetaan välimuistiin, joten seuraava avaus on välitön.
 
-macOS dekoodaa
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan järjestelmän omilla rajapinnoilla. Häviöttömät tiedostot soivat täydellä tarkkuudella, ja kunkin kappaleen formaatti ja näytteenottotaajuus näkyvät nimen vieressä.
+Soittaa vain tiedostosi
+Pudota tiedosto tai kansio — levyltäsi, iCloud Drivesta tai Dropboxista — ja se soi. Ei tietokantaa rakennettavaksi uudelleen eikä kirjastoa ylläpidettäväksi.
 
-Ei kirjastoa tuotavaksi
-Pudota tiedosto tai kansio — levyltäsi, iCloud Drivesta tai Dropboxista — ja se soi. Ei tietokantaa rakennettavaksi uudelleen eikä kirjastoa ylläpidettäväksi. Kansikuvat, tagit ja BPM täydentyvät taustalla, kun ensimmäinen kappale jo soi.
+macOS dekoodaa
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ja FLAC, kaikki toistetaan järjestelmän omilla rajapinnoilla. Häviöttömät tiedostot soivat täydellä tarkkuudella.
+
+Bit-perfect-tila
+Bit-perfect ja yksinoikeustila lähettävät äänen ulostulolaitteellesi täsmälleen sellaisenaan, parhaan mahdollisen äänenlaadun vuoksi.
 
 Suunniteltu DJ:itä ajatellen
 Vibessä on levysoitintyylinen pitch-säädin, BPM- ja sävellajianalyysi, tahtitarkat hypyt ja performance-FX.

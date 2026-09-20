@@ -1,0 +1,1 @@
+Szybki, minimalistyczny odtwarzacz Twoich plików muzycznych. Otwórz folder z Plików, przewiń falę i słuchaj. Bez biblioteki, konta i subskrypcji.

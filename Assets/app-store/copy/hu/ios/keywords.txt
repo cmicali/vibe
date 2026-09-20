@@ -1,0 +1,1 @@
+zenelejátszó,zene,flac,mp3,bpm,hullámforma,mappa,offline,wav,aiff,gapless,widget,m4a

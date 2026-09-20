@@ -1,0 +1,19 @@
+Vibe adalah pemutar yang cepat dan minimal untuk file musik Anda.
+
+Tampilan bentuk gelombang
+Vibe menggambar setiap lagu sebagai bentuk gelombang penuh. Seret untuk menggeser posisi, dan usap ke samping untuk berganti lagu.
+
+Cukup memutar file Anda
+Putar file di iPhone Anda, di iCloud Drive, atau di Dropbox — dari aplikasi Files atau dari pemilih file bawaan.
+
+Tanpa pustaka untuk diimpor
+Tidak ada basis data yang perlu dibangun ulang dan tidak ada yang perlu disinkronkan.
+
+Didekode oleh iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC, semuanya diputar lewat API sistem. File lossless diputar pada resolusi penuh.
+
+Widget
+Widget kecil dan sedang menampilkan lagu yang sedang diputar beserta sampul dan bentuk gelombang yang bisa Anda geser.
+
+Gratis dan sumber terbuka
+Vibe tidak mengumpulkan apa pun dan tidak menampilkan iklan. Seluruh kode sumbernya ada di GitHub dengan lisensi Apache 2.0.

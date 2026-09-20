@@ -103,13 +103,11 @@ LANGS="$("$ROOT/scripts/catalog-languages.sh")"
 # directory. The three URL files above are not version fields and stay at
 # copy/, shared by both.
 #
-# macOS copy is required. iOS copy is still being written (C1-C2 in
-# docs/ios-release-punchlist.md), so a wholly ABSENT ios directory is reported
-# and tolerated — but one that exists is validated in full, so half-written
-# iOS copy cannot pass unnoticed. Delete this tolerance once every language
-# has ios/.
+# Both platforms are required: every catalog language now carries copy for
+# each. The tolerance that let a wholly absent ios/ pass while it was being
+# written is gone, as its own comment said it should be.
 PLATFORMS="macos ios"
-REQUIRED_PLATFORMS="macos"
+REQUIRED_PLATFORMS="macos ios"
 PENDING=0
 
 while read -r l; do

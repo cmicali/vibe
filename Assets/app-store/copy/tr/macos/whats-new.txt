@@ -1,9 +1,12 @@
-* Temalar — birkaç yerleşik tasarım ve kendinizinkini yapmanız için bir düzenleyici
-* Çalma listesi düzenleme — birden çok parça seçin, kaldırın ya da sürükleyerek yeniden sıralayın
-* Yeni dalga biçimi stilleri, ayrıca Normalleştir ve çizim yüksekliği için bir Kazanç sürgüsü
-* Dalga biçimi ve Pitch sürgüsü için VoiceOver desteği
-* Sesli not kayıtları (.qta) artık çalıyor
-* Pencere denetimlerini göstermek ya da gizlemek için bir anahtar
-* Büyük çalma listelerinde daha hızlı kaydırma
-* Yavaş dosyaların ve bulut dosyalarının daha güvenilir yüklenmesi
-* Sembolik bağlantı üzerinden klasör açma düzeltildi
+* Çıkış aygıtları için bit-perfect çalma ve ayrıcalıklı mod
+* Dosya > Çalma Listesini Kaydet… (⌘S) listeyi M3U dosyası olarak dışa aktarır
+* Açılışta son çalma listesini yükleyen yeni ayar
+* Daha fazla tema özelleştirmesi; kontrol düğmeleri ve uygulama simgesi dahil
+* Yeni Glassy, Snake ve Tangerine temaları, tema düzenleyicide geri alma ve rastgele seçim
+* Yeni dalga biçimi stilleri: Wiggle ve Wiggle MC
+* Dalga biçimi normalleştirmesi artık yalnızca sessiz parçaları yükseltiyor
+* Yenilenen ayarlar ve yeni ses aygıtı seçici
+* Ses efektlerini açmak artık uygulamayı yeniden başlatmayı gerektirmiyor
+* Büyük klasörler daha hızlı yükleniyor, pencere daha akıcı boyutlanıyor
+* Alçak kesme filtresi kapalıyken sesin hafif renklenmesi düzeltildi
+* Tema değiştirdikten sonra Dock kapağının güncellenmemesi düzeltildi

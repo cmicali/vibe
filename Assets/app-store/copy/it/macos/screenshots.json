@@ -10,13 +10,13 @@
     "subhead": "Copertine, tag e BPM letti in background e salvati in cache."
   },
   {
+    "id": "themes",
+    "headline": "Temi",
+    "subhead": "Personalizza l’aspetto con un editor di temi completo."
+  },
+  {
     "id": "pitch",
     "headline": "I DJ si sentiranno a casa",
     "subhead": "Fader del pitch stile giradischi, salti a battute e FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Mani sulla tastiera",
-    "subhead": "Trasporto, salti a battute, FX e pitch."
   }
 ]

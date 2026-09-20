@@ -1,0 +1,8 @@
+Versi pertama Vibe untuk iPhone dan iPad.
+
+* Buka folder dari Files atau dari pemilih bawaan — di perangkat, di iCloud Drive, atau di Dropbox
+* Geser posisi di seluruh bentuk gelombang, usap untuk berganti lagu
+* Widget kecil dan sedang di Layar Utama, dengan bentuk gelombang
+* Favorit dan pencarian di folder yang pernah Anda buka
+* Pemutaran di latar belakang, dengan kontrol di layar terkunci dan AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC pada resolusi penuh

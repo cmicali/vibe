@@ -1,0 +1,1 @@
+Gyors, minimalista lejátszó a zenei fájljaidhoz. Nyiss meg egy mappát a Fájlokból, tekerj a hullámformán és hallgasd. Nincs könyvtár, fiók és előfizetés.

@@ -1,9 +1,12 @@
-* Temi — diversi design integrati e un editor per crearne di tuoi
-* Modifica della playlist — seleziona più brani, rimuovili o trascina per riordinare
-* Nuovi stili di forma d’onda, oltre a Normalizza e un cursore Guadagno per l’altezza del disegno
-* Supporto VoiceOver per la forma d’onda e il cursore Pitch
-* Le registrazioni dei memo vocali (.qta) ora si riproducono
-* Un interruttore per mostrare o nascondere i controlli della finestra
-* Scorrimento più veloce nelle playlist di grandi dimensioni
-* Caricamento più affidabile dei file lenti e dei file nel cloud
-* Corretta l’apertura delle cartelle tramite un collegamento simbolico
+* Riproduzione bit-perfect e modalità esclusiva per i dispositivi di uscita
+* Archivio > Salva playlist… (⌘S) esporta la playlist come file M3U
+* Nuova impostazione per caricare l’ultima playlist all’avvio
+* Più personalizzazione dei temi, compresi i pulsanti di trasporto e l’icona dell’app
+* Nuovi temi Glassy, Snake e Tangerine, con annulla e casuale nell’editor dei temi
+* Nuovi stili di forma d’onda Wiggle e Wiggle MC
+* La normalizzazione della forma d’onda ora alza solo i brani più silenziosi
+* Impostazioni ridisegnate, con un nuovo selettore del dispositivo audio
+* Attivare gli effetti audio non richiede più di riavviare l’app
+* Caricamento più rapido delle cartelle grandi e ridimensionamento più fluido
+* Corretto un suono leggermente colorato con il filtro taglia-bassi disattivato
+* Corretta la copertina nel Dock che non si aggiornava dopo un cambio di tema

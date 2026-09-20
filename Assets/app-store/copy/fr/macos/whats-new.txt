@@ -1,9 +1,12 @@
-* Thèmes — plusieurs designs intégrés, et un éditeur pour créer les vôtres
-* Édition de la liste de lecture — sélectionnez plusieurs morceaux, supprimez-les ou glissez pour réordonner
-* Nouveaux styles de forme d’onde, avec Normaliser et un curseur Gain pour la hauteur du tracé
-* Prise en charge de VoiceOver pour la forme d’onde et le curseur Pitch
-* Les enregistrements de mémos vocaux (.qta) se lisent désormais
-* Un réglage pour afficher ou masquer les boutons de la fenêtre
-* Défilement plus rapide dans les grandes listes de lecture
-* Chargement plus fiable des fichiers lents et des fichiers cloud
-* Correction de l’ouverture des dossiers via un lien symbolique
+* Lecture bit-perfect et mode exclusif pour les périphériques de sortie
+* Fichier > Enregistrer la liste de lecture… (⌘S) exporte la liste en M3U
+* Nouveau réglage : charger la dernière liste de lecture au démarrage
+* Davantage de personnalisation des thèmes, y compris les boutons de transport et l’icône de l’app
+* Nouveaux thèmes Glassy, Snake et Tangerine, avec annulation et tirage aléatoire dans l’éditeur
+* Nouveaux styles de forme d’onde Wiggle et Wiggle MC
+* La normalisation de la forme d’onde ne rehausse plus que les morceaux discrets
+* Réglages repensés, avec un nouveau sélecteur de périphérique audio
+* L’activation des effets audio ne demande plus de redémarrer l’app
+* Chargement plus rapide des grands dossiers et redimensionnement plus fluide
+* Correction d’un son légèrement coloré quand le filtre coupe-bas était désactivé
+* Correction de la pochette du Dock qui ne se mettait pas à jour après un changement de thème

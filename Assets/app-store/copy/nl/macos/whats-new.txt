@@ -1,9 +1,12 @@
-* Thema’s — meerdere ingebouwde ontwerpen, en een editor om je eigen te maken
-* Afspeellijst bewerken — selecteer meerdere nummers, verwijder ze of sleep om te herschikken
-* Nieuwe golfvormstijlen, plus Normaliseren en een Gain-schuifknop voor de tekenhoogte
-* VoiceOver-ondersteuning voor de golfvorm en de Pitch-schuifknop
-* Opnamen van spraakmemo’s (.qta) worden nu afgespeeld
-* Een schakelaar om de vensterknoppen te tonen of te verbergen
-* Sneller scrollen in grote afspeellijsten
-* Betrouwbaarder laden van trage bestanden en cloudbestanden
-* Openen van mappen via een symbolische koppeling hersteld
+* Bit-perfect weergave en exclusieve modus voor audio-uitvoerapparaten
+* Archief > Afspeellijst bewaren… (⌘S) exporteert de lijst als M3U-bestand
+* Nieuwe instelling om de laatste afspeellijst bij het starten te laden
+* Meer thema-aanpassingen, inclusief transportknoppen en het app-symbool
+* Nieuwe thema’s Glassy, Snake en Tangerine, plus ongedaan maken en willekeurig in de thema-editor
+* Nieuwe golfvormstijlen Wiggle en Wiggle MC
+* Golfvormnormalisatie versterkt nu alleen nog stille nummers
+* Vernieuwde instellingen, met een nieuwe keuzelijst voor audioapparaten
+* Audio-effecten inschakelen vereist niet langer een herstart
+* Grote mappen laden sneller en het venster schaalt vloeiender
+* Licht gekleurd geluid bij uitgeschakelde low-cut verholpen
+* Dock-artwork werkt nu wel bij na het wisselen van thema

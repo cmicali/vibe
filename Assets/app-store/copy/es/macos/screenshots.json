@@ -10,13 +10,13 @@
     "subhead": "Carátulas, etiquetas y BPM leídos en segundo plano y guardados en caché."
   },
   {
+    "id": "themes",
+    "headline": "Temas",
+    "subhead": "Personaliza el aspecto con un editor de temas completo."
+  },
+  {
     "id": "pitch",
     "headline": "Los DJs se sentirán en casa",
     "subhead": "Fader de pitch estilo giradiscos, saltos por compases y FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Las manos en el teclado",
-    "subhead": "Transporte, saltos por compases, FX y pitch."
   }
 ]

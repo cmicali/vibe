@@ -1,0 +1,8 @@
+Primeira versão do Vibe para iPhone e iPad.
+
+* Abra uma pasta a partir de Ficheiros ou do seletor integrado — no dispositivo, no iCloud Drive ou no Dropbox
+* Percurso por toda a forma de onda, deslizar muda de faixa
+* Widgets pequeno e médio no ecrã principal, com forma de onda
+* Favoritos e pesquisa nas pastas que abriu
+* Reprodução em segundo plano, com controlos no ecrã bloqueado e AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC em resolução total

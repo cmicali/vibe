@@ -1,4 +1,4 @@
-O Vibe é um player rápido e minimalista para seus arquivos de música. Sem motor de terceiros, sem conta, sem assinatura. Toque a música que você já tem, onde quer que ela esteja.
+O Vibe é um player rápido e minimalista para seus arquivos de música.
 
 Visualização em forma de onda
 O Vibe desenha cada faixa como uma forma de onda que atravessa a janela inteira. Clique em qualquer ponto dela para avançar até ali.
@@ -6,11 +6,14 @@ O Vibe desenha cada faixa como uma forma de onda que atravessa a janela inteira.
 Rápido
 O Vibe foi feito para ser pequeno e rápido. Tags, capas e formas de onda são lidos em segundo plano e ficam em cache, então a próxima abertura é instantânea.
 
-Decodificado pelo macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos pelas APIs do sistema. Arquivos lossless tocam em resolução total, e o formato e a taxa de amostragem de cada faixa aparecem ao lado do título.
+Simplesmente toca seus arquivos
+Solte um arquivo ou uma pasta — do seu disco, do iCloud Drive ou do Dropbox — e ele toca. Não há banco de dados para reconstruir nem biblioteca para manter.
 
-Nenhuma biblioteca para importar
-Solte um arquivo ou uma pasta — do seu disco, do iCloud Drive ou do Dropbox — e ele toca. Não há banco de dados para reconstruir nem biblioteca para manter. Capas, tags e BPM vão sendo preenchidos por trás enquanto a primeira faixa já está tocando.
+Decodificado pelo macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos pelas APIs do sistema. Arquivos lossless tocam em resolução total.
+
+Modo bit-perfect
+O modo bit-perfect e o modo exclusivo enviam o áudio ao seu dispositivo de saída exatamente como ele é, para a melhor qualidade possível.
 
 Feito pensando nos DJs
 O Vibe traz controle de pitch no estilo toca-discos, análise de BPM e tonalidade, saltos exatos por compassos e FX de performance.

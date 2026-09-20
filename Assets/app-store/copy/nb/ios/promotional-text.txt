@@ -1,0 +1,1 @@
+En rask, minimalistisk spiller for musikkfilene dine. Åpne en mappe fra Filer, spol i bølgeformen og spill. Ingen bibliotek, ingen konto, ingen abonnement.

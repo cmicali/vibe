@@ -1,9 +1,12 @@
-* Teme — nekoliko ugrađenih izgleda i uređivač za izradu vlastitih
-* Uređivanje popisa pjesama — odaberite više pjesama, uklonite ih ili ih povlačenjem presložite
-* Novi stilovi valnog oblika, uz Normaliziraj i klizač Pojačanje za visinu crtanja
-* Podrška za VoiceOver na valnom obliku i klizaču Pitch
-* Snimke glasovnih bilježaka (.qta) sada se reproduciraju
-* Prekidač za prikaz ili skrivanje gumba prozora
-* Brže pomicanje kroz velike popise pjesama
-* Pouzdanije učitavanje sporih datoteka i datoteka u oblaku
-* Ispravljeno otvaranje mapa putem simboličke poveznice
+* Bit-perfect reprodukcija i ekskluzivni način za izlazne uređaje
+* Datoteka > Spremi popis za reprodukciju… (⌘S) izvozi popis kao M3U datoteku
+* Nova postavka za učitavanje zadnjeg popisa pri pokretanju
+* Više prilagodbe tema, uključujući tipke transporta i ikonu aplikacije
+* Nove teme Glassy, Snake i Tangerine, uz poništavanje i nasumični odabir u uređivaču tema
+* Novi stilovi valnog oblika Wiggle i Wiggle MC
+* Normalizacija valnog oblika sada pojačava samo tihe pjesme
+* Preuređene postavke s novim odabirom audiouređaja
+* Uključivanje audioefekata više ne traži ponovno pokretanje aplikacije
+* Brže učitavanje velikih mapa i glađa promjena veličine prozora
+* Ispravljen blago obojen zvuk kad je niskopropusni filtar isključen
+* Ispravljen omot u Docku koji se nije osvježavao nakon promjene teme

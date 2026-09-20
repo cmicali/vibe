@@ -1,0 +1,1 @@
+เพลง,ฟังเพลง,เครื่องเล่นเพลง,flac,mp3,wav,bpm,lossless,waveform,ออฟไลน์,gapless,วิดเจ็ต

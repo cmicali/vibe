@@ -1,0 +1,19 @@
+Vibe este un player rapid și minimalist pentru fișierele tale de muzică.
+
+Vizualizare formă de undă
+Vibe desenează fiecare piesă ca o formă de undă completă. Trage de ea ca să te deplasezi și glisează lateral ca să schimbi piesa.
+
+Pur și simplu îți redă fișierele
+Redă fișiere de pe iPhone, din iCloud Drive sau din Dropbox — din aplicația Fișiere sau din selectorul integrat.
+
+Nicio bibliotecă de importat
+Nu există bază de date de reconstruit și nimic de sincronizat.
+
+Decodat de iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, toate redate prin API-urile sistemului. Fișierele lossless se redau la rezoluție completă.
+
+Widgeturi
+Widgeturile mic și mediu arată piesa curentă cu coperta și o formă de undă pe care te poți deplasa.
+
+Gratuit și open source
+Vibe nu colectează nimic și nu afișează reclame. Tot codul sursă e pe GitHub sub licența Apache 2.0.

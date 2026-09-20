@@ -1,4 +1,4 @@
-Vibe adalah pemutar yang cepat dan minimal untuk file musik Anda. Tanpa engine pihak ketiga, tanpa akun, tanpa langganan. Putar musik yang sudah Anda miliki — di mana pun Anda menyimpannya.
+Vibe adalah pemutar yang cepat dan minimal untuk file musik Anda.
 
 Tampilan bentuk gelombang
 Vibe menggambar setiap lagu sebagai bentuk gelombang penuh selebar jendela. Klik di mana saja padanya untuk melompat ke sana.
@@ -6,11 +6,14 @@ Vibe menggambar setiap lagu sebagai bentuk gelombang penuh selebar jendela. Klik
 Cepat
 Vibe dibuat agar kecil dan cepat. Tag, sampul, dan bentuk gelombang dibaca di latar belakang dan disimpan dalam cache, sehingga pembukaan berikutnya seketika.
 
-Didekode oleh macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC, semuanya diputar lewat API sistem. File lossless diputar pada resolusi penuh, dan format serta laju sampel tiap lagu tertera di samping judulnya.
+Cukup memutar file Anda
+Jatuhkan sebuah file atau folder — dari disk Anda, iCloud Drive, atau Dropbox — dan langsung diputar. Tidak ada basis data yang perlu dibangun ulang dan tidak ada pustaka yang perlu dikelola.
 
-Tanpa pustaka untuk diimpor
-Jatuhkan sebuah file atau folder — dari disk Anda, iCloud Drive, atau Dropbox — dan langsung diputar. Tidak ada basis data yang perlu dibangun ulang dan tidak ada pustaka yang perlu dikelola. Sampul, tag, dan BPM terisi di belakang Anda sementara lagu pertama sudah berjalan.
+Didekode oleh macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, dan FLAC, semuanya diputar lewat API sistem. File lossless diputar pada resolusi penuh.
+
+Mode bit-perfect
+Mode bit-perfect dan mode eksklusif mengirim audio ke perangkat keluaran Anda persis apa adanya, demi kualitas suara terbaik.
 
 Dirancang dengan DJ dalam pikiran
 Vibe punya kontrol pitch bergaya turntable, analisis BPM dan nada dasar, lompatan akurat per bar, dan FX performa.

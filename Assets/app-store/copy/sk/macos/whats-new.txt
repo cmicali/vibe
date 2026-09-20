@@ -1,9 +1,12 @@
-* Motívy — niekoľko vstavaných vzhľadov a editor na tvorbu vlastných
-* Úpravy playlistu — vyberte viac skladieb, odstráňte ich alebo ich presuňte myšou
-* Nové štýly vlnového priebehu, k tomu Normalizovať a posuvník Zisk pre výšku vykreslenia
-* Podpora VoiceOveru pre vlnový priebeh a fader Pitch
-* Nahrávky hlasových poznámok (.qta) sa už prehrávajú
-* Prepínač na zobrazenie alebo skrytie ovládacích prvkov okna
-* Rýchlejšie posúvanie vo veľkých playlistoch
-* Spoľahlivejšie načítanie pomalých a cloudových súborov
-* Opravené otváranie priečinkov cez symbolický odkaz
+* Prehrávanie bit-perfect a exkluzívny režim pre výstupné zariadenia
+* Súbor > Uložiť playlist… (⌘S) exportuje playlist ako súbor M3U
+* Nové nastavenie na načítanie posledného playlistu pri spustení
+* Viac úprav motívov, vrátane ovládacích tlačidiel a ikony aplikácie
+* Nové motívy Glassy, Snake a Tangerine, plus späť a náhodný výber v editore motívov
+* Nové štýly vlnového priebehu Wiggle a Wiggle MC
+* Normalizácia vlnového priebehu teraz zosilňuje len tiché skladby
+* Prepracované nastavenia s novým výberom zvukového zariadenia
+* Zapnutie zvukových efektov už nevyžaduje reštart aplikácie
+* Rýchlejšie načítanie veľkých priečinkov a plynulejšia zmena veľkosti okna
+* Opravený mierne zafarbený zvuk pri vypnutom filtri dolnej priepuste
+* Opravený obal v Docku, ktorý sa po zmene motívu neaktualizoval

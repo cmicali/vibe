@@ -10,13 +10,13 @@
     "subhead": "Omslag, tagger og BPM leses i bakgrunnen og caches for fart."
   },
   {
+    "id": "themes",
+    "headline": "Temaer",
+    "subhead": "Tilpass utseendet med en komplett temaredigerer."
+  },
+  {
     "id": "pitch",
     "headline": "DJ-er vil føle seg hjemme",
     "subhead": "Pitchfader som på en platespiller, taktfaste hopp og performance-FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Hendene på tastaturet",
-    "subhead": "Transport, takthopp, performance-FX og pitch."
   }
 ]

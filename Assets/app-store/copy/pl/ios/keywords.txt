@@ -1,0 +1,1 @@
+odtwarzacz,muzyka,flac,mp3,bpm,fala,folder,offline,wav,audio,gapless,pliki,widget,m4a

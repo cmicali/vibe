@@ -1,4 +1,4 @@
-Vibe, müzik dosyalarınız için hızlı ve sade bir çalardır. Üçüncü taraf motor yok, hesap yok, abonelik yok. Zaten sahip olduğunuz müziği, nerede tutuyorsanız orada çalın.
+Vibe, müzik dosyalarınız için hızlı ve sade bir çalardır.
 
 Dalga Biçimi Görünümü
 Vibe her parçayı pencere boyunca uzanan tam bir dalga biçimi olarak çizer. Üzerinde herhangi bir yere tıklayarak oraya atlayın.
@@ -6,11 +6,14 @@ Vibe her parçayı pencere boyunca uzanan tam bir dalga biçimi olarak çizer. �
 Hızlı
 Vibe küçük ve hızlı olacak şekilde yapıldı. Etiketler, kapak görselleri ve dalga biçimleri arka planda okunup önbelleğe alınır; böylece bir sonraki açılış anında gerçekleşir.
 
-macOS tarafından çözülür
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, hepsi sistem API'leri üzerinden çalınır. Kayıpsız dosyalar tam çözünürlükte çalar ve her parçanın biçimi ile örnekleme hızı başlığın yanında yer alır.
+Sadece Dosyalarınızı Çalar
+Bir dosyayı ya da klasörü bırakın — diskinizden, iCloud Drive'dan veya Dropbox'tan — ve çalmaya başlasın. Yeniden oluşturulacak bir veritabanı ya da bakımı yapılacak bir kitaplık yok.
 
-İçe Aktarılacak Kitaplık Yok
-Bir dosyayı ya da klasörü bırakın — diskinizden, iCloud Drive'dan veya Dropbox'tan — ve çalmaya başlasın. Yeniden oluşturulacak bir veritabanı ya da bakımı yapılacak bir kitaplık yok. Kapak görselleri, etiketler ve BPM, ilk parça çalarken arkanızdan dolar.
+macOS tarafından çözülür
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, hepsi sistem API'leri üzerinden çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
+
+Bit-perfect Modu
+Bit-perfect ve ayrıcalıklı mod, sesi çıkış aygıtınıza tam olduğu gibi gönderir; mümkün olan en iyi ses kalitesi için.
 
 DJ'ler Düşünülerek Yapıldı
 Vibe'da pikap tarzı pitch fader, BPM ve ton analizi, ölçüye tam oturan atlamalar ve performans FX'leri var.

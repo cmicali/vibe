@@ -1,4 +1,4 @@
-Vibe là trình phát nhanh, tối giản cho các tệp nhạc của bạn. Không engine bên thứ ba, không tài khoản, không thuê bao. Hãy nghe thứ nhạc bạn đã có, dù bạn cất nó ở đâu.
+Vibe là trình phát nhanh, tối giản cho các tệp nhạc của bạn.
 
 Chế độ xem dạng sóng
 Vibe vẽ mỗi bản nhạc thành một dạng sóng trải hết chiều ngang cửa sổ. Bấm vào bất kỳ điểm nào trên đó để nhảy tới.
@@ -6,11 +6,14 @@ Vibe vẽ mỗi bản nhạc thành một dạng sóng trải hết chiều ngan
 Nhanh
 Vibe được dựng để nhỏ gọn và nhanh. Thẻ, ảnh bìa và dạng sóng được đọc ở nền rồi lưu đệm, nên lần mở sau là tức thì.
 
-Được macOS giải mã
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ, và định dạng cùng tần số lấy mẫu của từng bản nhạc nằm ngay cạnh tiêu đề.
+Chỉ việc phát tệp của bạn
+Thả một tệp hoặc một thư mục — từ ổ đĩa của bạn, từ iCloud Drive hay Dropbox — là nhạc chạy. Không có cơ sở dữ liệu nào phải dựng lại và không có thư viện nào phải trông nom.
 
-Không có thư viện nào phải nhập
-Thả một tệp hoặc một thư mục — từ ổ đĩa của bạn, từ iCloud Drive hay Dropbox — là nhạc chạy. Không có cơ sở dữ liệu nào phải dựng lại và không có thư viện nào phải trông nom. Ảnh bìa, thẻ và BPM lấp đầy phía sau trong khi bản nhạc đầu tiên đã phát.
+Được macOS giải mã
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ.
+
+Chế độ bit-perfect
+Chế độ bit-perfect và chế độ độc quyền gửi âm thanh tới thiết bị đầu ra đúng nguyên trạng, cho chất lượng tốt nhất có thể.
 
 Dựng cho DJ
 Vibe có bộ chỉnh pitch kiểu bàn xoay, phân tích BPM và tông, các bước nhảy chính xác theo ô nhịp, cùng FX biểu diễn.

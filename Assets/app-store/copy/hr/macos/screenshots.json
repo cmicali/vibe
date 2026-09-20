@@ -10,13 +10,13 @@
     "subhead": "Omoti, oznake i BPM učitavaju se u pozadini i keširaju za brzinu."
   },
   {
+    "id": "themes",
+    "headline": "Teme",
+    "subhead": "Prilagodite izgled opsežnim uređivačem tema."
+  },
+  {
     "id": "pitch",
     "headline": "DJ-i će biti kao doma",
     "subhead": "Pitch fader kao na gramofonu, skokovi po taktovima i FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Ruke na tipkovnici",
-    "subhead": "Transport, skokovi po taktovima, FX i pitch."
   }
 ]

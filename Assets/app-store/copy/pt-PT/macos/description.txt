@@ -1,4 +1,4 @@
-O Vibe é um leitor rápido e minimalista para os seus ficheiros de música. Sem motor de terceiros, sem conta, sem subscrição. Ouça a música que já tem, onde quer que a guarde.
+O Vibe é um leitor rápido e minimalista para os seus ficheiros de música.
 
 Vista de forma de onda
 O Vibe desenha cada faixa como uma forma de onda ao longo de toda a janela. Clique em qualquer ponto para avançar até aí.
@@ -6,11 +6,14 @@ O Vibe desenha cada faixa como uma forma de onda ao longo de toda a janela. Cliq
 Rápido
 O Vibe foi feito para ser pequeno e rápido. As etiquetas, as capas e as formas de onda são lidas em segundo plano e ficam em cache, pelo que a abertura seguinte é instantânea.
 
-Descodificado pelo macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos através das APIs do sistema. Os ficheiros lossless são reproduzidos em resolução total, e o formato e a frequência de amostragem de cada faixa aparecem junto ao título.
+Simplesmente toca os seus ficheiros
+Largue um ficheiro ou uma pasta — do seu disco, do iCloud Drive ou do Dropbox — e começa a tocar. Não há base de dados para reconstruir nem biblioteca para manter.
 
-Nenhuma biblioteca para importar
-Largue um ficheiro ou uma pasta — do seu disco, do iCloud Drive ou do Dropbox — e começa a tocar. Não há base de dados para reconstruir nem biblioteca para manter. Capas, etiquetas e BPM vão sendo preenchidos em segundo plano enquanto a primeira faixa já toca.
+Descodificado pelo macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos através das APIs do sistema. Os ficheiros lossless são reproduzidos em resolução total.
+
+Modo bit-perfect
+O modo bit-perfect e o modo exclusivo enviam o áudio para o seu dispositivo de saída exactamente como está, para a melhor qualidade possível.
 
 Pensado para DJs
 O Vibe inclui controlo de pitch ao estilo de gira-discos, análise de BPM e tonalidade, saltos exactos por compassos e FX de performance.

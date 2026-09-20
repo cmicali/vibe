@@ -1,0 +1,19 @@
+Vibe là trình phát nhanh, tối giản cho các tệp nhạc của bạn.
+
+Chế độ xem dạng sóng
+Vibe vẽ mỗi bản nhạc thành một dạng sóng đầy đủ. Kéo trên đó để đổi vị trí, vuốt sang ngang để chuyển bản nhạc.
+
+Chỉ việc phát tệp của bạn
+Phát các tệp trên iPhone, trong iCloud Drive hoặc trong Dropbox — từ ứng dụng Tệp hoặc từ bộ chọn tệp tích hợp.
+
+Không có thư viện nào phải nhập
+Không có cơ sở dữ liệu nào phải dựng lại và không có gì phải đồng bộ.
+
+Được iOS giải mã
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, tất cả đều phát qua API hệ thống. Tệp lossless phát ở độ phân giải đầy đủ.
+
+Widget
+Widget nhỏ và vừa hiển thị bản nhạc đang phát cùng ảnh bìa và một dạng sóng bạn có thể kéo để đổi vị trí.
+
+Miễn phí và mã nguồn mở
+Vibe không thu thập gì và không hiển thị quảng cáo. Toàn bộ mã nguồn có trên GitHub theo giấy phép Apache 2.0.

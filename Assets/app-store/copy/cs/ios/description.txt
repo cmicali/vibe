@@ -1,0 +1,19 @@
+Vibe je rychlý, minimalistický přehrávač vašich hudebních souborů.
+
+Zobrazení vlny
+Vibe vykreslí každou skladbu jako celou vlnu. Tažením po ní se přesunete, přejetím do strany přepnete skladbu.
+
+Prostě přehraje vaše soubory
+Přehrávejte soubory ve svém iPhonu, na iCloud Drive nebo v Dropboxu — z aplikace Soubory nebo z vestavěného výběru souborů.
+
+Žádná knihovna k importu
+Není co znovu sestavovat v databázi ani co synchronizovat.
+
+Dekóduje iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všechny přehrávané přes systémová API. Bezztrátové soubory hrají v plném rozlišení.
+
+Widgety
+Malý a střední widget ukazují právě hrající skladbu s obalem a vlnou, po které se můžete posouvat.
+
+Zdarma a open source
+Vibe nic nesbírá a nezobrazuje reklamy. Kompletní zdrojový kód je na GitHubu pod licencí Apache 2.0.

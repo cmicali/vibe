@@ -1,9 +1,12 @@
-* Tema — beberapa desain bawaan, dan editor untuk membuat milik Anda sendiri
-* Pengeditan playlist — pilih beberapa lagu, hapus, atau seret untuk menyusun ulang
-* Gaya bentuk gelombang baru, ditambah Normalisasi dan penggeser Gain untuk tinggi gambar
-* Dukungan VoiceOver untuk bentuk gelombang dan penggeser Pitch
-* Rekaman memo suara (.qta) kini dapat diputar
-* Sakelar untuk menampilkan atau menyembunyikan kontrol jendela
-* Menggulir lebih cepat di playlist besar
-* Pemuatan berkas lambat dan berkas cloud lebih andal
-* Perbaikan pembukaan folder melalui tautan simbolik
+* Pemutaran bit-perfect dan mode eksklusif untuk perangkat keluaran
+* File > Simpan Daftar Putar… (⌘S) mengekspor daftar putar sebagai berkas M3U
+* Pengaturan baru untuk memuat daftar putar terakhir saat dijalankan
+* Lebih banyak penyesuaian tema, termasuk tombol transport dan ikon aplikasi
+* Tema baru Glassy, Snake, dan Tangerine, plus urungkan dan acak di editor tema
+* Gaya bentuk gelombang baru: Wiggle dan Wiggle MC
+* Normalisasi bentuk gelombang kini hanya mengangkat lagu yang pelan
+* Pengaturan yang dirombak, dengan pemilih perangkat audio baru
+* Mengaktifkan efek audio tidak lagi memerlukan memulai ulang aplikasi
+* Folder besar dimuat lebih cepat dan jendela diubah ukurannya lebih mulus
+* Memperbaiki suara yang sedikit berwarna saat filter low-cut dimatikan
+* Memperbaiki sampul di Dock yang tidak diperbarui setelah berganti tema

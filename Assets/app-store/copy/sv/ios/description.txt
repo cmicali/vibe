@@ -1,0 +1,19 @@
+Vibe är en snabb, minimalistisk spelare för dina musikfiler.
+
+Vågformsvy
+Vibe ritar varje låt som en hel vågform. Dra i den för att söka, svep i sidled för att byta låt.
+
+Spelar bara dina filer
+Spela filer på din iPhone, i iCloud Drive eller i Dropbox — från appen Filer eller den inbyggda filväljaren.
+
+Inget bibliotek att importera
+Det finns ingen databas att bygga om och inget att synka.
+
+Avkodas av iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, alla spelade genom systemets API:er. Lossless-filer spelas i full upplösning.
+
+Widgetar
+Den lilla och den mellanstora widgeten visar aktuell låt med omslag och en vågform du kan söka i.
+
+Gratis och öppen källkod
+Vibe samlar inte in något och visar inga annonser. Hela källkoden finns på GitHub under Apache 2.0-licensen.

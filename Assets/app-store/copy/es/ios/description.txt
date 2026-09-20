@@ -1,0 +1,19 @@
+Vibe es un reproductor rápido y minimalista para tus archivos de música.
+
+Vista de forma de onda
+Vibe dibuja cada pista como una forma de onda completa. Arrastra para moverte por ella y desliza para cambiar de pista.
+
+Simplemente suena
+Reproduce archivos de tu iPhone, de iCloud Drive o de Dropbox —desde la app Archivos o desde el selector integrado.
+
+Sin biblioteca que importar
+No hay base de datos que reconstruir ni nada que sincronizar.
+
+Decodificado por iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, todos reproducidos a través de las APIs del sistema. Los archivos sin pérdida suenan a resolución completa.
+
+Widgets
+Los widgets pequeño y mediano muestran la pista actual con su carátula y una forma de onda por la que puedes moverte.
+
+Gratis y de código abierto
+Vibe no recopila nada y no muestra anuncios. Todo el código fuente está en GitHub bajo la licencia Apache 2.0.

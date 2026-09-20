@@ -1,0 +1,19 @@
+Vibe is een snelle, minimalistische speler voor je muziekbestanden.
+
+Golfvormweergave
+Vibe tekent elk nummer als een volledige golfvorm. Sleep eroverheen om te zoeken, veeg opzij om van nummer te wisselen.
+
+Speelt gewoon je bestanden
+Speel bestanden op je iPhone, in iCloud Drive of in Dropbox — vanuit de Bestanden-app of de ingebouwde bestandskiezer.
+
+Geen bibliotheek om te importeren
+Er is geen database om opnieuw op te bouwen en niets om te synchroniseren.
+
+Gedecodeerd door iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, allemaal afgespeeld via de systeem-API’s. Lossless bestanden spelen op volle resolutie.
+
+Widgets
+De kleine en middelgrote widgets tonen het huidige nummer met artwork en een golfvorm waarover je kunt zoeken.
+
+Gratis en open source
+Vibe verzamelt niets en toont geen advertenties. De volledige broncode staat op GitHub onder de Apache 2.0-licentie.

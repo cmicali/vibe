@@ -10,13 +10,13 @@
     "subhead": "封面、標籤與 BPM 於背景讀取並快取，下次打開更快。"
   },
   {
+    "id": "themes",
+    "headline": "佈景主題",
+    "subhead": "用功能齊全的主題編輯器自訂外觀。"
+  },
+  {
     "id": "pitch",
     "headline": "DJ 的熟悉手感",
     "subhead": "唱盤式音高推桿、按小節跳轉，還有表演 FX。"
-  },
-  {
-    "id": "keys",
-    "headline": "雙手不離鍵盤",
-    "subhead": "播放控制、小節跳轉、FX 與音高。"
   }
 ]

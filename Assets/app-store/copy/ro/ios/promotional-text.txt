@@ -1,0 +1,1 @@
+Un player rapid și minimalist pentru fișierele tale de muzică. Deschide un folder din Fișiere, parcurge forma de undă și ascultă. Fără bibliotecă, fără cont.

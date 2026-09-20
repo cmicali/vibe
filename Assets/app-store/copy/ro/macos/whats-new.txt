@@ -1,9 +1,12 @@
-* Teme — mai multe aspecte integrate și un editor pentru a le crea pe ale dvs.
-* Editarea playlistului — selectați mai multe piese, eliminați-le sau trageți pentru a le reordona
-* Noi stiluri de formă de undă, plus Normalizare și un glisor Amplificare pentru înălțimea desenului
-* Compatibilitate VoiceOver pentru forma de undă și glisorul Pitch
-* Înregistrările de note vocale (.qta) se redau acum
-* Un comutator pentru afișarea sau ascunderea butoanelor ferestrei
-* Derulare mai rapidă în playlisturile mari
-* Încărcare mai fiabilă a fișierelor lente și a celor din cloud
-* Remediată deschiderea folderelor printr-o legătură simbolică
+* Redare bit-perfect și mod exclusiv pentru dispozitivele de ieșire
+* Fișier > Salvează playlistul… (⌘S) exportă playlistul ca fișier M3U
+* Setare nouă pentru încărcarea ultimului playlist la pornire
+* Mai multă personalizare a temelor, inclusiv butoanele de transport și pictograma aplicației
+* Teme noi Glassy, Snake și Tangerine, plus anulare și aleatoriu în editorul de teme
+* Stiluri noi de formă de undă, Wiggle și Wiggle MC
+* Normalizarea formei de undă ridică acum doar piesele silențioase
+* Setări regândite, cu un nou selector de dispozitiv audio
+* Activarea efectelor audio nu mai cere repornirea aplicației
+* Încărcare mai rapidă a folderelor mari și redimensionare mai fluidă
+* Corectat un sunet ușor colorat când filtrul trece-jos era dezactivat
+* Corectată coperta din Dock, care nu se actualiza după schimbarea temei

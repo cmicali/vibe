@@ -10,13 +10,13 @@
     "subhead": "Pochettes, tags et BPM lus en arrière-plan et mis en cache."
   },
   {
+    "id": "themes",
+    "headline": "Thèmes",
+    "subhead": "Personnalisez l’apparence avec un éditeur de thèmes complet."
+  },
+  {
     "id": "pitch",
     "headline": "Les DJs sont chez eux",
     "subhead": "Fader de pitch façon platine, sauts calés à la mesure et FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Les mains sur le clavier",
-    "subhead": "Transport, sauts par mesures, FX et pitch."
   }
 ]

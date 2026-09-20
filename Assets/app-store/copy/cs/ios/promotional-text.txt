@@ -1,0 +1,1 @@
+Rychlý, minimalistický přehrávač vašich hudebních souborů. Otevřete složku ze Souborů, projeďte vlnu a hrajte. Žádná knihovna, žádný účet, žádné předplatné.

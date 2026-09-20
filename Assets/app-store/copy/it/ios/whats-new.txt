@@ -1,0 +1,8 @@
+Prima versione di Vibe per iPhone e iPad.
+
+* Apri una cartella da File o dal selettore integrato — sul dispositivo, in iCloud Drive o in Dropbox
+* Scorrimento su tutta la forma d’onda, scorri di lato per cambiare brano
+* Widget piccolo e medio nella schermata Home, con forma d’onda
+* Preferiti e ricerca nelle cartelle che hai aperto
+* Riproduzione in background, con controlli su schermo di blocco e AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC a piena risoluzione

@@ -1,0 +1,19 @@
+O Vibe é um player rápido e minimalista para seus arquivos de música.
+
+Visualização em forma de onda
+O Vibe desenha cada faixa como uma forma de onda completa. Arraste para percorrê-la e deslize para trocar de faixa.
+
+Simplesmente toca seus arquivos
+Toque arquivos do seu iPhone, do iCloud Drive ou do Dropbox — pelo app Arquivos ou pelo seletor integrado.
+
+Nenhuma biblioteca para importar
+Não há banco de dados para reconstruir nem nada para sincronizar.
+
+Decodificado pelo iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, todos reproduzidos pelas APIs do sistema. Arquivos lossless tocam em resolução total.
+
+Widgets
+Os widgets pequeno e médio mostram a faixa atual com a capa e uma forma de onda que você pode percorrer.
+
+Gratuito e de código aberto
+O Vibe não coleta nada e não exibe anúncios. Todo o código-fonte está no GitHub sob a licença Apache 2.0.

@@ -1,0 +1,8 @@
+Erste Version von Vibe für iPhone und iPad.
+
+* Ordner aus Dateien oder der eingebauten Dateiauswahl öffnen — auf dem Gerät, in iCloud Drive oder in Dropbox
+* Scrubben über die ganze Wellenform, Wischen wechselt den Titel
+* Kleine und mittlere Home-Bildschirm-Widgets mit Wellenform
+* Favoriten und Suche über die geöffneten Ordner
+* Wiedergabe im Hintergrund, mit Sperrbildschirm- und AirPlay-Steuerung
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC in voller Auflösung

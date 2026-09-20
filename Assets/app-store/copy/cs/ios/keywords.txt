@@ -1,0 +1,1 @@
+přehrávač,hudba,flac,mp3,bpm,vlna,složka,offline,wav,aiff,audio,gapless,widget,m4a

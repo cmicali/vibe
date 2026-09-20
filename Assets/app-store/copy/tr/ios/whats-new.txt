@@ -1,0 +1,8 @@
+Vibe'ın iPhone ve iPad için ilk sürümü.
+
+* Dosyalar'dan ya da yerleşik seçiciden bir klasör açın — aygıtta, iCloud Drive'da veya Dropbox'ta
+* Dalga biçiminin tamamında ilerleme, kaydırarak parça değiştirme
+* Ana Ekran'da küçük ve orta boy widget'lar, dalga biçimiyle
+* Açtığınız klasörlerde favoriler ve arama
+* Arka planda çalma, kilit ekranı ve AirPlay kontrolleriyle
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC tam çözünürlükte

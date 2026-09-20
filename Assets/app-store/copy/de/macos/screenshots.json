@@ -10,13 +10,13 @@
     "subhead": "Artwork, Tags und BPM werden im Hintergrund gelesen und für Tempo gecacht."
   },
   {
+    "id": "themes",
+    "headline": "Themes",
+    "subhead": "Pass das Aussehen mit einem umfassenden Theme-Editor an."
+  },
+  {
     "id": "pitch",
     "headline": "DJs fühlen sich zu Hause",
     "subhead": "Tempo-Regler im Turntable-Stil, taktgenaue Sprünge und Performance-FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Hände auf der Tastatur",
-    "subhead": "Transport, Takt-Sprünge, Performance-FX und Tempo."
   }
 ]

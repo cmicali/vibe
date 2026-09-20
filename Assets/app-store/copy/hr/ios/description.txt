@@ -1,0 +1,19 @@
+Vibe je brz, minimalistički player za vaše glazbene datoteke.
+
+Prikaz valnog oblika
+Vibe crta svaku pjesmu kao cijeli valni oblik. Povucite po njemu za pomicanje, prijeđite prstom u stranu za promjenu pjesme.
+
+Jednostavno svira vaše datoteke
+Svirajte datoteke na svom iPhoneu, u iCloud Driveu ili u Dropboxu — iz aplikacije Datoteke ili iz ugrađenog odabirnika.
+
+Nema biblioteke za uvoz
+Nema baze podataka za ponovnu izgradnju ni ičega za sinkronizaciju.
+
+Dekodira iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, svi reproducirani kroz sistemske API-je. Lossless datoteke sviraju u punoj rezoluciji.
+
+Widgeti
+Mali i srednji widget prikazuju pjesmu koja svira s omotom i valnim oblikom po kojem se možete pomicati.
+
+Besplatan i otvorenog koda
+Vibe ne prikuplja ništa i ne prikazuje oglase. Cijeli izvorni kod je na GitHubu pod licencom Apache 2.0.

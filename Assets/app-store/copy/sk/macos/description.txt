@@ -1,4 +1,4 @@
-Vibe je rýchly, minimalistický prehrávač vašich hudobných súborov. Žiadny externý engine, žiadny účet, žiadne predplatné. Prehrajte hudbu, ktorú už máte — nech ju máte uloženú kdekoľvek.
+Vibe je rýchly, minimalistický prehrávač vašich hudobných súborov.
 
 Zobrazenie vlnového priebehu
 Vibe vykreslí každú skladbu ako celý vlnový priebeh cez okno. Kliknutím kamkoľvek naň sa presuniete.
@@ -6,11 +6,14 @@ Vibe vykreslí každú skladbu ako celý vlnový priebeh cez okno. Kliknutím ka
 Rýchly
 Vibe je stavaný tak, aby bol malý a rýchly. Tagy, obaly a vlnové priebehy sa čítajú na pozadí a ukladajú do vyrovnávacej pamäte, takže ďalšie otvorenie je okamžité.
 
-Dekóduje macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všetky prehrávané cez systémové API. Bezstratové súbory hrajú v plnom rozlíšení a formát aj vzorkovacia frekvencia každej skladby sú hneď vedľa názvu.
+Jednoducho prehrá vaše súbory
+Pretiahnite súbor alebo priečinok — z disku, z iCloud Drive alebo z Dropboxu — a hrá. Niet databázy na prestavbu ani knižnice na údržbu.
 
-Žiadna knižnica na import
-Pretiahnite súbor alebo priečinok — z disku, z iCloud Drive alebo z Dropboxu — a hrá. Niet databázy na prestavbu ani knižnice na údržbu. Obaly, tagy a BPM sa doplnia za pochodu, kým prvá skladba už hrá.
+Dekóduje macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, všetky prehrávané cez systémové API. Bezstratové súbory hrajú v plnom rozlíšení.
+
+Režim bit-perfect
+Bit-perfect a exkluzívny režim posielajú zvuk do výstupného zariadenia presne tak, ako je, pre najlepšiu možnú kvalitu.
 
 Stavané pre DJov
 Vibe ponúka pitch fader v štýle gramofónu, analýzu BPM a tóniny, presné skoky po taktoch a performance FX.

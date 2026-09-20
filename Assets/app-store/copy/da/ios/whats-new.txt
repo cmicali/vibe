@@ -1,0 +1,8 @@
+Første version af Vibe til iPhone og iPad.
+
+* Åbn en mappe fra Filer eller den indbyggede filvælger — på enheden, i iCloud Drive eller i Dropbox
+* Spoling hen over hele bølgeformen, stryg for at skifte nummer
+* Små og mellemstore widgets på hjemmeskærmen, med bølgeform
+* Favoritter og søgning i de mapper, du har åbnet
+* Afspilning i baggrunden, med betjening på låseskærmen og AirPlay
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC i fuld opløsning

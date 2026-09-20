@@ -37,25 +37,27 @@ Nothing in the repo can do these — they are account state.
 | B4 | CI builds iOS in Release as well as Debug. Everything under `Vibe/Debug` is `#if DEBUG`, so Release compiles different code, and Release is what the archive builds. `main` is unprotected, so the job rename to `build-ios (Debug｜Release)` breaks no required check. | **done** |
 | B5 | ~~Add `VibeWidget/Localizable.xcstrings` to `check-translations`~~ — **withdrawn, it was already covered.** The four `widget.*` keys live in `Resources/Localizable.xcstrings` with every language, so `check-translations` gates them there, and `extract-strings.sh --check` re-derives the widget subset and diffs it, so a stale derived catalog fails `make check-strings`. Adding it would have double-reported every failure. | **n/a** |
 
-## C. Product-page copy
+## C. Product-page copy — complete
 
 ASC localizations hang off a version and versions are per platform, so iOS
-needs its own copy. Layout decided: `copy/<lang>/<platform>/`, because every
-file under `<lang>/` is a version field. The three URL files are not version
-fields and stay shared at `copy/`.
+needs its own copy. Layout: `copy/<lang>/<platform>/`, because every file under
+`<lang>/` is a version field. The three URL files are not version fields and
+stay shared at `copy/`. `appstore-validate-copy` now requires both platforms in
+every language.
 
 | | Item | Status |
 |---|---|---|
-| C1 | English iOS description, keywords and promotional text written to `copy/en/ios/`. Same structure as the macOS page, iOS-true content: waveform scrubbing and swipe, Files/iCloud/Dropbox, no library, formats, home-screen widgets, background playback, favorites and search, free and open source. It claims none of the macOS-only features. All four fields inside ASC limits. **Awaiting your edits before translation.** | **done (en)** |
-| C2 | Translate the iOS copy into the other 29 catalog languages. **Deliberately parked until the English copy is final** — translating first would mean re-translating after every tweak. | **open** |
+| C1 | iOS description, keywords and promotional text, in all 30 catalog languages. Same structure as the macOS page, iOS-true content: waveform scrubbing and swipe, Files/iCloud/Dropbox, no library, formats, home-screen widgets, free and open source. It claims none of the macOS-only features. | **done** |
+| C2 | Translations complete — 30 languages × 2 platforms × 4 text fields = 240 files, plus the `themes` caption in every `screenshots.json`. The macOS description and release notes were re-translated where 1.12 changed them. Register and quote conventions per the **vibe-strings** skill (informal de/es/it/nl/hu, formal fr/ru/uk/bg/el, polite ja/ko), Apple's own menu names (`Ablage`, `Archivio`, `Arkiv`), and DJ loanwords kept (`FX`, `pitch`, German `Tempo`). Verified by dry run against both live 1.12 records. | **done** |
 | C3 | Layout migrated: 150 files (30 languages × 5) moved under `<lang>/macos/`, English iOS copy added at `<lang>/ios/`, tracked screenshots to `screenshots/en/macos/`. Every reader updated — `appstore-validate-copy.sh` (platform loop, per-platform shot ids), `appstore-generate-store-screenshots.sh`, `appstore-capture-app-screenshots.sh`, `github-release.sh` (its release notes are the macOS ones), `ASCUpload.swift`, both READMEs, the Makefile comments and both skills. | **done** |
-| C4 | Release notes for 1.12. macOS rewritten from the CHANGELOG's 1.12 section — it was still carrying the 1.11 notes. iOS written as a first-release introduction. English only; translations ride with C2. | **done (en)** |
+| C4 | Release notes for 1.12. macOS rewritten from the CHANGELOG's 1.12 section — it was still carrying the 1.11 notes. iOS written as a first-release introduction. Translated with C2. | **done** |
 | C5 | `ASCUpload.swift` takes `--platform macos\|ios`, threaded through version filtering, version creation, the copy directory and the screenshot display type. iOS's display type is deliberately `nil` — which iPhone type ASC now accepts is unresolved (D3) and there are no files yet — so iOS requires `--skip-screenshots` and says so rather than uploading an empty set. Verified against the live iOS 1.12 record by dry run. | **done** |
 
 ## D. Screenshots
 
 | | Item | Status |
 |---|---|---|
+| D0 | The macOS shot set was reworked in passing: `keys` (keyboard shortcuts) replaced by `themes`, `pitch` moved to the compact capture, one built-in theme per shot, and window sizes pinned instead of inherited from the autosaved frame. Not iOS work, but it is why C2 has a caption to translate. | **done** |
 | D1 | There is no iOS screenshot pipeline. `appstore-generate-store-screenshots.sh` composites *macOS window captures* onto a 2880×1800 canvas. The building blocks exist: `xcrun simctl io <udid> screenshot` for ground-truth pixels, and the `vibe-debug` channel to stage the app before each shot. | **open** |
 | D2 | iPad screenshots are **required** — `TARGETED_DEVICE_FAMILY` is `1,2`. | **open** |
 | D3 | Pick display types. Trap: the pinned Bagbutik (24.0.0) `ScreenshotDisplayType` tops out at `APP_IPHONE_67` — there is no `APP_IPHONE_69`. Verify ASC still accepts a 6.7" (1290×2796) set for a new iOS version; if it demands 6.9", bump Bagbutik or patch the enum and render 1320×2868. iPad is `APP_IPAD_PRO_3GEN_129`. | **open** |
@@ -103,6 +105,13 @@ fields and stay shared at `copy/`.
   1.12.
 - **No iOS build had ever been uploaded** before this work — every TestFlight
   train on the record was `MAC_OS`.
+- **The capture tooling was broken in two ways, both pre-existing.** The setup
+  block issued a `--debug-cmd` right after `pkill`, so the appearance pin was
+  written to a process that had just been ended; and #32 (2026-09-16) made
+  `--isolated-desktop` mandatory on `input.swift` without updating
+  `screenshot-lib.sh`, so every run since had died at its first cursor move.
+  Fixed in `fed353d9`; global input is now a per-run `ALLOW_GLOBAL_INPUT=1`
+  assertion rather than something a library claims on the caller's behalf.
 - The iOS app uses **no permission-gated APIs and does no networking**, so App
   Privacy stays "no data collected", there are no usage-description strings to
   write, and `ITSAppUsesNonExemptEncryption: false` means no per-build export

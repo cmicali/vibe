@@ -1,0 +1,1 @@
+Um leitor rápido e minimalista para os seus ficheiros de música. Abra uma pasta a partir de Ficheiros, percorra a forma de onda e ouça. Sem biblioteca nem conta.

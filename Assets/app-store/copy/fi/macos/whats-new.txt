@@ -1,9 +1,12 @@
-* Teemat — useita valmiita ulkoasuja ja editori omien tekemiseen
-* Soittolistan muokkaus — valitse useita kappaleita, poista ne tai järjestä vetämällä
-* Uusia aaltomuototyylejä sekä Normalisoi ja Vahvistus-liukusäädin piirtokorkeudelle
-* VoiceOver-tuki aaltomuodolle ja Pitch-liukusäätimelle
-* Sanelutallenteet (.qta) toistuvat nyt
-* Kytkin ikkunasäätimien näyttämiseen tai kätkemiseen
-* Nopeampi vieritys suurissa soittolistoissa
-* Luotettavampi hitaiden ja pilvitiedostojen lataus
-* Korjattu kansioiden avaaminen symbolisen linkin kautta
+* Bit-perfect-toisto ja yksinoikeustila ulostulolaitteille
+* Arkisto > Tallenna soittolista… (⌘S) vie soittolistan M3U-tiedostona
+* Uusi asetus viimeisimmän soittolistan lataamiseen käynnistyksessä
+* Enemmän teemojen muokkausta, myös toistopainikkeet ja appin symboli
+* Uudet teemat Glassy, Snake ja Tangerine sekä kumoaminen ja satunnaistus teemaeditorissa
+* Uudet aaltomuototyylit Wiggle ja Wiggle MC
+* Aaltomuodon normalisointi korostaa nyt vain hiljaisia kappaleita
+* Uudistetut asetukset ja uusi äänilaitteen valitsin
+* Äänitehosteiden käyttöönotto ei enää vaadi appin uudelleenkäynnistystä
+* Suurten kansioiden nopeampi lataus ja sulavampi ikkunan koon muutos
+* Korjattu hieman värittynyt ääni, kun alapäästösuodatin oli pois päältä
+* Korjattu Dockin kansikuva, joka ei päivittynyt teeman vaihdon jälkeen

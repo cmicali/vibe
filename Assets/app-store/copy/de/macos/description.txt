@@ -1,4 +1,4 @@
-Vibe ist ein schneller, minimalistischer Player für deine Musikdateien. Keine fremde Engine, kein Account, kein Abo. Spiel die Musik, die du schon hast — wo immer du sie aufbewahrst.
+Vibe ist ein schneller, minimalistischer Player für deine Musikdateien.
 
 Wellenform-Ansicht
 Vibe zeichnet jeden Titel als komplette Wellenform über das Fenster. Ein Klick an eine beliebige Stelle springt dorthin.
@@ -6,11 +6,14 @@ Vibe zeichnet jeden Titel als komplette Wellenform über das Fenster. Ein Klick 
 Schnell
 Vibe ist klein und schnell gebaut. Tags, Artwork und Wellenformen liest Vibe im Hintergrund und cacht sie — das nächste Öffnen geht sofort.
 
-Von macOS dekodiert
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, alle über die System-APIs abgespielt. Lossless-Dateien spielen in voller Auflösung, und Format und Abtastrate stehen bei jedem Titel direkt neben dem Namen.
+Spielt einfach deine Dateien
+Lege eine Datei oder einen Ordner ab — von deiner Festplatte, aus iCloud Drive oder Dropbox — und sie spielt. Keine Datenbank, die neu aufgebaut werden muss, und keine Mediathek, die gepflegt werden will.
 
-Keine Mediathek zum Importieren
-Lege eine Datei oder einen Ordner ab — von deiner Festplatte, aus iCloud Drive oder Dropbox — und sie spielt. Keine Datenbank, die neu aufgebaut werden muss, und keine Mediathek, die gepflegt werden will. Artwork, Tags und BPM füllen sich nach, während der erste Titel schon läuft.
+Von macOS dekodiert
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, alle über die System-APIs abgespielt. Lossless-Dateien spielen in voller Auflösung.
+
+Bit-perfekter Modus
+Bit-perfekt und Exclusive Mode geben Audio exakt unverändert an dein Ausgabegerät weiter, für die bestmögliche Klangqualität.
 
 Für DJs gebaut
 Vibe bringt einen Tempo-Regler im Turntable-Stil mit, BPM- und Tonart-Analyse, taktgenaue Sprünge und Performance-FX.

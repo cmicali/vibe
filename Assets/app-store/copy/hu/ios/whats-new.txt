@@ -1,0 +1,8 @@
+A Vibe első verziója iPhone-ra és iPadre.
+
+* Nyiss meg egy mappát a Fájlokból vagy a beépített fájlválasztóból — az eszközön, az iCloud Drive-on vagy a Dropboxban
+* Tekerés a teljes hullámformán, csúsztatás vált számot
+* Kis és közepes widget a Home képernyőn, hullámformával
+* Kedvencek és keresés a megnyitott mappákban
+* Háttérben lejátszás, zárolási képernyős és AirPlay vezérléssel
+* MP3, AAC, MP4/M4A, MP2, AIFF, WAV és FLAC teljes felbontásban

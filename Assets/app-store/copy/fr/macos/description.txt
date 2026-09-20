@@ -1,4 +1,4 @@
-Vibe est un lecteur rapide et minimaliste pour vos fichiers musicaux. Pas de moteur tiers, pas de compte, pas d’abonnement. Écoutez la musique que vous avez déjà, où que vous la gardiez.
+Vibe est un lecteur rapide et minimaliste pour vos fichiers musicaux.
 
 Vue en forme d’onde
 Vibe dessine chaque morceau sous forme d’onde sur toute la largeur de la fenêtre. Cliquez n’importe où dessus pour vous y rendre.
@@ -6,11 +6,14 @@ Vibe dessine chaque morceau sous forme d’onde sur toute la largeur de la fenê
 Rapide
 Vibe est conçu pour rester léger et rapide. Les tags, les pochettes et les formes d’onde sont lus en arrière-plan et mis en cache, si bien que la prochaine ouverture est instantanée.
 
-Décodé par macOS
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC, tous lus via les API du système. Les fichiers lossless sont lus en pleine résolution, et le format et la fréquence d’échantillonnage de chaque morceau s’affichent à côté du titre.
+Il lit simplement vos fichiers
+Déposez un fichier ou un dossier — depuis votre disque, iCloud Drive ou Dropbox — et la lecture démarre. Aucune base de données à reconstruire, aucune bibliothèque à entretenir.
 
-Aucune bibliothèque à importer
-Déposez un fichier ou un dossier — depuis votre disque, iCloud Drive ou Dropbox — et la lecture démarre. Aucune base de données à reconstruire, aucune bibliothèque à entretenir. Pochettes, tags et BPM se remplissent en arrière-plan pendant que le premier morceau joue déjà.
+Décodé par macOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV et FLAC, tous lus via les API du système. Les fichiers lossless sont lus en pleine résolution.
+
+Mode bit-perfect
+Le mode bit-perfect et le mode exclusif envoient l’audio à votre périphérique de sortie exactement tel quel, pour la meilleure qualité sonore possible.
 
 Pensé pour les DJs
 Vibe propose un fader de pitch façon platine, l’analyse du BPM et de la tonalité, des sauts calés à la mesure et des FX de performance.

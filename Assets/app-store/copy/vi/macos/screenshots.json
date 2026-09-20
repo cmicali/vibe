@@ -10,13 +10,13 @@
     "subhead": "Ảnh bìa, tag và BPM đọc ở chế độ nền, lưu đệm để mở nhanh."
   },
   {
+    "id": "themes",
+    "headline": "Chủ đề",
+    "subhead": "Tuỳ chỉnh giao diện bằng trình soạn chủ đề đầy đủ."
+  },
+  {
     "id": "pitch",
     "headline": "DJ sẽ thấy như ở nhà",
     "subhead": "Thanh pitch kiểu turntable, tua chính xác theo ô nhịp và FX biểu diễn."
-  },
-  {
-    "id": "keys",
-    "headline": "Đôi tay trên bàn phím",
-    "subhead": "Điều khiển phát, tua theo ô nhịp, FX biểu diễn và pitch."
   }
 ]

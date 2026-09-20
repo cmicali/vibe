@@ -1,9 +1,12 @@
-* Themen — mehrere eingebaute Designs und ein Editor für eigene
-* Wiedergabeliste bearbeiten — mehrere Titel auswählen, entfernen oder per Drag & Drop umsortieren
-* Neue Wellenformstile, dazu Normalisieren und ein Gain-Regler für die Höhe der Darstellung
-* VoiceOver-Unterstützung für Wellenform und Tempo-Regler
-* Sprachmemo-Aufnahmen (.qta) werden jetzt abgespielt
-* Ein Schalter zum Ein- und Ausblenden der Fenstertasten
-* Schnelleres Scrollen in großen Wiedergabelisten
-* Zuverlässigeres Laden langsamer und in der Cloud liegender Dateien
-* Öffnen von Ordnern über einen symbolischen Link behoben
+* Bit-perfekte Wiedergabe und Exclusive Mode für Ausgabegeräte
+* Ablage > Wiedergabeliste sichern… (⌘S) exportiert die Liste als M3U-Datei
+* Neue Einstellung: zuletzt geöffnete Wiedergabeliste beim Start laden
+* Mehr Theme-Anpassungen, auch für Transport-Tasten und das App-Symbol
+* Neue Themes Glassy, Snake und Tangerine, dazu Widerrufen und Zufall im Theme-Editor
+* Neue Wellenformstile Wiggle und Wiggle MC
+* Wellenform-Normalisierung hebt jetzt nur noch leise Titel an
+* Überarbeitete Einstellungen mit neuer Auswahl für Ausgabegeräte
+* Audioeffekte lassen sich jetzt ohne Neustart aktivieren
+* Schnelleres Laden großer Ordner und flüssigeres Ändern der Fenstergröße
+* Leicht gefärbter Klang bei deaktiviertem Low-Cut behoben
+* Dock-Artwork aktualisiert sich jetzt nach einem Theme-Wechsel
