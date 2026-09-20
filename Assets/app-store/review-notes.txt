@@ -24,8 +24,9 @@ of the three is enough.
 3. THE SHARE SHEET
    From any app showing an audio file, share it to Vibe.
 
-A sample track is attached to this submission, if you would rather not supply
-one of your own.
+Vibe-sample-track.mp4 is attached to this submission, if you would rather not
+supply audio of your own: a 30-second tone, tagged, that any of the three
+methods above will play.
 
 FORMATS
 

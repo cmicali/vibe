@@ -24,6 +24,12 @@ copy/privacy-url.txt     one URL, shared by every locale. Unlike the two
                          appInfoLocalizations, beside the app name and
                          subtitle, and the uploader patches it per locale
                          so it is not 29 identical edits by hand
+Vibe-sample-track.mp4    the attachment that goes with review-notes.txt, so a
+                         reviewer never has to find audio of their own. MP4 is
+                         the only media type App Store Connect accepts there.
+                         Generated from Assets/test_audio_files/bpm-120.wav
+                         (gitignored, so the product is tracked and not the
+                         source), tagged, and confirmed to open and play
 review-notes.txt         App Review Information -> Notes, and the same text
                          for TestFlight's Beta App Review Information. English
                          only, not a version field, and nothing uploads it -
