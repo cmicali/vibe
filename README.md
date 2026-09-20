@@ -1,24 +1,26 @@
 # Vibe
 
-A fast, minimal player for your music files, on the Mac and on iPhone and iPad. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it. 
+A fast, minimal player for your music files for the Mac, iPhone, and iPad. No third-party engine, no account, no subscription. 
 
 **[vibeplayer.app](https://vibeplayer.app)** — website, downloads, and [privacy policy](https://vibeplayer.app/privacy).
 
 ![Vibe screenshot](Assets/screenshot-basic.png)
 
+[![Download on the Mac App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-mac-app-store/black/en-us?releaseDate=1374883200)](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
 [![Download on the App Store](https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1374883200)](https://apps.apple.com/us/app/vibe-music-player/id1582482361?mt=12)
+
 
 ## Features
 
-- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF and WAV, all decoded natively by CoreAudio
 - **Waveform seek bar** — a SoundCloud-style waveform; click it to seek
 - **Drag and drop** — drop files or folders on the window or the dock icon to play them
+- **Themes** — restyle the whole player; build your own in Settings and share it as a file
+- **Formats** — MP3, MP2, AAC, FLAC, MP4/M4A, QTA (Voice Memos), AIFF and WAV, all decoded natively by CoreAudio
 - **Metadata and artwork** — read with TagLib, then cached to disk
 - **Keyboard transport** — `Space` plays and pauses, `B` and `N` change track, `A`–`D` and `Z`–`C` skip by bars
 - **Performance FX** — a low-kill filter, a reverb wash and BPM-synced delays on `Q`–`T`; tap to latch, hold for momentary
 - **Pitch adjust** — an optional SL-1200-style pitch fader
-- **Themes** — restyle the whole player; build your own in Settings and share it as a file
-- **Bit-perfect output** — Settings > General: Vibe sets the DAC to each file's sample rate and bit depth, offers optional exclusive access while playing, and shows a lock in the header while the track is delivered unchanged
+- **Bit-perfect output** — Bit-perfect and exclusive mode send audio to your output device exactly as-is, for the best possible audio quality
 
 ![Vibe screenshot](Assets/screenshot-playlist.png)
 
@@ -27,8 +29,6 @@ A fast, minimal player for your music files, on the Mac and on iPhone and iPad. 
 Drop audio files or a folder on the window to play them. Click the waveform to seek.
 
 Drag the artwork out to copy the playing file somewhere else.
-
-Settings > General > Load last playlist on launch saves the playlist when Vibe quits and brings it back next time, paused on the last track. Off by default.
 
 ### Key commands
 
@@ -71,29 +71,13 @@ to share. See [docs/themes.md](docs/themes.md) for the full guide.
 
 ## On iPhone and iPad
 
-The same engine and the same file handling, in a shape that suits a phone. One
-App Store listing covers both, free on each.
+The same engine and the same file handling. Uses the (not great) iOS native file picker. UI is iOS native but waveform rendering, audio engine, tag and file handling, and more are shared with the Mac app.   
 
 <p>
 <img src="Assets/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
 <img src="Assets/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
 <img src="Assets/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
 </p>
-
-- **Your files, wherever they are** — open a folder from the Files app, iCloud
-  Drive, Dropbox or anywhere else a Files provider reaches, in place and
-  without copying. There is no library to import into
-- **The same waveform** — drag it to scrub; set its theme to Album Art and it
-  takes each track's own colours
-- **Favorites** — star a folder to reopen it in a tap, and search across every
-  folder you have given Vibe
-- **Home-screen widgets** — small and medium, with the artwork, a live
-  waveform, transport buttons, and tap-to-seek
-- **Background audio** — Lock Screen and Control Center transport, and
-  playback with the screen off
-
-The Mac-only features are the ones that need a Mac: BPM and key analysis, the
-pitch fader, the performance FX, the theme editor and FLAC conversion.
 
 # Development
 
