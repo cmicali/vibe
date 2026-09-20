@@ -8,6 +8,16 @@ column as items land, and delete the file once iOS releases are routine and
 
 Status: **done** · **blocked** (waiting on another item) · **open**.
 
+> **This file is now safe to delete.** Every trap below that outlives 1.12 has
+> been moved to a durable home — `app-store-releasing.md` (§4's first-version
+> release-notes rule, "A build takes minutes to appear", "What the reviewer
+> sees" for the notes and their attachment, and eight Troubleshooting
+> entries), the **vibe-release** skill (upload-vs-registration, the image
+> pipeline), **vibe-strings** (caption fit and CJK line breaks), **vibe-debug**
+> (`VIBE_SIGN_SIM` and the widget), `Assets/app-store/README.md`,
+> `Assets/Web/README.md`, and `TRAP:` comments beside the code. What is left
+> here is the history of this one release.
+
 The mechanics of each release path live in
 [app-store-releasing.md](app-store-releasing.md); this file is only the
 first-time-on-iOS delta.

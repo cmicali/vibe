@@ -35,6 +35,12 @@ served month-old screenshots through a release deploy before anyone noticed.
 | `img/ios.png` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
 | `img/app-store-badge.svg` | Apple's own marketing toolkit, copied verbatim. **Not generated and not to be edited** — the badge is Apple's artwork and its clear space and proportions are set by their guidelines. Replace it only with a newer file from the same source. |
 
+`web-build-images.sh` covers the three screenshots; **the icons and the badge
+are outside it**, so `--check` says nothing about them. The icons are derived
+by hand from the app icon and the badge is Apple's file, and neither tracks a
+source that changes on its own — but do not read a passing `--check` as "every
+file in `img/` is current".
+
 The screenshots carry the window's own rounded corners and a transparent margin,
 which is why the page shadows them with `filter: drop-shadow` rather than
 `box-shadow` — a box shadow would trace the image rectangle instead of the window.
@@ -167,11 +173,15 @@ bites:
    holding a copy under the old TTL will not ask again until it expires, so
    the fix appears not to work for hours.
 
-Only changing the URL solves (2). `scripts/web-stamp-assets.sh` writes the
-stylesheet's content hash into the `?v=` on every page that links it, so a
-changed stylesheet is a changed URL and no cache anywhere is consulted.
-`deploy-web.sh` runs it with `--check` and refuses to publish a mismatch,
-because that failure looks exactly like a deploy that did nothing.
+Only changing the URL solves (2). `scripts/web-stamp-assets.sh` writes each
+asset's content hash into the `?v=` on every page that references it — the
+stylesheet **and every image under `img/`** — so a changed file is a changed
+URL and no cache anywhere is consulted. `deploy-web.sh` runs it with `--check`
+and refuses to publish a mismatch, because that failure looks exactly like a
+deploy that did nothing.
+
+Each image is hashed on its own rather than sharing one stamp, so changing a
+single screenshot does not force every visitor to re-fetch the rest.
 
 With the URL versioned, a given URL's bytes never change, so a Transform Rule
 on the zone caches the stamped form for a year and the unstamped form not at
@@ -180,8 +190,15 @@ all:
     /styles.css?v=…   ->  public, max-age=31536000, immutable
     /styles.css       ->  public, max-age=0, must-revalidate
 
-Images keep the four-hour default on purpose: they are large, they change
-rarely, and a stale one is only ever a stale picture.
+**Images used to be left unstamped deliberately**, on the reasoning that they
+are large, change rarely, and that a stale one is only ever a stale picture.
+That was wrong, and the 1.12 release is how it was found out. The screenshots
+were re-derived and deployed, the CDN served the new bytes immediately
+(`cf-cache-status: REVALIDATED`), and every browser that had visited before
+kept drawing the previous ones for the rest of the four-hour TTL. A stale
+picture right after a deploy does not read as a cache — it reads as a deploy
+that silently failed, and the next instinct is to re-deploy, which changes
+nothing and confirms the wrong diagnosis.
 
 ### The old domain
 

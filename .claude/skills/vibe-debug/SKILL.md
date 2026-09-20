@@ -148,6 +148,12 @@ xcrun simctl io "$(.claude/skills/vibe-debug/scripts/sim-udid.sh)" screenshot sh
 
 Build with `make build-ios CONFIG=Debug` (generic simulator destination, unsigned, into `build/DerivedData`). The mac `--debug-cmd` verbs are mac-only; every iOS verb, the driver's gestures and latency, install staleness, per-session simulators, the build lock, and iPad: `references/ios-verbs.md`.
 
+**TRAP: anything involving the home-screen widget needs `VIBE_SIGN_SIM=1`.** The default build is unsigned, unsigned means no entitlements, no entitlements means no `com.apple.security.application-groups`, and without the group container the app publishes no snapshot and the widget sits on its placeholder however you drive it — which looks exactly like a broken widget rather than a build flag. `VIBE_SIGN_SIM=1 make build-ios CONFIG=Debug` ad-hoc signs with the entitlements intact; the simulator validates no profile, so it still needs no credentials.
+
+Do not verify this with `codesign -d --entitlements`, which reads the *signature* and prints an empty dict for any simulator build — the effective set lives in the binary's `__TEXT,__entitlements` section. Ask instead whether `xcrun simctl get_app_container "$(sim-udid.sh)" com.commonwealthrecordings.Vibe groups` resolves to a path.
+
+`dump_state.widget.placed` is the gate the app itself reads: false means WidgetKit reports no widget on any Home screen, and **the app then publishes nothing at all** — a whole track can play and write nothing to the shared container, by design. The first render of the extension flips it (adding one from the widget gallery is enough) and the app republishes at once.
+
 - **Simulator only — never a connected phone.** Never a device destination (`platform=iOS`, a UDID, a name), never `devicectl` or `ios-deploy`, never an auto-resolved destination: a plugged-in phone is the user's personal device. An explicit request for an on-device run covers **that one run only** and is never recorded as a default in scripts, docs, or memory.
 - **Each session has its own simulator device** (`sim-udid.sh`), so raw `simctl` commands target `"$(sim-udid.sh)"`, never `booted`. Same-checkout sessions still share one build tree, so builds and installs serialize through `scripts/build-lock.sh`; gestures, screenshots, and the channel never take it.
 - **Audio is silent by default** (same flags as macOS); `VIBE_AUDIBLE=1` for live EQ motion. Flags apply only at `simctl launch` — a later `openurl` reuses the process — so relaunch to change them.

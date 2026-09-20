@@ -51,6 +51,10 @@ The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS
 
 **It is local-only, and enforced as such.** `deploy-web.sh` exits if `CI`, `GITHUB_ACTIONS`, `GITLAB_CI` or `BUILDKITE` is set. The Cloudflare token stays in the gitignored `.release-env` beside the ASC keys, out of CI secrets, so a later "just add it to a workflow" has to be deliberate. The token needs exactly **Account | Cloudflare Pages | Edit**. GitHub Pages is the copy CI is allowed to publish, precisely because `.github/workflows/pages.yml` needs no credential — it deploys with the workflow's own OIDC token.
 
+**The page's images are derived, and staleness is silent.** `scripts/web-build-images.sh` re-derives `Assets/Web/img/` from the screenshots already in the repo, and `--check` fails when a derivative no longer matches its source. It exists because nothing used to do that: the 1.12 screenshot rework replaced every `Assets/screenshot-*.png` and the site served the previous month's copies straight through a release deploy. Run it after any screenshot change. It covers the three screenshots only — the icons and Apple's App Store badge are outside it, so a passing `--check` does not mean every file in `img/` is current.
+
+**Every asset URL is content-hashed, images included.** `scripts/web-stamp-assets.sh` writes each file's hash into its `?v=`, and `deploy-web.sh` runs it with `--check`. Images used to be left unstamped on the reasoning that a stale one is only a stale picture; that is wrong. The 1.12 images deployed, the CDN served the new bytes at once (`cf-cache-status: REVALIDATED`), and browsers that had visited before kept drawing the old ones for the rest of the four-hour TTL — which reads as a deploy that silently failed, and invites a pointless re-deploy that confirms the wrong diagnosis.
+
 So the full sequence, all from a machine with `.release-env`: `make release`, `make github-release`, `make deploy-web`.
 
 ## Product-page metadata
@@ -93,3 +97,14 @@ Each was learned the hard way, and each is now guarded by a preflight or an erro
 - **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with different guidance per certificate type.
 
 `make appstore-build[-ios]` stops after validation; only `make appstore-upload-signed-build[-ios]` submits. Every signing identity is applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
+
+## What "upload succeeded" does not mean
+
+`UPLOAD SUCCEEDED` is about **bytes, not registration**. A build takes minutes to appear in App Store Connect and the API, and a run can end with `buildUploadFiles` timing out and "Skipping validation" among its warnings and still register perfectly well. Never read an absent build as a failed delivery and re-upload: that burns the build number, and recovering means bumping `CURRENT_PROJECT_VERSION` and archiving again. Wait, or poll `/v1/builds`.
+
+Two things that mislead while checking, both of which produced a confident wrong answer on the 1.12 release:
+
+- **`curl` eats `filter[app]=…`.** `[` and `]` are its own URL-glob syntax, so the query returns an EMPTY body with exit 0 — no error, no warning. Pass `-g`/`--globoff`. A poll built on one reports "not there yet" forever whatever the truth.
+- **Never pipe JSON through zsh's `echo`.** It rewrites the escapes inside the response into literal control characters, and `jq` then reports that Apple returned malformed JSON. Use `printf '%s'`, or write to a file and read that.
+
+An App Review **attachment** can also stick: ASC reserves a slot, then wants the bytes and a commit with a checksum, and a browser that only completes the first leaves `assetDeliveryState.state = AWAITING_UPLOAD`. Submission is then blocked by "There are still attachment uploads in progress" forever. `docs/app-store-releasing.md` has the detail.

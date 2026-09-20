@@ -69,6 +69,17 @@ The iOS copy deliberately does NOT reuse the macOS text: BPM and key analysis,
 the pitch fader, the FX rack, folder art and conversion are all macOS-only.
 A page describing features the app does not have is a review rejection.
 
+**Translating a caption is constrained, and the check only catches half of
+it.** At 1.9x with a two-line cap, a caption that will not fit shrinks toward
+72% of nominal and then **fails the build** rather than rendering small; some
+languages need a looser translation than the English rather than a literal
+one, and the iPhone canvas is the one that binds. `appstore-validate-copy`
+measures whether text *fits* — not whether it *breaks well*. The compositor
+wraps ja/zh at any character (kinsoku deliberately unimplemented), so a caption
+can split a word across lines and validate clean: three did on 1.12, splitting
+あ/ります and 播/放. **Look at the rendered CJK screenshots**; shorten until the
+caption sits on one line.
+
 - `make appstore-validate-copy` validates every catalog language has all five files
   within ASC limits and captions that fit the screenshot layout.
 - `make appstore-generate-store-screenshots [LOCALE=de]` / `make appstore-generate-store-screenshots-all`

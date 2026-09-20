@@ -178,6 +178,18 @@ macOS uploads one screenshot set per locale (`APP_DESKTOP`); iOS uploads two
 (`APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`), because iPhone and iPad are
 separate sets rather than two sizes of one, and the iPad set is required.
 
+**Release notes are not a field on a platform's FIRST version.** App Store
+Connect answers `Attribute 'whatsNew' cannot be edited at this time` and fails
+the whole run on its first locale, having written nothing. Nothing on the
+version record announces this; the only signal is that the platform has no
+other version, which is what the tool derives before it starts. It then omits
+the attribute — sending it *unchanged* is what ASC rejects — and prints one
+line saying `whats-new.txt` is not being uploaded for that platform.
+
+Under Universal Purchase this is the normal case for a new platform, not an
+edge one: iOS 1.12 was a first version while macOS 1.12, the same version
+string, had a train back to 1.7 and took its notes as usual.
+
 The uploader only ever writes to an **editable** version — Prepare for
 Submission or a rejected state. The moment a release goes live, no such
 version exists, so the *first* metadata upload of every cycle must open the
@@ -278,12 +290,36 @@ is the same content the App Store reviewer needs (below).
 
 Worth stating because it is the likeliest rejection: Vibe bundles no music and
 streams nothing, so a reviewer opening the iOS app for the first time sees an
-empty playlist and no obvious way forward. The review notes have to say how to
-get audio in — the Files tab, open-in-place from the share sheet, or dropping
-a file into the Vibe folder in the Files app — and are worth a sample track.
+empty playlist and no obvious way forward.
+
+**`Assets/app-store/review-notes.txt` is that explanation**, tracked because
+it is needed twice per release — App Review Information → Notes, and
+TestFlight's Beta App Review Information want the same text. **Nothing uploads
+it**; paste it in. It covers what the empty first launch means and that it is
+correct, the three ways to get audio in, the formats, why the widget draws a
+placeholder until the app has played once, background audio, and the privacy
+answer.
+
+**`Assets/app-store/Vibe-sample-track.mp4` is the attachment it promises**, so
+a reviewer never has to find audio of their own. MP4 because that is the only
+media type ASC accepts on that field. It is generated from a gitignored test
+WAV, which is why the product is tracked and not the source.
+
+> **Attaching it can silently not happen.** ASC uploads an attachment in three
+> steps — reserve a slot, PUT the bytes, PATCH to commit with a checksum — and
+> a browser that only completes the first leaves a record with the right name
+> and size but `uploaded=null`, `sourceFileChecksum` absent and
+> `assetDeliveryState.state = AWAITING_UPLOAD`. Submission is then blocked by
+> "There are still attachment uploads in progress", waiting on an upload
+> nothing is performing, and it will sit there indefinitely. Check the state
+> before concluding the attachment is fine; the reservation's PUT slot stays
+> open, so it can be completed over the API rather than deleted and re-added.
+
 `UIBackgroundModes: [audio]` is also a claim review will exercise: lock-screen
 controls and playback with the screen off should be verified on a real device,
-not the simulator.
+not the simulator. The widget is worth exercising on a **clean install**, since
+the app-group container is empty until the app has published once — exactly
+the state a reviewer hits.
 
 ### Privacy manifests
 
@@ -302,6 +338,24 @@ This is the one thing to re-check when the widget grows. Reading a shared
 setting (`NSUserDefaults initWithSuiteName:`) is the likely one, and it is a
 required-reason API. Apple's scan runs after upload and reports a missing
 declaration by email (ITMS-91053), which costs a whole upload cycle to learn.
+
+### A build takes minutes to appear
+
+`UPLOAD SUCCEEDED` is about **bytes**, not registration. The build does not
+show up in App Store Connect or the API straight away, and a run can even end
+with `buildUploadFiles` timing out and "Skipping validation" among its
+warnings and still register perfectly well a few minutes later.
+
+So do not read an absent build as a failed delivery. Re-uploading burns the
+build number for nothing, and the fix for that is bumping
+`CURRENT_PROJECT_VERSION` and archiving again. Wait, or poll:
+
+```bash
+# needs a token; see the API note in Troubleshooting for the -g trap
+curl -s -g -H "Authorization: Bearer $TOKEN" \
+  "https://api.appstoreconnect.apple.com/v1/builds?filter[app]=<appId>&limit=5&sort=-uploadedDate" \
+  | jq -r '.data[] | "\(.attributes.version) \(.attributes.processingState)"'
+```
 
 ## 6. After approval
 
@@ -332,5 +386,29 @@ next version. Then the next cycle starts at §2.
 - **`appstore-validate-copy` failures** name the language, file, and limit — fix the
   copy, not the check. A caption that "does not fit the layout" must be
   shortened; the compositor refuses to render text below 72% of nominal size.
+- **"Attribute 'whatsNew' cannot be edited at this time"** — the platform's
+  first version takes no release notes (§4). The uploader handles this on its
+  own; seeing it means the derivation was wrong, so check whether the platform
+  really has an earlier version record.
+- **"There are still attachment uploads in progress"** blocking submission —
+  an App Review attachment stuck in `AWAITING_UPLOAD` ("What the reviewer
+  sees"). It never resolves on its own.
+- **The build is not in App Store Connect** after a successful upload — wait.
+  Registration takes minutes and `UPLOAD SUCCEEDED` only means the bytes went
+  ("A build takes minutes to appear"). Do not re-upload.
+- **A caption reads badly although `appstore-validate-copy` passed** — the fit
+  check measures whether text *fits*, not whether it *breaks well*. The
+  compositor wraps ja/zh at any character, kinsoku deliberately unimplemented,
+  so a caption can split a word across lines and still validate. Look at the
+  rendered CJK screenshots; shorten the caption until it sits on one line.
+- **An App Store Connect API query returns nothing, with exit 0** — `curl`
+  treats `[` and `]` in `filter[app]=…` as its own URL-glob syntax and returns
+  an empty body with no error. Pass `-g`/`--globoff`. A poll built on one
+  reports "not there yet" forever regardless of the truth.
+- **`codesign -d --entitlements` prints an empty dict** for a simulator build —
+  that reads the *signature*, and a simulator build carries its effective
+  entitlements in the binary's `__TEXT,__entitlements` section instead. It does
+  not mean the entitlements are missing; to check the app group actually works,
+  ask whether `simctl get_app_container <udid> <bundle-id> groups` resolves.
 - Signing/notarization details and the Developer ID path: the
   `vibe-release` skill (`.claude/skills/vibe-release/`).
