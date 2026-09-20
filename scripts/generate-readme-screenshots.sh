@@ -1,8 +1,8 @@
 #!/bin/bash
 # Regenerate the README screenshots in Assets/.
 #
-#   scripts/generate-readme-screenshots.sh [shot ...]     # no args = all four
-#   shot names: basic pitch playlist playlist-pitch
+#   scripts/generate-readme-screenshots.sh [shot ...]     # no args = all five
+#   shot names: basic pitch themes playlist playlist-pitch
 #
 # The App Store shots (2880x1800, composited onto a background image) are a
 # separate tool: scripts/appstore-capture-app-screenshots.sh. Both share
@@ -49,6 +49,39 @@ BACKDROP_IMAGE="${BACKDROP_IMAGE:-}"
 # window happens to sit.
 BACKDROP_COLORS="${BACKDROP_COLORS:-1B1A6E 4A3AC8}"
 
+# One theme per App Store shot, so the four-shot set shows the theme system off
+# without any single shot having to be about it. Values are built-in theme
+# IDENTIFIERS, which are the Resources/Themes/ file stems (AppTheme.m) — the
+# debug channel's set_theme also accepts the display name.
+#
+# TRAP: a theme is a persisted setting, not window state, so it outlives the
+# app. Every shot sets its own and the cleanup at the bottom restores `vibe`;
+# a run that dies in between leaves the app themed, and the NEXT run's first
+# shot is captured under whatever was left until its own set_theme lands.
+# `Vibe --debug-cmd set_theme vibe` resets it by hand.
+THEME_BASIC="${THEME_BASIC:-vibe}"
+THEME_PLAYLIST="${THEME_PLAYLIST:-snake}"
+THEME_THEMES="${THEME_THEMES:-sonic_cirrus}"
+THEME_PLAYLIST_PITCH="${THEME_PLAYLIST_PITCH:-technical}"
+# README-only — not part of the App Store set, so it keeps the default.
+THEME_PITCH="${THEME_PITCH:-vibe}"
+
+# The window is sized explicitly before every capture. It used to inherit
+# whatever frame was autosaved, so the same shot came out 1214px wide after a
+# single-file launch and 1452px after a folder one, and the App Store set ended
+# up carrying four different widths. These are the sizes the published shots
+# have; changing one re-crops that store screenshot.
+#
+# Body width EXCLUDES the pitch panel (ensure_body_width), which is why the
+# compact and pitch shots share a number. Heights are the window's own: 150 is
+# kMainWindowSmallHeight, the collapsed floor.
+# ONE body width for every shot — the published set has always been 680pt,
+# and the pitch shots are wider only because the panel adds to it. Heights are
+# the window's own: 150 is kMainWindowSmallHeight, the collapsed floor.
+BODY_WIDTH="${BODY_WIDTH:-680}"
+HEIGHT_COMPACT="${HEIGHT_COMPACT:-150}"
+HEIGHT_PLAYLIST="${HEIGHT_PLAYLIST:-400}"
+
 MUSIC="$HOME/Library/CloudStorage/Dropbox/music/Tracks"
 TRACK_BASIC="$MUSIC/2026-04/Jasper Tygner - Kashmer.flac"
 # Opened alongside TRACK_BASIC purely so the playlist has a next track and the
@@ -63,6 +96,7 @@ TRACK_PITCH="$MUSIC/2026-05/Silat Beksi - Shushu.flac"
 FOLDER="$MUSIC/2026-05"
 FOLDER_TRACK_PLAYLIST="The Mountain People - Memorandum.flac"
 FOLDER_TRACK_PITCH="Steve O'Sullivan - No Aura (Original Mix).aiff"
+FOLDER_TRACK_THEMES="DJ Tennis Carlita - Trouble Symphony.flac"
 
 # Fraction of the track the playhead sits at in each shot.
 SEEK_BASIC=0.40
@@ -76,7 +110,7 @@ SCAN_WAIT="${SCAN_WAIT:-30}"
 
 # --- setup ------------------------------------------------------------------
 
-[ "$#" -gt 0 ] && SHOTS=("$@") || SHOTS=(basic pitch playlist playlist-pitch)
+[ "$#" -gt 0 ] && SHOTS=("$@") || SHOTS=(basic pitch themes playlist playlist-pitch)
 
 for f in "$TRACK_BASIC" "${TRACK_BASIC_EXTRAS[@]}" "$TRACK_PITCH" "$FOLDER"; do
     [ -e "$f" ] || { echo "missing: $f" >&2; exit 1; }
@@ -158,10 +192,12 @@ capture() { # <output-name>
 # --- shots ------------------------------------------------------------------
 
 shot_basic() {
-    say "basic: Kashmer, playing at $SEEK_BASIC, transport buttons hovered"
+    say "basic: Kashmer, playing at $SEEK_BASIC, transport buttons hovered, $THEME_BASIC theme"
     launch "$TRACK_BASIC" "${TRACK_BASIC_EXTRAS[@]}"
     ensure_playlist 0
     ensure_pitch 0
+    ensure_body_width "$BODY_WIDTH" "$HEIGHT_COMPACT"
+    quiet set_theme "$THEME_BASIC"
     # Launch Services decides which of the batch plays first, so walk to the
     # one this shot is about.
     play_track "$(basename "$TRACK_BASIC")"
@@ -172,11 +208,13 @@ shot_basic() {
 }
 
 shot_pitch() {
-    say "pitch: Shushu, pitch panel at 0%, playing at $SEEK_PITCH"
+    say "pitch: Shushu, pitch panel at 0%, playing at $SEEK_PITCH, $THEME_PITCH theme"
     launch "$TRACK_PITCH"
     ensure_playlist 0
     ensure_pitch 1
     quiet set_pitch 0
+    ensure_body_width "$BODY_WIDTH" "$HEIGHT_COMPACT"
+    quiet set_theme "$THEME_PITCH"
     cursor_out
     wait_loaded
     seek_fraction "$SEEK_PITCH"
@@ -186,11 +224,13 @@ shot_pitch() {
 # The two folder shots share one launch: opening 67 files off Dropbox and
 # waiting out the metadata scan is the slow part, and the scan result is the
 # same for both.
-shot_folder() { # <pitch 0|1> <track basename> <output>
+shot_folder() { # <pitch 0|1> <track basename> <output> <theme>
     cursor_out
     ensure_playlist 1
     ensure_pitch "$1"
     if [ "$1" = 1 ]; then quiet set_pitch 0; fi
+    ensure_body_width "$BODY_WIDTH" "$HEIGHT_PLAYLIST"
+    quiet set_theme "$4"
     center_on_track "$2"
     wait_loaded
     seek_fraction "$SEEK_FOLDER"
@@ -198,29 +238,37 @@ shot_folder() { # <pitch 0|1> <track basename> <output>
     capture "$3"
 }
 
+# A FOLDER shot, not a single-file one: opened on one track the playlist panel
+# is a row and then half a frame of empty grey, which is no advertisement for
+# anything. It shares the folder launch with the two below.
+shot_themes() {
+    say "themes: 2026-05 folder, Trouble Symphony, $THEME_THEMES theme"
+    shot_folder 0 "$FOLDER_TRACK_THEMES" screenshot-themes.png "$THEME_THEMES"
+}
+
 shot_playlist() {
-    say "playlist: 2026-05 folder, Memorandum"
-    shot_folder 0 "$FOLDER_TRACK_PLAYLIST" screenshot-playlist.png
+    say "playlist: 2026-05 folder, Memorandum, $THEME_PLAYLIST theme"
+    shot_folder 0 "$FOLDER_TRACK_PLAYLIST" screenshot-playlist.png "$THEME_PLAYLIST"
 }
 
 shot_playlist_pitch() {
-    say "playlist+pitch: 2026-05 folder, No Aura"
-    shot_folder 1 "$FOLDER_TRACK_PITCH" screenshot-playlist-pitch.png
+    say "playlist+pitch: 2026-05 folder, No Aura, $THEME_PLAYLIST_PITCH theme"
+    shot_folder 1 "$FOLDER_TRACK_PITCH" screenshot-playlist-pitch.png "$THEME_PLAYLIST_PITCH"
 }
 
 # --- run --------------------------------------------------------------------
 
 needs_folder=no
 for s in "${SHOTS[@]}"; do
-    case "$s" in playlist|playlist-pitch) needs_folder=yes ;; esac
+    case "$s" in themes|playlist|playlist-pitch) needs_folder=yes ;; esac
 done
 
 for s in "${SHOTS[@]}"; do
     case "$s" in
         basic) shot_basic ;;
         pitch) shot_pitch ;;
-        playlist|playlist-pitch) ;;  # handled together below
-        *) echo "unknown shot: $s (basic|pitch|playlist|playlist-pitch)" >&2; exit 64 ;;
+        themes|playlist|playlist-pitch) ;;  # handled together below
+        *) echo "unknown shot: $s (basic|pitch|themes|playlist|playlist-pitch)" >&2; exit 64 ;;
     esac
 done
 
@@ -231,15 +279,19 @@ if [ "$needs_folder" = yes ]; then
     quiet sleep "$SCAN_WAIT"
     for s in "${SHOTS[@]}"; do
         case "$s" in
+            themes) shot_themes ;;
             playlist) shot_playlist ;;
             playlist-pitch) shot_playlist_pitch ;;
         esac
     done
 fi
 
-# Leave the autosaved window state small again, then quit.
+# Leave the autosaved window state small again and the theme back at the
+# default, then quit. The theme is persisted, so skipping this would leave the
+# app wearing whichever shot ran last.
 ensure_pitch 0
 ensure_playlist 0
+quiet set_theme vibe
 quiet sleep 0.5
 quit_app
 say "done — app appearance left pinned to $APPEARANCE"

@@ -1,5 +1,5 @@
 * Bit-perfect playback and exclusive mode for audio output devices
-* File > Save Playlist… (⌘S) exports the playlist as an M3U file
+* File > Save Playlist... (⌘S) exports the playlist as an M3U file
 * A new setting to load the last playlist on launch
 * More theme customization, including transport controls and the app icon
 * New Glassy, Snake, and Tangerine themes, plus undo and randomize in the theme editor

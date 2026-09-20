@@ -79,6 +79,10 @@ OUT="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
 }
 
 mkdir -p "$OUT"
+# Every shot is regenerated on every run, so the directory is emptied first:
+# otherwise a renamed or removed shot survives here and the uploader, which
+# takes every .png in file-name order, ships it beside the current set.
+rm -f "$OUT"/*.png
 
 # Optional row of SF Symbols drawn above the player headline, larger than it.
 # Empty means no row, which is the current design — the glyphs are OFF.
@@ -108,9 +112,17 @@ shot() { # <id> <source> <output> [glyphs]
         --glyphs "${4:-}"
 }
 
+# The leading number is the App Store's display order: ASC sorts a locale's
+# screenshot set by file name. Renaming or reordering a shot therefore changes
+# what the store shows, which is why $OUT is emptied above — a shot that has
+# been renamed or dropped would otherwise linger there and upload alongside
+# the new set.
 shot player   screenshot-basic.png          01-player.png   "$PLAYER_GLYPHS"
 shot playlist screenshot-playlist.png       02-playlist.png
-shot pitch    screenshot-playlist-pitch.png 03-pitch.png
-shot keys     screenshot-pitch.png          04-keys.png
+shot themes   screenshot-themes.png         03-themes.png
+# The COMPACT pitch capture, not the folder one: the pitch fader is the
+# subject, and a playlist under it only competes with shot 02. screenshot-
+# playlist-pitch.png is still captured — the README uses it.
+shot pitch    screenshot-pitch.png          04-pitch.png
 
 echo "done — $OUT"

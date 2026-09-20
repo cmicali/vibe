@@ -10,13 +10,13 @@
     "subhead": "Artwork, tags, and BPM read in the background, cached for speed."
   },
   {
+    "id": "themes",
+    "headline": "Themes",
+    "subhead": "Customize the look with a comprehensive theme editor."
+  },
+  {
     "id": "pitch",
     "headline": "DJs will feel at home",
     "subhead": "Turntable-style pitch fader, bar-accurate skips, and performance FX."
-  },
-  {
-    "id": "keys",
-    "headline": "Hands on the keyboard",
-    "subhead": "Transport, bar skips, performance FX, and pitch."
   }
 ]

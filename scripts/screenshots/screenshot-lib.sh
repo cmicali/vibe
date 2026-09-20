@@ -148,8 +148,11 @@ ensure_pitch() { ensure_panel toggle_pitch_panel "$1" pitchPanelShown; }
 # Body width in points — the player without the pitch panel's slice. The
 # window is user-resizable and restores whatever width the autosave kept, so
 # any shot that wants a known size has to say so.
-ensure_body_width() { # <points>
-    quiet set_window_width "$1"
+ensure_body_width() { # <body-points> [height-points]
+    # Body width EXCLUDES the pitch panel — set_window_width adds it back when
+    # the panel is shown, so a shot with the panel open passes the same number
+    # as one without and comes out that much wider.
+    quiet set_window_width "$1" ${2:+"$2"}
     quiet sleep 0.5   # let the autoresize + glass relayout land
 }
 

@@ -73,7 +73,7 @@ check_captions() { # <label> <lang> <screenshots.json> <shot ids…>
 # checked for that platform. Stated here rather than silently skipped.
 shot_ids() {
     case "$1" in
-        macos) echo "player playlist pitch keys" ;;
+        macos) echo "player playlist themes pitch" ;;
         ios)   echo "" ;;
         *)     echo "" ;;
     esac

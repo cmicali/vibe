@@ -1,1 +1,1 @@
-audio,flac,waveform,mp3,aiff,wav,lossless,folder,offline,gapless,files,player,widget,m4a,aac
+audio,flac,waveform,mp3,aiff,wav,lossless,folder,offline,gapless,files,playlist,widget,m4a,aac

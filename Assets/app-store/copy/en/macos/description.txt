@@ -1,10 +1,13 @@
-Vibe is a fast, minimal player for your music files. No third-party engine, no account, no subscription. Play the music you already have, wherever you keep it.
+Vibe is a fast, minimal player for your music files.
 
 Waveform view
 Vibe draws every track as a full waveform across the window. Click anywhere on it to seek.
 
 Fast
-Vibe is built to be small and fast. There is no database to rebuild or library to manage. Tags, artwork, and waveforms are read in the background and cached, so the next open is instant.
+Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached so the next open is instant.
+
+Just plays your files
+Drop a file or a folder - from your disk, iCloud Drive, or Dropbox - and it plays. There is no database to rebuild and no library to manage.
 
 Decoded by macOS
 MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, all played through the system APIs. Lossless files play at full resolution.
