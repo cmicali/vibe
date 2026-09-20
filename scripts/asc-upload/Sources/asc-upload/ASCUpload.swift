@@ -269,6 +269,20 @@ struct ASCUpload {
         }
         print("app \(options.bundleId), version \(version.attributes?.versionString ?? version.id) (\(version.attributes?.appVersionState?.rawValue ?? "?"))\(options.dryRun ? " [dry run]" : "")")
 
+        // Release notes are not a field on a platform's FIRST version: App
+        // Store Connect answers "Attribute 'whatsNew' cannot be edited at this
+        // time", and it fails the whole run on the first locale. Nothing about
+        // the version record says so — the only signal is that the platform
+        // has no other version — so it is derived here rather than discovered
+        // 30 locales in. Vibe hit this shipping iOS for the first time against
+        // a mature macOS train, where the same version string had notes and
+        // the new platform could not.
+        let acceptsWhatsNew = versions.contains { $0.id != version.id }
+        if !acceptsWhatsNew {
+            print("note: \(options.platform.rawValue) has no earlier version, so App Store Connect "
+                  + "does not accept release notes — whats-new.txt is not uploaded for this release")
+        }
+
         let existing = try await service.request(.listAppStoreVersionLocalizationsForAppStoreVersionV1(
             id: version.id, limits: [.limit(50)])).data
         var byLocale = [String: AppStoreVersionLocalization]()
@@ -276,7 +290,7 @@ struct ASCUpload {
 
         for copy in copies {
             try await sync(copy, version: version, current: byLocale[copy.locale],
-                           service: service, options: options)
+                           acceptsWhatsNew: acceptsWhatsNew, service: service, options: options)
         }
 
         if !options.skipText {
@@ -346,9 +360,12 @@ struct ASCUpload {
     }
 
     static func sync(_ copy: LocaleCopy, version: AppStoreVersion,
-                     current: AppStoreVersionLocalization?,
+                     current: AppStoreVersionLocalization?, acceptsWhatsNew: Bool,
                      service: BagbutikService, options: Options) async throws {
         var localizationId = current?.id
+        // nil omits the attribute entirely, which is what a first version
+        // needs — sending it, even unchanged, is what ASC rejects.
+        let whatsNew: String? = acceptsWhatsNew ? copy.whatsNew : nil
 
         if let current {
             let a = current.attributes
@@ -356,7 +373,7 @@ struct ASCUpload {
                 (a?.promotionalText != copy.promotionalText ||
                  a?.description != copy.description ||
                  a?.keywords != copy.keywords ||
-                 a?.whatsNew != copy.whatsNew ||
+                 (acceptsWhatsNew && a?.whatsNew != copy.whatsNew) ||
                  a?.supportUrl != copy.supportUrl ||
                  a?.marketingUrl != copy.marketingUrl)
             if changed {
@@ -372,14 +389,12 @@ struct ASCUpload {
                                 marketingUrl: copy.marketingUrl,
                                 promotionalText: copy.promotionalText,
                                 supportUrl: copy.supportUrl,
-                                whatsNew: copy.whatsNew)))))
+                                whatsNew: whatsNew)))))
                 }
             } else if !options.skipText {
                 print("\(copy.locale): text unchanged")
             }
         } else {
-            // whatsNew rides along here too; note ASC rejects it on an app's
-            // first-ever version, where there is nothing to be new against.
             print("\(copy.locale): creating localization")
             if options.dryRun {
                 localizationId = nil
@@ -393,7 +408,7 @@ struct ASCUpload {
                             marketingUrl: copy.marketingUrl,
                             promotionalText: copy.promotionalText,
                             supportUrl: copy.supportUrl,
-                            whatsNew: copy.whatsNew),
+                            whatsNew: whatsNew),
                         relationships: .init(appStoreVersion: .init(data: .init(id: version.id)))))))
                 localizationId = created.data.id
             }
