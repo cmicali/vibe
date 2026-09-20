@@ -44,6 +44,10 @@ VibeWidget/Info.plist
 __pycache__/
 *.pyc
 
+# Swift helpers the skills' scripts compile on demand beside their source. The
+# .swift stays tracked; the binary is build output and is arch-specific.
+/.claude/skills/*/scripts/*-helper
+
 # Localized App Store screenshots are regenerated, not tracked; the English
 # set stays tracked. Assets/app-store/copy/ is the source of truth and tracked.
 /Assets/app-store/screenshots/*/
