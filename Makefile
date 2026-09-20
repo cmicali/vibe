@@ -27,17 +27,34 @@ project:
 build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
 
-# The iOS app, simulator slice, unsigned — what CI's build-ios job runs, and
-# the check that catches an AppKit leak into a shared directory. The
-# destination is generic, so nothing has to be booted. CI passes CONFIG=Debug;
-# the default stays Release to match `build`.
+# Unsigned by default, which is what CI wants: no credentials, no keychain.
+#
+# TRAP: unsigned means NO ENTITLEMENTS, and without
+# com.apple.security.application-groups the shared container is never created.
+# containerURLForSecurityApplicationGroupIdentifier then returns nil, the app
+# publishes no widget snapshot, and the home-screen widget stays empty however
+# you drive it — which looks exactly like a broken widget rather than a
+# build-flag consequence. VIBE_SIGN_SIM=1 ad-hoc signs the simulator build WITH
+# its entitlements, the only way to exercise or screenshot the widget on a
+# simulator. Ad-hoc is enough because the simulator validates no provisioning
+# profile; it still needs no credentials, so this is a local convenience, not
+# a second signing path.
+IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=NO
+ifeq ($(VIBE_SIGN_SIM),1)
+IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-
+endif
+
+# The iOS app, simulator slice — what CI's build-ios job runs, and the check
+# that catches an AppKit leak into a shared directory. The destination is
+# generic, so nothing has to be booted. CI passes CONFIG=Debug; the default
+# stays Release to match `build`.
 # Locked too: this and `drive-ios.sh start` build into the same products
 # directory, and the simulator app the touch driver installs from is the one
 # they both write.
 build-ios: project
 	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
 	    -destination 'generic/platform=iOS Simulator' \
-	    -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+	    -derivedDataPath build/DerivedData $(IOS_SIM_SIGN) build
 
 # The iOS app built for a paired physical device, signed, and installed over
 # the CoreDevice tunnel. Needs a development certificate and a profile for the

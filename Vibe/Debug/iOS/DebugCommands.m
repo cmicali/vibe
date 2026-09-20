@@ -13,10 +13,13 @@
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
 #import "FavoritesStore.h"
+#import "AppSettings.h"
 #import "PlaybackController.h"
+#import "PlayerDisplaySettings.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
 #import "SearchFolderStore.h"
+#import "WaveformRendererRegistry.h"
 
 static UIWindow *VibeDebugKeyWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -201,6 +204,32 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"waveformZoomRequested": ui[@"waveformZoomRequested"] ?: @0,
                     @"waveformZoomEffective": ui[@"waveformZoomEffective"] ?: @0,
                 });
+            }),
+            // The style picker lives in Settings, which the channel cannot
+            // drive — so this is the only way to put the scrubber into a named
+            // style. It ends on the SAME two lines the picker's onSelect does
+            // (the setting, then VibeNotifyDisplaySettingsChanged), because a
+            // write that skipped the notification would persist and redraw
+            // nothing, which looks exactly like the style not existing.
+            //
+            // The identifier is the persisted one, never the display name:
+            // display names are localized and the registry's own rule is that
+            // the two are separate (root CLAUDE.md). An unknown identifier is
+            // refused with the list rather than silently falling back, since
+            // the fallback chain would otherwise make a typo look like a style.
+            VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_waveform_style <%@>",
+                                         [available componentsJoinedByString:@"|"]);
+                }
+                if (![available containsObject:tokens[1]]) {
+                    return VibeErrorJSON(@"unknown waveform style '%@'; available: %@",
+                                         tokens[1], [available componentsJoinedByString:@", "]);
+                }
+                AppSettings.sharedInstance.waveformStyle = tokens[1];
+                VibeNotifyDisplaySettingsChanged();
+                return VibeJSONString(@{@"ok": @YES, @"waveformStyle": AppSettings.sharedInstance.waveformStyle});
             }),
             // The search-folder list is granted through the system document
             // picker, which the channel cannot drive at all — not even with the
