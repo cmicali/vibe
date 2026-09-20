@@ -385,6 +385,21 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
 }
 
 - (BOOL)rebindOutputOnQueueToDevice:(AudioDeviceID)deviceID {
+    // Phase timings for #53. A rebind holds the player queue for its whole
+    // duration, and the phases fail for different reasons: the format restore
+    // and the prepare each confirm a write by polling up to
+    // kFormatSwitchDeadlineSeconds, so a device that will not confirm burns that
+    // deadline twice before the engine is even started, while a device that
+    // confirms instantly but will not cycle IO spends it all in the start. A
+    // single total cannot tell those apart, and the remedies are opposite.
+    uint64_t phaseAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    NSTimeInterval teardownS = 0, leaveS = 0, pinS = 0, restoreS = 0, startS = 0;
+#define VIBE_REBIND_PHASE(accum) do { \
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW); \
+        (accum) = (double)(now - phaseAt) / NSEC_PER_SEC; \
+        phaseAt = now; \
+    } while (0)
+
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState priorState = _state;
     os_unfair_lock_unlock(&_stateLock);
@@ -421,6 +436,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
     if (oldNode) {
         [_engine detachNode:oldNode];
     }
+    VIBE_REBIND_PHASE(teardownS);
 
     // Restore and release only after the engine stopped. Restoring a hogged
     // device's format under a running engine can strand its next start in
@@ -434,6 +450,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
         [self releaseExclusiveOutputOnQueue];
     }
 #endif
+    VIBE_REBIND_PHASE(leaveS);
 
     if (deviceID != kAudioObjectUnknown && ![self setOutputUnitDevice:deviceID]) {
         [self resetToStoppedStateOnQueue];
@@ -449,6 +466,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
     if (_bitPerfectWanted || priorState == VibePlayerStateLoading || shouldRestore) {
         [self ensureVarispeedOnQueue];
     }
+    VIBE_REBIND_PHASE(pinS);
 
     if (shouldRestore) {
         // Reuse the already-open handle rather than reopening the URL. A
@@ -484,6 +502,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
         node.volume = wasPlaying ? 1.0 : 0;
         [self publishPlaybackState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused)
                               node:node file:file segmentStart:startFrame position:positionToRestore];
+        VIBE_REBIND_PHASE(restoreS);
         if (wasPlaying) {
             NSError *startError = nil;
             if (![self startEngineAndPlayNode:node error:&startError]) {
@@ -504,9 +523,18 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
         }
         [self maybeArmGaplessOnQueue]; // re-queue the splice behind the restored segment
     }
+    VIBE_REBIND_PHASE(startS);
 
+    NSTimeInterval total = teardownS + leaveS + pinS + restoreS + startS;
+    if (total > kSlowDeviceRebindLogThresholdSeconds) {
+        LogWarn(@"AudioPlayer: slow rebind to %u, %.3fs total — teardown %.3f, "
+                @"leave/restore-format %.3f, pin+graph %.3f, reschedule %.3f, "
+                @"engine start %.3f", deviceID, total, teardownS, leaveS, pinS,
+                restoreS, startS);
+    }
     return YES;
 }
+#undef VIBE_REBIND_PHASE
 
 - (BOOL)setOutputDeviceOnQueue:(NSInteger)outputDeviceID {
 
