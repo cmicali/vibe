@@ -112,6 +112,19 @@ every language.
   `screenshot-lib.sh`, so every run since had died at its first cursor move.
   Fixed in `fed353d9`; global input is now a per-run `ALLOW_GLOBAL_INPUT=1`
   assertion rather than something a library claims on the caller's behalf.
+- **Release notes are not a field on a platform's FIRST version.** Uploading
+  the iOS page died on its first locale with `Attribute 'whatsNew' cannot be
+  edited at this time`, having written nothing — while macOS, carrying the
+  *same* 1.12 version string, has a train back to 1.7 and takes them normally.
+  Universal Purchase makes that asymmetry the normal case for a new platform.
+  Nothing on the version record says so; the only signal is that the platform
+  has no other version. `ASCUpload.swift` now derives it up front and omits the
+  attribute, since sending it *unchanged* is what ASC rejects.
+- **A caption that passes the fit check can still read badly.** The compositor
+  breaks ja/zh at any character (kinsoku deliberately unimplemented), so three
+  translated headlines split mid-word — あ/ります and 播/放 — and every one of them
+  validated clean. Look at the renders for the CJK locales; nothing mechanical
+  catches this.
 - **A build takes minutes to appear in App Store Connect, and `UPLOAD
   SUCCEEDED` is about bytes, not registration.** The 112 upload ended with two
   warnings — `buildUploadFiles` timing out (-1001) and "Skipping validation"
