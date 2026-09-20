@@ -68,6 +68,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // An open still pending after this long is worth a visible loading state.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 
+// An open taking this long is worth recording. Separate from the indicator
+// delay above, which is a UI choice: a start the user feels is slow can be
+// well under the threshold at which showing a spinner is worthwhile.
+static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
+
 #if TARGET_OS_IOS
 // Keeps iOS recovery's last-rendered playhead current when the screen's UI
 // timer is dormant. This reads render time without mutating the engine.
@@ -737,12 +742,19 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         // An open that outran the loading indicator's own threshold was a
         // materialization, near enough. How long the provider took is the one
         // number that explains a slow start, and nothing else records it.
+        // Warn level so these persist: a user reporting a slow start retrieves
+        // them afterwards with `log show`, which Info cannot do. Always logged,
+        // not only when slow, so "nothing appeared" can only mean the open did
+        // not happen. The AudioPlayer: prefix is shared by every timing line,
+        // so one grep collects the whole picture.
         if (!file) {
-            LogInfo(@"Open of %@ abandoned after %.1fs (%@)", openURL.lastPathComponent,
-                    openSeconds, error.localizedDescription);
+            LogWarn(@"AudioPlayer: open of %@ abandoned after %.3fs (%@)",
+                    openURL.lastPathComponent, openSeconds, error.localizedDescription);
         }
-        else if (openSeconds >= kSlowOpenIndicatorDelaySeconds) {
-            LogInfo(@"Opened %@ in %.1fs", openURL.lastPathComponent, openSeconds);
+        else {
+            LogWarn(@"AudioPlayer: %@opened %@ in %.3fs",
+                    openSeconds >= kSlowOpenLogThresholdSeconds ? @"slowly " : @"",
+                    openURL.lastPathComponent, openSeconds);
         }
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {

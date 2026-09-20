@@ -24,7 +24,7 @@ static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
 // play ~0.007s, and a bit-perfect device switch reached 0.73s. A threshold
 // under that would warn about working correctly, which is how an instrument
 // stops being read.
-static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 1.0;
+static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
 
 static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     return (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startNanos) / NSEC_PER_SEC;
@@ -75,11 +75,13 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
             // Attribute the stall to the call that actually held the queue:
             // engine start and node play fail for different reasons, and the
             // remedy differs, so a single total would not separate them.
-            if (engineStartSeconds + nodePlaySeconds > kSlowEngineStartLogThresholdSeconds) {
-                LogWarn(@"AudioPlayer: slow start — engine %.3fs, node play %.3fs "
-                        @"(the player queue was blocked for this long)",
-                        engineStartSeconds, nodePlaySeconds);
-            }
+            // Always logged, not only when slow: a report of "nothing appeared"
+            // must mean the path was not taken, never that it was fast.
+            LogWarn(@"AudioPlayer: %@start — engine %.3fs, node play %.3fs "
+                    @"(the player queue was blocked for this long)",
+                    engineStartSeconds + nodePlaySeconds > kSlowEngineStartLogThresholdSeconds
+                            ? @"slow " : @"",
+                    engineStartSeconds, nodePlaySeconds);
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }

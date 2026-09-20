@@ -9,6 +9,12 @@
 #import "FadeMath.h"
 #import "PlaybackRequestCoordinator.h"
 
+// A seek's own reschedule — the node stop and the file reschedule — taking
+// this long is worth recording. The engine start a seek may also perform is
+// attributed by +Engine's own slow-start log, not counted again here.
+// Warn level so it persists and a user can retrieve it with `log show`.
+static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
+
 @implementation AudioPlayer (Seek)
 
 - (void)seekToPosition:(NSTimeInterval)pos {
@@ -86,8 +92,15 @@
         // and the resume ramps it back up.
         _seekRampGeneration = [self preemptRampsOnQueue];
         [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
+        uint64_t rescheduledAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         [node stop];
         [self scheduleFile:file onNode:node fromFrame:startFrame];
+        NSTimeInterval rescheduleSeconds =
+                (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - rescheduledAt) / NSEC_PER_SEC;
+        LogWarn(@"AudioPlayer: %@paused seek — reschedule %.3fs "
+                @"(the player queue was blocked for this long)",
+                rescheduleSeconds > kSlowSeekLogThresholdSeconds ? @"slow " : @"",
+                rescheduleSeconds);
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         [self maybeArmGaplessOnQueue];
         run_on_main_thread({
@@ -173,9 +186,16 @@
     // Retire whichever segment is now scheduled before stop fires its completion.
     _segmentGeneration++;
     [self setGaplessQueuedOnQueue:NO]; // the stop drops the queued segment
+    uint64_t rescheduledAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     [node stop];
     [self scheduleFile:file onNode:node fromFrame:startFrame];
     [self maybeArmGaplessOnQueue]; // re-queue the splice behind the new segment
+    NSTimeInterval rescheduleSeconds =
+            (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - rescheduledAt) / NSEC_PER_SEC;
+    LogWarn(@"AudioPlayer: %@seek — reschedule %.3fs "
+            @"(the player queue was blocked for this long)",
+            rescheduleSeconds > kSlowSeekLogThresholdSeconds ? @"slow " : @"",
+            rescheduleSeconds);
     if (preempted) {
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         BOOL stillPlaying = (_state == VibePlayerStatePlaying);

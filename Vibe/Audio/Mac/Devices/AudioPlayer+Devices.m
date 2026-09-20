@@ -29,7 +29,7 @@ static const NSTimeInterval kHogSettleDeadlineSeconds = 0.5;
 // feel it as a freeze; see #53 and the comment at configureOutputDeviceOnQueue:.
 // A bit-perfect switch legitimately reached 0.73s on healthy hardware, so a
 // tighter bound would warn about working correctly.
-static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
+static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 #pragma mark - Output devices (internal surface + device-change observing)
 
@@ -179,10 +179,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
             (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - reboundAt) / NSEC_PER_SEC;
-    if (seconds > kSlowDeviceRebindLogThresholdSeconds) {
-        LogWarn(@"AudioPlayer: slow device rebind to %u took %.3fs (%@)",
-                deviceID, seconds, rebound ? @"bound" : @"FAILED");
-    }
+    LogWarn(@"AudioPlayer: %@device rebind to %u took %.3fs (%@)",
+            seconds > kSlowDeviceRebindLogThresholdSeconds ? @"slow " : @"",
+            deviceID, seconds, rebound ? @"bound" : @"FAILED");
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
         [self publishBitPerfectReportOnQueue];
@@ -573,7 +572,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 1.0;
 
     AudioDeviceID currentDeviceID = [self activeOutputDeviceID];
 
-    LogDebug(@"current: %@ new: %@", @(currentDeviceID), @(newDeviceID));
+    LogWarn(@"AudioPlayer: rebind current: %@ new: %@%@", @(currentDeviceID), @(newDeviceID),
+            currentDeviceID == newDeviceID ? @" (no-op)" : @"");
 
     // Choosing the already-active System Output device can make a wanted
     // mode eligible for the first time. Rebuild so the current track gets
