@@ -104,12 +104,14 @@ caption() { # <id> <headline|subhead>
     printf '%s' "$v"
 }
 
-shot() { # <id> <source> <output> [glyphs]
+shot() { # <id> <source> <output> [glyphs] [wash-color]
     [ -f "$IN/$2" ] || { echo "missing: $IN/$2 — run generate-readme-screenshots.sh" >&2; exit 1; }
+    local wash=()
+    [ -n "${5:-}" ] && wash=(--wash-color "$5")
     "$COMPOSE_BIN" "$IN/$2" "$OUT/$3" --lang "$L" \
         --headline "$(caption "$1" headline)" \
         --subhead "$(caption "$1" subhead)" \
-        --glyphs "${4:-}"
+        --glyphs "${4:-}" ${wash[@]+"${wash[@]}"}
 }
 
 # The leading number is the App Store's display order: ASC sorts a locale's
@@ -119,7 +121,17 @@ shot() { # <id> <source> <output> [glyphs]
 # the new set.
 shot player   screenshot-basic.png          01-player.png   "$PLAYER_GLYPHS"
 shot playlist screenshot-playlist.png       02-playlist.png
-shot themes   screenshot-themes.png         03-themes.png
+# The only shot with a fixed background. Every other one derives its wash
+# from the playing track's artwork, which here is a red hat on a green
+# backdrop — and a red field behind the shot that advertises THEMES fought
+# both the orange waveform and the point being made. 5C9488 is that artwork's
+# own green, sampled from its corners; solidWash halves it, so the field lands
+# at #2E4A44, the level the green reads at inside the art.
+#
+# TRAP: it is eyedropped from THIS track. Change FOLDER_TRACK_THEMES in
+# generate-readme-screenshots.sh and the background no longer has anything to
+# do with the artwork above it — resample or drop the argument.
+shot themes   screenshot-themes.png         03-themes.png   ""              5C9488
 # The COMPACT pitch capture, not the folder one: the pitch fader is the
 # subject, and a playlist under it only competes with shot 02. screenshot-
 # playlist-pitch.png is still captured — the README uses it.

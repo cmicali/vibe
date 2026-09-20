@@ -320,11 +320,32 @@ func vignette(w: Int, h: Int, strength: Double = 0.7) -> [Double] {
     return mask
 }
 
-func buildBackground(art: Buffer, w: Int, h: Int) -> Buffer {
+// A flat field of one colour, for --wash-color. It skips enhanceColor, which
+// exists to rescue washed-out ALBUM ART: a colour named on the command line is
+// already the hue that was wanted, and pushing it 2.1x past its own luma only
+// drives a channel to 0 or 255. Brightness still drops, because this sits
+// behind the headline. The groove texture and the vignette are what keep it
+// from reading as a flat rectangle, so this stays uniform on purpose.
+func solidWash(_ hex: String, w: Int, h: Int) -> Buffer {
+    var v = UInt32(hex, radix: 16) ?? 0
+    if hex.count != 6 { die("--wash-color takes six hex digits, got '\(hex)'") }
+    let b = UInt8(v & 0xFF); v >>= 8
+    let g = UInt8(v & 0xFF); v >>= 8
+    let r = UInt8(v & 0xFF)
+    var buf = Buffer(w: w, h: h)
+    for p in 0..<(w * h) {
+        buf.data[p * 4] = r; buf.data[p * 4 + 1] = g; buf.data[p * 4 + 2] = b
+        buf.data[p * 4 + 3] = 255
+    }
+    enhanceBrightness(&buf, 0.5)
+    return buf
+}
+
+func buildBackground(art: Buffer, washColor: String?, w: Int, h: Int) -> Buffer {
     let grooveCG = loadCGImage(GROOVE)
     var groove = aspectFill(Buffer(cgImage: grooveCG, w: grooveCG.width, h: grooveCG.height), w: w, h: h)
     enhanceBrightness(&groove, 2.6)  // the texture is near-black
-    let wash = artworkWash(art, w: w, h: h)
+    let wash = washColor.map { solidWash($0, w: w, h: h) } ?? artworkWash(art, w: w, h: h)
     var bg = Buffer(w: w, h: h)
     let v = vignette(w: w, h: h)
     for p in 0..<(w * h) {
@@ -579,7 +600,8 @@ func dropShadows(canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, sca
 
 func compose(
     shot: String, out: String, headline: String, subhead: String,
-    canvasW: Int, canvasH: Int, widthFrac: Double, glyphs: [String], lang: String
+    canvasW: Int, canvasH: Int, widthFrac: Double, glyphs: [String], lang: String,
+    washColor: String?
 ) {
     let (rawWin, header) = loadWindow(shot)
     let art = crop(rawWin, x: 0, y: 0, w: header, h: header)
@@ -590,7 +612,7 @@ func compose(
         Double(canvasH) * WINDOW_H_FRAC / Double(rawWin.h))
     let win = resized(rawWin, w: Int(Double(rawWin.w) * scale), h: Int(Double(rawWin.h) * scale))
 
-    var canvas = buildBackground(art: art, w: canvasW, h: canvasH)
+    var canvas = buildBackground(art: art, washColor: washColor, w: canvasW, h: canvasH)
 
     var glyphImages: [Buffer] = []
     var glyphH = 0.0, glyphGap = 0.0
@@ -645,6 +667,7 @@ func compose(
 
 var shot: String?, outPath: String?
 var headline = "", subhead = "", lang = "en"
+var washColor: String? = nil
 var widthFrac = WINDOW_W_FRAC
 var canvasSpec = "\(CANVAS_W)x\(CANVAS_H)"
 var glyphSpec = ""
@@ -664,6 +687,9 @@ while !args.isEmpty {
     case "--width": widthFrac = Double(value()) ?? WINDOW_W_FRAC
     case "--canvas": canvasSpec = value()
     case "--glyphs": glyphSpec = value()
+    // Override the album-art background with one colour, for a shot whose
+    // artwork fights what it is advertising.
+    case "--wash-color": washColor = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
     case "--measure": measure = true
     default:
         if arg.hasPrefix("--") { die("unknown option \(arg)") }
@@ -685,4 +711,4 @@ let glyphNames = glyphSpec.split(separator: ",").map { $0.trimmingCharacters(in:
 compose(
     shot: shotPath, out: output, headline: headline, subhead: subhead,
     canvasW: canvasParts[0], canvasH: canvasParts[1], widthFrac: widthFrac,
-    glyphs: glyphNames, lang: lang)
+    glyphs: glyphNames, lang: lang, washColor: washColor)
