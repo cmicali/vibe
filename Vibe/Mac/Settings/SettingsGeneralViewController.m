@@ -187,9 +187,15 @@ static const CGFloat kGeneralPopUpWidth = 280;
     // TRAP: until the bind settles, mode writes still name the old saved UID.
     [SettingsRowView setControl:_bitPerfectSwitch enabled:!pending && (on || eligible)];
     _bitPerfectSwitch.state = on ? NSControlStateValueOn : NSControlStateValueOff;
+    // The two ways the mode has no device to drive need different remedies, so
+    // they get different captions: -1 is the System Output policy, which names
+    // no device at all (its own device may well be wired), while a concrete id
+    // that is not eligible is a transport the mode cannot drive.
+    NSString *ineligibleCaption = requestedId < 0 ? STR_SETTINGS_BIT_PERFECT_SYSTEM_OUTPUT
+            : STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
     NSString *caption;
     if (!eligible) {
-        caption = STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE;
+        caption = ineligibleCaption;
     }
     else if (on) {
         caption = [self.playerController bitPerfectStatusText];
@@ -205,7 +211,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     _exclusiveOutputSwitch.state = AppSettings.sharedInstance.exclusiveOutput
             ? NSControlStateValueOn : NSControlStateValueOff;
     NSString *exclusiveCaption = !on ? STR_SETTINGS_EXCLUSIVE_OUTPUT_NEEDS_BIT_PERFECT
-            : !eligible ? STR_SETTINGS_BIT_PERFECT_NEEDS_DEVICE
+            : !eligible ? ineligibleCaption
             : !exclusiveSupported ? STR_SETTINGS_EXCLUSIVE_OUTPUT_UNSUPPORTED
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];

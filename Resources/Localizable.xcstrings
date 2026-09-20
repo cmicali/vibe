@@ -62312,7 +62312,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.needs_device": {
-      "comment": "Settings, Audio pane: caption under the disabled bit-perfect output switch while the output is System Output or a Bluetooth, AirPlay or other device the mode cannot drive. No trailing period.",
+      "comment": "Settings, Audio pane: caption under the disabled bit-perfect output switch while the chosen device is Bluetooth, AirPlay or another transport the mode cannot drive. The System Output row has its own caption below. No trailing period.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62864,6 +62864,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法取得裝置的音訊設定"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.bit_perfect.system_output": {
+      "comment": "Settings, Audio pane: caption under the disabled bit-perfect output switch while the Output list's System Output row is selected. That row follows whatever device macOS is using rather than naming one, so the mode has no device to drive — even when the system's device is itself wired. Name the row exactly as 'menu.output.system' translates it, so it matches what the list shows. No trailing period.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Системният аудиоизход не може да се използва"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systémový výstup nelze použít"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systemoutput kan ikke bruges"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systemausgabe kann nicht verwendet werden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Η έξοδος συστήματος δεν μπορεί να χρησιμοποιηθεί"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Output cannot be used"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "No se puede usar la salida del sistema"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Järjestelmän ulostuloa ei voi käyttää"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "La sortie système ne peut pas être utilisée"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Izlaz sustava ne može se koristiti"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "A rendszerkimenet nem használható"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Output Sistem tidak dapat digunakan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "L'uscita di sistema non può essere usata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "システム出力は使用できません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "시스템 출력은 사용할 수 없습니다"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systemutgang kan ikke brukes"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systeemuitvoer kan niet worden gebruikt"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nie można użyć wyjścia systemowego"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Não é possível usar a Saída do Sistema"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Não é possível usar a saída do sistema"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "„Ieșire sistem” nu poate fi utilizată"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Системный вывод нельзя использовать"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systémový výstup nie je možné použiť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Systemutmatning kan inte användas"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "ไม่สามารถใช้เอาต์พุตของระบบได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sistem Çıkışı kullanılamaz"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Системний вихід не можна використовувати"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không thể dùng Đầu ra hệ thống"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "无法使用系统输出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "無法使用系統輸出"
           }
         }
       },
