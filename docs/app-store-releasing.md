@@ -285,6 +285,24 @@ a file into the Vibe folder in the Files app — and are worth a sample track.
 controls and playback with the screen off should be verified on a real device,
 not the simulator.
 
+### Privacy manifests
+
+`Resources/PrivacyInfo.xcprivacy` ships in both apps and declares three
+required-reason API categories: file timestamps, `UserDefaults` and system
+boot time. Neither app collects data and neither tracks.
+
+**`VibeWidget.appex` deliberately carries no manifest of its own.** It uses no
+required-reason API — it resolves the app-group container, enumerates it with
+`includingPropertiesForKeys:nil` and reads a plist, none of which are on
+Apple's lists — verified by scanning the **Release** widget binary for every
+symbol on them. Copying the app's manifest into the extension would be worse
+than nothing: it would declare three categories the widget does not use.
+
+This is the one thing to re-check when the widget grows. Reading a shared
+setting (`NSUserDefaults initWithSuiteName:`) is the likely one, and it is a
+required-reason API. Apple's scan runs after upload and reports a missing
+declaration by email (ITMS-91053), which costs a whole upload cycle to learn.
+
 ## 6. After approval
 
 Release the version (or let auto-release do it). The version stops being

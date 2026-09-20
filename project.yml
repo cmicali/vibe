@@ -484,7 +484,16 @@ targets:
               - UISceneConfigurationName: Default
                 UISceneDelegateClassName: VibeiOSSceneDelegate
         # Files-app integration: open-in-place from Files/share sheet, and a
-        # visible on-device Documents folder (also the simulator test loop).
+        # visible on-device Documents folder.
+        #
+        # UIFileSharingEnabled is a product decision, not a debugging leftover.
+        # Vibe bundles no music and streams nothing, so every track arrives
+        # from somewhere the user put it, and the app's own Documents
+        # directory is a PERMANENT search root (SearchFolderStore: readable
+        # with no grant, so it is always a root and never a row). Turning this
+        # off would leave that root with no way to put anything in it. The app
+        # keeps no state there — settings are in NSUserDefaults and the caches
+        # are in Caches/ — so what the user sees is only what the user added.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         # Same key and UTIs as the mac target's "Audio Files" entry, so
