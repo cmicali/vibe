@@ -212,6 +212,32 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
                                   kAudioObjectPropertyScopeGlobal, transportType, sizeof(*transportType));
 }
 
++ (BOOL)isProcessPrivateAggregateDevice:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = {
+            kAudioAggregateDevicePropertyComposition,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    // Absent on every non-aggregate, which is the common case and not a failure.
+    if (!AudioObjectHasProperty(deviceID, &addr)) {
+        return NO;
+    }
+    CFDictionaryRef composition = NULL;
+    UInt32 size = sizeof(composition);
+    if (AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &composition) != noErr
+            || composition == NULL) {
+        return NO;
+    }
+    NSNumber *isPrivate = [(__bridge NSDictionary *)composition
+            objectForKey:@kAudioAggregateDeviceIsPrivateKey];
+    CFRelease(composition);
+    // The key is optional, and its absence means published to the whole system.
+    return [isPrivate isKindOfClass:[NSNumber class]] && isPrivate.intValue != 0;
+}
+
 + (BOOL)readNominalSampleRate:(Float64 *)rate forDeviceID:(AudioDeviceID)deviceID {
     if (!rate) {
         return NO;

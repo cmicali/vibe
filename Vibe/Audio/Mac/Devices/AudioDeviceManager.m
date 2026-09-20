@@ -471,6 +471,14 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         if (!hasOutputChannels) {
             continue;
         }
+        // Our own engine's private aggregate over the system default. It has
+        // output channels and a name, so nothing above excludes it, and it
+        // would otherwise be offered as a selectable output whose name changes
+        // under the user on every rebind. Not a sweep failure: it is a device
+        // that exists and is deliberately not listed.
+        if ([CoreAudioUtil isProcessPrivateAggregateDevice:deviceID]) {
+            continue;
+        }
         AudioDevice *device = nil;
         if (![AudioDeviceManager readDeviceForID:deviceID defaultID:defaultID device:&device]) {
             LogWarn(@"AudioDeviceManager could not read identity for output device %u", deviceID);
