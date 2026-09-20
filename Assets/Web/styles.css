@@ -218,6 +218,13 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
    nearly 1800px tall and the section would be nothing but screenshot. */
 .shot-phone { max-width: 300px; }
 
+/* Apple's own badge, used as supplied. Its art has the clear space built in,
+   so it gets margin rather than padding, and a fixed height rather than a
+   percentage width — the guidelines set a minimum size, not a ratio to the
+   column. */
+.store-badge { margin-top: 20px; }
+.store-badge img { height: 44px; width: auto; display: inline-block; vertical-align: middle; }
+
 code {
   padding: 2px 6px;
   border-radius: 5px;

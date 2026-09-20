@@ -30,6 +30,7 @@ than edited:
 | `img/player.png` | `Assets/screenshot-basic.png` |
 | `img/playlist.png` | `Assets/screenshot-playlist.png` |
 | `img/ios.png` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
+| `img/app-store-badge.svg` | Apple's own marketing toolkit, copied verbatim. **Not generated and not to be edited** — the badge is Apple's artwork and its clear space and proportions are set by their guidelines. Replace it only with a newer file from the same source. |
 
 The screenshots carry the window's own rounded corners and a transparent margin,
 which is why the page shadows them with `filter: drop-shadow` rather than
