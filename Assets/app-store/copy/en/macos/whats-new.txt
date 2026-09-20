@@ -1,0 +1,12 @@
+* Bit-perfect playback and exclusive mode for audio output devices
+* File > Save Playlist… (⌘S) exports the playlist as an M3U file
+* A new setting to load the last playlist on launch
+* More theme customization, including transport controls and the app icon
+* New Glassy, Snake, and Tangerine themes, plus undo and randomize in the theme editor
+* New Wiggle and Wiggle MC waveform styles
+* Waveform normalize now only boosts quiet tracks
+* Reworked Settings, with a new audio device picker
+* Enabling audio effects no longer requires restarting the app
+* Faster loading of large folders, and smoother window resizing
+* Fixed audio being slightly colored when the low-cut effect was off
+* Fixed Dock album art not updating after switching themes

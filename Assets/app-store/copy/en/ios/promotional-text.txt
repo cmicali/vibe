@@ -1,0 +1,1 @@
+A fast, minimal player for your music files. Open a folder from Files, scrub the waveform, and play. No library, no account, no subscription.

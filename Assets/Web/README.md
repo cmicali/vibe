@@ -36,7 +36,7 @@ which is why the page shadows them with `filter: drop-shadow` rather than
 
 ## Copy
 
-The wording is the App Store copy in `Assets/app-store/copy/en/` and the feature
+The wording is the App Store copy in `Assets/app-store/copy/en/macos/` and the feature
 list in `README.md`. Keep the two in step: the store listing is the version
 Apple reviews.
 
@@ -190,7 +190,7 @@ in its place.
 
 ## App Store Connect
 
-The three URL files under `Assets/app-store/copy/` upload to every locale with
+The three URL files under `Assets/app-store/copy/` upload to every locale and both platforms with
 `make appstore-upload-metadata`:
 
 | File | Value |

@@ -1,9 +1,0 @@
-* Themes — several built-in designs, and an editor for making your own
-* Playlist editing — select several tracks, remove them, or drag to reorder
-* New waveform styles, plus Normalize and a Gain slider for how tall it draws
-* VoiceOver support for the waveform and the pitch fader
-* Voice memo recordings (.qta) now play
-* A switch for showing or hiding the window buttons
-* Faster playlist scrolling in large libraries
-* More reliable loading of slow and cloud-backed files
-* Fixed opening folders reached through a symlink

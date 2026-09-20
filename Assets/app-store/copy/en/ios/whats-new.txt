@@ -1,0 +1,8 @@
+First release of Vibe for iPhone and iPad.
+
+* Open a folder from Files or the built-in file picker - on your device, in iCloud Drive, or in Dropbox.
+* Full-waveform scrubbing, swipe to switch tracks
+* Small and medium home-screen widgets, with waveform
+* Favorites and search across the folders you have opened
+* Background playback with lock screen and AirPlay controls
+* MP3, AAC, M4A, MP2, AIFF, WAV, and FLAC at full resolution

@@ -70,11 +70,11 @@ if ! "$LANGS" | grep -qx "$L"; then
 fi
 
 IN="$ROOT/Assets"
-COPY="$ROOT/Assets/app-store/copy/$L/screenshots.json"
-OUT="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L}"
+COPY="$ROOT/Assets/app-store/copy/$L/macos/screenshots.json"
+OUT="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
 
 [ -f "$COPY" ] || {
-    echo "missing: $COPY — translate Assets/app-store/copy/en/screenshots.json for '$L'" >&2
+    echo "missing: $COPY — translate Assets/app-store/copy/en/macos/screenshots.json for '$L'" >&2
     exit 1
 }
 

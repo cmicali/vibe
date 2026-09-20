@@ -4,9 +4,12 @@
 // Assets/app-store/README.md. Run via scripts/appstore-upload-metadata.sh (or
 // `make appstore-upload-metadata`), which resolves the shared API key.
 //
-// Targets the one editable macOS version (Prepare for Submission or a rejected
-// state). Text fields are PATCHed only when they differ; screenshots replace
-// the locale's APP_DESKTOP set wholesale, ordered by file name.
+// Targets the one editable version on ONE platform — --platform macos (the
+// default) or ios — since ASC localizations hang off a version and versions are
+// per platform. Both apps share a bundle id (Universal Purchase), so the two
+// platforms are separate version trains on the same app record and upload
+// independently. Text fields are PATCHed only when they differ; screenshots
+// replace the locale's set wholesale, ordered by file name.
 
 import BagbutikAppStore
 import BagbutikAppStoreModels
@@ -41,6 +44,26 @@ let editableStates: Set<AppVersionState> = [
     .invalidBinary, .readyForReview, .waitingForReview,
 ]
 
+// Which version train to write to, and where its copy lives on disk.
+// copy/<lang>/<platform>/ exists because every file under it is an ASC
+// *version* field, and versions are per platform.
+enum TargetPlatform: String {
+    case macos, ios
+
+    var asc: Platform { self == .macos ? .macOS : .iOS }
+
+    // The screenshot set ASC expects. iOS is deliberately nil: there is no iOS
+    // screenshot pipeline yet, and WHICH iPhone display type the store now
+    // accepts is unresolved — the pinned Bagbutik's ScreenshotDisplayType has
+    // no APP_IPHONE_69 at all (section D of docs/ios-release-punchlist.md).
+    // nil means this platform can only upload with --skip-screenshots, which
+    // loadCopy enforces rather than leaving to a confusing empty upload. iOS
+    // also needs TWO sets when it lands (iPhone and iPad, the latter required
+    // because TARGETED_DEVICE_FAMILY is 1,2), so this becomes a list then —
+    // not now, with no files to put in it.
+    var screenshotSet: ScreenshotDisplayType? { self == .macos ? .appDesktop : nil }
+}
+
 struct Options {
     var keyId = ""
     var issuerId = ""
@@ -48,6 +71,7 @@ struct Options {
     var bundleId = ""
     var root = ""
     var locales: Set<String>? = nil
+    var platform = TargetPlatform.macos
     var createVersion: String? = nil
     var dryRun = false
     var skipScreenshots = false
@@ -68,6 +92,12 @@ struct Options {
             case "--bundle-id": o.bundleId = try value(a)
             case "--root": o.root = try value(a)
             case "--locales": o.locales = Set(try value(a).split(separator: ",").map(String.init))
+            case "--platform":
+                let raw = try value(a)
+                guard let p = TargetPlatform(rawValue: raw) else {
+                    throw Fail("--platform must be 'macos' or 'ios', not '\(raw)'")
+                }
+                o.platform = p
             case "--create-version": o.createVersion = try value(a)
             case "--dry-run": o.dryRun = true
             case "--skip-screenshots": o.skipScreenshots = true
@@ -105,8 +135,13 @@ struct LocaleCopy {
 func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
     let fm = FileManager.default
     let copyDir = root.appendingPathComponent("copy")
+    let platformDir = options.platform.rawValue
+    // A language is one whose copy exists FOR THIS PLATFORM. Listing by
+    // <lang>/ alone would pick up languages that only have the other
+    // platform's copy and fail later, one field at a time.
     let languages = try fm.contentsOfDirectory(atPath: copyDir.path).sorted()
-        .filter { fm.fileExists(atPath: copyDir.appendingPathComponent($0).path + "/description.txt") }
+        .filter { fm.fileExists(atPath: copyDir.appendingPathComponent($0).path
+                                    + "/\(platformDir)/description.txt") }
 
     // One support and one marketing URL for every locale. ASC requires the
     // support URL per localization — a localization created without one blocks
@@ -131,7 +166,7 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             print("skip \(language): the App Store has no product page in this language")
             continue
         }
-        let dir = copyDir.appendingPathComponent(language)
+        let dir = copyDir.appendingPathComponent(language).appendingPathComponent(platformDir)
         func field(_ name: String) throws -> String {
             let text = try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,7 +175,11 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
         }
         var screenshots: [URL] = []
         if !options.skipScreenshots {
-            let shotDir = root.appendingPathComponent("screenshots").appendingPathComponent(language)
+            guard options.platform.screenshotSet != nil else {
+                throw Fail("--platform \(options.platform.rawValue) has no screenshot set wired up yet — pass --skip-screenshots and upload its screenshots by hand (docs/ios-release-punchlist.md, section D)")
+            }
+            let shotDir = root.appendingPathComponent("screenshots")
+                .appendingPathComponent(language).appendingPathComponent(platformDir)
             guard fm.fileExists(atPath: shotDir.path) else {
                 throw Fail("\(language): missing \(shotDir.path) — run `make appstore-generate-store-screenshots-all` (or pass --skip-screenshots)")
             }
@@ -181,19 +220,19 @@ struct ASCUpload {
         let options = try Options.parse()
         let root = URL(fileURLWithPath: options.root)
         let copies = try loadCopy(root: root, options: options)
-        guard !copies.isEmpty else { throw Fail("nothing to upload") }
+        guard !copies.isEmpty else { throw Fail("no copy found for --platform \(options.platform.rawValue) — expected copy/<lang>/\(options.platform.rawValue)/") }
 
         let privateKey = try String(contentsOf: URL(fileURLWithPath: options.keyPath), encoding: .utf8)
         let service = try BagbutikService(jwt: JWT(
             keyId: options.keyId, issuerId: options.issuerId, privateKey: privateKey))
 
-        // App, then its one editable macOS version.
+        // App, then its one editable version ON THE TARGET PLATFORM.
         let apps = try await service.request(.listAppsV1(
             filters: [.bundleId([options.bundleId])])).data
         guard let app = apps.first else { throw Fail("no app with bundle id \(options.bundleId)") }
 
         let versions = try await service.request(.listAppStoreVersionsForAppV1(
-            id: app.id, filters: [.platform([.macOS])], limits: [.limit(20)])).data
+            id: app.id, filters: [.platform([options.platform.asc])], limits: [.limit(20)])).data
         let editable = versions.filter {
             guard let s = $0.attributes?.appVersionState else { return false }
             return editableStates.contains(s)
@@ -212,11 +251,11 @@ struct ASCUpload {
             if options.dryRun { throw Fail("dry run stops here — no version to inspect until \(v) is created") }
             version = try await service.request(.createAppStoreVersionV1(
                 requestBody: AppStoreVersionCreateRequest(data: .init(
-                    attributes: .init(platform: .macOS, versionString: v),
+                    attributes: .init(platform: options.platform.asc, versionString: v),
                     relationships: .init(app: .init(data: .init(id: app.id))))))).data
         default:
             let states = versions.map { "\($0.attributes?.versionString ?? "?"): \($0.attributes?.appVersionState?.rawValue ?? "?")" }
-            throw Fail("need exactly one editable macOS version, found \(editable.count) — versions: \(states.joined(separator: ", ")). Pass --create-version <string> to create one.")
+            throw Fail("need exactly one editable \(options.platform.rawValue) version, found \(editable.count) — versions: \(states.joined(separator: ", ")). Pass --create-version <string> to create one.")
         }
         print("app \(options.bundleId), version \(version.attributes?.versionString ?? version.id) (\(version.attributes?.appVersionState?.rawValue ?? "?"))\(options.dryRun ? " [dry run]" : "")")
 
@@ -361,12 +400,17 @@ struct ASCUpload {
 
     static func syncScreenshots(_ copy: LocaleCopy, localizationId: String,
                                 service: BagbutikService, options: Options) async throws {
+        // Guaranteed non-nil: loadCopy refuses a platform with no set unless
+        // --skip-screenshots, and --skip-screenshots never reaches here.
+        guard let displayType = options.platform.screenshotSet else {
+            throw Fail("no screenshot set for --platform \(options.platform.rawValue)")
+        }
         let sets = try await service.request(.listAppScreenshotSetsForAppStoreVersionLocalizationV1(
             id: localizationId,
-            filters: [.screenshotDisplayType([.appDesktop])])).data
+            filters: [.screenshotDisplayType([displayType])])).data
 
         if options.dryRun {
-            print("\(copy.locale): would replace APP_DESKTOP set with \(copy.screenshots.count) screenshots")
+            print("\(copy.locale): would replace \(displayType.rawValue) set with \(copy.screenshots.count) screenshots")
             return
         }
 
@@ -381,7 +425,7 @@ struct ASCUpload {
         } else {
             let created = try await service.request(.createAppScreenshotSetV1(
                 requestBody: AppScreenshotSetCreateRequest(data: .init(
-                    attributes: .init(screenshotDisplayType: .appDesktop),
+                    attributes: .init(screenshotDisplayType: displayType),
                     relationships: .init(appStoreVersionLocalization: .init(data: .init(id: localizationId)))))))
             setId = created.data.id
         }

@@ -1,0 +1,19 @@
+Vibe is a fast, minimal player for your music files.
+
+Waveform view
+Vibe draws every track as a full waveform. Drag it to scrub, and swipe sideways to move between tracks.
+
+Your files, wherever they are
+Open a folder from the Files app or the built-in file picker - on your iPhone, in iCloud Drive, or in Dropbox.
+
+No library to import
+There is no database to rebuild and nothing to sync. Artwork and tags fill in behind you while the first track is already playing, so the next open is instant.
+
+Decoded by iOS
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, all played through the system APIs. Lossless files play at full resolution.
+
+Widgets
+Small and medium widgets show the current track with its artwork and waveform.
+
+Free and open source
+Vibe collects nothing and shows no ads. The full source is on GitHub under the Apache 2.0 license.

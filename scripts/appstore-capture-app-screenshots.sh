@@ -49,7 +49,7 @@ set -euo pipefail
 # shellcheck source=scripts/screenshots/screenshot-lib.sh
 source "$(dirname "$0")/screenshots/screenshot-lib.sh"
 
-OUT_DIR="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/en}"
+OUT_DIR="${OUT_DIR:-$ROOT/Assets/app-store/screenshots/en/macos}"
 APPEARANCE="${APPEARANCE:-dark}"
 
 # Canvas — 2880x1800 is the 16:10 macOS screenshot size App Store Connect

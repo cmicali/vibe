@@ -1,6 +1,7 @@
 #!/bin/bash
 # Fail unless every catalog language has complete App Store copy in
-# Assets/app-store/copy/<lang>/ and it holds up: the four text fields present,
+# Assets/app-store/copy/<lang>/<platform>/ and it holds up: the four text
+# fields present,
 # non-empty and within ASC's character limits (counted in characters, not
 # bytes), description free of leftover markdown (bold, links, headings and
 # bullets — it uploads verbatim), the shared support-url.txt,
@@ -50,16 +51,32 @@ check_text() { # <lang> <dir>
     fi
 }
 
-check_captions() { # <lang> <screenshots.json>
+check_captions() { # <label> <lang> <screenshots.json> <shot ids…>
+    local label="$1" lang="$2" json="$3"
+    shift 3
     local id h s
-    jq -e 'type == "array"' "$2" >/dev/null 2>&1 || { err "$1: $2 is not a JSON array"; return; }
-    for id in player playlist pitch keys; do
-        h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$2")"
-        s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$2")"
-        [ -n "$h" ] && [ -n "$s" ] || { err "$1: shot '$id' missing headline or subhead"; continue; }
-        "$COMPOSE_BIN" --measure --lang "$1" --headline "$h" --subhead "$s" \
-            || err "$1: shot '$id' captions do not fit the layout"
+    jq -e 'type == "array"' "$json" >/dev/null 2>&1 || { err "$label: $json is not a JSON array"; return; }
+    for id in "$@"; do
+        h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$json")"
+        s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$json")"
+        [ -n "$h" ] && [ -n "$s" ] || { err "$label: shot '$id' missing headline or subhead"; continue; }
+        # --lang is the LANGUAGE, not the label: the measurement picks the font
+        # and line-breaking rules from it, and "en/macos" is not a language.
+        "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
+            || err "$label: shot '$id' captions do not fit the layout"
     done
+}
+
+# The shots each platform's screenshots.json must caption, in display order.
+# iOS has none yet — its screenshot pipeline is section D of
+# docs/ios-release-punchlist.md — and an empty list means captions are not
+# checked for that platform. Stated here rather than silently skipped.
+shot_ids() {
+    case "$1" in
+        macos) echo "player playlist pitch keys" ;;
+        ios)   echo "" ;;
+        *)     echo "" ;;
+    esac
 }
 
 # Shared across locales. ASC requires a support URL per localization — one
@@ -81,15 +98,43 @@ done
 LANGS="$("$ROOT/scripts/catalog-languages.sh")"
 [ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
 
+# Every file under copy/<lang>/<platform>/ is an ASC *version* field, and
+# versions are per platform — which is the whole reason for the platform
+# directory. The three URL files above are not version fields and stay at
+# copy/, shared by both.
+#
+# macOS copy is required. iOS copy is still being written (C1-C2 in
+# docs/ios-release-punchlist.md), so a wholly ABSENT ios directory is reported
+# and tolerated — but one that exists is validated in full, so half-written
+# iOS copy cannot pass unnoticed. Delete this tolerance once every language
+# has ios/.
+PLATFORMS="macos ios"
+REQUIRED_PLATFORMS="macos"
+PENDING=0
+
 while read -r l; do
-    DIR="$ROOT/Assets/app-store/copy/$l"
-    [ -d "$DIR" ] || { err "$l: missing $DIR"; continue; }
-    check_text "$l" "$DIR"
-    if [ -f "$DIR/screenshots.json" ]; then
-        check_captions "$l" "$DIR/screenshots.json"
-    else
-        err "$l: missing $DIR/screenshots.json"
-    fi
+    for plat in $PLATFORMS; do
+        DIR="$ROOT/Assets/app-store/copy/$l/$plat"
+        if [ ! -d "$DIR" ]; then
+            case " $REQUIRED_PLATFORMS " in
+                *" $plat "*) err "$l/$plat: missing $DIR" ;;
+                *)           PENDING=$((PENDING + 1)) ;;
+            esac
+            continue
+        fi
+        check_text "$l/$plat" "$DIR"
+        ids="$(shot_ids "$plat")"
+        [ -n "$ids" ] || continue
+        if [ -f "$DIR/screenshots.json" ]; then
+            # Unquoted on purpose: ids is a space-separated list.
+            # shellcheck disable=SC2086
+            check_captions "$l/$plat" "$l" "$DIR/screenshots.json" $ids
+        else
+            err "$l/$plat: missing $DIR/screenshots.json"
+        fi
+    done
 done <<< "$LANGS"
+
+[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING platform directory/ies not written yet (iOS copy: docs/ios-release-punchlist.md C1-C2)"
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

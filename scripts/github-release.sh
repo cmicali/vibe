@@ -19,9 +19,10 @@
 #
 # The version comes from the built app's Info.plist (MARKETING_VERSION via
 # project.yml), never from git, so the tag always names what the image actually
-# contains. Release notes are Assets/app-store/copy/en/whats-new.txt — the
-# same file the App Store upload requires per release — so the two channels
-# cannot drift.
+# contains. Release notes are Assets/app-store/copy/en/macos/whats-new.txt —
+# the same file the Mac App Store upload requires per release — so the two
+# channels cannot drift. The macOS notes specifically: this release IS the
+# macOS direct download, and iOS has one of its own under copy/en/ios/.
 #
 # --draft creates the release unpublished, for a final look in the web UI.
 set -euo pipefail
@@ -35,7 +36,7 @@ UNIVERSAL_ZIP="$BUILD_DIR/Vibe.zip"
 ARM64_APP="$BUILD_DIR/arm64/export/Vibe.app"
 ARM64_DMG="$BUILD_DIR/arm64/Vibe.dmg"
 ARM64_ZIP="$BUILD_DIR/arm64/Vibe.zip"
-NOTES="Assets/app-store/copy/en/whats-new.txt"
+NOTES="Assets/app-store/copy/en/macos/whats-new.txt"
 
 # shellcheck source=scripts/asc-build-lib.sh
 source scripts/asc-build-lib.sh

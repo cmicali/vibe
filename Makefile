@@ -237,8 +237,9 @@ screenshots:
 # permissions — only those captures, so run `screenshots` first if the UI has
 # changed. LOCALE deliberately, not LANG or LANGUAGE — both are real
 # environment variables make would silently import.
-#   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/
-#   make appstore-generate-store-screenshots LOCALE=de     # copy/de captions → Assets/app-store/screenshots/de/
+# macOS only; the iOS shots have no pipeline yet (docs/ios-release-punchlist.md D).
+#   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/macos/
+#   make appstore-generate-store-screenshots LOCALE=de     # copy/de/macos captions → screenshots/de/macos/
 appstore-generate-store-screenshots:
 	scripts/appstore-generate-store-screenshots.sh $(LOCALE)
 
@@ -247,17 +248,20 @@ appstore-generate-store-screenshots-all:
 	scripts/appstore-generate-store-screenshots.sh --all
 
 # Fail unless every catalog language has complete App Store copy in
-# Assets/app-store/copy/, within ASC limits, and every caption fits the
-# screenshot layout. For review/CI.
+# Assets/app-store/copy/<lang>/<platform>/, within ASC limits, and every
+# caption fits the screenshot layout. macOS is required; an absent iOS
+# directory is reported, a half-written one fails. For review/CI.
 appstore-validate-copy:
 	scripts/appstore-validate-copy.sh
 
 # Upload the localized App Store copy and screenshots to App Store Connect
-# (the editable macOS version's product page — no build is involved). Runs
-# appstore-validate-copy first. See scripts/appstore-upload-metadata.sh for flags:
-#   make appstore-upload-metadata                          # everything
+# (the editable version's product page on ONE platform — no build is
+# involved). Runs appstore-validate-copy first. See
+# scripts/appstore-upload-metadata.sh for flags:
+#   make appstore-upload-metadata                          # everything, macOS
 #   make appstore-upload-metadata ARGS="--dry-run"
 #   make appstore-upload-metadata ARGS="--locales de,fr --skip-screenshots"
+#   make appstore-upload-metadata ARGS="--platform ios --skip-screenshots"
 appstore-upload-metadata: appstore-validate-copy
 	scripts/appstore-upload-metadata.sh $(ARGS)
 

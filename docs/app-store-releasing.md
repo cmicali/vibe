@@ -110,25 +110,32 @@ details: its README). `copy/<lang>/` is the tracked source of truth, one
 directory per catalog language:
 
 ```
-copy/<lang>/promotional-text.txt   one line, ≤170 chars
-copy/<lang>/description.txt        plain text, uploads verbatim — no markdown
-copy/<lang>/keywords.txt           one comma-separated line, ≤100 chars
-copy/<lang>/screenshots.json       captions per shot, App Store display order
-screenshots/<lang>/                generated 2880x1800 PNGs (en tracked, rest not)
+copy/<lang>/<platform>/promotional-text.txt   one line, ≤170 chars
+copy/<lang>/<platform>/description.txt        plain text, uploads verbatim — no markdown
+copy/<lang>/<platform>/keywords.txt           one comma-separated line, ≤100 chars
+copy/<lang>/<platform>/whats-new.txt          the version's notes, ≤4000 chars
+copy/<lang>/<platform>/screenshots.json       captions per shot, display order
+screenshots/<lang>/macos/                     generated 2880x1800 PNGs (en tracked, rest not)
 ```
 
-**All of this is the macOS product page.** ASC localizations hang off a
-*version*, and versions are per platform, so the iOS page needs its own
-description, keywords, promotional text, what's-new and screenshots — and
-neither `Assets/app-store/` nor the uploader carries them yet (`ASCUpload.swift`
-filters `.platform([.macOS])` and writes the `APP_DESKTOP` screenshot set).
-Until they do, **the iOS page is edited by hand in App Store Connect.**
+`<platform>` is `macos` or `ios`. **Every file under `<lang>/` is an ASC
+version field, and versions are per platform** — which is the whole reason for
+the directory. The three URL files stay shared at `copy/`, because they are not
+version fields.
 
-Do not paste the macOS description into it. That copy sells BPM and key
-analysis, the pitch fader and the FX rack, and says the formats are "decoded
-by macOS" — all three features are macOS-only by construction (root
-`CLAUDE.md`, "Three features are macOS-only"), and a product page describing
-features the app does not have is a review rejection, not a cosmetic problem.
+**iOS text copy exists in English only so far.** `copy/en/ios/` holds the four
+text fields; the other languages are still to write, and the iOS screenshot
+pipeline does not exist at all (`docs/ios-release-punchlist.md`, sections C
+and D). `appstore-validate-copy` reports an absent `ios/` directory as pending
+rather than failing — but validates one that exists in full, so half-written
+iOS copy cannot slip through.
+
+The iOS copy deliberately does not reuse the macOS text, and must not: that
+copy sells BPM and key analysis, the pitch fader and the FX rack, and says the
+formats are "decoded by macOS" — all macOS-only by construction (root
+`CLAUDE.md`, "Three features are macOS-only"). A product page describing
+features the app does not have is a review rejection, not a cosmetic
+problem.
 
 The app's string catalogs (`Resources/Localizable.xcstrings`) remain the
 single source of *which* languages exist — `scripts/catalog-languages.sh`
@@ -157,12 +164,17 @@ catalogs), then add `Assets/app-store/copy/<lang>/`, and extend `ascLocale`
 if the tool asks for a mapping. `make appstore-validate-copy` will hold the door
 until the copy is complete.
 
-## 4. Upload the product page (macOS only)
+## 4. Upload the product page
 
-`appstore-upload-metadata` targets the macOS version train and nothing else —
-see §3 for what that means for the iOS page.
+`appstore-upload-metadata` writes to ONE platform's version train per run —
+`--platform macos` by default, `--platform ios` for the other. Screenshots are
+wired for macOS only, so iOS needs `--skip-screenshots`:
 
-The uploader only ever writes to an **editable** macOS version — Prepare for
+```bash
+make appstore-upload-metadata ARGS="--platform ios --skip-screenshots"
+```
+
+The uploader only ever writes to an **editable** version — Prepare for
 Submission or a rejected state. The moment a release goes live, no such
 version exists, so the *first* metadata upload of every cycle must open the
 next version's page explicitly. Use the same version string you put in

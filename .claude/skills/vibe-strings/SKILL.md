@@ -68,6 +68,6 @@ Build a pseudolocale from the catalog (bracket + accent + pad every value, copyi
 
 ## App Store product page
 
-The App Store product page is localized too, from `Assets/app-store/` (copy, screenshot captions, and generated screenshots per catalog language — format in its README). `make appstore-validate-copy` validates it; `make appstore-upload-metadata` uploads it via the **vibe-release** skill's shared API key. The catalog remains the source of which languages exist; `bg` ships in-app only, because the App Store has no Bulgarian product page.
+The App Store product pages are localized too, from `Assets/app-store/` (copy, screenshot captions, and generated screenshots per catalog language AND per platform, `copy/<lang>/<platform>/` — format in its README; versions are per platform in ASC, so macOS and iOS each need their own text). `make appstore-validate-copy` validates it; `make appstore-upload-metadata` uploads it via the **vibe-release** skill's shared API key. The catalog remains the source of which languages exist; `bg` ships in-app only, because the App Store has no Bulgarian product page.
 
 `copy/<lang>/whats-new.txt` must be **rewritten for every release in every locale** — App Store Connect blocks submission when any locale lacks it — and should stay in step with the new `CHANGELOG.md` section: same features, App Store voice, each locale's own terminology (the same register and quote conventions as Authoring translations above).

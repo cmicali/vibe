@@ -39,17 +39,18 @@ Nothing in the repo can do these — they are account state.
 
 ## C. Product-page copy
 
-The largest remaining block. ASC localizations hang off a version and versions
-are per platform, so **iOS needs its own copy in all 29 languages** — none of
-it auto-translates.
+ASC localizations hang off a version and versions are per platform, so iOS
+needs its own copy. Layout decided: `copy/<lang>/<platform>/`, because every
+file under `<lang>/` is a version field. The three URL files are not version
+fields and stay shared at `copy/`.
 
 | | Item | Status |
 |---|---|---|
-| C1 | Write the iOS description, keywords and promotional text. The macOS copy cannot be reused: it sells BPM and key analysis, the pitch fader and the FX rack — all macOS-only — and says formats are "decoded by macOS". The `converter` and `winamp` keywords are mac-only too. A page describing features the app lacks is a review rejection. | **open** |
-| C2 | Translate that copy into all 29 catalog languages. | **blocked** on C1 |
-| C3 | Decide the on-disk layout (a parallel `copy-ios/<lang>/`, or a `macos/`+`ios/` split per language) and teach `appstore-validate-copy.sh`, `appstore-upload-metadata.sh` and the `Assets/app-store/README.md` about it. | **open** |
-| C4 | `whats-new.txt` still holds the **1.11** notes. Needed fresh for 1.12 in all 29 languages, both platforms — ASC blocks submission when a locale lacks release notes, and stale notes upload silently. | **open** |
-| C5 | Teach `ASCUpload.swift` about iOS: `filters: [.platform([.macOS])]` and `attributes: .init(platform: .macOS, …)` are hardcoded, as is the `.appDesktop` screenshot set. Wants a `--platform` threaded through. | **open** |
+| C1 | English iOS description, keywords and promotional text written to `copy/en/ios/`. Same structure as the macOS page, iOS-true content: waveform scrubbing and swipe, Files/iCloud/Dropbox, no library, formats, home-screen widgets, background playback, favorites and search, free and open source. It claims none of the macOS-only features. All four fields inside ASC limits. **Awaiting your edits before translation.** | **done (en)** |
+| C2 | Translate the iOS copy into the other 29 catalog languages. **Deliberately parked until the English copy is final** — translating first would mean re-translating after every tweak. | **open** |
+| C3 | Layout migrated: 150 files (30 languages × 5) moved under `<lang>/macos/`, English iOS copy added at `<lang>/ios/`, tracked screenshots to `screenshots/en/macos/`. Every reader updated — `appstore-validate-copy.sh` (platform loop, per-platform shot ids), `appstore-generate-store-screenshots.sh`, `appstore-capture-app-screenshots.sh`, `github-release.sh` (its release notes are the macOS ones), `ASCUpload.swift`, both READMEs, the Makefile comments and both skills. | **done** |
+| C4 | Release notes for 1.12. macOS rewritten from the CHANGELOG's 1.12 section — it was still carrying the 1.11 notes. iOS written as a first-release introduction. English only; translations ride with C2. | **done (en)** |
+| C5 | `ASCUpload.swift` takes `--platform macos\|ios`, threaded through version filtering, version creation, the copy directory and the screenshot display type. iOS's display type is deliberately `nil` — which iPhone type ASC now accepts is unresolved (D3) and there are no files yet — so iOS requires `--skip-screenshots` and says so rather than uploading an empty set. Verified against the live iOS 1.12 record by dry run. | **done** |
 
 ## D. Screenshots
 
@@ -97,7 +98,9 @@ it auto-translates.
   work lives on `main` in the primary checkout rather than in a worktree.
 - **macOS 1.11 was never submitted.** It sat at `PREPARE_FOR_SUBMISSION` with
   build 111 uploaded while the store served 1.10, so GitHub was a release ahead
-  of the Mac App Store. Both platform records now read 1.12.
+  of the Mac App Store. Both platform records now read 1.12, and the macOS
+  `whats-new.txt` — which was still the 1.11 notes — has been rewritten for
+  1.12.
 - **No iOS build had ever been uploaded** before this work — every TestFlight
   train on the record was `MAC_OS`.
 - The iOS app uses **no permission-gated APIs and does no networking**, so App
