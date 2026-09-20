@@ -1,6 +1,5 @@
-# v1.12 (unreleased)
+# v1.12
 
-* **Vibe is now on iPhone and iPad.** The iOS app ships on the App Store for the first time, as a Universal Purchase alongside the Mac app
 * mac: Added bit-perfect playback and exclusive mode for audio output devices
 * mac: Added File > Save Playlist… (⌘S) to export the playlist as an M3U file
 * mac: Added Settings > General > Load last playlist on launch
@@ -9,6 +8,7 @@
 * mac: Added Snake and Tangerine themes; dropped Signal Workshop and folded Technical Bars into Technical
 * mac: Settings UI improved, including new audio device picker
 * mac: Enabling audio effects no longer requires restarting the app
+* ios: First public release
 * ios: Improved playlist handling, including add to playlist
 * ios: Added small and medium size widgets
 * Added new waveform styles (Wiggle and Wiggle MC)
