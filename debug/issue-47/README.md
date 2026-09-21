@@ -197,7 +197,9 @@ With Bit-perfect **and** Exclusive output on, changing tracks feels delayed by ~
 
 ## About 16-bit
 
-The reporter asks for bit-perfect to output 16-bit for his MP3s, as for a 16-bit source. **An MP3 has no bit depth.** It stores compressed frequency data, not samples; macOS reads his files as "0 bits/channel" (`afinfo` prints the same for every MP3), and the "16bit" he sees is a label some tag editors print for any MP3. Decoding does not reproduce the encoder's input samples even when that input was a 16-bit CD rip: the decoder's output falls between 16-bit steps, so it carries more than 16 bits of detail. Output at 16-bit would round that off (below −96 dB, almost certainly inaudible, but truncation); 24-bit keeps it, rounding near −144 dB. Only float output would be exact, and the A300 offers integer 16 and 24 only. So Vibe gives lossy sources 24-bit (`VibeBitPerfectChooseFormat`, `kVibeBitPerfectAssumedLosslessDepth`), and **lossless sources already get their own depth** — a 16-bit FLAC/ALAC/WAV goes out at 16-bit. His own test (c37) showed the depth is not the delay: 24-bit is instant without Exclusive.
+**From beta9, lossy sources prefer 16-bit output** in `VibeBitPerfectChooseFormat`, as the reporter asked. If the device does not offer 16-bit at the selected rate with enough channels, the existing wider-integer and floating-point fallbacks apply. Lossless files still use their source depth; ALAC/FLAC with unspecified depth retain the 24-bit assumption.
+
+Earlier betas preferred 24-bit for MP3s to reduce rounding of the decoder's floating-point output. MP3 has no native PCM bit depth, even when encoded from a 16-bit CD; neither output choice restores the discarded source information. The A300 offers integer 16 and 24. The reporter's c37 test had instant playback at 24-bit without Exclusive, so that observation alone did not implicate bit depth in the delay.
 
 ## Reading beta6 and beta7 logs
 

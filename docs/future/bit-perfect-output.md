@@ -8,8 +8,9 @@ implementation plan is available in git history.
 ## User behavior
 
 - **Bit-perfect output**, off by default, requires an explicitly chosen eligible
-  output device. It matches the file's rate and depth, removes varispeed, disables
-  FX and pitch controls, and holds crossfades to the 10 ms declick minimum.
+  output device. It matches the file's rate and lossless depth; lossy files prefer
+  16-bit output, then a wider integer format or floating point if needed. It removes
+  varispeed, disables FX and pitch controls, and holds crossfades to the 10 ms declick minimum.
 - **Exclusive output** is a separate opt-in immediately below it. Physical and virtual devices
   may request it when the HAL hog property is writable, the device that is currently
   the system output included — taking that one makes macOS move the system default to

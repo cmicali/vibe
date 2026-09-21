@@ -302,9 +302,34 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_20BitSourceData, 44100),
             44100, dac, n, &chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 24u);
-    // A lossy source takes 24.
-    XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(kAudioFormatMPEGLayer3, 0, 44100), 44100, dac, n, &chosen));
-    XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+    AudioFormatID lossless[] = { kAudioFormatAppleLossless, kAudioFormatFLAC };
+    for (NSUInteger i = 0; i < sizeof(lossless) / sizeof(lossless[0]); i++) {
+        XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(lossless[i], 0, 44100), 44100, dac, n, &chosen));
+        XCTAssertEqual(chosen.mBitsPerChannel, 24u); // unknown lossless depth retains its 24-bit assumption
+    }
+}
+
+- (void)testLossySourcesPreferSixteenBitWithWiderAndFloatFallbacks {
+    AudioFormatID codecs[] = { kAudioFormatMPEGLayer2, kAudioFormatMPEGLayer3, kAudioFormatMPEG4AAC };
+    AudioStreamRangedDescription formats[] = { RangedFormat(44100, 32, YES),
+        RangedFormat(44100, 24, NO), RangedFormat(44100, 16, NO) };
+    for (NSUInteger i = 0; i < sizeof(codecs) / sizeof(codecs[0]); i++) {
+        AudioStreamBasicDescription source = Compressed(codecs[i], 0, 44100), chosen = {0};
+        XCTAssertTrue(VibeBitPerfectChooseFormat(source, 44100, formats, 3, &chosen));
+        XCTAssertEqual(chosen.mBitsPerChannel, 16u);
+        XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
+        XCTAssertEqual(chosen.mSampleRate, 44100);
+        XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(PCM(44100, 16, NO), chosen, 44100));
+        XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(PCM(44100, 24, NO), chosen, 44100));
+
+        XCTAssertTrue(VibeBitPerfectChooseFormat(source, 44100, formats, 2, &chosen));
+        XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+        XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
+
+        XCTAssertTrue(VibeBitPerfectChooseFormat(source, 44100, formats, 1, &chosen));
+        XCTAssertEqual(chosen.mBitsPerChannel, 32u);
+        XCTAssertTrue(VibePhysicalFormatIsFloat(chosen));
+    }
 }
 
 - (void)testSourceDeeperThanTheDACTakesTheDeepestAndFailsSatisfaction {
