@@ -12,6 +12,8 @@
 #import "AudioTrackMetadata.h"
 #import "FLACConvertRules.h"
 #import "MainPlayerController+Settings.h"
+#import "AudioDevice.h"
+#import "AudioDeviceManager.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
@@ -36,6 +38,46 @@ static BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
     *on = [arg isEqualToString:@"on"];
     return *on || [arg isEqualToString:@"off"];
 }
+// The modes a set_output_device call asked for, applied once the selection it
+// submitted has settled. Their setters write the SAVED device's mode, so
+// applying one before the bind lands would name the device being left — the
+// same reason the pane disables both switches while a selection is pending.
+// Retried on main rather than waited for: the settlement needs this thread, so
+// blocking here would deadlock the thing being waited on. Gives up after
+// `attempts`, since a refused or failed switch settles too and the reply has
+// already told the caller to confirm with dump_state.
+static void VibeApplyOutputModesWhenSelectionSettles(MainPlayerController *controller,
+                                                     NSNumber *bitPerfect,
+                                                     NSNumber *exclusive,
+                                                     NSInteger attempts) {
+    if (attempts <= 0) {
+        // Never silently: a dropped mode looks exactly like a mode that was
+        // never asked for, and the caller has already been told "requested".
+        LogWarn(@"set_output_device: gave up waiting for the selection to settle; "
+                @"bit-perfect=%@ exclusive=%@ NOT applied",
+                bitPerfect ?: @"-", exclusive ?: @"-");
+        return;
+    }
+    if (controller.devicesMenuController.outputDeviceSelectionPending) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            VibeApplyOutputModesWhenSelectionSettles(controller, bitPerfect, exclusive, attempts - 1);
+        });
+        return;
+    }
+    if (bitPerfect) {
+        AppSettings.sharedInstance.bitPerfectOutput = bitPerfect.boolValue;
+    }
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    if (exclusive) {
+        AppSettings.sharedInstance.exclusiveOutput = exclusive.boolValue;
+    }
+#endif
+    [controller applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+    LogWarn(@"set_output_device: applied bit-perfect=%@ exclusive=%@ after selection settled",
+            bitPerfect ?: @"-", exclusive ?: @"-");
+}
+
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
     if (controller.isConversionUndoRedoInFlight) {
@@ -355,6 +397,85 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                                         @"keyColors": @(colorsOn)});
             }),
 
+            // Addressed by UID, not device id. A HAL device id is transient —
+            // an unplug and replug can return the same hardware under a new
+            // one (108 -> 126 -> 111 observed across three cycles) — so an id
+            // is useless to the one test this verb exists for. UID is also
+            // what AppSettings keys the per-device modes by. Name is accepted
+            // as a fallback in the same order resolveOutputDeviceForUID:name:
+            // uses, because a human driving a test can type "Audient iD4" and
+            // cannot type RMEUSBDevice-205-24240711 from memory.
+            //
+            // The modes cannot be applied in this call: selection settles
+            // asynchronously and their setters write the SAVED device's mode,
+            // so writing them now would name the device being left. Blocking
+            // here would deadlock the settlement this thread has to return for.
+            // They are therefore requested on main once the selection clears,
+            // and the reply says requested, not applied — confirm with
+            // dump_state.player.bitPerfect like any other action verb.
+            VibeDebugCmd(@"set_output_device <uid|name|system> [bp on|off] [excl on|off]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2 || tokens.count > 4) {
+                    return VibeErrorJSON(@"usage: set_output_device <uid|name|system> [bp on|off] [excl on|off]");
+                }
+                NSString *wanted = tokens[1];
+                NSInteger deviceId = -1;
+                AudioDevice *match = nil;
+                if (![wanted.lowercaseString isEqualToString:@"system"]) {
+                    NSArray<AudioDevice *> *devices = [AudioDeviceManager.sharedInstance outputDevices];
+                    for (AudioDevice *device in devices) {
+                        if ([device.uid isEqualToString:wanted]) {
+                            match = device;
+                            break;
+                        }
+                    }
+                    if (!match) {
+                        for (AudioDevice *device in devices) {
+                            if ([device.name isEqualToString:wanted]) {
+                                match = device;
+                                break;
+                            }
+                        }
+                    }
+                    if (!match) {
+                        NSMutableArray<NSString *> *known = [NSMutableArray array];
+                        for (AudioDevice *device in devices) {
+                            [known addObject:device.name ?: @""];
+                        }
+                        return VibeErrorJSON(@"no output device with UID or name '%@' (known: %@)",
+                                             wanted, [known componentsJoinedByString:@", "]);
+                    }
+                    deviceId = match.deviceId;
+                }
+                [controller.devicesMenuController selectOutputDevice:deviceId];
+
+                NSNumber *bitPerfect = nil, *exclusive = nil;
+                BOOL parsed = NO;
+                if (tokens.count >= 3) {
+                    NSArray<NSString *> *pair = @[tokens[0], tokens[2]];
+                    if (!VibeParseOnOff(pair, &parsed)) {
+                        return VibeErrorJSON(@"bit-perfect argument must be on or off");
+                    }
+                    bitPerfect = @(parsed);
+                }
+                if (tokens.count == 4) {
+                    NSArray<NSString *> *pair = @[tokens[0], tokens[3]];
+                    if (!VibeParseOnOff(pair, &parsed)) {
+                        return VibeErrorJSON(@"exclusive argument must be on or off");
+                    }
+                    exclusive = @(parsed);
+                }
+                if (bitPerfect || exclusive) {
+                    VibeApplyOutputModesWhenSelectionSettles(controller, bitPerfect, exclusive, 600);
+                }
+                return VibeJSONString(@{
+                    @"ok": @YES,
+                    @"deviceId": @(deviceId),
+                    @"uid": match.uid ?: @"",
+                    @"name": match.name ?: @"System Output",
+                    @"selectionPending": @(controller.devicesMenuController.outputDeviceSelectionPending),
+                    @"modesRequested": @(bitPerfect != nil || exclusive != nil),
+                });
+            }),
             VibeDebugCmd(@"set_saved_output_device <uid> <name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count != 3) {
                     return VibeErrorJSON(@"usage: set_saved_output_device <uid> <name>");
