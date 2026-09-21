@@ -29,8 +29,8 @@ settingGroups:
   # the BUILT app rather than out of this file, so a scrape cannot pick the
   # wrong target's copy.
   vibe-version:
-    MARKETING_VERSION: "1.13-beta8"
-    CURRENT_PROJECT_VERSION: 120
+    MARKETING_VERSION: "1.13-beta9"
+    CURRENT_PROJECT_VERSION: 121
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
