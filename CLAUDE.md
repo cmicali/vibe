@@ -82,7 +82,7 @@ Nested `CLAUDE.md` files hold the detail and load only when you work under that 
 - **`Vibe/Playlist/`** — the model and the CUE/M3U readers; `Mac/` is the table.
 - **`Vibe/WaveformUI/`** — waveform *rendering*: `WaveformTheme` and the iOS zoom floor, shared; `Renderers/` the strategies, the morph engine and the level mapping; `Mac/` the `NSView`, `iOS/` the scrubber. Named apart from `Audio/Waveform/` deliberately — one makes the data, the other draws it.
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
-- **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats), `MainWindow/` (`MainPlayerController`; layout and chrome are its `APPEARANCE.md`; `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/` (`Appearance/` is the theme list and editor), `About/`.
+- **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `APPEARANCE.md`; `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/` (`Appearance/` is the theme list and editor), `About/`.
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell and mini player; `Player/` is the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, each with a doc. The iOS halves of shared subsystems live under those subsystems, not here.
 - **`Vibe/ThirdParty/`** — vendored TagLib subset and PINCache/PINOperation.
 
@@ -146,7 +146,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. Info and debug are **not persisted**, so they must be streamed live — see the `vibe-debug` skill.
+`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) decides whether info and debug are kept**: at 1, the beta setting, every level is written at Default, so Settings > Advanced > Save Debug Info and `log show` retrieve it after the fact; at 0, the stable-release setting, info and debug are not persisted and must be streamed live — see the `vibe-debug` skill.
 
 ## Localization
 

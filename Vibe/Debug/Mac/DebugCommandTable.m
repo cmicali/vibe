@@ -14,6 +14,7 @@
 #import "MainPlayerController+Settings.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
+#import "DebugInfo.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
 
@@ -173,6 +174,16 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     VibeWriteDebugResponse(commandId, response);
                 });
                 return nil; // response written by the poll
+            }),
+            // Settings > Advanced > Save Debug Info's report, without the save
+            // panel no verb can dismiss. Runs on main, so it blocks for the
+            // device and log reads the button keeps off main.
+            VibeDebugCmd(@"dump_debug_info", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                NSString *text = VibeDebugInfoText(VibeDebugInfoSnapshot(controller), controller.audioPlayer);
+                return VibeJSONString(@{
+                    @"bytes": @([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]),
+                    @"text": text,
+                });
             }),
             VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();

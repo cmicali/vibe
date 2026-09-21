@@ -8,12 +8,14 @@
 #import "AppSettings+Mac.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "DebugInfo.h"
 #import "Formatters.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Window.h"
 #import "NSBundle+BuildInfo.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static const CGFloat kAdvancedPopUpWidth = 200;
 
@@ -26,6 +28,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSButton *_factoryResetButton;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
+    NSButton *_debugInfoButton;
     // Drops a stale usage reply: each refresh bumps it, and only the newest
     // request may write the label — a clear right after a refresh would
     // otherwise race the older, larger answer over the fresh zero.
@@ -52,6 +55,8 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
+    _debugInfoButton = [NSButton buttonWithTitle:STR_SETTINGS_DEBUG_INFO_SAVE
+                                          target:self action:@selector(saveDebugInfo:)];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -74,6 +79,8 @@ static const CGFloat kAdvancedPopUpWidth = 200;
                                   control:[self valueLabelWithString:[self currentLanguageText]]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_LANGUAGES_LABEL
                                   control:[self availableLanguagesLabel]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DEBUG_INFO_LABEL
+                                  caption:STR_SETTINGS_DEBUG_INFO_CAPTION control:_debugInfoButton],
         ]],
     ]];
 }
@@ -155,6 +162,47 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
     [self refreshCacheSize];
+}
+
+#pragma mark - Debug info
+
+// Saved where the user picks, which the sandbox already allows, then revealed,
+// because the next step is always attaching it somewhere. The snapshot is taken
+// on main at the click; everything slow runs off main, so a report can be saved
+// in the middle of the stall it is about.
+- (void)saveDebugInfo:(id)sender {
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
+    stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    stamp.dateFormat = @"yyyy-MM-dd HH.mm.ss";
+    panel.nameFieldStringValue = [NSString stringWithFormat:VibeNotLocalized(@"Vibe Debug Info %@.txt"),
+                                  [stamp stringFromDate:NSDate.date]];
+    panel.allowedContentTypes = @[UTTypePlainText];
+    MainPlayerController *controller = self.playerController;
+    NSButton *button = _debugInfoButton;
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        NSURL *url = panel.URL;
+        if (response != NSModalResponseOK || !url) {
+            return;
+        }
+        NSDictionary *snapshot = VibeDebugInfoSnapshot(controller);
+        AudioPlayer *player = controller.audioPlayer;
+        [SettingsRowView setControl:button enabled:NO];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSError *error = nil;
+            BOOL written = [VibeDebugInfoText(snapshot, player) writeToURL:url atomically:YES
+                                                                  encoding:NSUTF8StringEncoding error:&error];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [SettingsRowView setControl:button enabled:YES];
+                if (written) {
+                    [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[url]];
+                } else {
+                    LogError(@"Debug info: could not write %@: %@", url.path, error);
+                    [button.window presentError:error];
+                }
+            });
+        });
+    }];
 }
 
 #pragma mark - Reset to defaults

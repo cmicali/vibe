@@ -1304,6 +1304,59 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     });
 }
 
+
+#pragma mark - Diagnostics
+
+// The queue hop is the point: activeOutputDeviceID reads the engine's output
+// node, and every other engine touch in the app runs on _queue.
+- (NSInteger)currentlyActiveAudioDeviceId {
+    __block AudioDeviceID deviceID = kAudioObjectUnknown;
+    [self runSyncOnQueue:^{
+        deviceID = [self activeOutputDeviceID];
+    }];
+    return (NSInteger)deviceID;
+}
+
+static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
+    switch (status) {
+        case VibeBitPerfectStatusOff:               return @"off";
+        case VibeBitPerfectStatusIdle:              return @"idle";
+        case VibeBitPerfectStatusActive:            return @"active";
+        case VibeBitPerfectStatusRateUnsupported:   return @"rateUnsupported";
+        case VibeBitPerfectStatusSwitchFailed:      return @"switchFailed";
+        case VibeBitPerfectStatusChannelConversion: return @"channelConversion";
+        case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
+        case VibeBitPerfectStatusMuted:             return @"muted";
+        case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
+        case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
+        case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
+    }
+    return @"unknown";
+}
+
+- (NSDictionary<NSString *, id> *)bitPerfectReportDictionary {
+    VibeBitPerfectReport r = self.bitPerfectReport;
+    return @{
+        @"enabled": @(r.enabled),
+        @"status": VibeBitPerfectStatusName(r.status),
+        @"sampleRate": @(r.sampleRate),
+        @"bitsPerChannel": @(r.bitsPerChannel),
+        @"isFloat": @(r.isFloat),
+        @"softwareVolume": @(r.softwareVolume),
+        @"balance": @(r.balance),
+        @"muted": @(r.muted),
+        @"eligibleDevice": @(r.eligibleDevice),
+        @"hasTrack": @(r.hasTrack),
+        @"rateExact": @(r.rateExact),
+        @"formatConfirmed": @(r.formatConfirmed),
+        @"depthOK": @(r.depthOK),
+        @"channelsMatch": @(r.channelsMatch),
+        @"hogWanted": @(r.hogWanted),
+        @"exclusive": @(r.exclusive),
+        @"sourceLossless": @(r.sourceLossless),
+    };
+}
+
 @end
 
 #pragma mark - Output devices (public API, declared in AudioPlayer.h)
@@ -1406,21 +1459,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }];
 }
 
-#pragma mark - Debug
-
 #if DEBUG
-// Debug-only, declared in AudioPlayer+Debug.h: dump_state's outputDeviceId is
-// the one caller. The queue hop is the point — activeOutputDeviceID reads the
-// engine's output node, and the command channel calls this from main, while
-// every other engine touch in the app runs on _queue.
-- (NSInteger)currentlyActiveAudioDeviceId {
-    __block AudioDeviceID deviceID = kAudioObjectUnknown;
-    [self runSyncOnQueue:^{
-        deviceID = [self activeOutputDeviceID];
-    }];
-    return (NSInteger)deviceID;
-}
-
 - (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership {
     __block AudioDeviceID hogged = kAudioObjectUnknown;
     __block AudioDeviceID owed = kAudioObjectUnknown;

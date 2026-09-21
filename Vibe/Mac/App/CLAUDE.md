@@ -48,3 +48,13 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 ## The last playlist
 
 Launch order is grants → drain → restore → empty state: inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first, and only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and only when that finds nothing does `revealEmptyState`. **A launch-time open outranks the remembered playlist, and the restore is not an open**: it enters neither the coalescer — an empty drain arms no burst, so a Finder open a beat later replaces rather than appends — nor `openURLs:appending:`, so it records no stats and mints no bookmarks; what its parked start refreshes, Open Recent included, is the ordinary per-track refresh. `applicationWillTerminate:` calls `saveLastPlaylist` beside the stats flush, and it runs on every quit: the app does not opt into sudden termination, under which an idle quit is a SIGKILL with no callback.
+
+## Debug info
+
+`DebugInfo` is the report behind Settings > Advanced > Save Debug Info, and the debug channel's `dump_debug_info` returns the same text without the save panel. It exists to replace the round trips a bug report costs — #47 spent four on the device, the build, the language and a timing log — with one attached file. **It is passive**: it reads and changes nothing, so it is safe to save in the middle of the problem it is about.
+
+It is two calls because of two threads. `VibeDebugInfoSnapshot` reads what only main may — the controller, the windows, every stored setting — and is cheap. `VibeDebugInfoText` does the slow part off main: every output device through `CoreAudioUtil.diagnosticDescriptionOfDeviceID:` (coreaudiod), the bound device through the player queue, and this process's log through `OSLogStore`. The button runs the second on a global queue; the verb runs both on main and blocks, which a debug verb may.
+
+- **Settings are the whole stored domain, not a curated list**, so a setting added later is reported without anyone remembering to add it. **Data values go by size only**: a security-scoped bookmark would put an access grant into a file meant for sharing.
+- **The log is all of Vibe's own lines, the audio frameworks' at any stored level** (device trouble is reported there, not by us), **and anyone's errors**, capped at the newest 100,000 lines. What it holds depends on `VIBE_VERBOSE_LOGGING` (root `CLAUDE.md`): without it Vibe's info and debug lines were never stored, and the report cannot recover them.
+- **It covers this run only**: the log store is scoped to the current process, so a user must save before quitting.

@@ -96,10 +96,13 @@ settings:
     GCC_NO_COMMON_BLOCKS: YES
     # Set to 0 to omit exclusive output controls and CoreAudio hog access.
     VIBE_ENABLE_EXCLUSIVE_OUTPUT: 1
-    # Set to 0 to record only the opens, seeks, starts and device rebinds that
-    # cross their threshold. 1 records every one, so a user reporting that
-    # nothing was logged can only mean the path was not taken (#47).
-    VIBE_VERBOSE_AUDIO_TIMING: 1
+    # 1 for betas: every log level is kept by the unified log, where Save Debug
+    # Info and `log show` can retrieve it, and every timed playback step is
+    # recorded, so a user reporting that nothing was logged can only mean the
+    # path was not taken (#47). 0 for a stable release: info and debug are
+    # stream-only again and only the steps that cross their threshold are
+    # recorded.
+    VIBE_VERBOSE_LOGGING: 1
     # Warnings are errors everywhere: the warning set was audited to zero
     # (2026-08-21) and neither xcodebuild nor the analyze gate would otherwise
     # fail on a compiler warning — the analyze script's filter deliberately
@@ -130,7 +133,7 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
         - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
-        - "VIBE_VERBOSE_AUDIO_TIMING=$(VIBE_VERBOSE_AUDIO_TIMING)"
+        - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
@@ -150,7 +153,7 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "NDEBUG=1"
         - "VIBE_ENABLE_EXCLUSIVE_OUTPUT=$(VIBE_ENABLE_EXCLUSIVE_OUTPUT)"
-        - "VIBE_VERBOSE_AUDIO_TIMING=$(VIBE_VERBOSE_AUDIO_TIMING)"
+        - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
 

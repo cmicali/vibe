@@ -26,6 +26,16 @@ NS_ASSUME_NONNULL_BEGIN
 // it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
 
+// The same report as a dictionary with its status named: every input to the
+// fold, so a reader can say why a lock is open. Save Debug Info and the debug
+// channel's dump_state both read it.
+- (NSDictionary<NSString *, id> *)bitPerfectReportDictionary;
+
+// The HAL device the output unit is actually bound to, which can differ from
+// the requested one. Hops onto _queue, so the caller waits behind queued
+// player work — Save Debug Info reads it off main for that reason.
+- (NSInteger)currentlyActiveAudioDeviceId;
+
 // Non-nil only while announcing a fallback to System Output that the user did
 // NOT ask for — the bound device vanished or failed. The shell reads it to
 // keep the saved preference instead of erasing it, so the device is re-adopted

@@ -17,46 +17,10 @@
 
 #pragma mark App side: command execution
 
-static NSString *VibeDebugBitPerfectStatusName(VibeBitPerfectStatus status) {
-    switch (status) {
-        case VibeBitPerfectStatusOff:               return @"off";
-        case VibeBitPerfectStatusIdle:              return @"idle";
-        case VibeBitPerfectStatusActive:            return @"active";
-        case VibeBitPerfectStatusRateUnsupported:   return @"rateUnsupported";
-        case VibeBitPerfectStatusSwitchFailed:      return @"switchFailed";
-        case VibeBitPerfectStatusChannelConversion: return @"channelConversion";
-        case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
-        case VibeBitPerfectStatusMuted:             return @"muted";
-        case VibeBitPerfectStatusVolumeScaled:      return @"volumeScaled";
-        case VibeBitPerfectStatusExclusiveRefused:  return @"exclusiveRefused";
-        case VibeBitPerfectStatusSourceLossy:       return @"sourceLossy";
-    }
-    return @"unknown";
-}
-
 // The report the header and Settings read, plus the queue-confined ownership
 // behind it — every input to the fold, so a run can say WHY a lock is open.
 static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
-    VibeBitPerfectReport r = player.bitPerfectReport;
-    NSMutableDictionary *d = [@{
-        @"enabled": @(r.enabled),
-        @"status": VibeDebugBitPerfectStatusName(r.status),
-        @"sampleRate": @(r.sampleRate),
-        @"bitsPerChannel": @(r.bitsPerChannel),
-        @"isFloat": @(r.isFloat),
-        @"softwareVolume": @(r.softwareVolume),
-        @"balance": @(r.balance),
-        @"muted": @(r.muted),
-        @"eligibleDevice": @(r.eligibleDevice),
-        @"hasTrack": @(r.hasTrack),
-        @"rateExact": @(r.rateExact),
-        @"formatConfirmed": @(r.formatConfirmed),
-        @"depthOK": @(r.depthOK),
-        @"channelsMatch": @(r.channelsMatch),
-        @"hogWanted": @(r.hogWanted),
-        @"exclusive": @(r.exclusive),
-        @"sourceLossless": @(r.sourceLossless),
-    } mutableCopy];
+    NSMutableDictionary *d = [player.bitPerfectReportDictionary mutableCopy];
     [d addEntriesFromDictionary:[player debugBitPerfectOwnership]];
     return d;
 }

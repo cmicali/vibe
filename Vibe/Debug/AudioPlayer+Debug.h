@@ -33,12 +33,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numChannels;
 
 #if TARGET_OS_OSX
-// The HAL device the output unit is actually bound to, for dump_state's
-// outputDeviceId; implemented in AudioPlayer+Devices.m with the rest of that
-// macOS-only layer. Reads the engine on _queue, where every other engine touch
-// in the app runs — the command channel calls this from main.
-- (NSInteger)currentlyActiveAudioDeviceId;
-
 // Bit-perfect output's queue-confined ownership and the engine's three
 // connection rates, for dump_state: {hoggedDeviceId, restoreOwedToDeviceId,
 // varispeedPresent, mixerOutputRate, outputNodeInputRate,

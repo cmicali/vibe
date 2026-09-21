@@ -6,6 +6,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui, window, settings} — playlist includes resolvedRows; ui.displayState (track|loading|empty|launch-grace|error) is the settled UI, player.state the pending intent
+"$V" --debug-cmd dump_debug_info     # {bytes, text} — Settings > Advanced > Save Debug Info's report without its save panel (settings, devices with formats and latency, bit-perfect report, this run's log); blocks main for the device and log reads, 30s client timeout
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]} — AppKit bottom-left frames
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — live enabled/checkmark from the real validateMenuItem pass
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the system Now Playing publish; always hasInfo: 0 under --no-audio-hw

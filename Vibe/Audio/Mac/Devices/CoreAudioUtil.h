@@ -102,6 +102,13 @@ NS_ASSUME_NONNULL_BEGIN
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
 
+// Everything the HAL will say about one device, for Save Debug Info: identity,
+// liveness and exclusive ownership, rates and buffer, the latency it declares,
+// its clock, and its first output stream's formats and controls. Strings and
+// numbers only, and a property the device does not answer is simply absent.
+// Every read goes through coreaudiod, so call it off main.
++ (NSDictionary<NSString *, id> *)diagnosticDescriptionOfDeviceID:(AudioDeviceID)deviceID;
+
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // A writable hog property permits an attempt, not a promise of ownership.
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID;

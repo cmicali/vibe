@@ -2,6 +2,8 @@
 
 The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `CoreAudioUtil`, and `AudioPlayer+Devices`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
 
+`CoreAudioUtil.diagnosticDescriptionOfDeviceID:` is the one read-everything call — formats, declared latency, clock, exclusive owner — and exists for Save Debug Info (`Mac/App/CLAUDE.md`); nothing that changes a device reads it. The player's side of that report is `bitPerfectReportDictionary` and `currentlyActiveAudioDeviceId`, which the debug channel's `dump_state` reads too.
+
 ## AudioDeviceManager
 
 A singleton that owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the life of the process, then performs a post-registration sweep. `outputDevices` serves the latest immutable snapshot and waits at most 250ms for the first one on every calling thread; an unavailable `coreaudiod` therefore cannot strand a caller's serial queue.
