@@ -245,6 +245,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 // The same read, but nil rather than empty when nothing has been published
 // yet. The distinction only matters to a caller deciding whether a device is
 // GONE; see knowsOutputDeviceIsAbsent:.
+- (nullable NSArray<AudioDevice *> *)cachedOutputDevices {
+    os_unfair_lock_lock(&_devicesLock);
+    NSArray<AudioDevice *> *devices = _cachedOutputDevices;
+    os_unfair_lock_unlock(&_devicesLock);
+    return devices;
+}
+
 - (nullable NSArray<AudioDevice *> *)publishedOutputDevices {
     dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW,
             (int64_t)(kListenerSetupWait * NSEC_PER_SEC));

@@ -158,6 +158,19 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // succeeds the engine honestly follows System Output (-1).
     NSString                *_pendingSavedDeviceUID;
     NSString                *_pendingSavedDeviceName;
+    // The concrete device this player last committed to, remembered so that a
+    // device which VANISHES can be told apart from System Output the user
+    // actually chose. Both write -1; only one of them should forget the
+    // choice. Set when a concrete id commits, cleared by an explicit -1.
+    NSString                *_boundDeviceUID;
+    NSString                *_boundDeviceName;
+    // Held only across an involuntary fallback's announcement, so the shell's
+    // didChangeOutputDevice: can tell it from a deliberate System Output pick.
+    NSString                *_involuntaryFallbackUID;
+    NSString                *_involuntaryFallbackName;
+    // Main-thread copies of the above, set only around the delegate callback.
+    NSString                *_announcedFallbackUID;
+    NSString                *_announcedFallbackName;
     // Covers the async manager lookup and its checked bind. A Stopped-state
     // hook cannot start another attempt while a failed bind is resetting back
     // to Stopped, which would otherwise create an immediate retry loop.

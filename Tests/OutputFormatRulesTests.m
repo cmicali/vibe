@@ -745,13 +745,24 @@ static VibeBitPerfectReport Perfect(void) {
 
 #pragma mark - Deferred saved-device bind races
 
+// Arguments: stopped, loading, paused, engineRunning, audioActive.
 - (void)testSavedDeviceMayBindAtIdleOrSilentLaunchButNotUnderAnOutgoingFade {
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO));
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, YES));
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, YES, NO));
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, YES, YES));
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES)); // playing or paused
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, NO)); // paused engine may be idle-stopped
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, NO, NO));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, YES, NO));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, YES, NO, NO, NO));
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, YES, NO, YES, YES)); // under an outgoing fade
+}
+
+- (void)testSavedDeviceNeverBindsUnderPlayback {
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, NO, YES, YES));
+}
+
+// A vanished device parks playback as Paused, so this is the case that decides
+// whether it can be re-adopted when it comes back without waiting for a stop.
+- (void)testSavedDeviceBindsOnceAPauseHasSettledButNotDuringItsFade {
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, NO, NO));  // idle-stopped
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, NO)); // engine up, fade done
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, YES)); // pause fade still audible
 }
 
 - (void)testSavedDeviceAnswerCannotOverwriteManualSelectionOrANewerPreference {

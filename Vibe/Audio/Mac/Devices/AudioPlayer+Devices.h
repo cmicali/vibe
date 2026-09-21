@@ -26,6 +26,14 @@ NS_ASSUME_NONNULL_BEGIN
 // it differs.
 @property (readonly) VibeBitPerfectReport bitPerfectReport;
 
+// Non-nil only while announcing a fallback to System Output that the user did
+// NOT ask for — the bound device vanished or failed. The shell reads it to
+// keep the saved preference instead of erasing it, so the device is re-adopted
+// when it comes back, including across a relaunch. An explicit System Output
+// selection leaves it nil and clears the preference as before.
+@property (readonly, nullable) NSString *involuntaryFallbackDeviceUID;
+@property (readonly, nullable) NSString *involuntaryFallbackDeviceName;
+
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
 // or Loading while the engine is not running; the rule and its trap are on

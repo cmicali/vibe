@@ -60,6 +60,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
 
+// The published snapshot, or nil when none exists yet — WITHOUT waiting on
+// listener setup, unlike outputDevices and publishedOutputDevices. For the
+// player queue, which must never block on the HAL: an unavailable coreaudiod
+// answers nil here rather than stalling playback for the setup ceiling.
+- (nullable NSArray<AudioDevice *> *)cachedOutputDevices;
+
+// The one matching rule for a saved device: UID wins, name is the fallback for
+// settings older than the UID, and an empty UID never matches by UID.
++ (nullable AudioDevice *)deviceForUID:(nullable NSString *)uid
+                                  name:(nullable NSString *)name
+                             inDevices:(NSArray<AudioDevice *> *)devices;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -1353,6 +1353,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // output device for as long as the user stays paused. Resume restarts it
     // through startEngineAndPlayNode:, which also dissolves this pending stop.
     [self scheduleEngineIdleStopOnQueue];
+#if TARGET_OS_OSX
+    // The first moment a pause is silent, and so the first moment a wanted
+    // device that came back while audio was playing may be adopted. Without
+    // this it waited for the next stop.
+    [self resolvePendingSavedOutputDeviceOnQueue];
+#endif
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];

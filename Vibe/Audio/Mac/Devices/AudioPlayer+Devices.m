@@ -35,6 +35,32 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 @implementation AudioPlayer (DevicesInternal)
 
+// Main thread, and meaningful only inside didChangeOutputDevice: — the
+// announcement sets them around the delegate call.
+- (NSString *)involuntaryFallbackDeviceUID {
+    return _announcedFallbackUID;
+}
+
+- (NSString *)involuntaryFallbackDeviceName {
+    return _announcedFallbackName;
+}
+
+// The device that just went away, moved from "bound" to "wanted again". The
+// pending slot is the same one a launch preference waits in, so the existing
+// resolve path re-adopts the device when it returns — no new mechanism, and
+// VibeCanBindSavedOutputDevice still decides when it is safe to bind.
+- (void)retainVanishedOutputDeviceIntentOnQueue {
+    if (_boundDeviceUID.length == 0 && _boundDeviceName.length == 0) {
+        return;
+    }
+    _involuntaryFallbackUID = _boundDeviceUID;
+    _involuntaryFallbackName = _boundDeviceName;
+    _pendingSavedDeviceUID = _boundDeviceUID;
+    _pendingSavedDeviceName = _boundDeviceName;
+    LogInfo(@"AudioPlayer: keeping '%@' as the wanted output device; it vanished rather than being deselected",
+            _boundDeviceName.length ? _boundDeviceName : _boundDeviceUID);
+}
+
 - (void)systemDefaultOutputDeviceDidChange {
     dispatch_async(_queue, ^{
         if (self.currentlyRequestedAudioDeviceId == -1) {
@@ -58,21 +84,58 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
             LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
             [self abandonBitPerfectForVanishedDeviceOnQueue];
+            [self retainVanishedOutputDeviceIntentOnQueue];
             [self setOutputDeviceOnQueue:-1];
+            self->_involuntaryFallbackUID = nil;
+            self->_involuntaryFallbackName = nil;
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
     });
 }
 
+// The bind rule read from this player's own state, in one place, so the fast
+// path and the async completion cannot disagree about what counts as silent.
+- (BOOL)canBindSavedOutputDeviceNowOnQueue {
+    return VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
+                                        _state == VibePlayerStateLoading,
+                                        _state == VibePlayerStatePaused,
+                                        _engine.isRunning, _outputAudioActive);
+}
+
 - (void)resolvePendingSavedOutputDeviceOnQueue {
     NSString *savedUID = _pendingSavedDeviceUID;
     NSString *savedName = _pendingSavedDeviceName;
+    if (savedUID.length == 0 && savedName.length == 0) {
+        return;
+    }
+    BOOL canBind = [self canBindSavedOutputDeviceNowOnQueue];
+    // TRAP: a returning device must be matched here, synchronously. Once one
+    // has come back a snapshot always exists — the replug IS a snapshot refresh
+    // — whereas the async lookup below exists for launch, where there may be no
+    // snapshot yet. Used for a returning device it lost every time to a fast
+    // local open: Loading became Playing before the answer landed, and the rule
+    // then refused a bind that would have been legal a moment earlier.
+    NSArray<AudioDevice *> *snapshot = [[AudioDeviceManager sharedInstance] cachedOutputDevices];
+    if (snapshot && !_pendingSavedDeviceLookupInFlight) {
+        AudioDevice *device = [AudioDeviceManager deviceForUID:savedUID name:savedName inDevices:snapshot];
+        if (device && canBind) {
+            LogInfo(@"AudioPlayer: re-adopting '%@', the wanted output device, now that it is present",
+                    device.name);
+            if ([self selectOutputDeviceOnQueue:device.deviceId]) {
+                _pendingSavedDeviceUID = nil;
+                _pendingSavedDeviceName = nil;
+            }
+            return;
+        }
+        if (device) {
+            LogInfo(@"AudioPlayer: '%@' is present but playback is audible; adopting it once it is not",
+                    device.name);
+            return;
+        }
+    }
     // Binding is opportunistic, but an armed mode must also learn about an
     // absent device if playback won the race with discovery.
-    if ((savedUID.length == 0 && savedName.length == 0)
-            || (!_bitPerfectWanted && !VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
-                                             _state == VibePlayerStateLoading, _engine.isRunning))
-            || _pendingSavedDeviceLookupInFlight) {
+    if ((!_bitPerfectWanted && !canBind) || _pendingSavedDeviceLookupInFlight) {
         return;
     }
     _pendingSavedDeviceLookupInFlight = YES;
@@ -99,13 +162,20 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             // timeout. Clear the intent before rebuilding so state publication
             // cannot immediately submit the same lookup again.
             if (!device && strongSelf->_bitPerfectWanted) {
+                // Absent is not deselected: keep the persisted choice so a later
+                // launch re-adopts the device. The in-memory intent is still
+                // cleared, because re-arming it here would resubmit this same
+                // lookup on the next state publication, forever.
+                strongSelf->_involuntaryFallbackUID = strongSelf->_pendingSavedDeviceUID;
+                strongSelf->_involuntaryFallbackName = strongSelf->_pendingSavedDeviceName;
                 strongSelf->_pendingSavedDeviceUID = nil;
                 strongSelf->_pendingSavedDeviceName = nil;
                 [strongSelf abandonBitPerfectForVanishedDeviceOnQueue];
                 [strongSelf setOutputDeviceOnQueue:-1];
+                strongSelf->_involuntaryFallbackUID = nil;
+                strongSelf->_involuntaryFallbackName = nil;
             }
-            if (!device || !VibeCanBindSavedOutputDevice(strongSelf->_state == VibePlayerStateStopped,
-                            strongSelf->_state == VibePlayerStateLoading, strongSelf->_engine.isRunning)) {
+            if (!device || ![strongSelf canBindSavedOutputDeviceNowOnQueue]) {
                 strongSelf->_pendingSavedDeviceLookupInFlight = NO;
                 return;
             }
@@ -250,7 +320,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
         LogError(@"Audio output device failed; falling back to system default");
         [self abandonBitPerfectForVanishedDeviceOnQueue];
+        [self retainVanishedOutputDeviceIntentOnQueue];
         [self setOutputDeviceOnQueue:-1];
+        _involuntaryFallbackUID = nil;
+        _involuntaryFallbackName = nil;
         return;
     }
     // Nothing to recover while idle. In bit-perfect mode, Loading may have no
@@ -604,6 +677,16 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
 
     self.currentlyRequestedAudioDeviceId = outputDeviceID;
+    if (outputDeviceID >= 0) {
+        AudioDevice *committed = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceID];
+        _boundDeviceUID = committed.uid;
+        _boundDeviceName = committed.name;
+    }
+    else if (!_involuntaryFallbackUID) {
+        // System Output the user actually chose: nothing to re-adopt later.
+        _boundDeviceUID = nil;
+        _boundDeviceName = nil;
+    }
     [self notifyRequestedOutputDeviceOnQueue];
     return YES;
 }
@@ -622,8 +705,18 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // The report's eligibility follows the committed id, which the rebuild
     // above ran before this was written.
     [self publishBitPerfectReportOnQueue];
+    // TRAP: copied here, by value. The announcement lands on main
+    // asynchronously while the caller clears the queue-side fields straight
+    // after, so a delegate reading them from main would see nil and erase the
+    // very choice this exists to keep.
+    NSString *fallbackUID = _involuntaryFallbackUID;
+    NSString *fallbackName = _involuntaryFallbackName;
     run_on_main_thread({
+        self->_announcedFallbackUID = fallbackUID;
+        self->_announcedFallbackName = fallbackName;
         [self.delegate audioPlayer:self didChangeOutputDevice:requested];
+        self->_announcedFallbackUID = nil;
+        self->_announcedFallbackName = nil;
     });
 }
 

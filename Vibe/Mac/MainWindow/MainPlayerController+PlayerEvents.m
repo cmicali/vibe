@@ -330,8 +330,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL bitPerfectBefore = settings.bitPerfectOutput;
     if (newDeviceIndex == -1) {
-        settings.audioOutputDeviceName = @"";
-        settings.audioOutputDeviceUID = @"";
+        // Only a System Output the user CHOSE forgets the device. One that
+        // vanished keeps it as the saved preference, which is what re-adopts
+        // it when it returns — in this session through the player's pending
+        // intent, after a relaunch through the ordinary launch resolution.
+        if (audioPlayer.involuntaryFallbackDeviceUID.length == 0
+                && audioPlayer.involuntaryFallbackDeviceName.length == 0) {
+            settings.audioOutputDeviceName = @"";
+            settings.audioOutputDeviceUID = @"";
+        }
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
