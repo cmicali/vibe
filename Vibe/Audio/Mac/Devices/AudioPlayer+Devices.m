@@ -370,6 +370,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL unitAtDeviceRate = !_bitPerfectWanted || requested < 0
             || (AudioDeviceID)requested != _preparedDeviceID || [self outputUnitAtPreparedDeviceRateOnQueue];
     BOOL graphHealthy = _engine.isRunning && hasNode && onRequestedDevice && unitAtDeviceRate;
+#if VIBE_VERBOSE_LOGGING
+    // Beta instrumentation (#47): every recovery says what it saw and what it
+    // decided. "Healthy, nothing to do" used to be silent, which is how a unit
+    // at the wrong rate went unnoticed for a whole session.
+    NSString *seen = [NSString stringWithFormat:@"engine %@, node %@, requested %ld, bound %u, unit at device rate %@, state %ld",
+                      _engine.isRunning ? @"running" : @"stopped", hasNode ? @"present" : @"absent", (long)requested,
+                      [self activeOutputDeviceID], unitAtDeviceRate ? @"yes" : @"NO", (long)state];
+#endif
     if (!graphHealthy) {
         // Publish the stopped graph before any recovery branch can wait or
         // return. Transport state intentionally remains unchanged so a
@@ -406,10 +414,16 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL idle = state == VibePlayerStateStopped
             || (_bitPerfectWanted && state == VibePlayerStateLoading);
     if (idle && onRequestedDevice) {
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Recovery: idle on the requested device, nothing to do (%@)", seen);
+#endif
         return;
     }
     if (graphHealthy) {
         // The graph survived, so there is nothing to recover.
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Recovery: graph healthy, nothing to do (%@)", seen);
+#endif
         return;
     }
     // The engine stopped or left the chosen device. Rebuild while preserving
@@ -449,8 +463,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // often IS, and the rebuild's prepare sets it back.
     if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID && unitAtDeviceRate
             && !(_file && [self outputNeedsSwitchOnQueueForFile:_file unknownNeedsSwitch:NO])) {
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Recovery: paused with the graph intact, nothing to do (%@)", seen);
+#endif
         return;
     }
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Recovery: rebinding to device %u (%@)", deviceID, seen);
+#endif
     [self configureOutputDeviceOnQueue:deviceID];
 }
 
@@ -1151,6 +1171,12 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 &_outputDeviceListener, 0.01, 0.01, _queue,
                 ^(void *object, const AudioUnitEvent *event, UInt64 time, AudioUnitParameterValue value) {
                     AudioPlayer *strongSelf = weakSelf;
+#if VIBE_VERBOSE_LOGGING
+                    AudioUnitPropertyID property = event->mArgument.mProperty.mPropertyID;
+                    LogInfo(@"Callback: output unit %@ changed; bound to device %u",
+                            property == kAudioOutputUnitProperty_CurrentDevice ? @"current device" : @"channel map",
+                            [strongSelf activeOutputDeviceID]);
+#endif
                     // Rebinding from the AU event drain can keep that drain
                     // alive forever. Recover on the next queue turn instead,
                     // if the mode still wants this listener by then.
@@ -1184,6 +1210,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if (strongSelf && strongSelf->_bitPerfectWanted && strongSelf->_preparedDeviceID == deviceID) {
             for (UInt32 i = 0; i < count; i++) {
                 AudioObjectPropertySelector selector = addresses[i].mSelector;
+#if VIBE_VERBOSE_LOGGING
+                LogInfo(@"Callback: bit-perfect device listener, '%c%c%c%c' changed on device %u", (char)(selector >> 24),
+                        (char)(selector >> 16), (char)(selector >> 8), (char)selector, deviceID);
+#endif
                 if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
                         || selector == kAudioHardwareServiceDeviceProperty_VirtualMainBalance
                         || selector == kAudioDevicePropertyVolumeScalar

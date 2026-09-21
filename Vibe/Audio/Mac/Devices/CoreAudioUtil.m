@@ -634,6 +634,10 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
         case kAudioDevicePropertyDataSource:
             return [@"data source = " stringByAppendingString:haveU ? VibeFourCCText(u) : @"?"];
         case kAudioDeviceProcessorOverload:                 return @"IO overload: a cycle was dropped";
+        case kAudioDevicePropertyIOStoppedAbnormally:       return @"IO stopped abnormally";
+        case kAudioHardwarePropertyServiceRestarted:        return @"coreaudiod restarted";
+        case kAudioHardwarePropertyDefaultSystemOutputDevice:
+            return [@"alert sound output is now device " stringByAppendingString:value];
         case kAudioDevicePropertyDeviceHasChanged:          return @"reports it has changed";
         case kAudioDevicePropertyClockSource:
             return [@"clock source = " stringByAppendingString:VibeReadClockSourceName(object) ?: @"?"];

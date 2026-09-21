@@ -147,6 +147,8 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
         [timers addObject:timer];
     }
 }
+
+static void VibeWatchOutputRender(AudioPlayer *player);
 #endif
 
 @implementation AudioPlayer {
@@ -231,6 +233,7 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
         if (!pump) {
             VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread");
             VibeWatchQueueForStalls(_queue, @"player queue");
+            VibeWatchOutputRender(self);
         }
 #endif
         // Keep the macOS controls and BPM feed stable across live toggles;
@@ -272,6 +275,10 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
                                 usingBlock:^(NSNotification *note) {
                                     AudioPlayer *strongSelf = weakSelf;
                                     if (strongSelf) {
+#if VIBE_VERBOSE_LOGGING
+                                        LogInfo(@"Callback: AVAudioEngine configuration changed (engine %@)",
+                                                strongSelf->_engine.isRunning ? @"running" : @"stopped");
+#endif
                                         dispatch_async(strongSelf->_queue, ^{
                                             [strongSelf handleEngineConfigurationChange];
                                         });
@@ -1068,6 +1075,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)segmentDidCompleteWithGeneration:(uint64_t)generation {
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Callback: segment completed (%@)", generation != _segmentGeneration ? @"stale, superseded"
+            : _gaplessQueued ? @"gapless handover" : @"track end");
+#endif
     if (generation != _segmentGeneration) {
         return; // Stale: a stop, seek, skip or device switch superseded this segment.
     }
@@ -1870,5 +1881,69 @@ static NSString *VibeAudioLevelNormalizationModeName(
         [self.delegate audioPlayer:self error:error];
     });
 }
+
+
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): the output's own render clock, checked every
+// 50 ms while playing. A clock that stops means the device's IO stopped
+// pulling audio — the one source of a frozen time counter that is neither the
+// main thread nor a late first frame. Polled on _queue, like the first-render
+// probe, and logged when the clock moves again or playback stops first.
+static void VibeWatchOutputRender(AudioPlayer *player) {
+    static NSMutableArray *timers;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
+    __weak AudioPlayer *weakPlayer = player;
+    __block AVAudioFramePosition lastSample = -1;
+    __block uint64_t lastAdvance = 0, stalledSince = 0;
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, player->_queue);
+    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC, 10 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(timer, ^{
+        AudioPlayer *strongPlayer = weakPlayer;
+        if (!strongPlayer) {
+            return;
+        }
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        os_unfair_lock_lock(&strongPlayer->_stateLock);
+        BOOL playing = strongPlayer->_state == VibePlayerStatePlaying;
+        os_unfair_lock_unlock(&strongPlayer->_stateLock);
+        AVAudioTime *render = nil;
+        if (playing && strongPlayer->_engine.isRunning) {
+            @try {
+                render = strongPlayer->_engine.outputNode.lastRenderTime;
+            }
+            @catch (NSException *exception) {
+                render = nil; // instrumentation must never take playback down with it
+            }
+        }
+        if (!render.sampleTimeValid) {
+            if (stalledSince) {
+                LogWarn(@"Stall: the audio output rendered nothing for %.0f ms, until playback or the engine stopped",
+                        (now - stalledSince) / 1e6);
+            }
+            lastSample = -1;
+            lastAdvance = 0;
+            stalledSince = 0;
+            return;
+        }
+        if (render.sampleTime != lastSample) {
+            if (stalledSince) {
+                LogWarn(@"Stall: the audio output rendered nothing for %.0f ms while playing",
+                        (now - stalledSince) / 1e6);
+            }
+            lastSample = render.sampleTime;
+            lastAdvance = now;
+            stalledSince = 0;
+        }
+        else if (!stalledSince && lastAdvance && now - lastAdvance > 200 * NSEC_PER_MSEC) {
+            stalledSince = lastAdvance;
+        }
+    });
+    dispatch_resume(timer);
+    @synchronized (timers) {
+        [timers addObject:timer];
+    }
+}
+#endif
 
 @end

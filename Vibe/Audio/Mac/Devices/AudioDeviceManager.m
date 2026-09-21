@@ -110,6 +110,10 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
                                               void *inClientData) {
     AudioDeviceManager *manager = (__bridge AudioDeviceManager *)inClientData;
     for (UInt32 i = 0; i < inNumberAddresses; i++) {
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Callback: HAL %@", inAddresses[i].mSelector == kAudioHardwarePropertyDefaultOutputDevice
+                ? @"default output changed" : @"device list changed");
+#endif
         switch (inAddresses[i].mSelector) {
             // Both selectors refresh the cache before notifying, because a
             // default change moves isSystemDefault inside the snapshot, not
@@ -353,6 +357,15 @@ static const AudioObjectPropertyAddress kVibeEventLogDeviceAddresses[] = {
     { kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
     { kAudioDevicePropertyDataSource, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
     { kAudioDevicePropertyJackIsConnected, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyIOStoppedAbnormally, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+};
+// On the system object: coreaudiod restarting resets every device under the
+// app, and the alert-sound output moves with the default when a device is
+// taken exclusively. The default output and device list are logged from the
+// snapshot and the manager's own callback.
+static const AudioObjectPropertyAddress kVibeEventLogSystemAddresses[] = {
+    { kAudioHardwarePropertyServiceRestarted, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioHardwarePropertyDefaultSystemOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
 };
 static const AudioObjectPropertyAddress kVibeEventLogStreamAddresses[] = {
     { kAudioStreamPropertyPhysicalFormat, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
@@ -381,6 +394,14 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         _eventLogQueue = dispatch_queue_create("com.vibe.audiodevicemanager.eventlog", DISPATCH_QUEUE_SERIAL);
         _eventLogWatches = [NSMutableDictionary dictionary];
         _eventLogDefaultID = -1;
+        VibeEventLogListen(kAudioObjectSystemObject, kVibeEventLogSystemAddresses,
+                           sizeof(kVibeEventLogSystemAddresses) / sizeof(kVibeEventLogSystemAddresses[0]), _eventLogQueue,
+                           ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
+            for (UInt32 i = 0; i < count; i++) {
+                LogInfo(@"HAL: system %@",
+                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:kAudioObjectSystemObject]);
+            }
+        }, YES);
     }
     size_t deviceCount = sizeof(kVibeEventLogDeviceAddresses) / sizeof(kVibeEventLogDeviceAddresses[0]);
     size_t streamCount = sizeof(kVibeEventLogStreamAddresses) / sizeof(kVibeEventLogStreamAddresses[0]);

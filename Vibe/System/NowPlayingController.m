@@ -142,8 +142,11 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 // MediaPlayer does not document a delivery queue for command handlers.
 // Capture the weak delegate while the command is accepted, then put every
 // controller/UI mutation behind the main queue contract.
-- (MPRemoteCommandHandlerStatus)deliverRemoteCommand:
-        (void (^)(id<NowPlayingControllerDelegate> delegate))delivery {
+- (MPRemoteCommandHandlerStatus)deliverRemoteCommand:(NSString *)name
+        to:(void (^)(id<NowPlayingControllerDelegate> delegate))delivery {
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Callback: remote command %@", name);
+#endif
     id<NowPlayingControllerDelegate> delegate = _delegate;
     if (!delegate) {
         return MPRemoteCommandHandlerStatusCommandFailed;
@@ -178,7 +181,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"play" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingControllerPlay:strongSelf];
         }];
     }];
@@ -189,7 +192,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"pause" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingControllerPause:strongSelf];
         }];
     }];
@@ -200,7 +203,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"toggle play/pause" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingControllerTogglePlayPause:strongSelf];
         }];
     }];
@@ -214,7 +217,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"next track" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingControllerNextTrack:strongSelf];
         }];
     }];
@@ -226,7 +229,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         if (!strongSelf) {
             return MPRemoteCommandHandlerStatusCommandFailed;
         }
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"previous track" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingControllerPreviousTrack:strongSelf];
         }];
     }];
@@ -239,7 +242,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         }
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
         NSTimeInterval position = positionEvent.positionTime;
-        return [strongSelf deliverRemoteCommand:^(id<NowPlayingControllerDelegate> delegate) {
+        return [strongSelf deliverRemoteCommand:@"change playback position" to:^(id<NowPlayingControllerDelegate> delegate) {
             [delegate nowPlayingController:strongSelf seekToPosition:position];
         }];
     }];

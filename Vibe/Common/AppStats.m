@@ -123,6 +123,9 @@
 // would count the whole night as listening. These two bracket the run instead:
 // will-sleep folds and zeroes the baseline, did-wake restarts it.
 - (void)workspaceWillSleep:(NSNotification *)notification {
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Callback: the Mac is going to sleep");
+#endif
     if (_playbackStartUptime <= 0) {
         return;
     }
@@ -132,6 +135,9 @@
 }
 
 - (void)workspaceDidWake:(NSNotification *)notification {
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Callback: the Mac woke");
+#endif
     if (_sleepPausedRun) {
         _sleepPausedRun = NO;
         _playbackStartUptime = NSProcessInfo.processInfo.systemUptime;
