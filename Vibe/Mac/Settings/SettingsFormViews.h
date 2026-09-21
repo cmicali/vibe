@@ -97,7 +97,7 @@ static const CGFloat kSettingsRowInset = 16;
 
 // Recaption in place: creates the caption label on first use, hides it and
 // returns the title to the row's center for an empty caption, and answers
-// whether anything visible changed — the caller remeasures the pane only
+// whether the row's height changed — the caller remeasures the pane only
 // then. The bit-perfect and FX rows change their captions live.
 - (BOOL)setCaption:(nullable NSString *)caption;
 

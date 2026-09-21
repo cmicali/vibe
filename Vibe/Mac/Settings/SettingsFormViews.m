@@ -143,6 +143,14 @@ static void CollectControls(NSView *view, NSMutableArray<NSControl *> *controls)
     for (NSView *child in view.subviews) CollectControls(child, controls);
 }
 
+// A caption's height for text at width, through a copy of the label's own
+// cell so the metrics are the label's and the label itself is left alone.
+static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat width) {
+    NSCell *cell = [label.cell copy];
+    cell.stringValue = text;
+    return [cell cellSizeForBounds:NSMakeRect(0, 0, width, CGFLOAT_MAX)].height;
+}
+
 + (SettingsRowView *)rowContaining:(NSView *)view {
     for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
         if ([ancestor isKindOfClass:self]) return (SettingsRowView *)ancestor;
@@ -223,7 +231,9 @@ static void CollectControls(NSView *view, NSMutableArray<NSControl *> *controls)
                                                                 constant:-kRowPaddingV],
         ];
     }
-    BOOL changed = _captionLabel.hidden || ![_captionLabel.stringValue isEqualToString:text];
+    BOOL changed = _captionLabel.hidden
+            || (![_captionLabel.stringValue isEqualToString:text]
+                && [self captionHeightChangesFrom:_captionLabel.stringValue to:text]);
     _captionLabel.stringValue = text;
     if (_captionLabel.hidden) {
         _captionLabel.hidden = NO;
@@ -232,6 +242,20 @@ static void CollectControls(NSView *view, NSMutableArray<NSControl *> *controls)
     }
     [self refreshControlAppearance];
     return changed;
+}
+
+// Every caller remeasures the pane on YES, a full Auto Layout solve, and a
+// status caption rewritten during playback keeps its line count. So the
+// answer is measured on this one label at the width it wraps at, not assumed
+// from the text. Before the first layout there is no width, and any change
+// counts.
+- (BOOL)captionHeightChangesFrom:(NSString *)previous to:(NSString *)text {
+    CGFloat width = NSMinX(_cluster.frame) - kRowTitleControlGap - NSMinX(_titleLabel.frame);
+    if (width <= 0 || NSIsEmptyRect(_captionLabel.frame)) {
+        return YES;
+    }
+    return SettingsCaptionHeight(_captionLabel, previous, width)
+            != SettingsCaptionHeight(_captionLabel, text, width);
 }
 
 + (instancetype)rowWithTitle:(NSString *)title control:(NSView *)control {

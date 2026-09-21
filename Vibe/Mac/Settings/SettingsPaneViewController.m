@@ -372,8 +372,9 @@ static const CGFloat kInlineTitleInset = 10;
     // stack's constraints. The layout pass inside the animation then moves the
     // section headers and cards with the frame instead of jumping ahead of it.
     [self.view layoutSubtreeIfNeeded];
-    // Measure self before the siblings. A caption rewrite is the common reason
-    // to be here and almost never moves a pane's geometry; when ours has not
+    // Measure self before the siblings. A caption that kept its height never
+    // gets here (SettingsRowView.setCaption: measures that on the label), but a
+    // row reveal may still leave our size where it was; when ours has not
     // moved the maximum cannot have either, so the sibling solves and the
     // resize animation are pure waste. Costs one solve instead of six.
     NSSize previous = _lastNaturalSize;
