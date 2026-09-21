@@ -14,6 +14,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithName:(NSString *)name
                          uid:(NSString *)uid
+                    modelUID:(NSString *)modelUID
+                    deviceId:(NSInteger)deviceId
+             isSystemDefault:(BOOL)isSystemDefault
+               transportType:(UInt32)transportType;
+
+// No model identifier; for the host-less suite's fixtures.
+- (instancetype)initWithName:(NSString *)name
+                         uid:(NSString *)uid
                     deviceId:(NSInteger)deviceId
              isSystemDefault:(BOOL)isSystemDefault
                transportType:(UInt32)transportType;
@@ -22,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Empty for a device without a UID, never a shared sentinel; see the
 // construction site in AudioDeviceManager.
 @property (readonly, copy) NSString *uid;
+// kAudioDevicePropertyModelUID, or empty. Identifies the model rather than the
+// unit, and carries no USB location, so a class-compliant interface keeps it
+// across a port change while its uid does not. Compare it, never parse it.
+@property (readonly, copy) NSString *modelUID;
 @property (readonly)       NSInteger deviceId;
 @property (readonly)       BOOL isSystemDefault;
 // kAudioDeviceTransportType*, or kAudioDeviceTransportTypeUnknown when the

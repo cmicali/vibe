@@ -139,6 +139,7 @@
     // stall entirely when coreaudiod is unavailable; neither case occupies
     // the player's serial queue or this pre-first-paint path.
     self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:AppSettings.sharedInstance.audioOutputDeviceUID
+                                                     modelUID:AppSettings.sharedInstance.audioOutputDeviceModelUID
                                                          name:AppSettings.sharedInstance.audioOutputDeviceName
                                                      enableFX:AppSettings.sharedInstance.audioFXAllowed
                                                      delegate:self];

@@ -85,6 +85,13 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (NSString *)audioOutputDeviceUID;
 - (void)setAudioOutputDeviceUID:(NSString *)deviceUID;
 
+// The saved device's kAudioDevicePropertyModelUID. The device UID of a
+// class-compliant USB interface is its USB location, so moving it to another
+// port gives it a new UID; the model UID does not change, and is what lets the
+// device be recognised — and its modes carried — on the new port.
+- (NSString *)audioOutputDeviceModelUID;
+- (void)setAudioOutputDeviceModelUID:(NSString *)modelUID;
+
 // "" (Auto, the default) tracks the OS light/dark setting; light and dark pin
 // the main window. A common setting, deliberately outside the theme — a theme
 // decides its COLORS' mode (AppTheme.mode), never the window's appearance.
@@ -307,6 +314,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setBitPerfectOutput:(BOOL)enabled;
 // What a switch to that device hands the player with the device itself.
 - (BOOL)bitPerfectOutputForDeviceUID:(nullable NSString *)deviceUID;
+// Copies one device's remembered modes to another UID, for the same model
+// seen on a new USB port. Never overwrites modes already chosen for toUID.
+- (void)carryOutputModesFromDeviceUID:(NSString *)fromUID toDeviceUID:(NSString *)toUID;
 
 // Optional exclusive access while bit-perfect output is on, default NO and
 // per device like it. The system output and virtual devices remain shared.

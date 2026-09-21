@@ -69,6 +69,35 @@ static BOOL VibeWriteDeviceProperty(AudioObjectID object, AudioObjectPropertySel
                                   kAudioObjectPropertyScopeGlobal, deviceID, sizeof(*deviceID));
 }
 
++ (BOOL)readModelUID:(NSString **)modelUID forDeviceID:(AudioDeviceID)deviceID {
+    if (!modelUID) {
+        return NO;
+    }
+    *modelUID = nil;
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyModelUID,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    if (!AudioObjectHasProperty(deviceID, &addr)) {
+        return YES;
+    }
+    CFStringRef value = NULL;
+    UInt32 size = sizeof(value);
+    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &value);
+    if (status != noErr || !value) {
+        if (value) {
+            CFRelease(value);
+        }
+        return NO;
+    }
+    *modelUID = CFBridgingRelease(value);
+    return YES;
+}
+
 + (BOOL)readUID:(NSString **)uid forDeviceID:(AudioDeviceID)deviceID {
     if (!uid) {
         return NO;

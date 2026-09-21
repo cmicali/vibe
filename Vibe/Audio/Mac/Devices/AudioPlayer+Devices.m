@@ -56,6 +56,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     _involuntaryFallbackUID = _boundDeviceUID;
     _involuntaryFallbackName = _boundDeviceName;
     _pendingSavedDeviceUID = _boundDeviceUID;
+    _pendingSavedDeviceModelUID = _boundDeviceModelUID;
     _pendingSavedDeviceName = _boundDeviceName;
     LogInfo(@"AudioPlayer: keeping '%@' as the wanted output device; it vanished rather than being deselected",
             _boundDeviceName.length ? _boundDeviceName : _boundDeviceUID);
@@ -102,10 +103,33 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                                         _engine.isRunning, _outputAudioActive);
 }
 
+// Binds a wanted device the resolver found. When it was found by its model UID
+// under a NEW device UID — a class-compliant interface moved to another USB
+// port — the bind reads the modes remembered under the old UID, so the device
+// comes back as the user left it rather than with bit-perfect off. Only a model
+// match earns that: a name match may be a different device, and carrying
+// exclusive to it would hog hardware the user never chose — the warning in
+// selectOutputDeviceOnQueue: is why. The shell persists the carry on main.
+- (BOOL)selectSavedOutputDeviceOnQueue:(AudioDevice *)device
+                              savedUID:(NSString *)savedUID
+                         savedModelUID:(NSString *)savedModelUID {
+    BOOL movedPort = savedUID.length > 0 && ![device.uid isEqualToString:savedUID]
+            && savedModelUID.length > 0 && [device.modelUID isEqualToString:savedModelUID];
+    if (movedPort) {
+        LogInfo(@"AudioPlayer: '%@' is the same model under a new device UID; carrying its modes",
+                device.name);
+        _modesUIDForNextSelection = savedUID;
+    }
+    BOOL bound = [self selectOutputDeviceOnQueue:device.deviceId];
+    _modesUIDForNextSelection = nil;
+    return bound;
+}
+
 - (void)resolvePendingSavedOutputDeviceOnQueue {
     NSString *savedUID = _pendingSavedDeviceUID;
+    NSString *savedModelUID = _pendingSavedDeviceModelUID;
     NSString *savedName = _pendingSavedDeviceName;
-    if (savedUID.length == 0 && savedName.length == 0) {
+    if (savedUID.length == 0 && savedModelUID.length == 0 && savedName.length == 0) {
         return;
     }
     BOOL canBind = [self canBindSavedOutputDeviceNowOnQueue];
@@ -117,13 +141,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // then refused a bind that would have been legal a moment earlier.
     NSArray<AudioDevice *> *snapshot = [[AudioDeviceManager sharedInstance] cachedOutputDevices];
     if (snapshot && !_pendingSavedDeviceLookupInFlight) {
-        AudioDevice *device = [AudioDeviceManager deviceForUID:savedUID name:savedName inDevices:snapshot];
+        AudioDevice *device = [AudioDeviceManager deviceForUID:savedUID modelUID:savedModelUID
+                                                          name:savedName inDevices:snapshot];
         if (device && canBind) {
             LogInfo(@"AudioPlayer: re-adopting '%@', the wanted output device, now that it is present",
                     device.name);
-            if ([self selectOutputDeviceOnQueue:device.deviceId]) {
+            if ([self selectSavedOutputDeviceOnQueue:device savedUID:savedUID savedModelUID:savedModelUID]) {
                 _pendingSavedDeviceUID = nil;
                 _pendingSavedDeviceName = nil;
+                _pendingSavedDeviceModelUID = nil;
             }
             return;
         }
@@ -140,7 +166,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     _pendingSavedDeviceLookupInFlight = YES;
     __weak AudioPlayer *weakSelf = self;
-    [[AudioDeviceManager sharedInstance] resolveOutputDeviceForUID:savedUID
+    [[AudioDeviceManager sharedInstance] resolveOutputDeviceForUID:savedUID modelUID:savedModelUID
             name:savedName completion:^(AudioDevice *device) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
@@ -170,6 +196,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 strongSelf->_involuntaryFallbackName = strongSelf->_pendingSavedDeviceName;
                 strongSelf->_pendingSavedDeviceUID = nil;
                 strongSelf->_pendingSavedDeviceName = nil;
+                strongSelf->_pendingSavedDeviceModelUID = nil;
                 [strongSelf abandonBitPerfectForVanishedDeviceOnQueue];
                 [strongSelf setOutputDeviceOnQueue:-1];
                 strongSelf->_involuntaryFallbackUID = nil;
@@ -179,9 +206,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 strongSelf->_pendingSavedDeviceLookupInFlight = NO;
                 return;
             }
-            if ([strongSelf selectOutputDeviceOnQueue:device.deviceId]) {
+            if ([strongSelf selectSavedOutputDeviceOnQueue:device savedUID:savedUID
+                                             savedModelUID:savedModelUID]) {
                 strongSelf->_pendingSavedDeviceUID = nil;
                 strongSelf->_pendingSavedDeviceName = nil;
+                strongSelf->_pendingSavedDeviceModelUID = nil;
             }
             strongSelf->_pendingSavedDeviceLookupInFlight = NO;
         });
@@ -397,8 +426,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL bitPerfectOutput = NO, exclusiveOutput = NO;
     NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
     // TRAP: a name fallback can resolve a different UID; read its own modes
-    // before preparing or hogging it, never the missing device's flags.
-    [self readOutputModesForDeviceUID:uid bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
+    // before preparing or hogging it, never the missing device's flags. A name
+    // match may be different hardware, and carrying exclusive to it would hog a
+    // device the user never enabled it on. The ONE exception is
+    // _modesUIDForNextSelection: set only when the device was matched by its
+    // documented model UID under a new device UID, which is the same model on
+    // another USB port, not a stranger that shares a name.
+    [self readOutputModesForDeviceUID:(_modesUIDForNextSelection ?: uid)
+                     bitPerfectOutput:&bitPerfectOutput exclusiveOutput:&exclusiveOutput];
     BOOL previousBitPerfect = _bitPerfectWanted;
     _bitPerfectWanted = bitPerfectOutput;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
@@ -680,11 +715,13 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (outputDeviceID >= 0) {
         AudioDevice *committed = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceID];
         _boundDeviceUID = committed.uid;
+        _boundDeviceModelUID = committed.modelUID;
         _boundDeviceName = committed.name;
     }
     else if (!_involuntaryFallbackUID) {
         // System Output the user actually chose: nothing to re-adopt later.
         _boundDeviceUID = nil;
+        _boundDeviceModelUID = nil;
         _boundDeviceName = nil;
     }
     [self notifyRequestedOutputDeviceOnQueue];
@@ -1270,6 +1307,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if (outputDeviceID == -1) {
             self->_pendingSavedDeviceUID = nil;
             self->_pendingSavedDeviceName = nil;
+            self->_pendingSavedDeviceModelUID = nil;
         }
 
         BOOL didBind = [self selectOutputDeviceOnQueue:outputDeviceID];
@@ -1279,6 +1317,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             // keep the in-memory pending intent aligned with it.
             self->_pendingSavedDeviceUID = nil;
             self->_pendingSavedDeviceName = nil;
+            self->_pendingSavedDeviceModelUID = nil;
         }
         run_on_main_thread({ completion(); });
     });

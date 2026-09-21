@@ -338,6 +338,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
                 && audioPlayer.involuntaryFallbackDeviceName.length == 0) {
             settings.audioOutputDeviceName = @"";
             settings.audioOutputDeviceUID = @"";
+            settings.audioOutputDeviceModelUID = @"";
         }
     }
     else {
@@ -346,8 +347,21 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // failed transiently. Keep the previous persisted choice rather than
         // erasing it.
         if (device) {
+            // The same model under a new device UID is the same interface on
+            // another USB port: its UID is its port. The player already bound
+            // it with the old UID's modes; this persists that carry, here on
+            // main because the mode store's writers all live on main. Before
+            // the UID is overwritten, so bitPerfectBefore still compares equal
+            // and no spurious effect is applied.
+            NSString *previousUID = settings.audioOutputDeviceUID;
+            NSString *previousModelUID = settings.audioOutputDeviceModelUID;
+            if (previousUID.length > 0 && ![previousUID isEqualToString:device.uid]
+                    && previousModelUID.length > 0 && [previousModelUID isEqualToString:device.modelUID]) {
+                [settings carryOutputModesFromDeviceUID:previousUID toDeviceUID:device.uid];
+            }
             settings.audioOutputDeviceName = device.name;
             settings.audioOutputDeviceUID = device.uid;
+            settings.audioOutputDeviceModelUID = device.modelUID;
         }
     }
     // TRAP: a later switch may already be queued or bound. This callback may

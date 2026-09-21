@@ -77,6 +77,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate;
 
+// The same, with the saved device's model UID, so a class-compliant interface
+// moved to another USB port (and so given a new device UID) is still found at
+// launch. macOS passes it; iOS has no saved device and uses the form above.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
+                             name:(NSString *)deviceName enableFX:(BOOL)enableFX
+                         delegate:(id <AudioPlayerDelegate>)delegate;
+
 // No settings surface uses this initializer. It is the diagnostic/test seam
 // for loading budgets. The player starts with this immutable snapshot, and
 // each new underlying file open snapshots its timeout values. A same-row
