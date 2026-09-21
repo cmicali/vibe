@@ -179,9 +179,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
             (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - reboundAt) / NSEC_PER_SEC;
-    LogWarn(@"AudioPlayer: %@device rebind to %u took %.3fs (%@)",
-            seconds > kSlowDeviceRebindLogThresholdSeconds ? @"slow " : @"",
-            deviceID, seconds, rebound ? @"bound" : @"FAILED");
+    BOOL slowRebind = seconds > kSlowDeviceRebindLogThresholdSeconds;
+    LogTiming(slowRebind, @"AudioPlayer: %@device rebind to %u took %.3fs (%@)",
+            slowRebind ? @"slow " : @"", deviceID, seconds, rebound ? @"bound" : @"FAILED");
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
         [self publishBitPerfectReportOnQueue];

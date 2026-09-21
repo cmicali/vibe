@@ -97,10 +97,10 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
         [self scheduleFile:file onNode:node fromFrame:startFrame];
         NSTimeInterval rescheduleSeconds =
                 (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - rescheduledAt) / NSEC_PER_SEC;
-        LogWarn(@"AudioPlayer: %@paused seek — reschedule %.3fs "
+        BOOL slowSeek = rescheduleSeconds > kSlowSeekLogThresholdSeconds;
+        LogTiming(slowSeek, @"AudioPlayer: %@paused seek — reschedule %.3fs "
                 @"(the player queue was blocked for this long)",
-                rescheduleSeconds > kSlowSeekLogThresholdSeconds ? @"slow " : @"",
-                rescheduleSeconds);
+                slowSeek ? @"slow " : @"", rescheduleSeconds);
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         [self maybeArmGaplessOnQueue];
         run_on_main_thread({
@@ -192,10 +192,10 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
     [self maybeArmGaplessOnQueue]; // re-queue the splice behind the new segment
     NSTimeInterval rescheduleSeconds =
             (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - rescheduledAt) / NSEC_PER_SEC;
-    LogWarn(@"AudioPlayer: %@seek — reschedule %.3fs "
+    BOOL slowSeek = rescheduleSeconds > kSlowSeekLogThresholdSeconds;
+    LogTiming(slowSeek, @"AudioPlayer: %@seek — reschedule %.3fs "
             @"(the player queue was blocked for this long)",
-            rescheduleSeconds > kSlowSeekLogThresholdSeconds ? @"slow " : @"",
-            rescheduleSeconds);
+            slowSeek ? @"slow " : @"", rescheduleSeconds);
     if (preempted) {
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         BOOL stillPlaying = (_state == VibePlayerStatePlaying);

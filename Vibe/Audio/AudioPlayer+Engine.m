@@ -75,13 +75,11 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
             // Attribute the stall to the call that actually held the queue:
             // engine start and node play fail for different reasons, and the
             // remedy differs, so a single total would not separate them.
-            // Always logged, not only when slow: a report of "nothing appeared"
-            // must mean the path was not taken, never that it was fast.
-            LogWarn(@"AudioPlayer: %@start — engine %.3fs, node play %.3fs "
+            BOOL slowStart =
+                    engineStartSeconds + nodePlaySeconds > kSlowEngineStartLogThresholdSeconds;
+            LogTiming(slowStart, @"AudioPlayer: %@start — engine %.3fs, node play %.3fs "
                     @"(the player queue was blocked for this long)",
-                    engineStartSeconds + nodePlaySeconds > kSlowEngineStartLogThresholdSeconds
-                            ? @"slow " : @"",
-                    engineStartSeconds, nodePlaySeconds);
+                    slowStart ? @"slow " : @"", engineStartSeconds, nodePlaySeconds);
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }

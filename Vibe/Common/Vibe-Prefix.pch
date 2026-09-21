@@ -97,6 +97,26 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogInfo(fmt, ...)   VibeLogAt(OS_LOG_TYPE_INFO, fmt, ##__VA_ARGS__)
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
 
+// A step of the playback path that was timed. `slow` is whether it crossed its
+// own threshold. Warn level either way, because these exist to be retrieved
+// with `log show` after the fact by someone who could not catch a stream.
+//
+// Under VIBE_VERBOSE_AUDIO_TIMING every step is recorded, so a report that
+// nothing was logged can only mean the step did not happen — the ambiguity
+// that cost a round trip on #47. Without it only the slow ones are, which is
+// what a stable release wants. NOT tied to DEBUG: the builds that need this
+// most are the Release ones a user is running.
+#if VIBE_VERBOSE_AUDIO_TIMING
+#define LogTiming(slow, fmt, ...)  LogWarn(fmt, ##__VA_ARGS__)
+#else
+#define LogTiming(slow, fmt, ...)                                                              \
+    do {                                                                                       \
+        if (slow) {                                                                            \
+            LogWarn(fmt, ##__VA_ARGS__);                                                       \
+        }                                                                                      \
+    } while (0)
+#endif
+
 // Frame-budget instrumentation — DEBUG ONLY, all of it.
 //
 // An interval lands in Instruments' Points of Interest track, which sits

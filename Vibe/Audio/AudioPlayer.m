@@ -752,9 +752,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                     openURL.lastPathComponent, openSeconds, error.localizedDescription);
         }
         else {
-            LogWarn(@"AudioPlayer: %@opened %@ in %.3fs",
-                    openSeconds >= kSlowOpenLogThresholdSeconds ? @"slowly " : @"",
-                    openURL.lastPathComponent, openSeconds);
+            BOOL slowOpen = openSeconds >= kSlowOpenLogThresholdSeconds;
+            LogTiming(slowOpen, @"AudioPlayer: %@opened %@ in %.3fs",
+                    slowOpen ? @"slowly " : @"", openURL.lastPathComponent, openSeconds);
         }
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf) {
