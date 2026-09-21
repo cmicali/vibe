@@ -2,8 +2,9 @@ This beta records more about what happens when a track starts, to track down
 a delay some USB speakers show with Exclusive output on.
 
 * New: Vibe now records how long after your click each track's audio really
-  started, every change your audio devices report, and any moment the app was
-  too busy to respond. Settings > Advanced > Debug info > Save… includes it.
+  started, every change and notification your audio devices send, and any
+  moment the app or the audio output stopped responding. Settings > Advanced >
+  Debug info > Save… includes it.
 * New: press M while Vibe is in front to mark a moment in that record, for
   example the moment you hear a problem.
 * Quitting no longer waits on your audio device: the window closes at once and
