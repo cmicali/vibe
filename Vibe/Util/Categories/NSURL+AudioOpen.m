@@ -71,6 +71,62 @@ static SInt64 VibePreflightGetSize(void *clientData) {
     return ((VibePreflightContext *)clientData)->size;
 }
 
+// The type CoreAudio registers for an extension: the hint AudioFileOpenURL
+// takes from a path. 0 when none is registered.
+static AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
+    // A strong local, not a bridged temporary: ARC frees an unretained
+    // expression result at the end of its statement, and the registry lookup
+    // below then compared against freed memory.
+    NSString *lowered = extension.lowercaseString;
+    CFStringRef key = (__bridge CFStringRef)lowered;
+    UInt32 size = 0;
+    if (!key || AudioFileGetGlobalInfoSize(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size) != noErr
+            || size < sizeof(AudioFileTypeID)) {
+        return 0;
+    }
+    AudioFileTypeID types[8] = {0};
+    size = MIN(size, (UInt32)sizeof(types));
+    if (AudioFileGetGlobalInfo(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size, types) != noErr) {
+        return 0;
+    }
+    return types[0];
+}
+
+static OSStatus VibePreflightOpen(VibePreflightContext *context, AudioFileTypeID hint) {
+    AudioFileID file = NULL;
+    OSStatus status = AudioFileOpenWithCallbacks(context, VibePreflightRead, NULL,
+                                                 VibePreflightGetSize, NULL, hint, &file);
+    if (file) {
+        AudioFileClose(file);
+    }
+    return status;
+}
+
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): a refusal names both statuses and how the file
+// starts, so a report says why without the file itself.
+static void VibeLogPreflightRefusal(NSURL *url, VibePreflightContext *context, AudioFileTypeID hint,
+                                    OSStatus hinted, OSStatus sniffed) {
+    unsigned char head[16] = {0};
+    ssize_t got = pread(context->descriptor, head, sizeof(head), 0);
+    NSString *start;
+    if (got >= 10 && head[0] == 'I' && head[1] == 'D' && head[2] == '3') {
+        // ID3v2: a syncsafe size in bytes 6-9, excluding the 10-byte header.
+        uint32_t tag = ((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f);
+        start = [NSString stringWithFormat:@"an ID3v2.%u tag of %u bytes", head[3], tag + 10];
+    } else {
+        NSMutableString *hex = [NSMutableString string];
+        for (ssize_t i = 0; i < got; i++) {
+            [hex appendFormat:@"%02x", head[i]];
+        }
+        start = [NSString stringWithFormat:@"the bytes %@", hex];
+    }
+    LogWarn(@"Preflight: CoreAudio refused %@ as its extension's type (%@) and by content (%d); %lld bytes, "
+            @"starting with %@", url.lastPathComponent, hint ? [NSString stringWithFormat:@"%d", (int)hinted] : @"none registered",
+            (int)sniffed, context->size, start);
+}
+#endif
+
 - (BOOL)failsAudioOpenPreflight {
     if (self.isEmptyOrDirectory) {
         return YES;
@@ -89,12 +145,21 @@ static SInt64 VibePreflightGetSize(void *clientData) {
         return NO;
     }
     context.size = info.st_size;
-    AudioFileID file = NULL;
-    OSStatus status = AudioFileOpenWithCallbacks(&context, VibePreflightRead, NULL,
-                                                 VibePreflightGetSize, NULL, 0, &file);
-    if (file) {
-        AudioFileClose(file);
+    // TRAP: probe as the type the extension claims first, as AudioFileOpenURL
+    // does — the real open the caller makes next. Sniffing the content alone
+    // refuses an MP3 with ANY undeclared bytes between its ID3 tag and the first
+    // frame, a defect taggers leave behind, while the real open plays it: #47's
+    // Darkside.mp3 was refused before AVAudioFile ever saw it. A refusal under
+    // the hint falls back to sniffing, so a file named for the wrong type is
+    // still judged by what it holds.
+    AudioFileTypeID hint = VibeFileTypeForExtension(self.pathExtension);
+    OSStatus hinted = hint ? VibePreflightOpen(&context, hint) : kAudioFileUnsupportedFileTypeError;
+    OSStatus status = hinted == noErr ? noErr : VibePreflightOpen(&context, 0);
+#if VIBE_VERBOSE_LOGGING
+    if (status != noErr && status != kAudio_UnimplementedError) {
+        VibeLogPreflightRefusal(self, &context, hint, hinted, status);
     }
+#endif
     close(context.descriptor);
     // TRAP: CoreAudio's QuickTime reader (file type MooV, the container Voice
     // Memos exports as .qta) implements no callback open at all: it answers
