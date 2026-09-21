@@ -1,18 +1,17 @@
-This beta fixes the playback stutter reported on 1.12, where starting a track
-or dragging the position could freeze the player for a second or two.
+This beta remembers the audio device you chose when it disconnects, and
+switches back to it when it returns.
 
-* Fixed: the Settings window recalculated the size of every one of its pages
-  each time the audio status changed, which happens constantly during
-  playback. That work ran on the same thread that draws the window and
-  follows the mouse, so track changes and dragging the position stuttered.
-* Fixed: closing the Settings window did not stop that work. Once Settings had
-  been opened, the cost stayed for as long as Vibe was running. A closed
-  Settings window now does nothing at all.
-* Fixed: a Settings page could be laid out narrower than the window hosting
-  it, clipping the controls down its right-hand edge.
-* Fixed: an audio device that disappeared while in use could leave Vibe
-  rebuilding its audio connection on every later device change.
+* New: if the output device you chose disappears, because it was switched
+  off or unplugged, Vibe falls back to the system output as before but now
+  keeps your choice. When the device comes back, Vibe switches to it again
+  with Bit-perfect output and Exclusive output as you left them, even after
+  a restart. Choosing any other device ends this.
+* New: a USB interface plugged into a different port is recognised as the
+  same device, and keeps its Bit-perfect and Exclusive settings.
+* Fixed: unplugging a device while paused could occasionally show "Audio
+  device unavailable" and unload the current track.
+* Fixed: with a mouse connected, the Settings window showed scroll bars on
+  pages that had nothing to scroll.
 
-If you were seeing the stutter, this build is the one to try. If any of it
-remains, the timings added in the previous beta are still recorded and still
-retrievable afterwards — every line begins with "AudioPlayer:".
+A device that returns during playback is switched to at the next pause or
+stop, so the track playing is never interrupted.
