@@ -203,6 +203,21 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
     return preserves;
 }
 
++ (BOOL)deviceIsConfirmedDead:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    AudioObjectPropertyAddress addr = {
+            kAudioDevicePropertyDeviceIsAlive,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+    };
+    UInt32 isAlive = 1;
+    UInt32 size = sizeof(isAlive);
+    OSStatus status = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, &size, &isAlive);
+    return VibeDeviceIsConfirmedDead(status, isAlive);
+}
+
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID {
     if (!transportType) {
         return NO;

@@ -259,8 +259,22 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // successful rebuild can resume it.
         [self refreshOutputAudioActiveOnQueue];
     }
-    if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
-        LogError(@"Audio output device failed; falling back to system default");
+    // TRAP: the snapshot lags an unplug. It only refreshes when the device-list
+    // notification is processed, and while a bit-perfect device is prepared the
+    // output-unit listener can fire first — the unit has already followed the
+    // default off the vanished device. knowsOutputDeviceIsAbsent then still
+    // answers NO, recovery fell through to rebind onto a device that no longer
+    // existed, and that failed with -10851, raised a user-visible error and
+    // unloaded the track (#62). So ask the device itself too. Only a confirmed
+    // "dead" counts: a failed read is unknown, never removal.
+    BOOL snapshotKnowsAbsent = [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested];
+    if (snapshotKnowsAbsent
+            || (requested >= 0 && [CoreAudioUtil deviceIsConfirmedDead:(AudioDeviceID)requested])) {
+        // Which check caught it is the difference between the snapshot keeping
+        // up and this guard earning its place, so say which.
+        LogError(@"Audio output device failed; falling back to system default (%@)",
+                 snapshotKnowsAbsent ? @"the device list had caught up"
+                                     : @"the device list was stale; the device itself reports gone");
         [self abandonBitPerfectForVanishedDeviceOnQueue];
         [self setOutputDeviceOnQueue:-1];
         return;

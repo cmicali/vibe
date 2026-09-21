@@ -40,6 +40,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // kAudioDevicePropertyTransportType. An optional refinement: the sweep keeps a
 // device whose transport is unreadable, as kAudioDeviceTransportTypeUnknown.
+// Asks the device itself whether it still exists, rather than a snapshot that
+// may not have caught up with an unplug. YES only when confirmed; a failed
+// read answers NO (see VibeDeviceIsConfirmedDead).
++ (BOOL)deviceIsConfirmedDead:(AudioDeviceID)deviceID;
+
 + (BOOL)readTransportType:(UInt32 *)transportType forDeviceID:(AudioDeviceID)deviceID;
 
 // YES only for an aggregate this process created privately — the one CoreAudio

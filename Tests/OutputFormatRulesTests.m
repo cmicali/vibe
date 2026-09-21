@@ -762,6 +762,26 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", @"uid", @"other"));
 }
 
+#pragma mark - Device liveness, asked of the device rather than the snapshot
+
+- (void)testADeviceThatAnswersDeadIsGone {
+    XCTAssertTrue(VibeDeviceIsConfirmedDead(noErr, 0));
+    XCTAssertFalse(VibeDeviceIsConfirmedDead(noErr, 1));
+}
+
+// An unplugged device's id no longer names an object at all.
+- (void)testAnObjectThatNoLongerExistsIsGone {
+    XCTAssertTrue(VibeDeviceIsConfirmedDead(kAudioHardwareBadObjectError, 1));
+}
+
+// The trap: a false removal persists System Output. A read that failed for any
+// other reason says nothing about the device, so it must never read as dead.
+- (void)testAnyOtherFailedReadIsUnknownNeverDead {
+    XCTAssertFalse(VibeDeviceIsConfirmedDead(kAudioHardwareNotRunningError, 0));
+    XCTAssertFalse(VibeDeviceIsConfirmedDead(kAudioHardwareUnknownPropertyError, 0));
+    XCTAssertFalse(VibeDeviceIsConfirmedDead(kAudioHardwareUnspecifiedError, 0));
+}
+
 #pragma mark - Format restore / exclusive release obligations
 
 - (void)testSuccessfulDeviceCleanupClearsSlotWithoutAnAbsenceReadOrRetry {
