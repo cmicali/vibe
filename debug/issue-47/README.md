@@ -9,6 +9,16 @@ A handoff for a fresh look. Everything the reporter sent is in this folder, the 
 ---
 
 
+## Beta8 signal attribution across track changes
+
+The previous probe could mistake a buffered outgoing tone for the new track's first signal and report zero leading silence. Capture now uses the node's player-to-render clock mapping and buffer timestamps, blocks until outgoing fades actually retire (including volume settling), and excludes the last hardware render block conservatively. Gapless promotion arms a capture at the new file's boundary. Every `Signal:` summary names the file after track publication; per-arm chatter and empty superseded summaries are removed.
+
+The excluded prefix is explicitly unmeasured: `observationStartMS` says where inspection began, `observedLeadingSilenceMS` counts only inspected silent frames, and `firstSignalAfterStartMS` locates the observed threshold crossing relative to the start. A late tap, long crossfade or FX tail still prevents this post-mix probe from being an isolated file-silence measurement.
+
+Validation: 53 audio tests pass, including 300/700/1500 ms quiet intros replacing a loud tone, bit-perfect/ordinary paths, 44.1/48 kHz output, 10/500 ms fades, a gapless boundary and idle-engine restart. Six targeted Thread Sanitizer tests pass. Live manual rendering found first signal at 300.9/700.9/1500.9 ms with correct filenames; a muted hardware run retained timestamped partial captures. Both live checks passed all 29 consistency checks. Debug macOS/iOS builds, Release analysis on both targets, a Release build with beta logging disabled, and layout/vocabulary/strings/translations checks pass. The A300-specific lag still needs reporter testing.
+
+Complexity: +180 net lines, zero new files/types. Reuses the existing fade-completion path and tap, replaces unfiltered capture with timestamp filtering, and removes redundant start/supersession logs.
+
 ## Beta8 signal-capture follow-up
 
 The signal probe now checks every 100 ms and logs as soon as the first above-threshold buffer arrives. It stops scanning samples after that buffer. The tap completes partial captures before removal, abandonment or replacement, retaining the original play/segment and start reason; stale polls cannot complete a new request. A terminal snapshot survives removal. Without a threshold crossing, observed silence is a lower bound over captured frames; a late tap still cannot reconstruct the file's beginning. The missing `HAL:` and `Preflight:` documentation is restored in the Devices and Util owners.

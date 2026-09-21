@@ -36,10 +36,13 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     _Atomic uint64_t _signalFramesResult, _signalHostResult, _signalOffsetResult, _signalNonfiniteResult, _signalLeadingFramesResult;
     _Atomic int64_t _signalSampleResult;
     _Atomic double _signalPeakResult, _signalRMSResult, _signalRateResult;
+    _Atomic double _signalHostOrigin, _signalSampleOrigin, _signalHostCutoff, _signalSampleCutoff;
+    _Atomic double _signalObservationStartResult, _signalFirstAfterStartResult;
     uint64_t _signalObservedRequest, _signalFrames, _signalSamples, _signalNonfinite;
     uint64_t _signalFirstHost, _signalFirstOffset, _signalLeadingFrames;
     int64_t _signalFirstSample;
     double _signalPeak, _signalSum, _signalRate;
+    double _signalObservationStart, _signalFirstAfterStart, _hostSecondsPerTick;
     BOOL _signalFound;
 #endif
 }
@@ -57,6 +60,17 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     if (!request || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC
             || (_signalObservedRequest == request && _signalFound)) return;
     double rate = buffer.format.sampleRate;
+    // A delivered buffer can still contain the previous track's audio.
+    double origin = atomic_load(&_signalHostOrigin), cutoff = atomic_load(&_signalHostCutoff);
+    double bufferTime = when.hostTimeValid ? when.hostTime * _hostSecondsPerTick : NAN;
+    if (!isfinite(origin) || !isfinite(bufferTime)) {
+        origin = atomic_load(&_signalSampleOrigin);
+        cutoff = atomic_load(&_signalSampleCutoff);
+        bufferTime = when.sampleTimeValid && when.sampleRate > 0 ? when.sampleTime / when.sampleRate : NAN;
+    }
+    if (request != atomic_load(&_signalRequest) || !isfinite(origin) || !isfinite(bufferTime)
+            || !isfinite(cutoff) || bufferTime + buffer.frameLength / rate <= cutoff) return;
+    AVAudioFrameCount skip = (AVAudioFrameCount)MIN(buffer.frameLength, MAX(0, ceil((cutoff - bufferTime) * rate - 1e-6)));
     if (_signalObservedRequest != request || _signalRate != rate) {
         _signalRate = rate;
         _signalObservedRequest = request;
@@ -65,13 +79,15 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         _signalFirstSample = -1;
         _signalFirstHost = _signalFirstOffset = 0;
         _signalFound = NO;
+        _signalObservationStart = MAX(0, bufferTime + skip / rate - origin);
+        _signalFirstAfterStart = -1;
     }
     uint64_t limit = (uint64_t)(rate * 3);
     if (_signalFrames >= limit) return;
-    AVAudioFrameCount frames = (AVAudioFrameCount)MIN(buffer.frameLength, limit - _signalFrames);
+    AVAudioFrameCount frames = (AVAudioFrameCount)MIN(buffer.frameLength - skip, limit - _signalFrames);
     AVAudioChannelCount channels = buffer.format.channelCount;
     float *const *samples = buffer.floatChannelData;
-    for (AVAudioFrameCount f = 0; f < frames; f++) {
+    for (AVAudioFrameCount f = skip; f < skip + frames; f++) {
         for (AVAudioChannelCount c = 0; c < channels; c++) {
             double value = samples[c][f];
             if (!isfinite(value)) { _signalNonfinite++; continue; }
@@ -80,7 +96,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
             _signalPeak = MAX(_signalPeak, fabs(value));
             if (!_signalFound && fabs(value) >= 0.001) {
                 _signalFound = YES;
-                _signalLeadingFrames = _signalFrames + f;
+                _signalLeadingFrames = _signalFrames + f - skip;
+                _signalFirstAfterStart = MAX(0, bufferTime + f / rate - origin);
                 _signalFirstHost = when.hostTimeValid ? when.hostTime : 0;
                 _signalFirstOffset = f;
                 _signalFirstSample = when.sampleTimeValid ? when.sampleTime + f : -1;
@@ -99,6 +116,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     atomic_store(&_signalPeakResult, _signalPeak);
     atomic_store(&_signalRMSResult, _signalSamples ? sqrt(_signalSum / _signalSamples) : 0);
     atomic_store(&_signalRateResult, rate);
+    atomic_store(&_signalObservationStartResult, _signalObservationStart);
+    atomic_store(&_signalFirstAfterStartResult, _signalFirstAfterStart);
     atomic_fetch_add(&_signalVersion, 1);
 }
 #endif
@@ -111,6 +130,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 #if VIBE_VERBOSE_LOGGING
     void (^_signalCompletion)(NSDictionary<NSString *, id> *);
     NSDictionary<NSString *, id> *_signalSnapshot;
+    BOOL _signalWaitingForRetiredAudio;
+    AVAudioTime *_signalOverlapEndTime;
 #endif
 }
 
@@ -151,6 +172,13 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     atomic_init(&tapSession->_signalPeakResult, 0);
     atomic_init(&tapSession->_signalRMSResult, 0);
     atomic_init(&tapSession->_signalRateResult, 0);
+    atomic_init(&tapSession->_signalHostOrigin, NAN);
+    atomic_init(&tapSession->_signalSampleOrigin, NAN);
+    atomic_init(&tapSession->_signalHostCutoff, INFINITY);
+    atomic_init(&tapSession->_signalSampleCutoff, INFINITY);
+    atomic_init(&tapSession->_signalObservationStartResult, 0);
+    atomic_init(&tapSession->_signalFirstAfterStartResult, -1);
+    tapSession->_hostSecondsPerTick = [AVAudioTime secondsForHostTime:NSEC_PER_SEC] / NSEC_PER_SEC;
 #endif
     tapSession->_publisher = publisher;
     tapSession->_publisherState = [publisher publisherState];
@@ -236,17 +264,45 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 #endif
 }
 
-- (uint64_t)beginSignalDiagnosticsWithCompletion:(void (^)(NSDictionary<NSString *, id> *))completion {
+- (uint64_t)beginSignalDiagnosticsAtTime:(AVAudioTime *)startTime waitingForRetiredAudio:(BOOL)waiting
+                            completion:(void (^)(NSDictionary<NSString *, id> *))completion {
 #if VIBE_VERBOSE_LOGGING
     if (!_installed || !_tapSession) return 0;
     [self finishSignalDiagnostics:@"superseded"];
     _signalSnapshot = nil;
     _signalCompletion = [completion copy];
+    _signalWaitingForRetiredAudio = waiting;
+    // Clear the request before replacing its clock pair; the callback checks
+    // the request again after reading it, so clocks cannot cross requests.
+    atomic_store(&_tapSession->_signalRequest, 0);
+    double host = startTime.hostTimeValid ? [AVAudioTime secondsForHostTime:startTime.hostTime] : NAN;
+    double sample = startTime.sampleTimeValid && startTime.sampleRate > 0 ? startTime.sampleTime / startTime.sampleRate : NAN;
+    atomic_store(&_tapSession->_signalHostOrigin, host);
+    atomic_store(&_tapSession->_signalSampleOrigin, sample);
+    atomic_store(&_tapSession->_signalHostCutoff, waiting ? INFINITY : host);
+    atomic_store(&_tapSession->_signalSampleCutoff, waiting ? INFINITY : sample);
+    if (!waiting && _signalOverlapEndTime) {
+        _signalWaitingForRetiredAudio = YES;
+        [self endSignalOverlapAtTime:_signalOverlapEndTime];
+    }
     uint64_t request = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     atomic_store(&_tapSession->_signalRequest, request);
     return request;
 #else
     return 0;
+#endif
+}
+
+- (void)endSignalOverlapAtTime:(AVAudioTime *)time {
+#if VIBE_VERBOSE_LOGGING
+    // The fade can settle before the deferred start publishes its capture.
+    _signalOverlapEndTime = time;
+    if (!_signalCompletion || !_signalWaitingForRetiredAudio) return;
+    _signalWaitingForRetiredAudio = NO;
+    if (time.hostTimeValid) atomic_store(&_tapSession->_signalHostCutoff,
+            MAX(atomic_load(&_tapSession->_signalHostOrigin), [AVAudioTime secondsForHostTime:time.hostTime]));
+    if (time.sampleTimeValid && time.sampleRate > 0) atomic_store(&_tapSession->_signalSampleCutoff,
+            MAX(atomic_load(&_tapSession->_signalSampleOrigin), time.sampleTime / time.sampleRate));
 #endif
 }
 
@@ -287,12 +343,20 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         double peak = atomic_load(&session->_signalPeakResult);
         double rms = atomic_load(&session->_signalRMSResult);
         double rate = atomic_load(&session->_signalRateResult);
+        double observationStart = atomic_load(&session->_signalObservationStartResult);
+        double firstAfterStart = atomic_load(&session->_signalFirstAfterStartResult);
         if (before != atomic_load(&session->_signalVersion)) continue;
-        if (observed != request) return @{@"status": @"no buffers observed", @"request": @(request)};
+        if (observed != request) {
+            NSString *status = !isfinite(atomic_load(&session->_signalHostOrigin))
+                    && !isfinite(atomic_load(&session->_signalSampleOrigin)) ? @"start clock unavailable" : @"no buffers observed";
+            return @{@"status": status, @"request": @(request)};
+        }
         _signalSnapshot = @{@"status": @"captured", @"request": @(request), @"frames": @(frames),
                  @"sampleRate": @(rate), @"peak": @(peak), @"finiteRMS": @(rms), @"nonfiniteSamples": @(nonfinite),
                  @"aboveThreshold": @(peak >= 0.001), @"thresholdDBFS": @(-60),
                  @"observedLeadingSilenceMS": @(rate > 0 ? leadingFrames / rate * 1000 : 0),
+                 @"observationStartMS": @(observationStart * 1000),
+                 @"firstSignalAfterStartMS": @(firstAfterStart < 0 ? -1 : firstAfterStart * 1000),
                  @"firstSignalSampleTime": @(sample), @"firstSignalBufferHostTime": @(host),
                  @"firstSignalFrameOffset": @(offset)};
         return _signalSnapshot;

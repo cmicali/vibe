@@ -245,7 +245,7 @@ if [ "${1:-}" = "--render-tests" ]; then
 from pathlib import Path
 import math, struct, sys, json
 out=Path(sys.argv[1])
-def wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False, marker=False):
+def wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False, marker=False, leading=0):
     path=out/name
     if path.exists(): return
     state=0x12345678
@@ -253,7 +253,8 @@ def wav(name, rate, bits, channels, kind='noise', seconds=2, floating=False, mar
     for n in range(int(rate*seconds)):
         for c in range(channels):
             state=(1664525*state+1013904223)&0xffffffff
-            if kind in ['noise','integer32'] or (marker and n<rate//10):
+            if n < int(rate*leading): value=0
+            elif kind in ['noise','integer32'] or (marker and n<rate//10):
                 value=(state/2147483648-1)*0.25 if bits==64 else ((state>>8)/8388608-1)*0.25
             elif kind=='silence': value=0
             elif kind=='impulse': value=0.5 if n==int(rate*0.25) else 0
@@ -279,6 +280,8 @@ for kind in ['silence','impulse','limits','sweep','20','100','1000','8000','2300
     wav(f'{kind}.wav',48000,32,2,kind,seconds=8 if kind in ['silence','impulse'] else 4,floating=True)
 for rate in [44100,48000,96000]:
     wav(f'tone-{rate}.wav',rate,32,2,'1000',seconds=4,floating=True)
+for milliseconds in [300,700,1500]:
+    wav(f'quiet-intro-{milliseconds}.wav',48000,32,2,'1000',seconds=4,floating=True,leading=milliseconds/1000)
 for bits in [16,24]:
     wav(f'limits-{bits}.wav',48000,bits,2,'limits')
 for kind in ['silence','impulse','sweep']:

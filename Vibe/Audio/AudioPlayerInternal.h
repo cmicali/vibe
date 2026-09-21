@@ -262,6 +262,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioLevelPublisher     *_levelPublisher;
     // Queue-confined. Display readers use _levelPublisher, not this object.
     AudioLevelTap           *_levelTap;
+    AVAudioTime             *_signalStartTime; // queue-confined beta capture origin; retained across tap replacements
 
     // ---- Actual modeled audio-output liveness.
     // _activeRetiredOutputCount and its generation are queue-confined. The

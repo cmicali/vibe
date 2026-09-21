@@ -55,13 +55,30 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 #if VIBE_VERBOSE_LOGGING
     AudioLevelTap *tap = _levelTap;
     uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
-    uint64_t request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) {
-        LogInfo(@"Signal: play %llu segment %llu %@ capture %@", play, segment, reason, snapshot);
+    NSString *track = self.currentTrack.url.lastPathComponent;
+    uint64_t request = [tap beginSignalDiagnosticsAtTime:_signalStartTime waitingForRetiredAudio:_activeRetiredOutputCount > 0 completion:^(NSDictionary *snapshot) {
+        if ([snapshot[@"completion"] isEqual:@"superseded"] && [snapshot[@"status"] isEqual:@"no buffers observed"]) return;
+        LogInfo(@"Signal: play %llu segment %llu %@ %@ capture %@", play, segment, track, reason, snapshot);
     }];
-    LogInfo(@"Signal: play %llu segment %llu %@, %@ (post-mix observation, not audible output)",
-            play, segment, reason, request ? @"three-second capture armed" : @"unavailable: no active level tap");
+    if (!request) LogInfo(@"Signal: play %llu segment %llu %@ %@ unavailable: no active level tap (post-mix observation, not audible output)",
+                         play, segment, track, reason);
     if (request) [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
 #endif
+}
+
+- (AVAudioTime *)outputSignalRenderTimeOnQueue {
+    if (_engine.isInManualRenderingMode)
+        return [AVAudioTime timeWithSampleTime:_engine.manualRenderingSampleTime atRate:_engine.manualRenderingFormat.sampleRate];
+    AVAudioOutputNode *output = _engine.outputNode;
+    AVAudioTime *time = output.lastRenderTime;
+    if (!time || time.sampleRate <= 0) return nil;
+    // lastRenderTime is the block's beginning; exclude its whole possible
+    // extent, since its tail may have rendered before the retired node stopped.
+    AudioTimeStamp stamp = time.audioTimeStamp;
+    double frames = output.AUAudioUnit.maximumFramesToRender;
+    if (time.sampleTimeValid) stamp.mSampleTime += frames;
+    if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:frames / time.sampleRate];
+    return [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
 }
 
 // TRAP: [AVAudioPlayerNode play] throws if the engine stopped between the
@@ -135,8 +152,15 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
                     slowStart ? @"slow " : @"", engineStartSeconds, nodePlaySeconds);
 #if VIBE_VERBOSE_LOGGING
             [self logFirstRenderOfNode:node playedAt:playedAt initialSample:initialSample];
+            @try {
+                _signalStartTime = [node nodeTimeForPlayerTime:[AVAudioTime timeWithSampleTime:initialSample atRate:[node outputFormatForBus:0].sampleRate]];
+            } @catch (NSException *exception) { _signalStartTime = nil; }
+            uint64_t segment = _segmentGeneration;
+            dispatch_async(_queue, ^{
+                if (node == self->_node && segment == self->_segmentGeneration && node.isPlaying)
+                    [self beginOutputSignalDiagnosticsOnQueue:@"node started"];
+            });
 #endif
-            [self beginOutputSignalDiagnosticsOnQueue:@"node started"];
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }

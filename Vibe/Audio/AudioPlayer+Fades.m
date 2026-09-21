@@ -127,6 +127,9 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
     if (_activeRetiredOutputCount > 0) {
         _activeRetiredOutputCount--;
     }
+#if VIBE_VERBOSE_LOGGING
+    if (_activeRetiredOutputCount == 0) [_levelTap endSignalOverlapAtTime:[self outputSignalRenderTimeOnQueue]];
+#endif
     [self refreshOutputAudioActiveOnQueue];
 #if TARGET_OS_OSX
     // The outgoing audio is silent: a settlement parked for a bit-perfect

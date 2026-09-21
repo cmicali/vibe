@@ -41,7 +41,11 @@ NS_ASSUME_NONNULL_BEGIN
 // All calls and completion belong to the engine queue. Poll returns YES while
 // pending; removal, abandonment and replacement also complete partial captures.
 // No call creates demand or opens a file. The last snapshot survives removal.
-- (uint64_t)beginSignalDiagnosticsWithCompletion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
+- (uint64_t)beginSignalDiagnosticsAtTime:(nullable AVAudioTime *)startTime
+                waitingForRetiredAudio:(BOOL)waiting
+                            completion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
+// Called when the last outgoing fade has actually settled, including smoothing.
+- (void)endSignalOverlapAtTime:(nullable AVAudioTime *)time;
 - (BOOL)pollSignalDiagnostics:(uint64_t)request;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;
 

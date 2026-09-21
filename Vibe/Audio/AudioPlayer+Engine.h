@@ -39,6 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Queue-side beta phase attribution; the operation runs unchanged in stable builds.
 - (uint64_t)diagnosticPlayIdentifierOnQueue;
 - (void)beginOutputSignalDiagnosticsOnQueue:(NSString *)reason;
+- (nullable AVAudioTime *)outputSignalRenderTimeOnQueue;
 - (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID
                      operation:(BOOL (^)(void))operation;
 

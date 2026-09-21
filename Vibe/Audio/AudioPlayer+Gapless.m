@@ -175,6 +175,12 @@
     [self publishPlaybackState:_state node:node file:startedFile segmentStart:newStart position:position];
     self.currentTrack = startedTrack;
     startedTrack.duration = self.duration;
+#if VIBE_VERBOSE_LOGGING
+    @try {
+        _signalStartTime = [node nodeTimeForPlayerTime:[AVAudioTime timeWithSampleTime:-newStart atRate:sampleRate]];
+    } @catch (NSException *exception) { _signalStartTime = nil; }
+    if (node.isPlaying) [self beginOutputSignalDiagnosticsOnQueue:@"gapless boundary"];
+#endif
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     // Snapshot-guarded like finishPlaybackOnQueue's delivery: a play or stop
     // queued behind this promote rewrites currentTrack before the hop lands,

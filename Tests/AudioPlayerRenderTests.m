@@ -484,7 +484,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
         tap = [self->_player valueForKey:@"levelTap"];
-        request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
     [self render:192000];
@@ -509,7 +509,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
         XCTAssertFalse([tap pollSignalDiagnostics:request]);
         XCTAssertEqual(completed.count, 1u);
-        request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, [signal[@"request"] unsignedLongLongValue]);
     }];
     [self render:16000];
@@ -529,7 +529,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block uint64_t request;
         [_player runSyncOnQueue:^{
             tap = [self->_player valueForKey:@"levelTap"];
-            request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         }];
         [self render:16000];
         [_player runSyncOnQueue:^{
@@ -538,7 +538,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
             if ([action isEqual:@"tap removed"]) [tap remove];
             else if ([action isEqual:@"tap abandoned"]) [tap abandon];
-            else [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            else [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
             XCTAssertEqual(completed.count, 1u);
             NSDictionary *result = completed.firstObject;
             XCTAssertEqualObjects(result[@"completion"], action);
@@ -582,6 +582,66 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
     }];
+}
+- (void)testSignalDiagnosticsExcludePreviousTrack {
+    for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
+    for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
+        [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
+        _player.crossfadeMilliseconds = fade.integerValue;
+        _player.levelsEnabled=YES;
+        [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+        [self render:12123];
+        AudioTrack *next = [AudioTrack withURL:[self fixture:[NSString stringWithFormat:@"quiet-intro-%@.wav", silence]]];
+        NSUInteger starts = [self count:@"start"];
+        [_player play:next];
+        [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
+        [self render:(NSUInteger)((silence.doubleValue + 300) * _rate / 1000)];
+        __block NSDictionary *signal;
+        [_player runSyncOnQueue:^{
+            AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
+            signal = [tap signalDiagnosticSnapshot];
+        }];
+        XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
+        XCTAssertGreaterThan([signal[@"observationStartMS"] doubleValue], 0);
+        if (fx.boolValue && fade.integerValue > silence.integerValue) {
+            XCTAssertGreaterThanOrEqual([signal[@"firstSignalAfterStartMS"] doubleValue], fade.doubleValue);
+            XCTAssertLessThan([signal[@"observedLeadingSilenceMS"] doubleValue], 2);
+        } else {
+            XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], silence.doubleValue, 2, @"%@", signal);
+            XCTAssertEqualWithAccuracy([signal[@"observationStartMS"] doubleValue] + [signal[@"observedLeadingSilenceMS"] doubleValue],
+                                      silence.doubleValue, 2, @"%@", signal);
+        }
+    }
+}
+- (void)testSignalDiagnosticsAtGaplessBoundary {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    _player.levelsEnabled=YES;
+    [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+    AudioTrack *next = [AudioTrack withURL:[self fixture:@"quiet-intro-700.wav"]];
+    [_player prefetchTrack:next];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self render:48000 * 5];
+    __block NSDictionary *signal;
+    [_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+    XCTAssertEqualObjects(_player.currentTrack, next);
+    XCTAssertEqual([self count:@"advance"], 1u);
+    XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
+    XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], 700, 2, @"%@", signal);
+    XCTAssertEqualWithAccuracy([signal[@"observationStartMS"] doubleValue] + [signal[@"observedLeadingSilenceMS"] doubleValue], 700, 2);
+}
+- (void)testSignalDiagnosticsAfterIdleRestart {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    _player.levelsEnabled=YES;
+    [self play:[self fixture:@"1000.wav"] paused:NO position:0]; [self render:144123];
+    [self play:[self fixture:@"quiet-intro-300.wav"] paused:NO position:0]; [self render:24000];
+    [_player stop]; [self render:48000 * 7];
+    XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
+    [self play:[self fixture:@"quiet-intro-700.wav"] paused:NO position:0]; [self render:48000];
+    __block NSDictionary *signal;
+    [_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+    XCTAssertTrue([signal[@"aboveThreshold"] boolValue], @"%@", signal);
+    XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], 700, 2, @"%@", signal);
+    XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 700, 2);
 }
 - (void)testLowKillResponseAndReturnToTransparency {
     for (NSString *tone in @[@"20.wav",@"100.wav",@"1000.wav",@"8000.wav"]) {
