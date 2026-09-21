@@ -10,7 +10,7 @@
 
 **Backspace and Forward Delete are the delete pair**, removing every selected row through `removeSelectedPlaylistTracks:`, the Edit menu's target. They are the one bare-key pair that **ignores hardware repeat**: a held delete takes one gesture's rows rather than walking the playlist. The menu advertises Backspace alone, as `NSBackspaceCharacter` (what AppKit draws as ⌫; a real press delivers `NSDeleteCharacter`); Forward Delete is a physical twin only the monitor knows.
 
-**M writes `USER MARK n` to the log, in `VIBE_VERBOSE_LOGGING` builds only** — beta instrumentation, so a tester can press it the moment they hear a problem and the log lines up what they perceived with what happened. There is no visible feedback, and a stable build leaves M unbound.
+**M writes `USER MARK n` to the log, in `VIBE_VERBOSE_LOGGING` builds only** — beta instrumentation, so a tester can press it the moment they hear a problem and the log lines up what they perceived with what happened. The physical M key also works under Greek and other input layouts; repeat is ignored. Each marker includes the track, position, loading state, input-event delay and the published output report, without waiting on the player queue. There is no visible feedback, and a stable build leaves M unbound.
 
 [TransportKeyMonitorTests](../../../../Tests/TransportKeyMonitorTests.m) runs the real monitor handler with constructed key events and duck controller/window collaborators: tap/hold, repeated downs, releases lost to focus/menu/window tracking, disabled FX and Delete-repeat suppression. The native callback supplies `event.window` to `handleKeyEvent:inWindow:`; tests supply identity directly without creating a window or posting input.
 

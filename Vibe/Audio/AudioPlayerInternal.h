@@ -87,9 +87,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // guarded by _stateLock because queue-side settlements and iOS recovery
     // completions compare against submissions made from main.
     uint64_t                _nextSubmittedPlayIdentifier;
-    // VIBE_VERBOSE_LOGGING's track-change timeline: when the newest play was
-    // requested, under _stateLock, consumed by the next node start. 0 = none.
-    uint64_t                _timelineRequestedAt;
     // The explicit play submission which owns the currently sounding graph.
     // Gapless promotion preserves it; a newer explicit play, stop, or failure
     // clears it. Natural-end and promotion deliveries capture it so replaying
@@ -104,6 +101,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // playback, to dissolve a deferred idle engine stop. AudioPlayer+Engine.m
     // owns it. Queue-confined.
     uint64_t                _engineIdleStopGeneration;
+    BOOL                    _terminating; // queue-confined; no new work after quit cleanup
     VibePlayerState         _state;
     os_unfair_lock          _stateLock;
     // Guarded by _stateLock, in percent, so the UI can read it without touching
@@ -165,7 +163,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // The concrete device this player last committed to, remembered so that a
     // device which VANISHES can be told apart from System Output the user
     // actually chose. Both write -1; only one of them should forget the
-    // choice. Set when a concrete id commits, cleared by an explicit -1.
+    // choice. Set when a concrete id commits, cleared when System Output binds.
     NSString                *_boundDeviceUID;
     NSString                *_boundDeviceModelUID;
     NSString                *_boundDeviceName;
@@ -173,13 +171,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // was found by its model UID under a new device UID: whose remembered modes
     // that bind should read. Nil means the device's own, as always.
     NSString                *_modesUIDForNextSelection;
-    // Held only across an involuntary fallback's announcement, so the shell's
-    // didChangeOutputDevice: can tell it from a deliberate System Output pick.
-    NSString                *_involuntaryFallbackUID;
-    NSString                *_involuntaryFallbackName;
-    // Main-thread copies of the above, set only around the delegate callback.
+    // Main-thread copies of pending intent and the mode carry, set only
+    // around the delegate callback.
     NSString                *_announcedFallbackUID;
     NSString                *_announcedFallbackName;
+    NSString                *_announcedModesUID;
     // Covers the async manager lookup and its checked bind. A Stopped-state
     // hook cannot start another attempt while a failed bind is resetting back
     // to Stopped, which would otherwise create an immediate retry loop.
@@ -363,6 +359,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // here rather than copying the guard.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
 
+- (void)stopOnQueue;
 - (void)resetToStoppedStateOnQueue;
 // Forgets every reference bound to the current engine without messaging it;
 // the iOS media-services-reset rebuild's first half.

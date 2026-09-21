@@ -861,14 +861,6 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, YES)); // pause fade still audible
 }
 
-- (void)testSavedDeviceAnswerCannotOverwriteManualSelectionOrANewerPreference {
-    XCTAssertTrue(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", [@"uid" mutableCopy], [@"DAC" mutableCopy]));
-    XCTAssertTrue(VibeSavedOutputDeviceRequestIsCurrent(@"", @"DAC", @"", @"DAC"));
-    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", nil, nil));
-    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", @"other", @"DAC"));
-    XCTAssertFalse(VibeSavedOutputDeviceRequestIsCurrent(@"uid", @"DAC", @"uid", @"other"));
-}
-
 #pragma mark - Device liveness, asked of the device rather than the snapshot
 
 - (void)testADeviceThatAnswersDeadIsGone {

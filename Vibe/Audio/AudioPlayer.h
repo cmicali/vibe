@@ -242,7 +242,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Exclusive access applies only in bit-perfect mode; the build flag can remove it.
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
 
-// Restores any device format this run changed and releases the hog,
+// Permanently stops transport, restores any changed device format and releases the hog,
 // synchronously on the player queue, so it waits on the device. The app
 // delegate's applicationShouldTerminate: is the one caller, off main and after
 // the windows are gone: the player is never deallocated at quit, so this is

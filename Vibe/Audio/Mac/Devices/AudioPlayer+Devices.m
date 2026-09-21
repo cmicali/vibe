@@ -45,6 +45,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return _announcedFallbackName;
 }
 
+- (NSString *)carriedOutputModesDeviceUID {
+    return _announcedModesUID;
+}
+
 // The device that just went away, moved from "bound" to "wanted again". The
 // pending slot is the same one a launch preference waits in, so the existing
 // resolve path re-adopts the device when it returns — no new mechanism, and
@@ -53,8 +57,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (_boundDeviceUID.length == 0 && _boundDeviceName.length == 0) {
         return;
     }
-    _involuntaryFallbackUID = _boundDeviceUID;
-    _involuntaryFallbackName = _boundDeviceName;
     _pendingSavedDeviceUID = _boundDeviceUID;
     _pendingSavedDeviceModelUID = _boundDeviceModelUID;
     _pendingSavedDeviceName = _boundDeviceName;
@@ -64,6 +66,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 - (void)systemDefaultOutputDeviceDidChange {
     dispatch_async(_queue, ^{
+        if (self->_terminating) return;
         if (self.currentlyRequestedAudioDeviceId == -1) {
             [self setOutputDeviceOnQueue:-1];
         }
@@ -74,28 +77,24 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 // Covers the explicitly chosen device disappearing while playback is idle.
 // handleEngineConfigurationChange sees only removals that kill the running
-// graph. setOutputDevice:-1 rebinds, and the delegate persists the fallback,
-// so System Output stays the choice even after the device returns.
+// graph. The pending preference survives the fallback until a successful
+// re-adoption or an explicit user selection.
 - (void)audioOutputDevicesDidChange {
     dispatch_async(_queue, ^{
-        // knowsOutputDeviceIsAbsent:, never outputDeviceForId: — this decision
-        // persists System Output, so it must not fire on the empty list a
-        // still-unpublished or retrying snapshot answers with.
+        if (self->_terminating) return;
+        // An unpublished or retrying snapshot is unknown, not removal.
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
         if ([[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested]) {
             LogInfo(@"AudioPlayer: requested output device removed; falling back to system default");
             [self abandonBitPerfectForVanishedDeviceOnQueue];
             [self retainVanishedOutputDeviceIntentOnQueue];
             [self setOutputDeviceOnQueue:-1];
-            self->_involuntaryFallbackUID = nil;
-            self->_involuntaryFallbackName = nil;
         }
         [self resolvePendingSavedOutputDeviceOnQueue];
     });
 }
 
-// The bind rule read from this player's own state, in one place, so the fast
-// path and the async completion cannot disagree about what counts as silent.
+// Read the shared bind rule from queue-owned playback state.
 - (BOOL)canBindSavedOutputDeviceNowOnQueue {
     return VibeCanBindSavedOutputDevice(_state == VibePlayerStateStopped,
                                         _state == VibePlayerStateLoading,
@@ -115,7 +114,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                          savedModelUID:(NSString *)savedModelUID {
     BOOL movedPort = savedUID.length > 0 && ![device.uid isEqualToString:savedUID]
             && savedModelUID.length > 0 && [device.modelUID isEqualToString:savedModelUID];
-    if (movedPort) {
+    BOOL destinationBitPerfect = NO, destinationExclusive = NO;
+    [self readOutputModesForDeviceUID:device.uid bitPerfectOutput:&destinationBitPerfect
+                     exclusiveOutput:&destinationExclusive];
+    // The store omits disabled modes and removes empty device records.
+    if (movedPort && !destinationBitPerfect && !destinationExclusive) {
         LogInfo(@"AudioPlayer: '%@' is the same model under a new device UID; carrying its modes",
                 device.name);
         _modesUIDForNextSelection = savedUID;
@@ -129,92 +132,57 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     NSString *savedUID = _pendingSavedDeviceUID;
     NSString *savedModelUID = _pendingSavedDeviceModelUID;
     NSString *savedName = _pendingSavedDeviceName;
-    if (savedUID.length == 0 && savedModelUID.length == 0 && savedName.length == 0) {
+    if (_terminating || _pendingSavedDeviceLookupInFlight
+            || (savedUID.length == 0 && savedModelUID.length == 0 && savedName.length == 0)) {
         return;
     }
-    BOOL canBind = [self canBindSavedOutputDeviceNowOnQueue];
-    // TRAP: a returning device must be matched here, synchronously. Once one
-    // has come back a snapshot always exists — the replug IS a snapshot refresh
-    // — whereas the async lookup below exists for launch, where there may be no
-    // snapshot yet. Used for a returning device it lost every time to a fast
-    // local open: Loading became Playing before the answer landed, and the rule
-    // then refused a bind that would have been legal a moment earlier.
-    NSArray<AudioDevice *> *snapshot = [[AudioDeviceManager sharedInstance] cachedOutputDevices];
-    if (snapshot && !_pendingSavedDeviceLookupInFlight) {
-        AudioDevice *device = [AudioDeviceManager deviceForUID:savedUID modelUID:savedModelUID
-                                                          name:savedName inDevices:snapshot];
-        if (device && canBind) {
-            LogInfo(@"AudioPlayer: re-adopting '%@', the wanted output device, now that it is present",
-                    device.name);
-            if ([self selectSavedOutputDeviceOnQueue:device savedUID:savedUID savedModelUID:savedModelUID]) {
-                _pendingSavedDeviceUID = nil;
-                _pendingSavedDeviceName = nil;
-                _pendingSavedDeviceModelUID = nil;
-            }
-            return;
-        }
-        if (device) {
-            LogInfo(@"AudioPlayer: '%@' is present but playback is audible; adopting it once it is not",
-                    device.name);
-            return;
-        }
-    }
-    // Binding is opportunistic, but an armed mode must also learn about an
-    // absent device if playback won the race with discovery.
-    if ((!_bitPerfectWanted && !canBind) || _pendingSavedDeviceLookupInFlight) {
+    // TRAP: returning devices must resolve synchronously, before a local open
+    // can move Loading to Playing and make the bind ineligible. Only launch
+    // waits for the manager's first successful snapshot.
+    AudioDeviceManager *manager = AudioDeviceManager.sharedInstance;
+    NSArray<AudioDevice *> *snapshot = manager.cachedOutputDevices;
+    if (!snapshot) {
+        _pendingSavedDeviceLookupInFlight = YES;
+        __weak AudioPlayer *weakSelf = self;
+        [manager resolveOutputDeviceForUID:savedUID modelUID:savedModelUID name:savedName
+                               completion:^(AudioDevice *device) {
+            AudioPlayer *strongSelf = weakSelf;
+            if (!strongSelf) return;
+            dispatch_async(strongSelf->_queue, ^{
+                strongSelf->_pendingSavedDeviceLookupInFlight = NO;
+                // Re-read the current intent and snapshot: a manual selection
+                // may have superseded the preference while discovery ran.
+                [strongSelf resolvePendingSavedOutputDeviceOnQueue];
+            });
+        }];
         return;
     }
+    AudioDevice *device = [AudioDeviceManager deviceForUID:savedUID modelUID:savedModelUID
+                                                     name:savedName inDevices:snapshot];
+    if (device && ![self canBindSavedOutputDeviceNowOnQueue]) {
+        LogInfo(@"AudioPlayer: '%@' is present but playback is audible; adopting it once it is not", device.name);
+        return;
+    }
+    if (!device && !_bitPerfectWanted) return;
+    // TRAP: hold the guard across every bind, including cached resolutions.
+    // A refused HAL bind publishes Stopped and re-enters this method.
     _pendingSavedDeviceLookupInFlight = YES;
-    __weak AudioPlayer *weakSelf = self;
-    [[AudioDeviceManager sharedInstance] resolveOutputDeviceForUID:savedUID modelUID:savedModelUID
-            name:savedName completion:^(AudioDevice *device) {
-        AudioPlayer *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
+    if (device) {
+        BOOL bound = [self selectSavedOutputDeviceOnQueue:device savedUID:savedUID savedModelUID:savedModelUID];
+        LogInfo(@"AudioPlayer: wanted device '%@' adoption %@ (saved UID %@, found %@)",
+                device.name, bound ? @"succeeded" : @"failed; retaining intent", savedUID, device.uid);
+        if (bound) {
+            _pendingSavedDeviceUID = nil;
+            _pendingSavedDeviceName = nil;
+            _pendingSavedDeviceModelUID = nil;
         }
-        dispatch_async(strongSelf->_queue, ^{
-            // Keep this true through setOutputDeviceOnQueue:. Its failure can
-            // publish Stopped synchronously, and that stopped-state hook must
-            // not turn one failed HAL bind into an immediate retry loop.
-            // A user selection queued after this lookup began owns the intent
-            // and clears these fields. It must never be overwritten by a late
-            // launch-time answer.
-            if (!VibeSavedOutputDeviceRequestIsCurrent(savedUID, savedName,
-                            strongSelf->_pendingSavedDeviceUID, strongSelf->_pendingSavedDeviceName)) {
-                strongSelf->_pendingSavedDeviceLookupInFlight = NO;
-                return;
-            }
-            // A nil answer follows a published snapshot, never a discovery
-            // timeout. Clear the intent before rebuilding so state publication
-            // cannot immediately submit the same lookup again.
-            if (!device && strongSelf->_bitPerfectWanted) {
-                // Absent is not deselected: keep the persisted choice so a later
-                // launch re-adopts the device. The in-memory intent is still
-                // cleared, because re-arming it here would resubmit this same
-                // lookup on the next state publication, forever.
-                strongSelf->_involuntaryFallbackUID = strongSelf->_pendingSavedDeviceUID;
-                strongSelf->_involuntaryFallbackName = strongSelf->_pendingSavedDeviceName;
-                strongSelf->_pendingSavedDeviceUID = nil;
-                strongSelf->_pendingSavedDeviceName = nil;
-                strongSelf->_pendingSavedDeviceModelUID = nil;
-                [strongSelf abandonBitPerfectForVanishedDeviceOnQueue];
-                [strongSelf setOutputDeviceOnQueue:-1];
-                strongSelf->_involuntaryFallbackUID = nil;
-                strongSelf->_involuntaryFallbackName = nil;
-            }
-            if (!device || ![strongSelf canBindSavedOutputDeviceNowOnQueue]) {
-                strongSelf->_pendingSavedDeviceLookupInFlight = NO;
-                return;
-            }
-            if ([strongSelf selectSavedOutputDeviceOnQueue:device savedUID:savedUID
-                                             savedModelUID:savedModelUID]) {
-                strongSelf->_pendingSavedDeviceUID = nil;
-                strongSelf->_pendingSavedDeviceName = nil;
-                strongSelf->_pendingSavedDeviceModelUID = nil;
-            }
-            strongSelf->_pendingSavedDeviceLookupInFlight = NO;
-        });
-    }];
+    }
+    else {
+        LogInfo(@"AudioPlayer: saved device '%@' absent; retaining intent while following System Output", savedName);
+        [self abandonBitPerfectForVanishedDeviceOnQueue];
+        [self setOutputDeviceOnQueue:-1];
+    }
+    _pendingSavedDeviceLookupInFlight = NO;
 }
 
 - (AudioDeviceID)activeOutputDeviceID {
@@ -268,6 +236,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // against the new prepared device — so only the failure reset's held
 // publication is owed here.
 - (BOOL)configureOutputDeviceOnQueue:(AudioDeviceID)deviceID {
+    if (_terminating) return NO;
     _rebindDeviceID = deviceID;
     // The whole rebuild holds the player queue, so every transport action
     // submitted during it waits (#53). A device slow to deliver its first IO
@@ -346,6 +315,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 - (void)recoverEngineConfigurationOnQueue {
+    if (_terminating) return;
     // This notification comes from AVAudioEngine, not the device manager, so
     // unlike audioOutputDevicesDidChange it can land before the first snapshot
     // is published or while one is being retried. knowsOutputDeviceIsAbsent:
@@ -403,8 +373,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         [self abandonBitPerfectForVanishedDeviceOnQueue];
         [self retainVanishedOutputDeviceIntentOnQueue];
         [self setOutputDeviceOnQueue:-1];
-        _involuntaryFallbackUID = nil;
-        _involuntaryFallbackName = nil;
         return;
     }
     // Nothing to recover while idle. In bit-perfect mode, Loading may have no
@@ -487,6 +455,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 - (BOOL)selectOutputDeviceOnQueue:(NSInteger)outputDeviceID {
+    if (_terminating) return NO;
     BOOL bitPerfectOutput = NO, exclusiveOutput = NO;
     NSString *uid = [AudioDeviceManager.sharedInstance outputDeviceForId:outputDeviceID].uid;
     // TRAP: a name fallback can resolve a different UID; read its own modes
@@ -708,6 +677,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 #undef VIBE_REBIND_PHASE
 
 - (BOOL)setOutputDeviceOnQueue:(NSInteger)outputDeviceID {
+    if (_terminating) return NO;
 
     LogDebug(@"setOutputDevice: %@", @(outputDeviceID));
 
@@ -782,8 +752,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         _boundDeviceModelUID = committed.modelUID;
         _boundDeviceName = committed.name;
     }
-    else if (!_involuntaryFallbackUID) {
-        // System Output the user actually chose: nothing to re-adopt later.
+    else {
+        // A vanished preference lives in the pending slot now.
         _boundDeviceUID = nil;
         _boundDeviceModelUID = nil;
         _boundDeviceName = nil;
@@ -810,14 +780,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // asynchronously while the caller clears the queue-side fields straight
     // after, so a delegate reading them from main would see nil and erase the
     // very choice this exists to keep.
-    NSString *fallbackUID = _involuntaryFallbackUID;
-    NSString *fallbackName = _involuntaryFallbackName;
+    NSString *fallbackUID = requested == -1 ? _pendingSavedDeviceUID : nil;
+    NSString *fallbackName = requested == -1 ? _pendingSavedDeviceName : nil;
+    NSString *modesUID = requested >= 0 ? _modesUIDForNextSelection : nil;
     run_on_main_thread({
         self->_announcedFallbackUID = fallbackUID;
         self->_announcedFallbackName = fallbackName;
+        self->_announcedModesUID = modesUID;
         [self.delegate audioPlayer:self didChangeOutputDevice:requested];
         self->_announcedFallbackUID = nil;
         self->_announcedFallbackName = nil;
+        self->_announcedModesUID = nil;
     });
 }
 
@@ -1377,16 +1350,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 #pragma mark - Diagnostics
 
-// The queue hop is the point: activeOutputDeviceID reads the engine's output
-// node, and every other engine touch in the app runs on _queue.
-- (NSInteger)currentlyActiveAudioDeviceId {
-    __block AudioDeviceID deviceID = kAudioObjectUnknown;
-    [self runSyncOnQueue:^{
-        deviceID = [self activeOutputDeviceID];
-    }];
-    return (NSInteger)deviceID;
-}
-
 static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
     switch (status) {
         case VibeBitPerfectStatusOff:               return @"off";
@@ -1425,6 +1388,39 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         @"exclusive": @(r.exclusive),
         @"sourceLossless": @(r.sourceLossless),
     };
+}
+
+- (NSDictionary<NSString *, id> *)outputDeviceDiagnosticSnapshot {
+    __block NSDictionary *snapshot;
+    [self runSyncOnQueue:^{
+        snapshot = @{
+            @"boundOutputDeviceId": @([self activeOutputDeviceID]),
+            @"requestedOutputDeviceId": @(self.currentlyRequestedAudioDeviceId),
+            @"pendingDeviceUID": self->_pendingSavedDeviceUID ?: @"",
+            @"pendingDeviceModelUID": self->_pendingSavedDeviceModelUID ?: @"",
+            @"pendingDeviceName": self->_pendingSavedDeviceName ?: @"",
+            @"savedDeviceLookupInFlight": @(self->_pendingSavedDeviceLookupInFlight),
+            @"bitPerfectWanted": @(self->_bitPerfectWanted),
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+            @"exclusiveOutputWanted": @(self->_exclusiveOutputWanted),
+            @"hoggedDeviceId": @(self->_hoggedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_hoggedDeviceID),
+#endif
+            @"restoreOwedToDeviceId": @(self->_changedFormatDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_changedFormatDeviceID),
+            @"preparedDeviceId": @(self->_preparedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_preparedDeviceID),
+            @"outputLevelListenerPresent": @(self->_outputLevelListener != nil),
+            @"outputDeviceListenerPresent": @(self->_outputDeviceListener != NULL),
+            @"varispeedPresent": @(self.varispeed != nil),
+            @"mixerOutputRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate),
+            @"outputNodeInputRate": @([self->_engine.outputNode inputFormatForBus:0].sampleRate),
+            @"outputNodeOutputRate": @([self->_engine.outputNode outputFormatForBus:0].sampleRate),
+            @"presentationLatency": @(self->_engine.outputNode.presentationLatency),
+            @"engineRunning": @(self->_engine.isRunning),
+            @"terminating": @(self->_terminating),
+            @"activeSubmittedPlayIdentifier": @(self->_activeSubmittedPlayIdentifier),
+            @"segmentGeneration": @(self->_segmentGeneration),
+        };
+    }];
+    return snapshot;
 }
 
 @end
@@ -1479,6 +1475,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         [self clearFXIntent];
     }
     dispatch_async(_queue, ^{
+        if (self->_terminating) return;
         BOOL desiredBitPerfect = bitPerfectOutput, desiredExclusive = exclusiveOutput;
         NSInteger requested = self.currentlyRequestedAudioDeviceId;
         NSString *uid = requested >= 0
@@ -1514,56 +1511,17 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
 }
 
 - (void)prepareForTermination {
+    self.delegate = nil;
     [self runSyncOnQueue:^{
-        // Nothing owed is the off-mode steady state, which quits as it always
-        // did. A restore under a running engine strands CoreAudio (error 35).
-        if (self->_preparedDeviceID == kAudioObjectUnknown && self->_changedFormatDeviceID == kAudioObjectUnknown
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-                && self->_hoggedDeviceID == kAudioObjectUnknown
-#endif
-                ) {
-            return;
-        }
+        // Stop owns segment/open cancellation. Engine stop alone fires the
+        // current segment as a natural end during NSTerminateLater.
+        self->_terminating = YES;
+        [self stopOnQueue];
+        self->_engineIdleStopGeneration++;
         [self->_engine stop];
         [self leaveOutputDeviceOnQueue];
+        LogInfo(@"AudioPlayer: termination cleanup complete");
     }];
 }
-
-#if DEBUG
-- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership {
-    __block AudioDeviceID hogged = kAudioObjectUnknown;
-    __block AudioDeviceID owed = kAudioObjectUnknown;
-    __block AudioDeviceID prepared = kAudioObjectUnknown;
-    __block BOOL levelListener = NO, deviceListener = NO;
-    __block BOOL varispeed = NO;
-    __block double mixerOutputRate = 0, outputNodeInputRate = 0, outputNodeOutputRate = 0;
-    [self runSyncOnQueue:^{
-#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        hogged = self->_hoggedDeviceID;
-#endif
-        owed = self->_changedFormatDeviceID;
-        prepared = self->_preparedDeviceID;
-        levelListener = self->_outputLevelListener != nil;
-        deviceListener = self->_outputDeviceListener != NULL;
-        varispeed = (self.varispeed != nil);
-        // The three rates that decide whether the graph resamples: the mixer
-        // must feed the output node at the device's own rate.
-        mixerOutputRate = [self->_engine.mainMixerNode outputFormatForBus:0].sampleRate;
-        outputNodeInputRate = [self->_engine.outputNode inputFormatForBus:0].sampleRate;
-        outputNodeOutputRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
-    }];
-    return @{
-        @"hoggedDeviceId": @(hogged == kAudioObjectUnknown ? -1 : (NSInteger)hogged),
-        @"restoreOwedToDeviceId": @(owed == kAudioObjectUnknown ? -1 : (NSInteger)owed),
-        @"preparedDeviceId": @(prepared == kAudioObjectUnknown ? -1 : (NSInteger)prepared),
-        @"outputLevelListenerPresent": @(levelListener),
-        @"outputDeviceListenerPresent": @(deviceListener),
-        @"varispeedPresent": @(varispeed),
-        @"mixerOutputRate": @(mixerOutputRate),
-        @"outputNodeInputRate": @(outputNodeInputRate),
-        @"outputNodeOutputRate": @(outputNodeOutputRate),
-    };
-}
-#endif
 
 @end

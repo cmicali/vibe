@@ -42,13 +42,6 @@ static inline BOOL VibeDeviceIsConfirmedDead(OSStatus readStatus, UInt32 isAlive
     return readStatus == noErr && isAlive == 0;
 }
 
-// Manual selection clears the pending preference. Content equality permits
-// copied strings, but nil never revives a cleared or superseded lookup.
-static inline BOOL VibeSavedOutputDeviceRequestIsCurrent(NSString *uid, NSString *name,
-        NSString *pendingUID, NSString *pendingName) {
-    return [pendingUID isEqualToString:uid] && [pendingName isEqualToString:name];
-}
-
 // The prepared stream owns the selected output channels. Extra device
 // channels are harmless only when the live AU map sends them silence.
 static inline BOOL VibeBitPerfectChannelMapPreservesSource(const SInt32 *map, UInt32 count,

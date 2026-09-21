@@ -277,6 +277,7 @@
 }
 
 - (void)prefetchOnQueue:(AudioTrack *)track {
+    if (_terminating) return;
     [self beginPrefetchRequestOnQueueForTrack:track];
     [self processPrefetchRequestOnQueueForIdentifier:
             _prefetchRequestState.currentRequestIdentifier];

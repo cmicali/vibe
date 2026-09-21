@@ -931,6 +931,266 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [self record:@"start" track:t];
     if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
 }
+- (void)testSavedDeviceFailureDoesNotReenter {
+    AudioDevice *device = [[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
+    (void)devices.outputDevices;
+    __block NSUInteger binds = 0;
+    Method methods[] = {
+        class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
+        class_getInstanceMethod(AudioPlayer.class, @selector(setOutputUnitDevice:)),
+    };
+    IMP replacements[] = {
+        imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
+        imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
+        imp_implementationWithBlock(^BOOL(AudioPlayer *player, AudioDeviceID deviceID) {
+            binds++;
+            if (binds == 4) {
+                [player setValue:nil forKey:@"pendingSavedDeviceUID"];
+                [player setValue:nil forKey:@"pendingSavedDeviceName"];
+            }
+            return NO;
+        }),
+    };
+    IMP originals[3];
+    for (NSUInteger i=0;i<3;i++) originals[i]=method_setImplementation(methods[i],replacements[i]);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:@"saved" forKey:@"pendingSavedDeviceUID"];
+            [self->_player setValue:@"Saved DAC" forKey:@"pendingSavedDeviceName"];
+            [self->_player resolvePendingSavedOutputDeviceOnQueue];
+        }];
+        XCTAssertEqual(binds, 1u, @"One failed HAL bind must return; regression guard capped recursion at four");
+    } @finally {
+        [_player debugShutdown]; _player=nil;
+        for(NSUInteger i=0;i<3;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
+    }
+}
+
+- (void)testFallbackSurvivesDefaultChange {
+    AudioDevice *device = [[AudioDevice alloc] initWithName:@"Speakers" uid:@"speakers" deviceId:1 isSystemDefault:YES transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
+    (void)devices.outputDevices;
+    NSMutableArray *announcements = [NSMutableArray array];
+    Method methods[] = {
+        class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
+        class_getInstanceMethod(AudioPlayerRenderTests.class, @selector(audioPlayer:didChangeOutputDevice:)),
+    };
+    IMP replacements[] = {
+        imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
+        imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
+        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *out) { *out=1; return YES; }),
+        imp_implementationWithBlock(^(id test, AudioPlayer *player, NSInteger deviceID) {
+            [announcements addObject:@{@"device":@(deviceID), @"fallback":player.involuntaryFallbackDeviceUID ?: @""}];
+        }),
+    };
+    IMP originals[4];
+    for(NSUInteger i=0;i<4;i++) originals[i]=method_setImplementation(methods[i],replacements[i]);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [_player runSyncOnQueue:^{
+            self->_player.currentlyRequestedAudioDeviceId=2;
+            [self->_player setValue:@"saved" forKey:@"boundDeviceUID"];
+            [self->_player setValue:@"Saved DAC" forKey:@"boundDeviceName"];
+        }];
+        [_player audioOutputDevicesDidChange];
+        [self settleUntil:^BOOL { return announcements.count >= 1; }];
+        XCTAssertEqualObjects(announcements[0][@"fallback"], @"saved");
+        [_player systemDefaultOutputDeviceDidChange];
+        [self settleUntil:^BOOL { return announcements.count >= 2; }];
+        XCTAssertEqualObjects(announcements[1][@"fallback"], @"saved", @"A second involuntary notification must not look like user-selected System Output");
+        __block BOOL selected = NO;
+        [_player setOutputDevice:-1 completion:^{ selected = YES; }];
+        [self settleUntil:^BOOL { return selected; }];
+        XCTAssertEqualObjects(announcements.lastObject[@"fallback"], @"");
+        XCTAssertEqualObjects(_player.outputDeviceDiagnosticSnapshot[@"pendingDeviceUID"], @"");
+    } @finally {
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:nil forKey:@"pendingSavedDeviceUID"];
+            [self->_player setValue:nil forKey:@"pendingSavedDeviceName"];
+        }];
+        [_player debugShutdown]; _player=nil;
+        for(NSUInteger i=0;i<4;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
+    }
+}
+
+- (void)testModelMatchRespectsDestinationModes {
+    AudioDevice *device = [[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"port-b" modelUID:@"model" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
+    (void)devices.outputDevices;
+    Method method=class_getClassMethod(AudioDeviceManager.class,@selector(sharedInstance));
+    IMP replacement=imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; });
+    IMP original=method_setImplementation(method,replacement);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        _outputModesProvider=^(NSString *uid, BOOL *bitPerfect, BOOL *exclusive) {
+            *bitPerfect=YES;
+            *exclusive=[uid isEqualToString:@"port-a"];
+        };
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:@"port-a" forKey:@"pendingSavedDeviceUID"];
+            [self->_player setValue:@"model" forKey:@"pendingSavedDeviceModelUID"];
+            [self->_player setValue:@"Saved DAC" forKey:@"pendingSavedDeviceName"];
+            [self->_player resolvePendingSavedOutputDeviceOnQueue];
+        }];
+        __block BOOL exclusive;
+        [_player runSyncOnQueue:^{ exclusive=[[self->_player valueForKey:@"exclusiveOutputWanted"] boolValue]; }];
+        XCTAssertFalse(exclusive, @"Port B already has bit-perfect on and exclusive off");
+        [self settleUntil:^BOOL { return [self count:@"device"] == 1; }];
+        XCTAssertEqualObjects(_events.lastObject[@"carriedModes"], @"");
+        // An unconfigured destination inherits only on automatic re-adoption.
+        _outputModesProvider = ^(NSString *uid, BOOL *bitPerfect, BOOL *exclusive) {
+            *bitPerfect = *exclusive = [uid isEqualToString:@"port-a"];
+        };
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:@"port-a" forKey:@"pendingSavedDeviceUID"];
+            [self->_player setValue:@"model" forKey:@"pendingSavedDeviceModelUID"];
+            [self->_player resolvePendingSavedOutputDeviceOnQueue];
+        }];
+        [self settleUntil:^BOOL { return [self count:@"device"] == 2; }];
+        XCTAssertTrue([_player.outputDeviceDiagnosticSnapshot[@"exclusiveOutputWanted"] boolValue]);
+        XCTAssertEqualObjects(_events.lastObject[@"carriedModes"], @"port-a");
+        __block BOOL selected = NO;
+        [_player setOutputDevice:2 completion:^{ selected = YES; }];
+        [self settleUntil:^BOOL { return selected; }];
+        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"exclusiveOutputWanted"] boolValue]);
+        XCTAssertEqualObjects(_events.lastObject[@"carriedModes"], @"");
+    } @finally {
+        [_player debugShutdown]; _player=nil;
+        method_setImplementation(method,original); imp_removeBlock(replacement);
+    }
+}
+
+- (void)testAbsentLaunchDeviceRemainsPending {
+    __block NSArray *snapshot = @[];
+    AudioDeviceManager *devices=[[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return snapshot; } retryScheduler:nil];
+    (void)devices.outputDevices;
+    Method methods[]={class_getClassMethod(AudioDeviceManager.class,@selector(sharedInstance)), class_getClassMethod(CoreAudioUtil.class,@selector(readSystemDefaultOutputDeviceID:))};
+    IMP replacements[]={imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }), imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *out) { *out=0; return YES; })};
+    IMP originals[2]; for(NSUInteger i=0;i<2;i++) originals[i]=method_setImplementation(methods[i],replacements[i]);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:@"saved" forKey:@"pendingSavedDeviceUID"];
+            [self->_player setValue:@"Saved DAC" forKey:@"pendingSavedDeviceName"];
+            [self->_player setValue:@YES forKey:@"bitPerfectWanted"];
+            [self->_player resolvePendingSavedOutputDeviceOnQueue];
+        }];
+        [self settleUntil:^BOOL {
+            __block BOOL pending;
+            [self->_player runSyncOnQueue:^{ pending=[[self->_player valueForKey:@"pendingSavedDeviceLookupInFlight"] boolValue]; }];
+            return !pending;
+        }];
+        __block NSString *wanted;
+        [_player runSyncOnQueue:^{ wanted=[self->_player valueForKey:@"pendingSavedDeviceUID"]; }];
+        XCTAssertEqualObjects(wanted,@"saved",@"Device must be re-adoptable when powered on later this session");
+        snapshot = @[[[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2
+                isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual]];
+        XCTestExpectation *published = [self expectationWithDescription:@"device returned"];
+        [devices refreshOutputDevicesWithCompletion:^(BOOL success) { [published fulfill]; }];
+        [self waitForExpectations:@[published] timeout:2];
+        [_player audioOutputDevicesDidChange];
+        [_player runSyncOnQueue:^{}];
+        XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, 2);
+        XCTAssertEqualObjects(_player.outputDeviceDiagnosticSnapshot[@"pendingDeviceUID"], @"");
+    } @finally {
+        [_player debugShutdown]; _player=nil;
+        for(NSUInteger i=0;i<2;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
+    }
+}
+- (void)testTerminationCannotRestartOnConfigurationCallback {
+    AudioDevice *device=[[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    AudioDeviceManager *devices=[[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
+    (void)devices.outputDevices;
+    Method methods[]={class_getClassMethod(AudioDeviceManager.class,@selector(sharedInstance)),class_getClassMethod(CoreAudioUtil.class,@selector(deviceIsConfirmedDead:))};
+    IMP replacements[]={imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),imp_implementationWithBlock(^BOOL(id cls,AudioDeviceID deviceID) { return NO; })};
+    IMP originals[2]; for(NSUInteger i=0;i<2;i++) originals[i]=method_setImplementation(methods[i],replacements[i]);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+        [self render:4096];
+        [_player runSyncOnQueue:^{
+            self->_player.currentlyRequestedAudioDeviceId=2;
+            [self->_player setValue:@2 forKey:@"preparedDeviceID"];
+        }];
+        XCTAssertTrue(_player.isPlaying);
+        XCTAssertEqual([self count:@"finish"],0u);
+        [_player prepareForTermination];
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        XCTAssertEqual([self count:@"finish"],0u,@"Termination must not deliver natural track-end and auto-advance during NSTerminateLater");
+        __block BOOL running;
+        [_player runSyncOnQueue:^{ running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning; }];
+        XCTAssertFalse(running);
+        [_player runSyncOnQueue:^{
+            [self->_player handleEngineConfigurationChange];
+            running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning;
+        }];
+        XCTAssertFalse(running,@"A queued configuration notification must not restart the engine after termination cleanup");
+        AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
+        [_player play:lateTrack];
+        [_player prefetchTrack:lateTrack];
+        [_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:NO];
+        [_player audioOutputDevicesDidChange];
+        [_player systemDefaultOutputDeviceDidChange];
+        [_player runSyncOnQueue:^{}];
+        XCTAssertTrue(_player.isStopped);
+        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"engineRunning"] boolValue]);
+        XCTAssertNil([_player valueForKey:@"playOpenToken"]);
+        XCTAssertNil([_player valueForKey:@"prefetchOpenToken"]);
+    } @finally {
+        [_player debugShutdown]; _player=nil;
+        for(NSUInteger i=0;i<2;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
+    }
+}
+
+- (void)testSavedDeviceDiscoveryCannotUndoExplicitSystemOutput {
+    AudioDevice *device = [[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2
+            isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    dispatch_semaphore_t publish = dispatch_semaphore_create(0);
+    AudioDeviceManager *devices = [[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) {
+        dispatch_semaphore_wait(publish, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        return @[device];
+    } retryScheduler:nil];
+    Method methods[] = {
+        class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
+        class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
+    };
+    IMP replacements[] = {
+        imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
+        imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *out) { *out = 0; return YES; }),
+    };
+    IMP originals[2];
+    for (NSUInteger i = 0; i < 2; i++) originals[i] = method_setImplementation(methods[i], replacements[i]);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [_player runSyncOnQueue:^{
+            [self->_player setValue:@"saved" forKey:@"pendingSavedDeviceUID"];
+            [self->_player resolvePendingSavedOutputDeviceOnQueue];
+        }];
+        XCTAssertTrue([_player.outputDeviceDiagnosticSnapshot[@"savedDeviceLookupInFlight"] boolValue]);
+        __block BOOL selected = NO;
+        [_player setOutputDevice:-1 completion:^{ selected = YES; }];
+        [self settleUntil:^BOOL { return selected; }];
+        dispatch_semaphore_signal(publish);
+        [self settleUntil:^BOOL {
+            return ![self->_player.outputDeviceDiagnosticSnapshot[@"savedDeviceLookupInFlight"] boolValue];
+        }];
+        XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, -1);
+        XCTAssertEqualObjects(_player.outputDeviceDiagnosticSnapshot[@"pendingDeviceUID"], @"");
+    } @finally {
+        dispatch_semaphore_signal(publish);
+        [_player debugShutdown]; _player = nil;
+        for (NSUInteger i = 0; i < 2; i++) {
+            method_setImplementation(methods[i], originals[i]);
+            imp_removeBlock(replacements[i]);
+        }
+    }
+}
+
 - (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
@@ -947,7 +1207,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     if (_outputModesProvider) _outputModesProvider(uid, bitPerfect, exclusive);
 }
 - (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d {
-    [_events addObject:@{@"event": @"device", @"device": @(d)}];
+    [_events addObject:@{@"event": @"device", @"device": @(d),
+            @"fallback": p.involuntaryFallbackDeviceUID ?: @"",
+            @"carriedModes": p.carriedOutputModesDeviceUID ?: @""}];
 }
 - (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
 @end

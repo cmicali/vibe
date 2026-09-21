@@ -16,7 +16,7 @@ The main mixer uses maximum render quality for sample-rate conversion; `make tes
 
 **Every engine mutation runs on the serial player queue; the UI getters take the `os_unfair_lock` snapshot and compute off it**, never a queue round trip. `publishPlaybackState:` is that snapshot's full-tuple publisher, and the writer model, including the three partial writers it permits, is written at that method. Two generations sort out async work: `_segmentGeneration` discards stale `scheduleSegment` completions, `_rampGeneration` cancels in-flight fades, and stop, seek, skip and device switches bump both first. Every fade is asynchronous, so the queue never sleeps.
 
-**TRAP: `AVAudioPlayerNode` fires completions on stop and reschedule too, not only at a natural end**, so every interruption (skip, seek, device switch, a new play) bumps `_segmentGeneration` first and those completions are dropped.
+**TRAP: `AVAudioPlayerNode` fires completions on stop and reschedule too, not only at a natural end**, so every interruption (skip, seek, device switch, a new play, termination) bumps `_segmentGeneration` first and those completions are dropped.
 
 **TRAP: the node's segment count is `uint32_t` while file positions are `int64_t`.** `AudioScheduleMath.h` keeps the narrowing explicit and tested rather than letting each `scheduleSegment` site cast for itself.
 
@@ -83,3 +83,5 @@ CoreAudio honors LAME/iTunes gapless metadata, so tagged MP3/AAC and all lossles
 ### Error text
 
 **`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`AudioErrorRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string; it lives beside the enum because both screens render the same wording.
+
+Beta `Timeline:` entries identify the submitted play at request, queue admission and open settlement, then identify the play and segment at first observed node-clock progress. Render timing is bounded by a monotonic three-second deadline and never reopens a file. **TRAP: read render clocks only on the player queue**; detaching a node concurrently raises. Segment identity also fences a seek that reuses a node. The reported presentation latency is a device estimate, not measured audible output. Queue and output-clock stalls report onset as well as recovery, so a persistent stall leaves evidence before it clears.

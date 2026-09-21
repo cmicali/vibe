@@ -300,6 +300,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // The player is never deallocated at quit, so this is the edge that keeps
     // the restore promise.
     AudioPlayer *player = self.mainPlayerController.audioPlayer;
+    player.delegate = nil; // no auto-advance while the cleanup waits for its queue
     dispatch_group_async(owed, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         [player prepareForTermination];
     });

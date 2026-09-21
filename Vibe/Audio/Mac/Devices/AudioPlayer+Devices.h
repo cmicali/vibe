@@ -31,10 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 // channel's dump_state both read it.
 - (NSDictionary<NSString *, id> *)bitPerfectReportDictionary;
 
-// The HAL device the output unit is actually bound to, which can differ from
-// the requested one. Hops onto _queue, so the caller waits behind queued
-// player work — Save Debug Info reads it off main for that reason.
-- (NSInteger)currentlyActiveAudioDeviceId;
+// Queue snapshot of pending identity, device obligations and actual graph rates.
+// Save Debug Info reads off main; debug commands may deliberately wait.
+- (NSDictionary<NSString *, id> *)outputDeviceDiagnosticSnapshot;
 
 // Non-nil only while announcing a fallback to System Output that the user did
 // NOT ask for — the bound device vanished or failed. The shell reads it to
@@ -43,10 +42,12 @@ NS_ASSUME_NONNULL_BEGIN
 // selection leaves it nil and clears the preference as before.
 @property (readonly, nullable) NSString *involuntaryFallbackDeviceUID;
 @property (readonly, nullable) NSString *involuntaryFallbackDeviceName;
+// The source actually used by an automatic model-match bind, during the same callback.
+@property (readonly, nullable) NSString *carriedOutputModesDeviceUID;
 
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
-// or Loading while the engine is not running; the rule and its trap are on
+// a settled Pause, or Loading while the engine is not running; the rule and its trap are on
 // that function — and playback winning the lookup race leaves the preference
 // pending for the next eligible transition or device/default refresh. Runs on
 // _queue. A completed missing-device lookup disables an armed bit-perfect

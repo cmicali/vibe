@@ -211,16 +211,19 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach
     dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC, 20 * NSEC_PER_MSEC);
     dispatch_source_set_event_handler(timer, ^{
         if (waiting) {
-#if TARGET_OS_OSX
             uint64_t stuck = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - pingedAt;
-            if (sampledThread != MACH_PORT_NULL && !sampled && stuck > 250 * NSEC_PER_MSEC) {
+            if (!sampled && stuck > 250 * NSEC_PER_MSEC) {
                 sampled = YES;
-                static uintptr_t pcs[64]; // the watcher queue is serial
-                int count = VibeCaptureStack(sampledThread, pcs, 64);
-                LogWarn(@"Stall stack: the %@, %.0f ms in: %@", name, stuck / 1e6, VibeDescribeStack(pcs, count));
-            }
+                LogWarn(@"Stall: the %@ is still blocked after %.0f ms", name, stuck / 1e6);
+#if TARGET_OS_OSX
+                if (sampledThread != MACH_PORT_NULL) {
+                    uintptr_t pcs[64];
+                    int count = VibeCaptureStack(sampledThread, pcs, 64);
+                    LogWarn(@"Stall stack: the %@, %.0f ms in: %@", name, stuck / 1e6, VibeDescribeStack(pcs, count));
+                }
 #endif
-            return; // the last ping has not run yet; its own delivery reports it
+            }
+            return; // the ping's delivery reports recovery
         }
         waiting = YES;
         sampled = NO;
@@ -675,9 +678,15 @@ static void VibeWatchOutputRender(AudioPlayer *player);
     _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
     _lastSubmittedPlayTrack = track;
 #if VIBE_VERBOSE_LOGGING
-    _timelineRequestedAt = startPaused ? 0 : clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    uint64_t requestedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Timeline: play %llu submitted %@ at %.3fs, paused %d",
+            submittedPlayIdentifier, track.url.lastPathComponent, position, startPaused);
 #endif
     dispatch_async(_queue, ^{
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu admitted after %.1f ms on player queue", submittedPlayIdentifier,
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - requestedAt) / 1e6);
+#endif
         [self playOnQueue:track intent:intent declick:declick
    submittedPlayIdentifier:submittedPlayIdentifier];
     });
@@ -694,6 +703,7 @@ static void VibeWatchOutputRender(AudioPlayer *player);
               intent:(VibePendingPlaybackIntent)intent
              declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
+    if (_terminating) return;
     NSString *path = track.url.path;
 
     // Every explicit play submission retires the successor request belonging
@@ -982,6 +992,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSTimeInterval startPosition = startIntent.position;
     BOOL startPaused = startIntent.paused;
 
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Timeline: play %llu open settled for %@, %.0f Hz, %lld frames, error %@",
+            request.submittedPlayIdentifier, track.url.lastPathComponent,
+            file.processingFormat.sampleRate, file.length, error);
+#endif
     if (!file || file.length <= 0) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorFileOpenFailed,
@@ -1991,7 +2006,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
 // 50 ms while playing. A clock that stops means the device's IO stopped
 // pulling audio — the one source of a frozen time counter that is neither the
 // main thread nor a late first frame. Polled on _queue, like the first-render
-// probe, and logged when the clock moves again or playback stops first.
+// probe; reports both onset and recovery, including a missing render clock.
 static void VibeWatchOutputRender(AudioPlayer *player) {
     static NSMutableArray *timers;
     static dispatch_once_t once;
@@ -2019,27 +2034,26 @@ static void VibeWatchOutputRender(AudioPlayer *player) {
                 render = nil; // instrumentation must never take playback down with it
             }
         }
-        if (!render.sampleTimeValid) {
+        BOOL advancing = render.sampleTimeValid && render.sampleTime != lastSample;
+        if (!playing || advancing) {
             if (stalledSince) {
-                LogWarn(@"Stall: the audio output rendered nothing for %.0f ms, until playback or the engine stopped",
-                        (now - stalledSince) / 1e6);
+                LogWarn(@"Stall: output render clock resumed/stopped after %.0f ms (play %llu, %@)",
+                        (now - stalledSince) / 1e6, strongPlayer->_activeSubmittedPlayIdentifier,
+                        strongPlayer.currentTrack.url.lastPathComponent);
             }
-            lastSample = -1;
-            lastAdvance = 0;
-            stalledSince = 0;
-            return;
-        }
-        if (render.sampleTime != lastSample) {
-            if (stalledSince) {
-                LogWarn(@"Stall: the audio output rendered nothing for %.0f ms while playing",
-                        (now - stalledSince) / 1e6);
-            }
-            lastSample = render.sampleTime;
-            lastAdvance = now;
+            lastSample = render.sampleTimeValid ? render.sampleTime : -1;
+            lastAdvance = playing ? now : 0;
             stalledSince = 0;
         }
-        else if (!stalledSince && lastAdvance && now - lastAdvance > 200 * NSEC_PER_MSEC) {
-            stalledSince = lastAdvance;
+        else {
+            if (!lastAdvance) lastAdvance = now;
+            if (!stalledSince && now - lastAdvance > 200 * NSEC_PER_MSEC) {
+                stalledSince = lastAdvance;
+                LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@, engine %d, clock valid %d)",
+                        (now - stalledSince) / 1e6, strongPlayer->_activeSubmittedPlayIdentifier,
+                        strongPlayer.currentTrack.url.lastPathComponent, strongPlayer->_engine.isRunning,
+                        render.sampleTimeValid);
+            }
         }
     });
     dispatch_resume(timer);

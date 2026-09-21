@@ -17,14 +17,6 @@
 
 #pragma mark App side: command execution
 
-// The report the header and Settings read, plus the queue-confined ownership
-// behind it — every input to the fold, so a run can say WHY a lock is open.
-static NSDictionary *VibeDebugBitPerfectDictionary(AudioPlayer *player) {
-    NSMutableDictionary *d = [player.bitPerfectReportDictionary mutableCopy];
-    [d addEntriesFromDictionary:[player debugBitPerfectOwnership]];
-    return d;
-}
-
 static NSString *VibeDebugDisplayStateName(TrackDisplayState state) {
     switch (state) {
         case TrackDisplayStateTrack: return @"track";
@@ -44,7 +36,9 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     // side extends "player" with the fields only the mac has, and adds the
     // three blocks below.
     NSMutableDictionary *state = VibeDebugCommonStateDictionary(controller);
-    NSInteger outputDeviceID = player.currentlyActiveAudioDeviceId;
+    NSMutableDictionary *bitPerfect = [player.bitPerfectReportDictionary mutableCopy];
+    [bitPerfect addEntriesFromDictionary:player.outputDeviceDiagnosticSnapshot];
+    NSInteger outputDeviceID = [bitPerfect[@"boundOutputDeviceId"] integerValue];
     NSString *outputDeviceUID = nil;
     [CoreAudioUtil readUID:&outputDeviceUID forDeviceID:(AudioDeviceID)outputDeviceID];
     [state[@"player"] addEntriesFromDictionary:@{
@@ -60,7 +54,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"outputDeviceId": @(outputDeviceID),
         @"outputDeviceUID": outputDeviceUID ?: @"",
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
-        @"bitPerfect": VibeDebugBitPerfectDictionary(player),
+        @"bitPerfect": bitPerfect,
         // The flag asked; this is what actually happened. They differ when
         // enableManualRenderingMode fails and the output device opens
         // anyway — which no other signal would reveal.

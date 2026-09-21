@@ -7,6 +7,8 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
+#import "AudioTrack.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Transport.h"
@@ -255,9 +257,15 @@ static unichar VibeBareKeyChar(NSString *chars) {
 #if VIBE_VERBOSE_LOGGING
     // Beta instrumentation (#47): M marks the moment a tester hears the
     // problem, so the log lines up what they perceived with what happened.
-    if ([chars isEqualToString:@"m"]) {
+    if ([chars isEqualToString:@"m"] || event.keyCode == 46) {
+        if (event.isARepeat) return nil;
         static NSUInteger marks;
-        LogWarn(@"USER MARK %lu", (unsigned long)++marks);
+        AudioPlayer *player = controller.audioPlayer;
+        LogWarn(@"USER MARK %lu: %@ at %.3fs, playing %d, loading %d, input delay %.0f ms, output %@",
+                (unsigned long)++marks, player.currentTrack.url.lastPathComponent, player.position,
+                player.isPlaying, player.isLoading,
+                MAX(0, NSProcessInfo.processInfo.systemUptime - event.timestamp) * 1000,
+                player.bitPerfectReportDictionary);
         return nil;
     }
 #endif

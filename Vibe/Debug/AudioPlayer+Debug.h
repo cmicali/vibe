@@ -32,15 +32,6 @@ NS_ASSUME_NONNULL_BEGIN
 // the player for one.
 - (NSUInteger)numChannels;
 
-#if TARGET_OS_OSX
-// Bit-perfect output's queue-confined ownership and the engine's three
-// connection rates, for dump_state: {hoggedDeviceId, restoreOwedToDeviceId,
-// varispeedPresent, mixerOutputRate, outputNodeInputRate,
-// outputNodeOutputRate}, -1 for no device. Implemented in AudioPlayer+Devices.m
-// beside the mechanism; one queue hop.
-- (NSDictionary<NSString *, NSNumber *> *)debugBitPerfectOwnership;
-#endif
-
 // Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone
 // does not prove it: enableManualRenderingMode can fail, and the engine then
 // opens the output device exactly as usual. Written once during the async init;

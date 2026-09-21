@@ -154,7 +154,6 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
         @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
         @"pitch": @(player.pitch),
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
-        @"involuntaryFallbackDeviceUID": player.involuntaryFallbackDeviceUID ?: @"",
         @"bitPerfect": player.bitPerfectReportDictionary,
     } mutableCopy];
     AudioFX *fx = player.fx;
@@ -296,7 +295,7 @@ NSString *VibeDebugInfoText(NSDictionary<NSString *, id> *snapshot, AudioPlayer 
     }
     report[@"outputDevices"] = devices;
     NSMutableDictionary *playerInfo = [report[@"player"] mutableCopy];
-    playerInfo[@"boundOutputDeviceId"] = @(player.currentlyActiveAudioDeviceId);
+    [playerInfo addEntriesFromDictionary:player.outputDeviceDiagnosticSnapshot];
     playerInfo[@"systemDefaultOutputDeviceId"] = @([CoreAudioUtil systemDefaultOutputDeviceID]);
     report[@"player"] = playerInfo;
 

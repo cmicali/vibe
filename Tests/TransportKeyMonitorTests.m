@@ -23,6 +23,7 @@
 @property (nonatomic) BOOL shortDelaySendActive;
 @property (nonatomic) NSUInteger removals;
 @property (nonatomic) NSUInteger plays;
+@property (nonatomic) NSUInteger markerReads;
 @end
 
 @implementation TransportKeyMonitorTests
@@ -31,6 +32,11 @@
 - (NSResponder *)firstResponder { return nil; }
 - (id)audioPlayer { return self; }
 - (id)fx { return self.hasFXGraph ? self : nil; }
+- (id)currentTrack { return nil; }
+- (double)position { return 0; }
+- (BOOL)isPlaying { return NO; }
+- (BOOL)isLoading { return NO; }
+- (NSDictionary *)bitPerfectReportDictionary { self.markerReads++; return @{}; }
 - (void)removeSelectedPlaylistTracks:(id)sender { self.removals++; }
 - (void)playPause:(id)sender { self.plays++; }
 
@@ -145,4 +151,21 @@
     XCTAssertEqual(self.plays, 2u, @"transport still honors repeat");
 }
 
+- (void)testBetaMarkerWorksWithGreekKeyboardAndIgnoresRepeatAndModifiers {
+    TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
+    for (NSUInteger attempt = 0; attempt < 3; attempt++) {
+        NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+                modifierFlags:attempt == 2 ? NSEventModifierFlagCommand : 0
+                timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:0 context:nil
+                characters:@"μ" charactersIgnoringModifiers:@"μ" isARepeat:attempt == 1 keyCode:46];
+        NSEvent *result = [monitor handleKeyEvent:event inWindow:self.window];
+#if VIBE_VERBOSE_LOGGING
+        XCTAssertEqual(result, attempt == 2 ? event : nil);
+        XCTAssertEqual(self.markerReads, 1u);
+#else
+        XCTAssertEqual(result, event);
+        XCTAssertEqual(self.markerReads, 0u);
+#endif
+    }
+}
 @end
