@@ -935,15 +935,24 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             && ((_outputLevelListener && _outputDeviceListener) || deviceID == kAudioObjectUnknown)) {
         return YES;
     }
+    // The third device obligation, and it retires like the other two. A device
+    // that vanished can never accept the removal, and this used to fail
+    // forever: the early return below left _preparedDeviceID naming the gone
+    // device, and needsPreparation reads that as "a device is prepared", so
+    // every later bind rebuilt the graph and held the player queue (#56).
     if (_outputLevelListener) {
-        for (NSUInteger attempt = 0; attempt < 2; attempt++) {
-            if ([CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue
-                                             forDeviceID:_preparedDeviceID]) {
-                _outputLevelListener = nil;
-                break;
-            }
+        AudioObjectPropertyListenerBlock listener = _outputLevelListener;
+        if ([CoreAudioUtil releaseDeviceObligation:&_preparedDeviceID attempt:^BOOL{
+            return [CoreAudioUtil removeOutputLevelListener:listener queue:self->_queue
+                                                forDeviceID:self->_preparedDeviceID];
+        } isAbsent:^BOOL(AudioDeviceID absentID) {
+            return [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:absentID];
+        }]) {
+            _outputLevelListener = nil;
+            _preparedStreamID = kAudioObjectUnknown;
+            memset(&_preparedFormat, 0, sizeof(_preparedFormat));
         }
-        if (_outputLevelListener) {
+        else {
             LogWarn(@"bit-perfect: output listener removal still owed to device %u", _preparedDeviceID);
             return NO; // retain the HAL's removal handle; never accumulate orphaned listeners
         }
