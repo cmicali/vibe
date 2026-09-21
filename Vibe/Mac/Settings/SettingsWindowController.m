@@ -202,6 +202,7 @@ static const CGFloat kSettingsSidebarWidth = 200;
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.documentView = table;
     scroll.hasVerticalScroller = YES;
+    scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
     self.view = scroll;
 }

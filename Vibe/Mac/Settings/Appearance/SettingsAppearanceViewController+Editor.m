@@ -758,6 +758,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.hasVerticalScroller = YES;
+    scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
     // Without this, macOS 26 associates the scroll view with the titlebar
     // above it and builds a scroll pocket — a full-column blur band whose

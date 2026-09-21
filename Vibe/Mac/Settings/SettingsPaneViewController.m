@@ -240,6 +240,10 @@ static const CGFloat kInlineTitleInset = 10;
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.hasVerticalScroller = YES;
+    // TRAP: AppKit's default is NO, which draws a scroller down a pane that
+    // has nothing to scroll — the settings window's bars under a legacy
+    // scroller style, where System Settings shows none.
+    scroll.autohidesScrollers = YES;
     scroll.drawsBackground = NO;
     scroll.automaticallyAdjustsContentInsets = NO;
     scroll.documentView = stack;

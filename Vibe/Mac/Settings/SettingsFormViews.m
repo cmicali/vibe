@@ -326,6 +326,7 @@ static void CollectControls(NSView *view, NSMutableArray<NSControl *> *controls)
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scrollView.documentView = table;
     scrollView.hasVerticalScroller = YES;
+    scrollView.autohidesScrollers = YES;
     scrollView.borderType = NSNoBorder;
     scrollView.backgroundColor = ListColor(0);
     [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;
