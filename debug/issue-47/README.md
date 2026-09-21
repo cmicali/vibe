@@ -9,6 +9,14 @@ A handoff for a fresh look. Everything the reporter sent is in this folder, the 
 ---
 
 
+## Beta8 signal-capture follow-up
+
+The signal probe now checks every 100 ms and logs as soon as the first above-threshold buffer arrives. It stops scanning samples after that buffer. The tap completes partial captures before removal, abandonment or replacement, retaining the original play/segment and start reason; stale polls cannot complete a new request. A terminal snapshot survives removal. Without a threshold crossing, observed silence is a lower bound over captured frames; a late tap still cannot reconstruct the file's beginning. The missing `HAL:` and `Preflight:` documentation is restored in the Devices and Util owners.
+
+Validation: 50 audio tests and four targeted Thread Sanitizer tests pass, including early completion, partial capture retention, empty captures, replacement identity and unchanged PCM. Debug macOS/iOS builds, a Release build with beta logging disabled, Release static analysis on both targets, and layout/vocabulary/strings/translations checks pass. Live off-hardware signal captures completed in 100–106 ms. A muted real-HAL session produced eight summaries for eight armed captures: six interrupted captures retained 300–400 ms of observed silence and two expired normally. Both live checks passed all 29 consistency checks. Physical A300 acceptance remains outstanding.
+
+Complexity: +126 net lines, zero new files/types; capture completion is consolidated in the tap lifecycle, replacing the delayed discard-on-removal/supersession path.
+
 ## Beta8 instrumentation refinement
 
 Signal capture is automatic in beta builds, with observed leading silence reported from the existing post-mix tap. Keep the playing row visible. The UI event waits for a position beyond the published baseline. First-render logs retain the fresh-clock, unity-rate host-time estimate alongside the poll observation; resumed clocks explicitly omit the estimate and use the retained pause position to detect new progress. Exclusive default-follow retries produce one attempt-count/last-status summary. Quit detaches the delegate once, on main. Duplicate logging guidance and the two superseded probe patches are removed; tests and git history retain the reproductions.

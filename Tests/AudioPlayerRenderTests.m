@@ -468,7 +468,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertEqual([signal[@"nonfiniteSamples"] unsignedLongLongValue], 0u);
         }];
         _player.levelsEnabled=NO; [self render:68800];
-        [_player runSyncOnQueue:^{ XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"status"], @"tap unavailable"); }];
+        [_player runSyncOnQueue:^{
+            XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"completion"], @"first signal");
+        }];
         [self assertReference:reference capture:_capture skip:2400 tolerance:fx.boolValue?1e-10f:0];
     }
 }
@@ -479,13 +481,19 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     __block AudioLevelTap *tap;
     __block uint64_t request;
     __block NSDictionary *signal;
+    NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
         tap = [self->_player valueForKey:@"levelTap"];
-        request = [tap beginSignalDiagnostics];
+        request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
     [self render:192000];
-    [_player runSyncOnQueue:^{ signal = [tap signalDiagnosticSnapshot]; }];
+    [_player runSyncOnQueue:^{
+        XCTAssertFalse([tap pollSignalDiagnostics:request]);
+        XCTAssertEqual(completed.count, 1u);
+        signal = completed.firstObject;
+        XCTAssertEqualObjects(signal[@"completion"], @"window elapsed");
+    }];
     XCTAssertEqualObjects(signal[@"status"], @"captured");
     XCTAssertEqual([signal[@"request"] unsignedLongLongValue], request);
     XCTAssertGreaterThan([signal[@"frames"] unsignedLongLongValue], 0u);
@@ -499,7 +507,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [self render:24000];
     [_player runSyncOnQueue:^{
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
-        request = [tap beginSignalDiagnostics];
+        XCTAssertFalse([tap pollSignalDiagnostics:request]);
+        XCTAssertEqual(completed.count, 1u);
+        request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, [signal[@"request"] unsignedLongLongValue]);
     }];
     [self render:16000];
@@ -508,6 +518,49 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([signal[@"request"] unsignedLongLongValue], request);
     XCTAssertGreaterThan([signal[@"frames"] unsignedLongLongValue], 0u);
     XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
+}
+- (void)testSignalDiagnosticsKeepInterruptedCaptures {
+    for (NSString *action in @[@"tap removed", @"tap abandoned", @"superseded"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        _player.levelsEnabled=YES;
+        [self play:[self fixture:@"silence.wav"] paused:NO position:0];
+        NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
+        __block AudioLevelTap *tap;
+        __block uint64_t request;
+        [_player runSyncOnQueue:^{
+            tap = [self->_player valueForKey:@"levelTap"];
+            request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        }];
+        [self render:16000];
+        [_player runSyncOnQueue:^{
+            NSDictionary *partial = [tap signalDiagnosticSnapshot];
+            XCTAssertGreaterThan([partial[@"frames"] unsignedLongLongValue], 0u);
+            XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
+            if ([action isEqual:@"tap removed"]) [tap remove];
+            else if ([action isEqual:@"tap abandoned"]) [tap abandon];
+            else [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            XCTAssertEqual(completed.count, 1u);
+            NSDictionary *result = completed.firstObject;
+            XCTAssertEqualObjects(result[@"completion"], action);
+            XCTAssertEqualObjects(result[@"frames"], partial[@"frames"]);
+            XCTAssertEqualObjects(result[@"observedLeadingSilenceMS"], partial[@"observedLeadingSilenceMS"]);
+            XCTAssertEqual([result[@"request"] unsignedLongLongValue], request);
+            XCTAssertFalse([tap pollSignalDiagnostics:request]);
+            if ([action isEqual:@"superseded"]) {
+                XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"status"], @"no buffers observed");
+                [tap remove];
+                XCTAssertEqual(completed.count, 2u);
+                XCTAssertEqualObjects(completed.lastObject[@"completion"], @"tap removed");
+                XCTAssertEqualObjects(completed.lastObject[@"status"], @"no buffers observed");
+            } else {
+                XCTAssertEqualObjects([tap signalDiagnosticSnapshot], result);
+                [tap remove]; [tap abandon];
+                XCTAssertEqual(completed.count, 1u);
+            }
+        }];
+        [self render:16000];
+        [_player runSyncOnQueue:^{ XCTAssertEqual(completed.count, [action isEqual:@"superseded"] ? 2u : 1u); }];
+    }
 }
 - (void)testDefaultSignalDiagnosticsMeasureLeadingSilence {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
@@ -521,7 +574,14 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     }];
     XCTAssertEqualObjects(signal[@"status"], @"captured");
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
+    XCTAssertEqualObjects(signal[@"completion"], @"first signal");
+    XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 250, 1000.0 / 48000);
+    [self render:24000];
+    [_player runSyncOnQueue:^{
+        AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
+        XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
+    }];
 }
 - (void)testLowKillResponseAndReturnToTransparency {
     for (NSString *tone in @[@"20.wav",@"100.wav",@"1000.wav",@"8000.wav"]) {

@@ -41,22 +41,26 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     return success;
 }
 
+#if VIBE_VERBOSE_LOGGING
+- (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelTap *)tap request:(uint64_t)request {
+    [self scheduleAfterSeconds:0.1 block:^{
+        if ([tap pollSignalDiagnostics:request]) {
+            [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
+        }
+    }];
+}
+#endif
+
 - (void)beginOutputSignalDiagnosticsOnQueue:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
     AudioLevelTap *tap = _levelTap;
-    uint64_t request = [tap beginSignalDiagnostics];
     uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
+    uint64_t request = [tap beginSignalDiagnosticsWithCompletion:^(NSDictionary *snapshot) {
+        LogInfo(@"Signal: play %llu segment %llu %@ capture %@", play, segment, reason, snapshot);
+    }];
     LogInfo(@"Signal: play %llu segment %llu %@, %@ (post-mix observation, not audible output)",
             play, segment, reason, request ? @"three-second capture armed" : @"unavailable: no active level tap");
-    if (!request) return;
-    [self scheduleAfterSeconds:3.05 block:^{
-        NSDictionary *snapshot = [tap signalDiagnosticSnapshot];
-        if (snapshot[@"request"] && [snapshot[@"request"] unsignedLongLongValue] != request) {
-            LogInfo(@"Signal: play %llu segment %llu capture superseded", play, segment);
-            return;
-        }
-        LogInfo(@"Signal: play %llu segment %llu capture %@", play, segment, snapshot);
-    }];
+    if (request) [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
 #endif
 }
 

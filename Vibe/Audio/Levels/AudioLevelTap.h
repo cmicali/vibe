@@ -37,9 +37,12 @@ NS_ASSUME_NONNULL_BEGIN
 // and cannot touch freed memory.
 - (void)abandon;
 
-// Beta probe of the existing tap, bounded to three seconds of signal.
-// Both calls belong to the engine queue; neither creates demand or opens a file.
-- (uint64_t)beginSignalDiagnostics;
+// Beta probe of the existing tap, bounded to first signal or three seconds.
+// All calls and completion belong to the engine queue. Poll returns YES while
+// pending; removal, abandonment and replacement also complete partial captures.
+// No call creates demand or opens a file. The last snapshot survives removal.
+- (uint64_t)beginSignalDiagnosticsWithCompletion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
+- (BOOL)pollSignalDiagnostics:(uint64_t)request;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;
 
 @end

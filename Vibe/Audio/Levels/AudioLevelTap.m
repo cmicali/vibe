@@ -54,7 +54,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 // let the queue read without allocating, locking or logging on this thread.
 - (void)captureSignal:(AVAudioPCMBuffer *)buffer when:(AVAudioTime *)when {
     uint64_t request = atomic_load(&_signalRequest);
-    if (!request || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC) return;
+    if (!request || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC
+            || (_signalObservedRequest == request && _signalFound)) return;
     double rate = buffer.format.sampleRate;
     if (_signalObservedRequest != request || _signalRate != rate) {
         _signalRate = rate;
@@ -107,6 +108,10 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     AudioLevelTapSession *_tapSession;
     AVAudioNode *_node;
     BOOL _installed;
+#if VIBE_VERBOSE_LOGGING
+    void (^_signalCompletion)(NSDictionary<NSString *, id> *);
+    NSDictionary<NSString *, id> *_signalSnapshot;
+#endif
 }
 
 - (instancetype)initWithNode:(AVAudioNode *)node
@@ -218,9 +223,25 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     return self;
 }
 
-- (uint64_t)beginSignalDiagnostics {
+- (void)finishSignalDiagnostics:(NSString *)reason {
+#if VIBE_VERBOSE_LOGGING
+    if (!_signalCompletion) return;
+    NSMutableDictionary *snapshot = [[self signalDiagnosticSnapshot] mutableCopy];
+    snapshot[@"completion"] = reason;
+    _signalSnapshot = [snapshot copy];
+    atomic_store(&_tapSession->_signalRequest, 0);
+    void (^completion)(NSDictionary *) = _signalCompletion;
+    _signalCompletion = nil;
+    completion(_signalSnapshot);
+#endif
+}
+
+- (uint64_t)beginSignalDiagnosticsWithCompletion:(void (^)(NSDictionary<NSString *, id> *))completion {
 #if VIBE_VERBOSE_LOGGING
     if (!_installed || !_tapSession) return 0;
+    [self finishSignalDiagnostics:@"superseded"];
+    _signalSnapshot = nil;
+    _signalCompletion = [completion copy];
     uint64_t request = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     atomic_store(&_tapSession->_signalRequest, request);
     return request;
@@ -229,8 +250,26 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 #endif
 }
 
+- (BOOL)pollSignalDiagnostics:(uint64_t)request {
+#if VIBE_VERBOSE_LOGGING
+    if (!_signalCompletion || request != atomic_load(&_tapSession->_signalRequest)) return NO;
+    NSDictionary *snapshot = [self signalDiagnosticSnapshot];
+    if ([snapshot[@"aboveThreshold"] boolValue]) {
+        [self finishSignalDiagnostics:@"first signal"];
+    } else if (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC
+            || ([snapshot[@"sampleRate"] doubleValue] > 0
+                && [snapshot[@"frames"] doubleValue] >= 3 * [snapshot[@"sampleRate"] doubleValue])) {
+        [self finishSignalDiagnostics:@"window elapsed"];
+    }
+    return _signalCompletion != nil;
+#else
+    return NO;
+#endif
+}
+
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot {
 #if VIBE_VERBOSE_LOGGING
+    if (!_signalCompletion && _signalSnapshot) return _signalSnapshot;
     AudioLevelTapSession *session = _tapSession;
     if (!_installed || !session) return @{@"status": @"tap unavailable"};
     uint64_t request = atomic_load(&session->_signalRequest);
@@ -250,12 +289,18 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         double rate = atomic_load(&session->_signalRateResult);
         if (before != atomic_load(&session->_signalVersion)) continue;
         if (observed != request) return @{@"status": @"no buffers observed", @"request": @(request)};
-        return @{@"status": @"captured", @"request": @(request), @"frames": @(frames),
+        _signalSnapshot = @{@"status": @"captured", @"request": @(request), @"frames": @(frames),
                  @"sampleRate": @(rate), @"peak": @(peak), @"finiteRMS": @(rms), @"nonfiniteSamples": @(nonfinite),
                  @"aboveThreshold": @(peak >= 0.001), @"thresholdDBFS": @(-60),
                  @"observedLeadingSilenceMS": @(rate > 0 ? leadingFrames / rate * 1000 : 0),
                  @"firstSignalSampleTime": @(sample), @"firstSignalBufferHostTime": @(host),
                  @"firstSignalFrameOffset": @(offset)};
+        return _signalSnapshot;
+    }
+    if (_signalSnapshot) {
+        NSMutableDictionary *snapshot = [_signalSnapshot mutableCopy];
+        snapshot[@"snapshotBusy"] = @YES;
+        return snapshot;
     }
     return @{@"status": @"snapshot busy", @"request": @(request)};
 #else
@@ -267,6 +312,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     if (!_installed) {
         return;
     }
+    [self finishSignalDiagnostics:@"tap removed"];
     [_tapSession->_publisher endSession:_tapSession->_session];
     [_node removeTapOnBus:0];
     _installed = NO;
@@ -275,6 +321,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 }
 
 - (void)abandon {
+    [self finishSignalDiagnostics:@"tap abandoned"];
     if (_installed) {
         [_tapSession->_publisher endSession:_tapSession->_session];
     }
