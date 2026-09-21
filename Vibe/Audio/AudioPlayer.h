@@ -167,7 +167,7 @@ NS_ASSUME_NONNULL_BEGIN
 // feed, never its whole-percent UI handler.
 - (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier;
 
-// Records one first UI position update per published transport state in betas.
+// Records the first UI position beyond each published playing position in betas.
 - (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
 
 @end
@@ -251,7 +251,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Permanently stops transport, restores any changed device format and releases the hog,
 // synchronously on the player queue, so it waits on the device. The app
 // delegate's applicationShouldTerminate: is the one caller, off main and after
-// the windows are gone: the player is never deallocated at quit, so this is
+// the windows are gone and its playback delegate is detached on main: this is
 // the edge that keeps the restore promise.
 - (void)prepareForTermination;
 

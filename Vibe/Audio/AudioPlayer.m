@@ -1933,7 +1933,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
     }
 #if VIBE_VERBOSE_LOGGING
     AudioTrack *diagnosticTrack = self.currentTrack ?: self.loadingTrack;
-    NSDictionary *diagnostic = node && diagnosticTrack ? @{
+    NSDictionary *diagnostic = state == VibePlayerStatePlaying && node && diagnosticTrack ? @{
         @"track": diagnosticTrack, @"play": @([self diagnosticPlayIdentifierOnQueue]),
         @"segment": @(_segmentGeneration), @"position": @(position),
         @"publishedAt": @(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) } : nil;
@@ -1975,11 +1975,12 @@ static NSString *VibeAudioLevelNormalizationModeName(
     os_unfair_lock_lock(&_stateLock);
     NSDictionary *diagnostic = _positionDiagnostic;
     BOOL matches = track && diagnostic[@"track"] == track
-            && [diagnostic[@"play"] unsignedLongLongValue] == _nextSubmittedPlayIdentifier;
+            && [diagnostic[@"play"] unsignedLongLongValue] == _nextSubmittedPlayIdentifier
+            && position > [diagnostic[@"position"] doubleValue];
     if (matches) _positionDiagnostic = nil;
     os_unfair_lock_unlock(&_stateLock);
     if (matches) {
-        LogInfo(@"Timeline: play %@ segment %@ first UI position update %.3fs (published %.3fs), %.1f ms after state publication",
+        LogInfo(@"Timeline: play %@ segment %@ first advancing UI position %.3fs (published %.3fs), %.1f ms after state publication",
                 diagnostic[@"play"], diagnostic[@"segment"], position, [diagnostic[@"position"] doubleValue],
                 (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - [diagnostic[@"publishedAt"] unsignedLongLongValue]) / 1e6);
     }

@@ -43,12 +43,6 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 
 - (void)beginOutputSignalDiagnosticsOnQueue:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
-    static BOOL enabled;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        enabled = [NSProcessInfo.processInfo.arguments containsObject:@"--diagnose-output-signal"];
-    });
-    if (!enabled) return;
     AudioLevelTap *tap = _levelTap;
     uint64_t request = [tap beginSignalDiagnostics];
     uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
@@ -111,6 +105,9 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 #endif
 #if VIBE_VERBOSE_LOGGING
             AVAudioFramePosition initialSample = 0;
+            if (_state == VibePlayerStatePaused && node == _node && _file.processingFormat.sampleRate > 0) {
+                initialSample = MAX(0, llround(self.pausedRawPosition * _file.processingFormat.sampleRate) - _segmentStartFrame);
+            }
             @try {
                 AVAudioTime *render = _engine.isInManualRenderingMode ? nil : node.lastRenderTime;
                 AVAudioTime *before = render && (render.sampleTimeValid || render.hostTimeValid)
@@ -169,9 +166,9 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
                submittedPlay:(uint64_t)submittedPlay {
     if (generation != _segmentGeneration || node != _node || node.engine != _engine
             || _state != VibePlayerStatePlaying || !node.isPlaying) return;
-    AVAudioTime *player = nil;
+    AVAudioTime *render = nil, *player = nil;
     @try {
-        AVAudioTime *render = node.lastRenderTime;
+        render = node.lastRenderTime;
         if (render.sampleTimeValid) player = [node playerTimeForNodeTime:render];
     }
     @catch (NSException *exception) {
@@ -180,10 +177,18 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     }
     double elapsed = VibeSecondsSince(playedAt);
     if (player.sampleTimeValid && player.sampleTime > initialSample) {
-        LogInfo(@"Timeline: play %llu segment %llu %@ first observed render progress %.1f ms after node play; "
-                @"sample %lld, rate %.0f Hz, reported output presentation latency %.1f ms (not measured audible output)",
-                submittedPlay, generation, self.currentTrack.url.lastPathComponent, elapsed * 1000,
-                player.sampleTime, player.sampleRate, _engine.outputNode.presentationLatency * 1000);
+        NSString *estimate = @"unavailable (resumed clock, host clock or non-unity playback rate)";
+        if (initialSample == 0 && render.hostTimeValid && player.sampleRate > 0
+                && (!self.varispeed || self.varispeed.rate == 1)) {
+            // A resumed clock has no exact frame-zero origin for this start.
+            double firstRender = [AVAudioTime secondsForHostTime:render.hostTime]
+                    - player.sampleTime / player.sampleRate;
+            estimate = [NSString stringWithFormat:@"%.1f ms after node play", (firstRender - playedAt / 1e9) * 1000];
+        }
+        LogInfo(@"Timeline: play %llu segment %llu %@ estimated first render %@; first observed render progress %.1f ms after node play; "
+                @"sample %lld (baseline %lld), rate %.0f Hz, reported output presentation latency %.1f ms (not measured audible output)",
+                submittedPlay, generation, self.currentTrack.url.lastPathComponent, estimate, elapsed * 1000,
+                player.sampleTime, initialSample, player.sampleRate, _engine.outputNode.presentationLatency * 1000);
         return;
     }
     if (elapsed >= 3) {

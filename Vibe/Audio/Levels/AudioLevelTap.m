@@ -33,11 +33,11 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     _Atomic uint32_t _armed;
 #if VIBE_VERBOSE_LOGGING
     _Atomic uint64_t _signalRequest, _signalVersion, _signalResultRequest;
-    _Atomic uint64_t _signalFramesResult, _signalHostResult, _signalOffsetResult, _signalNonfiniteResult;
+    _Atomic uint64_t _signalFramesResult, _signalHostResult, _signalOffsetResult, _signalNonfiniteResult, _signalLeadingFramesResult;
     _Atomic int64_t _signalSampleResult;
     _Atomic double _signalPeakResult, _signalRMSResult, _signalRateResult;
     uint64_t _signalObservedRequest, _signalFrames, _signalSamples, _signalNonfinite;
-    uint64_t _signalFirstHost, _signalFirstOffset;
+    uint64_t _signalFirstHost, _signalFirstOffset, _signalLeadingFrames;
     int64_t _signalFirstSample;
     double _signalPeak, _signalSum, _signalRate;
     BOOL _signalFound;
@@ -79,6 +79,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
             _signalPeak = MAX(_signalPeak, fabs(value));
             if (!_signalFound && fabs(value) >= 0.001) {
                 _signalFound = YES;
+                _signalLeadingFrames = _signalFrames + f;
                 _signalFirstHost = when.hostTimeValid ? when.hostTime : 0;
                 _signalFirstOffset = f;
                 _signalFirstSample = when.sampleTimeValid ? when.sampleTime + f : -1;
@@ -93,6 +94,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     atomic_store(&_signalOffsetResult, _signalFirstOffset);
     atomic_store(&_signalSampleResult, _signalFirstSample);
     atomic_store(&_signalNonfiniteResult, _signalNonfinite);
+    atomic_store(&_signalLeadingFramesResult, _signalFound ? _signalLeadingFrames : _signalFrames);
     atomic_store(&_signalPeakResult, _signalPeak);
     atomic_store(&_signalRMSResult, _signalSamples ? sqrt(_signalSum / _signalSamples) : 0);
     atomic_store(&_signalRateResult, rate);
@@ -140,6 +142,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     atomic_init(&tapSession->_signalOffsetResult, 0);
     atomic_init(&tapSession->_signalSampleResult, -1);
     atomic_init(&tapSession->_signalNonfiniteResult, 0);
+    atomic_init(&tapSession->_signalLeadingFramesResult, 0);
     atomic_init(&tapSession->_signalPeakResult, 0);
     atomic_init(&tapSession->_signalRMSResult, 0);
     atomic_init(&tapSession->_signalRateResult, 0);
@@ -241,6 +244,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         uint64_t offset = atomic_load(&session->_signalOffsetResult);
         int64_t sample = atomic_load(&session->_signalSampleResult);
         uint64_t nonfinite = atomic_load(&session->_signalNonfiniteResult);
+        uint64_t leadingFrames = atomic_load(&session->_signalLeadingFramesResult);
         double peak = atomic_load(&session->_signalPeakResult);
         double rms = atomic_load(&session->_signalRMSResult);
         double rate = atomic_load(&session->_signalRateResult);
@@ -249,6 +253,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         return @{@"status": @"captured", @"request": @(request), @"frames": @(frames),
                  @"sampleRate": @(rate), @"peak": @(peak), @"finiteRMS": @(rms), @"nonfiniteSamples": @(nonfinite),
                  @"aboveThreshold": @(peak >= 0.001), @"thresholdDBFS": @(-60),
+                 @"observedLeadingSilenceMS": @(rate > 0 ? leadingFrames / rate * 1000 : 0),
                  @"firstSignalSampleTime": @(sample), @"firstSignalBufferHostTime": @(host),
                  @"firstSignalFrameOffset": @(offset)};
     }

@@ -205,24 +205,24 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return _bitPerfectWanted ? kAudioObjectUnknown : [CoreAudioUtil systemDefaultOutputDeviceID];
 }
 
-- (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
+- (OSStatus)writeOutputUnitDevice:(AudioDeviceID)deviceID {
 #if DEBUG
     // --no-audio-hw manual rendering: there is no output unit and no device
     // to bind. Report success so device selection keeps its menu and
     // persistence behavior without tripping the failure paths.
     if (_engine.isInManualRenderingMode) {
-        return YES;
+        return noErr;
     }
 #endif
     AudioUnit outputUnit = _engine.outputNode.audioUnit;
-    if (!outputUnit) {
-        LogError(@"AudioPlayer: output unit unavailable");
-        return NO;
-    }
+    if (!outputUnit) return kAudioUnitErr_Uninitialized;
+    return AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global, 0, &deviceID, sizeof(deviceID));
+}
+
+- (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
     return [self performDiagnosticPhase:@"device pin" device:deviceID operation:^BOOL{
-        AudioDeviceID target = deviceID;
-        OSStatus status = AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global, 0, &target, sizeof(target));
+        OSStatus status = [self writeOutputUnitDevice:deviceID];
         if (status != noErr) {
             LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
         }
@@ -1056,6 +1056,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // the take: the player queue then deadlocks against it and the whole app hangs.
 - (BOOL)settleOutputUnitAfterHoggingSystemDefaultOnQueue:(AudioDeviceID)deviceID {
     NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + kHogSettleDeadlineSeconds;
+    NSUInteger pinAttempts = 0;
+    OSStatus lastPinStatus = noErr;
+    BOOL settled = NO;
     // The unit leaving is the observable end of the default move that caused
     // it, so this needs no second reading of the default.
     while (NSProcessInfo.processInfo.systemUptime < deadline
@@ -1064,13 +1067,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     while (NSProcessInfo.processInfo.systemUptime < deadline) {
         if ([self activeOutputDeviceID] == deviceID) {
-            return YES;
+            settled = YES;
+            break;
         }
-        [self setOutputUnitDevice:deviceID];
+        pinAttempts++;
+        lastPinStatus = [self writeOutputUnitDevice:deviceID];
         usleep(kFormatSwitchPollMicroseconds);
     }
-    LogWarn(@"bit-perfect: output unit did not settle on device %u after taking exclusive use (deadline expired)", deviceID);
-    return NO;
+    LogTiming(!settled, @"bit-perfect: default-follow %@ on device %u, %lu pin attempts, last OSStatus %d%@",
+            settled ? @"settled" : @"unsettled", deviceID, (unsigned long)pinAttempts, (int)lastPinStatus,
+            settled ? @"" : @" (deadline expired)");
+    return settled;
 }
 
 // The engine is stopped at both ownership edges.
@@ -1559,7 +1566,6 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
 }
 
 - (void)prepareForTermination {
-    self.delegate = nil;
     [self runSyncOnQueue:^{
         // Stop owns segment/open cancellation. Engine stop alone fires the
         // current segment as a natural end during NSTerminateLater.

@@ -37,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
 // and cannot touch freed memory.
 - (void)abandon;
 
-// Optional beta probe of the existing tap, bounded to three seconds of signal.
+// Beta probe of the existing tap, bounded to three seconds of signal.
 // Both calls belong to the engine queue; neither creates demand or opens a file.
 - (uint64_t)beginSignalDiagnostics;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;

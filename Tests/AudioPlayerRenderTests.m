@@ -456,8 +456,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block AudioLevelTap *tap;
         [_player runSyncOnQueue:^{
             tap = [self->_player valueForKey:@"levelTap"];
-            XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"status"], @"not armed");
-            XCTAssertNotEqual([tap beginSignalDiagnostics], 0u);
+            XCTAssertNotEqual([[tap signalDiagnosticSnapshot][@"request"] unsignedLongLongValue], 0u);
         }];
         [self render:16000];
         [_player runSyncOnQueue:^{
@@ -494,6 +493,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([signal[@"finiteRMS"] doubleValue], 0);
     XCTAssertEqual([signal[@"peak"] doubleValue], 0);
     XCTAssertFalse([signal[@"aboveThreshold"] boolValue]);
+    XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue],
+                              [signal[@"frames"] doubleValue] / 48, 1e-6);
     XCTAssertEqual([signal[@"firstSignalSampleTime"] longLongValue], -1);
     [self render:24000];
     [_player runSyncOnQueue:^{
@@ -507,6 +508,20 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([signal[@"request"] unsignedLongLongValue], request);
     XCTAssertGreaterThan([signal[@"frames"] unsignedLongLongValue], 0u);
     XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
+}
+- (void)testDefaultSignalDiagnosticsMeasureLeadingSilence {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    _player.levelsEnabled=YES;
+    [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
+    [self render:24000];
+    __block NSDictionary *signal;
+    [_player runSyncOnQueue:^{
+        AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
+        signal = [tap signalDiagnosticSnapshot];
+    }];
+    XCTAssertEqualObjects(signal[@"status"], @"captured");
+    XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
+    XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 250, 1000.0 / 48000);
 }
 - (void)testLowKillResponseAndReturnToTransparency {
     for (NSString *tone in @[@"20.wav",@"100.wav",@"1000.wav",@"8000.wav"]) {
