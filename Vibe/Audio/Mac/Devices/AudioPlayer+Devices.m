@@ -184,6 +184,18 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             slowRebind ? @"slow " : @"", deviceID, seconds, rebound ? @"bound" : @"FAILED");
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
+        // Names the path that asked for a bind the HAL refused. A rebind onto a
+        // device that is vanishing fails with -10851, raises a user-visible
+        // error and unloads the track, and it was seen once in three paused
+        // unplugs with nothing in the log saying who asked (#62). Failed binds
+        // are rare, so the stack costs nothing in ordinary use. A Release build
+        // logs addresses, which symbolicate against the archived binary.
+        NSArray<NSString *> *stack = [NSThread callStackSymbols];
+        NSUInteger depth = MIN(stack.count, (NSUInteger)10);
+        NSString *callers = depth > 1
+                ? [[stack subarrayWithRange:NSMakeRange(1, depth - 1)] componentsJoinedByString:@" | "] : @"?";
+        LogWarn(@"AudioPlayer: rebind to %u failed in state %ld; called from: %@",
+                deviceID, (long)_state, callers);
         [self publishBitPerfectReportOnQueue];
     }
     return rebound;
