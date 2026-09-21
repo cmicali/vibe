@@ -1,19 +1,18 @@
-This beta widens the diagnostics added in 1.13-beta1, which did not record
-enough to explain a reported playback delay. It is not a feature release and
-contains no fix.
+This beta fixes the playback stutter reported on 1.12, where starting a track
+or dragging the position could freeze the player for a second or two.
 
-* Track starts, seeks, file opens and output device changes are now timed and
-  recorded every time, not only when they cross a threshold. A report that
-  nothing was recorded can now only mean the step did not happen.
-* Seeking is timed for the first time. The earlier build measured only output
-  device changes, which a seek never performs, so a freeze while seeking left
-  no trace at all.
-* File opens are recorded at a level the system keeps. They were previously
-  measured but discarded, so they could never be retrieved afterwards however
-  slow the open had been.
-* The threshold for calling a step slow drops from one second to a quarter of
-  a second, below the delays being reported rather than above them.
+* Fixed: the Settings window recalculated the size of every one of its pages
+  each time the audio status changed, which happens constantly during
+  playback. That work ran on the same thread that draws the window and
+  follows the mouse, so track changes and dragging the position stuttered.
+* Fixed: closing the Settings window did not stop that work. Once Settings had
+  been opened, the cost stayed for as long as Vibe was running. A closed
+  Settings window now does nothing at all.
+* Fixed: a Settings page could be laid out narrower than the window hosting
+  it, clipping the controls down its right-hand edge.
+* Fixed: an audio device that disappeared while in use could leave Vibe
+  rebuilding its audio connection on every later device change.
 
-If you are helping diagnose the delay, every line begins with "AudioPlayer:"
-and is kept by the system, so it can be retrieved afterwards — there is no
-need to capture anything live.
+If you were seeing the stutter, this build is the one to try. If any of it
+remains, the timings added in the previous beta are still recorded and still
+retrievable afterwards — every line begins with "AudioPlayer:".
