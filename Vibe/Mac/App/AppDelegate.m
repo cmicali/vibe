@@ -277,16 +277,44 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     return YES;
 }
 
-// A Quit mid-encode stops the conversion at its next buffer and waits for its
-// temp file to be gone, rather than leaving it in tmp for good.
+// A quit owes two things that wait: bit-perfect output puts a changed device
+// format back and releases the hog, which waits on the device (about 0.2 s on
+// #47's USB DAC, bounded at 1.5 s), and a quit mid-encode stops the conversion
+// and waits for its temp file to be gone rather than leave it in tmp. Nobody
+// needs to watch either, so Vibe leaves the screen first and finishes off
+// main: the quit looks immediate however long the device takes.
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
-    AudioFileConverter *converter = self.mainPlayerController.fileConverter;
-    if (!converter.isConverting) {
-        return NSTerminateNow;
+    for (NSWindow *window in NSApp.windows) {
+        [window orderOut:nil];
     }
-    [converter cancelConversionWithCompletion:^{
-        [sender replyToApplicationShouldTerminate:YES];
-    }];
+    // No Dock tile and no menu bar is what makes it read as quit.
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
+    dispatch_group_t owed = dispatch_group_create();
+    AudioFileConverter *converter = self.mainPlayerController.fileConverter;
+    if (converter.isConverting) {
+        dispatch_group_enter(owed);
+        [converter cancelConversionWithCompletion:^{
+            dispatch_group_leave(owed);
+        }];
+    }
+    // The player is never deallocated at quit, so this is the edge that keeps
+    // the restore promise.
+    AudioPlayer *player = self.mainPlayerController.audioPlayer;
+    dispatch_group_async(owed, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        [player prepareForTermination];
+    });
+    // TRAP: never reply through the main dispatch queue. A quit issued from
+    // inside a main-queue block — the debug channel's quit, any dispatch to
+    // main — runs terminate:'s wait loop inside that block, and libdispatch
+    // does not drain the main queue re-entrantly, so a reply queued there
+    // never ran: Vibe sat hidden and never quit. The run loop's own block
+    // queue is serviced by that wait loop whoever called terminate:.
+    dispatch_group_notify(owed, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopCommonModes, ^{
+            [sender replyToApplicationShouldTerminate:YES];
+        });
+        CFRunLoopWakeUp(CFRunLoopGetMain());
+    });
     return NSTerminateLater;
 }
 
@@ -294,9 +322,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
     [self.mainPlayerController saveLastPlaylist];
-    // Bit-perfect output: put a changed device format back and release the
-    // hog. The player is never deallocated at quit, so this is the edge.
-    [self.mainPlayerController.audioPlayer prepareForTermination];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.

@@ -243,9 +243,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
 
 // Restores any device format this run changed and releases the hog,
-// synchronously on the player queue. The app delegate's
-// applicationWillTerminate: is the one caller: the player is never
-// deallocated at quit, so this is the edge that keeps the restore promise.
+// synchronously on the player queue, so it waits on the device. The app
+// delegate's applicationShouldTerminate: is the one caller, off main and after
+// the windows are gone: the player is never deallocated at quit, so this is
+// the edge that keeps the restore promise.
 - (void)prepareForTermination;
 
 @end
