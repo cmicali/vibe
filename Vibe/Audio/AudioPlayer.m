@@ -114,24 +114,118 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // The state a category also touches is in AudioPlayerInternal.h; what follows
 // is private to this file.
 #if VIBE_VERBOSE_LOGGING
+#if TARGET_OS_OSX
+#import <dlfcn.h>
+#import <mach/mach.h>
+#import <mach-o/dyld.h>
+#import <pthread.h>
+
+// macOS gives user space 47 bits; anything above is a pointer-authentication
+// signature on a return address saved by an arm64e system frame.
+static const uintptr_t kVibeReturnAddressMask = 0x00007FFFFFFFFFFFULL;
+
+// Up to max return addresses of a thread, walking its frame-pointer chain.
+// TRAP: between suspend and resume nothing may allocate or take any lock the
+// stalled thread might hold — malloc's included — so this is C and system
+// calls only, the reads go through vm_read_overwrite so a bad frame ends the
+// walk instead of faulting, and symbolication waits until after the resume.
+static int VibeCaptureStack(thread_t thread, uintptr_t *pcs, int max) {
+    if (thread_suspend(thread) != KERN_SUCCESS) {
+        return 0;
+    }
+    int count = 0;
+    uintptr_t fp = 0;
+#if defined(__arm64__)
+    arm_thread_state64_t state;
+    mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
+    if (thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, &stateCount) == KERN_SUCCESS) {
+        pcs[count++] = (uintptr_t)arm_thread_state64_get_pc(state) & kVibeReturnAddressMask;
+        pcs[count++] = (uintptr_t)arm_thread_state64_get_lr(state) & kVibeReturnAddressMask;
+        fp = (uintptr_t)arm_thread_state64_get_fp(state);
+    }
+#elif defined(__x86_64__)
+    x86_thread_state64_t state;
+    mach_msg_type_number_t stateCount = x86_THREAD_STATE64_COUNT;
+    if (thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&state, &stateCount) == KERN_SUCCESS) {
+        pcs[count++] = (uintptr_t)state.__rip;
+        fp = (uintptr_t)state.__rbp;
+    }
+#endif
+    while (fp && count < max) {
+        uintptr_t frame[2] = {0, 0};
+        vm_size_t got = 0;
+        if (vm_read_overwrite(mach_task_self(), fp, sizeof(frame), (vm_address_t)frame, &got) != KERN_SUCCESS
+                || got != sizeof(frame)) {
+            break;
+        }
+        uintptr_t returnAddress = frame[1] & kVibeReturnAddressMask;
+        if (!returnAddress) {
+            break;
+        }
+        pcs[count++] = returnAddress;
+        if (frame[0] <= fp) {
+            break; // a frame chain climbs the stack; anything else is corrupt
+        }
+        fp = frame[0];
+    }
+    thread_resume(thread);
+    return count;
+}
+
+// Symbols for the system's frames; Vibe's own (image 0, the executable) are
+// stripped in a release, so they print as offsets into the binary, to symbolicate against the archived
+// dSYM for the build the report names.
+static NSString *VibeDescribeStack(const uintptr_t *pcs, int count) {
+    NSMutableArray<NSString *> *frames = [NSMutableArray array];
+    for (int i = 0; i < count; i++) {
+        uintptr_t pc = i == 0 ? pcs[i] : pcs[i] - 1; // a return address points after its call
+        Dl_info info;
+        if (!dladdr((const void *)pc, &info) || !info.dli_fname) {
+            [frames addObject:[NSString stringWithFormat:@"0x%lx", (unsigned long)pc]];
+        } else if (info.dli_fbase == (const void *)_dyld_get_image_header(0) || !info.dli_sname) {
+            [frames addObject:[NSString stringWithFormat:@"%@ +0x%lx", @(info.dli_fname).lastPathComponent,
+                               (unsigned long)(pc - (uintptr_t)info.dli_fbase)]];
+        } else {
+            [frames addObject:[NSString stringWithFormat:@"%@ %s+%lu", @(info.dli_fname).lastPathComponent,
+                               info.dli_sname, (unsigned long)(pc - (uintptr_t)info.dli_saddr)]];
+        }
+    }
+    return [frames componentsJoinedByString:@" | "];
+}
+#endif
+
 // Beta instrumentation (#47): a queue that takes more than 200 ms to run an
 // empty block was blocked by something, and the log says for how long, so a
-// reported freeze can be told apart from late audio. Durations only; what
-// blocked it needs a sample. The timers live as long as the process.
-static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
+// reported freeze can be told apart from late audio. For the main thread the
+// watcher also captures, once per stall, where it is stuck, 250 ms in. The
+// timers live as long as the process.
+static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach_port_t sampledThread) {
     static NSMutableArray *timers;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
     dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
-    __block BOOL waiting = NO; // confined to watcher
+    __block BOOL waiting = NO; // confined to watcher, like the two below
+    __block uint64_t pingedAt = 0;
+    __block BOOL sampled = NO;
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, watcher);
     dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC, 20 * NSEC_PER_MSEC);
     dispatch_source_set_event_handler(timer, ^{
         if (waiting) {
+#if TARGET_OS_OSX
+            uint64_t stuck = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - pingedAt;
+            if (sampledThread != MACH_PORT_NULL && !sampled && stuck > 250 * NSEC_PER_MSEC) {
+                sampled = YES;
+                static uintptr_t pcs[64]; // the watcher queue is serial
+                int count = VibeCaptureStack(sampledThread, pcs, 64);
+                LogWarn(@"Stall stack: the %@, %.0f ms in: %@", name, stuck / 1e6, VibeDescribeStack(pcs, count));
+            }
+#endif
             return; // the last ping has not run yet; its own delivery reports it
         }
         waiting = YES;
+        sampled = NO;
         uint64_t sent = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        pingedAt = sent;
         dispatch_async(queue, ^{
             uint64_t waited = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - sent;
             dispatch_async(watcher, ^{
@@ -231,8 +325,17 @@ static void VibeWatchOutputRender(AudioPlayer *player);
         // The production player only: the render suites drive their own clock
         // and hold the queue on purpose.
         if (!pump) {
-            VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread");
-            VibeWatchQueueForStalls(_queue, @"player queue");
+#if TARGET_OS_OSX
+            // Read on the main thread itself, where the production player is
+            // made; there is no public way to name the main thread from another.
+            VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread",
+                                    NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
+#else
+            VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread", MACH_PORT_NULL);
+#endif
+            // The player queue runs on whichever pool thread is free, so there
+            // is no one thread to sample.
+            VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL);
             VibeWatchOutputRender(self);
         }
 #endif
