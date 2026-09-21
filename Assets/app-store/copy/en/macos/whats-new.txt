@@ -2,11 +2,20 @@ This beta records more about what happens when a track starts, to track down
 a delay some USB speakers show with Exclusive output on.
 
 * New: Vibe now records how long after your click each track's audio really
-  started, every change and notification your audio devices send, and any
-  moment the app or the audio output stopped responding. Settings > Advanced >
-  Debug info > Save… includes it.
+  started, each step of taking over your audio device, when the time counter
+  starts moving, and how long a track opens with silence, along with every
+  change and notification your audio devices send and any moment the app or
+  the audio output stopped responding. Settings > Advanced > Debug info >
+  Save… includes it, and saving now works even while playback is stuck.
 * New: press M while Vibe is in front to mark a moment in that record, for
-  example the moment you hear a problem.
+  example the moment you hear a problem. It now works with any keyboard
+  layout.
+* Fixed: some MP3 files with extra data after their tags would not play.
+* Fixed: an audio device that is off when Vibe opens is now used as soon as
+  you turn it on, and a device plugged into a different USB port keeps the
+  bit-perfect and exclusive settings you chose for that port.
+* Fixed: losing the last audio output mid-track could skip to the next track
+  instead of pausing, and quitting mid-track could move the playlist on.
 * Quitting no longer waits on your audio device: the window closes at once and
   Vibe puts the device back the way it found it in the background.
 * Fixed: opening Vibe with Exclusive output on could show "Failed to get
