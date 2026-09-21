@@ -22,6 +22,17 @@ static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL
     return stopped || (loading && !engineRunning);
 }
 
+// Whether a direct HAL read of kAudioDevicePropertyDeviceIsAlive proves the
+// device is gone: it answered "dead", or the object itself no longer exists.
+// Any other failed read is UNKNOWN, never dead — a false removal falls back to
+// System Output and persists it, which is why absence alone is never removal.
+static inline BOOL VibeDeviceIsConfirmedDead(OSStatus readStatus, UInt32 isAlive) {
+    if (readStatus == kAudioHardwareBadObjectError) {
+        return YES;
+    }
+    return readStatus == noErr && isAlive == 0;
+}
+
 // Manual selection clears the pending preference. Content equality permits
 // copied strings, but nil never revives a cleared or superseded lookup.
 static inline BOOL VibeSavedOutputDeviceRequestIsCurrent(NSString *uid, NSString *name,
