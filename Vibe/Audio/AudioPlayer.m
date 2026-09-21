@@ -88,7 +88,7 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 @interface AudioPlayer ()
-- (instancetype)initWithDeviceUID:(NSString *)uid name:(NSString *)name enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate loadingConfiguration:(AudioLoadingConfiguration *)configuration manualPump:(id)pump;
+- (instancetype)initWithDeviceUID:(NSString *)uid modelUID:(NSString *)modelUID name:(NSString *)name enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate loadingConfiguration:(AudioLoadingConfiguration *)configuration manualPump:(id)pump;
 // playOnQueue:'s phases; the ordering constraints between them are commented
 // there, at the call sites.
 - (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track
@@ -141,16 +141,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
               loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
 }
 
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
+                             name:(NSString *)deviceName enableFX:(BOOL)enableFX
+                         delegate:(id <AudioPlayerDelegate>)delegate {
+    return [self initWithDeviceUID:deviceUID modelUID:modelUID name:deviceName enableFX:enableFX
+                          delegate:delegate
+              loadingConfiguration:[AudioLoadingConfiguration productionConfiguration] manualPump:nil];
+}
+
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID
                               name:(NSString *)deviceName
                           enableFX:(BOOL)enableFX
                           delegate:(id<AudioPlayerDelegate>)delegate
               loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
-    return [self initWithDeviceUID:deviceUID name:deviceName enableFX:enableFX delegate:delegate
+    return [self initWithDeviceUID:deviceUID modelUID:@"" name:deviceName enableFX:enableFX delegate:delegate
              loadingConfiguration:loadingConfiguration manualPump:nil];
 }
 
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
+                             name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate
              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration manualPump:(id)pump {
     NSParameterAssert(loadingConfiguration);
@@ -196,6 +205,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
+        _pendingSavedDeviceModelUID = [modelUID copy] ?: @"";
         _pendingSavedDeviceName = [deviceName copy] ?: @"";
 #endif
         self.delegate = delegate;
@@ -1353,6 +1363,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // output device for as long as the user stays paused. Resume restarts it
     // through startEngineAndPlayNode:, which also dissolves this pending stop.
     [self scheduleEngineIdleStopOnQueue];
+#if TARGET_OS_OSX
+    // The first moment a pause is silent, and so the first moment a wanted
+    // device that came back while audio was playing may be adopted. Without
+    // this it waited for the next stop.
+    [self resolvePendingSavedOutputDeviceOnQueue];
+#endif
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];
@@ -1363,7 +1379,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 #if DEBUG
 - (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate {
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
-    return [self initWithDeviceUID:@"" name:@"" enableFX:enableFX delegate:delegate
+    return [self initWithDeviceUID:@"" modelUID:@"" name:@"" enableFX:enableFX delegate:delegate
              loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]
                        manualPump:[[VibeManualRenderPump alloc] initWithFormat:format automatic:automatic]];
 }

@@ -15,11 +15,20 @@
 #import <CoreAudio/AudioHardwareBase.h>
 #include <math.h>
 
-// A saved-device bind may land while stopped, or during the first loading
-// open before the engine starts. Loading with a running outgoing fade must
-// not rebind underneath it; playing and paused are also excluded.
-static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL engineRunning) {
-    return stopped || (loading && !engineRunning);
+// A saved-device bind may land whenever nothing is audible, because the one
+// thing it must never do is rebind underneath sound — that clicks, or tears
+// down a live stream. So: stopped; the first loading open before the engine
+// starts; and a pause whose fade has settled. A loading open with a running
+// outgoing fade, and playing, are excluded.
+//
+// Paused used to be excluded outright, including a paused engine that had
+// idle-stopped and was plainly silent. That left a device which vanished and
+// came back unadoptable until the next stop, because an unplug parks playback
+// as Paused. The rebuild already restores a paused track as Paused rather than
+// resuming it, so a settled pause is as safe to rebind as a stop.
+static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL paused,
+                                                BOOL engineRunning, BOOL audioActive) {
+    return stopped || (loading && !engineRunning) || (paused && !audioActive);
 }
 
 // Whether a direct HAL read of kAudioDevicePropertyDeviceIsAlive proves the

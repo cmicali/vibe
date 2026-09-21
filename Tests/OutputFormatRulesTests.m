@@ -6,6 +6,8 @@
 #import <XCTest/XCTest.h>
 
 #import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
+#import "AppSettings.h"
+#import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
 #import "CoreAudioUtil.h"
 
@@ -689,6 +691,100 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(deliveries, 2u);
 }
 
+#pragma mark - Carrying remembered modes to a new USB port
+
+static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
+
+// Removed rather than restored: writing a value back would materialize a key
+// that was never there (Tests/CLAUDE.md). The guard restores the domain at exit.
+- (void)withModeStore:(NSDictionary *)store run:(void (^)(void))block {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:store forKey:kModesKey];
+    block();
+    [defaults removeObjectForKey:kModesKey];
+}
+
+- (void)testCarryCopiesModesToTheNewPortAndLeavesTheOldPortIntact {
+    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES, @"exclusive": @YES}} run:^{
+        AppSettings *settings = AppSettings.sharedInstance;
+        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-b"];
+        XCTAssertTrue([settings bitPerfectOutputForDeviceUID:@"port-b"]);
+        XCTAssertTrue([settings exclusiveOutputForDeviceUID:@"port-b"]);
+        // Copied, not moved: plugged back into the first port it still has them.
+        XCTAssertTrue([settings bitPerfectOutputForDeviceUID:@"port-a"]);
+    }];
+}
+
+// Modes someone already chose for that exact unit are a choice; a carry is a
+// guess, and must never overwrite a choice.
+- (void)testCarryNeverOverwritesModesAlreadyChosenForTheDestination {
+    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES},
+                          @"port-b": @{@"exclusive": @YES}} run:^{
+        AppSettings *settings = AppSettings.sharedInstance;
+        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-b"];
+        XCTAssertFalse([settings bitPerfectOutputForDeviceUID:@"port-b"]);
+        XCTAssertTrue([settings exclusiveOutputForDeviceUID:@"port-b"]);
+    }];
+}
+
+- (void)testCarryIgnoresEmptyOrIdenticalUIDs {
+    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES}} run:^{
+        AppSettings *settings = AppSettings.sharedInstance;
+        [settings carryOutputModesFromDeviceUID:@"" toDeviceUID:@"port-b"];
+        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@""];
+        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-a"];
+        XCTAssertFalse([settings bitPerfectOutputForDeviceUID:@"port-b"]);
+        XCTAssertEqual([[NSUserDefaults.standardUserDefaults dictionaryForKey:kModesKey] count], 1u);
+    }];
+}
+
+// A class-compliant USB interface's device UID is its USB location, so the same
+// iD4 on another port has a new UID but the same model UID.
+- (void)testSavedDeviceIsFoundByModelUIDWhenMovedToAnotherPort {
+    AudioDevice *moved = [[AudioDevice alloc] initWithName:@"Audient iD4"
+            uid:@"AppleUSBAudioEngine:Audient:Audient iD4:1100000:1,2"
+            modelUID:@"Audient iD4:2708:0009" deviceId:7 isSystemDefault:NO
+            transportType:kAudioDeviceTransportTypeUSB];
+    AudioDevice *found = [AudioDeviceManager
+            deviceForUID:@"AppleUSBAudioEngine:Audient:Audient iD4:2100000:1,2"
+                modelUID:@"Audient iD4:2708:0009" name:@"Audient iD4" inDevices:@[moved]];
+    XCTAssertEqual(found, moved);
+}
+
+// The model UID outranks the name because it tells apart two models that share
+// a name; the name cannot. Otherwise the wrong one could inherit exclusive.
+- (void)testModelUIDOutranksAMatchingName {
+    AudioDevice *impostor = [[AudioDevice alloc] initWithName:@"Audient iD4" uid:@"other"
+            modelUID:@"Someone Else:1234:0001" deviceId:1 isSystemDefault:NO
+            transportType:kAudioDeviceTransportTypeUSB];
+    AudioDevice *real = [[AudioDevice alloc] initWithName:@"Audient iD4" uid:@"new-port"
+            modelUID:@"Audient iD4:2708:0009" deviceId:2 isSystemDefault:NO
+            transportType:kAudioDeviceTransportTypeUSB];
+    AudioDevice *found = [AudioDeviceManager deviceForUID:@"old-port" modelUID:@"Audient iD4:2708:0009"
+                                                     name:@"Audient iD4" inDevices:@[impostor, real]];
+    XCTAssertEqual(found, real);
+}
+
+// Device UID is still the most specific answer and wins over a model match.
+- (void)testDeviceUIDOutranksModelUID {
+    AudioDevice *sibling = [[AudioDevice alloc] initWithName:@"Audient iD4" uid:@"port-a"
+            modelUID:@"Audient iD4:2708:0009" deviceId:1 isSystemDefault:NO
+            transportType:kAudioDeviceTransportTypeUSB];
+    AudioDevice *exact = [[AudioDevice alloc] initWithName:@"Audient iD4" uid:@"port-b"
+            modelUID:@"Audient iD4:2708:0009" deviceId:2 isSystemDefault:NO
+            transportType:kAudioDeviceTransportTypeUSB];
+    AudioDevice *found = [AudioDeviceManager deviceForUID:@"port-b" modelUID:@"Audient iD4:2708:0009"
+                                                     name:@"Audient iD4" inDevices:@[sibling, exact]];
+    XCTAssertEqual(found, exact);
+}
+
+// An empty model UID must never match a device that also reports none.
+- (void)testEmptyModelUIDNeverMatches {
+    AudioDevice *unnamed = [[AudioDevice alloc] initWithName:@"Virtual" uid:@"v"
+            modelUID:@"" deviceId:1 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
+    XCTAssertNil([AudioDeviceManager deviceForUID:@"gone" modelUID:@"" name:@"" inDevices:@[unnamed]]);
+}
+
 - (void)testSavedDeviceResolutionPrefersUIDThenFallsBackToName {
     AudioDevice *a = [self device:1 uid:@"a" name:@"DAC"];
     AudioDevice *b = [self device:2 uid:@"b" name:@"DAC"];
@@ -745,13 +841,24 @@ static VibeBitPerfectReport Perfect(void) {
 
 #pragma mark - Deferred saved-device bind races
 
+// Arguments: stopped, loading, paused, engineRunning, audioActive.
 - (void)testSavedDeviceMayBindAtIdleOrSilentLaunchButNotUnderAnOutgoingFade {
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO));
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, YES));
-    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, YES, NO));
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, YES, YES));
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES)); // playing or paused
-    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, NO)); // paused engine may be idle-stopped
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, NO, NO));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, YES, NO));
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, YES, NO, NO, NO));
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, YES, NO, YES, YES)); // under an outgoing fade
+}
+
+- (void)testSavedDeviceNeverBindsUnderPlayback {
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, NO, YES, YES));
+}
+
+// A vanished device parks playback as Paused, so this is the case that decides
+// whether it can be re-adopted when it comes back without waiting for a stop.
+- (void)testSavedDeviceBindsOnceAPauseHasSettledButNotDuringItsFade {
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, NO, NO));  // idle-stopped
+    XCTAssertTrue(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, NO)); // engine up, fade done
+    XCTAssertFalse(VibeCanBindSavedOutputDevice(NO, NO, YES, YES, YES)); // pause fade still audible
 }
 
 - (void)testSavedDeviceAnswerCannotOverwriteManualSelectionOrANewerPreference {

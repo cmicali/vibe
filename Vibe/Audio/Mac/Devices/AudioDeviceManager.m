@@ -245,6 +245,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 // The same read, but nil rather than empty when nothing has been published
 // yet. The distinction only matters to a caller deciding whether a device is
 // GONE; see knowsOutputDeviceIsAbsent:.
+- (nullable NSArray<AudioDevice *> *)cachedOutputDevices {
+    os_unfair_lock_lock(&_devicesLock);
+    NSArray<AudioDevice *> *devices = _cachedOutputDevices;
+    os_unfair_lock_unlock(&_devicesLock);
+    return devices;
+}
+
 - (nullable NSArray<AudioDevice *> *)publishedOutputDevices {
     dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW,
             (int64_t)(kListenerSetupWait * NSEC_PER_SEC));
@@ -510,9 +517,26 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 + (AudioDevice *)deviceForUID:(NSString *)uid
                          name:(NSString *)name
                     inDevices:(NSArray<AudioDevice *> *)devices {
+    return [self deviceForUID:uid modelUID:nil name:name inDevices:devices];
+}
+
++ (AudioDevice *)deviceForUID:(NSString *)uid
+                     modelUID:(NSString *)modelUID
+                         name:(NSString *)name
+                    inDevices:(NSArray<AudioDevice *> *)devices {
     if (uid.length > 0) {
         for (AudioDevice *device in devices) {
             if ([device.uid isEqualToString:uid]) {
+                return device;
+            }
+        }
+    }
+    // Before the name: the model identifier is documented and distinguishes two
+    // models that happen to share a name, which the name cannot. It is what
+    // finds a class-compliant interface moved to another USB port.
+    if (modelUID.length > 0) {
+        for (AudioDevice *device in devices) {
+            if ([device.modelUID isEqualToString:modelUID]) {
                 return device;
             }
         }
@@ -530,14 +554,23 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 - (void)resolveOutputDeviceForUID:(NSString *)uid
                               name:(NSString *)name
                         completion:(void (^)(AudioDevice *))completion {
+    [self resolveOutputDeviceForUID:uid modelUID:nil name:name completion:completion];
+}
+
+- (void)resolveOutputDeviceForUID:(NSString *)uid
+                          modelUID:(NSString *)modelUID
+                              name:(NSString *)name
+                        completion:(void (^)(AudioDevice *))completion {
     if (!completion) {
         return;
     }
     NSString *savedUID = [uid copy] ?: @"";
+    NSString *savedModelUID = [modelUID copy] ?: @"";
     NSString *savedName = [name copy] ?: @"";
     dispatch_async(_refreshQueue, ^{
         void (^resolve)(NSArray<AudioDevice *> *) = ^(NSArray<AudioDevice *> *devices) {
-            completion([AudioDeviceManager deviceForUID:savedUID name:savedName inDevices:devices]);
+            completion([AudioDeviceManager deviceForUID:savedUID modelUID:savedModelUID
+                                                   name:savedName inDevices:devices]);
         };
         if (self->_hasSuccessfulSnapshot) {
             os_unfair_lock_lock(&self->_devicesLock);
@@ -577,8 +610,13 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     // whose transport is unknown.
     UInt32 transportType = kAudioDeviceTransportTypeUnknown;
     [CoreAudioUtil readTransportType:&transportType forDeviceID:deviceID];
+    // Optional for the same reason: it only ever widens what a saved device
+    // can be matched by, so a failed read must not drop the device.
+    NSString *modelUID = nil;
+    [CoreAudioUtil readModelUID:&modelUID forDeviceID:deviceID];
     *device = [[AudioDevice alloc] initWithName:name
                                             uid:uid ?: @""
+                                       modelUID:modelUID ?: @""
                                        deviceId:(NSInteger)deviceID
                                 isSystemDefault:(deviceID == defaultID)
                                   transportType:transportType];

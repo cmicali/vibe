@@ -330,8 +330,16 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL bitPerfectBefore = settings.bitPerfectOutput;
     if (newDeviceIndex == -1) {
-        settings.audioOutputDeviceName = @"";
-        settings.audioOutputDeviceUID = @"";
+        // Only a System Output the user CHOSE forgets the device. One that
+        // vanished keeps it as the saved preference, which is what re-adopts
+        // it when it returns — in this session through the player's pending
+        // intent, after a relaunch through the ordinary launch resolution.
+        if (audioPlayer.involuntaryFallbackDeviceUID.length == 0
+                && audioPlayer.involuntaryFallbackDeviceName.length == 0) {
+            settings.audioOutputDeviceName = @"";
+            settings.audioOutputDeviceUID = @"";
+            settings.audioOutputDeviceModelUID = @"";
+        }
     }
     else {
         AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:newDeviceIndex];
@@ -339,8 +347,21 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // failed transiently. Keep the previous persisted choice rather than
         // erasing it.
         if (device) {
+            // The same model under a new device UID is the same interface on
+            // another USB port: its UID is its port. The player already bound
+            // it with the old UID's modes; this persists that carry, here on
+            // main because the mode store's writers all live on main. Before
+            // the UID is overwritten, so bitPerfectBefore still compares equal
+            // and no spurious effect is applied.
+            NSString *previousUID = settings.audioOutputDeviceUID;
+            NSString *previousModelUID = settings.audioOutputDeviceModelUID;
+            if (previousUID.length > 0 && ![previousUID isEqualToString:device.uid]
+                    && previousModelUID.length > 0 && [previousModelUID isEqualToString:device.modelUID]) {
+                [settings carryOutputModesFromDeviceUID:previousUID toDeviceUID:device.uid];
+            }
             settings.audioOutputDeviceName = device.name;
             settings.audioOutputDeviceUID = device.uid;
+            settings.audioOutputDeviceModelUID = device.modelUID;
         }
     }
     // TRAP: a later switch may already be queued or bound. This callback may

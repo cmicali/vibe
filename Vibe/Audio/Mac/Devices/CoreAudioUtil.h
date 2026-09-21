@@ -33,6 +33,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readSystemDefaultOutputDeviceID:(AudioDeviceID *)deviceID;
 + (BOOL)readUID:(NSString * _Nullable * _Nonnull)uid
      forDeviceID:(AudioDeviceID)deviceID;
+// The documented persistent identifier for the device's MODEL, not the unit:
+// two of the same interface share it. Unlike the device UID it carries no USB
+// location, so it survives a port change. Compared as an opaque token, never
+// parsed. Optional, like the UID: absent is a complete read.
++ (BOOL)readModelUID:(NSString * _Nullable * _Nonnull)modelUID
+          forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)readName:(NSString * _Nullable * _Nonnull)name
       forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)readHasOutputChannels:(BOOL *)hasOutputChannels

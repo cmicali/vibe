@@ -57,8 +57,29 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)resolveOutputDeviceForUID:(NSString *)uid
                               name:(NSString *)name
                         completion:(void (^)(AudioDevice * _Nullable device))completion;
+- (void)resolveOutputDeviceForUID:(NSString *)uid
+                          modelUID:(nullable NSString *)modelUID
+                              name:(NSString *)name
+                        completion:(void (^)(AudioDevice * _Nullable device))completion;
 
 - (nullable AudioDevice *)outputDeviceForId:(NSInteger)deviceId;
+
+// The published snapshot, or nil when none exists yet — WITHOUT waiting on
+// listener setup, unlike outputDevices and publishedOutputDevices. For the
+// player queue, which must never block on the HAL: an unavailable coreaudiod
+// answers nil here rather than stalling playback for the setup ceiling.
+- (nullable NSArray<AudioDevice *> *)cachedOutputDevices;
+
+// The one matching rule for a saved device, most specific first: the device
+// UID (the unit), then the model UID (the same model on another USB port), then
+// the name (settings saved before either existed). Empty never matches.
++ (nullable AudioDevice *)deviceForUID:(nullable NSString *)uid
+                              modelUID:(nullable NSString *)modelUID
+                                  name:(nullable NSString *)name
+                             inDevices:(NSArray<AudioDevice *> *)devices;
++ (nullable AudioDevice *)deviceForUID:(nullable NSString *)uid
+                                  name:(nullable NSString *)name
+                             inDevices:(NSArray<AudioDevice *> *)devices;
 
 @end
 

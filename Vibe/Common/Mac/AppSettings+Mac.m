@@ -16,6 +16,7 @@
 #define SETTING_WINDOW_APPEARANCE_STYLE             @"Settings.windowAppearance"
 #define SETTING_AUDIO_PLAYER_DEVICE_NAME            @"AudioPlayer.deviceName"
 #define SETTING_AUDIO_PLAYER_DEVICE_UID             @"AudioPlayer.deviceUID"
+#define SETTING_AUDIO_PLAYER_DEVICE_MODEL_UID       @"AudioPlayer.deviceModelUID"
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
@@ -71,6 +72,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     [defaults addEntriesFromDictionary:@{
             SETTING_AUDIO_PLAYER_DEVICE_NAME:       @"",
             SETTING_AUDIO_PLAYER_DEVICE_UID:        @"",
+            SETTING_AUDIO_PLAYER_DEVICE_MODEL_UID:  @"",
             SETTING_WINDOW_APPEARANCE_STYLE:        SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DEFAULT,
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
@@ -627,6 +629,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setObject:deviceUID forKey:SETTING_AUDIO_PLAYER_DEVICE_UID];
 }
 
+- (NSString *)audioOutputDeviceModelUID {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:SETTING_AUDIO_PLAYER_DEVICE_MODEL_UID];
+}
+
+- (void)setAudioOutputDeviceModelUID:(NSString *)modelUID {
+    [[NSUserDefaults standardUserDefaults] setObject:modelUID ?: @"" forKey:SETTING_AUDIO_PLAYER_DEVICE_MODEL_UID];
+}
+
 #pragma mark Window
 
 // The default is Auto — the window follows the OS. The pre-theme app pinned
@@ -821,6 +831,25 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     else {
         [defaults removeObjectForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
     }
+}
+
+// Main thread only, like every writer of this store: it is an unlocked
+// read-modify-write of one dictionary. Copies rather than moves, so the old
+// port keeps its entry and the device still finds its modes if moved back.
+// An existing entry under the destination wins — something already chose
+// modes for that exact unit, and a carry must never overwrite a choice.
+- (void)carryOutputModesFromDeviceUID:(NSString *)fromUID toDeviceUID:(NSString *)toUID {
+    if (fromUID.length == 0 || toUID.length == 0 || [fromUID isEqualToString:toUID]) {
+        return;
+    }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *devices = [[defaults dictionaryForKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID] mutableCopy];
+    NSDictionary *modes = devices[fromUID];
+    if (![modes isKindOfClass:NSDictionary.class] || modes.count == 0 || devices[toUID]) {
+        return;
+    }
+    devices[toUID] = modes;
+    [defaults setObject:devices forKey:SETTING_OUTPUT_MODES_BY_DEVICE_UID];
 }
 
 - (BOOL)bitPerfectOutputForDeviceUID:(NSString *)deviceUID {
