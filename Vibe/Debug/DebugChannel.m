@@ -12,11 +12,48 @@
 
 static VibeDebugChannelExecutor gExecutor;
 
+// A short tag joining a command's log line to its reply's. The full id is the
+// client's; eight characters cannot collide within one debugging session.
+static NSString *VibeDebugLogTag(NSString *commandId) {
+    return commandId.length > 8 ? [commandId substringToIndex:8] : (commandId ?: @"?");
+}
+
+// Every reply, so a failed command is visible in the log rather than only to a
+// client that may have thrown the reply away — which is how a "no such device"
+// answer once went unseen while its caller read the silence as success. Errors
+// persist (Warn) and are logged whole: they are short, and they are the point.
+// A success is Info and trimmed, because dump_state and the screenshot verbs
+// answer with tens of kilobytes and a stress run sends thousands of commands.
+// Only a short reply is parsed: nothing large is ever an error.
+static void VibeLogDebugReply(NSString *commandId, NSString *response) {
+    NSString *tag = VibeDebugLogTag(commandId);
+    if (response.length < 4096 && [response containsString:@"\"error\""]) {
+        NSData *data = [response dataUsingEncoding:NSUTF8StringEncoding];
+        id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        id error = [json isKindOfClass:NSDictionary.class] ? json[@"error"] : nil;
+        if ([error isKindOfClass:NSString.class]) {
+            LogWarn(@"Debug reply %@ ERROR: %@", tag, error);
+            return;
+        }
+    }
+    NSString *flat = [[response componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+            componentsJoinedByString:@" "];
+    while ([flat containsString:@"  "]) {
+        flat = [flat stringByReplacingOccurrencesOfString:@"  " withString:@" "];
+    }
+    if (flat.length > 300) {
+        flat = [NSString stringWithFormat:@"%@… (%lu bytes)", [flat substringToIndex:300],
+                (unsigned long)response.length];
+    }
+    LogInfo(@"Debug reply %@: %@", tag, flat);
+}
+
 void VibeWriteDebugResponse(NSString *commandId, NSString *response) {
     [response writeToFile:VibeDebugResponsePath(commandId)
                atomically:YES
                  encoding:NSUTF8StringEncoding
                     error:nil];
+    VibeLogDebugReply(commandId, response);
 }
 
 static void VibeHandleOneDebugCommandFile(NSString *path) {
@@ -55,11 +92,13 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
         VibeWriteDebugResponse(commandId, VibeJSONString(@{@"error": malformed}));
         return;
     }
+    // Before the verb runs, not after: a verb that hangs or crashes must still
+    // have logged what it was asked to do, and the reply then reads in order.
+    LogInfo(@"Debug command %@: %@", VibeDebugLogTag(commandId), [args componentsJoinedByString:@" "]);
     NSString *response = gExecutor(args, commandId);
     if (response) {
         VibeWriteDebugResponse(commandId, response);
     }
-    LogInfo(@"Debug command dispatched: %@", [args componentsJoinedByString:@" "]);
 }
 
 // notify_post coalesces back-to-back posts into one delivery, so a single
