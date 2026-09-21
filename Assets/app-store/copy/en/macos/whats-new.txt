@@ -1,11 +1,12 @@
-This beta makes it easy to send everything needed to track down a problem,
-in one file.
+This beta records more about what happens when a track starts, to track down
+a delay some USB speakers show with Exclusive output on.
 
-* New: Settings > Advanced > Debug info > Save… writes a text file with your
-  settings, your audio devices and the formats they support, and this
-  session's log, ready to attach to a bug report. It only reads; it changes
-  nothing.
-* This beta keeps more of its log, so the file includes what happened before
-  you saved it. Save it before quitting Vibe.
-* Fixed: with the Settings window open, a change in the bit-perfect status no
-  longer makes the window recalculate its layout during playback.
+* New: Vibe now records how long after your click each track's audio really
+  started, every change your audio devices report, and any moment the app was
+  too busy to respond. Settings > Advanced > Debug info > Save… includes it.
+* New: press M while Vibe is in front to mark a moment in that record, for
+  example the moment you hear a problem.
+* Quitting no longer waits on your audio device: the window closes at once and
+  Vibe puts the device back the way it found it in the background.
+* Fixed: opening Vibe with Exclusive output on could show "Failed to get
+  device's audio settings" for bit-perfect output for the whole session.
