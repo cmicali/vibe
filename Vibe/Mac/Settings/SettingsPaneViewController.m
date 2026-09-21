@@ -257,16 +257,30 @@ static const CGFloat kInlineTitleInset = 10;
     self.view = view;
 }
 
-// What this pane alone would take: the section stack it is currently showing,
-// floored at the design size.
-// TRAP: `fittingSize` is a full Auto Layout solve of the pane, not a lookup.
-// Every caller pays for one, so recording the answer here keeps each pane's
-// last measurement current wherever it was taken — including the shared pass,
-// which measures every loaded pane.
+// What this pane alone would take, floored at the design size: its own width,
+// the section stack's height.
+// TRAP: the width must be the PANE's, never the stack's. A page swapped in
+// beside the stack — the theme editor — keeps its required width while
+// hidden, so the pane cannot lay out narrower than that whatever the stack
+// asks for. A floor measured from the stack alone left the window able to sit
+// 67 points narrower than the pane it hosts: the pane then overflowed the tab
+// view and every trailing control was clipped, on every pane (#60). The
+// height stays the stack's, because a swapped-in page scrolls — twenty editor
+// rows must not grow every pane.
+// TRAP: `fittingSize` is a full Auto Layout solve, not a lookup, and this
+// takes two — the pane's subtree covers the stack's, but the height has
+// nowhere else to come from. Recording the answer here keeps each pane's last
+// measurement current wherever it was taken, including the shared pass, which
+// measures every loaded pane.
 - (NSSize)naturalPaneSize {
-    NSSize fitting = _sectionStack.fittingSize;
-    _lastNaturalSize = NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
-                      MIN(kSettingsPaneMaxHeight, MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding)));
+    NSSize stack = _sectionStack.fittingSize;
+    // Before the view exists — the seed inside loadPaneWithSections: — the
+    // stack is all there is to measure; the shared pass remeasures once every
+    // pane is loaded.
+    CGFloat width = self.isViewLoaded ? self.view.fittingSize.width
+                                      : stack.width + 2 * kPanePadding;
+    _lastNaturalSize = NSMakeSize(MAX(kSettingsPaneWidth, width),
+                      MIN(kSettingsPaneMaxHeight, MAX(kSettingsPaneMinHeight, stack.height + 2 * kPanePadding)));
     return _lastNaturalSize;
 }
 
