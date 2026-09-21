@@ -170,6 +170,9 @@ static const CGFloat kInlineTitleInset = 10;
 
 @implementation SettingsPaneViewController {
     NSStackView *_sectionStack;
+    // What this pane last measured. The shared size is a MAXIMUM over panes,
+    // so a pane whose own natural size has not moved cannot have moved it.
+    NSSize _lastNaturalSize;
     id _windowKeyObserver;
     id _menuTrackingObserver;
 }
@@ -256,10 +259,15 @@ static const CGFloat kInlineTitleInset = 10;
 
 // What this pane alone would take: the section stack it is currently showing,
 // floored at the design size.
+// TRAP: `fittingSize` is a full Auto Layout solve of the pane, not a lookup.
+// Every caller pays for one, so recording the answer here keeps each pane's
+// last measurement current wherever it was taken — including the shared pass,
+// which measures every loaded pane.
 - (NSSize)naturalPaneSize {
     NSSize fitting = _sectionStack.fittingSize;
-    return NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
+    _lastNaturalSize = NSMakeSize(MAX(kSettingsPaneWidth, fitting.width + 2 * kPanePadding),
                       MIN(kSettingsPaneMaxHeight, MAX(kSettingsPaneMinHeight, fitting.height + 2 * kPanePadding)));
+    return _lastNaturalSize;
 }
 
 // YES when the pane's size actually moved, which is what the host needs to
@@ -333,22 +341,32 @@ static const CGFloat kInlineTitleInset = 10;
     if (!_sectionStack) {
         return;
     }
+    // TRAP: a closed Settings window is not a cheap one. This used to fall
+    // through to the measurement and skip only the animation, so one visit to
+    // Settings loaded all six panes and then taxed every later content change
+    // with six Auto Layout solves for a window nobody was looking at. Nothing
+    // is on screen to resize, and showWindow: remeasures every pane, so the
+    // right amount of work here is none (#47).
+    if (!self.view.window.isVisible) {
+        return;
+    }
     // Capture the old arranged-view frames before hidden changes replace the
     // stack's constraints. The layout pass inside the animation then moves the
     // section headers and cards with the frame instead of jumping ahead of it.
     [self.view layoutSubtreeIfNeeded];
-    void (^updates)(void) = ^{
-        [self remeasurePanes];
-        [self.view layoutSubtreeIfNeeded];
-    };
-    if (!self.view.window.isVisible) {
-        updates();
+    // Measure self before the siblings. A caption rewrite is the common reason
+    // to be here and almost never moves a pane's geometry; when ours has not
+    // moved the maximum cannot have either, so the sibling solves and the
+    // resize animation are pure waste. Costs one solve instead of six.
+    NSSize previous = _lastNaturalSize;
+    if (NSEqualSizes([self naturalPaneSize], previous)) {
         return;
     }
     [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
         context.duration = kWindowResizeAnimationDuration;
         context.allowsImplicitAnimation = YES;
-        updates();
+        [self remeasurePanes];
+        [self.view layoutSubtreeIfNeeded];
     }];
 }
 

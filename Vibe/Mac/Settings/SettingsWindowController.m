@@ -639,6 +639,14 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
 }
 
+// Panes measure nothing while the window is hidden, so a content change that
+// landed with Settings closed has no measurement behind it. Settle every pane
+// on the way in rather than leaving the first shown pane to discover it.
+- (void)showWindow:(id)sender {
+    [super showWindow:sender];
+    [SettingsPaneViewController settleSharedSizeForPanes:_tabs.childViewControllers];
+}
+
 - (void)refreshSelectedPane {
     if (!self.window.isVisible) return;
     NSInteger index = _tabs.selectedTabViewItemIndex;
