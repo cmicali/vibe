@@ -92,6 +92,14 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
     BOOL _defaultListenerRegistered;
     BOOL _devicesListenerRegistered;
     BOOL _listenerRegistrationRetryScheduled;
+#if VIBE_VERBOSE_LOGGING
+    // Beta instrumentation (#47): the device event log. Per watched device id,
+    // its name, the listener blocks and the stream they sit on, which removal
+    // needs; confined to _refreshQueue. Events arrive on _eventLogQueue.
+    NSMutableDictionary<NSNumber *, NSDictionary *> *_eventLogWatches;
+    dispatch_queue_t _eventLogQueue;
+    NSInteger _eventLogDefaultID;
+#endif
 }
 
 // The client data is the singleton, which lives for the whole process, so the
@@ -310,6 +318,11 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     _cachedOutputDevices = devices;
     os_unfair_lock_unlock(&_devicesLock);
     _hasSuccessfulSnapshot = YES;
+#if VIBE_VERBOSE_LOGGING
+    if (!_enumerator) {
+        [self watchDevicesForEventLog:devices];
+    }
+#endif
     NSArray<void (^)(NSArray<AudioDevice *> *)> *waiters = [_snapshotWaiters copy];
     [_snapshotWaiters removeAllObjects];
     for (void (^waiter)(NSArray<AudioDevice *> *) in waiters) {
@@ -317,6 +330,122 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
     }
     return YES;
 }
+
+#if VIBE_VERBOSE_LOGGING
+// Every property whose change the device event log records, registered only
+// where a device has it. The point is what changes on a device while Vibe
+// holds it: a reporter's delay the Mac could not otherwise see (#47).
+static const AudioObjectPropertyAddress kVibeEventLogDeviceAddresses[] = {
+    { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyDeviceIsRunning, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyClockSource, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyClockSource, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDeviceProcessorOverload, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyDeviceHasChanged, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyVolumeScalar, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyDataSource, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyJackIsConnected, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain },
+};
+static const AudioObjectPropertyAddress kVibeEventLogStreamAddresses[] = {
+    { kAudioStreamPropertyPhysicalFormat, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioStreamPropertyVirtualFormat, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+    { kAudioStreamPropertyIsActive, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain },
+};
+
+static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAddress *addresses, size_t count,
+                               dispatch_queue_t queue, AudioObjectPropertyListenerBlock listener, BOOL add) {
+    for (size_t i = 0; i < count; i++) {
+        if (!AudioObjectHasProperty(object, &addresses[i])) {
+            continue;
+        }
+        if (add) {
+            AudioObjectAddPropertyListenerBlock(object, &addresses[i], queue, listener);
+        } else {
+            AudioObjectRemovePropertyListenerBlock(object, &addresses[i], queue, listener);
+        }
+    }
+}
+
+// Follows the published snapshot: a device that appears is watched and says
+// so, one that goes says so, and a default change is logged with its name.
+- (void)watchDevicesForEventLog:(NSArray<AudioDevice *> *)devices {
+    if (!_eventLogQueue) {
+        _eventLogQueue = dispatch_queue_create("com.vibe.audiodevicemanager.eventlog", DISPATCH_QUEUE_SERIAL);
+        _eventLogWatches = [NSMutableDictionary dictionary];
+        _eventLogDefaultID = -1;
+    }
+    size_t deviceCount = sizeof(kVibeEventLogDeviceAddresses) / sizeof(kVibeEventLogDeviceAddresses[0]);
+    size_t streamCount = sizeof(kVibeEventLogStreamAddresses) / sizeof(kVibeEventLogStreamAddresses[0]);
+    NSMutableSet<NSNumber *> *present = [NSMutableSet set];
+    NSInteger defaultID = -1;
+    NSString *defaultName = @"";
+    for (AudioDevice *device in devices) {
+        NSNumber *key = @(device.deviceId);
+        [present addObject:key];
+        if (device.isSystemDefault) {
+            defaultID = device.deviceId;
+            defaultName = device.name;
+        }
+        if (_eventLogWatches[key]) {
+            continue;
+        }
+        NSString *name = device.name;
+        AudioObjectID object = (AudioObjectID)device.deviceId;
+        AudioObjectPropertyListenerBlock deviceListener = ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
+            for (UInt32 i = 0; i < count; i++) {
+                LogInfo(@"HAL: %@ (%u) %@", name, object,
+                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:object]);
+            }
+        };
+        VibeEventLogListen(object, kVibeEventLogDeviceAddresses, deviceCount, _eventLogQueue, deviceListener, YES);
+        AudioStreamID stream = kAudioObjectUnknown;
+        AudioStreamBasicDescription physical = {0};
+        AudioStreamRangedDescription *available = NULL;
+        UInt32 availableCount = 0;
+        [CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:&available
+                                  count:&availableCount forDeviceID:object];
+        free(available);
+        AudioObjectPropertyListenerBlock streamListener = ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
+            for (UInt32 i = 0; i < count; i++) {
+                LogInfo(@"HAL: %@ (%u) %@", name, object,
+                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:stream]);
+            }
+        };
+        if (stream != kAudioObjectUnknown) {
+            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, _eventLogQueue, streamListener, YES);
+        }
+        _eventLogWatches[key] = @{@"name": name, @"device": deviceListener,
+                                  @"stream": streamListener, @"streamID": @(stream)};
+        LogInfo(@"HAL: watching %@ (%u)", name, object);
+    }
+    for (NSNumber *key in _eventLogWatches.allKeys) {
+        if ([present containsObject:key]) {
+            continue;
+        }
+        NSDictionary *watch = _eventLogWatches[key];
+        VibeEventLogListen(key.unsignedIntValue, kVibeEventLogDeviceAddresses, deviceCount, _eventLogQueue,
+                           watch[@"device"], NO);
+        AudioStreamID stream = [watch[@"streamID"] unsignedIntValue];
+        if (stream != kAudioObjectUnknown) {
+            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, _eventLogQueue, watch[@"stream"], NO);
+        }
+        [_eventLogWatches removeObjectForKey:key];
+        LogInfo(@"HAL: %@ (%@) is gone", watch[@"name"], key);
+    }
+    if (defaultID != _eventLogDefaultID) {
+        _eventLogDefaultID = defaultID;
+        LogInfo(@"HAL: macOS default output is now %@ (%ld)", defaultName, (long)defaultID);
+    }
+}
+#endif
 
 - (void)scheduleSnapshotRetry {
     if (_snapshotRetryScheduled) {

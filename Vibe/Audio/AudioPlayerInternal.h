@@ -87,6 +87,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // guarded by _stateLock because queue-side settlements and iOS recovery
     // completions compare against submissions made from main.
     uint64_t                _nextSubmittedPlayIdentifier;
+    // VIBE_VERBOSE_LOGGING's track-change timeline: when the newest play was
+    // requested, under _stateLock, consumed by the next node start. 0 = none.
+    uint64_t                _timelineRequestedAt;
     // The explicit play submission which owns the currently sounding graph.
     // Gapless promotion preserves it; a newer explicit play, stop, or failure
     // clears it. Natural-end and promotion deliveries capture it so replaying

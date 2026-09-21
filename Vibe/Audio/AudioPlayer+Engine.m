@@ -5,6 +5,7 @@
 
 #import "AudioPlayer+Engine.h"
 #import "AudioPlayerInternal.h"
+#import "AudioTrack.h"
 
 // Give the next track time to open before releasing the idle engine.
 static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
@@ -29,6 +30,30 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
 static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     return (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startNanos) / NSEC_PER_SEC;
 }
+
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): the offset of the first frame at or above
+// -60 dBFS within the first three seconds of url, so a track that opens with
+// silence is not read as a late start. -1 when unreadable or silent throughout.
+static double VibeSecondsToFirstSound(NSURL *url) {
+    AVAudioFile *file = url ? [[AVAudioFile alloc] initForReading:url error:NULL] : nil;
+    AVAudioFormat *format = file.processingFormat;
+    AVAudioFrameCount frames = (AVAudioFrameCount)MIN(file.length, (AVAudioFramePosition)(format.sampleRate * 3));
+    AVAudioPCMBuffer *buffer = file && frames > 0
+            ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:frames] : nil;
+    if (!buffer || ![file readIntoBuffer:buffer frameCount:frames error:NULL] || !buffer.floatChannelData) {
+        return -1;
+    }
+    for (AVAudioFrameCount i = 0; i < buffer.frameLength; i++) {
+        for (AVAudioChannelCount c = 0; c < format.channelCount; c++) {
+            if (fabsf(buffer.floatChannelData[c][i]) >= 0.001f) {
+                return i / format.sampleRate;
+            }
+        }
+    }
+    return -1;
+}
+#endif
 
 @implementation AudioPlayer (Engine)
 
@@ -80,6 +105,9 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
             LogTiming(slowStart, @"AudioPlayer: %@start — engine %.3fs, node play %.3fs "
                     @"(the player queue was blocked for this long)",
                     slowStart ? @"slow " : @"", engineStartSeconds, nodePlaySeconds);
+#if VIBE_VERBOSE_LOGGING
+            [self logFirstRenderOfNode:node playedAt:playedAt];
+#endif
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }
@@ -89,6 +117,84 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     }
     return NO;
 }
+
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): when the node's first frame actually reached the
+// output, read from the node's own render clock rather than assumed from
+// [node play] returning — the reporter's time counter stays still through the
+// lag, and it counts rendered frames. For a track start, also how long after
+// the request. Manual rendering has no hardware clock to measure, so the
+// render suites skip it.
+- (void)logFirstRenderOfNode:(AVAudioPlayerNode *)node playedAt:(uint64_t)playedAt {
+    os_unfair_lock_lock(&_stateLock);
+    uint64_t requestedAt = _timelineRequestedAt;
+    _timelineRequestedAt = 0;
+    os_unfair_lock_unlock(&_stateLock);
+    if (_engine.isInManualRenderingMode) {
+        return;
+    }
+    if (requestedAt && playedAt - requestedAt > 30 * NSEC_PER_SEC) {
+        requestedAt = 0; // a request that never started, not this one
+    }
+    [self pollFirstRenderOfNode:node playedAt:playedAt requestedAt:requestedAt
+                        latency:_engine.outputNode.presentationLatency attempt:0];
+}
+
+// TRAP: poll on _queue, never off it. This queue detaches nodes, and AVFAudio
+// raises (required condition _engine != nil) when a node's render time is read
+// while it is being detached; off the queue that was a crash the first time a
+// crossfade retired the node mid-poll. A node no longer attached was
+// superseded, which ends the poll without a line.
+- (void)pollFirstRenderOfNode:(AVAudioPlayerNode *)node playedAt:(uint64_t)playedAt
+                  requestedAt:(uint64_t)requestedAt latency:(double)latency attempt:(int)attempt {
+    if (node.engine != _engine) {
+        return;
+    }
+    AVAudioTime *render = nil;
+    AVAudioTime *player = nil;
+    @try {
+        render = node.lastRenderTime;
+        if (render.sampleTimeValid && render.hostTimeValid) {
+            player = [node playerTimeForNodeTime:render];
+        }
+    }
+    @catch (NSException *exception) {
+        return; // instrumentation must never take playback down with it
+    }
+    if (!(player.sampleTimeValid && player.sampleTime > 0)) {
+        if (attempt >= 1500) {
+            LogWarn(@"Timeline: no audio rendered 3 s after node play");
+            return;
+        }
+        __weak AudioPlayer *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_MSEC), _queue, ^{
+            [weakSelf pollFirstRenderOfNode:node playedAt:playedAt requestedAt:requestedAt
+                                    latency:latency attempt:attempt + 1];
+        });
+        return;
+    }
+    // The host time of the node's frame 0: the render's host time, minus the
+    // frames the node has rendered since.
+    double firstOut = [AVAudioTime secondsForHostTime:render.hostTime] - player.sampleTime / player.sampleRate;
+    NSURL *url = requestedAt ? self.currentTrack.url : nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSMutableString *line = [NSMutableString stringWithFormat:
+                @"Timeline: first audio out %.0f ms after node play", (firstOut - playedAt / 1e9) * 1000];
+        if (requestedAt) {
+            double request = requestedAt / 1e9;
+            [line appendFormat:@", %.0f ms after the play was requested", (firstOut - request) * 1000];
+            double sound = VibeSecondsToFirstSound(url);
+            if (sound >= 0) {
+                [line appendFormat:@"; %@ opens with %.0f ms of near-silence, so sound at the output %.0f ms "
+                        @"after the request", url.lastPathComponent, sound * 1000,
+                        (firstOut + sound - request) * 1000];
+            }
+        }
+        [line appendFormat:@"; output presentation latency %.1f ms", latency * 1000];
+        LogInfo(@"%@", line);
+    });
+}
+#endif
 
 - (void)scheduleEngineIdleStopOnQueue {
     uint64_t generation = ++_engineIdleStopGeneration;

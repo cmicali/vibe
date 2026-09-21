@@ -146,7 +146,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) decides whether info and debug are kept**: at 1, the beta setting, every level is written at Default, so Settings > Advanced > Save Debug Info and `log show` retrieve it after the fact; at 0, the stable-release setting, info and debug are not persisted and must be streamed live — see the `vibe-debug` skill.
+`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) decides whether info and debug are kept**: at 1, the beta setting, every level is written at Default, so Settings > Advanced > Save Debug Info and `log show` retrieve it after the fact; at 0, the stable-release setting, info and debug are not persisted and must be streamed live — see the `vibe-debug` skill. **The same flag compiles in the beta instrumentation**, all of it logging only: a per-play `Timeline:` line (the input event's delay in `PlaylistController`, the first frame actually rendered from the node's own clock in `AudioPlayer+Engine`), a `HAL:` event log of every watched property change on every output device (`AudioDeviceManager`), `Stall:` lines when the main thread or the player queue cannot run anything for over 200 ms (`AudioPlayer.m`), and the M key's `USER MARK` (`Mac/MainWindow/Transport/`).
 
 ## Localization
 

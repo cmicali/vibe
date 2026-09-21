@@ -616,6 +616,61 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     return d;
 }
 
+#if VIBE_VERBOSE_LOGGING
++ (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object {
+    UInt32 u = 0;
+    BOOL haveU = VibeReadDeviceProperty(object, address.mSelector, address.mScope, &u, sizeof(u));
+    NSString *value = haveU ? [NSString stringWithFormat:@"%u", (unsigned)u] : @"?";
+    switch (address.mSelector) {
+        case kAudioDevicePropertyDeviceIsAlive:             return [@"alive = " stringByAppendingString:value];
+        case kAudioDevicePropertyDeviceIsRunning:           return [@"running = " stringByAppendingString:value];
+        case kAudioDevicePropertyDeviceIsRunningSomewhere:  return [@"running somewhere = " stringByAppendingString:value];
+        case kAudioDevicePropertyBufferFrameSize:           return [NSString stringWithFormat:@"buffer = %@ frames", value];
+        case kAudioDevicePropertyLatency:                   return [NSString stringWithFormat:@"latency = %@ frames", value];
+        case kAudioDevicePropertySafetyOffset:              return [NSString stringWithFormat:@"safety offset = %@ frames", value];
+        case kAudioDevicePropertyMute:                      return [@"mute = " stringByAppendingString:value];
+        case kAudioDevicePropertyJackIsConnected:           return [@"jack connected = " stringByAppendingString:value];
+        case kAudioStreamPropertyIsActive:                  return [@"stream active = " stringByAppendingString:value];
+        case kAudioDevicePropertyDataSource:
+            return [@"data source = " stringByAppendingString:haveU ? VibeFourCCText(u) : @"?"];
+        case kAudioDeviceProcessorOverload:                 return @"IO overload: a cycle was dropped";
+        case kAudioDevicePropertyDeviceHasChanged:          return @"reports it has changed";
+        case kAudioDevicePropertyClockSource:
+            return [@"clock source = " stringByAppendingString:VibeReadClockSourceName(object) ?: @"?"];
+        case kAudioDevicePropertyNominalSampleRate: {
+            Float64 rate = 0;
+            VibeReadDeviceProperty(object, address.mSelector, address.mScope, &rate, sizeof(rate));
+            return [NSString stringWithFormat:@"nominal rate = %.0f Hz", rate];
+        }
+        case kAudioDevicePropertyVolumeScalar: {
+            Float32 volume = 0;
+            VibeReadDeviceProperty(object, address.mSelector, address.mScope, &volume, sizeof(volume));
+            return [NSString stringWithFormat:@"volume = %.3f", volume];
+        }
+        case kAudioDevicePropertyStreams: {
+            UInt32 size = 0;
+            AudioObjectGetPropertyDataSize(object, &address, 0, NULL, &size);
+            return [NSString stringWithFormat:@"output streams = %u", (unsigned)(size / sizeof(AudioStreamID))];
+        }
+        case kAudioDevicePropertyHogMode: {
+            pid_t owner = -1;
+            VibeReadDeviceProperty(object, address.mSelector, address.mScope, &owner, sizeof(owner));
+            return [NSString stringWithFormat:@"exclusive owner = %d%@", owner,
+                    owner == getpid() ? @" (Vibe)" : owner == -1 ? @" (none)" : @""];
+        }
+        case kAudioStreamPropertyPhysicalFormat:
+        case kAudioStreamPropertyVirtualFormat: {
+            AudioStreamBasicDescription format = {0};
+            VibeReadDeviceProperty(object, address.mSelector, address.mScope, &format, sizeof(format));
+            return [NSString stringWithFormat:@"%@ format = %@",
+                    address.mSelector == kAudioStreamPropertyPhysicalFormat ? @"physical" : @"virtual",
+                    VibeFormatText(format, (AudioValueRange){0})];
+        }
+    }
+    return [NSString stringWithFormat:@"%@ changed", VibeFourCCText(address.mSelector)];
+}
+#endif
+
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID {
     AudioObjectPropertyAddress address = {

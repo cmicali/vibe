@@ -252,6 +252,15 @@ static unichar VibeBareKeyChar(NSString *chars) {
         [controller togglePitchPanel:nil]; // refuses the reveal under bit-perfect output
         return nil;
     }
+#if VIBE_VERBOSE_LOGGING
+    // Beta instrumentation (#47): M marks the moment a tester hears the
+    // problem, so the log lines up what they perceived with what happened.
+    if ([chars isEqualToString:@"m"]) {
+        static NSUInteger marks;
+        LogWarn(@"USER MARK %lu", (unsigned long)++marks);
+        return nil;
+    }
+#endif
     // The playlist keys, dead while the playlist is collapsed: the table keeps
     // focus off screen, and moving a selection nobody can see is not
     // navigation. Swallowed rather than passed on, because an unhandled key

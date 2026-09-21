@@ -689,6 +689,23 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     if (!track) {
         return;
     }
+#if VIBE_VERBOSE_LOGGING
+    // Beta instrumentation (#47): how long after the click or key the play
+    // reached the player. A lagging main thread shows here, before the player
+    // has seen anything. Only input that can start a play counts: a track end
+    // or a scripted play runs under whatever event AppKit last saw, which says
+    // nothing about this one, and neither does an event over 5 s old.
+    NSEvent *event = NSApp.currentEvent;
+    NSTimeInterval sinceInput = NSProcessInfo.processInfo.systemUptime - event.timestamp;
+    NSString *kind = event.type == NSEventTypeKeyDown ? @"key"
+            : event.type == NSEventTypeSystemDefined ? @"media key"
+            : event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeLeftMouseUp ? @"click"
+            : nil;
+    if (kind && !startPaused && sinceInput < 5) {
+        LogInfo(@"Timeline: play of %@ requested %.0f ms after its input event (%@)",
+                track.url.lastPathComponent, sinceInput * 1000, kind);
+    }
+#endif
     if (startPaused) {
         // play:atPosition:startPaused: is the only entry point that can park a
         // start. It always declicks rather than crossfading, which is what a

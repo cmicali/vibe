@@ -113,6 +113,42 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // The state a category also touches is in AudioPlayerInternal.h; what follows
 // is private to this file.
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): a queue that takes more than 200 ms to run an
+// empty block was blocked by something, and the log says for how long, so a
+// reported freeze can be told apart from late audio. Durations only; what
+// blocked it needs a sample. The timers live as long as the process.
+static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
+    static NSMutableArray *timers;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
+    dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
+    __block BOOL waiting = NO; // confined to watcher
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, watcher);
+    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC, 20 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(timer, ^{
+        if (waiting) {
+            return; // the last ping has not run yet; its own delivery reports it
+        }
+        waiting = YES;
+        uint64_t sent = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        dispatch_async(queue, ^{
+            uint64_t waited = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - sent;
+            dispatch_async(watcher, ^{
+                waiting = NO;
+            });
+            if (waited > 200 * NSEC_PER_MSEC) {
+                LogWarn(@"Stall: the %@ could not run anything for %.0f ms", name, waited / 1e6);
+            }
+        });
+    });
+    dispatch_resume(timer);
+    @synchronized (timers) {
+        [timers addObject:timer];
+    }
+}
+#endif
+
 @implementation AudioPlayer {
     float                   _maxPitch;
     // The fade-in length for the play in flight: the user-set crossfade when
@@ -189,6 +225,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey,
                                     (__bridge void *)self, NULL);
+#if VIBE_VERBOSE_LOGGING
+        // The production player only: the render suites drive their own clock
+        // and hold the queue on purpose.
+        if (!pump) {
+            VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread");
+            VibeWatchQueueForStalls(_queue, @"player queue");
+        }
+#endif
         // Keep the macOS controls and BPM feed stable across live toggles;
         // the FX nodes themselves are created only when first connected.
         _fxEnabled = enableFX;
@@ -520,6 +564,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
     _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
     _lastSubmittedPlayTrack = track;
+#if VIBE_VERBOSE_LOGGING
+    _timelineRequestedAt = startPaused ? 0 : clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#endif
     dispatch_async(_queue, ^{
         [self playOnQueue:track intent:intent declick:declick
    submittedPlayIdentifier:submittedPlayIdentifier];

@@ -109,6 +109,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Every read goes through coreaudiod, so call it off main.
 + (NSDictionary<NSString *, id> *)diagnosticDescriptionOfDeviceID:(AudioDeviceID)deviceID;
 
+#if VIBE_VERBOSE_LOGGING
+// Beta instrumentation (#47): one changed HAL property as a log phrase with
+// its new value ("nominal rate = 44100 Hz", "exclusive owner = 1377 (Vibe)"),
+// for the device event log. Reads through coreaudiod; call it off main.
++ (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object;
+#endif
+
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // A writable hog property permits an attempt, not a promise of ownership.
 + (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID;
