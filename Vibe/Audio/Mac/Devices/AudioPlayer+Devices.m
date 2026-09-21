@@ -334,6 +334,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     [self publishBitPerfectReportOnQueue];
 }
 
+// The output unit's hardware side at the prepared device's rate. An unreadable
+// device format is unknown, never a mismatch: a rebuild on a guess is a gap.
+- (BOOL)outputUnitAtPreparedDeviceRateOnQueue {
+    AudioStreamBasicDescription physical = {0};
+    if (_preparedStreamID == kAudioObjectUnknown
+            || ![CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID]) {
+        return YES;
+    }
+    return [_engine.outputNode outputFormatForBus:0].sampleRate == physical.mSampleRate;
+}
+
 - (void)recoverEngineConfigurationOnQueue {
     // This notification comes from AVAudioEngine, not the device manager, so
     // unlike audioOutputDevicesDidChange it can land before the first snapshot
@@ -351,7 +362,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // only for the paused-graph check below, as before the mode existed.
     BOOL onRequestedDevice = !_bitPerfectWanted || requested < 0
             || [self activeOutputDeviceID] == (AudioDeviceID)requested;
-    BOOL graphHealthy = _engine.isRunning && hasNode && onRequestedDevice;
+    // The mode needs the unit's formats to be that device's too. A pin that
+    // collides with the unit following the default connects the device without
+    // updating them (see settleOutputUnitAfterHoggingSystemDefaultOnQueue:),
+    // and this notification is the one edge left to catch that on: #47's
+    // launch with exclusive on played the whole session "switch failed".
+    BOOL unitAtDeviceRate = !_bitPerfectWanted || requested < 0
+            || (AudioDeviceID)requested != _preparedDeviceID || [self outputUnitAtPreparedDeviceRateOnQueue];
+    BOOL graphHealthy = _engine.isRunning && hasNode && onRequestedDevice && unitAtDeviceRate;
     if (!graphHealthy) {
         // Publish the stopped graph before any recovery branch can wait or
         // return. Transport state intentionally remains unchanged so a
@@ -429,7 +447,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // resume starts the engine, just as after a normal idle stop. A format
     // another process moved during the pause is what this notification
     // often IS, and the rebuild's prepare sets it back.
-    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID
+    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID && unitAtDeviceRate
             && !(_file && [self outputNeedsSwitchOnQueueForFile:_file unknownNeedsSwitch:NO])) {
         return;
     }
@@ -998,6 +1016,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // and only then pin the unit back, leaving the caller's engine start the one
 // configuration edge outstanding. Reproducible in hogfollow.swift (vibe-debug);
 // the engine is stopped at every ownership edge, so none of this is audible.
+// Even after the unit has left, the pin can collide with the follow's own
+// SelectDevice still finishing (#47's A300, at launch): AUHAL answers 'nope'
+// having connected the device's IO but not the unit's formats, and a
+// same-device pin is then a no-op. recoverEngineConfigurationOnQueue's rate
+// check is what repairs that, on the configuration change that follows.
 // TRAP: do not reach for -[AVAudioEngine prepare] here. It dispatch_syncs onto
 // the AVAudioIOUnit queue, which is draining the property listener for the very
 // re-bind above and is blocked in CoreAudio while the HAL reorganizes around
@@ -1240,6 +1263,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return;
     }
     VibeBitPerfectReport report = {0};
+    NSString *unconfirmed = nil;
     report.enabled = _bitPerfectWanted;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
@@ -1251,13 +1275,25 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
-        report.formatConfirmed = readFormat && !self.varispeed && !self.fx.masterBusOutputNode
-                && _outputLevelListener != nil && _outputDeviceListener != NULL
-                && [self activeOutputDeviceID] == _preparedDeviceID
-                && VibePhysicalFormatsEquivalent(physical, _preparedFormat)
-                && mixerFormat.sampleRate == physical.mSampleRate
-                && outputInputFormat.sampleRate == physical.mSampleRate
-                && [_engine.outputNode outputFormatForBus:0].sampleRate == physical.mSampleRate;
+        // Named rather than folded into one flag: "switch failed" alone sent #47
+        // round the houses, and the debug info log is where this is read.
+        AudioDeviceID bound = [self activeOutputDeviceID];
+        double unitRate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+        unconfirmed = !readFormat ? @"the device's format could not be read"
+                : self.varispeed ? @"a varispeed is in the chain"
+                : self.fx.masterBusOutputNode ? @"the FX bus is in the chain"
+                : !_outputLevelListener || !_outputDeviceListener ? @"a device listener is missing"
+                : bound != _preparedDeviceID
+                        ? [NSString stringWithFormat:@"the output unit is bound to device %u", bound]
+                : !VibePhysicalFormatsEquivalent(physical, _preparedFormat) ? @"the device left the format set on it"
+                : mixerFormat.sampleRate != physical.mSampleRate
+                        ? [NSString stringWithFormat:@"the mixer runs at %.0f Hz", mixerFormat.sampleRate]
+                : outputInputFormat.sampleRate != physical.mSampleRate
+                        ? [NSString stringWithFormat:@"the output unit takes %.0f Hz", outputInputFormat.sampleRate]
+                : unitRate != physical.mSampleRate
+                        ? [NSString stringWithFormat:@"the output unit runs at %.0f Hz", unitRate]
+                : nil;
+        report.formatConfirmed = (unconfirmed == nil);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
         pid_t owner = -1;
@@ -1265,11 +1301,12 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();
 #endif
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
-        report.formatConfirmed &= [CoreAudioUtil readOutputVolume:&report.softwareVolume
-                                                          balance:&report.balance mute:&report.muted
-                                                         channels:file.fileFormat.channelCount
-                                                         inStream:_preparedStreamID
-                                                      forDeviceID:_preparedDeviceID];
+        if (![CoreAudioUtil readOutputVolume:&report.softwareVolume balance:&report.balance mute:&report.muted
+                                    channels:file.fileFormat.channelCount inStream:_preparedStreamID
+                                 forDeviceID:_preparedDeviceID]) {
+            unconfirmed = unconfirmed ?: @"the device's volume could not be read";
+            report.formatConfirmed = NO;
+        }
         if (file) {
             AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
             // Keep the mixer one-to-one; wider hardware is transparent only
@@ -1295,6 +1332,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     os_unfair_lock_unlock(&_stateLock);
     if (!changed) {
         return;
+    }
+    if (unconfirmed) {
+        LogWarn(@"bit-perfect: format not confirmed, because %@", unconfirmed);
     }
     run_on_main_thread({
         id<AudioPlayerDelegate> delegate = self.delegate;
