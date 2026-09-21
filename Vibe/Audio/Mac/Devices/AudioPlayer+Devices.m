@@ -165,7 +165,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     if (!device && !_bitPerfectWanted) return;
     // TRAP: hold the guard across every bind, including cached resolutions.
-    // A refused HAL bind publishes Stopped and re-enters this method.
+    // A refused HAL bind publishes Stopped; reset must not queue another try.
     _pendingSavedDeviceLookupInFlight = YES;
     if (device) {
         BOOL bound = [self selectSavedOutputDeviceOnQueue:device savedUID:savedUID savedModelUID:savedModelUID];
@@ -219,13 +219,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         LogError(@"AudioPlayer: output unit unavailable");
         return NO;
     }
-    OSStatus status = AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global, 0, &deviceID, sizeof(deviceID));
-    if (status != noErr) {
-        LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
-        return NO;
-    }
-    return YES;
+    return [self performDiagnosticPhase:@"device pin" device:deviceID operation:^BOOL{
+        AudioDeviceID target = deviceID;
+        OSStatus status = AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global, 0, &target, sizeof(target));
+        if (status != noErr) {
+            LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
+        }
+        return status == noErr;
+    }];
 }
 
 // Rebuilds the graph, restoring the track, position and play or pause state.
@@ -269,14 +271,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return rebound;
 }
 
-// Runs on _queue when the last output device vanished mid-play. A dead engine
-// must not sit behind a Playing state, which would freeze the position with no
-// explanation, so park as Paused at the last valid position. That is
-// restorable when a device returns, because setOutputDevice:-1 rebuilds the
-// graph at this position. It is a no-op unless Playing: Paused and Loading
-// report their own failure on the next start attempt. There are no generation
-// bumps, because nothing is stopped or rescheduled, just as when a normal
-// pause lands.
+// Park a lost output at its retained intent. Retire completions even when
+// the OS stopped the graph before delivering its configuration notification.
 - (void)parkPlaybackForMissingOutputDeviceOnQueue {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
@@ -284,13 +280,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (state != VibePlayerStatePlaying) {
         return;
     }
-    NSTimeInterval position = self.position; // the engine is dead, so this serves the last valid reading
+    [self stopEnginePreservingTrackOnQueue];
+    BOOL pauseAlreadySettled = _state == VibePlayerStatePaused;
+    NSTimeInterval position = self.position;
     [self publishPlaybackState:VibePlayerStatePaused node:_node file:_file
                   segmentStart:_segmentStartFrame position:position];
-    AudioTrack *track = self.currentTrack;
-    run_on_main_thread({
-        [self.delegate audioPlayer:self didPausePlaying:track];
-    });
+    if (!pauseAlreadySettled) {
+        AudioTrack *track = self.currentTrack;
+        run_on_main_thread({ [self.delegate audioPlayer:self didPausePlaying:track]; });
+    }
 }
 
 // Handles engine configuration and output-unit device changes: the hardware
@@ -344,7 +342,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // Beta instrumentation (#47): every recovery says what it saw and what it
     // decided. "Healthy, nothing to do" used to be silent, which is how a unit
     // at the wrong rate went unnoticed for a whole session.
-    NSString *seen = [NSString stringWithFormat:@"engine %@, node %@, requested %ld, bound %u, unit at device rate %@, state %ld",
+    NSString *seen = [NSString stringWithFormat:@"play %llu segment %llu, engine %@, node %@, requested %ld, bound %u, unit at device rate %@, state %ld",
+                      [self diagnosticPlayIdentifierOnQueue], _segmentGeneration,
                       _engine.isRunning ? @"running" : @"stopped", hasNode ? @"present" : @"absent", (long)requested,
                       [self activeOutputDeviceID], unitAtDeviceRate ? @"yes" : @"NO", (long)state];
 #endif
@@ -447,9 +446,17 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 - (void)readOutputModesForDeviceUID:(NSString *)deviceUID
                   bitPerfectOutput:(BOOL *)bitPerfectOutput
                    exclusiveOutput:(BOOL *)exclusiveOutput {
+    os_unfair_lock_lock(&_stateLock);
+    NSString *sourceUID = deviceUID;
+    for (NSUInteger remaining = _unpersistedOutputModeSources.count; sourceUID && remaining; remaining--) {
+        NSString *carried = _unpersistedOutputModeSources[sourceUID];
+        if (!carried) break;
+        sourceUID = carried;
+    }
+    os_unfair_lock_unlock(&_stateLock);
     id<AudioPlayerDelegate> delegate = self.delegate;
     if ([delegate respondsToSelector:@selector(audioPlayer:outputModesForDeviceUID:bitPerfectOutput:exclusiveOutput:)]) {
-        [delegate audioPlayer:self outputModesForDeviceUID:deviceUID
+        [delegate audioPlayer:self outputModesForDeviceUID:(sourceUID ?: deviceUID)
              bitPerfectOutput:bitPerfectOutput exclusiveOutput:exclusiveOutput];
     }
 }
@@ -783,11 +790,25 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     NSString *fallbackUID = requested == -1 ? _pendingSavedDeviceUID : nil;
     NSString *fallbackName = requested == -1 ? _pendingSavedDeviceName : nil;
     NSString *modesUID = requested >= 0 ? _modesUIDForNextSelection : nil;
+    NSString *destinationUID = _boundDeviceUID;
+    if (modesUID.length && destinationUID.length) {
+        os_unfair_lock_lock(&_stateLock);
+        if (!_unpersistedOutputModeSources) _unpersistedOutputModeSources = [NSMutableDictionary dictionary];
+        _unpersistedOutputModeSources[destinationUID] = modesUID;
+        os_unfair_lock_unlock(&_stateLock);
+    }
     run_on_main_thread({
         self->_announcedFallbackUID = fallbackUID;
         self->_announcedFallbackName = fallbackName;
         self->_announcedModesUID = modesUID;
         [self.delegate audioPlayer:self didChangeOutputDevice:requested];
+        if (modesUID.length && destinationUID.length) {
+            os_unfair_lock_lock(&self->_stateLock);
+            if ([self->_unpersistedOutputModeSources[destinationUID] isEqual:modesUID]) {
+                [self->_unpersistedOutputModeSources removeObjectForKey:destinationUID];
+            }
+            os_unfair_lock_unlock(&self->_stateLock);
+        }
         self->_announcedFallbackUID = nil;
         self->_announcedFallbackName = nil;
         self->_announcedModesUID = nil;
@@ -887,7 +908,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     LogInfo(@"bit-perfect: the chosen device vanished; turning the mode off");
     _bitPerfectWanted = NO;
-    [_engine stop];
+    [self stopEnginePreservingTrackOnQueue];
     [self leaveOutputDeviceOnQueue];
     // The fallback may already be bound, or no device may remain. A pending
     // open still needs the ordinary chain before its off-mode settlement.
@@ -899,6 +920,13 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 - (BOOL)setOutputFormatOnQueue:(AudioStreamBasicDescription)format
                        stream:(AudioStreamID)stream device:(AudioDeviceID)deviceID {
+    return [self performDiagnosticPhase:@"format write/confirmation" device:deviceID operation:^BOOL{
+        return [self confirmOutputFormatOnQueue:format stream:stream device:deviceID];
+    }];
+}
+
+- (BOOL)confirmOutputFormatOnQueue:(AudioStreamBasicDescription)format
+                           stream:(AudioStreamID)stream device:(AudioDeviceID)deviceID {
     if (![CoreAudioUtil setPhysicalFormat:format forStream:stream]) {
         return NO;
     }
@@ -920,10 +948,18 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         }
         usleep(kFormatSwitchPollMicroseconds);
     } while (NSProcessInfo.processInfo.systemUptime < deadline);
+    LogWarn(@"bit-perfect: format confirmation deadline expired on device %u", deviceID);
     return NO;
 }
 
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file {
+    [self performDiagnosticPhase:@"output preparation" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
+        [self prepareOutputFormatOnQueueForFile:file];
+        return YES; // confirmation failures are reported by the nested format phase
+    }];
+}
+
+- (void)prepareOutputFormatOnQueueForFile:(AVAudioFile *)file {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     if (!device) {
         return; // the state publication that follows every caller publishes the report
@@ -1018,7 +1054,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // the AVAudioIOUnit queue, which is draining the property listener for the very
 // re-bind above and is blocked in CoreAudio while the HAL reorganizes around
 // the take: the player queue then deadlocks against it and the whole app hangs.
-- (void)settleOutputUnitAfterHoggingSystemDefaultOnQueue:(AudioDeviceID)deviceID {
+- (BOOL)settleOutputUnitAfterHoggingSystemDefaultOnQueue:(AudioDeviceID)deviceID {
     NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + kHogSettleDeadlineSeconds;
     // The unit leaving is the observable end of the default move that caused
     // it, so this needs no second reading of the default.
@@ -1028,12 +1064,13 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     while (NSProcessInfo.processInfo.systemUptime < deadline) {
         if ([self activeOutputDeviceID] == deviceID) {
-            return;
+            return YES;
         }
         [self setOutputUnitDevice:deviceID];
         usleep(kFormatSwitchPollMicroseconds);
     }
-    LogWarn(@"bit-perfect: output unit did not settle on device %u after taking exclusive use", deviceID);
+    LogWarn(@"bit-perfect: output unit did not settle on device %u after taking exclusive use (deadline expired)", deviceID);
+    return NO;
 }
 
 // The engine is stopped at both ownership edges.
@@ -1063,13 +1100,22 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // A successful write followed by a failed read-back may still own the
     // device. Record the cleanup obligation BEFORE asking the HAL to take it.
     _hoggedDeviceID = deviceID;
-    if (![CoreAudioUtil setHogOwnedByThisProcess:YES forDeviceID:deviceID]) {
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Phase: play %llu segment %llu exclusive context: requested %ld, default %u, follow expected %d",
+            [self diagnosticPlayIdentifierOnQueue], _segmentGeneration,
+            (long)self.currentlyRequestedAudioDeviceId, systemDefault, followExpected);
+#endif
+    if (![self performDiagnosticPhase:@"hog acquire" device:deviceID operation:^BOOL{
+        return [CoreAudioUtil setHogOwnedByThisProcess:YES forDeviceID:deviceID];
+    }]) {
         LogWarn(@"bit-perfect: could not confirm exclusive access to %@", device.name);
         [self releaseExclusiveOutputOnQueue]; // publishes
         return;
     }
     if (followExpected) {
-        [self settleOutputUnitAfterHoggingSystemDefaultOnQueue:deviceID];
+        [self performDiagnosticPhase:@"default-follow settlement" device:deviceID operation:^BOOL{
+            return [self settleOutputUnitAfterHoggingSystemDefaultOnQueue:deviceID];
+        }];
     }
     [self publishBitPerfectReportOnQueue];
 }
@@ -1081,7 +1127,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // Retry once for a transient failure. The HAL helper reads before writing,
     // so a failed read-back after a successful release cannot toggle it back on.
     [CoreAudioUtil releaseDeviceObligation:&_hoggedDeviceID attempt:^BOOL{
-        return [CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:self->_hoggedDeviceID];
+        return [self performDiagnosticPhase:@"hog release" device:self->_hoggedDeviceID operation:^BOOL{
+            return [CoreAudioUtil setHogOwnedByThisProcess:NO forDeviceID:self->_hoggedDeviceID];
+        }];
     } isAbsent:^BOOL(AudioDeviceID deviceID) {
         return [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:deviceID];
     }];

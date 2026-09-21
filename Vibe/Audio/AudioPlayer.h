@@ -167,6 +167,9 @@ NS_ASSUME_NONNULL_BEGIN
 // feed, never its whole-percent UI handler.
 - (void)noteOpenProgressForOpenRequestIdentifier:(uint64_t)openRequestIdentifier;
 
+// Records one first UI position update per published transport state in betas.
+- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
+
 @end
 
 // Everything a caller off the player queue may ask the player about itself,
@@ -181,6 +184,9 @@ NS_ASSUME_NONNULL_BEGIN
 // reads: acquiring that lock can briefly wait. They read and never drive:
 // nothing here touches the engine or the graph.
 @interface AudioPlayer (State)
+
+// Cached position only; diagnostics can read it even when the audio queue is stuck.
+@property (readonly) NSTimeInterval lastKnownPosition;
 
 // Playhead in file seconds. Reads 0 while Stopped or Loading.
 // Seek with seekToPosition:; the move is asynchronous.

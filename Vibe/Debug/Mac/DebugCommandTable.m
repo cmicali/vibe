@@ -175,15 +175,22 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 });
                 return nil; // response written by the poll
             }),
-            // Settings > Advanced > Save Debug Info's report, without the save
-            // panel no verb can dismiss. Runs on main, so it blocks for the
-            // device and log reads the button keeps off main.
+            VibeDebugCmd(@"block_player <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                double seconds = tokens.count == 2 ? tokens[1].doubleValue : -1;
+                if (!isfinite(seconds) || seconds <= 0 || seconds > 10) return VibeErrorJSON(@"usage: block_player <seconds 0-10>");
+                [controller.audioPlayer debugBlockQueueForSeconds:seconds];
+                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
+            }),
             VibeDebugCmd(@"dump_debug_info", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSString *text = VibeDebugInfoText(VibeDebugInfoSnapshot(controller), controller.audioPlayer);
-                return VibeJSONString(@{
-                    @"bytes": @([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]),
-                    @"text": text,
+                NSDictionary *snapshot = VibeDebugInfoSnapshot(controller);
+                AudioPlayer *player = controller.audioPlayer;
+                dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                    NSString *text = VibeDebugInfoText(snapshot, player);
+                    VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                        @"bytes": @([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]), @"text": text,
+                    }));
                 });
+                return nil;
             }),
             VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();

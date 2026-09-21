@@ -2,9 +2,8 @@
 //  AudioPlayer+Engine.h
 //  Vibe
 //
-//  When the AVAudioEngine runs, and nothing else. Two methods, and they are a
-//  pair: one starts the engine to play a node, the other stops it once playback
-//  has been idle long enough to be worth releasing the output device for.
+//  Engine start, retained-track shutdown, deferred idle stop, and their beta
+//  timing/signal observations.
 //
 //  The engine is not held running for the life of the player, because a running
 //  engine owns the output device — which on Bluetooth keeps the link up, and on
@@ -15,7 +14,7 @@
 //  stop is deferred and cancelled by generation, and starting playback is the
 //  single funnel that cancels it.
 //
-//  Both run on the player queue.
+//  All run on the player queue.
 //
 
 #import "AudioPlayer.h"
@@ -33,6 +32,15 @@ NS_ASSUME_NONNULL_BEGIN
 // Arms the deferred idle stop. Call it wherever playback goes idle — a pause,
 // a stop, a failure reset, a parked start.
 - (void)scheduleEngineIdleStopOnQueue;
+
+// Retires stop-fired completions and reschedules the retained track silently.
+- (void)stopEnginePreservingTrackOnQueue;
+
+// Queue-side beta phase attribution; the operation runs unchanged in stable builds.
+- (uint64_t)diagnosticPlayIdentifierOnQueue;
+- (void)beginOutputSignalDiagnosticsOnQueue:(NSString *)reason;
+- (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID
+                     operation:(BOOL (^)(void))operation;
 
 @end
 

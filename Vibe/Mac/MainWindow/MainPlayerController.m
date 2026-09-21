@@ -558,10 +558,12 @@
     if (playerTrack && playerTrack != self.playlistController.currentTrack) {
         return;
     }
-    [self.trackDisplay renderPosition:self.audioPlayer.position
+    NSTimeInterval position = self.audioPlayer.position;
+    [self.trackDisplay renderPosition:position
                              duration:_currentTrackDuration
                                  rate:self.playbackRate
                                 state:[self displayState]];
+    [self.audioPlayer noteDisplayedPosition:position forTrack:self.playlistController.currentTrack];
 }
 
 // Every effective-tempo change — a track change, a BPM delivery, a fader tick

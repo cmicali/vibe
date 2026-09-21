@@ -20,6 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error;
 - (void)debugSetCapture:(void (^ _Nullable)(AVAudioPCMBuffer *buffer))capture;
 - (void)debugShutdown;
+- (void)debugBlockQueueForSeconds:(NSTimeInterval)seconds;
 
 
 // The player's own copy of the loading configuration, for dump_audio_loading's

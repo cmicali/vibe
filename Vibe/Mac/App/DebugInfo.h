@@ -19,9 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 // What only main may read: the controller, the windows, the settings. Cheap.
 NSDictionary<NSString *, id> *VibeDebugInfoSnapshot(MainPlayerController *controller);
 
-// The report text from a snapshot. Blocks on coreaudiod for every device, on
-// the player queue for the bound device and on the log store, so the button
-// runs it off main.
+// Off main: reads the persisted log and bounds each optional hardware/player
+// refresh to two seconds. Timed-out sections are explicitly unavailable or cached.
 NSString *VibeDebugInfoText(NSDictionary<NSString *, id> *snapshot, AudioPlayer *player);
 
 NS_ASSUME_NONNULL_END

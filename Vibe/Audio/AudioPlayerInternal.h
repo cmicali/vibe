@@ -171,6 +171,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // was found by its model UID under a new device UID: whose remembered modes
     // that bind should read. Nil means the device's own, as always.
     NSString                *_modesUIDForNextSelection;
+    // _stateLock: destination -> source until main has persisted the carry.
+    NSMutableDictionary<NSString *, NSString *> *_unpersistedOutputModeSources;
     // Main-thread copies of pending intent and the mode carry, set only
     // around the delegate callback.
     NSString                *_announcedFallbackUID;

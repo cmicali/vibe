@@ -6,7 +6,8 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 
 ```bash
 "$V" --debug-cmd dump_state          # {player, currentTrack, playlist, ui, window, settings} — playlist includes resolvedRows; ui.displayState (track|loading|empty|launch-grace|error) is the settled UI, player.state the pending intent
-"$V" --debug-cmd dump_debug_info     # {bytes, text} — Settings > Advanced > Save Debug Info's report without its save panel (settings, devices with formats and latency, bit-perfect report, this run's log); blocks main for the device and log reads, 30s client timeout
+"$V" --debug-cmd dump_debug_info     # {bytes, text} — Settings > Advanced > Save Debug Info's report without its save panel (settings, devices with formats and latency, bit-perfect report, this run's log); collects off main; fresh hardware/player sections each have a 2s deadline and report cached/unavailable on timeout; 30s client timeout
+"$V" --debug-cmd block_player 8      # acknowledges immediately, holds only the player queue for 0<seconds<=10; use dump_debug_info to verify bounded export and stall logging
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]} — AppKit bottom-left frames
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]} — live enabled/checkmark from the real validateMenuItem pass
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the system Now Playing publish; always hasInfo: 0 under --no-audio-hw
@@ -188,3 +189,7 @@ EOS
 **The acceptance oracle is a loopback through BlackHole.** Follow `test-audio.md` → Bit-perfect acceptance for `make test-bit-perfect`, the standalone capture command, and the ordinary-path, transition, toggle and restoration matrix. The complete source tail must match in every channel; a short matching excerpt cannot pass. Live acceptance is opt-in; the device-free render suite and comparator self-tests run through `make test-audio` in CI.
 
 The exclusive-access half cannot go through a loopback. Enable **Settings > Audio > Exclusive output** (off by default), with bit-perfect output on and a device selected that exposes writable hog mode (physical and virtual devices are eligible; the device that is currently the macOS system output is too, and taking it moves the system default to another device for as long as Vibe holds it). Disable Exclusive output for loopback capture. The channel can drive the switch with `settings_click "Exclusive output" on`. Check it against that device with Appendix A of `docs/future/bit-perfect-output.md` (a read-only HAL probe printing the hog owner's pid): `pid` = Vibe's while playing, `-1` from about 6 s after a pause, and `-1` with the device's format put back after `quit`.
+
+## Beta signal diagnostics
+
+Launch with `--diagnose-output-signal` to collect three-second post-mix summaries on starts/seeks/resumes and late tap installation. Keep the playlist equalizer visible and active; no tap means an explicit unavailable line. The flag does not add a tap or file read. `Signal:` includes sample/host timestamps for the first sample above −60 dBFS, peak, RMS and nonfinite count; it does not measure audible DAC output. `--silent` yields zero; `--no-audio-hw` without `--silent` exercises the software measurement without sound. Paired `Phase:` logs locate blocking HAL/engine work, and `Timeline:` joins queue admission, scheduling, callback delivery and the first UI position update.

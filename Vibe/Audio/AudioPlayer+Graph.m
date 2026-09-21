@@ -84,6 +84,11 @@
 // those completions are dropped.
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame {
     uint64_t gen = _segmentGeneration;
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Timeline: play %llu segment %llu schedule %@ from %lld of %lld frames at %.0f Hz",
+            [self diagnosticPlayIdentifierOnQueue], gen, file.url.lastPathComponent,
+            startFrame, file.length, file.processingFormat.sampleRate);
+#endif
     uint64_t remainingFrames = VibeAudioFramesToSchedule(file.length, startFrame);
     AVAudioPlayerNodeCompletionCallbackType completionType = AVAudioPlayerNodeCompletionDataPlayedBack;
 #if DEBUG

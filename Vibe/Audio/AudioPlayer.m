@@ -249,6 +249,9 @@ static void VibeWatchOutputRender(AudioPlayer *player);
 #endif
 
 @implementation AudioPlayer {
+#if VIBE_VERBOSE_LOGGING
+    NSDictionary *_positionDiagnostic; // _stateLock; consumed once by main
+#endif
     float                   _maxPitch;
     // The fade-in length for the play in flight: the user-set crossfade when
     // it replaced an audibly playing track, the declick minimum otherwise.
@@ -540,6 +543,7 @@ static void VibeWatchOutputRender(AudioPlayer *player);
         _levelTap = [[AudioLevelTap alloc] initWithNode:tapNode
                                               publisher:_levelPublisher
                                        normalizationMode:_levelNormalizationMode];
+        if (_node.isPlaying) [self beginOutputSignalDiagnosticsOnQueue:@"tap installed during playback"];
     }
     else if (!_levelsWanted && _levelTap) {
         [_levelTap remove];
@@ -1083,7 +1087,15 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // background lane then resumes against an open the user is still waiting
     // on. Measured: a background download beginning 15ms into it.
     uint64_t settledPlay = request.submittedPlayIdentifier;
+#if VIBE_VERBOSE_LOGGING
+    uint64_t deliveredAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), settledSegment = _segmentGeneration;
+#endif
     run_on_main_thread({
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu didStartPlaying main delivery %.1f ms, %@",
+                settledPlay, settledSegment, (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - deliveredAt) / 1e6,
+                [self submittedPlayIsCurrent:settledPlay] ? @"accepted" : @"dropped: newer play");
+#endif
         if (![self submittedPlayIsCurrent:settledPlay]) {
             LogInfo(@"Dropping didStartPlaying for superseded play %llu", settledPlay);
             return;
@@ -1185,7 +1197,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self preemptRetiredFadesOnQueue];
     [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
 #if TARGET_OS_OSX
-    [self resolvePendingSavedOutputDeviceOnQueue];
+    // A reset may be inside a device mutation whose rollback is still owed.
+    // Do not retry a failed saved-device bind, even on a later queue turn.
+    if (!_pendingSavedDeviceLookupInFlight && !_terminating) {
+        dispatch_async(_queue, ^{ [self resolvePendingSavedOutputDeviceOnQueue]; });
+    }
 #endif
     // Release the output device once genuinely idle. A quick follow-up play,
     // such as auto-advance past a bad file, reuses the running engine.
@@ -1194,8 +1210,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 - (void)segmentDidCompleteWithGeneration:(uint64_t)generation {
 #if VIBE_VERBOSE_LOGGING
-    LogInfo(@"Callback: segment completed (%@)", generation != _segmentGeneration ? @"stale, superseded"
-            : _gaplessQueued ? @"gapless handover" : @"track end");
+    LogInfo(@"Callback: play %llu segment completed captured %llu current %llu, state %ld (%@)",
+            [self diagnosticPlayIdentifierOnQueue], generation, _segmentGeneration, (long)_state,
+            generation != _segmentGeneration ? @"dropped: superseded"
+            : _gaplessQueued ? @"accepted: gapless handover" : @"accepted: track end");
 #endif
     if (generation != _segmentGeneration) {
         return; // Stale: a stop, seek, skip or device switch superseded this segment.
@@ -1218,6 +1236,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // reuses the running engine rather than paying an output-unit stop and start
 // on every consecutive-track transition.
 - (void)finishPlaybackOnQueue {
+    // A device recovery failure can reset the active submission below.
+    AudioTrack *track = self.currentTrack;
+    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     // Un-armed material (format mismatch, crossfade on) dies with the node;
     // the next track's play re-acquires through its own prefetch.
     [self clearGaplessOnQueue];
@@ -1234,10 +1255,17 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self scheduleEngineIdleStopOnQueue];
     // Snapshot before dispatching. If the track has changed by the time the
     // block runs on main, this end event is stale and must be dropped.
-    AudioTrack *track = self.currentTrack;
-    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     _activeSubmittedPlayIdentifier = 0;
+#if VIBE_VERBOSE_LOGGING
+    uint64_t deliveredAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), settledSegment = _segmentGeneration;
+#endif
     run_on_main_thread({
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu didFinishPlaying main delivery %.1f ms, %@",
+                owningSubmittedPlayIdentifier, settledSegment, (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - deliveredAt) / 1e6,
+                track && self.currentTrack == track && [self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]
+                        ? @"accepted" : @"dropped: track or submission changed");
+#endif
         if (!track || self.currentTrack != track
                 || ![self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]) {
             return;
@@ -1344,7 +1372,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)playPause {
+#if VIBE_VERBOSE_LOGGING
+    uint64_t submittedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Timeline: playPause submitted at %llu", submittedAt);
+#endif
     dispatch_async(_queue, ^{
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu playPause %llu admitted after %.1f ms, state %ld",
+                [self diagnosticPlayIdentifierOnQueue], self->_segmentGeneration, submittedAt,
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - submittedAt) / 1e6, (long)self->_state);
+#endif
         if (self->_state == VibePlayerStateLoading) {
             VibePlaybackRequest *request = [self->_pendingRequest togglePause];
             if (request) {
@@ -1381,7 +1418,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 - (void)resume {
+#if VIBE_VERBOSE_LOGGING
+    uint64_t submittedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Timeline: resume submitted at %llu", submittedAt);
+#endif
     dispatch_async(_queue, ^{
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu resume %llu admitted after %.1f ms, state %ld",
+                [self diagnosticPlayIdentifierOnQueue], self->_segmentGeneration, submittedAt,
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - submittedAt) / 1e6, (long)self->_state);
+#endif
         [self resumeOnQueue];
     });
 }
@@ -1496,7 +1542,16 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     uint64_t rampGen = [self preemptRampsOnQueue];
     [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
     AudioTrack *track = self.currentTrack;
+#if VIBE_VERBOSE_LOGGING
+    uint64_t deliveredAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW), resumedSegment = _segmentGeneration;
+#endif
     run_on_main_thread({
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu didResumePlaying main delivery %.1f ms, current submission %d",
+                owningSubmittedPlayIdentifier, resumedSegment,
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - deliveredAt) / 1e6,
+                [self submittedPlayIsCurrent:owningSubmittedPlayIdentifier]);
+#endif
         [self.delegate audioPlayer:self didResumePlaying:track];
     });
 }
@@ -1569,9 +1624,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 - (void)debugSetCapture:(void (^)(AVAudioPCMBuffer *))capture {
     [self runSyncOnQueue:^{ self->_manualPump.capture = capture; }];
 }
+- (void)debugBlockQueueForSeconds:(NSTimeInterval)seconds {
+    dispatch_async(_queue, ^{ usleep((useconds_t)(MIN(10, MAX(0, seconds)) * 1e6)); });
+}
+
 - (void)debugShutdown {
     self.delegate = nil;
     [self runSyncOnQueue:^{
+        self->_terminating = YES;
         [self stopOnQueue];
         [self->_manualPump cancel];
         [self->_engine stop];
@@ -1871,7 +1931,17 @@ static NSString *VibeAudioLevelNormalizationModeName(
     if (node != _node || file != _file) {
         _pendingSeekPosition = -1;
     }
+#if VIBE_VERBOSE_LOGGING
+    AudioTrack *diagnosticTrack = self.currentTrack ?: self.loadingTrack;
+    NSDictionary *diagnostic = node && diagnosticTrack ? @{
+        @"track": diagnosticTrack, @"play": @([self diagnosticPlayIdentifierOnQueue]),
+        @"segment": @(_segmentGeneration), @"position": @(position),
+        @"publishedAt": @(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) } : nil;
+#endif
     os_unfair_lock_lock(&_stateLock);
+#if VIBE_VERBOSE_LOGGING
+    _positionDiagnostic = diagnostic;
+#endif
     _node = node;
     _file = file;
     _segmentStartFrame = segmentStart;
@@ -1896,6 +1966,22 @@ static NSString *VibeAudioLevelNormalizationModeName(
     uint64_t recoveryPositionGeneration = ++_recoveryPositionGeneration;
     if (state == VibePlayerStatePlaying) {
         [self scheduleRecoveryPositionSampleForGeneration:recoveryPositionGeneration];
+    }
+#endif
+}
+
+- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(AudioTrack *)track {
+#if VIBE_VERBOSE_LOGGING
+    os_unfair_lock_lock(&_stateLock);
+    NSDictionary *diagnostic = _positionDiagnostic;
+    BOOL matches = track && diagnostic[@"track"] == track
+            && [diagnostic[@"play"] unsignedLongLongValue] == _nextSubmittedPlayIdentifier;
+    if (matches) _positionDiagnostic = nil;
+    os_unfair_lock_unlock(&_stateLock);
+    if (matches) {
+        LogInfo(@"Timeline: play %@ segment %@ first UI position update %.3fs (published %.3fs), %.1f ms after state publication",
+                diagnostic[@"play"], diagnostic[@"segment"], position, [diagnostic[@"position"] doubleValue],
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - [diagnostic[@"publishedAt"] unsignedLongLongValue]) / 1e6);
     }
 #endif
 }

@@ -21,6 +21,51 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 
 @implementation AudioPlayer (Engine)
 
+- (uint64_t)diagnosticPlayIdentifierOnQueue {
+    return _state == VibePlayerStateLoading ? self.loadingSubmittedPlayIdentifier : _activeSubmittedPlayIdentifier;
+}
+
+- (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID
+                     operation:(BOOL (^)(void))operation {
+#if VIBE_VERBOSE_LOGGING
+    uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Phase: play %llu segment %llu %@ begin, target %ld, state %ld",
+            play, segment, phase, (long)deviceID, (long)_state);
+#endif
+    BOOL success = operation();
+#if VIBE_VERBOSE_LOGGING
+    LogInfo(@"Phase: play %llu segment %llu %@ end, target %ld, success %d, %.1f ms",
+            play, segment, phase, (long)deviceID, success, VibeSecondsSince(began) * 1000);
+#endif
+    return success;
+}
+
+- (void)beginOutputSignalDiagnosticsOnQueue:(NSString *)reason {
+#if VIBE_VERBOSE_LOGGING
+    static BOOL enabled;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        enabled = [NSProcessInfo.processInfo.arguments containsObject:@"--diagnose-output-signal"];
+    });
+    if (!enabled) return;
+    AudioLevelTap *tap = _levelTap;
+    uint64_t request = [tap beginSignalDiagnostics];
+    uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
+    LogInfo(@"Signal: play %llu segment %llu %@, %@ (post-mix observation, not audible output)",
+            play, segment, reason, request ? @"three-second capture armed" : @"unavailable: no active level tap");
+    if (!request) return;
+    [self scheduleAfterSeconds:3.05 block:^{
+        NSDictionary *snapshot = [tap signalDiagnosticSnapshot];
+        if (snapshot[@"request"] && [snapshot[@"request"] unsignedLongLongValue] != request) {
+            LogInfo(@"Signal: play %llu segment %llu capture superseded", play, segment);
+            return;
+        }
+        LogInfo(@"Signal: play %llu segment %llu capture %@", play, segment, snapshot);
+    }];
+#endif
+}
+
 // TRAP: [AVAudioPlayerNode play] throws if the engine stopped between the
 // isRunning check and the call, and the engine stops itself on device and
 // format changes. Start it if needed, and absorb the race.
@@ -34,11 +79,16 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     for (int attempt = 0; attempt < 2; attempt++) {
         if (!_engine.isRunning) {
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-            [self acquireExclusiveOutputOnQueue]; // gates itself on both settings
+            [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
+                [self acquireExclusiveOutputOnQueue];
+                return YES; // ownership confirmation is logged by the nested hog phase
+            }];
 #endif
-            NSError *startError = nil;
+            __block NSError *startError = nil;
             uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-            BOOL started = [_engine startAndReturnError:&startError];
+            BOOL started = [self performDiagnosticPhase:@"engine start" device:-1 operation:^BOOL{
+                return [self->_engine startAndReturnError:&startError];
+            }];
             engineStartSeconds += VibeSecondsSince(startedAt);
             if (!started) {
                 if (outError) {
@@ -62,13 +112,17 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 #if VIBE_VERBOSE_LOGGING
             AVAudioFramePosition initialSample = 0;
             @try {
-                AVAudioTime *render = node.lastRenderTime;
-                AVAudioTime *before = render ? [node playerTimeForNodeTime:render] : nil;
+                AVAudioTime *render = _engine.isInManualRenderingMode ? nil : node.lastRenderTime;
+                AVAudioTime *before = render && (render.sampleTimeValid || render.hostTimeValid)
+                        ? [node playerTimeForNodeTime:render] : nil;
                 if (before.sampleTimeValid) initialSample = before.sampleTime;
             } @catch (NSException *exception) {}
 #endif
             uint64_t playedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-            [node play];
+            [self performDiagnosticPhase:@"node play" device:-1 operation:^BOOL{
+                [node play];
+                return YES;
+            }];
             NSTimeInterval nodePlaySeconds = VibeSecondsSince(playedAt);
             // Attribute the stall to the call that actually held the queue:
             // engine start and node play fail for different reasons, and the
@@ -81,6 +135,7 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 #if VIBE_VERBOSE_LOGGING
             [self logFirstRenderOfNode:node playedAt:playedAt initialSample:initialSample];
 #endif
+            [self beginOutputSignalDiagnosticsOnQueue:@"node started"];
             [self refreshOutputAudioActiveOnQueue];
             return YES;
         }
@@ -145,6 +200,33 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 }
 #endif
 
+// TRAP: engine stop fires segment completions, including when no replacement
+// output exists. Retire first, then retain a resumable schedule at the intent.
+- (void)stopEnginePreservingTrackOnQueue {
+    VibePendingPlaybackIntent intent;
+    BOOL loaded = [self getPlaybackIntent:&intent forTrack:self.currentTrack]
+            && (_state == VibePlayerStatePlaying || _state == VibePlayerStatePaused)
+            && _node && _file;
+    BOOL settlesPause = loaded && intent.paused && _state == VibePlayerStatePlaying;
+    _segmentGeneration++;
+    _seekRampGeneration = [self preemptRampsOnQueue];
+    [self setGaplessQueuedOnQueue:NO];
+    [_node stop];
+    [_engine stop];
+    if (loaded) {
+        AVAudioFramePosition start = VibeClampedStartFrame(intent.position, _file.processingFormat.sampleRate, _file.length);
+        _pendingSeekPosition = -1;
+        [self scheduleFile:_file onNode:_node fromFrame:start];
+        [self publishPlaybackState:intent.paused ? VibePlayerStatePaused : VibePlayerStatePlaying
+                              node:_node file:_file segmentStart:start position:intent.position];
+    }
+    [self refreshOutputAudioActiveOnQueue];
+    if (settlesPause) {
+        AudioTrack *track = self.currentTrack;
+        run_on_main_thread({ [self.delegate audioPlayer:self didPausePlaying:track]; });
+    }
+}
+
 - (void)scheduleEngineIdleStopOnQueue {
     if (_terminating) return;
     uint64_t generation = ++_engineIdleStopGeneration;
@@ -166,29 +248,10 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 #endif
         }
         else if (state == VibePlayerStatePaused && strongSelf->_node && strongSelf->_file) {
-            // TRAP: the paused node still carries its scheduled segment, and
-            // pause deliberately leaves _segmentGeneration current — so the
-            // stops below would fire that segment's completion as a natural
-            // track end and auto-advance out of a pause (observed, not
-            // hypothetical). Retire it, silence the node, stop the engine and
-            // reschedule in place from the paused frame, exactly the paused
-            // seek's ballet: scheduling needs no running engine, and the
-            // resume's startEngineAndPlayNode: plays the fresh segment.
-            NSTimeInterval position = strongSelf.position; // Paused: the published value
-            strongSelf->_segmentGeneration++;
-            [strongSelf setGaplessQueuedOnQueue:NO]; // the stop below drops the queued segment
-            AVAudioPlayerNode *node = strongSelf->_node;
-            AVAudioFile *file = strongSelf->_file;
-            [node stop];
-            [strongSelf->_engine stop];
+            [strongSelf stopEnginePreservingTrackOnQueue];
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
             [strongSelf releaseExclusiveOutputOnQueue];
 #endif
-            double sampleRate = file.processingFormat.sampleRate;
-            AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
-            [strongSelf scheduleFile:file onNode:node fromFrame:startFrame];
-            [strongSelf publishPlaybackState:VibePlayerStatePaused node:node file:file
-                                segmentStart:startFrame position:position];
             [strongSelf maybeArmGaplessOnQueue];
         }
     }];

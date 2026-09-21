@@ -2,15 +2,36 @@
 
 A handoff for a fresh look. Everything the reporter sent is in this folder, the whole public thread is `thread.md`, and this file is what the maintainers (Chris and Claude) did, found, fixed, and still don't understand, as of 2026-09-21 ~13:30 UTC. Beta6 carries the launch-race fix (`34002782`), the instant-looking quit (`bca6e9fa`) and the beta instrumentation (`b47042e3`); beta7 adds callback, recovery and render-stall logging. See "Reading beta6 and beta7 logs".
 
-**Second review: four additional transport/device bugs and one diagnostic regression remain open. Read [the second review](review-2-2026-09-21.md) before cutting the next beta.** Its failing probes are preserved in `review-2-probes.patch`; the existing 43 audio tests still pass. The fix-pass validation below predates these findings.
+**The second review's five findings are fixed, and all four recommended diagnostic additions are implemented.** See the latest fix pass below and [the second review](review-2-2026-09-21.md) for the original reproductions. Its probe patch is historical; the four cases now live in the regular audio suite.
 
 **Then read "Post-review fixes and next-beta test", "Where it stands" and "What is still unexplained".** The rest is evidence and history.
 
 ---
 
+## Second-review fixes and diagnostics
+
+Failure resets now defer re-adoption until an enclosing mutation's rollback has completed, without retrying an already-failed saved lookup. Natural end captures its submission before recovery. Device-loss parking and paused idle shutdown share segment retirement and rescheduling, preserving a resumable track rather than sending a false finish. Carried modes remain readable until main-thread persistence completes. The render baseline skips invalid clocks and manual rendering.
+
+New diagnostics:
+
+- Paired `Phase:` begin/end records cover exclusive setup/acquire/release, default-follow settlement, device pin, output preparation/format confirmation, engine start and node play. Missing ends identify calls that have not returned; failures retain their OSStatus/error context and deadlines are explicit.
+- `Timeline:` joins seek/resume admission, scheduling, callback decisions/delivery and the first UI position update. `Callback:` includes captured/current segment identity. This separates queue delay from a delayed display update.
+- Save Debug Info collects persisted logs independently of fresh hardware/player snapshots. Each optional section has a two-second deadline and one outstanding worker; `freshDiagnostics` labels cached/unavailable results and includes timestamps. The debug verb is asynchronous too. `block_player 8` verifies repeated exports while the queue cannot respond.
+- Optional `--diagnose-output-signal` measures only the existing post-mix tap for up to three seconds per start/seek/resume. Keep the playlist equalizer visible and active. It records first above−60 dBFS sample/host time, peak/RMS and nonfinite count; absent/removed taps and superseded captures are explicit. No extra file open, permanent tap, audio-thread allocation, lock or log. This measures software signal, not physical output. Launch the beta with this argument only for a second diagnostic run if ordinary marked logs still show fast rendering; `open -a /path/to/Vibe.app --args --diagnose-output-signal` passes it after quitting any existing instance.
+
+Validation: **1,408 unit tests + 36 cloud-runner tests; 48 audio tests**, including the four reproduced regressions, positive signal/unchanged-PCM comparisons, silent bounded capture and re-arming. The final audio run emitted zero invalid-node-time assertions. Debug and universal Release macOS builds, the iOS simulator build and a Release build with `VIBE_VERBOSE_LOGGING=0` pass; Release static analysis is clean on both platforms. Layout, vocabulary, string and translation checks pass. Three targeted Thread Sanitizer tests pass without race reports; the first run exposed a test-setup race when replacing the injected mode provider, fixed by settling the setup queue before returning. Debug teardown also retires the player before stopping, so it cannot enqueue saved-device adoption after shutdown.
+
+Live off-hardware verification: a visible equalizer supplied a 127,890-frame capture at 44.1 kHz, peak 0.36615, finite RMS 0.15991 and zero nonfinite samples. Hidden/no-demand taps reported unavailable. An eight-second player-queue block did not prevent Save Debug Info: repeated exports covered both cached and initially unavailable player sections, followed by fresh snapshots after recovery. The first UI position update logged 1.3 ms after publication in the final run; all 29 consistency checks passed. These validate diagnostic behavior, not physical output latency.
+
+Evidence: `build/TestResults.xcresult`, `build/AudioTestResults.xcresult`, `build/AudioReview2TSanFinalResults.xcresult`; `/tmp/vibe-review2-{test,final-audio,final-debug,release,ios,analyze,stable-logging,tsan-final,final-checks}.log`; `/tmp/vibe-review2-live/replies.jsonl` (cached timeout) and `/tmp/vibe-review2-final-live/replies.jsonl` plus `/tmp/vibe-review2-final-live-debug-info.txt` (uncached timeout, signal capture and recovery). The previous pass's results below are retained as history. The A300-specific exclusive delay still requires a symptom-marked reporter run. No beta/version change has been made.
+
+Complexity: +685 net lines including tests/docs, +420 production lines, zero new files/types. Device-loss and idle shutdown now share retained-track rescheduling; seek completion delivery is consolidated in one method. Additional lines principally implement diagnostics and regression coverage in their existing owners.
+
+---
+
 ## Post-review fixes and next-beta test
 
-The 2026-09-21 review reproduced five gaps in the production player. They are now fixed in the working tree: one guarded saved-device resolver prevents recursive HAL retries; pending identity survives repeated fallback notifications and an absent launch device; destination mode preferences win on model matching; only an actual automatic carry is persisted; and termination retires transport, pending opens and recovery before restoring the device. See `review-2026-09-21.md` for the original reproductions. Its probe patch is historical evidence, not a patch to apply to the updated tests.
+The 2026-09-21 review reproduced five gaps in the production player. They were committed in `ca9124c9`: one guarded saved-device resolver prevents recursive HAL retries; pending identity survives repeated fallback notifications and an absent launch device; destination mode preferences win on model matching; only an actual automatic carry is persisted; and termination retires transport, pending opens and recovery before restoring the device. See `review-2026-09-21.md` for the original reproductions. Its probe patch is historical evidence, not a patch to apply to the updated tests.
 
 Diagnostics for the next beta:
 

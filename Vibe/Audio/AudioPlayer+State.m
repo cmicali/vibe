@@ -80,6 +80,13 @@
 }
 #endif
 
+- (NSTimeInterval)lastKnownPosition {
+    os_unfair_lock_lock(&_stateLock);
+    NSTimeInterval position = _state == VibePlayerStateStopped ? 0 : _lastValidPosition;
+    os_unfair_lock_unlock(&_stateLock);
+    return MAX(0, position);
+}
+
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;

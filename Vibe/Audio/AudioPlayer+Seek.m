@@ -17,7 +17,27 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
 
 @implementation AudioPlayer (Seek)
 
+- (void)notifySeekFinishedOnQueue:(AudioTrack *)track reason:(NSString *)reason submittedPlay:(uint64_t)play {
+#if VIBE_VERBOSE_LOGGING
+    uint64_t segment = _segmentGeneration;
+    uint64_t deliveredAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Timeline: seek for play %llu settled on current segment %llu: %@", play, segment, reason);
+#endif
+    run_on_main_thread({
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu didFinishSeeking main delivery %.1f ms, %@, current submission %d",
+                play, segment, (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - deliveredAt) / 1e6,
+                reason, [self submittedPlayIsCurrent:play]);
+#endif
+        [self.delegate audioPlayer:self didFinishSeeking:track];
+    });
+}
+
 - (void)seekToPosition:(NSTimeInterval)pos {
+#if VIBE_VERBOSE_LOGGING
+    uint64_t submittedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    LogInfo(@"Timeline: seek submitted at %llu to %.3fs", submittedAt, pos);
+#endif
     // The caller computed pos against the track that is current NOW — a
     // scrubber fraction of its duration, a bar skip from its tempo. A gapless
     // boundary can promote the next track before the block below runs, and
@@ -27,6 +47,7 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
     AudioTrack *intendedTrack = self.currentTrack;
     uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
+    uint64_t diagnosticRequestedPlay = _nextSubmittedPlayIdentifier;
     if (self.lastSubmittedPlayTrack) {
         // A play is queued but has not reached the player queue yet, so
         // currentTrack still names the outgoing track. The handoff is cleared
@@ -44,6 +65,11 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
     }
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu segment %llu seek %llu admitted after %.1f ms, target %.3fs, state %ld",
+                [self diagnosticPlayIdentifierOnQueue], self->_segmentGeneration, submittedAt,
+                (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - submittedAt) / 1e6, pos, (long)self->_state);
+#endif
         AudioTrack *track = self.currentTrack;
         if (self->_state == VibePlayerStateLoading) {
             VibePlaybackRequest *request = self.pendingRequest.currentRequest;
@@ -51,15 +77,11 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
             [self.pendingRequest seekToPosition:pos
                                  ifCurrentTrackIs:intendedTrack
                          submittedPlayIdentifier:intendedSubmittedPlayIdentifier];
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didFinishSeeking:track];
-            });
+            [self notifySeekFinishedOnQueue:track reason:@"loading intent" submittedPlay:diagnosticRequestedPlay];
             return;
         }
         if (track != intendedTrack) {
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didFinishSeeking:track];
-            });
+            [self notifySeekFinishedOnQueue:track reason:@"ignored: track changed" submittedPlay:diagnosticRequestedPlay];
             return;
         }
         [self seekOnQueueToPosition:pos restoringPreemptedPause:NO];
@@ -71,13 +93,11 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
     AudioTrack *track = self.currentTrack;
     AVAudioPlayerNode *node = _node;
     AVAudioFile *file = _file;
+    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     if (!node || !file) {
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+        [self notifySeekFinishedOnQueue:track reason:@"no playable segment" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
-    uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     double sampleRate = file.processingFormat.sampleRate;
     BOOL wasPlaying = (_state == VibePlayerStatePlaying);
     AVAudioFramePosition startFrame = VibeClampedStartFrame(pos, sampleRate, file.length);
@@ -103,9 +123,7 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
                 slowSeek ? @"slow " : @"", rescheduleSeconds);
         [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
         [self maybeArmGaplessOnQueue];
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+        [self notifySeekFinishedOnQueue:track reason:@"paused seek" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
 
@@ -172,9 +190,7 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
         if (_node == node && rampGen == _rampGeneration) {
             [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
         }
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+        [self notifySeekFinishedOnQueue:track reason:@"superseded seek" submittedPlay:submittedPlayIdentifier];
         return;
     }
     _pendingSeekPosition = -1;
@@ -217,9 +233,7 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
                                submittedPlayIdentifier:submittedPlayIdentifier];
             }
         }
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+        [self notifySeekFinishedOnQueue:track reason:@"newer pause/resume owns state" submittedPlay:submittedPlayIdentifier];
         return;
     }
     if (_pausePending) {
@@ -254,17 +268,13 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
                                  framePosition:framePosition
                                          error:startError
                        submittedPlayIdentifier:submittedPlayIdentifier];
-        run_on_main_thread({
-            [self.delegate audioPlayer:self didFinishSeeking:track];
-        });
+        [self notifySeekFinishedOnQueue:track reason:@"start failed, parked" submittedPlay:submittedPlayIdentifier];
         return;
     }
     [self publishPlaybackState:_state node:node file:file segmentStart:startFrame position:framePosition];
     uint64_t fadeInGen = [self preemptRampsOnQueue];
     [self rampNodeAsync:node step:1 from:0 to:1.0 generation:fadeInGen completion:nil];
-    run_on_main_thread({
-        [self.delegate audioPlayer:self didFinishSeeking:track];
-    });
+    [self notifySeekFinishedOnQueue:track reason:@"completed" submittedPlay:submittedPlayIdentifier];
 }
 
 @end

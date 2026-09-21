@@ -147,7 +147,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
     NSMutableDictionary *d = [@{
         @"state": player.isPlaying ? @"playing" : player.isPaused ? @"paused" : @"stopped",
         @"loading": @(player.isLoading),
-        @"position": @(player.position),
+        @"position": @(player.lastKnownPosition),
         @"duration": @(player.duration),
         @"outputAudioActive": @(player.outputAudioActive),
         @"gaplessArmed": @(player.isGaplessArmed),
@@ -284,26 +284,75 @@ static NSArray<NSString *> *VibeLogLines(NSUInteger *dropped) {
     return lines;
 }
 
+// One outstanding worker per section, even after timeout. A hung driver must
+// not accumulate more workers each time the user saves another report.
+static NSDictionary *VibeFreshDiagnosticSection(NSString *section, NSDictionary *(^read)(void)) {
+    static NSMutableDictionary *completed, *inFlight;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        completed = [NSMutableDictionary dictionary];
+        inFlight = [NSMutableDictionary dictionary];
+    });
+    NSTimeInterval requestedAt = NSDate.date.timeIntervalSince1970;
+    dispatch_group_t group;
+    @synchronized (completed) {
+        group = inFlight[section];
+        if (!group) {
+            group = dispatch_group_create();
+            dispatch_group_enter(group);
+            inFlight[section] = group;
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                NSDictionary *value;
+                @try {
+                    NSDictionary *snapshot = read() ?: @{};
+                    value = @{@"status": @"fresh", @"capturedAt": @(NSDate.date.timeIntervalSince1970),
+                              @"value": snapshot};
+                } @catch (NSException *exception) {
+                    value = @{@"status": @"failed", @"error": exception.reason ?: @"exception"};
+                }
+                @synchronized (completed) {
+                    completed[section] = value;
+                    [inFlight removeObjectForKey:section];
+                }
+                dispatch_group_leave(group);
+            });
+        }
+    }
+    BOOL timedOut = dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0;
+    @synchronized (completed) {
+        NSMutableDictionary *result = [completed[section] mutableCopy] ?: [NSMutableDictionary dictionary];
+        if (timedOut) result[@"status"] = result[@"value"] ? @"timed out; cached" : @"timed out; unavailable";
+        result[@"requestedAt"] = @(requestedAt);
+        return result;
+    }
+}
+
 NSString *VibeDebugInfoText(NSDictionary<NSString *, id> *snapshot, AudioPlayer *player) {
     NSMutableDictionary *report = [snapshot mutableCopy];
-    NSMutableArray *devices = [NSMutableArray array];
-    for (AudioDevice *device in AudioDeviceManager.sharedInstance.cachedOutputDevices) {
-        NSMutableDictionary *d = [[CoreAudioUtil diagnosticDescriptionOfDeviceID:(AudioDeviceID)device.deviceId]
-                mutableCopy];
-        d[@"systemDefault"] = @(device.isSystemDefault);
-        [devices addObject:d];
-    }
-    report[@"outputDevices"] = devices;
+    NSUInteger dropped = 0;
+    NSArray<NSString *> *log = VibeLogLines(&dropped);
+    NSDictionary *hardware = VibeFreshDiagnosticSection(@"hardware", ^NSDictionary *{
+        NSMutableArray *devices = [NSMutableArray array];
+        for (AudioDevice *device in AudioDeviceManager.sharedInstance.cachedOutputDevices) {
+            NSMutableDictionary *d = [[CoreAudioUtil diagnosticDescriptionOfDeviceID:(AudioDeviceID)device.deviceId] mutableCopy];
+            d[@"systemDefault"] = @(device.isSystemDefault);
+            [devices addObject:d];
+        }
+        return @{@"devices": devices, @"systemDefaultOutputDeviceId": @([CoreAudioUtil systemDefaultOutputDeviceID])};
+    });
+    NSDictionary *playback = VibeFreshDiagnosticSection(@"player", ^NSDictionary *{
+        return player.outputDeviceDiagnosticSnapshot;
+    });
+    report[@"freshDiagnostics"] = @{@"hardware": hardware, @"player": playback};
+    report[@"outputDevices"] = hardware[@"value"][@"devices"] ?: @[];
     NSMutableDictionary *playerInfo = [report[@"player"] mutableCopy];
-    [playerInfo addEntriesFromDictionary:player.outputDeviceDiagnosticSnapshot];
-    playerInfo[@"systemDefaultOutputDeviceId"] = @([CoreAudioUtil systemDefaultOutputDeviceID]);
+    if (playback[@"value"]) [playerInfo addEntriesFromDictionary:playback[@"value"]];
+    playerInfo[@"systemDefaultOutputDeviceId"] = hardware[@"value"][@"systemDefaultOutputDeviceId"] ?: NSNull.null;
     report[@"player"] = playerInfo;
 
     NSData *json = [NSJSONSerialization dataWithJSONObject:report
             options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys | NSJSONWritingWithoutEscapingSlashes
               error:NULL];
-    NSUInteger dropped = 0;
-    NSArray<NSString *> *log = VibeLogLines(&dropped);
     NSISO8601DateFormatter *stamp = [[NSISO8601DateFormatter alloc] init];
     stamp.timeZone = NSTimeZone.localTimeZone;
     NSMutableString *text = [NSMutableString stringWithFormat:@"Vibe debug info, saved %@\n\n",
