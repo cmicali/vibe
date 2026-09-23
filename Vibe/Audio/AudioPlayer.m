@@ -1009,7 +1009,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // A device's mode lands before main applies its dependent settings.
     declick |= _bitPerfectWanted;
 #endif
-    _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds,
+    _incomingFadeMilliseconds = VibeIncomingFadeMillisecondsWithQueuedSegment(self.crossfadeMilliseconds,
                                                              replacingAudibleTrack,
                                                              declick,
                                                              segmentWasQueued);

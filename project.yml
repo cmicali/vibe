@@ -698,6 +698,7 @@ targets:
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Audio/AudioVoiceBus.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
@@ -828,6 +829,7 @@ targets:
       - path: Vibe/Audio/AudioPlayer+Gapless.m
       - path: Vibe/Audio/AudioPlayer+Graph.m
       - path: Vibe/Audio/AudioPlayer+Seek.m
+      - path: Vibe/Audio/AudioVoiceBus.m
       - path: Vibe/Audio/FX/AudioFX.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m

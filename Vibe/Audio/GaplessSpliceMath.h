@@ -11,14 +11,6 @@
 #import <Foundation/Foundation.h>
 #import "FadeMath.h"
 
-// Whether the crossfade setting permits arming the splice: only the declick
-// minimum, which the UI presents as crossfade off. A longer setting is a
-// request for overlapped transitions, and auto-advance then keeps the
-// classic teardown path rather than butt-splicing.
-static inline BOOL VibeGaplessArmAllowed(NSInteger crossfadeMilliseconds) {
-    return crossfadeMilliseconds <= (NSInteger)kFadeDurationMilliseconds;
-}
-
 // A player node's connection format is fixed at connect time, so a queued
 // segment must match the current file's sample rate and channel count
 // exactly; anything else falls back to the classic transition.
