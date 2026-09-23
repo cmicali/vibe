@@ -15,7 +15,9 @@
 #import "NowPlayingRules.h"
 #import "PlatformColor.h"           // VibeHexStringFromColor, the palette signature
 #import "PlatformImage.h"
-#import "Vibe-Swift.h"              // VibeWidgetReloader; WidgetCenter has no ObjC API
+#if !TARGET_OS_OSX
+#import "Vibe-Swift.h"              // VibeWidgetReloader; the mac loads it from a bundle
+#endif
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
@@ -65,6 +67,43 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     else if (url) {
         [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
     }
+}
+
+// VibeWidgetReloader's two class methods, for a class the mac only has as a
+// runtime lookup.
+@protocol VibeWidgetReloading <NSObject>
++ (void)reload;
++ (void)queryPlaced:(void (^)(BOOL placed))completion;
+@end
+
+// The reloader, loaded on the mac the first time it is asked for — which is
+// only ever once a widget may exist (VibeWidgetState.widgetMayBePlaced, the
+// read signal) — so an app with none never loads WidgetKit. Only ever called
+// on the publish queue, which reloads and queries, so the load never blocks
+// main. Nil only if the bundle failed to load, and every caller treats that as
+// "no WidgetKit to tell".
+static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
+#if TARGET_OS_OSX
+    static Class reloader;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSURL *url = [NSBundle.mainBundle.builtInPlugInsURL
+                URLByAppendingPathComponent:@"VibeWidgetCenter.bundle"];
+        NSBundle *bundle = [NSBundle bundleWithURL:url];
+        NSError *error = nil;
+        if ([bundle loadAndReturnError:&error]) {
+            reloader = [bundle classNamed:@"VibeWidgetReloader"];
+            LogInfo(@"Widget: loaded %@ on the %@ thread", url.lastPathComponent,
+                    NSThread.isMainThread ? @"main" : @"publish");
+        }
+        else {
+            LogError(@"Widget: could not load %@: %@", url.lastPathComponent, error);
+        }
+    });
+    return reloader;
+#else
+    return (Class<VibeWidgetReloading>)VibeWidgetReloader.class;
+#endif
 }
 
 @implementation WidgetPublisher {
@@ -117,12 +156,12 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     NSString             *_placeholderSignature;
     BOOL                  _placeholdersOwed;
 
-    // Whether at least one widget is placed, as last known. Two
-    // sources, because each can only be right about one direction: WidgetKit's
-    // own answer (queryPlaced) is authoritative but asked only at launch and
-    // on foreground, so it is what turns this OFF; the extension's read signal
-    // arrives the instant a widget renders, wherever the app is, so it is what
-    // turns it ON. While NO, nothing is computed, captured or written: every
+    // Whether at least one widget is placed, as last known. Two sources,
+    // because each can only be right about one direction: WidgetKit's own
+    // answer (queryPlacedOnlyIfMarked:) is authoritative but asked only at
+    // launch and on foreground, so it is what turns this OFF; the extension's
+    // read signal arrives the instant a widget renders, wherever the app is,
+    // so it is what turns it ON. While NO, nothing is computed, captured or written: every
     // entry point returns at this flag, and updateWithTrack: only records its
     // inputs (below) for republish to replay.
     BOOL                  _widgetPlaced;
@@ -166,7 +205,9 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
                                  dispatch_get_main_queue(), ^(int token) {
             [weakSelf setWidgetPlaced:YES];
         });
-        [self queryPlaced];
+        // Asked only if a widget has rendered since WidgetKit last said none:
+        // with none ever placed, launch loads nothing and asks nothing.
+        [self queryPlacedOnlyIfMarked:YES];
     }
     return self;
 }
@@ -183,17 +224,34 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 // so with none placed there is nothing to ask.
 - (void)refreshPlaced {
     if (_widgetPlaced) {
-        [self queryPlaced];
+        [self queryPlacedOnlyIfMarked:NO];
     }
 }
 
-- (void)queryPlaced {
+// On the publish queue, never main: the mark check resolves the container,
+// which asks the container manager over XPC, and the first query loads
+// VibeWidgetCenter.bundle and with it WidgetKit and SwiftUI. Neither belongs
+// on a launch's main thread, and the answer is only ever a flag.
+- (void)queryPlacedOnlyIfMarked:(BOOL)onlyIfMarked {
     __weak WidgetPublisher *weakSelf = self;
-    [VibeWidgetReloader queryPlaced:^(BOOL placed) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf setWidgetPlaced:placed];
-        });
-    }];
+    dispatch_async(_queue, ^{
+        if (onlyIfMarked && !VibeWidgetState.widgetMayBePlaced) {
+            return;
+        }
+        Class<VibeWidgetReloading> reloader = VibeWidgetReloaderClass();
+        if (!reloader) {
+            return;     // nothing could be told anyway; the flag stays off
+        }
+        [reloader queryPlaced:^(BOOL placed) {
+            if (!placed) {
+                // The next launch loads nothing until a widget renders again.
+                [VibeWidgetState forgetWidget];
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf setWidgetPlaced:placed];
+            });
+        }];
+    });
 }
 
 - (void)setWidgetPlaced:(BOOL)placed {
@@ -373,7 +431,7 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
             self->_reloadOwed = YES;    // sent when the hold ends
             return;
         }
-        [VibeWidgetReloader reload];
+        [VibeWidgetReloaderClass() reload];
     });
 }
 

@@ -44,6 +44,7 @@ static NSString *const kPlayedLightFormat   = @"waveform-%@-played-light.png";
 static NSString *const kUnplayedLightFormat = @"waveform-%@-unplayed-light.png";
 static NSString *const kPlaceholderDark  = @"placeholder-dark.png";
 static NSString *const kPlaceholderLight = @"placeholder-light.png";
+static NSString *const kWidgetMark = @"widget-present";
 
 // Plist keys. Spelled once: a typo on one side of the app/extension boundary
 // reads as an absent field, which draws an empty widget rather than failing.
@@ -139,10 +140,26 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     return stale;
 }
 
++ (BOOL)widgetMayBePlaced {
+    NSURL *mark = [self fileNamed:kWidgetMark];
+    return mark && [NSFileManager.defaultManager fileExistsAtPath:mark.path];
+}
+
++ (void)forgetWidget {
+    NSURL *mark = [self fileNamed:kWidgetMark];
+    if (mark) {
+        [NSFileManager.defaultManager removeItemAtURL:mark error:NULL];
+    }
+}
+
 + (VibeWidgetState *)loadState {
     // Before the read, not after a successful one: an empty container is still
     // a widget asking, and it is exactly the widget that needs the app to
-    // start publishing.
+    // start publishing. The mark is for an app not running to hear the signal.
+    NSURL *mark = [self fileNamed:kWidgetMark];
+    if (mark && ![NSFileManager.defaultManager fileExistsAtPath:mark.path]) {
+        [NSData.data writeToURL:mark atomically:NO];
+    }
     notify_post(kVibeWidgetReadNotification);
     NSURL *url = [self fileNamed:kStateFileName];
     if (!url) {

@@ -25,6 +25,10 @@
 #import "FolderArtResolver.h"
 #import "VibeStrings.h"
 #import "WidgetPublisher.h"
+#import "AudioPlayer+Seek.h"
+#import "AudioTrack.h"
+#import "NSURL+Hash.h"
+#import "PlaylistController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if DEBUG
@@ -37,6 +41,8 @@
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
+
+- (void)performWhenLaunchOpenSettled:(dispatch_block_t)block;
 
 @end
 
@@ -160,6 +166,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }];
 }
 
+// Runs `block` on main once the launch open has settled — the grant restore,
+// then the queued launch-time open or the remembered playlist — or at once if
+// it already has. The widget's buttons wait on it: a click that launched the
+// app must not act on a playlist the restore has not landed yet.
 - (void)performWhenLaunchOpenSettled:(dispatch_block_t)block {
     if (_launchOpenSettled) {
         block();
@@ -433,3 +443,31 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #endif
 
 @end
+
+void VibeWidgetPerformAction(VibeWidgetAction action, double progress, NSString *trackKey,
+                             dispatch_block_t completion) {
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    if (![delegate isKindOfClass:AppDelegate.class]) {
+        completion();
+        return;
+    }
+    [delegate performWhenLaunchOpenSettled:^{
+        MainPlayerController *controller = delegate.mainPlayerController;
+        switch (action) {
+            case VibeWidgetActionPlayPause:
+                [controller playPause:nil];
+                break;
+            case VibeWidgetActionNext:
+                [controller next:nil];
+                break;
+            case VibeWidgetActionSeek:
+                if ([controller.playlistController.currentTrack.url.pathKey isEqualToString:trackKey]) {
+                    // File time, as the window's own waveform seeks: the
+                    // widget's progress is the same fraction at any rate.
+                    [controller.audioPlayer seekToPosition:progress * controller.audioPlayer.duration];
+                }
+                break;
+        }
+        completion();
+    }];
+}

@@ -45,7 +45,8 @@ NS_ASSUME_NONNULL_BEGIN
 // shell calls it on every return to the foreground — the one moment a widget
 // can have been REMOVED, since removing one means leaving the app. Adding one
 // is covered by the read signal, so with none placed there is nothing to ask.
-// init asks once regardless, to learn about a widget placed before launch.
+// init asks once if a widget has rendered since WidgetKit last said none
+// (VibeWidgetState.widgetMayBePlaced), to learn of one placed before launch.
 - (void)refreshPlaced;
 
 // Called from the Now Playing publish, with the values that call already
@@ -95,5 +96,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)displaySettingsDidChange;
 
 @end
+
+#if TARGET_OS_OSX
+// The widget buttons' mac transport, which VibeWidgetIntents.swift performs:
+// once the launch open has settled, acts on the player, then calls
+// `completion`. Implemented by the mac shell (AppDelegate), declared here in a
+// Foundation-only header because the Swift calling it must not see AppKit —
+// see that file's trap. Main thread. A seek applies `progress` of the current
+// track only when it is still the one `trackKey` names.
+typedef NS_ENUM(NSInteger, VibeWidgetAction) {
+    VibeWidgetActionPlayPause,
+    VibeWidgetActionNext,
+    VibeWidgetActionSeek,
+};
+FOUNDATION_EXPORT void VibeWidgetPerformAction(VibeWidgetAction action, double progress,
+                                               NSString *_Nullable trackKey,
+                                               dispatch_block_t completion);
+#endif
 
 NS_ASSUME_NONNULL_END

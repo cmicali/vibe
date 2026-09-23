@@ -60,7 +60,7 @@ The drag is `Playlist/Mac/CLAUDE.md`'s. This side owns **`playlistOrderDidChange
 
 **Now Playing** publishes the same wall-clock position and duration, rate 1.0 playing and 0 paused, and nothing until the first real play — `NowPlayingController`'s rule (`System/CLAUDE.md`). Artwork reads non-blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves.
 
-**The desktop widget is fed from the same publish**: `updateNowPlaying` hands `widgetPublisher` its locals, with the Loading gap as `startPending`; the waveform delivery offers the complete envelope (`percentLoaded >= 1`, which a cache hit also delivers); `applySettingsLiveEffects:` asks it to re-bake on any waveform effect; `AppDelegate`'s activation asks whether a widget is still placed. Its intents drive `playPause:`, `next:` and a file-time seek after `AppDelegate.performWhenLaunchOpenSettled:`. The contract is `System/CLAUDE.md`'s.
+**The desktop widget is fed from the same publish**: `updateNowPlaying` hands `widgetPublisher` its locals, with the Loading gap as `startPending`; the waveform delivery offers the complete envelope (`percentLoaded >= 1`, which a cache hit also delivers); `applySettingsLiveEffects:` asks it to re-bake on any waveform effect; `AppDelegate`'s activation asks whether a widget is still placed. Its intents drive `playPause:`, `next:` and a file-time seek through `VibeWidgetPerformAction` (`AppDelegate.m`), once the launch open has settled. The contract is `System/CLAUDE.md`'s.
 
 ## The window
 

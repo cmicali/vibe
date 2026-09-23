@@ -99,6 +99,16 @@ extern NSString *const kVibeWidgetColorBackground;
 // that read the previous plist a moment ago still finds the images it names.
 + (NSArray<NSURL *> *)imageURLsNotForTrackKeys:(NSArray<NSString *> *)trackKeys;
 
+#pragma mark - Whether a widget may exist
+
+// The app's WidgetKit-free first answer to "is a widget placed?", so a launch
+// with none never loads WidgetKit to ask (VibeWidgetReloader.swift says what
+// that costs). loadState marks the container on every render; the app asks
+// WidgetKit only while the mark is there, and clears it when the answer is
+// none. A widget added later renders, marks, and posts the read signal.
+@property (class, nonatomic, readonly) BOOL widgetMayBePlaced;
++ (void)forgetWidget;
+
 #pragma mark - Reading and writing
 
 // nil when nothing has been published yet, or the file is unreadable. Posts

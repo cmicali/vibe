@@ -164,6 +164,11 @@ require_widget_extension() {
         || widget_fail "$appex lacks the app group $WIDGET_APP_GROUP — the widget would draw empty"
     grep -q "$WIDGET_APP_GROUP" <<<"$(codesign -d --entitlements - --xml "$app" 2>/dev/null)" \
         || widget_fail "$app lacks the app group $WIDGET_APP_GROUP — it could not publish to the widget"
+    # The app's WidgetKit bridge, loaded on demand (VibeWidgetReloader.swift):
+    # without it the widget is never told to redraw.
+    local center="$app/Contents/PlugIns/VibeWidgetCenter.bundle"
+    [[ -d "$center" ]] || widget_fail "$center is missing — the app could not reach WidgetKit"
+    asc_require_binary_architectures "$center/Contents/MacOS/VibeWidgetCenter" "$@"
 }
 
 asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO

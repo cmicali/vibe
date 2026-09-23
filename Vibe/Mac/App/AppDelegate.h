@@ -35,13 +35,6 @@
 // a Finder open.
 - (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
-// Runs `block` on main once the launch open has settled — the grant restore,
-// then the queued launch-time open or the remembered playlist — or at once if
-// it already has. The widget's intents wait on it: a click that launched the
-// app must not act on a playlist the restore has not landed yet.
-- (void)performWhenLaunchOpenSettled:(dispatch_block_t)block
-        NS_SWIFT_NAME(performWhenLaunchOpenSettled(_:));
-
 // Re-levels the About and Settings windows to match
 // AppSettings.sharedInstance.alwaysOnTop.
 // They must ride at the player's level: left at normal level, the floating

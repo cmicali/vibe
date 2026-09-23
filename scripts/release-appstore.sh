@@ -270,6 +270,9 @@ if [[ "$PLATFORM" == macos ]]; then
     [[ -d "$PKG_APPEX" ]] || {
         echo "error: $UPLOAD_FILE carries no VibeWidget.appex" >&2
         exit 1; }
+    [[ -d "$PKG_APP/Contents/PlugIns/VibeWidgetCenter.bundle" ]] || {
+        echo "error: $UPLOAD_FILE carries no VibeWidgetCenter.bundle — the app could not reach WidgetKit" >&2
+        exit 1; }
     MAC_GROUP="$TEAM_ID.com.commonwealthrecordings.Vibe"
     for bundle in "$PKG_APP" "$PKG_APPEX"; do
         grep -q "$MAC_GROUP" <<<"$(codesign -d --entitlements - --xml "$bundle" 2>/dev/null)" || {

@@ -424,12 +424,24 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited)"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
-        # The widget's reloader and intent bodies, as on iOS (see VibeiOS).
+        # The widget's intent bodies, as on iOS (see VibeiOS).
+        # TRAP: Xcode generates Swift accessors for the asset and string
+        # catalogs once a target has Swift, and they import SwiftUI — linking
+        # it into the app at every launch. Nothing reads them (the app is
+        # Objective-C), so they are off; VibeWidgetIntents.swift's TRAP is the
+        # other half of keeping SwiftUI out.
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
+        STRING_CATALOG_GENERATE_SYMBOLS: NO
         SWIFT_VERSION: "5.0"
         SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/Mac/App/Vibe-Bridging-Header.h"
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VIBE_APP"
     dependencies:
       - target: VibeWidgetMac     # embedded into Contents/PlugIns/
+      - target: VibeWidgetCenter  # likewise; loaded only once a widget exists
+        embed: true
+        copy:
+          destination: plugins
       - sdk: AppIntents.framework           # the widget's transport intents
       - sdk: AVFoundation.framework
       - sdk: Accelerate.framework
@@ -460,6 +472,9 @@ targets:
       # CLAUDE.md and make check-layout.
       - path: Vibe/iOS
         excludes: ["**/.DS_Store", "**/*.md"]
+      # The WidgetKit caller, compiled into the app here and into a bundle on
+      # the mac (VibeWidgetCenter below says why).
+      - path: VibeWidgetCenter/VibeWidgetReloader.swift
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Common
@@ -666,6 +681,36 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         PROVISIONING_PROFILE_SPECIFIER: ""
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/VibeWidget/VibeWidgetMac.entitlements"
+
+  # The mac app's only WidgetKit caller, as a bundle WidgetPublisher loads the
+  # first time it has a widget to talk to. Linked into the app, WidgetKit loaded
+  # at every launch, and with it all of SwiftUI and, through that, WebKit — 57
+  # more images for every user, widget or not. Outside Vibe/ for the reason the
+  # extension's sources are.
+  VibeWidgetCenter:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: VibeWidgetCenter
+        excludes: ["**/.DS_Store", "**/*.md"]
+    settings:
+      groups: [vibe-version]
+      base:
+        PRODUCT_NAME: VibeWidgetCenter
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe.WidgetCenter
+        GENERATE_INFOPLIST_FILE: YES
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        SWIFT_VERSION: "5.0"
+        GCC_PREFIX_HEADER: ""
+        # Signed as the app is; the hardened runtime's library validation
+        # admits it because the app and the bundle share a team.
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: WidgetKit.framework
 
   # Not a test suite: the interactive touch driver for agentic workflows —
   # the iOS counterpart of the debug channel's key/click injection, which
