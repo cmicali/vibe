@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import os
 import WidgetKit
 
 // public, not internal: on iOS the generated Vibe-Swift.h is what Objective-C
@@ -40,9 +41,15 @@ public final class VibeWidgetReloader: NSObject {
     public static func queryPlaced(_ completion: @escaping (Bool) -> Void) {
         WidgetCenter.shared.getCurrentConfigurations { result in
             switch result {
-            case .success(let placed): completion(!placed.isEmpty)
-            case .failure: completion(true)
+            case .success(let placed):
+                log.notice("Widget: WidgetKit lists \(placed.count) placed: \(placed.map { "\($0.kind)/\($0.family)" }.joined(separator: ", "), privacy: .public)")
+                completion(!placed.isEmpty)
+            case .failure(let error):
+                log.error("Widget: WidgetKit query failed, assuming placed: \(error.localizedDescription, privacy: .public)")
+                completion(true)
             }
         }
     }
+
+    private static let log = Logger(subsystem: "com.commonwealthrecordings.Vibe", category: "app")
 }

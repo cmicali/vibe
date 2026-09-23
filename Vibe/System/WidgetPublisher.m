@@ -243,6 +243,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             return;     // nothing could be told anyway; the flag stays off
         }
         [reloader queryPlaced:^(BOOL placed) {
+            LogInfo(@"Widget: WidgetKit reports %@", placed ? @"a widget placed" : @"none placed");
             if (!placed) {
                 // The next launch loads nothing until a widget renders again.
                 [VibeWidgetState forgetWidget];
@@ -259,6 +260,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         return;
     }
     _widgetPlaced = placed;
+    LogInfo(@"Widget: %@", placed ? @"now publishing" : @"no widget placed; publishing stops");
     if (placed) {
         [self republish];
     }
