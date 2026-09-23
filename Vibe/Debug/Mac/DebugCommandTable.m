@@ -431,9 +431,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             // They are therefore requested on main once the selection clears,
             // and the reply says requested, not applied — confirm with
             // dump_state.player.bitPerfect like any other action verb.
-            VibeDebugCmd(@"set_output_device <uid|name|system> [bp on|off] [excl on|off]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"set_output_device <uid|name|system> [<bit-perfect on|off> [<exclusive on|off>]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2 || tokens.count > 4) {
-                    return VibeErrorJSON(@"usage: set_output_device <uid|name|system> [bp on|off] [excl on|off]");
+                    return VibeErrorJSON(@"usage: set_output_device <uid|name|system> [<bit-perfect on|off> [<exclusive on|off>]]");
                 }
                 NSString *wanted = tokens[1];
                 NSInteger deviceId = -1;

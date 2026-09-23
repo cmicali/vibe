@@ -62,6 +62,24 @@ static const NSUInteger kMaxBurstJumps = 5000;
 // a stray one is never mistaken for the hang it deliberately imitates.
 static const double kMaxBlockMainSeconds = 5.0;
 
+// Holds main from under `depth` real frames, so a stall-stack sample has to
+// span a stack as deep as a layout recursion to reach the frames below it.
+// Alternating call sites give neighbouring frames different return addresses,
+// as a layout <-> subview recursion does, so they cannot collapse into one
+// entry. Not a tail call, or the compiler flattens the recursion into a loop.
+__attribute__((noinline)) static NSUInteger VibeDebugRecurseThenBlock(NSUInteger depth, useconds_t micros,
+                                                                        BOOL alternating) {
+    if (depth == 0) {
+        usleep(micros);
+        return 0;
+    }
+    volatile NSUInteger kept = depth;
+    if (alternating && depth % 2) {
+        return VibeDebugRecurseThenBlock(depth - 1, micros, alternating) + kept + 1;
+    }
+    return VibeDebugRecurseThenBlock(depth - 1, micros, alternating) + kept;
+}
+
 // Track changes at the rate the main queue will take them, which is the only
 // way to reach the interleavings that matter.
 //
@@ -269,6 +287,21 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // tables are typed to their own controllers. Bounded hard, because
             // a wedged main thread is indistinguishable from a hang to every
             // oracle that watches this app.
+            VibeDebugCmd(@"block_main_deep <seconds> <depth> [alternating]", 30,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0, depth = 0;
+                BOOL alternating = tokens.count == 4 && [tokens[3] isEqualToString:@"alternating"];
+                if ((tokens.count != 3 && !alternating) || !VibeParseDouble(tokens[1], &seconds)
+                        || !VibeParseDouble(tokens[2], &depth)
+                        || seconds <= 0 || seconds > kMaxBlockMainSeconds || depth < 0 || depth > 4000) {
+                    return VibeErrorJSON(@"usage: block_main_deep <seconds 0-%g> <depth 0-4000> [alternating]",
+                                         kMaxBlockMainSeconds);
+                }
+                VibeDebugRecurseThenBlock((NSUInteger)depth, (useconds_t)(seconds * 1e6), alternating);
+                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds), @"depth": @(depth),
+                                        @"alternating": @(alternating)});
+            }),
             VibeDebugCmd(@"block_main <seconds> [<verb> ...]", 30,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

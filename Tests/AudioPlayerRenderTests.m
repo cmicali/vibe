@@ -316,6 +316,52 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
+// A bit-perfect lossy source on a 16-bit device is decoded straight to 16-bit
+// integers. Only the device boundary is faked (the prepared format); the real
+// rule and graph run. MP3 and MP2 decode onto the 16-bit grid already, so no
+// sample may change; AAC rounds once to the nearest step; lossless stays float.
+- (void)testSixteenBitDeviceDecodesLossySourcesToInteger16 {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AVAudioFile *file) {
+        AudioStreamBasicDescription sixteen = {0};
+        sixteen.mSampleRate = file.processingFormat.sampleRate;
+        sixteen.mFormatID = kAudioFormatLinearPCM;
+        sixteen.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+        sixteen.mBitsPerChannel = 16;
+        return VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, sixteen);
+    });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"lossy.m4a", @"lossless.flac"]) {
+            NSURL *url = [self fixture:name];
+            if (![NSFileManager.defaultManager fileExistsAtPath:url.path]) continue;
+            BOOL aac = [name hasSuffix:@".m4a"], lossless = [name hasSuffix:@".flac"];
+            AVAudioPCMBuffer *decoded = [self read:url];
+            [self startPlayerAt:decoded.format.sampleRate channels:decoded.format.channelCount fx:NO bitPerfect:YES automatic:NO];
+            [self play:url paused:NO position:0];
+            __block AVAudioCommonFormat nodeFormat = AVAudioOtherFormat;
+            [_player runSyncOnQueue:^{
+                nodeFormat = [[self->_player valueForKey:@"node"] outputFormatForBus:0].commonFormat;
+            }];
+            XCTAssertEqual(nodeFormat, lossless ? AVAudioPCMFormatFloat32 : AVAudioPCMFormatInt16, @"%@", name);
+            NSMutableData *reference = PCM(decoded);
+            float *r = reference.mutableBytes;
+            for (NSUInteger i = 0; aac && i < reference.length / sizeof(float); i++) {
+                r[i] = fminf(32767, fmaxf(-32768, roundf(r[i] * 32768))) / 32768;
+            }
+            // Two AAC decodes can differ by float rounding bits, which may move a
+            // sample sitting on a rounding boundary by one 16-bit step.
+            [self assertReference:reference capture:[self renderSeconds:decoded.frameLength / _rate + 0.1]
+                             skip:(NSUInteger)(_rate * 0.05) tolerance:aac ? 1.0f / 32768 : 0];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+}
 - (void)testFloatLimitsSilenceAndInteger32Precision {
     for (NSString *name in @[@"limits.wav",@"silence.wav",@"integer32.wav"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];

@@ -42,6 +42,16 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
 }
 
 #if VIBE_VERBOSE_LOGGING
+// Drops the probe's hold on the tap once the newest capture has completed; the
+// indicator's own demand, if any, keeps the tap installed.
+- (void)releaseSignalProbeOnQueue:(uint64_t)request {
+    if (request != _signalProbeRequest || !_signalProbeWanted) {
+        return;
+    }
+    _signalProbeWanted = NO;
+    [self applyLevelTapOnQueue];
+}
+
 - (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelTap *)tap request:(uint64_t)request {
     [self scheduleAfterSeconds:0.1 block:^{
         if ([tap pollSignalDiagnostics:request]) {
@@ -56,13 +66,21 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
     AudioLevelTap *tap = _levelTap;
     uint64_t play = [self diagnosticPlayIdentifierOnQueue], segment = _segmentGeneration;
     NSString *track = self.currentTrack.url.lastPathComponent;
-    uint64_t request = [tap beginSignalDiagnosticsAtTime:_signalStartTime waitingForRetiredAudio:_activeRetiredOutputCount > 0 completion:^(NSDictionary *snapshot) {
-        if ([snapshot[@"completion"] isEqual:@"superseded"] && [snapshot[@"status"] isEqual:@"no buffers observed"]) return;
-        LogInfo(@"Signal: play %llu segment %llu %@ %@ capture %@", play, segment, track, reason, snapshot);
+    __block uint64_t request = 0;
+    __weak AudioPlayer *weakSelf = self;
+    request = [tap beginSignalDiagnosticsAtTime:_signalStartTime waitingForRetiredAudio:_activeRetiredOutputCount > 0 completion:^(NSDictionary *snapshot) {
+        if (!([snapshot[@"completion"] isEqual:@"superseded"] && [snapshot[@"status"] isEqual:@"no buffers observed"])) {
+            LogInfo(@"Signal: play %llu segment %llu %@ %@ capture %@", play, segment, track, reason, snapshot);
+        }
+        // Not from inside the tap's own call: releasing the demand may remove it.
+        AudioPlayer *player = weakSelf;
+        if (player) dispatch_async(player->_queue, ^{ [player releaseSignalProbeOnQueue:request]; });
     }];
     if (!request) LogInfo(@"Signal: play %llu segment %llu %@ %@ unavailable: no active level tap (post-mix observation, not audible output)",
                          play, segment, track, reason);
     if (request) [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
+    _signalProbeRequest = request;
+    if (!request) [self releaseSignalProbeOnQueue:0];
 #endif
 }
 
@@ -125,6 +143,12 @@ static NSTimeInterval VibeSecondsSince(uint64_t startNanos) {
             }
 #endif
 #if VIBE_VERBOSE_LOGGING
+            // The playlist's indicator may be hidden (its column is a theme
+            // choice), and a tap installed after the start misses its opening.
+            if (!_engine.isInManualRenderingMode && !_signalProbeWanted) {
+                _signalProbeWanted = YES;
+                [self applyLevelTapOnQueue];
+            }
             AVAudioFramePosition initialSample = 0;
             if (_state == VibePlayerStatePaused && node == _node && _file.processingFormat.sampleRate > 0) {
                 initialSample = MAX(0, llround(self.pausedRawPosition * _file.processingFormat.sampleRate) - _segmentStartFrame);

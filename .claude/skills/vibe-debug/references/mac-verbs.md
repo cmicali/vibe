@@ -105,6 +105,7 @@ A synthetic playlist row-reorder drag: the real `NSTableViewDataSource` choreogr
 "$V" --debug-cmd set_dataless_diag on  # {ok} — record st_flags and lane routing per directory against a REAL provider; dump_dataless_diag reports it. Records nothing while the fake probe is installed
 "$V" --debug-cmd burst 200 7         # {ok, jumps, playlist} — <jumps> [<seed>]: seeded random play_index jumps, one per main-queue turn, capped at 5000. Replies at once and keeps firing, so the NEXT command lands mid-burst — the in-process race the channel's ~80ms cadence cannot stage
 "$V" --debug-cmd block_main 0.5 play_index 3  # {ok, blockedSeconds, then, thenReply} — hold the main thread, then run another shared verb WITHOUT yielding: a worker callback arriving while a user action is underway, which two separate commands cannot stage since intake is on main. Bounded to 5s
+"$V" --debug-cmd block_main_deep 1.2 600 [alternating]  # {ok, blockedSeconds, depth, alternating} — hold main under <depth> real frames (alternating call sites defeat frame collapsing) to verify beta stall stacks reach main; launch without --no-audio-hw, whose manual rendering starts no watchdog
 ```
 
 ## Conversion and undo

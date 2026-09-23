@@ -77,6 +77,10 @@ NS_ASSUME_NONNULL_BEGIN
 // stream and format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
+// VibeBitPerfectDecodesAsInteger16 against the device prepared for file. Read
+// when its player node is connected, which every caller does after preparing.
+- (BOOL)decodesAsInteger16OnQueueForFile:(AVAudioFile *)file;
+
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // Hog for the bound device, when the setting, an eligible device and writable
 // HAL hog mode all hold. Idempotent through the HAL read; a rebuild on the

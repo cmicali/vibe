@@ -332,6 +332,24 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     }
 }
 
+- (void)testOnlyLossySourcesOnASixteenBitDeviceDecodeAsInteger16 {
+    AudioStreamBasicDescription sixteen = PCM(44100, 16, NO), empty = {0};
+    for (NSNumber *codec in @[@(kAudioFormatMPEGLayer2), @(kAudioFormatMPEGLayer3), @(kAudioFormatMPEG4AAC)]) {
+        AudioStreamBasicDescription lossy = Compressed(codec.unsignedIntValue, 0, 44100);
+        XCTAssertTrue(VibeBitPerfectDecodesAsInteger16(lossy, sixteen));
+        XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(lossy, PCM(44100, 24, NO)));
+        XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(lossy, PCM(44100, 32, NO)));
+        XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(lossy, PCM(44100, 32, YES)));
+        XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(lossy, empty)); // nothing prepared
+    }
+    // Float32 already carries a lossless source exactly, whatever the device takes.
+    XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(PCM(44100, 16, NO), sixteen));
+    XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(Compressed(kAudioFormatAppleLossless,
+            kAppleLosslessFormatFlag_16BitSourceData, 44100), sixteen));
+    XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(Compressed(kAudioFormatFLAC, 0, 44100), sixteen));
+    XCTAssertFalse(VibeBitPerfectDecodesAsInteger16(empty, sixteen));
+}
+
 - (void)testSourceDeeperThanTheDACTakesTheDeepestAndFailsSatisfaction {
     AudioStreamRangedDescription dac[16];
     UInt32 n = 0;

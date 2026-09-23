@@ -632,7 +632,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if (_bitPerfectWanted) {
             [self prepareOutputOnQueueForFile:file];
         }
-        AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
+        AVAudioPlayerNode *node = [self attachConnectedNodeForFile:file];
         if (!node) {
             [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                     @"Could not restore track on the new audio device", nil)];
@@ -894,8 +894,22 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                                          current:&current chosen:&chosen]) {
         return unknownNeedsSwitch;
     }
-    return VibeBitPerfectOutputNeedsSwitch(current, chosen,
-            [_engine.mainMixerNode outputFormatForBus:0].sampleRate);
+    double mixerRate = [_engine.mainMixerNode outputFormatForBus:0].sampleRate;
+    BOOL needsSwitch = VibeBitPerfectOutputNeedsSwitch(current, chosen, mixerRate);
+#if VIBE_VERBOSE_LOGGING
+    if (needsSwitch) {
+        LogInfo(@"bit-perfect: %@ needs a switch: device %.0f Hz %u-bit flags 0x%x %u bytes/frame, chosen %.0f Hz %u-bit flags 0x%x %u bytes/frame, mixer %.0f Hz",
+                file.url.lastPathComponent, current.mSampleRate, (unsigned)current.mBitsPerChannel,
+                (unsigned)current.mFormatFlags, (unsigned)current.mBytesPerFrame, chosen.mSampleRate,
+                (unsigned)chosen.mBitsPerChannel, (unsigned)chosen.mFormatFlags, (unsigned)chosen.mBytesPerFrame, mixerRate);
+    }
+#endif
+    return needsSwitch;
+}
+
+- (BOOL)decodesAsInteger16OnQueueForFile:(AVAudioFile *)file {
+    return _bitPerfectWanted && file && _preparedDeviceID != kAudioObjectUnknown
+            && VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, _preparedFormat);
 }
 
 // The chosen device vanished: the mode cannot follow the fallback onto System
@@ -1249,6 +1263,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                         || selector == kAudioDevicePropertyStereoPan
                         || selector == kAudioDevicePropertyMute
                         || selector == kAudioObjectPropertySelectorWildcard) {
+                    strongSelf->_outputControlsDeviceID = kAudioObjectUnknown;
                     [strongSelf publishBitPerfectReportOnQueue];
                     break;
                 }
@@ -1260,6 +1275,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     for (NSUInteger attempt = 0; attempt < 2; attempt++) {
         if ([CoreAudioUtil addOutputLevelListener:listener queue:_queue forDeviceID:deviceID]) {
             _outputLevelListener = listener;
+            _outputControlsDeviceID = kAudioObjectUnknown; // changes while unwatched were missed
             break;
         }
     }
@@ -1322,10 +1338,18 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     VibeBitPerfectReport report = {0};
     NSString *unconfirmed = nil;
+    BOOL controlsCached = NO;
+#if VIBE_VERBOSE_LOGGING
+    BOOL readDevice = NO;
+    uint64_t readStarted = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#endif
     report.enabled = _bitPerfectWanted;
     AudioDevice *device = _bitPerfectWanted ? [self eligibleRequestedDeviceOnQueue] : nil;
     report.eligibleDevice = (device != nil);
     if (device && (AudioDeviceID)device.deviceId == _preparedDeviceID) {
+#if VIBE_VERBOSE_LOGGING
+        readDevice = YES;
+#endif
         AudioStreamBasicDescription physical = {0};
         BOOL readFormat = [CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID];
         AVAudioFormat *mixerFormat = [_engine.mainMixerNode outputFormatForBus:0];
@@ -1359,9 +1383,24 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();
 #endif
         AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
-        if (![CoreAudioUtil readOutputVolume:&report.softwareVolume balance:&report.balance mute:&report.muted
-                                    channels:file.fileFormat.channelCount inStream:_preparedStreamID
-                                 forDeviceID:_preparedDeviceID]) {
+        UInt32 controlChannels = file.fileFormat.channelCount;
+        // No file (Loading) asks for no channels; the last track's reading covers it.
+        controlsCached = _outputLevelListener && _outputControlsDeviceID == _preparedDeviceID
+                && _outputControlsStreamID == _preparedStreamID
+                && (_outputControlsChannels == controlChannels || controlChannels == 0);
+        if (!controlsCached) {
+            BOOL read = [CoreAudioUtil readOutputVolume:&_outputControlsVolume balance:&_outputControlsBalance
+                                                   mute:&_outputControlsMuted channels:controlChannels
+                                               inStream:_preparedStreamID forDeviceID:_preparedDeviceID];
+            // A failed read is never kept, so the next publication tries again.
+            _outputControlsDeviceID = read ? _preparedDeviceID : kAudioObjectUnknown;
+            _outputControlsStreamID = _preparedStreamID;
+            _outputControlsChannels = controlChannels;
+        }
+        report.softwareVolume = _outputControlsVolume;
+        report.balance = _outputControlsBalance;
+        report.muted = _outputControlsMuted;
+        if (_outputControlsDeviceID != _preparedDeviceID) {
             unconfirmed = unconfirmed ?: @"the device's volume could not be read";
             report.formatConfirmed = NO;
         }
@@ -1382,6 +1421,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             report.sourceLossless = VibeSourceIsLossless(source);
         }
     }
+#if VIBE_VERBOSE_LOGGING
+    // Every state publication and fade completion lands here, on the player
+    // queue, so a slow device read delays the next transport action by as much.
+    double readMilliseconds = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - readStarted) / 1e6;
+    if (readDevice && (readMilliseconds >= 2 || !controlsCached)) {
+        LogInfo(@"bit-perfect: report read device %u for %.1f ms (volume/balance/mute %@)",
+                _preparedDeviceID, readMilliseconds, controlsCached ? @"cached" : @"read from the device");
+    }
+#endif
     os_unfair_lock_lock(&_stateLock);
     report.hasTrack = _bitPerfectWanted && _state == VibePlayerStatePlaying;
     report.status = VibeBitPerfectFold(report);
@@ -1445,10 +1493,25 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
     };
 }
 
+// "44100 Hz i16 interleaved 2ch": what the current node decodes its file to.
+static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
+    AVAudioFormat *format = node ? [node outputFormatForBus:0] : nil;
+    if (!format) {
+        return @"";
+    }
+    NSString *sample = format.commonFormat == AVAudioPCMFormatInt16 ? @"i16"
+            : format.commonFormat == AVAudioPCMFormatInt32 ? @"i32"
+            : format.commonFormat == AVAudioPCMFormatFloat32 ? @"f32"
+            : format.commonFormat == AVAudioPCMFormatFloat64 ? @"f64" : @"other";
+    return [NSString stringWithFormat:@"%.0f Hz %@%@ %uch", format.sampleRate, sample,
+            format.interleaved ? @" interleaved" : @"", (unsigned)format.channelCount];
+}
+
 - (NSDictionary<NSString *, id> *)outputDeviceDiagnosticSnapshot {
     __block NSDictionary *snapshot;
     [self runSyncOnQueue:^{
         snapshot = @{
+            @"playerNodeFormat": VibeNodeFormatText(self->_node),
             @"boundOutputDeviceId": @([self activeOutputDeviceID]),
             @"requestedOutputDeviceId": @(self.currentlyRequestedAudioDeviceId),
             @"pendingDeviceUID": self->_pendingSavedDeviceUID ?: @"",

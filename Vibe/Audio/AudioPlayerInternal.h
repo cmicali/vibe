@@ -226,8 +226,19 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // stop the engine for a format switch; delivered once by
     // completeRetiredFadePair: when _activeRetiredOutputCount reaches zero.
     dispatch_block_t        _settlementWaiter;
+    // The prepared device's volume, balance and mute as the report last read
+    // them, trusted only while _outputLevelListener is registered: it watches
+    // every output-scope property and clears this before it republishes. The
+    // report publishes several times per track change, and a USB interface can
+    // answer each of those ten-odd reads slowly. kAudioObjectUnknown: re-read.
+    AudioDeviceID           _outputControlsDeviceID;
+    AudioStreamID           _outputControlsStreamID;
+    UInt32                  _outputControlsChannels;
+    Float32                 _outputControlsVolume;
+    Float32                 _outputControlsBalance;
+    BOOL                    _outputControlsMuted;
     // The published report, under _stateLock; computed from its owners at
-    // every publication, nothing cached.
+    // every publication, the output controls above excepted.
     VibeBitPerfectReport    _bitPerfectReport;
 #endif
 
@@ -263,6 +274,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // Queue-confined. Display readers use _levelPublisher, not this object.
     AudioLevelTap           *_levelTap;
     AVAudioTime             *_signalStartTime; // queue-confined beta capture origin; retained across tap replacements
+    // Beta builds: the tap is held for each start's bounded signal capture
+    // even when no indicator wants levels, until that capture completes.
+    BOOL                    _signalProbeWanted;
+    uint64_t                _signalProbeRequest;
 
     // ---- Actual modeled audio-output liveness.
     // _activeRetiredOutputCount and its generation are queue-confined. The

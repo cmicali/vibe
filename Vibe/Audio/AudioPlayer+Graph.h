@@ -29,7 +29,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The two cleanup paths are shared by a submitted play and device restore,
 // but error ownership is not. They reset to Stopped and never notify the
 // delegate; each caller must report with the identity appropriate to its path.
-- (nullable AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format;
+// The node's connection format decides what the file is decoded to, since a
+// player node reads its file in that format rather than the file's own.
+- (nullable AVAudioPlayerNode *)attachConnectedNodeForFile:(AVAudioFile *)file;
 - (void)abandonNodeAfterFailedStart:(AVAudioPlayerNode *)node;
 - (void)scheduleFile:(AVAudioFile *)file onNode:(AVAudioPlayerNode *)node fromFrame:(AVAudioFramePosition)startFrame;
 

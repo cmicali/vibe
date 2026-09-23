@@ -59,10 +59,30 @@
     }
 }
 
-- (AVAudioPlayerNode *)attachConnectedNodeForFormat:(AVAudioFormat *)format {
+- (AVAudioFormat *)playerNodeFormatForFile:(AVAudioFile *)file {
+    AVAudioFormat *format = file.processingFormat;
+#if TARGET_OS_OSX
+    if ([self decodesAsInteger16OnQueueForFile:file]) {
+        AVAudioFormat *integer = format.channelLayout
+                ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16 sampleRate:format.sampleRate
+                                                  interleaved:YES channelLayout:format.channelLayout]
+                : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16 sampleRate:format.sampleRate
+                                                     channels:format.channelCount interleaved:YES];
+        if (integer) {
+#if VIBE_VERBOSE_LOGGING
+            LogInfo(@"bit-perfect: decoding %@ straight to 16-bit integers", file.url.lastPathComponent);
+#endif
+            return integer;
+        }
+    }
+#endif
+    return format;
+}
+
+- (AVAudioPlayerNode *)attachConnectedNodeForFile:(AVAudioFile *)file {
     AVAudioPlayerNode *node = [[AVAudioPlayerNode alloc] init];
     [_engine attachNode:node];
-    if (![self connectNode:node throughVarispeedWithFormat:format]) {
+    if (![self connectNode:node throughVarispeedWithFormat:[self playerNodeFormatForFile:file]]) {
         [self detachNodeAfterFailedConnect:node];
         [self resetToStoppedStateOnQueue];
         return nil;

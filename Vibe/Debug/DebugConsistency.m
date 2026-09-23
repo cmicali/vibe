@@ -153,6 +153,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     BOOL queueRequested = [equalizer[@"requested"] boolValue];
     BOOL tapObject = [equalizer[@"tapObject"] boolValue];
     BOOL tapInstalled = [equalizer[@"installed"] boolValue];
+    BOOL signalProbe = [equalizer[@"signalProbe"] boolValue];
 
     checked++;
     if (activeLinks > 1) {
@@ -169,10 +170,11 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     checked++;
-    if (tapInstalled != tapObject || (tapInstalled && !queueRequested)) {
+    // Beta builds also hold the tap for each start's bounded signal capture.
+    if (tapInstalled != tapObject || (tapInstalled && !queueRequested && !signalProbe)) {
         VibeDebugViolation(v, @"equalizer.tap_follows_demand",
-                @"installed=%d, tap object=%d, requested=%d",
-                tapInstalled, tapObject, queueRequested);
+                @"installed=%d, tap object=%d, requested=%d, signal probe=%d",
+                tapInstalled, tapObject, queueRequested, signalProbe);
     }
 
     checked++;

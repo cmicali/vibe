@@ -124,34 +124,54 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // signature on a return address saved by an arm64e system frame.
 static const uintptr_t kVibeReturnAddressMask = 0x00007FFFFFFFFFFFULL;
 
-// Up to max return addresses of a thread, walking its frame-pointer chain.
+// A stack of any depth keeps its first and last kVibeStackEnd frames: where
+// the thread is stuck, and how it got there (main, the run loop, and the Vibe
+// code that started the work). The log then trims the middle further.
+static const int kVibeStackEnd = 512;
+static const NSUInteger kVibeStackHeadFrames = 40, kVibeStackTailFrames = 60;
+
+static void VibeReverse(uintptr_t *a, int n) {
+    for (int i = 0, j = n - 1; i < j; i++, j--) {
+        uintptr_t t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+}
+
+// Walks a thread's whole frame-pointer chain into pcs (2 * kVibeStackEnd
+// entries): the first kVibeStackEnd return addresses, then the last
+// kVibeStackEnd in order, kept in a ring while walking. Returns the chain's full
+// length; min(length, 2 * kVibeStackEnd) entries are stored.
 // TRAP: between suspend and resume nothing may allocate or take any lock the
 // stalled thread might hold — malloc's included — so this is C and system
 // calls only, the reads go through vm_read_overwrite so a bad frame ends the
 // walk instead of faulting, and symbolication waits until after the resume.
-static int VibeCaptureStack(thread_t thread, uintptr_t *pcs, int max) {
+static int VibeCaptureStack(thread_t thread, uintptr_t *pcs) {
     if (thread_suspend(thread) != KERN_SUCCESS) {
         return 0;
     }
     int count = 0;
+#define VIBE_KEEP(pc) do { \
+        int at = count < kVibeStackEnd ? count : kVibeStackEnd + (count - kVibeStackEnd) % kVibeStackEnd; \
+        pcs[at] = (pc); count++; \
+    } while (0)
     uintptr_t fp = 0;
 #if defined(__arm64__)
     arm_thread_state64_t state;
     mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
     if (thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, &stateCount) == KERN_SUCCESS) {
-        pcs[count++] = (uintptr_t)arm_thread_state64_get_pc(state) & kVibeReturnAddressMask;
-        pcs[count++] = (uintptr_t)arm_thread_state64_get_lr(state) & kVibeReturnAddressMask;
+        VIBE_KEEP((uintptr_t)arm_thread_state64_get_pc(state) & kVibeReturnAddressMask);
+        VIBE_KEEP((uintptr_t)arm_thread_state64_get_lr(state) & kVibeReturnAddressMask);
         fp = (uintptr_t)arm_thread_state64_get_fp(state);
     }
 #elif defined(__x86_64__)
     x86_thread_state64_t state;
     mach_msg_type_number_t stateCount = x86_THREAD_STATE64_COUNT;
     if (thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&state, &stateCount) == KERN_SUCCESS) {
-        pcs[count++] = (uintptr_t)state.__rip;
+        VIBE_KEEP((uintptr_t)state.__rip);
         fp = (uintptr_t)state.__rbp;
     }
 #endif
-    while (fp && count < max) {
+    // Terminates: every accepted frame pointer is strictly above the last.
+    while (fp) {
         uintptr_t frame[2] = {0, 0};
         vm_size_t got = 0;
         if (vm_read_overwrite(mach_task_self(), fp, sizeof(frame), (vm_address_t)frame, &got) != KERN_SUCCESS
@@ -162,35 +182,160 @@ static int VibeCaptureStack(thread_t thread, uintptr_t *pcs, int max) {
         if (!returnAddress) {
             break;
         }
-        pcs[count++] = returnAddress;
+        VIBE_KEEP(returnAddress);
         if (frame[0] <= fp) {
             break; // a frame chain climbs the stack; anything else is corrupt
         }
         fp = frame[0];
     }
+#undef VIBE_KEEP
     thread_resume(thread);
+    if (count > 2 * kVibeStackEnd) {
+        // Rotate the ring so its oldest entry comes first.
+        int oldest = (count - kVibeStackEnd) % kVibeStackEnd;
+        uintptr_t *ring = pcs + kVibeStackEnd;
+        VibeReverse(ring, oldest);
+        VibeReverse(ring + oldest, kVibeStackEnd - oldest);
+        VibeReverse(ring, kVibeStackEnd);
+    }
     return count;
 }
 
 // Symbols for the system's frames; Vibe's own (image 0, the executable) are
-// stripped in a release, so they print as offsets into the binary, to symbolicate against the archived
-// dSYM for the build the report names.
-static NSString *VibeDescribeStack(const uintptr_t *pcs, int count) {
+// stripped in a release, so they print as offsets into the binary, to
+// symbolicate against the archived dSYM for the build the report names. A run
+// of one frame collapses to one entry: a recursive layout pass repeats its
+// call site dozens of times and would otherwise crowd out the frames that
+// started it, which is where Vibe's own code appears.
+static NSArray<NSString *> *VibeDescribeStack(const uintptr_t *pcs, int length) {
     NSMutableArray<NSString *> *frames = [NSMutableArray array];
-    for (int i = 0; i < count; i++) {
-        uintptr_t pc = i == 0 ? pcs[i] : pcs[i] - 1; // a return address points after its call
-        Dl_info info;
-        if (!dladdr((const void *)pc, &info) || !info.dli_fname) {
-            [frames addObject:[NSString stringWithFormat:@"0x%lx", (unsigned long)pc]];
-        } else if (info.dli_fbase == (const void *)_dyld_get_image_header(0) || !info.dli_sname) {
-            [frames addObject:[NSString stringWithFormat:@"%@ +0x%lx", @(info.dli_fname).lastPathComponent,
-                               (unsigned long)(pc - (uintptr_t)info.dli_fbase)]];
-        } else {
-            [frames addObject:[NSString stringWithFormat:@"%@ %s+%lu", @(info.dli_fname).lastPathComponent,
-                               info.dli_sname, (unsigned long)(pc - (uintptr_t)info.dli_saddr)]];
+    NSString *previous = nil;
+    NSUInteger repeats = 0;
+    int count = MIN(length, 2 * kVibeStackEnd);
+    for (int i = 0; i <= count; i++) {
+        BOOL gap = i == kVibeStackEnd && length > count; // the walk kept no frames here
+        NSString *frame = nil;
+        if (i < count) {
+            uintptr_t pc = i == 0 ? pcs[i] : pcs[i] - 1; // a return address points after its call
+            Dl_info info;
+            if (!dladdr((const void *)pc, &info) || !info.dli_fname) {
+                frame = [NSString stringWithFormat:@"0x%lx", (unsigned long)pc];
+            } else if (info.dli_fbase == (const void *)_dyld_get_image_header(0) || !info.dli_sname) {
+                frame = [NSString stringWithFormat:@"%@ +0x%lx", @(info.dli_fname).lastPathComponent,
+                         (unsigned long)(pc - (uintptr_t)info.dli_fbase)];
+            } else {
+                frame = [NSString stringWithFormat:@"%@ %s+%lu", @(info.dli_fname).lastPathComponent,
+                         info.dli_sname, (unsigned long)(pc - (uintptr_t)info.dli_saddr)];
+            }
+            if (frame.length > 240) {
+                frame = [[frame substringToIndex:239] stringByAppendingString:@"~"]; // one C++ symbol can fill a line
+            }
+            if (!gap && [frame isEqualToString:previous]) {
+                repeats++;
+                continue;
+            }
+        }
+        if (previous) {
+            [frames addObject:repeats ? [NSString stringWithFormat:@"%@ x%lu", previous, (unsigned long)repeats + 1]
+                                      : previous];
+        }
+        if (gap) {
+            [frames addObject:[NSString stringWithFormat:@"... %d frames not kept ...", length - count]];
+        }
+        previous = frame;
+        repeats = 0;
+    }
+    // Where it is stuck is at the top and how it got there, Vibe's frames
+    // included, near the bottom; a recursion that alternates frames does not
+    // collapse, so bound the middle rather than either end.
+    if (frames.count > kVibeStackHeadFrames + kVibeStackTailFrames + 1) {
+        NSRange middle = NSMakeRange(kVibeStackHeadFrames,
+                                     frames.count - kVibeStackHeadFrames - kVibeStackTailFrames);
+        [frames replaceObjectsInRange:middle withObjectsFromArray:@[
+            [NSString stringWithFormat:@"... %lu frames omitted ...", (unsigned long)middle.length]]];
+    }
+    return frames;
+}
+
+// The thread now draining queue — THREAD_IDENTIFIER_INFO names the queue each
+// pool thread is serving, which is how crash reports label threads — else the
+// first whose pthread name is name. MACH_PORT_NULL when none; the caller owns
+// a returned port. Reads only, so nothing here can stall the thread it finds.
+static thread_t VibeFindThread(dispatch_queue_t queue, const char *name) {
+    thread_act_array_t threads = NULL;
+    mach_msg_type_number_t count = 0;
+    if (task_threads(mach_task_self(), &threads, &count) != KERN_SUCCESS) {
+        return MACH_PORT_NULL;
+    }
+    thread_t me = mach_thread_self(), found = MACH_PORT_NULL;
+    for (mach_msg_type_number_t i = 0; i < count; i++) {
+        thread_t thread = threads[i];
+        if (found == MACH_PORT_NULL && thread != me) {
+            if (queue) {
+                thread_identifier_info_data_t info;
+                mach_msg_type_number_t infoCount = THREAD_IDENTIFIER_INFO_COUNT;
+                uintptr_t serving = 0;
+                vm_size_t got = 0;
+                if (thread_info(thread, THREAD_IDENTIFIER_INFO, (thread_info_t)&info, &infoCount) == KERN_SUCCESS
+                        && info.dispatch_qaddr
+                        && vm_read_overwrite(mach_task_self(), (vm_address_t)info.dispatch_qaddr, sizeof(serving),
+                                             (vm_address_t)&serving, &got) == KERN_SUCCESS
+                        && got == sizeof(serving) && serving == (uintptr_t)(__bridge void *)queue) {
+                    found = thread;
+                }
+            }
+            else {
+                thread_extended_info_data_t info;
+                mach_msg_type_number_t infoCount = THREAD_EXTENDED_INFO_COUNT;
+                if (thread_info(thread, THREAD_EXTENDED_INFO, (thread_info_t)&info, &infoCount) == KERN_SUCCESS
+                        && strcmp(info.pth_name, name) == 0) {
+                    found = thread;
+                }
+            }
+        }
+        if (thread != found) {
+            mach_port_deallocate(mach_task_self(), thread);
         }
     }
-    return [frames componentsJoinedByString:@" | "];
+    mach_port_deallocate(mach_task_self(), me);
+    vm_deallocate(mach_task_self(), (vm_address_t)threads, count * sizeof(thread_t));
+    return found;
+}
+
+// TRAP: the unified log truncates one message near 1 KB (it ends "<…>"), which
+// cut the first beta stacks off before any of Vibe's frames. Numbered lines.
+static void VibeLogStack(NSString *name, double milliseconds, NSArray<NSString *> *frames) {
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSMutableString *line = [NSMutableString string];
+    for (NSString *frame in frames) {
+        if (line.length && line.length + frame.length + 3 > 800) {
+            [lines addObject:line];
+            line = [NSMutableString string];
+        }
+        [line appendString:line.length ? [@" | " stringByAppendingString:frame] : frame];
+    }
+    if (line.length) {
+        [lines addObject:line];
+    }
+    for (NSUInteger i = 0; i < lines.count; i++) {
+        LogWarn(@"Stall stack: the %@, %.0f ms in (%lu/%lu): %@", name, milliseconds,
+                (unsigned long)i + 1, (unsigned long)lines.count, lines[i]);
+    }
+}
+
+// One sample, logged in full unless it matches the previous sample of the same
+// stall. Returns it, for the next comparison.
+static NSString *VibeSampleStack(thread_t thread, NSString *name, double milliseconds, NSString *previous) {
+    uintptr_t pcs[2 * kVibeStackEnd]; // 8 KB; the watchers run on pool threads, never the stalled one
+    NSArray<NSString *> *frames = VibeDescribeStack(pcs, VibeCaptureStack(thread, pcs));
+    NSString *stack = [frames componentsJoinedByString:@" | "];
+    if ([stack isEqualToString:previous]) {
+        LogWarn(@"Stall stack: the %@, %.0f ms in: unchanged", name, milliseconds);
+    }
+    else {
+        VibeLogStack(name, milliseconds, frames);
+    }
+    return stack;
 }
 #endif
 
@@ -204,29 +349,45 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach
     static dispatch_once_t once;
     dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
     dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
-    __block BOOL waiting = NO; // confined to watcher, like the two below
+    __block BOOL waiting = NO; // confined to watcher, like the rest below
     __block uint64_t pingedAt = 0;
-    __block BOOL sampled = NO;
+    __block int samples = 0;
+    __block uint64_t nextSampleAt = 0;
+    __block NSString *lastStack = nil;
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, watcher);
     dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC, 20 * NSEC_PER_MSEC);
     dispatch_source_set_event_handler(timer, ^{
         if (waiting) {
             uint64_t stuck = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - pingedAt;
-            if (!sampled && stuck > 250 * NSEC_PER_MSEC) {
-                sampled = YES;
-                LogWarn(@"Stall: the %@ is still blocked after %.0f ms", name, stuck / 1e6);
+            // 250 ms in, then every 500 ms: a long freeze can move between
+            // causes, and a single sample would show only the first.
+            if (stuck > 250 * NSEC_PER_MSEC && stuck >= nextSampleAt && samples < 6) {
+                if (!samples) {
+                    LogWarn(@"Stall: the %@ is still blocked after %.0f ms", name, stuck / 1e6);
+                }
+                samples++;
+                nextSampleAt = stuck + 500 * NSEC_PER_MSEC;
 #if TARGET_OS_OSX
-                if (sampledThread != MACH_PORT_NULL) {
-                    uintptr_t pcs[64];
-                    int count = VibeCaptureStack(sampledThread, pcs, 64);
-                    LogWarn(@"Stall stack: the %@, %.0f ms in: %@", name, stuck / 1e6, VibeDescribeStack(pcs, count));
+                // The player queue has no fixed thread: find whichever pool
+                // thread is draining it. None means it is queued but starved.
+                thread_t thread = sampledThread != MACH_PORT_NULL ? sampledThread : VibeFindThread(queue, NULL);
+                if (thread == MACH_PORT_NULL) {
+                    LogWarn(@"Stall stack: the %@, %.0f ms in: no thread is running it", name, stuck / 1e6);
+                }
+                else {
+                    lastStack = VibeSampleStack(thread, name, stuck / 1e6, lastStack);
+                    if (thread != sampledThread) {
+                        mach_port_deallocate(mach_task_self(), thread);
+                    }
                 }
 #endif
             }
             return; // the ping's delivery reports recovery
         }
         waiting = YES;
-        sampled = NO;
+        samples = 0;
+        nextSampleAt = 0;
+        lastStack = nil;
         uint64_t sent = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         pingedAt = sent;
         dispatch_async(queue, ^{
@@ -339,8 +500,8 @@ static void VibeWatchOutputRender(AudioPlayer *player);
 #else
             VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread", MACH_PORT_NULL);
 #endif
-            // The player queue runs on whichever pool thread is free, so there
-            // is no one thread to sample.
+            // The player queue runs on whichever pool thread is free; the
+            // watcher finds the one draining it at each sample.
             VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL);
             VibeWatchOutputRender(self);
         }
@@ -533,7 +694,8 @@ static void VibeWatchOutputRender(AudioPlayer *player);
 // Runs on _queue. Reconciles the tap with the queue-side intent, which is the
 // only thing either caller has to get right.
 - (void)applyLevelTapOnQueue {
-    if (_levelsWanted && _engine && !_levelTap && _levelPublisher) {
+    BOOL wanted = _levelsWanted || _signalProbeWanted;
+    if (wanted && _engine && !_levelTap && _levelPublisher) {
         // Whatever feeds the output, which is the only place the bars can
         // follow what is actually heard: the FX segment's sum when there is
         // one, and the mixer itself when there is not. Tapping the mixer
@@ -545,7 +707,7 @@ static void VibeWatchOutputRender(AudioPlayer *player);
                                        normalizationMode:_levelNormalizationMode];
         if (_node.isPlaying) [self beginOutputSignalDiagnosticsOnQueue:@"tap installed during playback"];
     }
-    else if (!_levelsWanted && _levelTap) {
+    else if (!wanted && _levelTap) {
         [_levelTap remove];
         _levelTap = nil;
     }
@@ -972,6 +1134,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_bitPerfectWanted && file && _activeRetiredOutputCount > 0
             && [self outputNeedsSwitchOnQueueForFile:file unknownNeedsSwitch:YES]) {
         [self preemptRetiredFadesOnQueue];
+#if VIBE_VERBOSE_LOGGING
+        LogInfo(@"Timeline: play %llu settlement parked until the outgoing fade is silent",
+                self.loadingSubmittedPlayIdentifier);
+#endif
         __weak AudioPlayer *weakSelf = self;
         _settlementWaiter = ^{
             [weakSelf finishPlayOnQueueWithFile:file error:error openRequestId:openId];
@@ -1019,7 +1185,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         _incomingFadeMilliseconds = kFadeDurationMilliseconds;
     }
 #endif
-    AVAudioPlayerNode *node = [self attachConnectedNodeForFormat:file.processingFormat];
+    AVAudioPlayerNode *node = [self attachConnectedNodeForFile:file];
     if (!node) {
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
                 [NSString stringWithFormat:@"Could not play %@ (unsupported format)",
@@ -1713,6 +1879,7 @@ static NSString *VibeAudioLevelNormalizationModeName(
         NSMutableDictionary<NSString *, id> *snapshot =
                 [[self->_levelPublisher debugState] mutableCopy];
         snapshot[@"requested"] = @(self->_levelsWanted);
+        snapshot[@"signalProbe"] = @(self->_signalProbeWanted); // beta builds' hold for a start's capture
         snapshot[@"tapObject"] = @(self->_levelTap != nil);
         snapshot[@"retiredOutputCount"] = @(self->_activeRetiredOutputCount);
         snapshot[@"outputAudioActive"] = @(self.outputAudioActive);
@@ -2140,6 +2307,18 @@ static void VibeWatchOutputRender(AudioPlayer *player) {
                         (now - stalledSince) / 1e6, strongPlayer->_activeSubmittedPlayIdentifier,
                         strongPlayer.currentTrack.url.lastPathComponent, strongPlayer->_engine.isRunning,
                         render.sampleTimeValid);
+#if TARGET_OS_OSX
+                // Stuck in our render, or waiting for a device that stopped
+                // asking: the IO thread's stack tells the two apart.
+                thread_t io = VibeFindThread(nil, "com.apple.audio.IOThread.client");
+                if (io == MACH_PORT_NULL) {
+                    LogWarn(@"Stall stack: no audio IO thread exists");
+                }
+                else {
+                    VibeSampleStack(io, @"audio IO thread", (now - stalledSince) / 1e6, nil);
+                    mach_port_deallocate(mach_task_self(), io);
+                }
+#endif
             }
         }
     });

@@ -259,6 +259,19 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
             && a.mChannelsPerFrame == b.mChannelsPerFrame;
 }
 
+// A lossy source played to a device prepared at 16-bit integer is decoded
+// straight to 16-bit integers: the player node reads its file in the format it
+// is connected at, so the decoder does the one rounding and the output unit
+// only repacks. Apple's MP3 decoder produces 16-bit samples natively, so for
+// MP3 no sample changes; AAC decodes to float and rounds here instead of in
+// the HAL. Lossless sources keep float32, which carries their depth exactly.
+static inline BOOL VibeBitPerfectDecodesAsInteger16(AudioStreamBasicDescription source,
+                                                    AudioStreamBasicDescription prepared) {
+    return source.mFormatID != 0 && VibeSourceBitDepth(source) == 0
+            && prepared.mFormatID == kAudioFormatLinearPCM
+            && !VibePhysicalFormatIsFloat(prepared) && prepared.mBitsPerChannel == 16;
+}
+
 // Shared by the silent settlement and the gapless gate: even an unchanged
 // device needs a rebuild when the mixer would resample into it.
 static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription current,
