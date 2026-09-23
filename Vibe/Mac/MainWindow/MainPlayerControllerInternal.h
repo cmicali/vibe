@@ -44,6 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
     // rate syncUITimerRate scales to the playhead's on-screen speed. +Window
     // feeds it the visibility gate.
     UIUpdateTimer*              _uiTimer;
+    uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
     // Playing-row indicators currently reading band levels. The tap is off at
     // zero; see syncEqualizerActivity.
     NSInteger                   _levelConsumers;
@@ -149,6 +150,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)applyEndOfTrackAction;
 - (void)applyReopenLastPlaylist;
 - (void)syncUITimerRate;
+// One update aimed just past the time label's next change, after a start, resume or seek.
+- (void)scheduleUpdateAtNextDisplayedSecond;
 - (void)refreshFolderArt;
 - (void)refreshWindowTint;
 

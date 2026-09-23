@@ -387,6 +387,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self updatePlaybackUI];
+    [self scheduleUpdateAtNextDisplayedSecond];
     // The playhead jumped, so resync Control Center's elapsed time.
     [self updateNowPlaying];
 }

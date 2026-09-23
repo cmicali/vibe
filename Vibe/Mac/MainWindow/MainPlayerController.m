@@ -362,6 +362,7 @@
 
 - (void)resumeUIUpdateTimer {
     [self updateUI];
+    [self scheduleUpdateAtNextDisplayedSecond];
     // Refresh the visibility gate from the live occlusion state on every
     // resume. The timer hears about changes only through the occlusion
     // notification, and playback can start before the first one fires.
@@ -418,6 +419,37 @@
 //
 // The duration is the cache, not the player's: the live one reads 0 in the
 // Loading gap, the same reason updatePlaybackUI uses the cache.
+// A start, resume or seek puts the time label's next change under a second
+// away, and the tick — 3 Hz for an ordinary song — can land up to a third of a
+// second after it: over a quiet intro, #47's reporter read the unchanged 0:00
+// as playback not starting. One update is aimed just past that change. The
+// position holds until the first frame renders, so a shot that lands early
+// re-aims at the same second rather than guessing the render latency.
+- (void)scheduleUpdateAtNextDisplayedSecond {
+    uint64_t generation = ++_nextSecondUpdateGeneration;
+    NSTimeInterval target = floor(self.audioPlayer.position / self.playbackRate) + 1;
+    [self aimUpdateAtDisplayedSecond:target generation:generation attempts:4];
+}
+
+- (void)aimUpdateAtDisplayedSecond:(NSTimeInterval)target generation:(uint64_t)generation
+                          attempts:(NSUInteger)attempts {
+    NSTimeInterval remaining = MAX(0, target - self.audioPlayer.position / self.playbackRate);
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((remaining + 0.01) * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf || generation != strongSelf->_nextSecondUpdateGeneration
+                || !strongSelf.audioPlayer.isPlaying) {
+            return;
+        }
+        if (attempts > 1 && strongSelf.audioPlayer.position / strongSelf.playbackRate < target) {
+            [strongSelf aimUpdateAtDisplayedSecond:target generation:generation attempts:attempts - 1];
+            return;
+        }
+        [strongSelf updatePlaybackUI];
+    });
+}
+
 - (void)syncUITimerRate {
     CGFloat widthPx = self.waveformView.devicePixelWidth;
     NSUInteger hz = VibeUIUpdateHzForPlayhead(widthPx, _currentTrackDuration, self.playbackRate,
