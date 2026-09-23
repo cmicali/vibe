@@ -28,7 +28,23 @@ extern NSString *const kVibeWidgetAppGroup;
 // widget added while the app is in the background gets it publishing again.
 extern const char *const kVibeWidgetReadNotification;
 
-@interface VibeWidgetState : NSObject
+// The theme dictionary's keys. Two palettes, one per appearance, each mapping
+// a color key to sRGB components [r, g, b, a]; and the transport glyphs, as
+// SF Symbol names.
+extern NSString *const kVibeWidgetThemeDark;
+extern NSString *const kVibeWidgetThemeLight;
+extern NSString *const kVibeWidgetThemePlayGlyph;
+extern NSString *const kVibeWidgetThemePauseGlyph;
+extern NSString *const kVibeWidgetThemeNextGlyph;
+extern NSString *const kVibeWidgetColorTitle;
+extern NSString *const kVibeWidgetColorArtist;
+extern NSString *const kVibeWidgetColorPlayButton;
+extern NSString *const kVibeWidgetColorNextButton;
+extern NSString *const kVibeWidgetColorBackground;
+
+// Copying is for a republish that changes one field: a snapshot already handed
+// to the writing queue is never mutated.
+@interface VibeWidgetState : NSObject <NSCopying>
 
 // The two lines the desktop header draws, under the same rule: a nil artist
 // means the title is a filename-derived single line (AudioTrack.displayTitle).
@@ -54,6 +70,13 @@ extern const char *const kVibeWidgetReadNotification;
 @property (nonatomic) NSTimeInterval position;
 @property (nonatomic, copy, nullable) NSDate *positionDate;
 
+// The mac theme's choices for what the widget draws, under the kVibeWidgetTheme
+// keys; nil on iOS, which has no themes. An absent key is the widget's own
+// default. WidgetPublisher's palette decides which colors appear: the window's
+// whole look for a side whose surface the theme paints, else only what the
+// theme sets.
+@property (nonatomic, copy, nullable) NSDictionary<NSString *, id> *theme;
+
 #pragma mark - Where it lives
 
 // nil when the app group is not provisioned — the widget then draws its empty
@@ -64,6 +87,13 @@ extern const char *const kVibeWidgetReadNotification;
 @property (nonatomic, readonly, nullable) NSURL *artworkURL;
 @property (nonatomic, readonly, nullable) NSURL *waveformPlayedURL;
 @property (nonatomic, readonly, nullable) NSURL *waveformUnplayedURL;
+// The strip for a light surface: baked only while the mac theme paints the
+// widget's background light-side, the one case the widget is not dark.
+@property (nonatomic, readonly, nullable) NSURL *waveformPlayedLightURL;
+@property (nonatomic, readonly, nullable) NSURL *waveformUnplayedLightURL;
+// The theme's no-artwork image for one appearance. Not per track and not
+// swept: it changes only with the theme, and absent means the widget's glyph.
++ (nullable NSURL *)placeholderURLForDark:(BOOL)isDark NS_SWIFT_NAME(placeholderURL(forDark:));
 // Every image file in the container that belongs to neither key. The writer
 // keeps the outgoing track's set through one more publish, so an extension
 // that read the previous plist a moment ago still finds the images it names.

@@ -37,9 +37,17 @@ struct VibeEntry: TimelineEntry {
     let blurredArtwork: CGImage?
     let played: CGImage?
     let unplayed: CGImage?
+    let playedLight: CGImage?
+    let unplayedLight: CGImage?
+    // The mac theme's no-artwork image, one per appearance; nil on iOS and
+    // for the factory look, which is the widget's own glyph.
+    let placeholderDark: CGImage?
+    let placeholderLight: CGImage?
 
     static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
-                                 blurredArtwork: nil, played: nil, unplayed: nil)
+                                 blurredArtwork: nil, played: nil, unplayed: nil,
+                                 playedLight: nil, unplayedLight: nil,
+                                 placeholderDark: nil, placeholderLight: nil)
 }
 
 struct VibeProvider: TimelineProvider {
@@ -75,7 +83,10 @@ struct VibeProvider: TimelineProvider {
             VibeEntry(date: now.addingTimeInterval(Double(index) * step),
                       state: state, artwork: first.artwork,
                       blurredArtwork: first.blurredArtwork,
-                      played: first.played, unplayed: first.unplayed)
+                      played: first.played, unplayed: first.unplayed,
+                      playedLight: first.playedLight, unplayedLight: first.unplayedLight,
+                      placeholderDark: first.placeholderDark,
+                      placeholderLight: first.placeholderLight)
         }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
@@ -90,7 +101,11 @@ struct VibeProvider: TimelineProvider {
                          artwork: artwork,
                          blurredArtwork: artwork.map(blurred),
                          played: image(state.waveformPlayedURL),
-                         unplayed: image(state.waveformUnplayedURL))
+                         unplayed: image(state.waveformUnplayedURL),
+                         playedLight: image(state.waveformPlayedLightURL),
+                         unplayedLight: image(state.waveformUnplayedLightURL),
+                         placeholderDark: image(VibeWidgetState.placeholderURL(forDark: true)),
+                         placeholderLight: image(VibeWidgetState.placeholderURL(forDark: false)))
     }
 
     private func image(_ url: URL?) -> CGImage? {

@@ -23,12 +23,27 @@ NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
 #endif
 const char *const kVibeWidgetReadNotification = "com.commonwealthrecordings.Vibe.widget.read";
 
+NSString *const kVibeWidgetThemeDark       = @"dark";
+NSString *const kVibeWidgetThemeLight      = @"light";
+NSString *const kVibeWidgetThemePlayGlyph  = @"playGlyph";
+NSString *const kVibeWidgetThemePauseGlyph = @"pauseGlyph";
+NSString *const kVibeWidgetThemeNextGlyph  = @"nextGlyph";
+NSString *const kVibeWidgetColorTitle      = @"title";
+NSString *const kVibeWidgetColorArtist     = @"artist";
+NSString *const kVibeWidgetColorPlayButton = @"playButton";
+NSString *const kVibeWidgetColorNextButton = @"nextButton";
+NSString *const kVibeWidgetColorBackground = @"background";
+
 static NSString *const kStateFileName = @"state.plist";
 // The image files carry their track's key, so the container can hold two
 // tracks' sets at once and a plist always names its own.
 static NSString *const kArtworkFormat  = @"artwork-%@.jpg";
 static NSString *const kPlayedFormat   = @"waveform-%@-played.png";
 static NSString *const kUnplayedFormat = @"waveform-%@-unplayed.png";
+static NSString *const kPlayedLightFormat   = @"waveform-%@-played-light.png";
+static NSString *const kUnplayedLightFormat = @"waveform-%@-unplayed-light.png";
+static NSString *const kPlaceholderDark  = @"placeholder-dark.png";
+static NSString *const kPlaceholderLight = @"placeholder-light.png";
 
 // Plist keys. Spelled once: a typo on one side of the app/extension boundary
 // reads as an absent field, which draws an empty widget rather than failing.
@@ -41,6 +56,7 @@ static NSString *const kKeyPlaying      = @"playing";
 static NSString *const kKeyDuration     = @"duration";
 static NSString *const kKeyPosition     = @"position";
 static NSString *const kKeyPositionDate = @"positionDate";
+static NSString *const kKeyTheme        = @"theme";
 
 // Bumped when a field's meaning changes. A reader that does not recognize the
 // version draws the empty state, which is always safe: the app republishes on
@@ -73,6 +89,26 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
 - (NSURL *)artworkURL          { return [self.class fileNamed:kArtworkFormat trackKey:self.trackKey]; }
 - (NSURL *)waveformPlayedURL   { return [self.class fileNamed:kPlayedFormat trackKey:self.trackKey]; }
 - (NSURL *)waveformUnplayedURL { return [self.class fileNamed:kUnplayedFormat trackKey:self.trackKey]; }
+- (NSURL *)waveformPlayedLightURL   { return [self.class fileNamed:kPlayedLightFormat trackKey:self.trackKey]; }
+- (NSURL *)waveformUnplayedLightURL { return [self.class fileNamed:kUnplayedLightFormat trackKey:self.trackKey]; }
+
++ (NSURL *)placeholderURLForDark:(BOOL)isDark {
+    return [self fileNamed:isDark ? kPlaceholderDark : kPlaceholderLight];
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    VibeWidgetState *copy = [[VibeWidgetState alloc] init];
+    copy.title        = self.title;
+    copy.artist       = self.artist;
+    copy.hasTrack     = self.hasTrack;
+    copy.playing      = self.playing;
+    copy.duration     = self.duration;
+    copy.trackKey     = self.trackKey;
+    copy.position     = self.position;
+    copy.positionDate = self.positionDate;
+    copy.theme        = self.theme;
+    return copy;
+}
 
 + (NSArray<NSURL *> *)imageURLsNotForTrackKeys:(NSArray<NSString *> *)trackKeys {
     NSURL *container = self.containerURL;
@@ -85,6 +121,8 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
             [keep addObject:[NSString stringWithFormat:kArtworkFormat, key]];
             [keep addObject:[NSString stringWithFormat:kPlayedFormat, key]];
             [keep addObject:[NSString stringWithFormat:kUnplayedFormat, key]];
+            [keep addObject:[NSString stringWithFormat:kPlayedLightFormat, key]];
+            [keep addObject:[NSString stringWithFormat:kUnplayedLightFormat, key]];
         }
     }
     NSMutableArray<NSURL *> *stale = [NSMutableArray array];
@@ -124,6 +162,8 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     state.duration     = [plist[kKeyDuration] doubleValue];
     state.position     = [plist[kKeyPosition] doubleValue];
     state.positionDate = plist[kKeyPositionDate];
+    NSDictionary *theme = plist[kKeyTheme];
+    state.theme        = [theme isKindOfClass:NSDictionary.class] ? theme : nil;
     return state;
 }
 
@@ -142,6 +182,7 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     plist[kKeyDuration]     = @(self.duration);
     plist[kKeyPosition]     = @(self.position);
     plist[kKeyPositionDate] = self.positionDate;
+    plist[kKeyTheme]        = self.theme;
     return [plist writeToURL:url error:NULL];
 }
 
