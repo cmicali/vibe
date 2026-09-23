@@ -9,7 +9,6 @@
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioFX.h"
 #import "Formatters.h"
 #import "VibeStrings.h"

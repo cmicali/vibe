@@ -8,36 +8,35 @@
 //  outside the AudioPlayer implementation files; everything else goes through
 //  AudioPlayer.h.
 //
-//  Two of those categories are platform-specific and only one is ever
-//  compiled: AudioPlayer+Devices.m on macOS, Audio/iOS/AudioPlayer+Recovery.m
-//  on iOS.
+//  Ownership, in one place. The PLAYER QUEUE runs every transport verb and
+//  every graph mutation. _stateLock guards only the snapshot the main-thread
+//  getters read — the published tuple that publishState:… writes whole. The
+//  audio itself is the bus's (AudioVoiceBus.h): the transport starts voices,
+//  ramps them, retires them, and drains the three events it needs back.
+//
+//  Two categories are platform-specific and only one is ever compiled:
+//  AudioPlayer+Devices.m on macOS, Audio/iOS/AudioPlayer+Recovery.m on iOS.
 //
 
 #import "AudioPlayer.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelTap.h"
+#import "AudioVoiceBus.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
 #import <os/lock.h>
 
 // The category family, declared once here because every implementation file in
-// it calls across category lines. Do not prune as unused: the .m files depend
-// on them transitively. A file outside the family imports the one category it
-// uses.
-//
-// Exactly one platform member is compiled: +Devices on macOS (the CoreAudio
-// HAL layer, Audio/Mac/Devices/), +Recovery on iOS (Audio/iOS/). Neither target
-// sees the other's, so this one import is conditional.
+// it calls across category lines. A file outside the family imports the one
+// category it uses. Exactly one platform member is compiled.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #import <AudioToolbox/AudioToolbox.h>
 #endif
-#import "AudioPlayer+Engine.h"
-#import "AudioPlayer+Fades.h"
-#import "AudioPlayer+Gapless.h"
+#import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayer+Graph.h"
-#import "AudioPlayer+Seek.h"
+#import "AudioPlayer+Prefetch.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -46,9 +45,9 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStatePlaying,
     VibePlayerStatePaused,
     // A play was requested and the file open is in flight, potentially for
-    // the snapshotted cloud-open timeout budget. There is no node or file yet.
-    // isPlaying/isPaused reflect the pending start intent, while position and
-    // duration read 0 rather than the previous track's values.
+    // the snapshotted cloud-open timeout budget. There is no voice or file
+    // yet. isPlaying/isPaused reflect the pending start intent, while
+    // position and duration read 0 rather than the previous track's values.
     VibePlayerStateLoading,
 };
 
@@ -56,60 +55,61 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
 NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
 
-// Seconds → start frame for scheduling, clamped to [0, fileLength - 1]: a
-// past-the-end start lands on the last frame rather than scheduling an empty
-// segment.
+// Seconds → start frame, clamped to [0, fileLength - 1]: a past-the-end start
+// lands on the last frame rather than on nothing.
 static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds, double sampleRate, AVAudioFramePosition fileLength) {
     AVAudioFramePosition frame = (AVAudioFramePosition)(seconds * sampleRate);
     return MAX(0, MIN(frame, fileLength - 1));
 }
 
-// A retired node/varispeed pair whose fade-out is in flight; see
-// AudioPlayer+Fades.h. Declared here because _retiredFades is typed on it.
-@interface VibeRetiredFade : NSObject
-@property (nonatomic, strong) AVAudioPlayerNode *node;
-@property (nonatomic, strong) AVAudioUnitVarispeed *varispeed;
-@property (nonatomic) BOOL countedAsOutput;
-@property (nonatomic) uint64_t outputGeneration;
-@end
-
-// Only the state a category also touches lives here; the rest stays private to
-// AudioPlayer.m.
 @interface AudioPlayer () {
-    BOOL                    _fxEnabled; // queue-side preference; bit-perfect outranks it
     dispatch_queue_t        _queue;
-    AVAudioEngine           *_engine;
-    AVAudioPlayerNode       *_node;
-    AVAudioFile             *_file;
-    AVAudioFramePosition    _segmentStartFrame;
-    uint64_t                _segmentGeneration;
-    // Monotonic identity minted synchronously by every explicit play. It is
-    // guarded by _stateLock because queue-side settlements and iOS recovery
-    // completions compare against submissions made from main.
-    uint64_t                _nextSubmittedPlayIdentifier;
-    // The explicit play submission which owns the currently sounding graph.
-    // Gapless promotion preserves it; a newer explicit play, stop, or failure
-    // clears it. Natural-end and promotion deliveries capture it so replaying
-    // the same row cannot pass a track-identity guard on main.
-    uint64_t                _activeSubmittedPlayIdentifier;
-    // Bumped by every path that preempts an async volume ramp: pause, resume,
-    // seek, skip and device switch. Each ramp step aborts once its captured
-    // value goes stale, so a resume fade-in cannot drive the volume back up
-    // after a pause.
-    uint64_t                _rampGeneration;
-    // Bumped by startEngineAndPlayNode:, the single funnel for starting
-    // playback, to dissolve a deferred idle engine stop. AudioPlayer+Engine.m
-    // owns it. Queue-confined.
-    uint64_t                _engineIdleStopGeneration;
-    BOOL                    _terminating; // queue-confined; no new work after quit cleanup
-    VibePlayerState         _state;
     os_unfair_lock          _stateLock;
-    // Guarded by _stateLock, in percent, so the UI can read it without touching
-    // the queue. See the warning below about the public pitch accessor.
-    float                   _pitch;
+    BOOL                    _terminating; // queue-confined; no new work after quit cleanup
 
-    // ---- The next track's park and splice, owned by AudioPlayer+Gapless.m;
-    // see its header for the rules they live by.
+    // ---- The published tuple, under _stateLock, written whole by publishState:….
+    VibePlayerState         _state;
+    VibeVoiceID             _voice;             // the current voice, 0 while none
+    AVAudioFile             *_file;             // its file; after a promote, the successor
+    double                  _fileSampleRate;    // scalars, so a getter never messages an object
+    AVAudioFramePosition    _fileLength;
+    double                  _busSampleRate;
+    NSTimeInterval          _voiceStartSeconds; // where in the file the voice began
+    uint64_t                _promotedBaseFrames; // bus frames the voice consumed before its current file began
+    BOOL                    _gaplessArmedForUI;
+    BOOL                    _outputAudioActive;
+    float                   _pitch;             // percent; see the warning at the pitch accessor below
+    // Monotonic identity minted synchronously by every explicit play. Under
+    // _stateLock because queue-side settlements and iOS recovery completions
+    // compare against submissions made from main.
+    uint64_t                _nextSubmittedPlayIdentifier;
+
+    // ---- Queue-confined transport state.
+    // The explicit play submission that owns the current voice. A promote
+    // preserves it; a newer play, stop or failure clears it. Deliveries
+    // capture it so a same-row replay cannot pass a track-identity guard.
+    uint64_t                _activeSubmittedPlayIdentifier;
+    PlaybackRequestCoordinator *_pendingRequest;
+    // The fade-in length for the play in flight: the user's crossfade when it
+    // replaced an audibly playing track, the declick minimum otherwise.
+    uint64_t                _incomingFadeMilliseconds;
+    // Voices fading out after a track change, seek or stop. Each leaves when
+    // the drain reports it ended; together with the current voice they are
+    // what outputAudioActive folds over.
+    NSMutableArray<NSNumber *> *_retiringVoices;
+    // The current voice's decode format, for the report and dump_state.
+    AVAudioFormat           *_decodeFormat;
+
+    // ---- The pending open: its token, and the abandon deadline in monotonic
+    // uptime. A new underlying open snapshots its configuration; a same-row
+    // replay preserves that open identifier and snapshot.
+    AudioFileOpenToken      *_playOpenToken;
+    uint64_t                _playOpenRequestId;
+    NSTimeInterval          _openSubmittedUptime;
+    NSTimeInterval          _openLastPositiveMovementUptime;
+    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
+
+    // ---- The park and the successor (AudioPlayer+Prefetch.m).
     NSString                *_prefetchedPath;
     AVAudioFile             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
@@ -117,194 +117,91 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioTrack              *_requestedPrefetchTrack;
     NSString                *_requestedPrefetchPath;
     VibeAudioPrefetchRequestState _prefetchRequestState;
-
-    // ---- Delivery tokens for the bounded open coordinator. Cancelling one
-    // detaches this player and aborts materialization, but an AVAudioFile open
-    // already blocked in the OS remains registered by standardized path until
-    // it returns. A retry can therefore bind to that claim instead of creating
-    // another stranded worker. Queue-confined.
-    AudioFileOpenToken      *_playOpenToken;
-    uint64_t                _playOpenRequestId;
     AudioFileOpenToken      *_prefetchOpenToken;
+    AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
+    AVAudioFile             *_successorFile;    // the park's instance the bus was handed
 
-    // ---- The pending open's abandon deadline, queue-confined and measured
-    // in monotonic uptime. A new underlying open snapshots its configuration;
-    // a same-row replay preserves that open identifier and snapshot. Positive
-    // movement alone stamps the second clock. One logical deadline re-arms
-    // for the remainder, and stale firings fail the open-identifier check.
-    NSTimeInterval          _openSubmittedUptime;
-    NSTimeInterval          _openLastPositiveMovementUptime;
-    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
+    // ---- The engine graph (AudioPlayer+Graph.m).
+    AVAudioEngine           *_engine;
+    AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
+    AVAudioUnitVarispeed    *_varispeed;        // one, for the bus; none under bit-perfect output
+    BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
+    uint64_t                _engineIdleStopGeneration;
+    id                      _configChangeObserver;
+    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the engine runs voices
+    id                      _manualPump;        // VibeManualRenderPump, debug builds only
+    // The equalizer's tap: queue-confined intent and installation; the
+    // publisher is stable for the player's lifetime.
+    BOOL                    _levelsWanted;
+    VibeAudioLevelNormalizationMode _levelNormalizationMode;
+    AudioLevelPublisher     *_levelPublisher;
+    AudioLevelTap           *_levelTap;
 
-    // _gaplessFile is a private handle opened separately from the prefetch
-    // park: AVAudioFile has one stateful read position and the node pre-reads
-    // scheduled files on its own worker, so the armed segment must never share
-    // the instance a play: would consume. All queue-confined; _gaplessQueued
-    // additionally mirrors to _gaplessArmedForUI (under _stateLock) for
-    // isGaplessArmed to snapshot, through setGaplessQueuedOnQueue:, the flag's
-    // sole writer. ALWAYS: every [node stop] of the current node drops its
-    // queued segment, so every such site clears the flag first and, when it
-    // keeps playing the same file, re-arms after its reschedule.
-    AudioTrack              *_gaplessTrack;
-    AVAudioFile             *_gaplessFile;
-    BOOL                    _gaplessQueued;
-    uint64_t                _gaplessOpenGeneration;
-    NSString                *_gaplessOpenPath; // in-flight open's claim, the prefetch pattern
-    AudioFileOpenToken      *_gaplessOpenToken;
-    BOOL                    _gaplessArmedForUI; // _stateLock
+    // ---- Beta diagnostics (AudioPlayer+Diagnostics.m). Present in every
+    // build so the header carries no conditional; unused otherwise.
+    BOOL                    _signalProbeWanted;
+    uint64_t                _signalProbeRequest;
+    NSDictionary            *_positionDiagnostic; // _stateLock; consumed once by main
+    uint64_t                _firstRenderVoice;
 
 #if TARGET_OS_OSX
+    // ---- The output device (AudioPlayer+Devices.m owns every field).
     // The launch preference awaiting a successful HAL snapshot and bind.
-    // Queue-confined. It is not the reported requested ID: until binding
-    // succeeds the engine honestly follows System Output (-1).
+    // Queue-confined. Until binding succeeds the engine honestly follows
+    // System Output (-1).
     NSString                *_pendingSavedDeviceUID;
     NSString                *_pendingSavedDeviceModelUID;
     NSString                *_pendingSavedDeviceName;
-    // The concrete device this player last committed to, remembered so that a
-    // device which VANISHES can be told apart from System Output the user
-    // actually chose. Both write -1; only one of them should forget the
-    // choice. Set when a concrete id commits, cleared when System Output binds.
+    // The concrete device this player last committed to, so a device that
+    // VANISHES can be told apart from System Output the user chose.
     NSString                *_boundDeviceUID;
     NSString                *_boundDeviceModelUID;
     NSString                *_boundDeviceName;
     // Set only across one selectOutputDeviceOnQueue: call, when a wanted device
     // was found by its model UID under a new device UID: whose remembered modes
-    // that bind should read. Nil means the device's own, as always.
+    // that bind should read. Nil means the device's own.
     NSString                *_modesUIDForNextSelection;
     // _stateLock: destination -> source until main has persisted the carry.
     NSMutableDictionary<NSString *, NSString *> *_unpersistedOutputModeSources;
-    // Main-thread copies of pending intent and the mode carry, set only
-    // around the delegate callback.
-    NSString                *_announcedFallbackUID;
-    NSString                *_announcedFallbackName;
-    NSString                *_announcedModesUID;
-    // Covers the async manager lookup and its checked bind. A Stopped-state
-    // hook cannot start another attempt while a failed bind is resetting back
-    // to Stopped, which would otherwise create an immediate retry loop.
+    // Covers the async manager lookup and its checked bind, so a failed bind
+    // resetting to Stopped cannot start another attempt.
     BOOL                    _pendingSavedDeviceLookupInFlight;
-    // Coalesces the single delayed retry after a system-default property read
-    // fails. It stays set through that retry so a persistent failure cannot
-    // create a polling loop.
+    // Coalesces the single delayed retry after a system-default read fails.
     BOOL                    _systemOutputBindRetryScheduled;
-
-    // ---- Bit-perfect output, owned by AudioPlayer+Devices.m.
-    // The settings' queue-side intent, delivered together by
-    // setBitPerfectOutput:exclusiveOutput:enableFX:.
+    // Bit-perfect output: the settings' queue-side intent.
     BOOL                    _bitPerfectWanted;
-    // The device configureOutputDeviceOnQueue: is rebinding the engine to,
-    // for the duration of that call, else kAudioObjectUnknown. The mode's
-    // device is this when set, otherwise the requested id — which the switch
-    // commits only after the rebuild, and a failed switch never.
+    // The device configureOutputDeviceOnQueue: is rebinding to, for the
+    // duration of that call, else kAudioObjectUnknown.
     AudioDeviceID           _rebindDeviceID;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     BOOL                    _exclusiveOutputWanted;
-    // Possible ownership, or kAudioObjectUnknown. Retained until release is
-    // confirmed, even after a failed take; never overwritten by another device.
+    // Possible ownership, or kAudioObjectUnknown; retained until release is
+    // confirmed, never overwritten by another device.
     AudioDeviceID           _hoggedDeviceID;
 #endif
-    // The one device whose format this run changed and has not yet put back,
-    // its first output stream, and the physical format it had before the
-    // first change. kAudioObjectUnknown when nothing is owed;
-    // restoreOutputFormatOnQueue clears all three after success or confirmed
-    // removal; another device cannot replace an outstanding restore.
+    // The one device whose format this run changed and has not yet put back.
     AudioDeviceID           _changedFormatDeviceID;
     AudioStreamID           _changedFormatStreamID;
     AudioStreamBasicDescription _formatBeforeChange;
-    // The device the last prepare set up, from that prepare until it is
-    // left: its first output stream, the physical format asked of it, and
-    // the listener on its volume/balance/mute that is the HAL's handle for the
-    // removal. kAudioObjectUnknown while none. The report reads the stream's
-    // physical format, volume, balance, mute and system default live against these.
+    // The device the last prepare set up: its first output stream, the format
+    // asked of it, and the listeners the HAL holds on it.
     AudioDeviceID           _preparedDeviceID;
     AudioStreamID           _preparedStreamID;
     AudioStreamBasicDescription _preparedFormat;
     AudioObjectPropertyListenerBlock _outputLevelListener;
     AUEventListenerRef      _outputDeviceListener;
-    // The original non-bit-perfect connection, restored when leaving the mode.
+    // The original non-bit-perfect master-bus connection, restored on leaving.
     AVAudioFormat           *_masterBusFormatBeforeBitPerfect;
-    // A settlement waiting for the outgoing audio to go silent before it may
-    // stop the engine for a format switch; delivered once by
-    // completeRetiredFadePair: when _activeRetiredOutputCount reaches zero.
-    dispatch_block_t        _settlementWaiter;
     // The prepared device's volume, balance and mute as the report last read
-    // them, trusted only while _outputLevelListener is registered: it watches
-    // every output-scope property and clears this before it republishes. The
-    // report publishes several times per track change, and a USB interface can
-    // answer each of those ten-odd reads slowly. kAudioObjectUnknown: re-read.
+    // them, trusted only while _outputLevelListener is registered.
     AudioDeviceID           _outputControlsDeviceID;
     AudioStreamID           _outputControlsStreamID;
     UInt32                  _outputControlsChannels;
     Float32                 _outputControlsVolume;
     Float32                 _outputControlsBalance;
     BOOL                    _outputControlsMuted;
-    // The published report, under _stateLock; computed from its owners at
-    // every publication, the output controls above excepted.
+    // The published report, under _stateLock.
     VibeBitPerfectReport    _bitPerfectReport;
-#endif
-
-    // ---- The fades, owned by AudioPlayer+Fades.m.
-    // Crossfade-length retired fades in flight, registered by retireNode:.
-    // Queue-confined. Stop, pause, a parked play and the failure reset preempt
-    // them through preemptRetiredFadesOnQueue, so an outgoing track cannot stay
-    // audible for up to the full crossfade; declick-length retires never register.
-    NSMutableArray<VibeRetiredFade *> *_retiredFades;
-    // A pause fade or an internal seek carrying its pause is in flight.
-    // Queue-confined. A second playPause during the fade-out cancels the
-    // pending pause and ramps back up rather than pausing
-    // twice. Its current completion or preemptRampsOnQueue clears it.
-    // The iOS config-change recovery yields to this transport intent.
-    BOOL                    _pausePending;
-    // Queue-confined seek target during its fade, or -1. Intent readers must
-    // preserve it before replacing the node; rendered position still lags it.
-    NSTimeInterval          _pendingSeekPosition;
-    uint64_t                _seekRampGeneration; // the latest seek, independent of later pause/resume ramps
-
-    // ---- The equalizer indicator's level tap.
-    // The public levelsEnabled's intent, carried onto the queue by its setter
-    // and queue-confined thereafter. It is read again by every master-bus
-    // wiring, which is how a media-services rebuild comes back with the tap it
-    // had; the public property is main-thread state and must not be read here.
-    BOOL                    _levelsWanted;
-    // Queue-confined analyzer mode. Debug may replace the active tap to change it.
-    VibeAudioLevelNormalizationMode _levelNormalizationMode;
-    // Stable for the AudioPlayer lifetime. Engine resets replace only the tap
-    // session, so main-thread readers never load an atomic Objective-C owner and a
-    // snapshot sequence never goes backwards.
-    AudioLevelPublisher     *_levelPublisher;
-    // Queue-confined. Display readers use _levelPublisher, not this object.
-    AudioLevelTap           *_levelTap;
-    AVAudioTime             *_signalStartTime; // queue-confined beta capture origin; retained across tap replacements
-    // Beta builds: the tap is held for each start's bounded signal capture
-    // even when no indicator wants levels, until that capture completes.
-    BOOL                    _signalProbeWanted;
-    uint64_t                _signalProbeRequest;
-
-    // ---- Actual modeled audio-output liveness.
-    // _activeRetiredOutputCount and its generation are queue-confined. The
-    // published bool is guarded by _stateLock for the shell's nonblocking
-    // getter. A generation lets a completion retained by a dead engine no-op
-    // after media-services reset has cleared the count.
-    NSUInteger              _activeRetiredOutputCount;
-    uint64_t                _retiredOutputGeneration;
-    BOOL                    _outputAudioActive;
-
-    // ---- Read by AudioPlayer+State, written by publishPlaybackState:.
-    // Last position computed from a valid playerTime, guarded by _stateLock.
-    // When the engine stops itself, on a device unplug or format change,
-    // lastRenderTime goes nil before the recovery path can read the position.
-    // Without this cache, recovery restores from the segment start and the
-    // track restarts at 0:00, or at the last seek point.
-    //
-    // An ivar rather than one of the readonly properties below, because the
-    // position getter is a second writer: it computes off-lock and stores the
-    // result back under the generation check. Everything else in the position
-    // state keeps the write protection.
-    NSTimeInterval          _lastValidPosition;
-#if TARGET_OS_IOS
-    // Tags the iOS player-owned sampling loop which refreshes the cache while
-    // a backgrounded screen has stopped its UI timer. Queue-confined; every
-    // published state starts or dissolves a loop.
-    uint64_t                _recoveryPositionGeneration;
 #endif
 }
 
@@ -319,13 +216,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // already holding the lock must read `_pitch` directly. os_unfair_lock is not
 // recursive, so getting this wrong aborts the process on the first play.
 
-// Sits between the current player node and the mixer. playOnQueue: mints a
-// fresh one per track, so a track change crossfades on two independent chains
-// without rerouting the live node; nil until the first play.
-@property (nonatomic, readonly, nullable) AVAudioUnitVarispeed *varispeed;
-
-// The in-flight open's generation, path, current rebound row and start intent;
-// see PlaybackRequestCoordinator.
+// The in-flight open's identity, row and intent; see PlaybackRequestCoordinator.
 @property (nonatomic, readonly, nullable) PlaybackRequestCoordinator *pendingRequest;
 
 // The loading intent, mirrored under _stateLock so that main-thread getters and
@@ -337,23 +228,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 @property (nonatomic, readonly) uint64_t loadingSubmittedPlayIdentifier;
 @property (nonatomic, readonly) uint64_t lastSubmittedPlayIdentifier;
 @property (nonatomic, readonly, nullable) AudioTrack *lastSubmittedPlayTrack;
-
-// Unclamped twin of the paused position, written by every publish and
-// overridden by completePauseOfNode: with the true rendered position. The
-// position getter clamps to the file's duration, so a pause landing just after
-// a gapless boundary records the frames already rendered into the queued next
-// track only here; promoteGaplessOnQueue's paused fallback is the one reader.
-@property (nonatomic, readonly) NSTimeInterval pausedRawPosition;
-
-// The position state AudioPlayer+State's readers answer from, all under
-// _stateLock. The paused position is what position returns once the node stops
-// reporting; the generation is bumped by every queue-side write of the three,
-// and is what lets the position getter tell its own off-lock result from one a
-// seek or a track change has since superseded. loadingStartPaused is the
-// pending start's intent, which is what isPlaying and isPaused report while
-// Loading.
-@property (nonatomic, readonly) NSTimeInterval pausedPosition;
-@property (nonatomic, readonly) uint64_t positionGeneration;
 @property (nonatomic, readonly) BOOL loadingStartPaused;
 
 // Readwrite here, readonly in AudioPlayer.h: currentTrack is written on
@@ -361,76 +235,67 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 @property (nullable, strong, readwrite) AudioTrack *currentTrack;
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
-// Queue-side helpers implemented in AudioPlayer.m, which carries their
-// contracts. All run on _queue. The first two are the entry points the
-// categories call back into: the segment completion that routes a boundary or
-// a natural end, and the terminus every file open lands in, whether the play
-// opened it or the prefetch did.
-- (void)segmentDidCompleteWithGeneration:(uint64_t)generation;
-- (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
-                            error:(nullable NSError *)error
-                     openRequestId:(uint64_t)openId;
+#pragma mark - Queue-side helpers implemented in AudioPlayer.m
 
 // Runs block beside the mutable state and returns only once it has: inline
 // when the caller is already on _queue, because dispatch_sync onto our own
-// queue deadlocks. Every accessor reachable from both sides funnels through
-// here rather than copying the guard.
+// queue deadlocks.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
 
-// Bit-perfect output changes no sample, so the player writes no volume while
-// it is on: no declick, crossfade, or pause, resume, seek or stop ramp. A
-// transport edge cuts, and may click, rather than fades. Always NO on iOS.
-- (BOOL)leavesSamplesUntouchedOnQueue;
-
-- (void)stopOnQueue;
-- (void)resetToStoppedStateOnQueue;
-// Forgets every reference bound to the current engine without messaging it;
-// the iOS media-services-reset rebuild's first half.
-- (void)dropEngineBoundStateOnQueue;
-// Wires the master bus: the FX segment, or, with FX disabled or bit-perfect
-// on, the mixer straight to the output. The iOS rebuild's second half; the
-// macOS device rebind calls it too, to change the route live.
-- (void)installMasterBusOnQueue;
-- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format;
-// The audio-time clock for fades, sweeps, drains and the idle stop: the debug
+// The audio-time clock for FX sweeps, drains and the idle stop: the debug
 // pump's under manual rendering, else dispatch_after on _queue. Wall-clock
 // deadlines (the open timeout, the system-output bind retry) use dispatch_after
 // directly, because rendered frames must not advance them.
 - (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block;
-// Reconciles tap demand. Also called after a successful engine start so a
-// temporary unusable-format failure can recover without toggling demand.
-- (void)applyLevelTapOnQueue;
-// Creates the engine and wires the master bus, debug argv flags
-// (--no-audio-hw, --silent) included — the init path and the iOS
-// media-services rebuild must configure the engine identically.
-- (void)createEngineAndMasterBusOnQueue;
-// Makes _varispeed what the chain wants — one, or none under macOS's
-// bit-perfect output. Lives in AudioPlayer.m because _varispeed is written
-// there alone.
-- (void)ensureVarispeedOnQueue;
-// The permitted partial writers of the published playback state; the full
-// model, and why there are exactly three of them, is at publishPlaybackState:
-// in AudioPlayer.m. Both return the node they unpublished, for the caller to
-// stop and detach off the lock.
-- (nullable AVAudioPlayerNode *)unpublishNodeOnQueue;
-- (nullable AVAudioPlayerNode *)unpublishNodeOnQueueEnteringTerminalState:(VibePlayerState)state;
-- (void)publishPlaybackState:(VibePlayerState)state
-                        node:(nullable AVAudioPlayerNode *)node
-                        file:(nullable AVAudioFile *)file
-                segmentStart:(AVAudioFramePosition)segmentStart
-                    position:(NSTimeInterval)position;
-// Recomputes and, on an edge, publishes current-node + retired-fade output
-// liveness. Every tracked fade completion and state publication funnels here.
+
+// Bit-perfect output changes no sample, so the player applies no gain while
+// it is on: every ramp is a cut. Always NO on iOS.
+- (BOOL)leavesSamplesUntouchedOnQueue;
+
+// The terminus every file open lands in, whether the play opened it or the
+// prefetch did.
+- (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
+                            error:(nullable NSError *)error
+                     openRequestId:(uint64_t)openId;
+// The current track is done: natural end, or finishCurrentTrack.
+- (void)finishPlaybackOnQueue;
+- (void)stopOnQueue;
+- (void)resetToStoppedStateOnQueue;
+// Pauses the current voice where it is and tells the delegate. Under a
+// stopped engine the pause is a cut, applied at the next render.
+- (void)pauseCurrentVoiceOnQueue;
+
+// The voice vocabulary the transport speaks. Every ramp is a cut under
+// bit-perfect output; a retire at the declick length stops the voice's reads,
+// so its file may be handed on. Retired voices are tracked until they end.
+- (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
+- (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+                       fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
+- (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
+- (void)cutRetiringVoicesToDeclickOnQueue;
+- (void)killRetiringVoicesOnQueue;
+
+// The writer model for the published tuple: this is the FULL-TUPLE publisher,
+// and the two unpublish variants are the only partial writers. Anything that
+// moves the position must come through here.
+- (void)publishState:(VibePlayerState)state
+               voice:(VibeVoiceID)voice
+                file:(nullable AVAudioFile *)file
+        startSeconds:(NSTimeInterval)startSeconds
+          baseFrames:(uint64_t)baseFrames;
+- (VibeVoiceID)unpublishVoiceOnQueue;
+- (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state;
+
+// Recomputes and, on an edge, publishes the output-liveness fold: the engine
+// running and either the current voice playing or a retiring voice alive.
 - (void)refreshOutputAudioActiveOnQueue;
+
 - (void)sendDelegateError:(NSError *)error;
-// Thread-safe submission identity check. Delivery sites call it inside their
-// main hop; the gapless park also uses it on _queue before starting work for a
-// playback settlement a newer submission already superseded.
+// Thread-safe submission identity check, used inside every main-thread
+// delivery: what matters is whether a newer play existed when it ran.
 - (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier;
-// The play-path variant, which drops an error whose submission a newer play
-// has already replaced. Every error carrying kVibeAudioErrorTrackURLKey must
-// use it: the shells cannot tell a superseded same-row failure from a current
-// one, and acting on it strips state the newer play has already set up.
+// The play-path variant drops an error whose submission a newer play has
+// replaced. Every error carrying kVibeAudioErrorTrackURLKey must use it.
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier;
 
 @end

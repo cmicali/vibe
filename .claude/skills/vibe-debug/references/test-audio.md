@@ -97,7 +97,7 @@ The device-switch case uses **VibeBlackHoleBare 16ch** by default; `--switch-dev
 
 The matrix asserts:
 
-- Mode off keeps the ordinary varispeed chain, no prepared device, no restore/hog obligation and neither bit-perfect listener. It must render finite, non-silent audio for at least the source duration minus the startup exclusion. Its sample comparison is diagnostic: ordinary playback is not required to preserve the samples or alignment marker.
+- Mode off keeps the ordinary chain — the bus at the mixer's format through its varispeed — no prepared device, no restore/hog obligation and neither bit-perfect listener. It must render finite, non-silent audio for at least the source duration minus the startup exclusion. Its sample comparison is diagnostic: ordinary playback is not required to preserve the samples or alignment marker.
 - Stereo WAV at 44.1, 48, 88.2, 96, 176.4 and 192 kHz, each in 16-bit integer, 24-bit integer and float32, is exact after startup. Capture is armed before the measured replay. A warm-up open negotiates format before the IOProc is bound. This matrix requires a loopback offering all six rates; an unsupported rate fails rather than silently dropping coverage.
 - FLAC, ALAC and big-endian AIFF at 48/24 compare against their original WAV, so a codec-specific decode error cannot affect both sides of the comparison.
 - Full-scale positive/negative values, zeros and the smallest integer step are exercised in 16-bit, 24-bit and float PCM. Marked silence, an impulse and a frequency sweep check silence, timing and filtering; the first 100 ms is seeded noise so alignment stays unambiguous.
@@ -105,8 +105,8 @@ The matrix asserts:
 - 32-bit integer and float64 fixtures with nonzero low bits report `depthInsufficient`, AAC/MP3/MP2/QTA report `sourceLossy` (unavailable optional encoders are listed), and mono/four/eight/sixteen-channel sources through the stereo mixer report `channelConversion`. These cases assert truthful reporting, not bit-perfect delivery.
 - When the device has volume controls, changing gain to 0.5 updates the report to `volumeScaled`; restoring unity returns it to `active`. Virtual balance and main mute, when present, must likewise update the report and recover. Missing controls are listed in `notCovered`; original control values are restored at exit.
 - An explicit stop unloads the track; replay captures the full file again.
-- A same-rate 16→24-bit pair on a float32 device arms gapless and compares one concatenated reference, **including every frame at the join**. There is no second fade exclusion or realignment.
-- A 44.1→48 kHz boundary never arms a splice and settles on the new hardware rate. A new capture checks the destination's samples. This is not evidence of sample continuity across the physical format switch.
+- A same-rate 16→24-bit pair on a float32 device queues the second as the first voice's successor and compares one concatenated reference, **including every frame at the join**. There is no second fade exclusion or realignment.
+- A 44.1→48 kHz boundary never queues a successor and settles on the new hardware rate. A new capture checks the destination's samples. This is not evidence of sample continuity across the physical format switch.
 - `hang_open` holds the real file-open path until each mode change has been submitted. The released open must land on the latest setting's graph.
 - Twelve live mode toggles, each following a seek, must resume advancing audio on the requested graph within five seconds and retain the original format for restoration.
 - Mode off, a provider failure followed by mode off, quit, and an optional output-device switch restore the original nominal rate and all physical-format fields.

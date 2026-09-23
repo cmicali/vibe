@@ -39,6 +39,8 @@
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     [_pending removeAllObjects];
     self.capture = nil;
+    self.beforeRender = nil;
+    self.afterRender = nil;
 }
 - (void)scheduleAfter:(NSTimeInterval)seconds block:(dispatch_block_t)block {
     if (_automatic) {
@@ -70,7 +72,7 @@
         }
         _chunk.frameLength = 0;
         if (_engine.isRunning) {
-            if (!_automatic) [self landPlayerNodeWork];
+            if (self.beforeRender && !self.starveDecoder) self.beforeRender();
             AVAudioEngineManualRenderingStatus status;
             // A graph mutation can temporarily prevent rendering. Retry only
             // a zero-frame result; never discard or duplicate a partial block.
@@ -92,26 +94,10 @@
         _buffer.frameLength += count;
         _time += count / _format.sampleRate;
         _renderedFrames += count;
+        if (self.afterRender) self.afterRender();
     }
     if (self.capture) self.capture(_buffer);
     return _buffer;
-}
-// TRAP: a frame-driven render outruns AVAudioPlayerNode's own worker. play
-// writes the start synchronously but wakes the node's CommandQueue
-// asynchronously, and that queue performs the file reads; against hardware
-// the IO thread gives it milliseconds per block, an offline pull gives it
-// nothing. On a starved CI runner the new node rendered silence until the
-// outgoing node's detach and its reader stopped after the chunks it had
-// banked, so the capture went silent from a 4096-frame boundary. Attaching
-// and detaching a fresh player node before each slice lands that work, about
-// 7 us. Measured under load: 0 of 300 runs late or cut, against a third of
-// runs without it and 2 of 100 with a 135 us busy wait; a reused node, a
-// no-op disconnect, reset, property reads, prepareWithFrameCount: while
-// playing and a queue hop do nothing.
-- (void)landPlayerNodeWork {
-    AVAudioPlayerNode *probe = [[AVAudioPlayerNode alloc] init];
-    [_engine attachNode:probe];
-    [_engine detachNode:probe];
 }
 - (void)tickOnQueue {
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);

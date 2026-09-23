@@ -16,7 +16,6 @@
 #import "AppSettings.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Recovery.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
@@ -951,7 +950,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 - (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller {
     // Notification-thread edge: do not touch main-confined shell state here.
     // The player establishes the reset/play queue ordering now and hands the
-    // pre-reset track plus its lock-only position cache back on main.
+    // pre-reset track plus its position back on main.
     __weak PlaybackController *weakSelf = self;
     [_player beginMediaServicesResetWithCompletion:
             ^(AudioTrack *resetTrack, NSTimeInterval position) {

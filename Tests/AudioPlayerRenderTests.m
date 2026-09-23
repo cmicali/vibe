@@ -1,6 +1,5 @@
 #import <XCTest/XCTest.h>
 #import "AudioPlayer+Debug.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
@@ -347,11 +346,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             AVAudioPCMBuffer *decoded = [self read:url];
             [self startPlayerAt:decoded.format.sampleRate channels:decoded.format.channelCount fx:NO bitPerfect:YES automatic:NO];
             [self play:url paused:NO position:0];
-            __block AVAudioCommonFormat nodeFormat = AVAudioOtherFormat;
-            [_player runSyncOnQueue:^{
-                nodeFormat = [[self->_player valueForKey:@"node"] outputFormatForBus:0].commonFormat;
-            }];
-            XCTAssertEqual(nodeFormat, lossless ? AVAudioPCMFormatFloat32 : AVAudioPCMFormatInt16, @"%@", name);
+            XCTAssertEqual(_player.debugCurrentDecodeFormat.commonFormat,
+                           lossless ? AVAudioPCMFormatFloat32 : AVAudioPCMFormatInt16, @"%@", name);
             NSMutableData *reference = PCM(decoded);
             float *r = reference.mutableBytes;
             for (NSUInteger i = 0; aac && i < reference.length / sizeof(float); i++) {
@@ -953,7 +949,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             [self render:4410];
             XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 0u,
                            @"Bit-perfect playback retained a two-second crossfade: %@", _player.debugEngineCounts);
-            XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"nodeVolume"] doubleValue], 1, 1e-6);
+            XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"gain"] doubleValue], 1, 1e-6);
             [self render:88200];
             [self assertReference:PCM([self read:[self fixture:@"noise-44100-16-2.wav"]])
                           capture:_capture skip:2205 tolerance:0];
@@ -1137,6 +1133,84 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
+// Ordinary playback converts a file at another rate inside the bus, on the
+// decode queue; bit-perfect output plays each file at its own rate, so the
+// bus's converter is measured here and nowhere else: gain flat within 0.01 dB,
+// duration exact, and a tone above the bus's Nyquist below -90 dBFS.
+- (void)testOrdinaryPlaybackConvertsRateInTheBus {
+    for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@44100,@48000],@[@96000,@44100]]) {
+        NSNumber *rate=rates[1];
+        NSString *tone=[NSString stringWithFormat:@"tone-%@.wav",rates[0]];
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:[self fixture:tone] paused:NO position:0]; NSData *data=[self renderSeconds:1];
+        XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+        NSRange window=NSMakeRange((NSUInteger)(_rate*0.25),(NSUInteger)(_rate*0.5));
+        double amplitude=ToneAmplitude(data,2,0,_rate,1000,window);
+        XCTAssertLessThan(fabs(20*log10(amplitude/0.25)),0.01);
+        XCTAssertEqualWithAccuracy(_player.position,1,0.02);
+        double signal=amplitude/sqrt(2), rms=RMS(data,2,0,window);
+        XCTAssertLessThan(fabs(rms-signal),0.00001);
+        [self render:(NSUInteger)(_rate*3.1)]; XCTAssertEqual([self count:@"finish"],1u);
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:[self fixture:@"23000.wav"] paused:NO position:0]; data=[self renderSeconds:1];
+        if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
+    }
+}
+// Thirty plays in a hundred milliseconds under a two-second crossfade: the
+// pool has eight slots and keeps two free by cutting the oldest fading voice,
+// every play still starts, every voice still ends, and once the last fade is
+// out only the current voice is live with nothing left fading.
+- (void)testSkipStormStaysInsideThePoolAndSettles {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.crossfadeMilliseconds=2000;
+    // Five-second files: the last one must outlive every two-second fade-out.
+    NSData *noise=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSMutableData *longNoise=[NSMutableData data];
+    while (longNoise.length<5*48000*8) [longNoise appendData:noise];
+    NSArray<NSURL *> *urls=@[[self write:longNoise rate:48000 channels:2 name:@"storm-a.wav"],
+                             [self write:longNoise rate:48000 channels:2 name:@"storm-b.wav"]];
+    [self play:urls[0] paused:NO position:0]; [self render:4800];
+    for (int i=0;i<30;i++) {
+        NSUInteger starts=[self count:@"start"];
+        [_player play:[AudioTrack withURL:urls[(i+1)%2]]];
+        [self settleUntil:^BOOL { return [self count:@"start"]>starts || self->_playError; }];
+        XCTAssertNil(_playError);
+        [self render:160]; // 3.3 ms between skips
+        XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],8u);
+        XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"liveVoices"] unsignedIntegerValue],8u);
+    }
+    NSData *tail=[self renderSeconds:2.2];
+    [self assertFinite:tail peak:2.0];
+    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
+    XCTAssertEqual([_player.debugEngineCounts[@"liveVoices"] unsignedIntegerValue],1u);
+    XCTAssertEqual([self count:@"start"],31u); XCTAssertEqual([self count:@"finish"],0u);
+    XCTAssertTrue(_player.isPlaying); XCTAssertEqualObjects(_player.currentTrack.url,urls[0]); // the thirtieth skip landed on a
+}
+// A decoder that gets no turn: the voice plays what its ring holds, then
+// zero-fills, holds its position and counts the frames it could not fill;
+// fed again, it continues from the exact frame it stopped at.
+- (void)testAStarvedDecoderHoldsThePositionAndResumesExactly {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
+    NSUInteger sourceFrames=reference.length/8;
+    [self play:url paused:NO position:0];
+    NSData *head=[self renderSeconds:0.5];
+    [self assertReference:[reference subdataWithRange:NSMakeRange(0,head.length)] capture:head skip:0 tolerance:0];
+    [_player debugStarveDecoder:YES];
+    NSData *starved=[self renderSeconds:1.5];
+    NSUInteger held=(NSUInteger)llround(_player.position*_rate);
+    XCTAssertGreaterThan(held,24000u); XCTAssertLessThan(held,96000u, @"the ring is shorter than the file, so the render must have run dry");
+    XCTAssertEqual([_player.debugEngineCounts[@"underrunFrames"] unsignedIntegerValue],96000u-held);
+    XCTAssertTrue(_player.isPlaying); XCTAssertEqual([self count:@"finish"],0u);
+    [self assertReference:[reference subdataWithRange:NSMakeRange(24000*8,(held-24000)*8)]
+                  capture:[starved subdataWithRange:NSMakeRange(0,(held-24000)*8)] skip:0 tolerance:0];
+    XCTAssertEqual(RMS(starved,2,0,NSMakeRange(held-24000,96000-held)),0);
+    [_player debugStarveDecoder:NO];
+    NSData *resumed=[self renderSeconds:(double)(sourceFrames-held)/_rate+0.1];
+    [self assertReference:[reference subdataWithRange:NSMakeRange(held*8,(sourceFrames-held)*8)]
+                  capture:resumed skip:0 tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"finish"]==1; }];
+}
 - (void)testRealTimerPumpAndFade {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:YES];
     NSMutableData *captured=[NSMutableData data];
@@ -1292,14 +1366,14 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
         class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
         class_getClassMethod(CoreAudioUtil.class, @selector(readSystemDefaultOutputDeviceID:)),
-        class_getInstanceMethod(AudioPlayerRenderTests.class, @selector(audioPlayer:didChangeOutputDevice:)),
+        class_getInstanceMethod(AudioPlayerRenderTests.class, @selector(audioPlayer:didChangeOutputDevice:involuntaryFallbackUID:involuntaryFallbackName:carriedModesFromUID:)),
     };
     IMP replacements[] = {
         imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
         imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
         imp_implementationWithBlock(^BOOL(id cls, AudioDeviceID *out) { *out=1; return YES; }),
-        imp_implementationWithBlock(^(id test, AudioPlayer *player, NSInteger deviceID) {
-            [announcements addObject:@{@"device":@(deviceID), @"fallback":player.involuntaryFallbackDeviceUID ?: @""}];
+        imp_implementationWithBlock(^(id test, AudioPlayer *player, NSInteger deviceID, NSString *fallbackUID, NSString *fallbackName, NSString *carriedUID) {
+            [announcements addObject:@{@"device":@(deviceID), @"fallback":fallbackUID ?: @""}];
         }),
     };
     IMP originals[4];
@@ -1520,10 +1594,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
   bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {
     if (_outputModesProvider) _outputModesProvider(uid, bitPerfect, exclusive);
 }
-- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d {
+- (void)audioPlayer:(AudioPlayer *)p didChangeOutputDevice:(NSInteger)d involuntaryFallbackUID:(NSString *)fallbackUID
+involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *)carriedUID {
     [_events addObject:@{@"event": @"device", @"device": @(d),
-            @"fallback": p.involuntaryFallbackDeviceUID ?: @"",
-            @"carriedModes": p.carriedOutputModesDeviceUID ?: @""}];
+            @"fallback": fallbackUID ?: @"",
+            @"carriedModes": carriedUID ?: @""}];
 }
 - (void)audioPlayer:(AudioPlayer *)p error:(NSError *)error { _playError=error; [self record:@"error" track:nil]; }
 - (void)testFailedManualSelectionDoesNotOverwriteReadoptedModes {
@@ -1650,13 +1725,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     Method methods[] = {
         class_getClassMethod(AudioDeviceManager.class, @selector(sharedInstance)),
         class_getClassMethod(CoreAudioUtil.class, @selector(systemDefaultOutputDeviceID)),
-        class_getInstanceMethod(AudioPlayerRenderTests.class, @selector(audioPlayer:didChangeOutputDevice:)),
+        class_getInstanceMethod(AudioPlayerRenderTests.class, @selector(audioPlayer:didChangeOutputDevice:involuntaryFallbackUID:involuntaryFallbackName:carriedModesFromUID:)),
     };
     IMP replacements[] = {
         imp_implementationWithBlock(^AudioDeviceManager *(id cls) { return devices; }),
         imp_implementationWithBlock(^AudioDeviceID(id cls) { return 1; }),
-        imp_implementationWithBlock(^(id test, AudioPlayer *player, NSInteger deviceID) {
-            NSString *source = player.carriedOutputModesDeviceUID;
+        imp_implementationWithBlock(^(id test, AudioPlayer *player, NSInteger deviceID, NSString *fallbackUID, NSString *fallbackName, NSString *source) {
             if (source.length) {
                 @synchronized(savedModes) { savedModes[@"port-b"] = savedModes[source]; }
                 carryDelivered = YES;

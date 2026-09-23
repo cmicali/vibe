@@ -364,9 +364,9 @@ static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKe
 static const NSUInteger kMaximumDatalessProbeRunningCount = 8;
 static const NSUInteger kMaximumDatalessProbePendingCount = 16;
 static const NSTimeInterval kDatalessProbePendingGrace = 5;
-// One production player has three queue-confined open sources: playback,
-// prefetch and gapless. Six conservatively leaves three stranded-call
-// memberships beyond that source bound while capping uncancellable workers.
+// One production player has two queue-confined open sources: playback and
+// prefetch. Six conservatively leaves four stranded-call memberships beyond
+// that source bound while capping uncancellable workers.
 // The fuse is purpose-blind, so saturation can refuse playback. A new player,
 // source or multi-flight source requires re-deriving this ceiling.
 static const NSUInteger kMaximumHandleRunCount = 6;
@@ -1394,12 +1394,6 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 - (void)startHandleRunStages:(VibeAudioHandleRun *)run {
     run.runGeneration++;
     uint64_t runGeneration = run.runGeneration;
-    if (run.purpose == VibeAudioFileOpenPurposeGapless) {
-        // Stage 2 only: the parked file already proved the bytes local, and
-        // the private handle must never share the parked instance.
-        [self dispatchHandleOpenForRun:run runGeneration:runGeneration];
-        return;
-    }
     VibeAudioFileMaterializationRole role = run.purpose
             == VibeAudioFileOpenPurposePlayback
             ? VibeAudioFileMaterializationRolePlayback

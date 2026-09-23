@@ -452,11 +452,55 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [_bus fillInline];
     XCTAssertFalse([_bus unqueueSuccessorForVoice:voice]);
     XCTAssertEqual([_bus snapshotOfVoice:voice].boundary, 2000u);
-    // And a voice whose stream has ended takes no successor at all.
+    // And a live voice whose stream has ended still takes one: the decoder
+    // reopens the stream at the old end, so the continuation is exact.
     [self makeBusAtRate:kRate channels:2];
+    successor = [self open:second];
     voice = [self startFile:[self open:shortFirst] gain:1 ramp:[self unity] paused:NO];
     [_bus fillInline];
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 2000u);
+    XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
+    capture = [self renderUntilEnded:voice blockSize:1024 limit:200000];
+    XCTAssertEqual([self endedSnapshot:voice].boundary, 2000u);
+    XCTAssertEqual([self endedSnapshot:voice].endOfStream, 32000u);
+    NSMutableData *reopened = [[whole subdataWithRange:NSMakeRange(0, 2000 * 8)] mutableCopy];
+    [reopened appendData:[whole subdataWithRange:NSMakeRange(30000 * 8, 30000 * 8)]];
+    [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 32000 * 8)] equalsSource:reopened];
+    XCTAssertEqualObjects([self eventsForVoice:voice],
+                          (@[@(VibeVoiceEventLive), @(VibeVoiceEventBoundary), @(VibeVoiceEventEnded)]));
+    // A dead voice takes none.
     XCTAssertFalse([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
+}
+
+// A gapless album is one voice: each successor is queued only after the
+// previous boundary was reported, and every boundary is reported by value.
+- (void)testOneVoiceChainsSuccessorsAndReportsEachBoundary {
+    NSData *whole = [self noiseFrames:9000 channels:2 seed:12];
+    NSURL *a = [self writePCM:[whole subdataWithRange:NSMakeRange(0, 2000 * 8)] rate:kRate channels:2 name:@"a.wav"];
+    NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(2000 * 8, 3000 * 8)] rate:kRate channels:2 name:@"b.wav"];
+    NSURL *c = [self writePCM:[whole subdataWithRange:NSMakeRange(5000 * 8, 4000 * 8)] rate:kRate channels:2 name:@"c.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    AVAudioFile *second = [self open:b], *third = [self open:c];
+    VibeVoiceID voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
+    XCTAssertTrue([_bus queueSuccessor:second decodeFormat:second.processingFormat forVoice:voice]);
+    NSMutableData *capture = [NSMutableData data];
+    // a and b decode whole before the first render, so b's end is known when
+    // the first boundary is reported; queuing c then reopens the stream.
+    while ([self eventsForVoice:voice].count < 2 && capture.length < 20000 * 8) {
+        [self render:256 into:capture];
+    }
+    XCTAssertEqualObjects([self eventsForVoice:voice], (@[@(VibeVoiceEventLive), @(VibeVoiceEventBoundary)]));
+    XCTAssertEqual([_bus snapshotOfVoice:voice].boundary, 2000u);
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 5000u);
+    XCTAssertTrue([_bus queueSuccessor:third decodeFormat:third.processingFormat forVoice:voice]);
+    while (![self hasEnded:voice] && capture.length < 20000 * 8) {
+        [self render:256 into:capture];
+    }
+    XCTAssertEqualObjects([self eventsForVoice:voice],
+                          (@[@(VibeVoiceEventLive), @(VibeVoiceEventBoundary), @(VibeVoiceEventBoundary), @(VibeVoiceEventEnded)]));
+    XCTAssertEqual([self endedSnapshot:voice].boundary, 5000u);
+    XCTAssertEqual([self endedSnapshot:voice].endOfStream, 9000u);
+    [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 9000 * 8)] equalsSource:whole];
 }
 
 #pragma mark - Starvation, kills and the pool
@@ -553,6 +597,27 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     // first frame: the mix says the half is there.
     const float *out = capture.bytes, *in = source.bytes;
     XCTAssertEqualWithAccuracy(out[0], 7.0f * in[128 * 2] + 0.5f * in[0], 1e-5);
+}
+
+// Every started voice ends exactly once, a pending one killed before it ever
+// had a slot included: the transport tracks fading voices by their end event.
+- (void)testAPendingVoiceKilledBeforeItsSlotStillEnds {
+    NSData *source = [self noiseFrames:20000 channels:2 seed:13];
+    NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"pending-kill.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    for (int i = 0; i < 8; i++) {
+        [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    }
+    [self render:64 into:nil];
+    VibeVoiceID pending = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    XCTAssertEqual([_bus pendingVoiceCount], 1u);
+    [_bus killVoice:pending];
+    XCTAssertEqual([_bus pendingVoiceCount], 0u);
+    XCTAssertFalse([self hasEnded:pending], @"its end is the drain's to report");
+    [self drain];
+    XCTAssertTrue([self hasEnded:pending]);
+    XCTAssertEqual([self endedSnapshot:pending].state, VibeVoiceStateNone);
+    XCTAssertEqual([_bus occupiedSlotCount], 8u);
 }
 
 #pragma mark - Conversion

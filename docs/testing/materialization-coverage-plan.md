@@ -35,7 +35,7 @@ On the final audited run, `make test` completed 1,022 XTests with no failures (2
 | B1 | Teardown accounting guarantee in both coordinator test files | done — **passed on all 911 pre-existing tests**, proving the original failure needed a never-returning open |
 | B2 | `testAWedgedOpenIsNotAForegroundTransfer` | passes |
 | B3 | `testAWedgedPlaybackOpenDoesNotStarveForegroundTransfers` | passes — the asymmetry is now a test result, not a comment |
-| A1 | `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers`, and the gapless twin | **XFAIL before J8; pass after it** — the bug reproduced host-lessly on both paths, then the fix closed it |
+| A1 | `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers` | **XFAIL before J8; pass after it** — the bug reproduced host-lessly on both paths, then the fix closed it |
 | E1 | `handleOpensInFlight` in `dump_health`'s `pending` | done, **verified live**: wedged → `quiesce` returns `settled: false, {handleOpensInFlight: 1}`; released → `settled: true` |
 | C1 | `hang_open <basename>\|release` debug verb + a chained opener wrapper | done — the open-side seam the fake provider never had |
 | E5-field | `resolvedRows` in `dump_state.playlist` | done |
@@ -98,10 +98,10 @@ A1 reproduced the bug as expected-fail and is now must-pass. A2–A4 land with J
 
 Host-less, in `Tests/AudioFileHandleOpenTests.m`, using `initWithConfiguration:operationFactory:datalessProbe:clock:fileOpener:` so a hanging opener and a fake dataless probe compose.
 
-- **A1. The B1 regression itself.** Wedge a gapless or prefetch open on path A, then submit a dataless metadata claim on path B and assert its transfer starts. This is the test whose absence is the bug.
+- **A1. The B1 regression itself.** Wedge a prefetch open on path A, then submit a dataless metadata claim on path B and assert its transfer starts. This is the test whose absence is the bug.
 - **A2. Wedged opens are bounded by exact admission.** Six distinct live runs admit; the seventh settles `AdmissionExhausted` before stage 1, increments `requestsAdmissionExhausted`, and leaves transfer counts untouched.
 - **A3. Membership follows the run lifecycle.** Stage-1 detach removes it; cancellation after stage 2 keeps it until the uncancellable call returns. The rebound test samples before rebind, after rebind and during the restarted native open to prove that restart retains one membership rather than releasing and reacquiring; the shared B1 teardown pins ordinary completion at zero.
-- **A4. Gapless uses the same handle-run ceiling without touching a transfer slot.** A same-key replacement still rebinds when all six memberships are occupied.
+- **A4. A same-key replacement still rebinds when all six memberships are occupied.** (The gapless open purpose this once covered is gone: the successor is the parked prefetch handle itself.)
 - **A5. No configuration surface.** The six-run ceiling is a private safety fuse, with no queue, grace, pending allowance, debug key, or user-facing tuning.
 
 ### B. Durable unit guarantees that would catch the next one

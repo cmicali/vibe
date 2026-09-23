@@ -2,21 +2,12 @@
 //  AudioPlayer+State.m
 //  Vibe
 //
-
-// The public surface is the (State) category in AudioPlayer.h; the state it
-// reads, and the lock that guards it, are AudioPlayerInternal.h's.
+//  The public surface is the (State) category in AudioPlayer.h; the state it
+//  reads, and the lock that guards it, are AudioPlayerInternal.h's. Every
+//  getter takes the lock, copies scalars, and computes off it; the position
+//  reads the current voice's consumed frames from the bus, which is lock-free
+//  and messages no object, so nothing here can wait on the player queue.
 //
-// position is the subtle one, and its two hazards are commented at the site: a
-// node this getter is reading can be detached concurrently by the queue, and
-// raises rather than answering nil; and the value it computes off-lock can be
-// superseded by a seek or a track change before it is stored back.
-//
-// The state read here is published by AudioPlayer.m's publishPlaybackState:,
-// which is where the writer model is written down: it is the full-tuple
-// publisher, and there are exactly three permitted partial writers. One of them
-// is below — the position getter's generation-guarded _lastValidPosition
-// writeback. The fields stay readonly on the shared surface so that adding a
-// fourth from a category is a compile error rather than a race.
 
 #import "AudioPlayerInternal.h"
 
@@ -61,13 +52,14 @@
 
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);
-    AVAudioFile *file = _file;
+    double sampleRate = _fileSampleRate;
+    AVAudioFramePosition length = _fileLength;
+    BOOL loaded = _file != nil;
     os_unfair_lock_unlock(&_stateLock);
-    double sampleRate = file.processingFormat.sampleRate;
-    if (!file || sampleRate <= 0) {
+    if (!loaded || sampleRate <= 0) {
         return 0;
     }
-    return (NSTimeInterval)file.length / sampleRate;
+    return (NSTimeInterval)length / sampleRate;
 }
 
 #if DEBUG
@@ -80,88 +72,36 @@
 }
 #endif
 
-- (NSTimeInterval)lastKnownPosition {
-    os_unfair_lock_lock(&_stateLock);
-    NSTimeInterval position = _state == VibePlayerStateStopped ? 0 : _lastValidPosition;
-    os_unfair_lock_unlock(&_stateLock);
-    return MAX(0, position);
-}
-
+// Playhead in file seconds: where the voice began plus what it has rendered
+// since, less the frames that belonged to a file it has since been promoted
+// out of. Bus frames and file frames agree in seconds whatever the bus's
+// rate, and under the pitch fader the bus is pulled faster, so this advances
+// with the audio, as it should.
 - (NSTimeInterval)position {
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
-    AVAudioPlayerNode *node = _node;
-    AVAudioFile *file = _file;
-    AVAudioFramePosition segmentStartFrame = _segmentStartFrame;
-    NSTimeInterval pausedPosition = self.pausedPosition;
-    NSTimeInterval lastValidPosition = _lastValidPosition;
-    uint64_t positionGeneration = self.positionGeneration;
+    VibeVoiceID voice = _voice;
+    BOOL loaded = _file != nil;
+    double fileSampleRate = _fileSampleRate;
+    AVAudioFramePosition fileLength = _fileLength;
+    double busSampleRate = _busSampleRate;
+    NSTimeInterval startSeconds = _voiceStartSeconds;
+    uint64_t baseFrames = _promotedBaseFrames;
+    AudioVoiceBus *bus = _voiceBus; // retained here, since the queue may drop it
     os_unfair_lock_unlock(&_stateLock);
-
-    if (!file || state == VibePlayerStateStopped) {
+    if (!loaded || !voice || fileSampleRate <= 0 || busSampleRate <= 0
+            || state == VibePlayerStateStopped || state == VibePlayerStateLoading) {
         return 0;
     }
-    double sampleRate = file.processingFormat.sampleRate;
-    if (sampleRate <= 0) {
-        return 0;
-    }
-    if (state == VibePlayerStatePaused || !node) {
-        return pausedPosition;
-    }
-    // playerTime restarts at 0 after every stop+reschedule, so the segment's
-    // start frame must always be added back.
-    AVAudioTime *playerTime = nil;
-    @try {
-        // The queue can detach this node concurrently, on fast skips, because
-        // the snapshot above is deliberately used off the lock, and a detached
-        // node's lastRenderTime raises when _engine is non-nil rather than
-        // returning nil. Treat that as no reading: the fallback below serves the last
-        // valid position, and the next tick reads the replacement node.
-        AVAudioTime *nodeTime = node.lastRenderTime;
-        // A stopped engine's node hands back a non-nil time with BOTH validity
-        // flags false, and playerTimeForNodeTime: error-logs on every such
-        // call — at the UI tick rate, for as long as the engine stays down.
-        // The invalid reading means the same thing nil does: no reading.
-        playerTime = nodeTime && (nodeTime.sampleTimeValid || nodeTime.hostTimeValid)
-                ? [node playerTimeForNodeTime:nodeTime] : nil;
-    }
-    @catch (NSException *exception) {
-        playerTime = nil;
-    }
-    NSTimeInterval position;
-    if (!playerTime || !playerTime.sampleTimeValid) {
-        // Either nothing has rendered yet, right after a play, or the engine
-        // stopped itself on a device unplug or format change, since
-        // lastRenderTime is nil while stopped. On iOS the player's own sampler
-        // keeps this cache current while the backgrounded screen timer is
-        // dormant. Within one segment the last valid reading is never behind
-        // the segment start, so MAX covers both cases.
-        position = MAX((NSTimeInterval)segmentStartFrame / sampleRate, lastValidPosition);
-    }
-    else {
-        position = (NSTimeInterval)(segmentStartFrame + playerTime.sampleTime) / sampleRate;
-    }
-    NSTimeInterval duration = (NSTimeInterval)file.length / sampleRate;
-    position = clampRange(position, 0, duration);
-    if (playerTime && playerTime.sampleTimeValid) {
-        os_unfair_lock_lock(&_stateLock);
-        // A seek, pause or track change may have rewritten the position state
-        // while this was computed off-lock, and storing it then would
-        // resurrect the pre-seek position. The stale reading is not returned
-        // upward either: the generation writer's value is the truth now.
-        if (self.positionGeneration == positionGeneration) {
-            _lastValidPosition = position;
-        }
-        else {
-            position = _lastValidPosition;
-        }
-        os_unfair_lock_unlock(&_stateLock);
-    }
-    return position;
+    VibeVoiceSnapshot snapshot = [bus snapshotOfVoice:voice];
+    uint64_t consumed = snapshot.state == VibeVoiceStateNone ? 0 : snapshot.consumed;
+    NSTimeInterval rendered = consumed > baseFrames ? (NSTimeInterval)(consumed - baseFrames) / busSampleRate : 0;
+    NSTimeInterval duration = (NSTimeInterval)fileLength / fileSampleRate;
+    return clampRange(startSeconds + rendered, 0, duration);
 }
 
-// The armed-splice mirror, written under the lock by setGaplessQueuedOnQueue:
-// so this can answer without touching the queue at all; see AudioPlayer+Gapless.
+// The queued-successor mirror, written under the lock by the prefetch code so
+// this can answer without touching the queue at all.
 - (BOOL)isGaplessArmed {
     os_unfair_lock_lock(&_stateLock);
     BOOL armed = _gaplessArmedForUI;

@@ -265,7 +265,7 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
                 slot->consuming = 1;
                 VibeStampWrite(slot, &slot->startStamp, timestamp, 0, mix->hostTicksPerFrame);
             }
-            if (boundary != kUnset && consumed < boundary && consumed + frames >= boundary) {
+            if (boundary != kUnset && consumed <= boundary && consumed + frames > boundary) {
                 VibeStampWrite(slot, &slot->boundaryStamp, timestamp, boundary - consumed, mix->hostTicksPerFrame);
             }
             VibeStampWrite(slot, &slot->lastStamp, timestamp, frames, mix->hostTicksPerFrame);
@@ -336,7 +336,7 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
     _Atomic int32_t fillScheduled;
     uint32_t fillTarget;
     BOOL liveReported;
-    BOOL boundaryReported;
+    uint64_t reportedBoundary;      // the last boundary the drain reported; kUnset = none
     BOOL endedReported;
     // A pending voice's start, replayed when a slot frees.
     float gain;
@@ -358,6 +358,7 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
     NSMutableArray<VibeVoiceRecord *> *_pending;
+    NSMutableArray<NSNumber *> *_endedPending; // killed before a slot; the next drain reports them ended
     // id → slot, for the one cross-thread lookup (snapshotOfVoice:). Never
     // taken by the audio thread; never held across a queue hop.
     os_unfair_lock _tableLock;
@@ -402,6 +403,7 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
     }
     _mix = owner.mix;
     _pending = [NSMutableArray array];
+    _endedPending = [NSMutableArray array];
     _tableLock = OS_UNFAIR_LOCK_INIT;
     _nextIdentifier = 1;
     _nextRetireOrder = 1;
@@ -500,8 +502,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // The file's processing format is float32; the bus is float32 at its own rate
 // and width. Three cases: nothing to do; a rate or width change, converted to
 // the bus format at maximum quality; or the 16-bit decode bit-perfect output
-// wants for a lossy source, converted to integers by the same AudioConverter
-// the player node used and expanded back to float exactly.
+// wants for a lossy source, converted to integers by AudioConverter and
+// expanded back to float exactly, so the bus stays float on the 16-bit grid.
 - (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat {
     AVAudioFormat *source = file.processingFormat;
     record->file = file;
@@ -614,7 +616,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
     bound->fillTarget = kInitialFillFrames;
-    bound->liveReported = bound->boundaryReported = bound->endedReported = NO;
+    bound->liveReported = bound->endedReported = NO;
+    bound->reportedBoundary = kUnset;
     BOOL prepared = [self prepareRecord:bound file:record->file decodeFormat:record->decodeFormat];
     s->armedWritten = atomic_load_explicit(&s->written, memory_order_relaxed);
     s->armedConsumed = atomic_load_explicit(&s->consumed, memory_order_relaxed);
@@ -697,16 +700,26 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         return NO;
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
-    if (atomic_load_explicit(&s->endOfStream, memory_order_acquire) != kUnset
+    int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
+    if ((state != VibeSlotArmed && state != VibeSlotLive)
+            || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)
             || atomic_load_explicit(&s->successorState, memory_order_acquire) != VibeSuccessorNone) {
-        return NO;
+        return NO; // dead, retired at declick length, or already continuing
     }
     VibeVoiceRecord *record = _records[slot];
     record->successorFile = file;
     record->successorDecodeFormat = decodeFormat;
     int32_t expected = VibeSuccessorNone;
-    return atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorQueued,
-                                                   memory_order_release, memory_order_relaxed);
+    if (!atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorQueued,
+                                                 memory_order_release, memory_order_relaxed)) {
+        return NO;
+    }
+    // A stream that ended before its successor was named is reopened by the
+    // decoder, which has no turn scheduled while exhausted.
+    if (record->exhausted && !_inlineDecoding) {
+        [self scheduleFillForSlot:slot];
+    }
+    return YES;
 }
 
 - (BOOL)unqueueSuccessorForVoice:(VibeVoiceID)voice {
@@ -737,6 +750,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     VibeVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         [self removePendingRecord:pending];
+        [_endedPending addObject:@(voice)]; // every started voice ends exactly once, through the drain
         return;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -758,7 +772,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 
 - (void)killAllVoices {
     for (VibeVoiceRecord *pending in [_pending copy]) {
-        [self removePendingRecord:pending];
+        [self killVoice:pending->identifier];
     }
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         if (_slotIdentifiers[s]) {
@@ -803,6 +817,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         snapshot.paused = atomic_load_explicit(&s->paused, memory_order_relaxed) != 0;
         snapshot.ended = (VibeVoiceEnd)atomic_load_explicit(&s->endedReason, memory_order_relaxed);
         snapshot.underrunFrames = atomic_load_explicit(&s->underrun, memory_order_relaxed);
+        snapshot.gain = s->gain; // a plain read of the thread's private float: diagnostic, never a decision
         uint32_t version = atomic_load_explicit(&s->stampVersion, memory_order_acquire);
         snapshot.startOfConsumption = s->startStamp;
         snapshot.boundaryCrossing = s->boundaryStamp;
@@ -874,10 +889,13 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             record->liveReported = YES;
             handler(identifier, VibeVoiceEventLive);
         }
+        // By value, not once: a voice that chains several successors crosses a
+        // boundary per successor, and the transport queues the next only after
+        // the previous one was reported, so none is ever overwritten unseen.
         uint64_t boundary = atomic_load_explicit(&s->boundary, memory_order_acquire);
-        if (boundary != kUnset && !record->boundaryReported
+        if (boundary != kUnset && boundary != record->reportedBoundary
                 && atomic_load_explicit(&s->consumed, memory_order_acquire) >= boundary) {
-            record->boundaryReported = YES;
+            record->reportedBoundary = boundary;
             handler(identifier, VibeVoiceEventBoundary);
         }
         if (state == VibeSlotLive) {
@@ -904,6 +922,13 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             else {
                 dispatch_async(_decodeQueue, ^{ [self recycleSlot:slot]; });
             }
+        }
+    }
+    if (_endedPending.count) {
+        NSArray<NSNumber *> *ended = [_endedPending copy];
+        [_endedPending removeAllObjects];
+        for (NSNumber *identifier in ended) {
+            handler(identifier.unsignedLongLongValue, VibeVoiceEventEnded);
         }
     }
     // After the recycles, so a slot this drain freed takes a pending start now.
@@ -1054,9 +1079,12 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-    if ((state != VibeSlotArmed && state != VibeSlotLive) || record->exhausted
+    if ((state != VibeSlotArmed && state != VibeSlotLive)
             || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)) {
         return NO;
+    }
+    if (record->exhausted) {
+        return [self reopenStreamForSlot:slot];
     }
     uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
     uint64_t space = _mix->capacity - (written - atomic_load_explicit(&s->consumed, memory_order_acquire));
@@ -1097,6 +1125,37 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     [self writeFrames:frames fromRecord:record toSlot:slot written:written final:final];
     [self markLiveIfReadyForSlot:slot];
     return !final;
+}
+
+// The stream ended before a successor was named — a file shorter than the
+// ring, decoded whole before its boundary rendered. If the audio thread has
+// not reached the end, continue into the successor from there: the boundary
+// is published at the old end before the end is withdrawn, so a render that
+// sees no end sees where the successor begins. A render that already loaded
+// the end dies at it, and the transport's ordinary track end takes over.
+- (BOOL)reopenStreamForSlot:(NSUInteger)slot {
+    VibeVoiceRecord *record = _records[slot];
+    VibeVoiceSlot *s = &_mix->slots[slot];
+    int32_t queued = VibeSuccessorQueued;
+    if (!atomic_compare_exchange_strong_explicit(&s->successorState, &queued, VibeSuccessorSwitching,
+                                                 memory_order_acq_rel, memory_order_relaxed)) {
+        return NO;
+    }
+    uint64_t end = atomic_load_explicit(&s->endOfStream, memory_order_relaxed);
+    AVAudioFile *successor = record->successorFile;
+    AVAudioFormat *successorFormat = record->successorDecodeFormat;
+    record->successorFile = nil;
+    record->successorDecodeFormat = nil;
+    if (![self prepareRecord:record file:successor decodeFormat:successorFormat]) {
+        record->exhausted = YES;
+        atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
+        return NO;
+    }
+    successor.framePosition = 0;
+    atomic_store_explicit(&s->boundary, end, memory_order_release);
+    atomic_store_explicit(&s->endOfStream, kUnset, memory_order_release);
+    atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
+    return YES;
 }
 
 // endOfStream is stored before the final `written` release-store, so a render

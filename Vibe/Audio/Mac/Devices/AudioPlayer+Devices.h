@@ -2,9 +2,13 @@
 //  AudioPlayer+Devices.h
 //  Vibe
 //
-//  The internal surface of the output-device code: device switching,
-//  config-change recovery and no-device parking. The public device API is
-//  AudioPlayer.h's (Devices) category; AudioPlayer+Devices.m implements both.
+//  The output-device half of the player, macOS only: device switching, the
+//  bit-perfect and exclusive modes, config-change recovery, no-device parking
+//  and the report. (Devices) is the public API a shell imports beside
+//  AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
+//  tests reach. AudioPlayer+Devices.m implements both. It lives under Mac/ so
+//  only the macOS target compiles it: a shared caller would compile on iOS
+//  and fail at link.
 //
 
 #import "AudioPlayer.h"
@@ -15,8 +19,42 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Only the entry points used outside AudioPlayer+Devices.m. The report is
-// platform-specific, so it belongs here rather than in AudioPlayer.h.
+@interface AudioPlayer (Devices)
+
+// outputDeviceID is a CoreAudio AudioDeviceID held as an NSInteger, or -1 to
+// follow the system default output. It is not a menu or array index. Device
+// IDs do not survive a reboot, so persistence goes by UID and name; see
+// initWithDeviceUID:. The delegate supplies the destination UID's modes
+// before its one rebuild. Completion runs on main after settlement (including
+// failure), so the shell can keep mode edits disabled until persistence settles.
+- (void)setOutputDevice:(NSInteger)outputDeviceID completion:(dispatch_block_t)completion;
+
+// Bit-perfect output. While on, each track's settlement sets the chosen
+// device to the file's rate and word length, and the source segment is the
+// bus at the file's own format straight into the mixer, without varispeed;
+// no gain is ever applied, so every transport edge is a cut. The shell owns
+// the rest of the pruning (minimum crossfade, hidden pitch fader) and only
+// turns this on for an eligible device — explicitly chosen, on a transport
+// that carries bits unchanged (OutputFormatRules.h). Either direction
+// restores the current track in place, as a device switch onto the same
+// device; off also puts the device's format back and releases the hog. Main
+// thread, like every other transport-facing setter; the work lands on the
+// player queue. The delegate rereads the current UID's modes on the player
+// queue; explicit flags supply submission-time FX cleanup and the fallback
+// without a provider. Bit-perfect outranks the saved FX choice. Exclusive
+// access applies only in bit-perfect mode; the build flag can remove it.
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
+
+// Permanently stops transport, restores any changed device format and releases the hog,
+// synchronously on the player queue, so it waits on the device. The app
+// delegate's applicationShouldTerminate: is the one caller, off main and after
+// the windows are gone and its playback delegate is detached on main: this is
+// the edge that keeps the restore promise.
+- (void)prepareForTermination;
+
+@end
+
+// Only the entry points used outside AudioPlayer+Devices.m.
 @interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
 
 // The newest published report — a locked snapshot, no queue hop, like
@@ -35,16 +73,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Save Debug Info reads off main; debug commands may deliberately wait.
 - (NSDictionary<NSString *, id> *)outputDeviceDiagnosticSnapshot;
 
-// Non-nil only while announcing a fallback to System Output that the user did
-// NOT ask for — the bound device vanished or failed. The shell reads it to
-// keep the saved preference instead of erasing it, so the device is re-adopted
-// when it comes back, including across a relaunch. An explicit System Output
-// selection leaves it nil and clears the preference as before.
-@property (readonly, nullable) NSString *involuntaryFallbackDeviceUID;
-@property (readonly, nullable) NSString *involuntaryFallbackDeviceName;
-// The source actually used by an automatic model-match bind, during the same callback.
-@property (readonly, nullable) NSString *carriedOutputModesDeviceUID;
-
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
 // a settled Pause, or Loading while the engine is not running; the rule and its trap are on
@@ -62,10 +90,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
-// the settlement's park predicate, which decides BEFORE the request is
-// consumed, and the gapless splice's gate, since a splice cannot switch. NO
-// whenever the mode cannot apply. Unknown format waits for outgoing silence
-// and cannot splice; paused recovery must not rebuild from its own events.
+// the gapless successor's gate, since a continuation on one voice cannot
+// switch the device. NO whenever the mode cannot apply. Unknown format cannot
+// splice; paused recovery must not rebuild from its own events.
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file unknownNeedsSwitch:(BOOL)unknownNeedsSwitch;
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
@@ -77,8 +104,8 @@ NS_ASSUME_NONNULL_BEGIN
 // stream and format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
-// VibeBitPerfectDecodesAsInteger16 against the device prepared for file. Read
-// when its player node is connected, which every caller does after preparing.
+// VibeBitPerfectDecodesAsInteger16 against the device prepared for file: the
+// voice's decode format. Read after preparing, which every caller does.
 - (BOOL)decodesAsInteger16OnQueueForFile:(AVAudioFile *)file;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
@@ -93,9 +120,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Computes the report from its owners and publishes the copy the shell
 // reads, announcing it to the delegate when it differs. Its edges are
-// refreshOutputAudioActiveOnQueue (every state publication and fade
-// completion), the end of a device switch, the two hog edges, the mode
-// toggle, a volume/balance/mute change and a system-default change.
+// refreshOutputAudioActiveOnQueue (every state publication and voice end),
+// the end of a device switch, the two hog edges, the mode toggle, a
+// volume/balance/mute change and a system-default change.
 - (void)publishBitPerfectReportOnQueue;
 
 @end

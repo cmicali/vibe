@@ -63,10 +63,15 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     // A delivered buffer can still contain the previous track's audio.
     double origin = atomic_load(&_signalHostOrigin), cutoff = atomic_load(&_signalHostCutoff);
     double bufferTime = when.hostTimeValid ? when.hostTime * _hostSecondsPerTick : NAN;
+    // On the sample clock the origin is a whole frame, so offsets from it are
+    // computed in frames: two times converted to seconds and subtracted can
+    // land a hair under a boundary they meet exactly.
+    int64_t originFrame = -1;
     if (!isfinite(origin) || !isfinite(bufferTime)) {
         origin = atomic_load(&_signalSampleOrigin);
         cutoff = atomic_load(&_signalSampleCutoff);
         bufferTime = when.sampleTimeValid && when.sampleRate > 0 ? when.sampleTime / when.sampleRate : NAN;
+        if (isfinite(origin) && when.sampleRate == rate) originFrame = llround(origin * rate);
     }
     if (request != atomic_load(&_signalRequest) || !isfinite(origin) || !isfinite(bufferTime)
             || !isfinite(cutoff) || bufferTime + buffer.frameLength / rate <= cutoff) return;
@@ -79,7 +84,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
         _signalFirstSample = -1;
         _signalFirstHost = _signalFirstOffset = 0;
         _signalFound = NO;
-        _signalObservationStart = MAX(0, bufferTime + skip / rate - origin);
+        _signalObservationStart = MAX(0, originFrame >= 0 ? (double)(when.sampleTime + skip - originFrame) / rate
+                                                          : bufferTime + skip / rate - origin);
         _signalFirstAfterStart = -1;
     }
     uint64_t limit = (uint64_t)(rate * 3);
@@ -97,7 +103,8 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
             if (!_signalFound && fabs(value) >= 0.001) {
                 _signalFound = YES;
                 _signalLeadingFrames = _signalFrames + f - skip;
-                _signalFirstAfterStart = MAX(0, bufferTime + f / rate - origin);
+                _signalFirstAfterStart = MAX(0, originFrame >= 0 ? (double)(when.sampleTime + f - originFrame) / rate
+                                                                 : bufferTime + f / rate - origin);
                 _signalFirstHost = when.hostTimeValid ? when.hostTime : 0;
                 _signalFirstOffset = f;
                 _signalFirstSample = when.sampleTimeValid ? when.sampleTime + f : -1;

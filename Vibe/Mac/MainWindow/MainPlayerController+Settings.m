@@ -15,6 +15,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
 #import "AudioWaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"

@@ -35,20 +35,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 @implementation AudioPlayer (DevicesInternal)
 
-// Main thread, and meaningful only inside didChangeOutputDevice: — the
-// announcement sets them around the delegate call.
-- (NSString *)involuntaryFallbackDeviceUID {
-    return _announcedFallbackUID;
-}
-
-- (NSString *)involuntaryFallbackDeviceName {
-    return _announcedFallbackName;
-}
-
-- (NSString *)carriedOutputModesDeviceUID {
-    return _announcedModesUID;
-}
-
 // The device that just went away, moved from "bound" to "wanted again". The
 // pending slot is the same one a launch preference waits in, so the existing
 // resolve path re-adopts the device when it returns — no new mechanism, and
@@ -244,7 +230,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // submitted during it waits (#53). A device slow to deliver its first IO
     // cycle can make that seconds. Warn level so it persists and a user can
     // retrieve it with `log show` rather than having to catch it live; the
-    // narrower attribution, engine start vs node play, is AudioPlayer+Engine's.
+    // narrower attribution, the engine start's own timing, is AudioPlayer+Graph's.
     uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
@@ -271,24 +257,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return rebound;
 }
 
-// Park a lost output at its retained intent. Retire completions even when
-// the OS stopped the graph before delivering its configuration notification.
+// Park a lost output at its retained intent: the engine stops, which kills
+// every retiring voice, and the current voice pauses where it is, to resume
+// on whatever device comes back.
 - (void)parkPlaybackForMissingOutputDeviceOnQueue {
-    os_unfair_lock_lock(&_stateLock);
-    VibePlayerState state = _state;
-    os_unfair_lock_unlock(&_stateLock);
-    if (state != VibePlayerStatePlaying) {
+    if (_state != VibePlayerStatePlaying || !_voice) {
         return;
     }
-    [self stopEnginePreservingTrackOnQueue];
-    BOOL pauseAlreadySettled = _state == VibePlayerStatePaused;
-    NSTimeInterval position = self.position;
-    [self publishPlaybackState:VibePlayerStatePaused node:_node file:_file
-                  segmentStart:_segmentStartFrame position:position];
-    if (!pauseAlreadySettled) {
-        AudioTrack *track = self.currentTrack;
-        run_on_main_thread({ [self.delegate audioPlayer:self didPausePlaying:track]; });
-    }
+    [self stopEngineOnQueue];
+    [self pauseCurrentVoiceOnQueue];
 }
 
 // Handles engine configuration and output-unit device changes: the hardware
@@ -321,10 +298,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // over a device that is still there; a merely-unpublished list falls
     // through to the graph rebuild below, which is the right answer anyway.
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    os_unfair_lock_lock(&_stateLock);
     VibePlayerState state = _state;
-    BOOL hasNode = (_node != nil);
-    os_unfair_lock_unlock(&_stateLock);
+    BOOL hasVoice = _voice != 0;
     // Only the mode requires the requested device: off, the output unit may
     // follow the system default wherever it goes, and the binding is read
     // only for the paused-graph check below, as before the mode existed.
@@ -337,14 +312,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // launch with exclusive on played the whole session "switch failed".
     BOOL unitAtDeviceRate = !_bitPerfectWanted || requested < 0
             || (AudioDeviceID)requested != _preparedDeviceID || [self outputUnitAtPreparedDeviceRateOnQueue];
-    BOOL graphHealthy = _engine.isRunning && hasNode && onRequestedDevice && unitAtDeviceRate;
+    BOOL graphHealthy = _engine.isRunning && hasVoice && onRequestedDevice && unitAtDeviceRate;
 #if VIBE_VERBOSE_LOGGING
     // Beta instrumentation (#47): every recovery says what it saw and what it
     // decided. "Healthy, nothing to do" used to be silent, which is how a unit
     // at the wrong rate went unnoticed for a whole session.
-    NSString *seen = [NSString stringWithFormat:@"play %llu segment %llu, engine %@, node %@, requested %ld, bound %u, unit at device rate %@, state %ld",
-                      [self diagnosticPlayIdentifierOnQueue], _segmentGeneration,
-                      _engine.isRunning ? @"running" : @"stopped", hasNode ? @"present" : @"absent", (long)requested,
+    NSString *seen = [NSString stringWithFormat:@"play %llu voice %llu, engine %@, voice %@, requested %ld, bound %u, unit at device rate %@, state %ld",
+                      [self diagnosticPlayIdentifierOnQueue], _voice,
+                      _engine.isRunning ? @"running" : @"stopped", hasVoice ? @"present" : @"absent", (long)requested,
                       [self activeOutputDeviceID], unitAtDeviceRate ? @"yes" : @"NO", (long)state];
 #endif
     if (!graphHealthy) {
@@ -423,12 +398,12 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // Idempotence while paused. A Paused rebuild deliberately leaves the
     // engine stopped, so the isRunning check above cannot attest to graph
     // health for it, and without this every notification while paused re-ran a
-    // full rebuild. A node present, the right device bound and the device
+    // full rebuild. A voice present, the right device bound and the device
     // still at the format the mode set means the graph is intact, and the
     // resume starts the engine, just as after a normal idle stop. A format
     // another process moved during the pause is what this notification
     // often IS, and the rebuild's prepare sets it back.
-    if (state == VibePlayerStatePaused && hasNode && [self activeOutputDeviceID] == deviceID && unitAtDeviceRate
+    if (state == VibePlayerStatePaused && hasVoice && [self activeOutputDeviceID] == deviceID && unitAtDeviceRate
             && !(_file && [self outputNeedsSwitchOnQueueForFile:_file unknownNeedsSwitch:NO])) {
 #if VIBE_VERBOSE_LOGGING
         LogInfo(@"Recovery: paused with the graph intact, nothing to do (%@)", seen);
@@ -489,7 +464,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // TRAP: a failed rebuild may already have rewired or prepared the
         // destination. A failed pin leaves live playback untouched.
         if (_state == VibePlayerStateStopped) {
-            [_engine stop];
+            [self stopEngineOnQueue];
             [self leaveOutputDeviceOnQueue];
         }
         // Reset may have cleared Settings before this failed bind. Reannounce
@@ -562,27 +537,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     NSTimeInterval positionToRestore = shouldRestore ? intent.position : 0;
     BOOL wasPlaying = shouldRestore && !intent.paused;
 
-    _segmentGeneration++;
-    [self preemptRampsOnQueue];
-    if (_bitPerfectWanted) {
-        [self preemptRetiredFadesOnQueue]; // the mode may land during an incoming open
-    }
-    [self setGaplessQueuedOnQueue:NO]; // the queued segment dies with the old node
-
-    // Unpublish the node before detaching it: the position getter uses its
-    // snapshot of _node off the lock on the main thread, and calling into a
-    // detached node raises.
-    AVAudioPlayerNode *oldNode = [self unpublishNodeOnQueue];
-    [oldNode stop];
-    [_engine stop];
-    // The state still says Playing so it can be restored below, but no node is
-    // published and the engine is stopped. Drop the display/FFT activity now,
-    // before a potentially slow HAL rebind, rather than waiting for the final
-    // restored state.
-    [self refreshOutputAudioActiveOnQueue];
-    if (oldNode) {
-        [_engine detachNode:oldNode];
-    }
+    // Nothing is audible across a rebind: the engine stops, which kills every
+    // retiring voice, and the current voice keeps its ring and gain for the
+    // restart. Drop the display/FFT activity now, before a potentially slow
+    // HAL rebind, rather than waiting for the final restored state.
+    [self stopEngineOnQueue];
     VIBE_REBIND_PHASE(teardownS);
 
     // Restore and release only after the engine stopped. Restoring a hogged
@@ -608,11 +567,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if ((self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
         [self installMasterBusOnQueue];
     }
-    // A toggle off during a pending open must restore the incoming chain too.
-    // Ordinary playback already created it when the play was submitted.
-    if (_bitPerfectWanted || priorState == VibePlayerStateLoading || shouldRestore) {
-        [self ensureVarispeedOnQueue];
-    }
     VIBE_REBIND_PHASE(pinS);
 
     if (shouldRestore) {
@@ -620,8 +574,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // synchronous, timeout-free initForReading: here would wedge the whole
         // queue if the track had been evicted to an iCloud or Dropbox
         // placeholder, or sat on a hung mount, between the play and the device
-        // switch. processingFormat is fixed at open, so rescheduling the
-        // existing file on the new node is safe.
+        // switch. processingFormat is fixed at open, so a new voice on the
+        // existing file is safe.
         AVAudioFile *file = _file; // safe: _file is only written on _queue, and we are on it
         if (!file) {
             [self resetToStoppedStateOnQueue];
@@ -632,43 +586,41 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if (_bitPerfectWanted) {
             [self prepareOutputOnQueueForFile:file];
         }
-        AVAudioPlayerNode *node = [self attachConnectedNodeForFile:file];
-        if (!node) {
+        // The source segment follows the mode and the file's format. When it
+        // is rebuilt the current voice died with it, so a new one starts at
+        // the retained intent; otherwise the voice survived, ring and all.
+        BOOL rebuilt = NO;
+        if (![self ensureSourceSegmentOnQueueForFile:file rebuilt:&rebuilt]) {
+            [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                     @"Could not restore track on the new audio device", nil)];
             return NO;
         }
-        double sampleRate = file.processingFormat.sampleRate;
-        AVAudioFramePosition startFrame = VibeClampedStartFrame(positionToRestore, sampleRate, file.length);
-        [self scheduleFile:file onNode:node fromFrame:startFrame];
-        // Preserve the pause-fade guarantee. A Paused track sits at volume 0
-        // so that the next resume ramps it back up; see seekToPosition:.
-        // Restoring at 1.0 would make that resume start instantly at full
-        // volume mid-waveform, exactly the click the fade ramp exists to
-        // prevent.
-        node.volume = wasPlaying ? 1.0 : 0;
-        [self publishPlaybackState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused)
-                              node:node file:file segmentStart:startFrame position:positionToRestore];
+        if (rebuilt) {
+            double sampleRate = file.processingFormat.sampleRate;
+            AVAudioFramePosition startFrame = VibeClampedStartFrame(positionToRestore, sampleRate, file.length);
+            VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+                                              fadeMilliseconds:kFadeDurationMilliseconds paused:!wasPlaying];
+            [self publishState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused) voice:voice file:file
+                  startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+        }
         VIBE_REBIND_PHASE(restoreS);
         if (wasPlaying) {
             NSError *startError = nil;
-            if (![self startEngineAndPlayNode:node error:&startError]) {
-                [self abandonNodeAfterFailedStart:node];
+            if (![self startEngineOnQueue:&startError]) {
+                // No output to restart on. Park Paused at the same position,
+                // so the next resume restarts the engine, and say why.
+                [self pauseCurrentVoiceOnQueue];
                 [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                         @"Could not restart playback on the new audio device", startError)];
                 return NO;
             }
+            [self armSignalProbeOnQueue:@"device rebind"];
         }
         else {
             [self scheduleEngineIdleStopOnQueue];
-            // The rebuild consumed a pause whose fade had not settled yet.
-            if (priorState == VibePlayerStatePlaying) {
-                run_on_main_thread({
-                    [self.delegate audioPlayer:self didPausePlaying:trackToRestore];
-                });
-            }
         }
-        [self maybeArmGaplessOnQueue]; // re-queue the splice behind the restored segment
+        [self maybeArmSuccessorOnQueue]; // re-queue the successor behind the restored voice
     }
     VIBE_REBIND_PHASE(startS);
 
@@ -732,7 +684,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // prepared device and the FX route are still the mode's.
     BOOL needsPreparation = (_bitPerfectWanted
             ? outputDeviceID >= 0 && _preparedDeviceID != newDeviceID
-            : (_node && !self.varispeed) || _preparedDeviceID != kAudioObjectUnknown)
+            : (_voiceBus && !_varispeed) || _preparedDeviceID != kAudioObjectUnknown)
             || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted);
     if (newDeviceID != currentDeviceID || needsPreparation) {
         if (![self configureOutputDeviceOnQueue:newDeviceID]) {
@@ -783,10 +735,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // The report's eligibility follows the committed id, which the rebuild
     // above ran before this was written.
     [self publishBitPerfectReportOnQueue];
-    // TRAP: copied here, by value. The announcement lands on main
-    // asynchronously while the caller clears the queue-side fields straight
-    // after, so a delegate reading them from main would see nil and erase the
-    // very choice this exists to keep.
+    // Captured by value: the announcement lands on main asynchronously while
+    // the caller clears the queue-side fields straight after.
     NSString *fallbackUID = requested == -1 ? _pendingSavedDeviceUID : nil;
     NSString *fallbackName = requested == -1 ? _pendingSavedDeviceName : nil;
     NSString *modesUID = requested >= 0 ? _modesUIDForNextSelection : nil;
@@ -798,10 +748,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         os_unfair_lock_unlock(&_stateLock);
     }
     run_on_main_thread({
-        self->_announcedFallbackUID = fallbackUID;
-        self->_announcedFallbackName = fallbackName;
-        self->_announcedModesUID = modesUID;
-        [self.delegate audioPlayer:self didChangeOutputDevice:requested];
+        [self.delegate audioPlayer:self didChangeOutputDevice:requested involuntaryFallbackUID:fallbackUID
+            involuntaryFallbackName:fallbackName carriedModesFromUID:modesUID];
         if (modesUID.length && destinationUID.length) {
             os_unfair_lock_lock(&self->_stateLock);
             if ([self->_unpersistedOutputModeSources[destinationUID] isEqual:modesUID]) {
@@ -809,9 +757,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             }
             os_unfair_lock_unlock(&self->_stateLock);
         }
-        self->_announcedFallbackUID = nil;
-        self->_announcedFallbackName = nil;
-        self->_announcedModesUID = nil;
     });
 }
 
@@ -922,13 +867,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     LogInfo(@"bit-perfect: the chosen device vanished; turning the mode off");
     _bitPerfectWanted = NO;
-    [self stopEnginePreservingTrackOnQueue];
+    [self stopEngineOnQueue];
     [self leaveOutputDeviceOnQueue];
-    // The fallback may already be bound, or no device may remain. A pending
-    // open still needs the ordinary chain before its off-mode settlement.
-    if (_state == VibePlayerStateLoading) {
-        [self ensureVarispeedOnQueue];
-    }
+    // The source segment follows the mode at the next settlement or rebind.
     [self publishBitPerfectReportOnQueue];
 }
 
@@ -996,10 +937,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
     if (VibeBitPerfectOutputNeedsSwitch(current, chosen,
             [_engine.mainMixerNode outputFormatForBus:0].sampleRate)) {
-        // Nothing is audible by construction — the settlement parked until the
-        // outgoing fades completed, and the device restore stopped the engine
-        // itself — so the switch may stop it.
-        [_engine stop];
+        // Bit-perfect edges are cuts, so a settlement mid-declick loses at
+        // most that declick; the device restore stopped the engine itself.
+        [self stopEngineOnQueue];
     }
     if (formatDiffers) {
         // Restore is one slot: another device's outstanding restore is tried
@@ -1054,8 +994,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // the unit follows about 50 ms LATER, so reading the unit straight after the
 // take still names our device and means nothing. Pinning inside that window is
 // simply followed again, and an engine started inside it never gets an IO
-// cycle — [AVAudioPlayerNode play] then blocks 5 s in awaitIOCycle and the
-// recovery rebuilds the graph underneath it. So wait for the follow to land
+// cycle — measured: the start blocked 5 s in awaitIOCycle and the recovery
+// rebuilt the graph underneath it. So wait for the follow to land
 // and only then pin the unit back, leaving the caller's engine start the one
 // configuration edge outstanding. Reproducible in hogfollow.swift (vibe-debug);
 // the engine is stopped at every ownership edge, so none of this is audible.
@@ -1122,8 +1062,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // device. Record the cleanup obligation BEFORE asking the HAL to take it.
     _hoggedDeviceID = deviceID;
 #if VIBE_VERBOSE_LOGGING
-    LogInfo(@"Phase: play %llu segment %llu exclusive context: requested %ld, default %u, follow expected %d",
-            [self diagnosticPlayIdentifierOnQueue], _segmentGeneration,
+    LogInfo(@"Phase: play %llu voice %llu exclusive context: requested %ld, default %u, follow expected %d",
+            [self diagnosticPlayIdentifierOnQueue], _voice,
             (long)self.currentlyRequestedAudioDeviceId, systemDefault, followExpected);
 #endif
     if (![self performDiagnosticPhase:@"hog acquire" device:deviceID operation:^BOOL{
@@ -1362,7 +1302,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         AudioDeviceID bound = [self activeOutputDeviceID];
         double unitRate = [_engine.outputNode outputFormatForBus:0].sampleRate;
         unconfirmed = !readFormat ? @"the device's format could not be read"
-                : self.varispeed ? @"a varispeed is in the chain"
+                : _varispeed ? @"a varispeed is in the chain"
                 : self.fx.masterBusOutputNode ? @"the FX bus is in the chain"
                 : !_outputLevelListener || !_outputDeviceListener ? @"a device listener is missing"
                 : bound != _preparedDeviceID
@@ -1493,9 +1433,8 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
     };
 }
 
-// "44100 Hz i16 interleaved 2ch": what the current node decodes its file to.
-static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
-    AVAudioFormat *format = node ? [node outputFormatForBus:0] : nil;
+// "44100 Hz i16 interleaved 2ch": what the current voice decodes its file to.
+static NSString *VibeFormatText(AVAudioFormat *format) {
     if (!format) {
         return @"";
     }
@@ -1511,7 +1450,7 @@ static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
     __block NSDictionary *snapshot;
     [self runSyncOnQueue:^{
         snapshot = @{
-            @"playerNodeFormat": VibeNodeFormatText(self->_node),
+            @"decodeFormat": VibeFormatText(self->_decodeFormat),
             @"boundOutputDeviceId": @([self activeOutputDeviceID]),
             @"requestedOutputDeviceId": @(self.currentlyRequestedAudioDeviceId),
             @"pendingDeviceUID": self->_pendingSavedDeviceUID ?: @"",
@@ -1527,7 +1466,7 @@ static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
             @"preparedDeviceId": @(self->_preparedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_preparedDeviceID),
             @"outputLevelListenerPresent": @(self->_outputLevelListener != nil),
             @"outputDeviceListenerPresent": @(self->_outputDeviceListener != NULL),
-            @"varispeedPresent": @(self.varispeed != nil),
+            @"varispeedPresent": @(self->_varispeed != nil),
             @"mixerOutputRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate),
             @"outputNodeInputRate": @([self->_engine.outputNode inputFormatForBus:0].sampleRate),
             @"outputNodeOutputRate": @([self->_engine.outputNode outputFormatForBus:0].sampleRate),
@@ -1535,7 +1474,7 @@ static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
             @"engineRunning": @(self->_engine.isRunning),
             @"terminating": @(self->_terminating),
             @"activeSubmittedPlayIdentifier": @(self->_activeSubmittedPlayIdentifier),
-            @"segmentGeneration": @(self->_segmentGeneration),
+            @"voice": @(self->_voice),
         };
     }];
     return snapshot;
@@ -1630,12 +1569,11 @@ static NSString *VibeNodeFormatText(AVAudioPlayerNode *node) {
 
 - (void)prepareForTermination {
     [self runSyncOnQueue:^{
-        // Stop owns segment/open cancellation. Engine stop alone fires the
-        // current segment as a natural end during NSTerminateLater.
+        // Stop owns the open and prefetch cancellation; _terminating closes
+        // admission first so nothing queued behind can restart the engine.
         self->_terminating = YES;
         [self stopOnQueue];
-        self->_engineIdleStopGeneration++;
-        [self->_engine stop];
+        [self stopEngineOnQueue];
         [self leaveOutputDeviceOnQueue];
         LogInfo(@"AudioPlayer: termination cleanup complete");
     }];

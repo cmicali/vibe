@@ -22,6 +22,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)debugShutdown;
 - (void)debugBlockQueueForSeconds:(NSTimeInterval)seconds;
 
+// Frame-driven manual rendering only: while starved, no decode turn runs
+// before a slice, so the bus underruns and zero-fills, holding its position,
+// until decoding is allowed again.
+- (void)debugStarveDecoder:(BOOL)starve;
+
+// The current voice's decode format: the file's own, or the 16-bit integer
+// form bit-perfect output reads a lossy source in. nil with no voice.
+- (nullable AVAudioFormat *)debugCurrentDecodeFormat;
 
 // The player's own copy of the loading configuration, for dump_audio_loading's
 // three-way comparison against the materialization coordinator's and the
@@ -40,16 +48,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)manualRenderingActive;
 
 // Engine snapshot for dump_health, check_consistency and the render tests:
-// node/fade counts, running state, rendered frames, pitch-unit presence,
-// volume, presentation latency and mixer rate. A track
-// change that failed to retire its node pair leaks them, which nothing else
-// observes — and since a soak run is thousands of track changes, unbounded
-// growth is the signal. The two are reported together because they fail apart:
-// a fade entry dropped with its nodes still attached and a fade entry stranded
-// after its nodes were detached are different bugs that either number alone
-// cannot tell from the other.
+// attached nodes (constant now: the bus and its varispeed are built once),
+// retiring voices (`retiredFades`, the name the stress tooling reads), live
+// voices, whether the hardware drain is polling, running state, rendered
+// frames, pitch-unit presence and latency, the current voice's gain and
+// underrun count, and the mixer rate. A retiring voice that never ends is
+// the leak this exists to catch, and since a soak run is thousands of track
+// changes, unbounded growth is the signal.
 //
-// One dispatch_sync serves both. It reads on _queue, so it must not be called
+// One dispatch_sync serves all. It reads on _queue, so it must not be called
 // from there, and it doubles as a liveness probe for that queue: the command
 // channel runs on the main thread and would otherwise never see the player
 // wedged.

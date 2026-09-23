@@ -2,8 +2,8 @@
 //  AudioVoiceBus.h
 //  Vibe
 //
-//  Vibe's own playback core: the part of the audio path that used to be
-//  AVAudioPlayerNode. A VOICE is one file being rendered — a decoder filling a
+//  Vibe's own playback core: decode, ring, gain and mix, feeding one source
+//  node. A VOICE is one file being rendered — a decoder filling a
 //  ring buffer, a gain with at most one pending ramp, an optional queued
 //  successor file that continues gaplessly at the boundary. The bus mixes every
 //  live voice into the one AVAudioSourceNode the engine graph pulls from.
@@ -103,6 +103,7 @@ typedef struct {
     uint64_t boundary;
     uint64_t endOfStream;
     uint64_t underrunFrames;
+    float gain;               // the audio thread's current gain, as last written; exact once a ramp has landed
     AudioTimeStamp startOfConsumption;
     AudioTimeStamp boundaryCrossing;
     AudioTimeStamp lastRender;
@@ -150,8 +151,11 @@ typedef struct {
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
-// Queues `file` to continue at the voice's end without a gap. NO once the
-// voice's stream has ended (its ring already holds the tail).
+// Queues `file` to continue at the voice's end without a gap. A voice whose
+// stream already ended still takes one while it is live: the decoder
+// reopens the stream at the old end, unless the audio thread reaches it
+// first, in which case the voice ends as it would have. NO for a dead voice,
+// one retired at declick length, or one already continuing.
 - (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already switched to
@@ -159,6 +163,8 @@ typedef struct {
 - (BOOL)unqueueSuccessorForVoice:(VibeVoiceID)voice;
 
 // A retire of zero frames: silent from the next render, dead right after.
+// Every started voice ends exactly once through the drain, a pending one
+// killed before it had a slot included.
 - (void)killVoice:(VibeVoiceID)voice;
 - (void)killAllVoices;
 
@@ -172,7 +178,7 @@ typedef struct {
 - (NSUInteger)liveVoiceCount;
 
 // The poll. Binds pending voices, emits each voice's events in the order
-// live → boundary → ended (once each), tops up rings, and recycles dead slots
+// live → boundary → ended (one boundary per successor), tops up rings, and recycles dead slots
 // once no render can be inside them — which needs engineRunning, since a
 // stopped engine renders nothing.
 - (void)drainWithEngineRunning:(BOOL)engineRunning

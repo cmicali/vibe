@@ -296,6 +296,9 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
             @"engineNodes": engine[@"attachedNodes"],
+            // The bus's drain timer: on only while the engine runs voices, so
+            // 1 at rest is a wakeup the idle guarantee forbids.
+            @"drainPolling": engine[@"pollActive"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },

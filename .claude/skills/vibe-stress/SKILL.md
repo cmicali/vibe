@@ -137,7 +137,7 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 
 - **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+256 MB).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. It now counts only when `mallocLiveBytes` agrees. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
 - **`pending` counters must all be zero at rest** — a stranded claim or undelivered result is a few hundred bytes, invisible to any megabyte metric, yet work that will never finish. `quiesce` refuses to settle until they unwind and names the holdout.
-- Baseline is the element-wise **minimum of the first three samples**, and a metric fails only after **three consecutive** over-limit samples: the opening decode peaks far above resting, and engine nodes swing 25–67 with no trend as crossfade pairs pile up and drain.
+- Baseline is the element-wise **minimum of the first three samples**, and a metric fails only after **three consecutive** over-limit samples: the opening decode peaks far above resting; engine nodes are flat now that the voice bus is built once, and `retiredFades` counts voices still fading, which drain within the crossfade length.
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` actually returned — mostly 0 after a heavy run.
 - `--ignore-metric NAME` stands down a finding that is *already diagnosed*, so it stops masking what op 5,000 would have found.
 

@@ -84,7 +84,6 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
     VibeAudioFileOpenPurposePlayback = 0,
     VibeAudioFileOpenPurposePrefetch,
-    VibeAudioFileOpenPurposeGapless,
 };
 
 typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
@@ -135,10 +134,9 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
 
 // Stage 2 of the same claim: one current AVAudioFile waiter per purpose and
 // standardized path. A later request for that key replaces the delivery
-// binding without starting another handle open. Playback and prefetch first
-// ride the path-wide transfer (joining any claim already moving those bytes);
-// gapless opens a second local handle directly — the parked file already
-// proved the bytes local. Transfer capacity ends when stage 1 settles. A
+// binding without starting another handle open. Both purposes first ride
+// the path-wide transfer (joining any claim already moving those bytes).
+// Transfer capacity ends when stage 1 settles. A
 // separate private ceiling permits six live purpose/path handle runs per
 // coordinator. An existing key rebinds even at the ceiling, while a new
 // seventh key is refused immediately before materialization. The ceiling is

@@ -147,7 +147,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
     NSMutableDictionary *d = [@{
         @"state": player.isPlaying ? @"playing" : player.isPaused ? @"paused" : @"stopped",
         @"loading": @(player.isLoading),
-        @"position": @(player.lastKnownPosition),
+        @"position": @(player.position),
         @"duration": @(player.duration),
         @"outputAudioActive": @(player.outputAudioActive),
         @"gaplessArmed": @(player.isGaplessArmed),

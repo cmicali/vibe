@@ -9,14 +9,14 @@ App-owned work that must unwind at rest; `quiesce` polls until all are zero and 
 | `metadataHolders`, `metadataWaiters` | `MetadataParseCoordinator`'s claim table; waiter tables are per key |
 | `openResultsBuffered` | `OpenRequestCoordinator` results held for in-order delivery |
 | `openBurstQueued` | `OpenBurstCoalescer`'s quiet-period queue |
-| `retiredFades` | `AudioPlayer`'s in-flight crossfade pairs |
+| `retiredFades` | `AudioPlayer`'s voices still fading out after a track change, seek or stop |
 | `cloudParsesPending`, `cloudLaneHeld` | the metadata cloud lane |
 | `priorityRecordsPending` | priority metadata records |
 | `datalessProbesInFlight`, `handleOpensInFlight` | attempt gauges, not containers: probe accounting starts before the scheduler/worker handoff and survives detachment from its claim; handle-open accounting starts before dispatch. A failed quiesce can therefore tell stuck classification from downloading or opening |
 
 **The two cloud counters are not scored for growth, and must not be.** A sweep of a cloud folder legitimately holds dozens of pending parses and the lane is held for the whole of every foreground open, so a headroom over a min-of-three baseline would never fire or fire constantly. They are covered where they mean something: `quiesce` refuses to settle until both are zero, and `check_consistency` tests the *conditions*, not the magnitudes. `dump_cloud_health` reports both on both platforms — the only way to see them on iOS, which has no `dump_health` and no `quiesce`.
 
-`retiredFades` is reported beside `engineNodes` rather than folded in because they fail apart: a fade entry dropped with its nodes still attached and a fade entry stranded after its nodes were detached are different bugs. Both come from one `dispatch_sync` onto the player queue.
+`retiredFades` is reported beside `engineNodes` because they fail apart: a voice that never reports its end strands a fade entry while the node count stays flat, and a node count that moves at all means the source segment was rebuilt without its predecessor being detached. Both come from one `dispatch_sync` onto the player queue.
 
 The counters are nearly impossible to catch nonzero from outside: a local parse is over in microseconds. `MetadataParseCoordinatorTests.testDebugPendingCountsTrackHoldersAndWaiters` pins the holder/waiter accounting deterministically, because a counter that silently always reads zero looks exactly like a clean run.
 
@@ -26,7 +26,7 @@ Runs `closeFile:` — stop, drop the prefetch handle, cancel the waveform load a
 
 ## What is stable at rest, measured over loading-profile runs
 
-- **Dead stable**: views 47, windows 1, engine nodes 23, every pending counter 0.
+- **Dead stable**: views 47, windows 1, engine nodes (the bus, its varispeed, the mixer, the FX segment and the output; built once), every pending counter 0.
 - **Breathe with the loader pool**: threads 14–26, fds 45–70.
 - **Layers are bistable**, ~101 and ~350–356, moving in *both* directions within one run on the same binary, unmoved by row count (0 to 2208), window width (400 to 3000), `quiesce`, or the pitch panel and playlist toggles (4 and 1 layers). Nothing app-level selects it; it is AppKit's own glass and hosting-view machinery. The limit is sized to clear that step (+320): a +80 limit against a min-of-first-three baseline fires whenever a run starts low, and a real layer leak is unbounded and clears +320 too.
 - **Resting footprint does not settle**: 47 to 335 MB, the same seed resting at 298 MB in one run and 51 MB in another. It is a gross-leak backstop (+256 MB), not a signal. `mallocLiveBytes` (+64 MB) is the sensitive metric: 37–52 MB across the same decodes that swung the footprint from 94 to 365 MB.

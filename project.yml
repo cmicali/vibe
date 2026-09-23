@@ -824,11 +824,9 @@ targets:
       - path: Tests/TestFilesystemGuard.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
-      - path: Vibe/Audio/AudioPlayer+Engine.m
-      - path: Vibe/Audio/AudioPlayer+Fades.m
-      - path: Vibe/Audio/AudioPlayer+Gapless.m
       - path: Vibe/Audio/AudioPlayer+Graph.m
-      - path: Vibe/Audio/AudioPlayer+Seek.m
+      - path: Vibe/Audio/AudioPlayer+Prefetch.m
+      - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m
       - path: Vibe/Audio/FX/AudioFX.m
       - path: Vibe/Audio/AudioTrack.m

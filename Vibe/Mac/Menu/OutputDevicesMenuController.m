@@ -5,6 +5,7 @@
 
 #import "OutputDevicesMenuController.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
 #import "AudioDevice.h"
 #import "AudioDeviceManager.h"
 #import "AppDelegate.h"

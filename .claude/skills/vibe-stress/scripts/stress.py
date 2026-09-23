@@ -1367,7 +1367,7 @@ GROWTH_LIMITS = {
     # shared mask path. Views stay the sensitive UI metric; a real layer leak
     # is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
-    ("app", "engineNodes"): (16, "engine nodes"),
+    ("app", "engineNodes"): (4, "engine nodes"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1379,9 +1379,9 @@ GROWTH_LIMITS = {
 # Every headroom below is set from measured ranges over loading-profile runs,
 # not guessed:
 #
-#   views 47, windows 1, engine nodes 23, every pending counter 0 — dead
-#   stable across runs, so these are the sensitive ones. Layers are NOT; see
-#   the limit below.
+#   views 47, windows 1, engine nodes flat (the voice bus and its varispeed
+#   are built once), every pending counter 0 — dead stable across runs, so
+#   these are the sensitive ones. Layers are NOT; see the limit below.
 #   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
 #   folder is open.
 #   footprint 47-335 MB, and NOT accumulating: the same seed rests at 298 MB in
@@ -1445,10 +1445,10 @@ def min_baseline(samples, limits=GROWTH_LIMITS):
 
 
 # A single sample over the limit means nothing. Measured over a loading-profile
-# run, the engine node count swings between 25 and 67 with no trend as retired
-# crossfade pairs pile up and drain, and the footprint spikes past 350MB during
-# a decode before falling back to ~120MB. Only a metric that stays over the
-# limit for this many CONSECUTIVE samples is growth rather than churn.
+# run, retiredFades swings as crossfades overlap and drain, and the footprint
+# spikes past 350MB during a decode before falling back to ~120MB. Only a
+# metric that stays over the limit for this many CONSECUTIVE samples is growth
+# rather than churn.
 GROWTH_CONFIRMATIONS = 3
 
 # Resting samples are far rarer — one per --quiesce-every batches — so waiting
