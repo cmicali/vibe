@@ -234,7 +234,11 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     next.hasTrack     = (track != nil);
     next.title        = track.displayTitle;
     next.artist       = track.displayArtist;
-    next.trackKey     = trackChanged ? track.url.pathKey : _published.trackKey;
+    // TRAP: no track, no key, whatever trackChanged says. _publishedTrack is
+    // weak, so closing the playlist frees the track before this call and nil
+    // meets nil as "unchanged" — carrying the old key into a trackless
+    // snapshot, whose widget then drew the closed track's cover and strip.
+    next.trackKey     = !track ? nil : (trackChanged ? track.url.pathKey : _published.trackKey);
     next.playing      = playing;
     next.duration     = duration;
     next.position     = position;
