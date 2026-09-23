@@ -46,6 +46,15 @@ static const CGFloat kWidgetArtworkSide = 256;
 static const CGSize  kWidgetWaveformSize  = (CGSize){320, 64};
 static const CGFloat kWidgetWaveformScale = 3;
 
+// The longest a track change holds its reload for the cover and the strip.
+// TRAP: while the app is frontmost, WidgetKit defers a reload asked for while
+// another is still rendering until 5 s after that one began — and a playing
+// timeline takes ~1.5 s to render, while a track change is three writes: the
+// plist at once, the cover when its decode lands, the strip when its bake
+// does. Reloading per write showed the title at once and the cover and strip
+// 6-7 s later. Held, the three are one reload, done in ~2 s.
+static const NSTimeInterval kWidgetTrackChangeHold = 1.5;
+
 @implementation WidgetPublisher {
     // What the widget was last told. nil until the first update. Kept current
     // whether or not anything is written, so the moment a widget appears the
@@ -80,6 +89,14 @@ static const CGFloat kWidgetWaveformScale = 3;
     dispatch_block_t      _pendingBake;
     // Queue-only: whether a reload is already enqueued behind the writes.
     BOOL                  _reloadQueued;
+    // The track-change hold (kWidgetTrackChangeHold). Main's side says whether
+    // one is open, and the generation drops a deadline a newer hold replaced;
+    // the queue's side defers the reloads asked for meanwhile, so the one it
+    // sends lands behind every write.
+    BOOL                  _holdingReload;
+    NSUInteger            _reloadHoldGeneration;
+    BOOL                  _reloadHeld;      // queue-only
+    BOOL                  _reloadOwed;      // queue-only
 
     // Whether at least one widget is placed, as last known. Two
     // sources, because each can only be right about one direction: WidgetKit's
@@ -221,6 +238,9 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (!_widgetPlaced) {
         return;     // bookkeeping only: nobody is looking
     }
+    if (trackChanged && track) {
+        [self beginReloadHold];
+    }
     [self commitState:next artwork:artwork writeArtwork:writeArtwork];
 
     // An offer that arrived before its track was adopted bakes now; so does
@@ -229,6 +249,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (_waveform && (trackChanged || writeArtwork)) {
         [self bakeWaveformIfNeeded];
     }
+    [self endReloadHoldIfComplete];
 }
 
 // The one place the plist is written. TRAP: the images must land before the
@@ -277,7 +298,49 @@ static const CGFloat kWidgetWaveformScale = 3;
     _reloadQueued = YES;
     dispatch_async(_queue, ^{
         self->_reloadQueued = NO;
+        if (self->_reloadHeld) {
+            self->_reloadOwed = YES;    // sent when the hold ends
+            return;
+        }
         [VibeWidgetReloader reload];
+    });
+}
+
+// Main. Restarted by every track change, so a run of skips reloads once, when
+// it stops.
+- (void)beginReloadHold {
+    _holdingReload = YES;
+    NSUInteger generation = ++_reloadHoldGeneration;
+    dispatch_async(_queue, ^{
+        self->_reloadHeld = YES;
+    });
+    __weak WidgetPublisher *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWidgetTrackChangeHold * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [weakSelf endReloadHoldForGeneration:generation];
+    });
+}
+
+// The hold ends early once both the cover and the strip are queued for
+// writing. A track with no art has nothing to wait for but the deadline.
+- (void)endReloadHoldIfComplete {
+    if (_holdingReload && _artworkOnDisk && _bakedSignature) {
+        [self endReloadHoldForGeneration:_reloadHoldGeneration];
+    }
+}
+
+- (void)endReloadHoldForGeneration:(NSUInteger)generation {
+    if (!_holdingReload || generation != _reloadHoldGeneration) {
+        return;
+    }
+    _holdingReload = NO;
+    // Queued behind every write the hold covered, so the reload follows them.
+    dispatch_async(_queue, ^{
+        self->_reloadHeld = NO;
+        if (self->_reloadOwed) {
+            self->_reloadOwed = NO;
+            [self scheduleReload];
+        }
     });
 }
 
@@ -319,13 +382,15 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 - (void)publishEmptyForTermination {
+    [self endReloadHoldForGeneration:_reloadHoldGeneration];
     if (_widgetPlaced && _published.hasTrack) {
         VibeWidgetState *empty = [[VibeWidgetState alloc] init];
         _published = empty;
         _publishedTrack = nil;
         [self commitState:empty artwork:nil writeArtwork:NO];
     }
-    // Twice: the commit enqueues its reload behind itself.
+    // Three deep: the hold's end can enqueue a reload, which enqueues its send.
+    dispatch_sync(_queue, ^{});
     dispatch_sync(_queue, ^{});
     dispatch_sync(_queue, ^{});
 }
@@ -435,6 +500,7 @@ static const CGFloat kWidgetWaveformScale = 3;
         [self scheduleReload];
     });
     dispatch_async(_queue, _pendingBake);
+    [self endReloadHoldIfComplete];
 }
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
