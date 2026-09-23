@@ -1,8 +1,17 @@
 This beta records more about what happens when a track starts, to track down
 a delay some USB speakers show with Exclusive output on.
 
-* Changed: with Bit-perfect output on, MP3 and AAC files now play at 16-bit
-  when your audio device offers it, instead of 24-bit.
+* Changed: with Bit-perfect output on and a 16-bit audio device, MP3 and AAC
+  files are now decoded straight to 16-bit, so no conversion step remains
+  between the decoder and the device.
+* Changed: the time counter now changes the moment the first second has
+  played, instead of up to a third of a second later.
+* Improved: switching tracks with Bit-perfect output on no longer re-reads
+  your device's volume settings each time, which some USB speakers answer
+  slowly.
+* New: when the app or the audio stalls, the debug info now records exactly
+  where, and how long a track's opening silence lasts is recorded even when
+  the playlist's equalizer is hidden.
 * New: Vibe now records how long after your click each track's audio really
   started, each step of taking over your audio device, when the time counter
   starts moving, and how long a track opens with silence, along with every
