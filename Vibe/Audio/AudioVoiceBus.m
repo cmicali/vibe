@@ -599,8 +599,9 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     bound->identifier = record->identifier;
     bound->startFrame = record->startFrame;
     bound->positioned = NO;
-    bound->successorFile = nil;
-    bound->successorDecodeFormat = nil;
+    // A successor queued while the start was pending rides into the slot.
+    bound->successorFile = record->successorFile;
+    bound->successorDecodeFormat = record->successorDecodeFormat;
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
     bound->fillTarget = kInitialFillFrames;
@@ -610,7 +611,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     s->armedWritten = atomic_load_explicit(&s->written, memory_order_relaxed);
     s->armedConsumed = atomic_load_explicit(&s->consumed, memory_order_relaxed);
     atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped, memory_order_relaxed);
-    atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_relaxed);
+    atomic_store_explicit(&s->successorState, record->successorFile ? VibeSuccessorQueued : VibeSuccessorNone,
+                          memory_order_relaxed);
     atomic_store_explicit(&s->paused, record->paused, memory_order_relaxed);
     s->gain = record->gain;
     s->rampSequence = 0;

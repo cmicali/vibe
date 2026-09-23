@@ -620,6 +620,39 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([_bus occupiedSlotCount], 8u);
 }
 
+// A successor queued while the start was still pending rides into the slot
+// the drain binds it to: the voice continues into it at its boundary.
+- (void)testASuccessorQueuedOnAPendingVoiceSurvivesItsBind {
+    NSData *filler = [self noiseFrames:20000 channels:2 seed:14];
+    NSURL *fillerURL = [self writePCM:filler rate:kRate channels:2 name:@"filler.wav"];
+    NSData *whole = [self noiseFrames:5000 channels:2 seed:15];
+    NSURL *a = [self writePCM:[whole subdataWithRange:NSMakeRange(0, 2000 * 8)] rate:kRate channels:2 name:@"pending-a.wav"];
+    NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(2000 * 8, 3000 * 8)] rate:kRate channels:2 name:@"pending-b.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    NSMutableArray<NSNumber *> *voices = [NSMutableArray array];
+    for (int i = 0; i < 8; i++) {
+        [voices addObject:@([self startFile:[self open:fillerURL] gain:1 ramp:[self unity] paused:NO])];
+    }
+    [self render:64 into:nil];
+    AVAudioFile *successor = [self open:b];
+    VibeVoiceID pending = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
+    XCTAssertEqual([_bus pendingVoiceCount], 1u);
+    XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:pending]);
+    [_bus killVoice:voices[0].unsignedLongLongValue];
+    [self render:64 into:nil]; // the kill lands, the drain recycles and binds
+    XCTAssertEqual([_bus pendingVoiceCount], 0u);
+    NSMutableData *capture = [NSMutableData data];
+    while (![self hasEnded:pending] && capture.length < 20000 * 8) {
+        [self render:256 into:capture];
+    }
+    XCTAssertEqualObjects([self eventsForVoice:pending],
+                          (@[@(VibeVoiceEventLive), @(VibeVoiceEventBoundary), @(VibeVoiceEventEnded)]));
+    XCTAssertEqual([self endedSnapshot:pending].boundary, 2000u);
+    XCTAssertEqual([self endedSnapshot:pending].endOfStream, 5000u);
+    XCTAssertEqual([self endedSnapshot:pending].consumed, 5000u);
+    XCTAssertEqual([self endedSnapshot:pending].ended, VibeVoiceEndOfStream);
+}
+
 #pragma mark - Conversion
 
 static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUInteger channel, double rate, double frequency, NSRange frames) {
