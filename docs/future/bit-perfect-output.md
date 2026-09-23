@@ -10,7 +10,8 @@ implementation plan is available in git history.
 - **Bit-perfect output**, off by default, requires an explicitly chosen eligible
   output device. It matches the file's rate and lossless depth; lossy files prefer
   16-bit output, then a wider integer format or floating point if needed. It removes
-  varispeed, disables FX and pitch controls, and holds crossfades to the 10 ms declick minimum.
+  varispeed, disables FX and pitch controls, and writes no volume: no crossfade,
+  and no declick or fade at a start, pause, resume, seek, track change or stop.
 - **Exclusive output** is a separate opt-in immediately below it. Physical and virtual devices
   may request it when the HAL hog property is writable, the device that is currently
   the system output included — taking that one makes macOS move the system default to
@@ -32,8 +33,9 @@ implementation plan is available in git history.
   and removes both listeners before ordinary playback continues.
 - A disappearing selected device disables the mode and falls back to System Output.
   An unresolved saved device at launch stays pending; this is not device removal.
-- Starts and stops retain their declick fades. A sample-rate boundary needs the
-  outgoing fade to finish and the DAC to relock. Lossy files are decoded first;
+- Starts, stops and every other transport edge cut rather than fade, so a cut
+  mid-waveform can click; that is the price of delivering every sample unchanged.
+  A sample-rate boundary needs the DAC to relock. Lossy files are decoded first;
   the mode cannot reconstruct the discarded source information.
 
 `VIBE_ENABLE_EXCLUSIVE_OUTPUT=0` removes the exclusive row, writable preference,

@@ -577,6 +577,14 @@ static void VibeWatchOutputRender(AudioPlayer *player);
 // The one home for the same-queue guard every synchronous accessor needs:
 // the queue key is set on _queue at init, so a caller already there runs the
 // block inline rather than deadlocking on itself.
+- (BOOL)leavesSamplesUntouchedOnQueue {
+#if TARGET_OS_OSX
+    return _bitPerfectWanted;
+#else
+    return NO;
+#endif
+}
+
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block {
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         block();
@@ -1199,7 +1207,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     NSTimeInterval framePosition = (NSTimeInterval)startFrame / sampleRate;
 
     [self scheduleFile:file onNode:node fromFrame:startFrame];
-    node.volume = 0; // fade in from silence (see the ramp below)
+    // Silent for the fade-in below; at unity for bit-perfect output, which has none.
+    node.volume = [self leavesSamplesUntouchedOnQueue] ? 1 : 0;
 
     if (startPaused) {
         // A scheduled, silent, never-played node is exactly what a pause

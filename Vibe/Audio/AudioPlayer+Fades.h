@@ -25,6 +25,10 @@
 //    pause, a parked play, a bit-perfect rebuild and the failure reset silence
 //    one early, through preemptRetiredFadesOnQueue.
 //
+//  Bit-perfect output writes no volume (leavesSamplesUntouchedOnQueue): the
+//  ramps leave the node at unity and only run their completions, and a
+//  retired node is detached at once, so every transport edge cuts.
+//
 //  Everything here runs on the player queue.
 //
 

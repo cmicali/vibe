@@ -242,7 +242,8 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
         // stopped node holds the new segment, so resume plays it from here —
         // the paused-seek shape, plus the pause's own delegate settlement.
         _pausePending = NO;
-        node.volume = 0; // resume ramps up from silence, as after a real pause
+        // Resume ramps up from silence, as after a real pause; bit-perfect output does not ramp.
+        node.volume = [self leavesSamplesUntouchedOnQueue] ? 1 : 0;
         [self publishPlaybackState:VibePlayerStatePaused node:node file:file
                       segmentStart:startFrame position:framePosition];
         [self scheduleEngineIdleStopOnQueue];
@@ -253,7 +254,7 @@ static const NSTimeInterval kSlowSeekLogThresholdSeconds = 0.25;
         });
         return;
     }
-    node.volume = 0; // ramp back up from silence
+    node.volume = [self leavesSamplesUntouchedOnQueue] ? 1 : 0; // ramp back up from silence, unless bit-perfect
     NSError *startError = nil;
     if (![self startEngineAndPlayNode:node error:&startError]) {
         // The rescheduled segment stays at the live generation deliberately:

@@ -225,6 +225,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAttachment *attachment=[XCTAttachment attachmentWithContentsOfFileAtURL:url];
     attachment.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:attachment];
 }
+// The startup the comparison may skip: ordinary playback's 10 ms declick and
+// the node's volume smoothing after it, and nothing at all for bit-perfect
+// output, which writes no volume, so its first sample must already be exact.
+- (NSUInteger)startupSkip {
+    return _player.bitPerfectReport.enabled ? 0 : (NSUInteger)(_rate * 0.05);
+}
 - (void)assertReference:(NSData *)reference capture:(NSData *)capture skip:(NSUInteger)skip tolerance:(float)tolerance {
     NSDictionary *result=ComparePCM(reference,capture,_channels,skip,tolerance);
     if (![result[@"pass"] boolValue]) {
@@ -277,7 +283,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-%@-%@.wav",rate,bits,channels]];
             NSData *reference=[self sourcePCM:url bits:bits.unsignedIntegerValue]; [self play:url paused:NO position:0];
             NSData *capture=[self renderSeconds:2.1];
-            [self assertReference:reference capture:capture skip:(NSUInteger)(_rate*0.05) tolerance:0];
+            [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:0];
             XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
             XCTAssertEqual([self count:@"finish"],1u);
         }
@@ -288,7 +294,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:NO automatic:NO];
         NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
         NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:(NSUInteger)(_rate*0.05) tolerance:fx.boolValue ? 1e-10f : 0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:fx.boolValue ? 1e-10f : 0];
     }
 }
 - (void)testLosslessContainersAndExtensionAliases {
@@ -298,7 +304,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         NSURL *url=[self fixture:name]; NSData *decoded=PCM([self read:url]);
         XCTAssertEqualObjects(original,decoded,@"Lossless fixture %@",name);
         [self play:url paused:NO position:0];
-        [self assertReference:original capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        [self assertReference:original capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
     }
 }
 - (void)checkLossy:(NSString *)name tolerance:(float)tolerance {
@@ -307,7 +313,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     AVAudioPCMBuffer *decoded=[self read:url];
     [self startPlayerAt:decoded.format.sampleRate channels:decoded.format.channelCount fx:NO bitPerfect:YES automatic:NO];
     [self play:url paused:NO position:0];
-    [self assertReference:PCM(decoded) capture:[self renderSeconds:decoded.frameLength/_rate+0.1] skip:(NSUInteger)(_rate*0.05) tolerance:tolerance];
+    [self assertReference:PCM(decoded) capture:[self renderSeconds:decoded.frameLength/_rate+0.1] skip:[self startupSkip] tolerance:tolerance];
 }
 - (void)testAACContainer { [self checkLossy:@"lossy.m4a" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testAACElementary { [self checkLossy:@"lossy.aac" tolerance:kVibeAACDecodeTolerance]; }
@@ -354,7 +360,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             // Two AAC decodes can differ by float rounding bits, which may move a
             // sample sitting on a rounding boundary by one 16-bit step.
             [self assertReference:reference capture:[self renderSeconds:decoded.frameLength / _rate + 0.1]
-                             skip:(NSUInteger)(_rate * 0.05) tolerance:aac ? 1.0f / 32768 : 0];
+                             skip:[self startupSkip] tolerance:aac ? 1.0f / 32768 : 0];
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
@@ -369,7 +375,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self play:[self fixture:name] paused:NO position:0];
         NSData *capture=[self renderSeconds:source.frameLength/_rate+0.1];
         if ([name isEqual:@"silence.wav"]) XCTAssertEqual(RMS(capture,2,0,NSMakeRange(0,capture.length/8)),0);
-        else [self assertReference:PCM(source) capture:capture skip:2400 tolerance:0];
+        else [self assertReference:PCM(source) capture:capture skip:[self startupSkip] tolerance:0];
         [self assertFinite:capture peak:1];
     }
     // Float32's precision is an explicit limit; decoded equality above does
@@ -377,6 +383,63 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     volatile int32_t sample=16777217; float converted=(float)sample;
     XCTAssertNotEqual((int32_t)converted,(int32_t)sample);
 }
+// Every audible frame of capture must continue an exact excerpt of one of the
+// references: bit-perfect output may cut between excerpts, never scale a
+// sample. Each excerpt is found by an exact 32-frame match, so a ramp's scaled
+// samples, which match nothing, fail it. Returns the excerpts found.
+- (NSUInteger)assertExactExcerptsOf:(NSArray<NSData *> *)references inCapture:(NSData *)capture {
+    NSUInteger channels = _channels, frames = capture.length / sizeof(float) / channels, excerpts = 0;
+    const float *a = capture.bytes;
+    const float *r = NULL;
+    NSUInteger at = 0, length = 0; // the current excerpt's next reference frame
+    for (NSUInteger f = 0; f < frames; f++) {
+        const float *frame = a + f * channels;
+        BOOL silent = YES;
+        for (NSUInteger c = 0; c < channels; c++) silent &= frame[c] == 0;
+        if (r && at < length && memcmp(frame, r + at * channels, channels * sizeof(float)) == 0) {
+            at++;
+            continue;
+        }
+        r = NULL;
+        if (silent) continue;
+        for (NSData *reference in references) {
+            const float *candidate = reference.bytes;
+            NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
+            for (NSUInteger start = 0; !r && f + 32 <= frames && start + 32 <= candidateFrames; start++) {
+                if (memcmp(frame, candidate + start * channels, 32 * channels * sizeof(float)) == 0) {
+                    r = candidate; at = start + 1; length = candidateFrames;
+                }
+            }
+            if (r) break;
+        }
+        if (!r) {
+            XCTFail(@"Frame %lu is audible but continues no exact excerpt: %g", (unsigned long)f, frame[0]);
+            return excerpts;
+        }
+        excerpts++;
+    }
+    return excerpts;
+}
+
+- (void)testBitPerfectTransportCutsWithoutChangingSamples {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    _player.crossfadeMilliseconds = 2000; // bit-perfect output ignores it
+    NSURL *first = [self fixture:@"noise-48000-24-2.wav"], *second = [self fixture:@"noise-48000-16-2.wav"];
+    NSArray *references = @[PCM([self read:first]), PCM([self read:second])];
+    [_capture setLength:0];
+    [self play:first paused:NO position:0]; [self render:14400];
+    [_player seekToPosition:1.0]; [self render:9600];
+    [_player pause]; [self render:4800]; XCTAssertTrue(_player.isPaused);
+    [_player resume]; [self render:9600];
+    [self play:second paused:NO position:0]; [self render:14400];
+    [_player stop]; [self render:4800]; XCTAssertTrue(_player.isStopped);
+    // start, seek, resume and the track change each begin an excerpt; a cut
+    // between two that happens to abut adds none.
+    XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture], 3u);
+    const float *tail = (const float *)_capture.bytes + (_capture.length / sizeof(float) - 4800 * 2);
+    for (NSUInteger i = 0; i < 4800 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
+}
+
 - (void)testPauseResumeAndIdleRestart {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
@@ -390,7 +453,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([self count:@"finish"],0u);
     [_player resume];
     NSData *tail=[reference subdataWithRange:NSMakeRange(sourceFrame*8,reference.length-sourceFrame*8)];
-    [self assertReference:tail capture:[self renderSeconds:2.1-position] skip:2400 tolerance:0];
+    [self assertReference:tail capture:[self renderSeconds:2.1-position] skip:[self startupSkip] tolerance:0];
     XCTAssertEqual([self count:@"resume"],1u);
 }
 - (void)testStopRestartAndSameTrackReplay {
@@ -403,7 +466,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         NSData *silence=[self renderSeconds:0.1]; XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,4800)),0);
         NSUInteger starts=[self count:@"start"]; [_player play:track];
         [self settleUntil:^BOOL { return [self count:@"start"]>starts; }];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
         [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
     }
 }
@@ -445,7 +508,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         _chain=tracks; _nextPrefetch=1;
         [_player play:tracks[0]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
         XCTAssertEqual([self count:@"advance"],3u); XCTAssertEqual([self count:@"finish"],1u);
         XCTAssertEqualObjects(_player.currentTrack,tracks.lastObject);
         XCTAssertEqualWithAccuracy(_player.duration,(96000-72007)/48000.0,0);
@@ -460,7 +523,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         NSURL *second=[self write:[reference subdataWithRange:NSMakeRange(split*8,length.unsignedIntegerValue*8)] rate:48000 channels:2 name:@"second.wav"];
         [self play:first paused:NO position:0]; [_player prefetchTrack:[AudioTrack withURL:second]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
         XCTAssertEqual([self count:@"advance"],1u); XCTAssertEqual([self count:@"finish"],1u);
     }
     for (NSString *next in @[@"noise-44100-24-2.wav",@"noise-48000-24-1.wav"]) {
@@ -517,7 +580,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player runSyncOnQueue:^{
             XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"completion"], @"first signal");
         }];
-        [self assertReference:reference capture:_capture skip:2400 tolerance:fx.boolValue?1e-10f:0];
+        [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:fx.boolValue?1e-10f:0];
     }
 }
 - (void)testSignalDiagnosticsBoundSilentCaptureAndRearm {
@@ -632,6 +695,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (void)testSignalDiagnosticsExcludePreviousTrack {
     for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
     for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
+        // Bit-perfect output cuts the old track rather than fading it, and a
+        // mixer resampling the 48 kHz fixtures carries a few milliseconds of it
+        // past the cut in its history. Real bit-perfect output sets the device
+        // to the file's rate, so the mixer does not resample; test that case.
+        if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;
         _player.levelsEnabled=YES;
@@ -648,7 +716,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             signal = [tap signalDiagnosticSnapshot];
         }];
         XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
-        XCTAssertGreaterThan([signal[@"observationStartMS"] doubleValue], 0);
+        if (fx.boolValue) {
+            XCTAssertGreaterThan([signal[@"observationStartMS"] doubleValue], 0); // the old track's fade, excluded
+        } else {
+            XCTAssertLessThan([signal[@"observationStartMS"] doubleValue], 1); // cut: nothing overlaps the start
+        }
         if (fx.boolValue && fade.integerValue > silence.integerValue) {
             XCTAssertGreaterThanOrEqual([signal[@"firstSignalAfterStartMS"] doubleValue], fade.doubleValue);
             XCTAssertLessThan([signal[@"observedLeadingSilenceMS"] doubleValue], 2);
@@ -765,7 +837,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSData *restored=[self renderSeconds:0.5];
     XCTAssertEqualWithAccuracy(ToneAmplitude(restored,2,0,48000,1000,NSMakeRange(12000,12000)),0.25,0.002);
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
-    [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+    [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
 - (void)testSampleRateConversionQuality {
     for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@48000,@96000],@[@48000,@32000],@[@44100,@48000],@[@96000,@44100]]) {
@@ -836,7 +908,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
         [self play:url paused:NO position:0];
         [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
-                         skip:(NSUInteger)(_rate * 0.05) tolerance:0];
+                         skip:[self startupSkip] tolerance:0];
         XCTAssertEqual([self count:@"finish"], 1u);
     }
 }
@@ -971,7 +1043,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
             XCTAssertEqual([_player.debugEngineCounts[@"varispeed"] boolValue], committedSystemOutput);
             [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
-                             skip:(NSUInteger)(_rate * 0.05) tolerance:(committedSystemOutput ? 1e-10 : 0)];
+                             skip:[self startupSkip] tolerance:(committedSystemOutput ? 1e-10 : 0)];
         }
     } @finally {
         [_player debugShutdown]; _player = nil;
@@ -1076,14 +1148,23 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertGreaterThan(captured.length,4800u*8); [self assertFinite:captured peak:0.251];
     XCTAssertEqual([self count:@"finish"],0u);
 }
+// Ordinary playback declicks both edges; bit-perfect output writes no volume,
+// so its first sample is the file's and a stop cuts at once.
 - (void)testStartupAndStopEnvelopesAreBounded {
+    for (NSNumber *bitPerfect in @[@NO, @YES])
     for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000]) {
-        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:bitPerfect.boolValue automatic:NO];
         NSMutableData *constant=[NSMutableData dataWithLength:(NSUInteger)_rate*2*4];
         float *values=constant.mutableBytes; for(NSUInteger i=0;i<constant.length/4;i++) values[i]=0.25;
         NSURL *url=[self write:constant rate:_rate channels:2 name:@"constant.wav"];
         [self play:url paused:NO position:0]; NSData *start=[self renderSeconds:0.1]; const float *s=start.bytes;
         NSUInteger end=start.length/8, settled=(NSUInteger)(_rate*0.05);
+        if (bitPerfect.boolValue) {
+            for(NSUInteger i=0;i<end;i++) XCTAssertEqual(s[i*2],0.25f,@"%@ Hz frame %lu",rate,(unsigned long)i);
+            [_player stop]; NSData *stop=[self renderSeconds:0.1]; const float *e=stop.bytes;
+            for(NSUInteger i=0;i<end;i++) XCTAssertEqual(e[i*2],0.0f,@"%@ Hz frame %lu after stop",rate,(unsigned long)i);
+            continue;
+        }
         XCTAssertLessThan(s[0],0.01f);
         for(NSUInteger i=1;i<end;i++) { XCTAssertGreaterThanOrEqual(s[i*2]+1e-7f,s[(i-1)*2]); XCTAssertLessThan(fabsf(s[i*2]-s[(i-1)*2]),0.002f); }
         for(NSUInteger i=settled;i<end;i++) XCTAssertEqual(s[i*2],0.25f);
@@ -1141,7 +1222,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [self settleUntil:^BOOL { return [self count:@"start"] || self->_playError; }];
     if (!_playError) { [self renderSeconds:2.1]; XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],1u); }
     _playError=nil; [self play:source paused:NO position:0];
-    [self assertReference:reference capture:[self renderSeconds:2.1] skip:2400 tolerance:0];
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
 - (void)testPausedLoadStaysSilentAndPendingCommandsSettle {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];

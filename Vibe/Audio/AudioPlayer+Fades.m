@@ -74,6 +74,16 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
 }
 
 - (void)rampNodeAsync:(AVAudioPlayerNode *)node step:(int)step from:(float)start to:(float)target milliseconds:(uint64_t)milliseconds generation:(uint64_t)generation completion:(dispatch_block_t)completion {
+    if ([self leavesSamplesUntouchedOnQueue]) {
+        // Unity, not the target: bit-perfect output cuts at the transport edge
+        // instead. The completion keeps its later queue turn, which every
+        // caller's generation checks were written against.
+        node.volume = 1;
+        if (completion) {
+            [self scheduleAfterSeconds:0 block:completion];
+        }
+        return;
+    }
     [self stepRampAsync:node step:step from:start to:target
              totalSteps:VibeFadeStepsForMilliseconds(milliseconds)
        stepMicroseconds:VibeFadeStepMicrosecondsForMilliseconds(milliseconds)
@@ -172,6 +182,10 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
     NSArray<VibeRetiredFade *> *fades = [_retiredFades copy];
     [_retiredFades removeAllObjects];
     for (VibeRetiredFade *fade in fades) {
+        if ([self leavesSamplesUntouchedOnQueue]) {
+            [self completeRetiredFadePair:fade]; // a fade begun before bit-perfect output was on
+            continue;
+        }
         [self rampRetiredNodeAsync:fade.node step:1 from:fade.node.volume milliseconds:kFadeDurationMilliseconds completion:^{
             [self completeRetiredFadePair:fade];
         }];
@@ -180,7 +194,8 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
 
 // Tears down a node and varispeed pair the caller has already pulled out of
 // the live state; either may be nil. An audible pair — engine running, state
-// still Playing — fades out on its own varispeed and is detached once silent;
+// still Playing, bit-perfect output off — fades out on its own varispeed and
+// is detached once silent;
 // a crossfade-length fade registers in _retiredFades so stop, pause, a parked
 // play and reset can still silence it early. Paused, stopped or on a first play
 // there is nothing to click, so both are torn down at once.
@@ -188,7 +203,7 @@ static const NSTimeInterval kNodeVolumeSettleSeconds = 0.020;
     VibeRetiredFade *fade = [[VibeRetiredFade alloc] init];
     fade.node = node;
     fade.varispeed = varispeed;
-    if (node && _engine.isRunning && _state == VibePlayerStatePlaying) {
+    if (node && _engine.isRunning && _state == VibePlayerStatePlaying && ![self leavesSamplesUntouchedOnQueue]) {
         fade.countedAsOutput = YES;
         fade.outputGeneration = _retiredOutputGeneration;
         _activeRetiredOutputCount++;

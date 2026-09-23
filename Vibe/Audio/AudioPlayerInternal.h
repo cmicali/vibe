@@ -377,6 +377,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // here rather than copying the guard.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
 
+// Bit-perfect output changes no sample, so the player writes no volume while
+// it is on: no declick, crossfade, or pause, resume, seek or stop ramp. A
+// transport edge cuts, and may click, rather than fades. Always NO on iOS.
+- (BOOL)leavesSamplesUntouchedOnQueue;
+
 - (void)stopOnQueue;
 - (void)resetToStoppedStateOnQueue;
 // Forgets every reference bound to the current engine without messaging it;
