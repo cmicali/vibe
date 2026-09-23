@@ -32,7 +32,7 @@ static inline NowPlayingPlaybackState VibeNowPlayingStateForPlayer(BOOL isPlayin
 // a change and republish on every tick. Both publishers — the lock screen's
 // and the widget's — compare through this, so they cannot drift.
 static inline BOOL VibeNowPlayingStringsEqual(NSString *_Nullable a, NSString *_Nullable b) {
-    return a == b || [a isEqualToString:b];
+    return a == b || (b && [a isEqualToString:b]);
 }
 
 // A published position further than this from what the system's own

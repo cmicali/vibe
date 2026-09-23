@@ -119,12 +119,24 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 
     // Whether at least one widget is placed, as last known. Two
     // sources, because each can only be right about one direction: WidgetKit's
-    // own answer (refreshPlaced) is authoritative but asked only at launch and
+    // own answer (queryPlaced) is authoritative but asked only at launch and
     // on foreground, so it is what turns this OFF; the extension's read signal
     // arrives the instant a widget renders, wherever the app is, so it is what
-    // turns it ON. Nothing is written while NO — see updateWithTrack:.
+    // turns it ON. While NO, nothing is computed, captured or written: every
+    // entry point returns at this flag, and updateWithTrack: only records its
+    // inputs (below) for republish to replay.
     BOOL                  _widgetPlaced;
     int                   _readToken;
+
+    // The last update while no widget was placed, as handed in — a quiet tick
+    // with nobody looking is these stores and nothing else.
+    __weak AudioTrack    *_heldTrack;
+    NSTimeInterval        _heldPosition;
+    NSTimeInterval        _heldDuration;
+    CFAbsoluteTime        _heldAt;
+    BOOL                  _heldPlaying;
+    BOOL                  _heldStartPending;
+    BOOL                  _heldInput;
 
     dispatch_queue_t      _queue;
 }
@@ -154,8 +166,7 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
                                  dispatch_get_main_queue(), ^(int token) {
             [weakSelf setWidgetPlaced:YES];
         });
-        [self captureTheme];
-        [self refreshPlaced];
+        [self queryPlaced];
     }
     return self;
 }
@@ -168,7 +179,15 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 
 #pragma mark - Whether anyone is looking
 
+// Only while one is placed: nothing can turn the flag on but the read signal,
+// so with none placed there is nothing to ask.
 - (void)refreshPlaced {
+    if (_widgetPlaced) {
+        [self queryPlaced];
+    }
+}
+
+- (void)queryPlaced {
     __weak WidgetPublisher *weakSelf = self;
     [VibeWidgetReloader queryPlaced:^(BOOL placed) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -187,20 +206,28 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     }
 }
 
-// The gate has just opened. Everything a widget needs is already in hand —
-// the snapshot, the track's decoded art, the offered envelope — so it is
-// written as if the track had just changed, which from the widget's side is
-// exactly what happened. A widget added while a track plays in the background
+// The gate has just opened. Nothing was worked out while it was shut, so the
+// last input is replayed against a forgotten snapshot — a track change, which
+// from the widget's side is exactly what happened, the playhead advanced by
+// the time it waited. A widget added while a track plays in the background
 // renders once from whatever was on disk, its read lands here, and the next
 // render is current.
 - (void)republish {
-    VibeWidgetState *state = _published;
-    if (!state) {
+    [self captureTheme];
+    _published      = nil;
+    _publishedTrack = nil;
+    _bakedSignature = nil;
+    _artworkOnDisk  = NO;
+    if (!_heldInput) {
         return;     // nothing handed over yet; the first update publishes
     }
-    _bakedSignature = nil;
-    [self commitState:state artwork:_publishedTrack.cachedArt writeArtwork:YES];
-    [self bakeWaveformIfNeeded];
+    _heldInput = NO;
+    NSTimeInterval position = _heldPosition;
+    if (_heldPlaying && !_heldStartPending) {
+        position += CFAbsoluteTimeGetCurrent() - _heldAt;   // clamped on read
+    }
+    [self updateWithTrack:_heldTrack position:position duration:_heldDuration
+                  playing:_heldPlaying startPending:_heldStartPending];
 }
 
 #pragma mark - What is playing
@@ -218,12 +245,19 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     // makes the write re-fire: nil art leaves it clear, and the next tick that
     // sees decoded art writes it.
     //
-    // The gate is folded in here rather than tested below so that a quiet tick
-    // with no widget placed stays allocation-free: republish writes the art
-    // fresh from the track when one appears, so nothing is owed meanwhile.
+    if (!_widgetPlaced) {
+        _heldTrack        = track;
+        _heldPosition     = position;
+        _heldDuration     = duration;
+        _heldPlaying      = playing;
+        _heldStartPending = startPending;
+        _heldAt           = CFAbsoluteTimeGetCurrent();
+        _heldInput        = YES;
+        return;
+    }
     VibeImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
-    BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
+    BOOL writeArtwork = trackChanged || (artwork && !_artworkOnDisk);
 
     if (!writeArtwork && ![self needsPublishForTrack:track playing:playing duration:duration
                                             position:position startPending:startPending]) {
@@ -259,9 +293,6 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
         }
         _bakedSignature = nil;
         _artworkOnDisk  = NO;
-    }
-    if (!_widgetPlaced) {
-        return;     // bookkeeping only: nobody is looking
     }
     if (trackChanged && track) {
         [self beginReloadHold];
@@ -422,8 +453,11 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 }
 
 - (void)publishEmptyForTermination {
+    if (!_widgetPlaced) {
+        return;     // nothing was ever written, so nothing claims a track
+    }
     [self endReloadHoldForGeneration:_reloadHoldGeneration];
-    if (_widgetPlaced && _published.hasTrack) {
+    if (_published.hasTrack) {
         VibeWidgetState *empty = [[VibeWidgetState alloc] init];
         empty.theme = _theme;
         _published = empty;
@@ -439,17 +473,16 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 #pragma mark - The theme
 
 - (void)themeDidChange {
-    if (![self captureTheme] || !_published) {
+    // Not captured while nobody looks: republish captures it when one appears.
+    if (!_widgetPlaced || ![self captureTheme] || !_published) {
         return;
     }
     // A copy: the snapshot in _published may still be on its way to disk.
     VibeWidgetState *next = [_published copy];
     next.theme = _theme;
     _published = next;
-    if (_widgetPlaced) {
-        [self commitState:next artwork:nil writeArtwork:NO];
-        [self bakeWaveformIfNeeded];    // a light-side surface needs its own strip
-    }
+    [self commitState:next artwork:nil writeArtwork:NO];
+    [self bakeWaveformIfNeeded];    // a light-side surface needs its own strip
 }
 
 #if TARGET_OS_OSX

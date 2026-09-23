@@ -14,11 +14,13 @@
 //  publishes is derived from what it is handed here, so nothing else needs to
 //  know the widget exists.
 //
-//  It writes only while a widget is placed. With none placed anywhere every
+//  It does nothing while no widget is placed. With none placed anywhere every
 //  publish was two renders, two PNG encodes and ~220 KB of writes per track
-//  change for nobody, so the writes are gated on `widgetPlaced` — while the
-//  bookkeeping never is, so a widget that appears mid-track is handed the
-//  current snapshot at once (republish) rather than at the next event.
+//  change for nobody, so everything is gated on `widgetPlaced`: no snapshot is
+//  built, no theme captured, no image drawn and no WidgetKit query made. The
+//  one thing kept is the last update's raw inputs, so a widget that appears
+//  mid-track is handed the current track at once (republish) rather than at
+//  the next event.
 //
 //  Main thread only, like the controller that drives it. Every file write and
 //  every WidgetKit reload lands on its own serial queue.
@@ -33,24 +35,27 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WidgetPublisher : NSObject
 
-// Whether at least one widget is placed, as last known. Turned off
-// only by WidgetKit's own answer (refreshPlaced); turned on by that answer or
-// by the extension's read signal (kVibeWidgetReadNotification), whichever
-// comes first.
+// Whether at least one widget is placed, as last known. Turned off only by
+// WidgetKit's own answer (asked at init and by refreshPlaced); turned on by
+// that answer or by the extension's read signal (kVibeWidgetReadNotification),
+// whichever comes first.
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
-// Asks WidgetKit. Called at init and by the controller on every return to the
-// foreground — the one moment a widget can have been REMOVED, since removing
-// one means leaving the app. Adding one is covered by the read signal.
+// Asks WidgetKit whether a widget is still placed, and only while one is: the
+// shell calls it on every return to the foreground — the one moment a widget
+// can have been REMOVED, since removing one means leaving the app. Adding one
+// is covered by the read signal, so with none placed there is nothing to ask.
+// init asks once regardless, to learn about a widget placed before launch.
 - (void)refreshPlaced;
 
 // Called from the Now Playing publish, with the values that call already
 // holds — the widget's snapshot must never disagree with the lock screen's,
 // and re-reading the player would be four more lock round-trips per tick.
 //
-// This runs at 3 Hz. It is cheap on a tick that changes nothing: the gate is
-// scalars, a pointer compare and the two line compares, and no snapshot
-// object is built unless something is actually going to be published.
+// This runs at 3 Hz. With no widget placed it records its arguments and
+// returns. With one placed it is cheap on a tick that changes nothing: the
+// gate is scalars, a pointer compare and the two line compares, and no
+// snapshot object is built unless something is actually going to be published.
 //
 // `startPending` is the shell's "the open has not started the audio yet" —
 // iOS's `_trackStartPending`, the mac's Loading display state. While it is set
