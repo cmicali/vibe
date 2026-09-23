@@ -64,10 +64,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // The live ⌘O panel, so repeated opens re-front it instead of stacking
     // independent panels whose completions each do a replacing play.
     NSOpenPanel *_openPanel;
-    // performWhenLaunchOpenSettled:'s waiters, and the latch that runs later
-    // ones at once. Set exactly once, at the end of the launch restore.
+    // performWhenLaunchOpenSettled:'s waiters; nil once the launch restore
+    // has settled, which runs later ones at once.
     NSMutableArray<dispatch_block_t> *_launchOpenWaiters;
-    BOOL _launchOpenSettled;
 }
 
 - (instancetype)init {
@@ -79,6 +78,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                                sink:^(NSArray<NSURL *> *urls, BOOL append) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
+        _launchOpenWaiters = [NSMutableArray array];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -171,18 +171,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // it already has. The widget's buttons wait on it: a click that launched the
 // app must not act on a playlist the restore has not landed yet.
 - (void)performWhenLaunchOpenSettled:(dispatch_block_t)block {
-    if (_launchOpenSettled) {
+    if (!_launchOpenWaiters) {
         block();
         return;
-    }
-    if (!_launchOpenWaiters) {
-        _launchOpenWaiters = [NSMutableArray array];
     }
     [_launchOpenWaiters addObject:[block copy]];
 }
 
 - (void)settleLaunchOpen {
-    _launchOpenSettled = YES;
     NSArray<dispatch_block_t> *waiters = _launchOpenWaiters;
     _launchOpenWaiters = nil;
     for (dispatch_block_t waiter in waiters) {

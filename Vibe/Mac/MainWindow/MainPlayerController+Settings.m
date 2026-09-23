@@ -123,15 +123,10 @@
     if (effects & VibeSettingsLiveEffectWaveformLevels) {
         [self.waveformView refreshWaveformLevels];
     }
-    // The widget: its colors, glyphs and no-artwork image, then its strip — in
-    // that order, since whether the strip needs a light half follows the theme.
-    // Each is a compare-and-return unless its inputs moved; see the header.
-    if (effects & VibeSettingsLiveEffectThemeApply) {
-        [self.widgetPublisher themeDidChange];
-    }
-    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
-                   | VibeSettingsLiveEffectWaveformLevels)) {
-        [self.widgetPublisher displaySettingsDidChange];
+    // The widget: a compare-and-return unless what it draws moved.
+    if (effects & (VibeSettingsLiveEffectThemeApply | VibeSettingsLiveEffectWaveformStyle
+                   | VibeSettingsLiveEffectWaveformTheme | VibeSettingsLiveEffectWaveformLevels)) {
+        [self.widgetPublisher settingsDidChange];
     }
     if (effects & VibeSettingsLiveEffectWindowTint) {
         [self refreshWindowTint];

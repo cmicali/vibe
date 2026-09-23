@@ -138,7 +138,6 @@ struct VibeSeekIntent: AudioPlaybackIntent {
         // rather than at its leading edge — half a zone of bias otherwise, in
         // one direction, every time.
         let progress = (Double(zone) + 0.5) / Double(kVibeSeekZoneCount)
-        let trackKey = trackKey
         try await VibeWidgetTransport.seek(self, toProgress: progress, ofTrackKey: trackKey)
         #endif
         return .result()

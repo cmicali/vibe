@@ -608,6 +608,23 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
 
+// The free-text glyph fields' resolve-time fallback, the way Fonts resolves
+// an uninstalled face.
++ (NSString *)resolvedGlyph:(NSString *)glyph factory:(NSString *)factory {
+    // Whether this macOS has a symbol never changes within a run, and the
+    // probe allocates an image, so remember each name's answer.
+    static NSMutableDictionary<NSString *, NSNumber *> *known;
+    if (!known) {
+        known = [NSMutableDictionary dictionary];
+    }
+    NSNumber *has = known[glyph];
+    if (has == nil) {
+        has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
+        known[glyph] = has;
+    }
+    return has.boolValue ? glyph : factory;
+}
+
 + (NSArray<NSString *> *)imageKeysForButton:(NSString *)key {
     if ([key isEqualToString:kVibeThemeImagePlayButtonDark]) {
         return @[kVibeThemeImagePlayButtonDark, kVibeThemeImagePlayButtonLight,

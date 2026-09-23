@@ -84,16 +84,13 @@ NS_ASSUME_NONNULL_BEGIN
 // will ever publish again.
 - (void)publishEmptyForTermination;
 
-// Republishes if anything the widget draws from the mac theme moved — its
-// colors, transport glyphs or no-artwork image; a compare otherwise, so it is
-// safe on every theme edit, continuous ones included. A no-op on iOS.
-- (void)themeDidChange;
-
-// Re-bakes the strip if a waveform setting moved; a no-op otherwise, so it is
-// safe to call on every settings change, continuous ones included. iOS
-// subscribes it to VibeDisplaySettingsDidChangeNotification itself; the mac
-// calls it from applySettingsLiveEffects:.
-- (void)displaySettingsDidChange;
+// Republishes what moved of what the widget draws from the settings: the mac
+// theme's colors, transport glyphs and no-artwork image, and the strip's
+// style, colors and levels. A compare otherwise, so it is safe on every
+// settings change, continuous ones included. iOS subscribes it to
+// VibeDisplaySettingsDidChangeNotification itself; the mac calls it from
+// applySettingsLiveEffects:.
+- (void)settingsDidChange;
 
 @end
 

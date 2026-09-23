@@ -85,12 +85,11 @@ extern NSString *const kVibeWidgetColorBackground;
 
 // This snapshot's own images, named by its trackKey; nil with no key.
 @property (nonatomic, readonly, nullable) NSURL *artworkURL;
-@property (nonatomic, readonly, nullable) NSURL *waveformPlayedURL;
-@property (nonatomic, readonly, nullable) NSURL *waveformUnplayedURL;
-// The strip for a light surface: baked only while the mac theme paints the
-// widget's background light-side, the one case the widget is not dark.
-@property (nonatomic, readonly, nullable) NSURL *waveformPlayedLightURL;
-@property (nonatomic, readonly, nullable) NSURL *waveformUnplayedLightURL;
+// The strip, whole in each side's colours. The light pair is baked only while
+// the mac theme paints the widget's background light-side, the one case the
+// widget is not dark.
+- (nullable NSURL *)waveformURLPlayed:(BOOL)played light:(BOOL)light
+        NS_SWIFT_NAME(waveformURL(played:light:));
 // The theme's no-artwork image for one appearance. Not per track and not
 // swept: it changes only with the theme, and absent means the widget's glyph.
 + (nullable NSURL *)placeholderURLForDark:(BOOL)isDark NS_SWIFT_NAME(placeholderURL(forDark:));

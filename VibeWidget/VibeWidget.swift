@@ -24,30 +24,28 @@ private let kPlayheadStep: TimeInterval = 5
 private let kMaxEntries = 24
 
 struct VibeEntry: TimelineEntry {
-    let date: Date
+    var date: Date
     let state: VibeWidgetState?
     // Decoded once per timeline and shared by every entry, rather than read
-    // from disk per render: the same three files back all of them, and the
+    // from disk per render: the same files back all of them, and the
     // extension's memory limit is small. CGImage rather than either platform's
     // image type, so this file and the view are one source for both.
-    let artwork: CGImage?
+    var artwork: CGImage? = nil
     // Pre-blurred once per timeline rather than per entry: the background is
     // pixel-identical across every entry, and a 40pt blur in a process with a
     // hard memory cap is not something to repeat 24 times for one result.
-    let blurredArtwork: CGImage?
-    let played: CGImage?
-    let unplayed: CGImage?
-    let playedLight: CGImage?
-    let unplayedLight: CGImage?
-    // The mac theme's no-artwork image, one per appearance; nil on iOS and
-    // for the factory look, which is the widget's own glyph.
-    let placeholderDark: CGImage?
-    let placeholderLight: CGImage?
+    var blurredArtwork: CGImage? = nil
+    var played: CGImage? = nil
+    var unplayed: CGImage? = nil
+    // Only for a theme that paints the light surface.
+    var playedLight: CGImage? = nil
+    var unplayedLight: CGImage? = nil
+    // The mac theme's no-artwork image, one per appearance; nil on iOS, and
+    // whenever there is artwork to draw instead.
+    var placeholderDark: CGImage? = nil
+    var placeholderLight: CGImage? = nil
 
-    static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
-                                 blurredArtwork: nil, played: nil, unplayed: nil,
-                                 playedLight: nil, unplayedLight: nil,
-                                 placeholderDark: nil, placeholderLight: nil)
+    static let empty = VibeEntry(date: Date(), state: nil)
 }
 
 struct VibeProvider: TimelineProvider {
@@ -80,13 +78,9 @@ struct VibeProvider: TimelineProvider {
         let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
         let steps = min(kMaxEntries, Int(remaining / step) + 1)
         let entries = (0..<steps).map { index in
-            VibeEntry(date: now.addingTimeInterval(Double(index) * step),
-                      state: state, artwork: first.artwork,
-                      blurredArtwork: first.blurredArtwork,
-                      played: first.played, unplayed: first.unplayed,
-                      playedLight: first.playedLight, unplayedLight: first.unplayedLight,
-                      placeholderDark: first.placeholderDark,
-                      placeholderLight: first.placeholderLight)
+            var entry = first
+            entry.date = now.addingTimeInterval(Double(index) * step)
+            return entry
         }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
@@ -96,16 +90,22 @@ struct VibeProvider: TimelineProvider {
         // The state's OWN images, named by its track: three separate reads,
         // but a publish landing between them can only make one of these nil,
         // never hand this title another track's cover.
-        let artwork = image(state.artworkURL)
-        return VibeEntry(date: date, state: state,
-                         artwork: artwork,
-                         blurredArtwork: artwork.map(blurred),
-                         played: image(state.waveformPlayedURL),
-                         unplayed: image(state.waveformUnplayedURL),
-                         playedLight: image(state.waveformPlayedLightURL),
-                         unplayedLight: image(state.waveformUnplayedLightURL),
-                         placeholderDark: image(VibeWidgetState.placeholderURL(forDark: true)),
-                         placeholderLight: image(VibeWidgetState.placeholderURL(forDark: false)))
+        var entry = VibeEntry(date: date, state: state)
+        entry.artwork = image(state.artworkURL)
+        entry.blurredArtwork = entry.artwork.map(blurred)
+        entry.played = image(state.waveformURL(played: true, light: false))
+        entry.unplayed = image(state.waveformURL(played: false, light: false))
+        let lightSide = state.theme?[kVibeWidgetThemeLight] as? [String: Any]
+        let lightSurface = lightSide?[kVibeWidgetColorBackground] != nil
+        if lightSurface {
+            entry.playedLight = image(state.waveformURL(played: true, light: true))
+            entry.unplayedLight = image(state.waveformURL(played: false, light: true))
+        }
+        if entry.artwork == nil {
+            entry.placeholderDark = image(VibeWidgetState.placeholderURL(forDark: true))
+            entry.placeholderLight = lightSurface ? image(VibeWidgetState.placeholderURL(forDark: false)) : nil
+        }
+        return entry
     }
 
     private func image(_ url: URL?) -> CGImage? {

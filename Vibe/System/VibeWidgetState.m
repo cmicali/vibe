@@ -38,10 +38,6 @@ static NSString *const kStateFileName = @"state.plist";
 // The image files carry their track's key, so the container can hold two
 // tracks' sets at once and a plist always names its own.
 static NSString *const kArtworkFormat  = @"artwork-%@.jpg";
-static NSString *const kPlayedFormat   = @"waveform-%@-played.png";
-static NSString *const kUnplayedFormat = @"waveform-%@-unplayed.png";
-static NSString *const kPlayedLightFormat   = @"waveform-%@-played-light.png";
-static NSString *const kUnplayedLightFormat = @"waveform-%@-unplayed-light.png";
 static NSString *const kPlaceholderDark  = @"placeholder-dark.png";
 static NSString *const kPlaceholderLight = @"placeholder-light.png";
 static NSString *const kWidgetMark = @"widget-present";
@@ -87,11 +83,19 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     return trackKey.length ? [self fileNamed:[NSString stringWithFormat:format, trackKey]] : nil;
 }
 
-- (NSURL *)artworkURL          { return [self.class fileNamed:kArtworkFormat trackKey:self.trackKey]; }
-- (NSURL *)waveformPlayedURL   { return [self.class fileNamed:kPlayedFormat trackKey:self.trackKey]; }
-- (NSURL *)waveformUnplayedURL { return [self.class fileNamed:kUnplayedFormat trackKey:self.trackKey]; }
-- (NSURL *)waveformPlayedLightURL   { return [self.class fileNamed:kPlayedLightFormat trackKey:self.trackKey]; }
-- (NSURL *)waveformUnplayedLightURL { return [self.class fileNamed:kUnplayedLightFormat trackKey:self.trackKey]; }
+static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL light) {
+    return [NSString stringWithFormat:@"waveform-%@-%@%@.png", trackKey,
+            played ? @"played" : @"unplayed", light ? @"-light" : @""];
+}
+
+- (NSURL *)artworkURL {
+    return [self.class fileNamed:kArtworkFormat trackKey:self.trackKey];
+}
+
+- (NSURL *)waveformURLPlayed:(BOOL)played light:(BOOL)light {
+    NSString *key = self.trackKey;
+    return key.length ? [self.class fileNamed:VibeWidgetWaveformName(key, played, light)] : nil;
+}
 
 + (NSURL *)placeholderURLForDark:(BOOL)isDark {
     return [self fileNamed:isDark ? kPlaceholderDark : kPlaceholderLight];
@@ -120,10 +124,9 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     for (NSString *key in trackKeys) {
         if (key.length) {
             [keep addObject:[NSString stringWithFormat:kArtworkFormat, key]];
-            [keep addObject:[NSString stringWithFormat:kPlayedFormat, key]];
-            [keep addObject:[NSString stringWithFormat:kUnplayedFormat, key]];
-            [keep addObject:[NSString stringWithFormat:kPlayedLightFormat, key]];
-            [keep addObject:[NSString stringWithFormat:kUnplayedLightFormat, key]];
+            for (int strip = 0; strip < 4; strip++) {
+                [keep addObject:VibeWidgetWaveformName(key, strip & 1, strip & 2)];
+            }
         }
     }
     NSMutableArray<NSURL *> *stale = [NSMutableArray array];

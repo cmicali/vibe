@@ -25,6 +25,7 @@
 #if TARGET_OS_OSX
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
+#import "NSImage+Util.h"
 #else
 #import "PlayerDisplaySettings.h"
 #endif
@@ -107,16 +108,15 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 }
 
 @implementation WidgetPublisher {
-    // What the widget was last told. nil until the first update. Kept current
-    // whether or not anything is written, so the moment a widget appears the
-    // truth is in hand rather than a tick away — and a tick is not guaranteed
-    // in the background, where that moment usually comes.
+    // What the widget was last told. nil until the first update while a
+    // widget is placed, and again whenever republish forgets it.
     VibeWidgetState      *_published;
     // The track that snapshot describes, held only to compare identity on the
     // 3 Hz tick. A pointer compare, deliberately: AudioTrack.cacheKey stats the
     // file and hashes its path, and its failure path does not memoize — on a
     // dropped mount that would be a blocking syscall three times a second.
-    __weak AudioTrack    *_publishedTrack;
+    // Strong, so closing a track is a change to nil, never nil meeting nil.
+    AudioTrack           *_publishedTrack;
     // Whether the published track's artwork has been written. Cleared on a
     // track change, set once a decode has actually been written.
     BOOL                  _artworkOnDisk;
@@ -127,34 +127,33 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // The last complete envelope offered, and the track it came from, so a
     // settings change can re-bake without the card being asked again.
     CodableAudioWaveform *_waveform;
-    __weak AudioTrack    *_waveformTrack;
+    AudioTrack           *_waveformTrack;
     // Everything the bake reads. A settings change that does not move one of
     // these is not a re-bake — which is what makes this safe to hang off
-    // VibeDisplaySettingsDidChangeNotification, whose posters include a
-    // continuous slider and a colour well.
+    // every settings change, whose posters include a continuous slider and a
+    // colour well.
     NSString             *_bakedSignature;
     // The bake not yet started, so the next request can cancel it. TRAP: the
     // gain slider posts a distinct value per half-dB of a drag, and each is a
     // new signature — without this a one-second drag queued dozens of bakes,
     // all but the last thrown away after they ran.
     dispatch_block_t      _pendingBake;
+    // The cover's dominant colour and the image it came from (artworkColor).
+    __weak VibeImage     *_artworkColorImage;
+    VibeColor            *_artworkColor;
     // Queue-only: whether a reload is already enqueued behind the writes.
     BOOL                  _reloadQueued;
-    // The track-change hold (kWidgetTrackChangeHold). Main's side says whether
-    // one is open, and the generation drops a deadline a newer hold replaced;
-    // the queue's side defers the reloads asked for meanwhile, so the one it
-    // sends lands behind every write.
+    // The track-change hold (kWidgetTrackChangeHold): whether one is open, the
+    // generation that drops a deadline a newer hold replaced, and whether a
+    // write made meanwhile owes the reload the hold's end sends.
     BOOL                  _holdingReload;
     NSUInteger            _reloadHoldGeneration;
-    BOOL                  _reloadHeld;      // queue-only
-    BOOL                  _reloadOwed;      // queue-only
+    BOOL                  _reloadOwed;
 
-    // The theme every snapshot carries (VibeWidgetState.theme); nil on iOS.
-    // The placeholder images follow their own inputs and are written with the
-    // first commit after those move, and only then.
+    // The theme every snapshot carries (VibeWidgetState.theme), nil on iOS,
+    // and the inputs of the placeholder images last written.
     NSDictionary         *_theme;
     NSString             *_placeholderSignature;
-    BOOL                  _placeholdersOwed;
 
     // Whether at least one widget is placed, as last known. Two sources,
     // because each can only be right about one direction: WidgetKit's own
@@ -168,14 +167,14 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     int                   _readToken;
 
     // The last update while no widget was placed, as handed in — a quiet tick
-    // with nobody looking is these stores and nothing else.
+    // with nobody looking is these stores and nothing else. _heldAt is 0 when
+    // there is none.
     __weak AudioTrack    *_heldTrack;
     NSTimeInterval        _heldPosition;
     NSTimeInterval        _heldDuration;
     CFAbsoluteTime        _heldAt;
     BOOL                  _heldPlaying;
     BOOL                  _heldStartPending;
-    BOOL                  _heldInput;
 
     dispatch_queue_t      _queue;
 }
@@ -190,10 +189,10 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
                                        DISPATCH_QUEUE_SERIAL);
 #if !TARGET_OS_OSX
-        // The mac shell calls displaySettingsDidChange from its live-effect
-        // funnel instead; its settings post no notification.
+        // The mac shell calls settingsDidChange from its live-effect funnel
+        // instead; its settings post no notification.
         [NSNotificationCenter.defaultCenter addObserver:self
-                                               selector:@selector(displaySettingsDidChange)
+                                               selector:@selector(settingsDidChange)
                                                    name:VibeDisplaySettingsDidChangeNotification
                                                  object:nil];
 #endif
@@ -243,7 +242,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             return;     // nothing could be told anyway; the flag stays off
         }
         [reloader queryPlaced:^(BOOL placed) {
-            LogInfo(@"Widget: WidgetKit reports %@", placed ? @"a widget placed" : @"none placed");
             if (!placed) {
                 // The next launch loads nothing until a widget renders again.
                 [VibeWidgetState forgetWidget];
@@ -278,14 +276,14 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     _publishedTrack = nil;
     _bakedSignature = nil;
     _artworkOnDisk  = NO;
-    if (!_heldInput) {
+    if (!_heldAt) {
         return;     // nothing handed over yet; the first update publishes
     }
-    _heldInput = NO;
     NSTimeInterval position = _heldPosition;
     if (_heldPlaying && !_heldStartPending) {
         position += CFAbsoluteTimeGetCurrent() - _heldAt;   // clamped on read
     }
+    _heldAt = 0;
     [self updateWithTrack:_heldTrack position:position duration:_heldDuration
                   playing:_heldPlaying startPending:_heldStartPending];
 }
@@ -297,14 +295,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
                duration:(NSTimeInterval)duration
                 playing:(BOOL)playing
            startPending:(BOOL)startPending {
-    // TRAP: cachedArt is nil until the artwork DECODES, so a track change
-    // almost always arrives before there is any art to write — and writing nil
-    // deletes the file. Keyed on the track alone, a change therefore cleared
-    // the artwork and never wrote it back, because by the time the decode
-    // landed the track had stopped being new. _artworkOnDisk is the state that
-    // makes the write re-fire: nil art leaves it clear, and the next tick that
-    // sees decoded art writes it.
-    //
     if (!_widgetPlaced) {
         _heldTrack        = track;
         _heldPosition     = position;
@@ -312,11 +302,15 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         _heldPlaying      = playing;
         _heldStartPending = startPending;
         _heldAt           = CFAbsoluteTimeGetCurrent();
-        _heldInput        = YES;
         return;
     }
     VibeImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
+    // TRAP: cachedArt is nil until the artwork DECODES, so a track change
+    // almost always arrives before there is any art — and writing nil deletes
+    // the file. Keyed on the track alone, the cover was cleared and never
+    // written back. _artworkOnDisk re-fires the write on the first tick that
+    // sees decoded art.
     BOOL writeArtwork = trackChanged || (artwork && !_artworkOnDisk);
 
     if (!writeArtwork && ![self needsPublishForTrack:track playing:playing duration:duration
@@ -328,11 +322,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     next.hasTrack     = (track != nil);
     next.title        = track.displayTitle;
     next.artist       = track.displayArtist;
-    // TRAP: no track, no key, whatever trackChanged says. _publishedTrack is
-    // weak, so closing the playlist frees the track before this call and nil
-    // meets nil as "unchanged" — carrying the old key into a trackless
-    // snapshot, whose widget then drew the closed track's cover and strip.
-    next.trackKey     = !track ? nil : (trackChanged ? track.url.pathKey : _published.trackKey);
+    next.trackKey     = track.url.pathKey;
     next.playing      = playing;
     next.duration     = duration;
     next.position     = position;
@@ -347,9 +337,14 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         // to an already-played track offers first, because the coordinator has
         // the snapshot in hand and starts no load — so the pairing is checked
         // rather than the order assumed.
-        if (!track || _waveformTrack != track) {
+        if (_waveformTrack != track) {
             _waveform      = nil;
             _waveformTrack = nil;
+        }
+        // A bake still queued is the outgoing track's, and holds its envelope.
+        if (_pendingBake) {
+            dispatch_block_cancel(_pendingBake);
+            _pendingBake = nil;
         }
         _bakedSignature = nil;
         _artworkOnDisk  = NO;
@@ -384,31 +379,19 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // mac this is the NSImage the header is drawing, and NSImage is not safe
     // to draw concurrently (the Now Playing artwork trap, System/CLAUDE.md).
     CGImageRef cgArtwork = writeArtwork ? CGImageRetain(VibeCGImageOfImage(artwork)) : NULL;
-    // Drawn on main for the same reason.
-    CGImageRef placeholders[2] = { NULL, NULL };
-    BOOL writePlaceholders = _placeholdersOwed;
-    if (writePlaceholders) {
-        _placeholdersOwed = NO;
-        [self drawPlaceholders:placeholders];
-    }
     NSString *outgoingKey = _committedKey;
     _committedKey = state.trackKey;
     BOOL sweep = !VibeNowPlayingStringsEqual(outgoingKey, state.trackKey);
-    CGImageRef darkPlaceholder = placeholders[0];
-    CGImageRef lightPlaceholder = placeholders[1];
+    BOOL reload = [self reloadAfterWrite];
     dispatch_async(_queue, ^{
         if (writeArtwork) {
             [self writeArtwork:cgArtwork toURL:state.artworkURL];
             CGImageRelease(cgArtwork);
         }
-        if (writePlaceholders) {
-            VibeWidgetWriteImage(darkPlaceholder, [VibeWidgetState placeholderURLForDark:YES]);
-            VibeWidgetWriteImage(lightPlaceholder, [VibeWidgetState placeholderURLForDark:NO]);
-            CGImageRelease(darkPlaceholder);
-            CGImageRelease(lightPlaceholder);
-        }
         [state save];
-        [self scheduleReload];
+        if (reload) {
+            [self scheduleReload];
+        }
         if (sweep) {
             NSArray<NSString *> *keep = @[state.trackKey ?: @"", outgoingKey ?: @""];
             for (NSURL *url in [VibeWidgetState imageURLsNotForTrackKeys:keep]) {
@@ -429,12 +412,18 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     _reloadQueued = YES;
     dispatch_async(_queue, ^{
         self->_reloadQueued = NO;
-        if (self->_reloadHeld) {
-            self->_reloadOwed = YES;    // sent when the hold ends
-            return;
-        }
         [VibeWidgetReloaderClass() reload];
     });
+}
+
+// Main, as a write is enqueued: whether that write sends the reload itself,
+// or an open hold owes it.
+- (BOOL)reloadAfterWrite {
+    if (_holdingReload) {
+        _reloadOwed = YES;
+        return NO;
+    }
+    return YES;
 }
 
 // Main. Restarted by every track change, so a run of skips reloads once, when
@@ -442,9 +431,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 - (void)beginReloadHold {
     _holdingReload = YES;
     NSUInteger generation = ++_reloadHoldGeneration;
-    dispatch_async(_queue, ^{
-        self->_reloadHeld = YES;
-    });
     __weak WidgetPublisher *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWidgetTrackChangeHold * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -465,14 +451,13 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         return;
     }
     _holdingReload = NO;
-    // Queued behind every write the hold covered, so the reload follows them.
-    dispatch_async(_queue, ^{
-        self->_reloadHeld = NO;
-        if (self->_reloadOwed) {
-            self->_reloadOwed = NO;
+    if (_reloadOwed) {
+        _reloadOwed = NO;
+        // Queued behind every write the hold covered, so the reload follows them.
+        dispatch_async(_queue, ^{
             [self scheduleReload];
-        }
-    });
+        });
+    }
 }
 
 // Republished on a structural change or a seek, never on the tick that merely
@@ -516,7 +501,14 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     if (!_widgetPlaced) {
         return;     // nothing was ever written, so nothing claims a track
     }
-    [self endReloadHoldForGeneration:_reloadHoldGeneration];
+    // Strips the empty state never shows are not worth waiting for.
+    if (_pendingBake) {
+        dispatch_block_cancel(_pendingBake);
+    }
+    // A hold with no deadline: every write from here owes its reload to the
+    // one sent below.
+    _holdingReload = YES;
+    _reloadHoldGeneration++;
     if (_published.hasTrack) {
         VibeWidgetState *empty = [[VibeWidgetState alloc] init];
         empty.theme = _theme;
@@ -524,25 +516,33 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         _publishedTrack = nil;
         [self commitState:empty artwork:nil writeArtwork:NO];
     }
-    // Three deep: the hold's end can enqueue a reload, which enqueues its send.
-    dispatch_sync(_queue, ^{});
-    dispatch_sync(_queue, ^{});
-    dispatch_sync(_queue, ^{});
+    BOOL reload = _reloadOwed;
+    _reloadOwed = NO;
+    // Behind every queued write, so the widget's last read is the empty state.
+    dispatch_sync(_queue, ^{
+        if (reload) {
+            [VibeWidgetReloaderClass() reload];
+        }
+    });
 }
 
-#pragma mark - The theme
+#pragma mark - Settings
 
-- (void)themeDidChange {
-    // Not captured while nobody looks: republish captures it when one appears.
-    if (!_widgetPlaced || ![self captureTheme] || !_published) {
+- (void)settingsDidChange {
+    // Not captured while nobody looks: republish captures and bakes when one
+    // appears.
+    if (!_widgetPlaced) {
         return;
     }
-    // A copy: the snapshot in _published may still be on its way to disk.
-    VibeWidgetState *next = [_published copy];
-    next.theme = _theme;
-    _published = next;
-    [self commitState:next artwork:nil writeArtwork:NO];
-    [self bakeWaveformIfNeeded];    // a light-side surface needs its own strip
+    if ([self captureTheme] && _published) {
+        // A copy: the snapshot in _published may still be on its way to disk.
+        VibeWidgetState *next = [_published copy];
+        next.theme = _theme;
+        _published = next;
+        [self commitState:next artwork:nil writeArtwork:NO];
+    }
+    // After the theme, since whether the strip needs a light half follows it.
+    [self bakeWaveformIfNeeded];
 }
 
 #if TARGET_OS_OSX
@@ -581,38 +581,18 @@ static NSDictionary *VibeWidgetPalette(AppTheme *theme, BOOL isDark) {
     return palette;
 }
 
-// A glyph the theme changed from the factory's, if this macOS draws it — the
-// window falls back to the factory glyph for a name it has no symbol for, and
-// the widget's own glyph is that fallback.
+// The glyph the window draws, when the theme changed it from the factory's;
+// nil is the widget's own glyph, which is the factory one.
 static NSString *VibeWidgetGlyph(NSString *glyph, NSString *factory) {
-    if (!glyph.length || [glyph isEqualToString:factory]
-            || ![NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil]) {
-        return nil;
-    }
-    return glyph;
+    NSString *resolved = glyph.length ? [AppTheme resolvedGlyph:glyph factory:factory] : factory;
+    return [resolved isEqualToString:factory] ? nil : resolved;
 }
 
-// The window's no-artwork image as one appearance draws it, at the cover's
-// published size. The theme's image is a dynamic wrapper that picks its side
-// by the drawing appearance, so each side is drawn under its own.
-static CGImageRef VibeWidgetPlaceholder(AppTheme *theme, NSAppearanceName appearance) CF_RETURNS_RETAINED {
-    NSImage *image = theme.resolvedDefaultArtworkImage;
-    NSInteger side = (NSInteger)kWidgetArtworkSide;
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-            pixelsWide:side pixelsHigh:side bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES
-            isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
-    NSGraphicsContext *context = rep ? [NSGraphicsContext graphicsContextWithBitmapImageRep:rep] : nil;
-    if (!image || !context) {
-        return NULL;
-    }
-    [NSGraphicsContext saveGraphicsState];
-    NSGraphicsContext.currentContext = context;
-    [[NSAppearance appearanceNamed:appearance] performAsCurrentDrawingAppearance:^{
-        [image drawInRect:NSMakeRect(0, 0, side, side) fromRect:NSZeroRect
-                operation:NSCompositingOperationCopy fraction:1];
-    }];
-    [NSGraphicsContext restoreGraphicsState];
-    return CGImageRetain(rep.CGImage);
+// One side's no-artwork image, at the cover's published size.
+static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED {
+    NSImage *image = [[AppTheme imageForReference:reference]
+            resizedImage:NSMakeSize(kWidgetArtworkSide, kWidgetArtworkSide)];
+    return CGImageRetain(VibeCGImageOfImage(image));
 }
 #endif
 
@@ -632,29 +612,32 @@ static CGImageRef VibeWidgetPlaceholder(AppTheme *theme, NSAppearanceName appear
                                                         kVibeThemePauseButtonGlyphDefault);
     theme[kVibeWidgetThemeNextGlyph]  = VibeWidgetGlyph(appTheme.nextButtonGlyph,
                                                         kVibeThemeNextButtonGlyphDefault);
-    NSString *placeholderSignature = [NSString stringWithFormat:@"%@|%@|%d",
-            [appTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
-            [appTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
-            appTheme.isSingleMode];
+    // The light image only for a light surface, the one place it is drawn.
+    // References, not images: single mode already answers the dark one for
+    // the light slot.
+    NSString *darkReference = [appTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark];
+    NSString *lightReference = theme[kVibeWidgetThemeLight][kVibeWidgetColorBackground]
+            ? [appTheme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight] : nil;
+    NSString *placeholderSignature = [NSString stringWithFormat:@"%@|%@", darkReference, lightReference];
     BOOL themeMoved = ![theme isEqualToDictionary:_theme ?: @{}];
     BOOL placeholderMoved = !VibeNowPlayingStringsEqual(placeholderSignature, _placeholderSignature);
     _theme = theme;
     if (placeholderMoved) {
         _placeholderSignature = placeholderSignature;
-        _placeholdersOwed = YES;
+        // Drawn on main, like the cover, and written ahead of the commit that
+        // follows every move, whose reload shows them.
+        CGImageRef dark = VibeWidgetPlaceholder(darkReference);
+        CGImageRef light = lightReference ? VibeWidgetPlaceholder(lightReference) : NULL;
+        dispatch_async(_queue, ^{
+            VibeWidgetWriteImage(dark, [VibeWidgetState placeholderURLForDark:YES]);
+            VibeWidgetWriteImage(light, [VibeWidgetState placeholderURLForDark:NO]);
+            CGImageRelease(dark);
+            CGImageRelease(light);
+        });
     }
     return themeMoved || placeholderMoved;
 #else
     return NO;
-#endif
-}
-
-// Main: dark into [0], light into [1], +1 each.
-- (void)drawPlaceholders:(CGImageRef _Nullable [_Nonnull 2])placeholders {
-#if TARGET_OS_OSX
-    AppTheme *appTheme = AppSettings.sharedInstance.currentTheme;
-    placeholders[0] = VibeWidgetPlaceholder(appTheme, NSAppearanceNameDarkAqua);
-    placeholders[1] = VibeWidgetPlaceholder(appTheme, NSAppearanceNameAqua);
 #endif
 }
 
@@ -674,32 +657,33 @@ static CGImageRef VibeWidgetPlaceholder(AppTheme *theme, NSAppearanceName appear
     }
 }
 
-// A settings change re-bakes only when it moved something the bake reads.
-// TRAP: the posters include the gain slider, which is
-// continuous and documents that it is deliberately unthrottled *because every
-// consumer compares equal and does nothing*. A bake is two renders, two PNG
-// encodes and two file writes, so this consumer has to honour that contract or
-// a one-second drag queues a hundred of them.
-- (void)displaySettingsDidChange {
-    [self bakeWaveformIfNeeded];
+// The cover's dominant colour, for the album_art theme; nil until the art
+// decodes, or for art too gray to read. Memoized per image: the bake is asked
+// on every tick of a settings slider, and each answer resamples the cover.
+- (VibeColor *)artworkColor {
+    VibeImage *art = _publishedTrack.cachedArt;
+    if (!art) {
+        return nil;
+    }
+    if (art != _artworkColorImage) {
+        _artworkColorImage = art;
+        _artworkColor = VibeDominantColorOfImage(art);
+    }
+    return _artworkColor;
 }
 
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
-    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack) {
+    // _widgetPlaced before the signature is taken, so the bake is still owed.
+    if (!waveform || _waveformTrack != _publishedTrack || !_widgetPlaced) {
         return;
-    }
-    if (!_widgetPlaced) {
-        return;     // before the signature is taken, so the bake is still owed
     }
     AppSettings *settings = AppSettings.sharedInstance;
     // The widget's own background is dark, so the strip resolves dark — there
     // is no appearance to follow in a view this process does not own — except
     // a light strip beside it for a theme that paints the light-side surface.
-    // The artwork colour is nil until the art decodes, or for art too gray to
-    // read, and the album_art theme then resolves to Mono's until it does.
-    // A 32x32 downsample, and this runs on a track or settings change only.
-    VibeColor *artworkColor = VibeDominantColorOfImage(_publishedTrack.cachedArt);
+    // With no artwork colour the album_art theme resolves to Mono's.
+    VibeColor *artworkColor = self.artworkColor;
     WaveformTheme *lightTheme = nil;
 #if TARGET_OS_OSX
     // The window's waveform exactly: the theme's style, palette, gradient and
@@ -737,13 +721,13 @@ static CGImageRef VibeWidgetPlaceholder(AppTheme *theme, NSAppearanceName appear
     // The signature is the RESOLVED palette, not the inputs: a cover arriving
     // under a theme that ignores it changes nothing here and bakes nothing,
     // while under album_art it moves both colours and bakes once more.
-    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%d|%d|%.4f|%.4f|%.4f|%p",
+    // Nothing of the track: every track change clears it.
+    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%@|%@|%d|%d|%.4f|%.4f|%.4f",
                            style, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
                            VibeHexStringFromColor(lightTheme.playedColor) ?: @"",
                            VibeHexStringFromColor(lightTheme.unplayedColor) ?: @"",
-                           theme.flatFill, normalize, gainDB, barDensity, barWidth,
-                           (void *)_waveformTrack];
+                           theme.flatFill, normalize, gainDB, barDensity, barWidth];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }
@@ -754,49 +738,29 @@ static CGImageRef VibeWidgetPlaceholder(AppTheme *theme, NSAppearanceName appear
         dispatch_block_cancel(_pendingBake);
     }
     VibeWidgetState *state = _published;
+    BOOL reload = [self reloadAfterWrite];
     _pendingBake = dispatch_block_create(0, ^{
-        // 1 and 0: the whole envelope in each side's colours. The widget reveals
-        // the played one up to the playhead, which is what keeps a moving
-        // playhead free of a re-render.
-        [self writeWaveformImage:waveform progress:1 style:style theme:theme dark:YES
-                      barDensity:barDensity barWidth:barWidth
-                       normalize:normalize gainDB:gainDB toURL:state.waveformPlayedURL];
-        [self writeWaveformImage:waveform progress:0 style:style theme:theme dark:YES
-                      barDensity:barDensity barWidth:barWidth
-                       normalize:normalize gainDB:gainDB toURL:state.waveformUnplayedURL];
-        if (lightTheme) {
-            [self writeWaveformImage:waveform progress:1 style:style theme:lightTheme dark:NO
-                          barDensity:barDensity barWidth:barWidth
-                           normalize:normalize gainDB:gainDB toURL:state.waveformPlayedLightURL];
-            [self writeWaveformImage:waveform progress:0 style:style theme:lightTheme dark:NO
-                          barDensity:barDensity barWidth:barWidth
-                           normalize:normalize gainDB:gainDB toURL:state.waveformUnplayedLightURL];
+        // The whole envelope in each side's colours, played and unplayed. The
+        // widget reveals the played one up to the playhead, which is what
+        // keeps a moving playhead free of a re-render.
+        for (int strip = 0; strip < (lightTheme ? 4 : 2); strip++) {
+            BOOL played = (strip & 1) != 0;
+            BOOL light = (strip & 2) != 0;
+            CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
+                    identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
+                      progress:played ? 1 : 0 dark:!light theme:light ? lightTheme : theme
+                    barDensity:barDensity barWidth:barWidth normalize:normalize gainDB:gainDB];
+            VibeWidgetWriteImage(baked, [state waveformURLPlayed:played light:light]);
+            CGImageRelease(baked);
         }
         // The plist names nothing about the waveform, but the widget only
-        // re-renders when WidgetKit is told to, so the reload is the whole
-        // point of writing it.
-        [self scheduleReload];
+        // re-renders when WidgetKit is told to.
+        if (reload) {
+            [self scheduleReload];
+        }
     });
     dispatch_async(_queue, _pendingBake);
     [self endReloadHoldIfComplete];
-}
-
-- (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
-                     style:(NSString *)style theme:(WaveformTheme *)theme dark:(BOOL)isDark
-                barDensity:(double)barDensity barWidth:(double)barWidth
-                 normalize:(BOOL)normalize gainDB:(float)gainDB toURL:(NSURL *)url {
-    if (!url) {
-        return;
-    }
-    CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
-            identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
-              progress:progress dark:isDark theme:theme
-            barDensity:barDensity barWidth:barWidth normalize:normalize gainDB:gainDB];
-    NSData *png = VibeEncodedImageData(baked);   // PNG: the strip is transparent
-    if (baked) {
-        CGImageRelease(baked);
-    }
-    [png writeToURL:url atomically:YES];
 }
 
 #pragma mark - Artwork
