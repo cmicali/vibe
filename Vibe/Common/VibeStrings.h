@@ -538,6 +538,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_WIDGET_INTENT_PLAY    NSLS(@"widget.intent.play_pause", @"Play or Pause",      @"Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_NEXT    NSLS(@"widget.intent.next",      @"Next Track",          @"Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_SEEK    NSLS(@"widget.intent.seek",      @"Seek",                @"Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.")
+#define STR_WIDGET_EMPTY_CLICK    NSLS(@"widget.empty.click",      @"Click to open Vibe",  @"Mac desktop widget, shown when nothing is playing, where the track title would be: clicking the widget opens the app. Vibe is the app name. Keep it short — it sits beside a small artwork tile.")
+#define STR_WIDGET_EMPTY_TAP      NSLS(@"widget.empty.tap",        @"Tap to open Vibe",    @"iPhone and iPad home-screen widget, shown when nothing is playing, where the track title would be: tapping the widget opens the app. Vibe is the app name. Keep it short — it sits beside a small artwork tile.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"Settings and theme editor: heading above the time display settings, including total duration versus remaining time.")
 
 #define STR_SETTINGS_SECTION_FOLDER_SORT    NSLS(@"settings.section.folder_sort",    @"When opening a folder", @"iOS settings screen: heading above the choice of what order a folder's songs are added to the playlist in when that folder is opened.")

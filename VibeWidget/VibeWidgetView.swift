@@ -39,6 +39,15 @@ private let kSmallMinGap: CGFloat = 4
 // header's 54 — widen that spacing and the artist loses its descenders.
 private let kTextSize: CGFloat = 22
 
+// The empty state's line, worded for the platform's pointer. The keys and
+// English MUST match STR_WIDGET_EMPTY_CLICK and STR_WIDGET_EMPTY_TAP in
+// VibeStrings.h, for the reason VibeWidgetIntents.swift's TRAP gives.
+#if os(macOS)
+private let kEmptyHint = LocalizedStringResource("widget.empty.click", defaultValue: "Click to open Vibe")
+#else
+private let kEmptyHint = LocalizedStringResource("widget.empty.tap", defaultValue: "Tap to open Vibe")
+#endif
+
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var colorScheme
@@ -188,19 +197,35 @@ struct VibeWidgetView: View {
     // draw by.
     private var textLines: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(state?.title ?? "Vibe")
-                .font(.system(size: kTextSize, weight: .bold))
-                .foregroundStyle(themeColor(kVibeWidgetColorTitle) ?? .white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            if let artist = state?.artist, !artist.isEmpty {
-                Text(artist)
-                    .font(.system(size: kTextSize))
-                    .foregroundStyle(themeColor(kVibeWidgetColorArtist) ?? .white.opacity(0.7))
+            if let state {
+                Text(state.title ?? "")
+                    .font(.system(size: kTextSize, weight: .bold))
+                    .foregroundStyle(themeColor(kVibeWidgetColorTitle) ?? .white)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
+                if let artist = state.artist, !artist.isEmpty {
+                    Text(artist)
+                        .font(.system(size: kTextSize))
+                        .foregroundStyle(themeColor(kVibeWidgetColorArtist) ?? .white.opacity(0.7))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            } else {
+                emptyHint
             }
         }
+    }
+
+    // Nothing playing: the desktop header's drop hint, in its secondary style,
+    // saying the one thing a widget can do instead — a click anywhere on it
+    // opens the app. Two lines at most, so a long translation wraps before it
+    // shrinks.
+    private var emptyHint: some View {
+        Text(kEmptyHint)
+            .font(.system(size: kTextSize))
+            .foregroundStyle(themeColor(kVibeWidgetColorArtist) ?? .white.opacity(0.7))
+            .lineLimit(2)
+            .minimumScaleFactor(0.6)
     }
 
     private func artworkTile(side: CGFloat) -> some View {
