@@ -8,7 +8,7 @@
 //
 
 import CoreImage
-import CoreImage.CIFilterBuiltins
+import ImageIO
 import SwiftUI
 import WidgetKit
 
@@ -28,14 +28,15 @@ struct VibeEntry: TimelineEntry {
     let state: VibeWidgetState?
     // Decoded once per timeline and shared by every entry, rather than read
     // from disk per render: the same three files back all of them, and the
-    // extension's memory limit is small.
-    let artwork: UIImage?
+    // extension's memory limit is small. CGImage rather than either platform's
+    // image type, so this file and the view are one source for both.
+    let artwork: CGImage?
     // Pre-blurred once per timeline rather than per entry: the background is
     // pixel-identical across every entry, and a 40pt blur in a process with a
     // hard memory cap is not something to repeat 24 times for one result.
-    let blurredArtwork: UIImage?
-    let played: UIImage?
-    let unplayed: UIImage?
+    let blurredArtwork: CGImage?
+    let played: CGImage?
+    let unplayed: CGImage?
 
     static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
                                  blurredArtwork: nil, played: nil, unplayed: nil)
@@ -92,20 +93,20 @@ struct VibeProvider: TimelineProvider {
                          unplayed: image(state.waveformUnplayedURL))
     }
 
-    private func image(_ url: URL?) -> UIImage? {
-        guard let url, let data = try? Data(contentsOf: url) else { return nil }
-        return UIImage(data: data)
+    private func image(_ url: URL?) -> CGImage? {
+        guard let url, let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    private func blurred(_ artwork: UIImage) -> UIImage {
-        guard let input = CIImage(image: artwork),
-              let filter = CIFilter(name: "CIGaussianBlur",
+    private func blurred(_ artwork: CGImage) -> CGImage {
+        let input = CIImage(cgImage: artwork)
+        guard let filter = CIFilter(name: "CIGaussianBlur",
                                     parameters: [kCIInputImageKey: input,
                                                  kCIInputRadiusKey: 40]),
               let output = filter.outputImage,
               let cgImage = Self.blurContext.createCGImage(output, from: input.extent)
         else { return artwork }
-        return UIImage(cgImage: cgImage)
+        return cgImage
     }
 }
 

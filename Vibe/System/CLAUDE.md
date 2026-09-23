@@ -2,7 +2,7 @@
 
 Bridges to OS services that are neither the audio engine nor the app's UI. Both platforms drive everything here, and nothing here knows which one it is talking to beyond a `TARGET_OS_OSX` guard around an API that genuinely differs.
 
-Three residents, and the bar is the test all of them pass: **it talks to the system on the app's behalf, it holds no playback state of its own, and both targets need it.** Something only one platform can use belongs in that platform's directory; something with no OS service behind it is `Util/`.
+Four residents, and the bar is the test all of them pass: **it talks to the system on the app's behalf, it holds no playback state of its own, and both targets need it.** Something only one platform can use belongs in that platform's directory; something with no OS service behind it is `Util/`.
 
 ## NowPlayingController
 
@@ -19,6 +19,20 @@ The republish position rule is header-only in `NowPlayingRules.h`, tested — be
 **TRAP: the debug-only `--no-audio-hw` and `--no-now-playing` flags suppress all of it** — no publish, no command registration — because publishing can pull AirPods from another device even when rendering to a virtual output. `--no-now-playing` leaves hardware rendering enabled for loopback tests (`VIBE_NOW_PLAYING=0` in the launcher). Verifying this class needs a launch without either flag; under either one `dump_now_playing` reports `hasInfo: 0`. See the `vibe-debug` skill.
 
 **Nothing is published until the first track plays.** `updateWithTrack:…` withholds every publish before its first Playing one — a nil track, a parked or paused start alike — so an app launching into a restored session cannot claim the system slot; next/previous command availability is applied before that return regardless. After the first play a nil track clears the slot once.
+
+## The widget: WidgetPublisher, VibeWidgetState, the reloader and the intents
+
+The iOS Home Screen widget and the macOS desktop widget are one WidgetKit extension built per platform (`project.yml`'s `VibeWidgetBase` template; its views live in `VibeWidget/`, outside `Vibe/`, so no app target recurses them). The app side is here because it is `NowPlayingController`'s shape pointed at a second process: each shell's Now Playing publish hands `WidgetPublisher` the same instant it hands the system card (`PlaybackController+NowPlaying` on iOS, `MainPlayerController+NowPlaying` on the mac), plus the complete waveform envelope and, on the mac, a call from `applySettingsLiveEffects:` where iOS subscribes to its settings notification.
+
+- **The extension draws only what `WidgetPublisher` wrote.** It links no app class; `VibeWidgetState` (Foundation-only, compiled into both sides) is the whole contract: a plist naming the track, and three images named by that track's key, written images-first so a plist never names a file that has not landed.
+- **Writes are gated on a widget being placed**, and turned on by the extension's Darwin read signal, off only by WidgetKit's own answer (`refreshPlaced`, on iOS scene activation and mac app activation).
+- **A widget button runs in the app because the intents are `AudioPlaybackIntent`s** (`VibeWidgetIntents.swift`, compiled into the extension for the types and into each app for the bodies, behind `VIBE_APP`). Each shell waits for its launch open to settle before acting: iOS `PlaybackController.performWhenLaunchOpenSettled:`, mac `AppDelegate.performWhenLaunchOpenSettled:`.
+- **The publisher's only platform branches** are where the bake reads its inputs (iOS's loose waveform settings versus the mac's `currentTheme` plus Normalize and Gain) and who triggers a settings re-bake. Images cross to its queue as `CGImage`s taken on main, and encode through `PlatformImage.h`'s `VibeEncodedImageData`.
+- **`#import "Vibe-Swift.h"` names one header in both apps**: both products are `Vibe`, so the generated interface shares its name. The Swift in each app is only the reloader and the intent bodies; each target's `Vibe-Bridging-Header.h` says so.
+
+**TRAP: the app group is spelled differently per platform, and each spelling is the only one that works there** (`VibeWidgetState.m`). From macOS 15 a container is granted only to an App Store app, a profile-authorized group, or a team-prefixed one — and an extension that fails is denied silently, which draws an empty widget. The mac's is `4UEV752JH4.com.commonwealthrecordings.Vibe`, iOS's `group.com.commonwealthrecordings.Vibe`. **An ad-hoc signature carries no team**, so the default `make build` gets no container either: exercise the mac widget with `make build VIBE_SIGN_MAC=1` (the Makefile's signing TRAP). Both release scripts check the exported bundles still hold the group.
+
+The mac extension deploys to 26.0 (the intents' `supportedModes`), so the widget is absent below 26 while the app still runs on 13.
 
 ## DownloadProgressMonitor
 

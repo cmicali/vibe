@@ -11,6 +11,7 @@
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
+#import "WidgetPublisher.h"
 
 @implementation MainPlayerController (Delivery)
 
@@ -48,6 +49,11 @@
         return;
     }
     [self.trackDisplay showWaveform:waveform];
+    // Only the complete envelope: a widget strip is baked, not streamed. A
+    // replay's cache hit delivers 1.0 too, so no track starts without one.
+    if (percentLoaded >= 1) {
+        [self.widgetPublisher offerWaveform:waveform forTrack:self.playlistController.currentTrack];
+    }
 }
 
 // A delivery usually belongs to the current track, but a late one can land

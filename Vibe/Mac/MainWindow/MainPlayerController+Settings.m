@@ -22,6 +22,7 @@
 #import "MainPlayerContentView.h"
 #import "PitchControlPanel.h"
 #import "TrackDisplayController.h"
+#import "WidgetPublisher.h"
 
 @implementation MainPlayerController (Settings)
 
@@ -121,6 +122,11 @@
     }
     if (effects & VibeSettingsLiveEffectWaveformLevels) {
         [self.waveformView refreshWaveformLevels];
+    }
+    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
+                   | VibeSettingsLiveEffectWaveformLevels)) {
+        // A compare-and-return unless the strip's inputs moved; see its header.
+        [self.widgetPublisher displaySettingsDidChange];
     }
     if (effects & VibeSettingsLiveEffectWindowTint) {
         [self refreshWindowTint];

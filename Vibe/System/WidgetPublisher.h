@@ -1,8 +1,8 @@
 //
 //  WidgetPublisher.h
-//  Vibe (iOS)
+//  Vibe
 //
-//  What the home-screen widget is told, and the ONLY thing that writes the
+//  What the widget is told, and the ONLY thing that writes the
 //  shared app group. It is `System/NowPlayingController`'s shape pointed at a
 //  second process instead of at MPNowPlayingInfoCenter: the caller hands it
 //  what is playing, it decides whether that differs from what it last
@@ -14,7 +14,7 @@
 //  publishes is derived from what it is handed here, so nothing else needs to
 //  know the widget exists.
 //
-//  It writes only while a widget is placed. With none on any Home screen every
+//  It writes only while a widget is placed. With none placed anywhere every
 //  publish was two renders, two PNG encodes and ~220 KB of writes per track
 //  change for nobody, so the writes are gated on `widgetPlaced` — while the
 //  bookkeeping never is, so a widget that appears mid-track is handed the
@@ -33,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WidgetPublisher : NSObject
 
-// Whether at least one widget is on a Home screen, as last known. Turned off
+// Whether at least one widget is placed, as last known. Turned off
 // only by WidgetKit's own answer (refreshPlaced); turned on by that answer or
 // by the extension's read signal (kVibeWidgetReadNotification), whichever
 // comes first.
@@ -52,8 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 // scalars, a pointer compare and the two line compares, and no snapshot
 // object is built unless something is actually going to be published.
 //
-// `startPending` is the controller's `_trackStartPending`. While it is set the
-// player reports playing with a pinned position, so the seek detector is
+// `startPending` is the shell's "the open has not started the audio yet" —
+// iOS's `_trackStartPending`, the mac's Loading display state. While it is set
+// the player reports playing with a pinned position, so the seek detector is
 // skipped — otherwise a slow cloud open republishes every couple of seconds
 // for its whole duration with byte-identical content.
 - (void)updateWithTrack:(nullable AudioTrack *)track
@@ -67,9 +68,21 @@ NS_ASSUME_NONNULL_BEGIN
 // change that superseded it. Partial envelopes are the caller's to filter.
 //
 // The envelope is retained so a later settings change can re-bake without the
-// card being involved; that is the whole reason this object subscribes to
-// VibeDisplaySettingsDidChangeNotification itself.
+// card being involved.
 - (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
+
+// The app is quitting: republishes the snapshot as not playing and blocks
+// until every queued write and reload has landed. Without it the last
+// snapshot claims playback forever — the widget advances a playhead and
+// offers pause for an app that is gone — since nothing else will ever
+// publish again.
+- (void)publishStoppedForTermination;
+
+// Re-bakes the strip if a waveform setting moved; a no-op otherwise, so it is
+// safe to call on every settings change, continuous ones included. iOS
+// subscribes it to VibeDisplaySettingsDidChangeNotification itself; the mac
+// calls it from applySettingsLiveEffects:.
+- (void)displaySettingsDidChange;
 
 @end
 

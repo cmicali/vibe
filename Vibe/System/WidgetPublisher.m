@@ -1,6 +1,6 @@
 //
 //  WidgetPublisher.m
-//  Vibe (iOS)
+//  Vibe
 //
 //  See WidgetPublisher.h.
 //
@@ -14,12 +14,18 @@
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "PlatformColor.h"           // VibeHexStringFromColor, the palette signature
-#import "PlayerDisplaySettings.h"
-#import "UIImage+DominantColor.h"
-#import "Vibe-Swift.h"                 // VibeWidgetReloader; WidgetCenter has no ObjC API
+#import "PlatformImage.h"
+#import "Vibe-Swift.h"              // VibeWidgetReloader; WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
+
+#if TARGET_OS_OSX
+#import "AppSettings+Mac.h"
+#import "AppTheme.h"
+#else
+#import "PlayerDisplaySettings.h"
+#endif
 
 // How far the real playhead may drift from what the widget would extrapolate
 // before the snapshot is republished. It is a seek detector: playing straight
@@ -28,14 +34,15 @@
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 
 // The published artwork's longest side, in pixels. The widget draws it at 67pt
-// and again blurred as the background, so 256 is generous at 3x.
+// and again blurred as the background, so 256 is generous at 3x (2x on a Mac).
 static const CGFloat kWidgetArtworkSide = 256;
 
 // The strip the widget draws, in points; it stretches to whatever the widget
 // gives it, so only the ASPECT and the bar count really matter here. Baked to
 // the medium widget's shape, which is the taller of the two — the small
 // family's thinner strip scales down cleanly, where the reverse would stretch
-// the envelope's amplitude up. 3x because that is every current iPhone.
+// the envelope's amplitude up. 3x because that is every current iPhone, and a
+// Mac's 2x only scales it down.
 static const CGSize  kWidgetWaveformSize  = (CGSize){320, 64};
 static const CGFloat kWidgetWaveformScale = 3;
 
@@ -74,7 +81,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     // Queue-only: whether a reload is already enqueued behind the writes.
     BOOL                  _reloadQueued;
 
-    // Whether at least one widget is on a Home screen, as last known. Two
+    // Whether at least one widget is placed, as last known. Two
     // sources, because each can only be right about one direction: WidgetKit's
     // own answer (refreshPlaced) is authoritative but asked only at launch and
     // on foreground, so it is what turns this OFF; the extension's read signal
@@ -95,10 +102,14 @@ static const CGFloat kWidgetWaveformScale = 3;
         // writing the same two PNGs.
         _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
                                        DISPATCH_QUEUE_SERIAL);
+#if !TARGET_OS_OSX
+        // The mac shell calls displaySettingsDidChange from its live-effect
+        // funnel instead; its settings post no notification.
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(displaySettingsDidChange)
                                                    name:VibeDisplaySettingsDidChangeNotification
                                                  object:nil];
+#endif
         // The extension's "a widget just read the snapshot", on main so it is
         // ordered with everything else that touches _published.
         __weak WidgetPublisher *weakSelf = self;
@@ -173,7 +184,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     // The gate is folded in here rather than tested below so that a quiet tick
     // with no widget placed stays allocation-free: republish writes the art
     // fresh from the track when one appears, so nothing is owed meanwhile.
-    UIImage *artwork = track.cachedArt;
+    VibeImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
     BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
 
@@ -227,17 +238,22 @@ static const CGFloat kWidgetWaveformScale = 3;
 // name another track's; the sweep runs LAST and spares the outgoing track's
 // set, so an extension that read the previous plist a moment ago still finds
 // the images it names.
-- (void)commitState:(VibeWidgetState *)state artwork:(UIImage *)artwork
+- (void)commitState:(VibeWidgetState *)state artwork:(VibeImage *)artwork
        writeArtwork:(BOOL)writeArtwork {
     if (writeArtwork) {
         _artworkOnDisk = (artwork != nil);
     }
+    // Taken here, on main, and only the CGImage crosses to the queue: on the
+    // mac this is the NSImage the header is drawing, and NSImage is not safe
+    // to draw concurrently (the Now Playing artwork trap, System/CLAUDE.md).
+    CGImageRef cgArtwork = writeArtwork ? CGImageRetain(VibeCGImageOfImage(artwork)) : NULL;
     NSString *outgoingKey = _committedKey;
     _committedKey = state.trackKey;
     BOOL sweep = !VibeNowPlayingStringsEqual(outgoingKey, state.trackKey);
     dispatch_async(_queue, ^{
         if (writeArtwork) {
-            [self writeArtwork:artwork toURL:state.artworkURL];
+            [self writeArtwork:cgArtwork toURL:state.artworkURL];
+            CGImageRelease(cgArtwork);
         }
         [state save];
         [self scheduleReload];
@@ -302,6 +318,25 @@ static const CGFloat kWidgetWaveformScale = 3;
                                          CFAbsoluteTimeGetCurrent(), kWidgetPositionTolerance);
 }
 
+- (void)publishStoppedForTermination {
+    VibeWidgetState *last = _published;
+    if (_widgetPlaced && last.playing) {
+        VibeWidgetState *stopped = [[VibeWidgetState alloc] init];
+        stopped.hasTrack     = last.hasTrack;
+        stopped.title        = last.title;
+        stopped.artist       = last.artist;
+        stopped.trackKey     = last.trackKey;
+        stopped.duration     = last.duration;
+        stopped.position     = [last positionAtDate:[NSDate date]];
+        stopped.positionDate = [NSDate date];
+        _published = stopped;
+        [self commitState:stopped artwork:nil writeArtwork:NO];
+    }
+    // Twice: the commit enqueues its reload behind itself.
+    dispatch_sync(_queue, ^{});
+    dispatch_sync(_queue, ^{});
+}
+
 #pragma mark - The waveform strip
 
 - (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
@@ -319,7 +354,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 // A settings change re-bakes only when it moved something the bake reads.
-// TRAP: the posters of this notification include the gain slider, which is
+// TRAP: the posters include the gain slider, which is
 // continuous and documents that it is deliberately unthrottled *because every
 // consumer compares equal and does nothing*. A bake is two renders, two PNG
 // encodes and two file writes, so this consumer has to honour that contract or
@@ -337,36 +372,50 @@ static const CGFloat kWidgetWaveformScale = 3;
         return;     // before the signature is taken, so the bake is still owed
     }
     AppSettings *settings = AppSettings.sharedInstance;
+    // The widget's own background is always dark, so it resolves dark — there
+    // is no appearance to follow in a view this process does not own. The
+    // artwork colour is nil until the art decodes, or for art too gray to
+    // read, and the album_art theme then resolves to Mono's until it does.
+    // A 32x32 downsample, and this runs on a track or settings change only.
+    VibeColor *artworkColor = VibeDominantColorOfImage(_publishedTrack.cachedArt);
+#if TARGET_OS_OSX
+    // The window's waveform exactly: the theme's style, palette, gradient and
+    // bar geometry, and the Normalize and Gain settings.
+    AppTheme *appTheme = settings.currentTheme;
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:appTheme.waveformStyle];
+    const BOOL normalize = settings.waveformNormalize;
+    const float gainDB = (float)settings.waveformGainDB;
+    const double barDensity = appTheme.waveformBarDensity;
+    const double barWidth = appTheme.waveformBarWidth;
+    WaveformTheme *theme = [WaveformTheme themeForAppTheme:appTheme isDark:YES
+                                              artworkColor:artworkColor];
+#else
     // The widget's own style when the user picked one, else the app's. nil
     // means "match app", and resolveStyleIdentifier: turns an unregistered or
     // absent identifier into the default either way.
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    // The app's scrubber draws the normalized mapping with no gain — Normalize
-    // and Gain are macOS settings (AppSettings+Mac.h) — and the strip matches it.
+    // The scrubber draws the normalized mapping with no gain and the style's
+    // own bars — Normalize, Gain and bar geometry are macOS settings — and the
+    // strip matches it.
     const BOOL normalize = YES;
     const float gainDB = 0;
-    VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
-    VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
-
-    // The widget's own background is always dark, so it resolves dark — there
-    // is no appearance to follow in a view this process does not own. The
-    // artwork colour is the cover's, memoized on the image by the page that
-    // installed it, so this read is free; nil until the art decodes, or for
-    // art too gray to read, and the album_art theme then resolves to Mono's
-    // until it does.
+    const double barDensity = 1;
+    const double barWidth = 1;
     WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
                                                       isDark:YES
-                                                artworkColor:_publishedTrack.cachedArt.vibeDominantColor
-                                                customPlayed:played
-                                              customUnplayed:unplayed];
+                                                artworkColor:artworkColor
+                                                customPlayed:[settings waveformCustomPlayedColorForDark:YES]
+                                              customUnplayed:[settings waveformCustomUnplayedColorForDark:YES]];
+#endif
     // The signature is the RESOLVED palette, not the inputs: a cover arriving
     // under a theme that ignores it changes nothing here and bakes nothing,
     // while under album_art it moves both colours and bakes once more.
-    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%d|%.4f|%p",
+    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%d|%d|%.4f|%.4f|%.4f|%p",
                            style, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
-                           normalize, gainDB, (void *)_waveformTrack];
+                           theme.flatFill, normalize, gainDB, barDensity, barWidth,
+                           (void *)_waveformTrack];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }
@@ -382,8 +431,10 @@ static const CGFloat kWidgetWaveformScale = 3;
         // the played one up to the playhead, which is what keeps a moving
         // playhead free of a re-render.
         [self writeWaveformImage:waveform progress:1 style:style theme:theme
+                      barDensity:barDensity barWidth:barWidth
                        normalize:normalize gainDB:gainDB toURL:state.waveformPlayedURL];
         [self writeWaveformImage:waveform progress:0 style:style theme:theme
+                      barDensity:barDensity barWidth:barWidth
                        normalize:normalize gainDB:gainDB toURL:state.waveformUnplayedURL];
         // The plist names nothing about the waveform, but the widget only
         // re-renders when WidgetKit is told to, so the reload is the whole
@@ -395,6 +446,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
                      style:(NSString *)style theme:(WaveformTheme *)theme
+                barDensity:(double)barDensity barWidth:(double)barWidth
                  normalize:(BOOL)normalize gainDB:(float)gainDB toURL:(NSURL *)url {
     if (!url) {
         return;
@@ -402,50 +454,58 @@ static const CGFloat kWidgetWaveformScale = 3;
     CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
             identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
               progress:progress dark:YES theme:theme
-            barDensity:1 barWidth:1 normalize:normalize gainDB:gainDB];
-    if (!baked) {
-        return;
+            barDensity:barDensity barWidth:barWidth normalize:normalize gainDB:gainDB];
+    NSData *png = VibeEncodedImageData(baked);   // PNG: the strip is transparent
+    if (baked) {
+        CGImageRelease(baked);
     }
-    UIImage *image = [UIImage imageWithCGImage:baked];
-    CGImageRelease(baked);
-    NSData *png = UIImagePNGRepresentation(image);   // PNG, not JPEG: the strip is transparent
-    if (png) {
-        [png writeToURL:url atomically:YES];
-    }
+    [png writeToURL:url atomically:YES];
 }
 
 #pragma mark - Artwork
 
-// The cover bounded to kWidgetArtworkSide on its longer edge, never enlarged.
-// Only a BOUND: the widget draws it scaledToFill and clipped, blurred or not,
-// so the square is cut where it is drawn and cutting it here too would only
-// throw pixels away twice.
-static UIImage *VibeWidgetBoundedArtwork(UIImage *artwork) {
-    CGSize source = artwork.size;
-    CGFloat longest = MAX(source.width, source.height);
+// The cover bounded to kWidgetArtworkSide on its longer edge, never enlarged,
+// and opaque so it encodes as JPEG. Only a BOUND: the widget draws it
+// scaledToFill and clipped, blurred or not, so the square is cut where it is
+// drawn and cutting it here too would only throw pixels away twice.
+static CGImageRef VibeWidgetBoundedArtwork(CGImageRef artwork) CF_RETURNS_RETAINED {
+    CGFloat width = CGImageGetWidth(artwork);
+    CGFloat height = CGImageGetHeight(artwork);
+    CGFloat longest = MAX(width, height);
     if (longest <= 0) {
-        return artwork;
+        return NULL;
     }
     CGFloat scale = MIN(1, kWidgetArtworkSide / longest);
-    CGSize bounded = CGSizeMake(round(source.width * scale), round(source.height * scale));
-    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
-    format.scale = 1;                 // the side is already in pixels
-    format.opaque = YES;
-    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:bounded
-                                                                              format:format];
-    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-        [artwork drawInRect:(CGRect){CGPointZero, bounded}];
-    }];
+    size_t boundedWidth = MAX(1, (size_t)round(width * scale));
+    size_t boundedHeight = MAX(1, (size_t)round(height * scale));
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = space ? CGBitmapContextCreate(NULL, boundedWidth, boundedHeight, 8, 0, space,
+                                                         (CGBitmapInfo)kCGImageAlphaNoneSkipLast) : NULL;
+    if (space) {
+        CGColorSpaceRelease(space);
+    }
+    if (!context) {
+        return NULL;
+    }
+    CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+    CGContextDrawImage(context, CGRectMake(0, 0, boundedWidth, boundedHeight), artwork);
+    CGImageRef bounded = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    return bounded;
 }
 
 // Removing the file for a track with no art is as load-bearing as writing one:
 // the widget draws whatever the plist names, and the file would otherwise
 // survive from an earlier decode of the same track.
-- (void)writeArtwork:(UIImage *)artwork toURL:(NSURL *)url {
+- (void)writeArtwork:(CGImageRef)artwork toURL:(NSURL *)url {
     if (!url) {
         return;
     }
-    NSData *jpeg = artwork ? UIImageJPEGRepresentation(VibeWidgetBoundedArtwork(artwork), 0.8) : nil;
+    CGImageRef bounded = artwork ? VibeWidgetBoundedArtwork(artwork) : NULL;
+    NSData *jpeg = VibeEncodedImageData(bounded);
+    if (bounded) {
+        CGImageRelease(bounded);
+    }
     if (jpeg) {
         [jpeg writeToURL:url atomically:YES];
     }

@@ -18,7 +18,6 @@
 
 import AppIntents
 import SwiftUI
-import UIKit
 import WidgetKit
 
 private let kCornerRadius: CGFloat = 8
@@ -56,6 +55,10 @@ struct VibeWidgetView: View {
         .containerBackground(for: .widget) { background }
     }
 
+    // The tinted modes — the mac desktop whenever a window covers it, the iOS
+    // tinted and clear Home Screens — remove this background and tint
+    // everything else; the images opt into keeping their pictures.
+    //
     // The desktop's header tint is the artwork's dominant colour washed behind
     // the text. Sampling one here would cost a decode per render, so the art
     // itself is blurred and dimmed instead — the same effect by a cheaper
@@ -64,7 +67,7 @@ struct VibeWidgetView: View {
         ZStack {
             Color.black
             if let blurred = entry.blurredArtwork {
-                Image(uiImage: blurred)
+                Image(decorative: blurred, scale: 1)
                     .resizable()
                     .scaledToFill()
                     .opacity(0.55)
@@ -169,7 +172,13 @@ struct VibeWidgetView: View {
     private func artworkTile(side: CGFloat) -> some View {
         Group {
             if let artwork = entry.artwork {
-                Image(uiImage: artwork).resizable().scaledToFill()
+                // The cover keeps its colours in the tinted modes — the mac
+                // desktop is in one whenever a window covers it, which is most
+                // of the time, and a tinted cover reads as a broken one.
+                Image(decorative: artwork, scale: 1)
+                    .resizable()
+                    .widgetAccentedRenderingMode(.fullColor)
+                    .scaledToFill()
             } else {
                 ZStack {
                     Color.white.opacity(0.08)
@@ -219,12 +228,17 @@ struct VibeWidgetView: View {
         GeometryReader { geometry in
             let progress = state.map { $0.progress(at: entry.date) } ?? 0
             ZStack(alignment: .leading) {
+                // Baked at 3x; the scale only matters for layout, which the
+                // resizable frame overrides.
                 if let unplayed = entry.unplayed {
-                    Image(uiImage: unplayed).resizable()
+                    Image(decorative: unplayed, scale: 3)
+                        .resizable()
+                        .widgetAccentedRenderingMode(.accentedDesaturated)
                 }
                 if let played = entry.played {
-                    Image(uiImage: played)
+                    Image(decorative: played, scale: 3)
                         .resizable()
+                        .widgetAccentedRenderingMode(.accentedDesaturated)
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }

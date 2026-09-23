@@ -157,6 +157,54 @@ settings:
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
 
+# What the two widget targets share; each adds only its platform block.
+#
+# Its own sources live OUTSIDE Vibe/, as Tests/ does and for the same reason:
+# the app targets recurse whole subsystem directories, so a file under Vibe/
+# would compile into the shipping apps as well. The shared ones are named file
+# by file, because the rest of Vibe/System/ is app-side code that reaches for
+# app classes.
+targetTemplates:
+  VibeWidgetBase:
+    type: app-extension
+    sources:
+      - path: VibeWidget
+        excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist", "**/*.entitlements"]
+      - path: Vibe/System/VibeWidgetState.h
+      - path: Vibe/System/VibeWidgetState.m
+      # Shared with the app, which owns the bodies (VIBE_APP). The extension
+      # needs the TYPES so its buttons can name them.
+      - path: Vibe/System/VibeWidgetIntents.swift
+      # Its catalog is VibeWidget/Localizable.xcstrings, picked up by the entry
+      # above — the widget.* subset `make strings` derives, never edited by
+      # hand. Why the widget needs its own: the TRAP in VibeWidgetIntents.swift.
+    info:
+      path: VibeWidget/Info.plist
+      properties:
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundleDisplayName: Vibe
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      groups: [vibe-version]
+      base:
+        PRODUCT_NAME: VibeWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe.Widget
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/VibeWidget/VibeWidget-Bridging-Header.h"
+        GCC_PREFIX_HEADER: ""                 # no app pch: this target links no app class
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: AppIntents.framework
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+
 targets:
   Vibe:
     type: application
@@ -376,7 +424,13 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited)"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
+        # The widget's reloader and intent bodies, as on iOS (see VibeiOS).
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/Mac/App/Vibe-Bridging-Header.h"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VIBE_APP"
     dependencies:
+      - target: VibeWidgetMac     # embedded into Contents/PlugIns/
+      - sdk: AppIntents.framework           # the widget's transport intents
       - sdk: AVFoundation.framework
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
@@ -547,16 +601,16 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CODE_SIGN_STYLE: Automatic
-        # The app group the widget reads through. The mac target has its own
-        # entitlements for the sandbox; this file exists only for that group,
-        # and the extension carries a matching copy.
+        # The app group the widget reads through; the extension carries a
+        # matching copy. The mac app's group is spelled differently
+        # (VibeWidgetState.m's TRAP).
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/iOS/Vibe.entitlements"
         # The target's Swift is the WidgetKit reloader and the widget's App
         # Intent bodies: WidgetCenter and AppIntents have no Objective-C API.
         # The bridging header is what lets the intents reach VibeiOSSceneDelegate
         # and PlaybackController; ObjC reaches the Swift through Vibe-Swift.h.
         SWIFT_VERSION: "5.0"
-        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/iOS/Widget/Vibe-Bridging-Header.h"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/iOS/Vibe-Bridging-Header.h"
         # VIBE_APP switches on the App Intent bodies in VibeWidgetIntents.swift,
         # which compiles into this target AND the extension; only this one can
         # link the classes they drive. settingPresets is none, so nothing sets
@@ -579,62 +633,39 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UniformTypeIdentifiers.framework
 
-  # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
-  # session, and it never opens an audio file. Everything it draws is the
-  # snapshot the app publishes into the shared app group, which is why its only
-  # shared sources are VibeWidgetState's pair — named file by file, because the
-  # rest of Vibe/iOS/Widget/ is app-side code that reaches for app classes.
-  #
-  # Its own sources live OUTSIDE Vibe/, as Tests/ does and for the same reason:
-  # the app targets recurse whole subsystem directories, so a file under Vibe/
-  # would compile into the shipping apps as well. check-layout asserts the
-  # top level of Vibe/ is in BOTH app targets, which an iOS-only extension
-  # directory could never be.
+  # The widget: iOS home screen and macOS desktop, one extension built per
+  # platform from one template. A SECOND PROCESS: no engine, no playlist, no
+  # audio session, and it never opens an audio file. Everything it draws is the
+  # snapshot the app publishes into the shared app group.
   VibeWidget:
-    type: app-extension
+    templates: [VibeWidgetBase]
     platform: iOS
-    sources:
-      - path: VibeWidget
-        excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
-      - path: Vibe/iOS/Widget/VibeWidgetState.h
-      - path: Vibe/iOS/Widget/VibeWidgetState.m
-      # Shared with the app, which owns the bodies (VIBE_APP). The extension
-      # needs the TYPES so its buttons can name them.
-      - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
-      # Its catalog is VibeWidget/Localizable.xcstrings, picked up by the entry
-      # above — the widget.* subset `make strings` derives, never edited by
-      # hand. Why the widget needs its own: the TRAP in VibeWidgetIntents.swift.
-    info:
-      path: VibeWidget/Info.plist
-      properties:
-        CFBundleName: "$(PRODUCT_NAME)"
-        CFBundleDisplayName: Vibe
-        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
-        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        CFBundleDevelopmentRegion: "$(DEVELOPMENT_LANGUAGE)"
-        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
-      groups: [vibe-version]
       base:
-        PRODUCT_NAME: VibeWidget
-        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe.Widget
         SDKROOT: iphoneos
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         IPHONEOS_DEPLOYMENT_TARGET: "26.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/VibeWidget/VibeWidget.entitlements"
-        SWIFT_VERSION: "5.0"
-        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/VibeWidget/VibeWidget-Bridging-Header.h"
-        GCC_PREFIX_HEADER: ""                 # no app pch: this target links no app class
-        SKIP_INSTALL: YES
-    dependencies:
-      - sdk: AppIntents.framework
-      - sdk: SwiftUI.framework
-      - sdk: WidgetKit.framework
+
+  # 26.0, not the app's 13.0: the intents' supportedModes and
+  # continueInForeground are 26-only. The app still runs on 13; the widget is
+  # simply absent from the gallery below 26.
+  VibeWidgetMac:
+    templates: [VibeWidgetBase]
+    platform: macOS
+    settings:
+      base:
+        SDKROOT: macosx
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        # Ad-hoc, as the app is: CI has no credentials. WidgetKit loads only a
+        # sandboxed extension, and notarization rejects one without the
+        # hardened runtime.
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/VibeWidget/VibeWidgetMac.entitlements"
 
   # Not a test suite: the interactive touch driver for agentic workflows —
   # the iOS counterpart of the debug channel's key/click injection, which

@@ -35,6 +35,7 @@
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
+#import "WidgetPublisher.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MusicalKey.h"
 #import "MainPlayerController+NowPlaying.h"
@@ -178,6 +179,8 @@
     // updateUI funnel. Registering the command handlers now lets the media
     // keys route to us as soon as the first track starts playing.
     self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+    // The desktop widget, fed from the same publish (System/CLAUDE.md).
+    self.widgetPublisher = [[WidgetPublisher alloc] init];
 
     __weak MainPlayerController *weakSelf = self;
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{

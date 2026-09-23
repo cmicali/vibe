@@ -1,6 +1,6 @@
 //
 //  VibeWidgetState.m
-//  Vibe (iOS)
+//  Vibe
 //
 //  See VibeWidgetState.h.
 //
@@ -9,7 +9,18 @@
 
 #import <notify.h>
 
+// TRAP: the two platforms spell the group differently, and each spelling is
+// the only one that works there. From macOS 15 a container is granted only to
+// an App Store app, a group a provisioning profile authorizes, or a group
+// prefixed with the signing team's ID — and an extension that fails is denied
+// SILENTLY, which draws an empty widget. The Developer ID build carries no
+// profile, so the mac group is team-prefixed; iOS requires the group. form.
+// The entitlements files carry the same strings.
+#if TARGET_OS_OSX
+NSString *const kVibeWidgetAppGroup = @"4UEV752JH4.com.commonwealthrecordings.Vibe";
+#else
 NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
+#endif
 const char *const kVibeWidgetReadNotification = "com.commonwealthrecordings.Vibe.widget.read";
 
 static NSString *const kStateFileName = @"state.plist";

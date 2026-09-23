@@ -1,10 +1,10 @@
 //
 //  VibeWidgetReloader.swift
-//  Vibe (iOS)
+//  Vibe
 //
 //  The whole reason Swift is in this target: WidgetCenter has no Objective-C
 //  API, and nothing else can tell WidgetKit that a published snapshot is newer
-//  than what the home screen is showing.
+//  than what the widget is showing.
 //
 //  Keep it this small. Anything that can be written in Objective-C belongs in
 //  Objective-C, beside the code that already owns the concern.

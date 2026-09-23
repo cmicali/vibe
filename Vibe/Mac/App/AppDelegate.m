@@ -24,6 +24,7 @@
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
 #import "VibeStrings.h"
+#import "WidgetPublisher.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if DEBUG
@@ -57,6 +58,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // The live ⌘O panel, so repeated opens re-front it instead of stacking
     // independent panels whose completions each do a replacing play.
     NSOpenPanel *_openPanel;
+    // performWhenLaunchOpenSettled:'s waiters, and the latch that runs later
+    // ones at once. Set exactly once, at the end of the launch restore.
+    NSMutableArray<dispatch_block_t> *_launchOpenWaiters;
+    BOOL _launchOpenSettled;
 }
 
 - (instancetype)init {
@@ -151,7 +156,35 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyState];
         }];
+        [self settleLaunchOpen];
     }];
+}
+
+- (void)performWhenLaunchOpenSettled:(dispatch_block_t)block {
+    if (_launchOpenSettled) {
+        block();
+        return;
+    }
+    if (!_launchOpenWaiters) {
+        _launchOpenWaiters = [NSMutableArray array];
+    }
+    [_launchOpenWaiters addObject:[block copy]];
+}
+
+- (void)settleLaunchOpen {
+    _launchOpenSettled = YES;
+    NSArray<dispatch_block_t> *waiters = _launchOpenWaiters;
+    _launchOpenWaiters = nil;
+    for (dispatch_block_t waiter in waiters) {
+        waiter();
+    }
+}
+
+// The one moment a widget can have been REMOVED, since removing one means
+// leaving the app for the desktop. Adding one is covered by the extension's
+// read signal (WidgetPublisher.h).
+- (void)applicationDidBecomeActive:(NSNotification *)notification {
+    [self.mainPlayerController.widgetPublisher refreshPlaced];
 }
 
 // Opens file and directory paths passed as command-line arguments, as in:
@@ -323,6 +356,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
     [self.mainPlayerController saveLastPlaylist];
+    [self.mainPlayerController.widgetPublisher publishStoppedForTermination];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.

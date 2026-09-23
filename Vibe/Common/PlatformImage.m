@@ -5,6 +5,7 @@
 
 #import "PlatformImage.h"
 #import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -76,12 +77,40 @@ static const double kDominantVividFloor = 0.02;
 // bitmap type — is what lets one implementation serve both: NSBitmapImageRep
 // and UIImage's backing store agree on nothing, while CoreGraphics draws either
 // into a context we control the layout of.
-static CGImageRef VibeCGImageOfImage(VibeImage *image) {
+CGImageRef VibeCGImageOfImage(VibeImage *image) {
+    if (!image) {
+        return NULL;
+    }
 #if TARGET_OS_OSX
+    // Returns the backing CGImage directly for a CGImage-backed image, and
+    // rasterizes anything else.
     return [image CGImageForProposedRect:NULL context:nil hints:nil];
 #else
     return image.CGImage;
 #endif
+}
+
+NSData *VibeEncodedImageData(CGImageRef image) {
+    if (!image) {
+        return nil;
+    }
+    CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(image);
+    BOOL hasAlpha = !(alphaInfo == kCGImageAlphaNone ||
+                      alphaInfo == kCGImageAlphaNoneSkipFirst ||
+                      alphaInfo == kCGImageAlphaNoneSkipLast);
+    NSString *type = hasAlpha ? UTTypePNG.identifier : UTTypeJPEG.identifier;
+    NSMutableData *encoded = [NSMutableData data];
+    CGImageDestinationRef destination =
+        CGImageDestinationCreateWithData((__bridge CFMutableDataRef)encoded,
+                                         (__bridge CFStringRef)type, 1, NULL);
+    if (!destination) {
+        return nil;
+    }
+    NSDictionary *options = hasAlpha ? @{} : @{(id)kCGImageDestinationLossyCompressionQuality: @0.85};
+    CGImageDestinationAddImage(destination, image, (__bridge CFDictionaryRef)options);
+    BOOL finalized = CGImageDestinationFinalize(destination);
+    CFRelease(destination);
+    return finalized ? encoded : nil;
 }
 
 // The image downsampled to side x side, drawn into a context whose layout we

@@ -1,6 +1,6 @@
 //
 //  VibeWidgetState.h
-//  Vibe (iOS)
+//  Vibe
 //
 //  What the app publishes and the widget extension draws. COMPILED INTO BOTH
 //  TARGETS — the app writes, the extension reads — so it may import nothing

@@ -76,6 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readwrite, strong) AudioTrackMetadataCache *metadataCache;
 @property (readwrite, strong) AudioWaveformCache *waveformCache;
 @property (readwrite, strong) AudioFileConverter *fileConverter;
+@property (readwrite, strong) WidgetPublisher *widgetPublisher;
 
 // The system Now Playing bridge. The publish and command-routing code lives in
 // MainPlayerController+NowPlaying.

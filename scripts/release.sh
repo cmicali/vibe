@@ -17,8 +17,11 @@
 #                        is rejected by Gatekeeper if handed out directly, so
 #                        that pipeline cannot produce a shareable build.
 #
-# The app embeds no frameworks/helpers (see the empty Embed Frameworks phase),
-# so there is no nested code to sign — the archive/export handles everything.
+# The app embeds one piece of nested code, the desktop widget
+# (Contents/PlugIns/VibeWidget.appex). The export re-signs it inside-out with
+# its archived entitlements, so nothing here calls codesign on it;
+# require_widget_extension checks the result, since an extension that lost its
+# app group ships as an empty widget and nothing else would say so.
 #
 # ---------------------------------------------------------------------------
 # One-time prerequisites (this script only checks for them, it can't create them):
@@ -138,6 +141,31 @@ write_developer_id_export_options() {
 PLIST
 }
 
+# The exported widget: present, built for the same slices as the app, running
+# under the hardened runtime and the sandbox, and holding the team-prefixed
+# app group the app writes (VibeWidgetState.m's TRAP).
+WIDGET_APP_GROUP="$TEAM_ID.com.commonwealthrecordings.Vibe"
+widget_fail() {
+    echo "error: $*" >&2
+    exit 1
+}
+require_widget_extension() {
+    local app="$1"; shift
+    local appex="$app/Contents/PlugIns/VibeWidget.appex"
+    [[ -d "$appex" ]] || widget_fail "$appex is missing — the widget did not embed"
+    asc_require_binary_architectures "$appex/Contents/MacOS/VibeWidget" "$@"
+    codesign -dv "$appex" 2>&1 | grep -q 'flags=.*runtime' \
+        || widget_fail "$appex is not signed with the hardened runtime"
+    local entitlements
+    entitlements=$(codesign -d --entitlements - --xml "$appex" 2>/dev/null)
+    grep -q 'com.apple.security.app-sandbox' <<<"$entitlements" \
+        || widget_fail "$appex is not sandboxed — WidgetKit will not load it"
+    grep -q "$WIDGET_APP_GROUP" <<<"$entitlements" \
+        || widget_fail "$appex lacks the app group $WIDGET_APP_GROUP — the widget would draw empty"
+    grep -q "$WIDGET_APP_GROUP" <<<"$(codesign -d --entitlements - --xml "$app" 2>/dev/null)" \
+        || widget_fail "$app lacks the app group $WIDGET_APP_GROUP — it could not publish to the widget"
+}
+
 asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO
 asc_require_binary_architectures \
     "$ARCHIVE/Products/Applications/$PRODUCT.app/Contents/MacOS/$PRODUCT" \
@@ -146,6 +174,7 @@ write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
 asc_export_archive "Developer ID, universal" developer-id
 asc_require_binary_architectures \
     "$UNIVERSAL_APP/Contents/MacOS/$PRODUCT" arm64 x86_64
+require_widget_extension "$UNIVERSAL_APP" arm64 x86_64
 
 # asc_generate_and_archive deliberately wipes BUILD_DIR, so the second archive
 # uses asc_archive directly and lives under the already-clean release tree.
@@ -161,6 +190,7 @@ asc_require_binary_architectures \
 write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
 asc_export_archive "Developer ID, arm64-only" developer-id
 asc_require_binary_architectures "$ARM64_APP/Contents/MacOS/$PRODUCT" arm64
+require_widget_extension "$ARM64_APP" arm64
 
 # ---------------------------------------------------------------------------
 # Notarize + staple each app, then package, sign and notarize its disk image.

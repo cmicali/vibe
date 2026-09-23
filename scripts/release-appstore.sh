@@ -257,6 +257,28 @@ if [[ "$PLATFORM" == ios ]]; then
     esac
 fi
 
+# The mac payload's twin: the .pkg carries the desktop widget, and both it and
+# the app hold the team-prefixed group (VibeWidgetState.m's TRAP), which needs
+# no portal capability — but an export that dropped either would ship the same
+# blank widget.
+if [[ "$PLATFORM" == macos ]]; then
+    PKG_EXPANDED="$BUILD_DIR/pkg-expanded"
+    rm -rf "$PKG_EXPANDED"
+    pkgutil --expand-full "$UPLOAD_FILE" "$PKG_EXPANDED"
+    PKG_APP="$(find "$PKG_EXPANDED" -type d -name "$PRODUCT.app" -prune | head -1)"
+    PKG_APPEX="$PKG_APP/Contents/PlugIns/VibeWidget.appex"
+    [[ -d "$PKG_APPEX" ]] || {
+        echo "error: $UPLOAD_FILE carries no VibeWidget.appex" >&2
+        exit 1; }
+    MAC_GROUP="$TEAM_ID.com.commonwealthrecordings.Vibe"
+    for bundle in "$PKG_APP" "$PKG_APPEX"; do
+        grep -q "$MAC_GROUP" <<<"$(codesign -d --entitlements - --xml "$bundle" 2>/dev/null)" || {
+            echo "error: $bundle lacks the app group $MAC_GROUP — the widget would ship blank." >&2
+            exit 1; }
+    done
+    echo "🔊 app group   : held by the app and the widget"
+fi
+
 # ---------------------------------------------------------------------------
 # Validate — the same checks the upload runs, without submitting anything.
 # ---------------------------------------------------------------------------
