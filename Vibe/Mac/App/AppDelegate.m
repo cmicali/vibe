@@ -356,7 +356,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
     [self.mainPlayerController saveLastPlaylist];
-    [self.mainPlayerController.widgetPublisher publishStoppedForTermination];
+    [self.mainPlayerController.widgetPublisher publishEmptyForTermination];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.

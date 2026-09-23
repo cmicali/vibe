@@ -318,19 +318,12 @@ static const CGFloat kWidgetWaveformScale = 3;
                                          CFAbsoluteTimeGetCurrent(), kWidgetPositionTolerance);
 }
 
-- (void)publishStoppedForTermination {
-    VibeWidgetState *last = _published;
-    if (_widgetPlaced && last.playing) {
-        VibeWidgetState *stopped = [[VibeWidgetState alloc] init];
-        stopped.hasTrack     = last.hasTrack;
-        stopped.title        = last.title;
-        stopped.artist       = last.artist;
-        stopped.trackKey     = last.trackKey;
-        stopped.duration     = last.duration;
-        stopped.position     = [last positionAtDate:[NSDate date]];
-        stopped.positionDate = [NSDate date];
-        _published = stopped;
-        [self commitState:stopped artwork:nil writeArtwork:NO];
+- (void)publishEmptyForTermination {
+    if (_widgetPlaced && _published.hasTrack) {
+        VibeWidgetState *empty = [[VibeWidgetState alloc] init];
+        _published = empty;
+        _publishedTrack = nil;
+        [self commitState:empty artwork:nil writeArtwork:NO];
     }
     // Twice: the commit enqueues its reload behind itself.
     dispatch_sync(_queue, ^{});

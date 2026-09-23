@@ -71,12 +71,12 @@ NS_ASSUME_NONNULL_BEGIN
 // card being involved.
 - (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
 
-// The app is quitting: republishes the snapshot as not playing and blocks
-// until every queued write and reload has landed. Without it the last
-// snapshot claims playback forever — the widget advances a playhead and
-// offers pause for an app that is gone — since nothing else will ever
-// publish again.
-- (void)publishStoppedForTermination;
+// The app is quitting: publishes the empty snapshot and blocks until every
+// queued write and reload has landed. Without it the last snapshot outlives
+// the app — claiming playback forever, or, published as paused, offering a
+// track that a click relaunches into an empty playlist — since nothing else
+// will ever publish again.
+- (void)publishEmptyForTermination;
 
 // Re-bakes the strip if a waveform setting moved; a no-op otherwise, so it is
 // safe to call on every settings change, continuous ones included. iOS

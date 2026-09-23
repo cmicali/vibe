@@ -195,16 +195,19 @@ struct VibeWidgetView: View {
     // Play/pause is a filled disc and next a bare glyph: one primary action per
     // widget, which is what makes the row readable at a glance rather than a
     // strip of equal controls.
+    //
+    // The glyph is a hole in the disc, not a dark shape on it. TRAP: a black
+    // glyph over a white disc vanishes in the tinted modes, which recolour
+    // both to the same tint — the mac desktop whenever a window covers it. A
+    // cut-out shows whatever is behind the disc in every mode.
     private func playPauseButton(diameter: CGFloat) -> some View {
         Button(intent: VibePlayPauseIntent()) {
-            ZStack {
-                Circle().fill(.white.opacity(0.92))
-                Image(systemName: entry.state?.playing == true ? "pause.fill" : "play.fill")
-                    .font(.system(size: diameter * 0.4))
-                    .foregroundStyle(.black.opacity(0.85))
-            }
-            .frame(width: diameter, height: diameter)
-            .contentShape(Circle())
+            Image(systemName: entry.state?.playing == true ? "pause.circle.fill" : "play.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: diameter, height: diameter)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
