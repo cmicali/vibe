@@ -231,17 +231,19 @@ struct VibeWidgetView: View {
     private func artworkTile(side: CGFloat) -> some View {
         Group {
             if let artwork = entry.artwork {
-                // The cover keeps its colours in the tinted modes — the mac
-                // desktop is in one whenever a window covers it, which is most
-                // of the time, and a tinted cover reads as a broken one.
+                // In the tinted modes — the mac desktop whenever a window
+                // covers it — the cover goes grey like every other widget's
+                // pictures, rather than staying the one coloured thing on a
+                // monochrome desktop. Grey, not tinted: tinting a photo reads as
+                // a colour cast, which is what made the first version look broken.
                 Image(decorative: artwork, scale: 1)
                     .resizable()
-                    .widgetAccentedRenderingMode(.fullColor)
+                    .widgetAccentedRenderingMode(.desaturated)
                     .scaledToFill()
             } else if let placeholder {
                 Image(decorative: placeholder, scale: 1)
                     .resizable()
-                    .widgetAccentedRenderingMode(.fullColor)
+                    .widgetAccentedRenderingMode(.desaturated)
                     .scaledToFill()
             } else {
                 ZStack {
