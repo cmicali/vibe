@@ -131,20 +131,6 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
 
 #pragma mark - The source segment
 
-// Ordinary playback has one bus format for the engine's life: the mixer's
-// own, so the bus converts every file once and the mixer converts nothing.
-// Bit-perfect output wants the file's, so the device receives its samples.
-- (AVAudioFormat *)busFormatOnQueueForFile:(AVAudioFile *)file {
-#if TARGET_OS_OSX
-    if (_bitPerfectWanted) {
-        AVAudioFormat *source = file.processingFormat;
-        return [[AVAudioFormat alloc] initStandardFormatWithSampleRate:source.sampleRate channels:source.channelCount];
-    }
-#endif
-    AVAudioFormat *mixer = [_engine.mainMixerNode outputFormatForBus:0];
-    return [[AVAudioFormat alloc] initStandardFormatWithSampleRate:mixer.sampleRate channels:mixer.channelCount];
-}
-
 - (AVAudioFormat *)decodeFormatOnQueueForFile:(AVAudioFile *)file {
     AVAudioFormat *format = file.processingFormat;
 #if TARGET_OS_OSX
@@ -162,17 +148,20 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
     return format;
 }
 
-static BOOL VibeSameFormat(AVAudioFormat *a, AVAudioFormat *b) {
-    return a && b && a.sampleRate == b.sampleRate && a.channelCount == b.channelCount;
-}
-
 - (BOOL)ensureSourceSegmentOnQueueForFile:(AVAudioFile *)file rebuilt:(BOOL *)rebuilt {
     if (rebuilt) {
         *rebuilt = NO;
     }
-    BOOL wantsVarispeed = ![self leavesSamplesUntouchedOnQueue];
-    AVAudioFormat *busFormat = [self busFormatOnQueueForFile:file];
-    if (_voiceBus && VibeSameFormat(_voiceBus.format, busFormat) && (_varispeed != nil) == wantsVarispeed) {
+    // Bit-perfect output delivers each file at its own format, with no
+    // varispeed; ordinary playback has one bus format for the engine's life,
+    // the mixer's own, so the bus converts every file once and the mixer
+    // converts nothing.
+    BOOL bitPerfect = [self leavesSamplesUntouchedOnQueue];
+    AVAudioFormat *wanted = bitPerfect ? file.processingFormat : [_engine.mainMixerNode outputFormatForBus:0];
+    AVAudioFormat *busFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate
+                                                                              channels:wanted.channelCount];
+    if (_voiceBus && _voiceBus.format.sampleRate == busFormat.sampleRate
+            && _voiceBus.format.channelCount == busFormat.channelCount && (_varispeed == nil) == bitPerfect) {
         return YES;
     }
     // Every voice dies with the old segment; the callers made sure none was
@@ -204,7 +193,7 @@ static BOOL VibeSameFormat(AVAudioFormat *a, AVAudioFormat *b) {
     __weak AudioPlayer *weakSelf = self;
     bus.voiceWentLive = ^{ [weakSelf drainVoiceBusOnQueue]; };
     [_engine attachNode:bus.sourceNode];
-    if (wantsVarispeed) {
+    if (!bitPerfect) {
         _varispeed = [[AVAudioUnitVarispeed alloc] init];
         [_engine attachNode:_varispeed];
     }
@@ -289,7 +278,9 @@ static BOOL VibeSameFormat(AVAudioFormat *a, AVAudioFormat *b) {
 
 - (void)stopEngineOnQueue {
     [_engine stop];
-    [self killRetiringVoicesOnQueue];
+    for (NSNumber *voice in _retiringVoices) {
+        [_voiceBus killVoice:voice.unsignedLongLongValue];
+    }
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
 }
@@ -421,9 +412,7 @@ static BOOL VibeSameFormat(AVAudioFormat *a, AVAudioFormat *b) {
     _levelTap = nil;
     _engine = nil;
     [self refreshOutputAudioActiveOnQueue];
-    [_playOpenToken cancel];
-    _playOpenToken = nil;
-    _playOpenRequestId = 0;
+    [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];
     [_pendingRequest invalidate];
     [self clearSuccessorOnQueue];

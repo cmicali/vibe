@@ -27,13 +27,6 @@ enum {
     kFreeSlotReserve = 2,
 };
 
-typedef NS_ENUM(int32_t, VibeSlotState) {
-    VibeSlotFree = 0,
-    VibeSlotArmed,
-    VibeSlotLive,
-    VibeSlotDead,
-};
-
 typedef NS_ENUM(int32_t, VibeSuccessorState) {
     VibeSuccessorNone = 0,
     VibeSuccessorQueued,
@@ -61,7 +54,8 @@ typedef struct {
     _Atomic uint64_t generation;
     uint64_t armedWritten;
     uint64_t armedConsumed;
-    // Queue: free→armed, armed→dead. Decoder: armed→live. Audio thread: live→dead.
+    // A VibeVoiceState, None while the slot is free. Queue: free→armed,
+    // armed→dead. Decoder: armed→live. Audio thread: live→dead.
     _Atomic int32_t state;
     // Decoder. `written` is the ring's producer index, absolute for the slot's
     // life; `endOfStream` and `boundary` are absolute too, kUnset until known.
@@ -163,12 +157,12 @@ static inline void VibeStampWrite(VibeVoiceSlot *slot, AudioTimeStamp *field, co
 }
 
 static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSequence) CA_REALTIME_API {
-    int32_t expected = VibeSlotLive;
+    int32_t expected = VibeVoiceStateLive;
     int32_t none = VibeVoiceEndNone;
     atomic_compare_exchange_strong_explicit(&slot->endedReason, &none, reason,
                                             memory_order_relaxed, memory_order_relaxed);
     atomic_store_explicit(&slot->diedAtRender, renderSequence, memory_order_relaxed);
-    atomic_compare_exchange_strong_explicit(&slot->state, &expected, VibeSlotDead,
+    atomic_compare_exchange_strong_explicit(&slot->state, &expected, VibeVoiceStateDead,
                                             memory_order_release, memory_order_relaxed);
 }
 
@@ -189,7 +183,7 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
     BOOL mixed = NO;
     for (uint32_t s = 0; s < kVoiceSlots; s++) {
         VibeVoiceSlot *slot = &mix->slots[s];
-        if (atomic_load_explicit(&slot->state, memory_order_acquire) != VibeSlotLive) {
+        if (atomic_load_explicit(&slot->state, memory_order_acquire) != VibeVoiceStateLive) {
             continue;
         }
         // Adopt a new ramp from the current gain. Adoption un-pauses, which is
@@ -342,7 +336,6 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
     float gain;
     VibeVoiceRamp ramp;
     BOOL paused;
-    BOOL killed;
     BOOL readsStopped;
 }
 @end
@@ -507,7 +500,6 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 - (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat {
     AVAudioFormat *source = file.processingFormat;
     record->file = file;
-    record->decodeFormat = decodeFormat;
     record->converter = nil;
     record->readBuffer = nil;
     record->convertBuffer = nil;
@@ -539,7 +531,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 
 - (NSUInteger)freeSlot {
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
-        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeSlotFree) {
+        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeVoiceStateNone) {
             return s;
         }
     }
@@ -547,11 +539,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 }
 
 - (NSUInteger)freeSlotCount {
-    NSUInteger count = 0;
-    for (NSUInteger s = 0; s < kVoiceSlots; s++) {
-        count += atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeSlotFree;
-    }
-    return count;
+    return [self slotCountInState:VibeVoiceStateNone];
 }
 
 // A full pool is a skip storm with long crossfades. The oldest retiring voice
@@ -561,7 +549,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     uint64_t order = UINT64_MAX;
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         VibeVoiceRecord *record = _records[s];
-        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeSlotLive
+        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeVoiceStateLive
                 && record->retireOrder && record->retireOrder < order) {
             order = record->retireOrder;
             oldest = s;
@@ -601,8 +589,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // generation's release-store publishes it all.
 - (void)bindRecord:(VibeVoiceRecord *)record toSlot:(NSUInteger)slot {
     VibeVoiceSlot *s = &_mix->slots[slot];
-    int32_t expected = VibeSlotFree;
-    if (!atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeSlotArmed,
+    int32_t expected = VibeVoiceStateNone;
+    if (!atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeVoiceStateArmed,
                                                  memory_order_acq_rel, memory_order_relaxed)) {
         [self addPendingRecord:record atFront:YES];
         return;
@@ -633,7 +621,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
                            record->ramp.action, [self nextRampSequence]), memory_order_relaxed);
     [self setIdentifier:record->identifier forSlot:slot];
     atomic_store_explicit(&s->generation, record->identifier, memory_order_release);
-    if (record->killed || !prepared) {
+    if (!prepared) {
         // A converter that could not be made ends the voice at once; the
         // drain reports it ended, and the transport reports the file.
         [self killVoice:record->identifier];
@@ -701,7 +689,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-    if ((state != VibeSlotArmed && state != VibeSlotLive)
+    if ((state != VibeVoiceStateArmed && state != VibeVoiceStateLive)
             || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)
             || atomic_load_explicit(&s->successorState, memory_order_acquire) != VibeSuccessorNone) {
         return NO; // dead, retired at declick length, or already continuing
@@ -758,8 +746,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         return;
     }
     VibeVoiceSlot *s = &_mix->slots[slot];
-    int32_t armed = VibeSlotArmed;
-    if (atomic_compare_exchange_strong_explicit(&s->state, &armed, VibeSlotDead,
+    int32_t armed = VibeVoiceStateArmed;
+    if (atomic_compare_exchange_strong_explicit(&s->state, &armed, VibeVoiceStateDead,
                                                 memory_order_acq_rel, memory_order_relaxed)) {
         // The audio thread never saw it: no render has to pass before the
         // recycle, which the drain performs.
@@ -826,12 +814,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         if (atomic_load_explicit(&s->generation, memory_order_acquire) != generation) {
             continue;
         }
-        switch (state) {
-            case VibeSlotArmed: snapshot.state = VibeVoiceStateArmed; break;
-            case VibeSlotLive: snapshot.state = VibeVoiceStateLive; break;
-            case VibeSlotDead: snapshot.state = VibeVoiceStateDead; break;
-            default: snapshot.state = VibeVoiceStateNone; break;
-        }
+        snapshot.state = (VibeVoiceState)state;
         snapshot.consumed = consumed - armedConsumed;
         snapshot.written = written - armedWritten;
         snapshot.boundary = boundary == kUnset ? kUnset : boundary - armedWritten;
@@ -852,12 +835,9 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 }
 
 - (NSUInteger)slotCountInState:(VibeVoiceState)state {
-    int32_t wanted = state == VibeVoiceStateArmed ? VibeSlotArmed
-            : state == VibeVoiceStateLive ? VibeSlotLive
-            : state == VibeVoiceStateDead ? VibeSlotDead : VibeSlotFree;
     NSUInteger count = 0;
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
-        count += atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == wanted;
+        count += atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == state;
     }
     return count;
 }
@@ -874,12 +854,12 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
         VibeVoiceSlot *s = &_mix->slots[slot];
         int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-        if (state == VibeSlotFree) {
+        if (state == VibeVoiceStateNone) {
             continue;
         }
         VibeVoiceRecord *record = _records[slot];
         VibeVoiceID identifier = record->identifier;
-        if (state == VibeSlotArmed) {
+        if (state == VibeVoiceStateArmed) {
             if (!_inlineDecoding) {
                 [self scheduleFillForSlot:slot];
             }
@@ -898,7 +878,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             record->reportedBoundary = boundary;
             handler(identifier, VibeVoiceEventBoundary);
         }
-        if (state == VibeSlotLive) {
+        if (state == VibeVoiceStateLive) {
             if (!_inlineDecoding) {
                 uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
                         - atomic_load_explicit(&s->consumed, memory_order_relaxed);
@@ -967,7 +947,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     s->rampCurve = s->rampAction = 0;
     s->rampSequence = 0;
     s->consuming = 0;
-    atomic_store_explicit(&s->state, VibeSlotFree, memory_order_release);
+    atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
 }
 
 - (void)scheduleFillForSlot:(NSUInteger)slot {
@@ -1004,7 +984,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 - (void)fillInline {
     for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
         int32_t state = atomic_load_explicit(&_mix->slots[slot].state, memory_order_acquire);
-        if (state != VibeSlotArmed && state != VibeSlotLive) {
+        if (state != VibeVoiceStateArmed && state != VibeVoiceStateLive) {
             continue;
         }
         while ([self decodeChunkForSlot:slot]) {
@@ -1079,7 +1059,7 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-    if ((state != VibeSlotArmed && state != VibeSlotLive)
+    if ((state != VibeVoiceStateArmed && state != VibeVoiceStateLive)
             || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)) {
         return NO;
     }
@@ -1187,8 +1167,8 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     if (buffered < kLiveThresholdFrames && atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset) {
         return;
     }
-    int32_t expected = VibeSlotArmed;
-    if (atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeSlotLive,
+    int32_t expected = VibeVoiceStateArmed;
+    if (atomic_compare_exchange_strong_explicit(&s->state, &expected, VibeVoiceStateLive,
                                                 memory_order_acq_rel, memory_order_relaxed)
             && !_inlineDecoding && _voiceWentLive) {
         dispatch_async(_queue, _voiceWentLive);

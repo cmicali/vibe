@@ -257,6 +257,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 - (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
                             error:(nullable NSError *)error
                      openRequestId:(uint64_t)openId;
+// Drops the pending open, token and identifier both.
+- (void)cancelPlayOpenOnQueue;
 // The current track is done: natural end, or finishCurrentTrack.
 - (void)finishPlaybackOnQueue;
 - (void)stopOnQueue;
@@ -273,7 +275,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
-- (void)killRetiringVoicesOnQueue;
 
 // The writer model for the published tuple: this is the FULL-TUPLE publisher,
 // and the two unpublish variants are the only partial writers. Anything that

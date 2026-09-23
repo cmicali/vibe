@@ -72,28 +72,6 @@ static const float kDefaultMaxPitchPercent = 8.0f;
 // they already run on this exact player's queue.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
-@interface AudioPlayer ()
-- (instancetype)initWithDeviceUID:(NSString *)uid modelUID:(NSString *)modelUID name:(NSString *)name enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate loadingConfiguration:(AudioLoadingConfiguration *)configuration manualPump:(id)pump;
-// playOnQueue:'s phases; the ordering constraints between them are commented
-// there, at the call sites.
-- (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track
-                                    path:(NSString *)path
-                                  intent:(VibePendingPlaybackIntent)intent
-                 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
-- (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick;
-- (void)supersedePreviousOpenOnQueueForPath:(NSString *)path;
-- (BOOL)consumePrefetchedFileOnQueueForPath:(NSString *)path openRequestId:(uint64_t)openId;
-- (void)submitOpenOnQueueForTrack:(AudioTrack *)track openRequestId:(uint64_t)openId;
-- (void)cancelPlayOpenOnQueue;
-- (void)cancelPlayOpenForRequest:(uint64_t)openId;
-- (void)pauseOnQueue;
-- (void)resumeOnQueue;
-- (void)seekOnQueueToPosition:(NSTimeInterval)position intendedTrack:(AudioTrack *)intendedTrack
-     intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submittedAt:(uint64_t)submittedAt;
-- (void)finishPlaybackOnQueueRetiringVoice:(BOOL)retire;
-- (void)notifySeekFinishedOnQueue:(nullable AudioTrack *)track reason:(NSString *)reason submittedPlay:(uint64_t)play;
-@end
-
 @implementation AudioPlayer {
     float                   _maxPitch;
     AudioLoadingConfiguration *_loadingConfiguration;
@@ -322,9 +300,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 // successor request, try to rebind an identical in-flight play, retire the
 // current voice, commit to Loading, supersede the previous open, then either
 // consume a prefetched handle or admit a new one. The order is the
-// correctness; each phase's own reasoning is at its method, and the
-// constraints BETWEEN them are commented here, where the call sites are next
-// to each other.
+// correctness, so the constraints BETWEEN the phases are commented here,
+// where the call sites are next to each other.
 - (void)playOnQueue:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_terminating) return;
@@ -357,10 +334,20 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // retire the pre-Loading handoff a seek would otherwise still aim at.
     [self publishState:VibePlayerStateLoading voice:0 file:nil startSeconds:0 baseFrames:0];
     [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
-    [self supersedePreviousOpenOnQueueForPath:path];
-    // Loading is published above either way, so the fast path lands in the
-    // same state the slow one does — it just never arms an open's timers.
-    if ([self consumePrefetchedFileOnQueueForPath:path openRequestId:openId]) {
+    // Detach the previous play from its path claim and cancel any still-
+    // abortable materialization. A park from the previous playlist
+    // neighborhood must not compete with the foreground provider transfer; a
+    // same-path park stays.
+    [self cancelPlayOpenOnQueue];
+    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission playPath:path];
+    // A parked handle for this exact path skips the open entirely: ownership
+    // passes to the normal settlement with a fresh open id, and no timeout or
+    // loading-indicator timers ever exist. Loading is published above either
+    // way, so the fast path lands in the same state the slow one does.
+    if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
+        AVAudioFile *prefetchedFile = _prefetchedFile;
+        [self clearPrefetchOnQueue];
+        [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
         return;
     }
     [self submitOpenOnQueueForTrack:track openRequestId:openId];
@@ -407,27 +394,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:_incomingFadeMilliseconds];
-}
-
-// Detach the previous play from its path claim and cancel any still-abortable
-// materialization. A park from the previous playlist neighborhood must not
-// compete with the foreground provider transfer; a same-path park stays.
-- (void)supersedePreviousOpenOnQueueForPath:(NSString *)path {
-    [self cancelPlayOpenOnQueue];
-    [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySubmission playPath:path];
-}
-
-// A prefetched handle for this exact path skips the open entirely. Ownership
-// passes to the normal settlement with a fresh open id, and no timeout or
-// loading-indicator timers ever exist. YES means the play is finished.
-- (BOOL)consumePrefetchedFileOnQueueForPath:(NSString *)path openRequestId:(uint64_t)openId {
-    if (!_prefetchedFile || ![path isEqualToString:_prefetchedPath]) {
-        return NO;
-    }
-    AVAudioFile *prefetchedFile = _prefetchedFile;
-    [self clearPrefetchOnQueue];
-    [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
-    return YES;
 }
 
 // Open through the bounded interactive lane, and arm the two timers that bound
@@ -501,12 +467,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
 #if TARGET_OS_OSX
-    // Both gate themselves on the mode. A format switch stops the engine,
-    // which cuts any declick still fading — bit-perfect edges are cuts anyway.
+    // Gates itself on the mode. A format switch stops the engine, which cuts
+    // any declick still fading — bit-perfect edges are cuts anyway.
     [self prepareOutputOnQueueForFile:file];
-    if (_bitPerfectWanted) {
-        _incomingFadeMilliseconds = kFadeDurationMilliseconds;
-    }
 #endif
     if (![self ensureSourceSegmentOnQueueForFile:file rebuilt:NULL]) {
         [self resetToStoppedStateOnQueue];
@@ -907,27 +870,21 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         if (self->_state != VibePlayerStatePlaying && self->_state != VibePlayerStatePaused) {
             return; // Stopped has nothing to do; Loading has no voice yet.
         }
-        [self finishPlaybackOnQueueRetiringVoice:YES];
+        [self finishPlaybackOnQueue];
     });
 }
 
-- (void)finishPlaybackOnQueue {
-    [self finishPlaybackOnQueueRetiringVoice:NO];
-}
-
 // The shared terminus for "the current track is done": the natural end, whose
-// voice has already died, and finishCurrentTrack, whose voice may be at full
-// volume and fades. It marks the player Stopped and notifies the delegate,
-// whose handler drives auto-advance or the end-of-playlist stop. The engine
-// stop is deferred so that the auto-advance play, which arrives within
-// milliseconds, reuses the running engine.
-- (void)finishPlaybackOnQueueRetiringVoice:(BOOL)retire {
+// voice has already died and so retires as a no-op, and finishCurrentTrack,
+// whose voice may be at full volume and fades. It marks the player Stopped and
+// notifies the delegate, whose handler drives auto-advance or the
+// end-of-playlist stop. The engine stop is deferred so that the auto-advance
+// play, which arrives within milliseconds, reuses the running engine.
+- (void)finishPlaybackOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     VibeVoiceID voice = [self unpublishVoiceOnQueueEnteringTerminalState:VibePlayerStateStopped];
-    if (retire) {
-        [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
-    }
+    [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
     [self refreshOutputAudioActiveOnQueue];
 #if TARGET_OS_OSX
     [self resolvePendingSavedOutputDeviceOnQueue];
@@ -1004,12 +961,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     for (NSNumber *voice in _retiringVoices) {
         [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionRetire]
                   forVoice:voice.unsignedLongLongValue];
-    }
-}
-
-- (void)killRetiringVoicesOnQueue {
-    for (NSNumber *voice in _retiringVoices) {
-        [_voiceBus killVoice:voice.unsignedLongLongValue];
     }
 }
 
