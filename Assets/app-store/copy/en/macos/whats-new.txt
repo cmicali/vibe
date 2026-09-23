@@ -1,6 +1,9 @@
 This beta records more about what happens when a track starts, to track down
 a delay some USB speakers show with Exclusive output on.
 
+* Changed: with Bit-perfect output on, Vibe no longer fades or crossfades
+  anything. Tracks start, stop, pause and seek instantly, so every sample
+  reaches your device unchanged; a cut in the middle of a song may click.
 * Changed: with Bit-perfect output on and a 16-bit audio device, MP3 and AAC
   files are now decoded straight to 16-bit, so no conversion step remains
   between the decoder and the device.
