@@ -182,6 +182,22 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
 }
+// The tap delivers on its own thread, and the probe's poll rides the player's
+// clock, which the frame-driven pump advances only while frames render: on a
+// slow runner the signal can reach the tap after the last slice, with no poll
+// left to finish the capture. So wait for the tap thread to see it, then
+// render a poll's worth, and read the settled snapshot.
+- (NSDictionary *)settledSignalSnapshot {
+    __block NSDictionary *signal;
+    BOOL (^read)(void) = ^BOOL {
+        [self->_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+        return [signal[@"aboveThreshold"] boolValue];
+    };
+    [self settleUntil:read];
+    [self render:(NSUInteger)(_rate * 0.15)];
+    read();
+    return signal;
+}
 - (void)startPlayerAt:(double)rate channels:(NSUInteger)channels fx:(BOOL)fx bitPerfect:(BOOL)bitPerfect automatic:(BOOL)automatic {
     [_player debugShutdown]; _player = nil; [_events removeAllObjects]; _playError = nil; _chain = nil;
     _rate=rate; _channels=channels; _capture=[NSMutableData data];
@@ -726,11 +742,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player.levelsEnabled=YES;
     [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
     [self render:24000];
-    __block NSDictionary *signal;
-    [_player runSyncOnQueue:^{
-        AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
-        signal = [tap signalDiagnosticSnapshot];
-    }];
+    NSDictionary *signal = [self settledSignalSnapshot];
     XCTAssertEqualObjects(signal[@"status"], @"captured");
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
     XCTAssertEqualObjects(signal[@"completion"], @"first signal");
@@ -761,11 +773,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player play:next];
         [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
         [self render:(NSUInteger)((silence.doubleValue + 300) * _rate / 1000)];
-        __block NSDictionary *signal;
-        [_player runSyncOnQueue:^{
-            AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
-            signal = [tap signalDiagnosticSnapshot];
-        }];
+        NSDictionary *signal = [self settledSignalSnapshot];
         XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
         if (fx.boolValue) {
             XCTAssertGreaterThan([signal[@"observationStartMS"] doubleValue], 0); // the old track's fade, excluded
@@ -790,8 +798,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [_player prefetchTrack:next];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self render:48000 * 5];
-    __block NSDictionary *signal;
-    [_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+    NSDictionary *signal = [self settledSignalSnapshot];
     XCTAssertEqualObjects(_player.currentTrack, next);
     XCTAssertEqual([self count:@"advance"], 1u);
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue]);
@@ -806,8 +813,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [_player stop]; [self render:48000 * 7];
     XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
     [self play:[self fixture:@"quiet-intro-700.wav"] paused:NO position:0]; [self render:48000];
-    __block NSDictionary *signal;
-    [_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+    NSDictionary *signal = [self settledSignalSnapshot];
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue], @"%@", signal);
     XCTAssertEqualWithAccuracy([signal[@"firstSignalAfterStartMS"] doubleValue], 700, 2, @"%@", signal);
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 700, 2);
