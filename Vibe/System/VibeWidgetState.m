@@ -172,12 +172,16 @@ static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL li
     }
 }
 
-+ (void)noteWidgetDemand {
-    // The mark is for an app not running to hear the signal.
++ (void)markWidgetMayBePlaced {
     NSURL *mark = [self fileNamed:kWidgetMark];
     if (mark && ![NSFileManager.defaultManager fileExistsAtPath:mark.path]) {
         [NSData.data writeToURL:mark atomically:NO];
     }
+}
+
++ (void)noteWidgetDemand {
+    // The mark is for an app not running to hear the signal.
+    [self markWidgetMayBePlaced];
     notify_post(VibeWidgetDemandNotification());
 }
 

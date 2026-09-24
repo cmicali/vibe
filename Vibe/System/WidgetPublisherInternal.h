@@ -10,11 +10,24 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// VibeWidgetReloader's two class methods, for a class the mac only has as a
+// runtime lookup. `completion` may run on any queue.
+@protocol VibeWidgetReloading <NSObject>
++ (void)reload;
++ (void)queryPlaced:(void (^)(BOOL placed, NSError *_Nullable error))completion;
+@end
+
 @interface WidgetPublisher ()
 
-// The gate, as WidgetKit's answer (off) or the extension's demand signal (on)
-// moves it. Opening it runs activationHandler; closing it commits the empty
-// snapshot and releases everything publishing held.
+// Stands in for VibeWidgetReloader in every publisher created after it, nil
+// restoring it: the unit tests' WidgetKit, answering queries when and how
+// they choose.
++ (void)setReloaderClass:(nullable Class<VibeWidgetReloading>)reloaderClass;
+
+// The gate, as a current WidgetKit answer or the extension's demand signal
+// (on) moves it. Opening it, or confirming it while a track change awaits the
+// answer, runs activationHandler; closing it commits the empty snapshot and
+// releases everything publishing held.
 - (void)setWidgetPlaced:(BOOL)placed;
 
 // The one writer of the shared container, serial: tests hold it to stage a

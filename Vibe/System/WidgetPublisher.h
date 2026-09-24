@@ -17,8 +17,10 @@
 //  It publishes nothing while no widget is placed. With none placed anywhere
 //  every publish was two renders, two PNG encodes and ~220 KB of writes per
 //  track change for nobody, so every entry point returns at `widgetPlaced`
-//  before it keeps, builds, captures, draws or writes anything. A widget that
-//  appears mid-track gets the current track from the shell at once
+//  before it builds, captures, draws or writes anything, and nothing is kept
+//  alive: offerWaveform: only takes weak references, and the theme dictionary
+//  and placeholder signature are all that outlive a deactivation. A widget
+//  that appears mid-track gets the current track from the shell at once
 //  (activationHandler), not a copy the publisher kept while nobody looked.
 //  What stays for everyone is the object, its queue, one Darwin registration
 //  and a marker check at launch; the System doc lists what discovery costs.
@@ -52,11 +54,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Asks WidgetKit whether a widget is still placed, while one is (or the last
 // query failed): the shell calls it on every return to the foreground, when a
 // removal is most likely to have happened, since removing one means using the
-// desktop. A removal while the app stays in the background is found only
-// then, so publishing carries on until it. Adding one is covered by the demand
-// signal, so with none placed there is nothing to ask. init asks once if a
-// widget has rendered since WidgetKit last said none
-// (VibeWidgetState.widgetMayBePlaced), to learn of one placed before launch.
+// desktop. A removal while the app stays in the background is found at the
+// next track change instead: a widget re-renders after every reload, so one
+// that has sent no demand signal since the last track is asked about before
+// the new track's work starts. Adding one is covered by the demand signal, so
+// with none placed there is nothing to ask. init asks once if a widget has
+// rendered since WidgetKit last said none (VibeWidgetState.widgetMayBePlaced),
+// to learn of one placed before launch. Queries run one at a time, and an
+// answer to a question asked before the latest demand signal is dropped.
 - (void)refreshPlaced;
 
 // Called from the Now Playing publish, with the values that call already

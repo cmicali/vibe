@@ -71,20 +71,18 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
     }
 }
 
-// VibeWidgetReloader's two class methods, for a class the mac only has as a
-// runtime lookup.
-@protocol VibeWidgetReloading <NSObject>
-+ (void)reload;
-+ (void)queryPlaced:(void (^)(BOOL placed, NSError *_Nullable error))completion;
-@end
+static Class<VibeWidgetReloading> _Nullable gReloaderOverride;
 
 // The reloader, loaded on the mac the first time it is asked for — which is
 // only ever once a widget may exist (VibeWidgetState.widgetMayBePlaced, the
 // demand signal) — so an app that never had one never loads WidgetKit. Only
 // ever called on the publish queue, which reloads and queries, so the load
-// never blocks main. Nil only if the bundle failed to load, and every caller treats that as
-// "no WidgetKit to tell".
+// never blocks main. Nil only if the bundle failed to load, and every caller
+// treats that as "no WidgetKit to tell".
 static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
+    if (gReloaderOverride) {
+        return gReloaderOverride;
+    }
 #if TARGET_OS_OSX
     static Class reloader;
     static dispatch_once_t once;
@@ -161,17 +159,31 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
     // Whether at least one widget is placed, as last known. Two sources,
     // because each can only be right about one direction: WidgetKit's own
-    // answer (queryPlacedOnlyIfMarked:) is authoritative but asked only at
-    // launch and on foreground, so it is what turns this OFF; the extension's
-    // demand signal arrives the instant a placed widget renders, wherever the
-    // app is, so it is what turns it ON. While NO, every entry point returns at
-    // this flag before it keeps, computes or writes anything; activation asks
-    // the shell for the current state (activationHandler) instead.
+    // answer (queryPlacedOnlyIfMarked:) is authoritative but has to be asked,
+    // so it is what turns this OFF; the extension's demand signal arrives the
+    // instant a placed widget renders, wherever the app is, so it is what
+    // turns it ON. While NO, every entry point returns at this flag before it
+    // computes or writes anything; activation asks the shell for the current
+    // state (activationHandler) instead.
     BOOL                  _widgetPlaced;
+    // Whether a placed widget has confirmed itself — a demand signal or a
+    // positive answer — since the last track change was published. A widget
+    // re-renders after every reload, so one that has gone silent across a
+    // whole track is one that may have been removed while the app stayed in
+    // the background: the next track change asks before doing its work, and
+    // _awaitingPlacement holds all publishing until the answer.
+    BOOL                  _placementConfirmed;
+    BOOL                  _awaitingPlacement;
     // The last query failed, so the flag is a guess: the next foreground asks
     // again even while it reads NO.
     BOOL                  _placementUnresolved;
     int                   _readToken;
+    // Queue-only. Bumped by every demand signal, so an answer to a question
+    // asked before it is dropped (finishQueryFromGeneration:); and one query
+    // at a time, a request meanwhile asking once more after it.
+    NSUInteger            _placementGeneration;
+    BOOL                  _queryInFlight;
+    BOOL                  _queryAgain;
 
     dispatch_queue_t      _queue;
 }
@@ -193,13 +205,24 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
                                                    name:VibeDisplaySettingsDidChangeNotification
                                                  object:nil];
 #endif
-        // The extension's "a widget just read the snapshot", on main so it is
-        // ordered with everything else that touches _published.
+        // The extension's "a placed widget is rendering", on the publish queue
+        // first, so it is ordered with every query answer (the generation) and
+        // mark deletion, then on main with everything that touches _published.
         __weak WidgetPublisher *weakSelf = self;
         _readToken = NOTIFY_TOKEN_INVALID;
         notify_register_dispatch(VibeWidgetDemandNotification(), &_readToken,
-                                 dispatch_get_main_queue(), ^(int token) {
-            [weakSelf setWidgetPlaced:YES];
+                                 _queue, ^(int token) {
+            WidgetPublisher *strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            strongSelf->_placementGeneration++;
+            // A current "none" may have deleted the mark between the
+            // extension writing it and this signal; it is placed after all.
+            [VibeWidgetState markWidgetMayBePlaced];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [strongSelf setWidgetPlaced:YES];
+            });
         });
         // Asked only if a widget has rendered since WidgetKit last said none:
         // with none ever placed, launch loads nothing and asks nothing.
@@ -214,71 +237,122 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     }
 }
 
++ (void)setReloaderClass:(Class<VibeWidgetReloading>)reloaderClass {
+    gReloaderOverride = reloaderClass;
+}
+
 #pragma mark - Whether anyone is looking
 
 // Only while one is placed, or a failed query left that unknown: otherwise
 // nothing can turn the flag on but the demand signal, so there is nothing to
-// ask.
+// ask. The foreground is where a removal is likeliest to be seen, since
+// removing one means using the desktop; one while the app stays in the
+// background is found at the next track change (_placementConfirmed).
 - (void)refreshPlaced {
     if (_widgetPlaced || _placementUnresolved) {
         [self queryPlacedOnlyIfMarked:NO];
     }
 }
 
-// On the publish queue, never main: the mark check resolves the container,
-// which asks the container manager over XPC, and the first query loads
-// VibeWidgetCenter.bundle and with it WidgetKit and SwiftUI. Neither belongs
-// on a launch's main thread, and the answer is only ever a flag.
+// Everything a query does happens on the publish queue, never main: the mark
+// check resolves the container, which asks the container manager over XPC,
+// and the first query loads VibeWidgetCenter.bundle and with it WidgetKit and
+// SwiftUI. Neither belongs on a launch's main thread.
 - (void)queryPlacedOnlyIfMarked:(BOOL)onlyIfMarked {
-    __weak WidgetPublisher *weakSelf = self;
     dispatch_async(_queue, ^{
-        if (onlyIfMarked && !VibeWidgetState.widgetMayBePlaced) {
-            return;
-        }
-        Class<VibeWidgetReloading> reloader = VibeWidgetReloaderClass();
-        if (!reloader) {
-            return;     // nothing could be told anyway; the flag stays off
-        }
-        [reloader queryPlaced:^(BOOL placed, NSError *error) {
-            if (!placed && !error) {
-                // The next launch loads nothing until a widget renders again.
-                [VibeWidgetState forgetWidget];
-            }
-            dispatch_async(dispatch_get_main_queue(), ^{
-                WidgetPublisher *strongSelf = weakSelf;
-                if (!strongSelf) {
-                    return;
-                }
-                // A failure is no answer: keep the flag and the mark, and ask
-                // again on the next foreground.
-                strongSelf->_placementUnresolved = (error != nil);
-                if (!error) {
-                    [strongSelf setWidgetPlaced:placed];
-                }
-            });
-        }];
+        [self startQueryOnlyIfMarked:onlyIfMarked];
     });
 }
 
-- (void)setWidgetPlaced:(BOOL)placed {
-    if (_widgetPlaced == placed) {
+// Queue. One query at a time: a request while one is out asks once more
+// after it, for the answer as of then, rather than racing it.
+- (void)startQueryOnlyIfMarked:(BOOL)onlyIfMarked {
+    if (_queryInFlight) {
+        _queryAgain = YES;
         return;
     }
-    _widgetPlaced = placed;
-    LogInfo(@"Widget: %@", placed ? @"now publishing" : @"no widget placed; publishing stops");
-    if (placed) {
-        // Nothing was worked out while the gate was shut, so the shell hands
-        // over what is true now — a track change, from the widget's side,
-        // since the snapshot starts forgotten. A widget added while a track
-        // plays in the background renders once from whatever was on disk, its
-        // demand lands here, and the next render is current.
-        [self captureTheme];
-        if (self.activationHandler) {
-            self.activationHandler();
-        }
+    if (onlyIfMarked && !VibeWidgetState.widgetMayBePlaced) {
+        return;
     }
-    else {
-        [self deactivate];
+    Class<VibeWidgetReloading> reloader = VibeWidgetReloaderClass();
+    if (!reloader) {
+        return;     // nothing could be told anyway; the flag stays as it is
+    }
+    _queryInFlight = YES;
+    NSUInteger generation = _placementGeneration;
+    __weak WidgetPublisher *weakSelf = self;
+    [reloader queryPlaced:^(BOOL placed, NSError *error) {
+        WidgetPublisher *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        dispatch_async(strongSelf->_queue, ^{
+            [strongSelf finishQueryFromGeneration:generation placed:placed error:error];
+        });
+    }];
+}
+
+// Queue. TRAP: an answer is only as new as its question. A demand signal
+// while it was out means a widget rendered after the question was asked, so
+// the answer is dropped — mark and gate untouched. Applied late, a "none"
+// asked before a widget was placed shut the gate under it for good (its
+// empty timeline never asks again), and a "yes" landing after a newer "none"
+// turned publishing back on with nothing placed.
+- (void)finishQueryFromGeneration:(NSUInteger)generation placed:(BOOL)placed
+                            error:(nullable NSError *)error {
+    _queryInFlight = NO;
+    if (generation == _placementGeneration) {
+        if (!placed && !error) {
+            // The next launch loads nothing until a widget renders again.
+            [VibeWidgetState forgetWidget];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (error) {
+                // A failure is no answer: the flag and the mark stay, the next
+                // foreground asks again, and a publish held for this answer
+                // waits for that or for a widget to render.
+                self->_placementUnresolved = YES;
+            }
+            else {
+                self->_placementUnresolved = NO;
+                [self setWidgetPlaced:placed];
+            }
+        });
+    }
+    if (_queryAgain) {
+        _queryAgain = NO;
+        [self startQueryOnlyIfMarked:NO];
+    }
+}
+
+- (void)setWidgetPlaced:(BOOL)placed {
+    if (!placed) {
+        _awaitingPlacement = NO;
+        _placementConfirmed = NO;
+        if (_widgetPlaced) {
+            _widgetPlaced = NO;
+            LogInfo(@"Widget: no widget placed; publishing stops");
+            [self deactivate];
+        }
+        return;
+    }
+    _placementConfirmed = YES;
+    if (_widgetPlaced && !_awaitingPlacement) {
+        return;
+    }
+    if (!_widgetPlaced) {
+        LogInfo(@"Widget: now publishing");
+    }
+    _widgetPlaced = YES;
+    _awaitingPlacement = NO;
+    // Nothing was worked out while the gate was shut or the answer awaited, so
+    // the shell hands over what is true now — a track change, from the
+    // widget's side. A widget added while a track plays in the background
+    // renders once from whatever was on disk, its demand lands here, and the
+    // next render is current.
+    [self captureTheme];
+    if (self.activationHandler) {
+        self.activationHandler();
     }
 }
 
@@ -307,11 +381,24 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
                duration:(NSTimeInterval)duration
                 playing:(BOOL)playing
            startPending:(BOOL)startPending {
-    if (!_widgetPlaced) {
+    if (!_widgetPlaced || _awaitingPlacement) {
         return;
     }
-    VibeImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
+    if (trackChanged && track) {
+        if (!_placementConfirmed) {
+            // No widget has rendered since the last track went out: it may
+            // have been removed with the app in the background, where no
+            // foreground asks. So ask before this track's cover, strip and
+            // writes, and publish nothing until the answer — whose "yes"
+            // hands back to the shell for the state as of then.
+            _awaitingPlacement = YES;
+            [self queryPlacedOnlyIfMarked:NO];
+            return;
+        }
+        _placementConfirmed = NO;
+    }
+    VibeImage *artwork = track.cachedArt;
     // TRAP: cachedArt is nil until the artwork DECODES, so a track change
     // almost always arrives before there is any art — and writing nil deletes
     // the file. Keyed on the track alone, the cover was cleared and never
@@ -557,9 +644,9 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 #pragma mark - Settings
 
 - (void)settingsDidChange {
-    // Not captured while nobody looks: activation captures and bakes when one
-    // appears.
-    if (!_widgetPlaced) {
+    // Not captured while nobody looks, or while that is being asked:
+    // activation captures and bakes when the answer is yes.
+    if (!_widgetPlaced || _awaitingPlacement) {
         return;
     }
     if ([self captureTheme] && _published) {
@@ -704,8 +791,9 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
 
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
-    // _widgetPlaced before the signature is taken, so the bake is still owed.
-    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack || !_widgetPlaced) {
+    // The gate before the signature is taken, so the bake is still owed.
+    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack || !_widgetPlaced
+            || _awaitingPlacement) {
         return;
     }
     AppSettings *settings = AppSettings.sharedInstance;

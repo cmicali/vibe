@@ -111,6 +111,9 @@ extern NSString *const kVibeWidgetColorBackground;
 // left by a widget removed while the app was closed costs that one query.
 @property (class, nonatomic, readonly) BOOL widgetMayBePlaced;
 + (void)forgetWidget;
+// The app's half of noteWidgetDemand: a "none" deleting the mark can land
+// between the extension writing it and its signal arriving.
++ (void)markWidgetMayBePlaced;
 
 // A placed widget is rendering: marks the container and posts
 // VibeWidgetDemandNotification. The extension calls it for its timelines and

@@ -5,7 +5,9 @@
 //  The publisher's lifecycle against its real queue and container writes, in
 //  the per-run container TestFilesystemGuard redirects it to. No WidgetKit:
 //  the reloader bundle is absent from the test host, so reloads and queries
-//  are no-ops, and the gate is moved the way its two sources move it.
+//  are no-ops unless WidgetTestReloader stands in, holding every query for
+//  the test to answer in the order under test. The demand signal is the real
+//  Darwin notification, under the redirected container's own name.
 //
 
 #import <XCTest/XCTest.h>
@@ -14,6 +16,46 @@
 #import "NSURL+Hash.h"
 #import "VibeWidgetState.h"
 #import "WidgetPublisherInternal.h"
+
+// WidgetKit, as the tests' own: every query is held until a test answers it,
+// in whatever order the test chooses.
+@interface WidgetTestReloader : NSObject <VibeWidgetReloading>
+@end
+
+static NSMutableArray<void (^)(BOOL, NSError *)> *gHeldQueries;
+static NSUInteger gQueriesAsked;
+static NSUInteger gMostQueriesOut;
+
+@implementation WidgetTestReloader
+
++ (void)reload {
+}
+
++ (void)queryPlaced:(void (^)(BOOL, NSError *))completion {
+    @synchronized (self) {
+        [gHeldQueries addObject:completion];
+        gQueriesAsked++;
+        gMostQueriesOut = MAX(gMostQueriesOut, gHeldQueries.count);
+    }
+}
+
++ (NSUInteger)queriesOut {
+    @synchronized (self) {
+        return gHeldQueries.count;
+    }
+}
+
+// Answers the oldest query still out.
++ (void)answerPlaced:(BOOL)placed error:(NSError *)error {
+    void (^completion)(BOOL, NSError *);
+    @synchronized (self) {
+        completion = gHeldQueries.firstObject;
+        [gHeldQueries removeObjectAtIndex:0];
+    }
+    completion(placed, error);
+}
+
+@end
 
 @interface WidgetPublisherTests : XCTestCase
 @end
@@ -28,6 +70,13 @@
     for (NSURL *url in contents) {
         [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
     }
+    gHeldQueries = [NSMutableArray array];
+    gQueriesAsked = 0;
+    gMostQueriesOut = 0;
+}
+
+- (void)tearDown {
+    [WidgetPublisher setReloaderClass:nil];
 }
 
 static AudioTrack *WidgetTestTrack(NSString *name) {
@@ -37,6 +86,41 @@ static AudioTrack *WidgetTestTrack(NSString *name) {
 
 static void Drain(WidgetPublisher *publisher) {
     dispatch_sync(publisher.queue, ^{});
+}
+
+// Every hop settled: the queue, then main, then the queue again, since an
+// answer goes queue → main and a coalesced question main → queue.
+static void Settle(WidgetPublisher *publisher) {
+    for (int pass = 0; pass < 4; pass++) {
+        Drain(publisher);
+        [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+}
+
+// A placed widget rendering, through the real Darwin signal (under the tests'
+// own name), given the time notifyd takes to deliver it.
+static void WidgetRenders(WidgetPublisher *publisher) {
+    [VibeWidgetState noteWidgetDemand];
+    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+    Settle(publisher);
+}
+
+static BOOL SnapshotNamesTrack(AudioTrack *track) {
+    VibeWidgetState *state = [VibeWidgetState loadState];
+    return state.hasTrack && [state.trackKey isEqualToString:[track.url pathKey]];
+}
+
+// A publisher answering to the tests' WidgetKit whose activation hands over
+// whatever `current` answers, as a shell hands over its current track.
+static WidgetPublisher *ShellPublisher(AudioTrack *(^current)(void)) {
+    [WidgetPublisher setReloaderClass:WidgetTestReloader.class];
+    WidgetPublisher *publisher = [[WidgetPublisher alloc] init];
+    __weak WidgetPublisher *weakPublisher = publisher;
+    publisher.activationHandler = ^{
+        [weakPublisher updateWithTrack:current() position:0 duration:100
+                               playing:YES startPending:NO];
+    };
+    return publisher;
 }
 
 // A publisher whose gate is open, publishing `track` as playing from the shell
@@ -134,6 +218,123 @@ static WidgetPublisher *ActivePublisher(AudioTrack *track) {
     [publisher publishEmptyForTermination];
     XCTAssertFalse([VibeWidgetState loadState].hasTrack,
                    @"quit returned before the empty snapshot landed");
+}
+
+#pragma mark - Placement answers, in the order they arrive
+
+- (void)testAStaleNoneCannotShutTheGateUnderAWidgetPlacedAfterItWasAsked {
+    // A widget rendered once, so launch asks; the answer is held while a
+    // widget is placed and renders.
+    [VibeWidgetState markWidgetMayBePlaced];
+    __block AudioTrack *current = nil;
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u);
+    WidgetRenders(publisher);
+    XCTAssertTrue(publisher.widgetPlaced);
+    // The launch question's "none", asked before that widget existed.
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertTrue(publisher.widgetPlaced, @"a stale none shut the gate under a placed widget");
+    XCTAssertTrue(VibeWidgetState.widgetMayBePlaced, @"a stale none deleted the mark");
+    current = WidgetTestTrack(@"after-stale-none.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    Drain(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(current), @"playback after a stale none is not published");
+}
+
+- (void)testOneQueryAtATimeSoAnOlderYesCannotLandAfterANewerNone {
+    __block AudioTrack *current = WidgetTestTrack(@"coalesced.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Settle(publisher);
+    [publisher refreshPlaced];
+    [publisher refreshPlaced];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"a second question raced the first");
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"the request made meanwhile was not asked after");
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced);
+    XCTAssertFalse([VibeWidgetState loadState].hasTrack);
+    XCTAssertEqual(gMostQueriesOut, 1u);
+}
+
+- (void)testAFailedQueryIsNoAnswerAndTheNextForegroundAsksAgain {
+    [VibeWidgetState markWidgetMayBePlaced];
+    __block AudioTrack *current = WidgetTestTrack(@"failed.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    Settle(publisher);
+    [WidgetTestReloader answerPlaced:NO error:[NSError errorWithDomain:@"test" code:1 userInfo:nil]];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced, @"a failure turned publishing on");
+    XCTAssertTrue(VibeWidgetState.widgetMayBePlaced, @"a failure deleted the mark");
+    [publisher refreshPlaced];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"the foreground after a failure did not ask again");
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertTrue(publisher.widgetPlaced);
+    XCTAssertTrue(SnapshotNamesTrack(current));
+}
+
+#pragma mark - A widget removed while the app stays in the background
+
+- (void)testATrackChangeAfterTheWidgetWentSilentAsksBeforeItsWork {
+    __block AudioTrack *current = WidgetTestTrack(@"silent-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(current));
+    AudioTrack *first = current;
+    // The widget was removed; nothing renders; the next track comes.
+    current = WidgetTestTrack(@"silent-b.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    [publisher settingsDidChange];
+    [publisher updateWithTrack:current position:3 duration:100 playing:YES startPending:NO];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"the silent widget was not asked about");
+    XCTAssertTrue(SnapshotNamesTrack(first), @"the next track was published before the answer");
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced);
+    XCTAssertFalse([VibeWidgetState loadState].hasTrack, @"the removed widget's snapshot still claims a track");
+    // Nothing after the answer asks or writes.
+    current = WidgetTestTrack(@"silent-c.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    [publisher settingsDidChange];
+    Settle(publisher);
+    XCTAssertEqual(gQueriesAsked, 1u);
+    XCTAssertFalse([VibeWidgetState loadState].hasTrack);
+}
+
+- (void)testAHeldTrackChangePublishesTheCurrentTrackWhenTheWidgetIsStillThere {
+    __block AudioTrack *current = WidgetTestTrack(@"held-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    current = WidgetTestTrack(@"held-b.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    Settle(publisher);
+    current = WidgetTestTrack(@"held-c.wav");
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(current), @"the answer published a track the shell had moved past");
+}
+
+- (void)testAWidgetThatRendersSinceTheLastTrackCostsNoQuery {
+    __block AudioTrack *current = WidgetTestTrack(@"rendering-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    WidgetRenders(publisher);
+    current = WidgetTestTrack(@"rendering-b.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    Settle(publisher);
+    XCTAssertEqual(gQueriesAsked, 0u, @"a widget that rendered was asked about anyway");
+    XCTAssertTrue(SnapshotNamesTrack(current));
 }
 
 - (void)testReadingTheSnapshotSignalsNoWidget {
