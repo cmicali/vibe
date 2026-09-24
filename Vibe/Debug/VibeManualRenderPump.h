@@ -3,11 +3,13 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
-static const AVAudioFrameCount kVibeManualPumpMaxFrames = 4096;
+// Larger than the pipeline's slice, so a test can hand the render a cycle it
+// must slice, as a device with a big IO buffer would.
+static const AVAudioFrameCount kVibeManualPumpMaxFrames = 16384;
 // What the pump pulls: `count` frames into `chunk` (its frameLength set on
-// return), stamped `timestamp` on the pump's own timeline. The player hands
-// it the pipeline's render on macOS and the engine's offline render on iOS.
-typedef OSStatus (^VibeManualRenderBlock)(const AudioTimeStamp *timestamp, AVAudioPCMBuffer *chunk, AVAudioFrameCount count);
+// return). The player hands it the pipeline's render, which keeps its own
+// timeline.
+typedef OSStatus (^VibeManualRenderBlock)(AVAudioPCMBuffer *chunk, AVAudioFrameCount count);
 @interface VibeManualRenderPump : NSObject
 @property (nonatomic, readonly) AVAudioFormat *format;
 @property (nonatomic, readonly) BOOL automatic;

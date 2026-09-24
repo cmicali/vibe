@@ -347,10 +347,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // callbacks, FFT windows or display ticks. Geometry and layer-write
             // counters additionally require stable bounds and cell population.
             //
-            // `--silent` zeroes the mixer before this downstream tap and must
-            // therefore never be used to judge reactive motion. In contrast,
-            // `--no-audio-hw` can engage the manual renderer without zeroing
-            // the signal; the three launch facts make that distinction visible.
+            // `--silent` zeroes the output after the meter, so the bars are
+            // live under it and under `--no-audio-hw` alike; the three launch
+            // facts say which carrier produced the counters.
             VibeDebugCmd(@"dump_equalizer", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

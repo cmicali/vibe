@@ -134,6 +134,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         __weak AudioPlayer *weakPlayer = self;
         _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
+        } quiesce:^{
+            [weakPlayer waitForRenderToLeaveOnQueue];
         }] : nil;
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
@@ -176,11 +178,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (BOOL)drivesOutputDeviceOnQueue {
-#if TARGET_OS_OSX
-    return _outputUnit != nil;
-#else
-    return !_engine.isInManualRenderingMode;
-#endif
+    return _manualPump == nil; // under the pump there is no carrier on either platform
 }
 
 // The one home for the same-queue guard every synchronous accessor needs.
@@ -1397,11 +1395,9 @@ static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalization
         if (self->_levelNormalizationMode == normalizationMode) {
             return;
         }
-        [self removeLevelTapOnQueue];
+        [self dropLevelTapOnQueue];
         self->_levelNormalizationMode = normalizationMode;
-        if (self->_levelsWanted) {
-            [self applyLevelTapOnQueue];
-        }
+        [self applyLevelTapOnQueue];
     }];
 }
 

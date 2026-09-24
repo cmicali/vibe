@@ -12,17 +12,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-enum {
-    kVibeOutputUnitMaxChannels = 8,
-};
-
-// The callback's world. Writers: the queue (`gate`, the proc, the format
-// fields, between stop and start), the callback (everything else).
+// The callback's world. Writers: the queue (`gate`, the proc and the channel
+// count, between stop and start), the callback (everything else).
 typedef struct {
     _Atomic int32_t gate;           // 1 between start and stop
     _Atomic int32_t inRender;       // 1 while the callback is inside the struct
-    _Atomic uint64_t frames;        // engine-timeline frames rendered
-    _Atomic uint32_t pendingFrames; // the block in flight
     _Atomic uint64_t dropouts;
     // The callback's cost: IO cycles the gate was open for, the nanoseconds
     // spent inside the callback over them, and the longest one. Cumulative;
@@ -30,19 +24,14 @@ typedef struct {
     _Atomic uint64_t cycles;
     _Atomic uint64_t renderNanos;
     _Atomic uint64_t renderMaxNanos;
-    _Atomic uint32_t stampVersion;  // odd while the stamp is being written
-    AudioTimeStamp stamp;           // the device's stamp of the last cycle
     uint32_t channels;
-    uint32_t maxFrames;             // the largest pull the proc accepts; larger IO cycles are sliced
     VibeOutputRenderProc _Nullable renderProc;
     void * _Nullable renderRefCon;
-    AudioBufferList * _Nullable slice; // one buffer per channel, pointed into the HAL's buffers per slice
 } VibeOutputUnitState;
 
-// Allocates the slice list for `channels` and zeroes the frame counters.
-BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels, uint32_t maxFrames,
+// Records the proc for `channels`; NO for a format without any.
+BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels,
                                    VibeOutputRenderProc _Nullable renderProc, void * _Nullable renderRefCon);
-void VibeOutputUnitStateFree(VibeOutputUnitState *state);
 
 // The HAL render callback; refCon is the VibeOutputUnitState.
 OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,

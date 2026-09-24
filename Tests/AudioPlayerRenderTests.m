@@ -650,7 +650,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 
 - (void)testGaplessSplitSignalAcrossRenderBlocks {
     NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
-    for (NSNumber *block in @[@63,@256,@1024,@4096]) for (NSNumber *mode in @[@NO,@YES]) {
+    // 9000 frames is more than a slice: the render slices it as it would a
+    // device's larger IO cycle.
+    for (NSNumber *block in @[@63,@256,@1024,@4096,@9000]) for (NSNumber *mode in @[@NO,@YES]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO]; _blockSize=block.unsignedIntegerValue;
         NSMutableArray *tracks=[NSMutableArray array]; NSUInteger start=0;
         for (NSNumber *end in @[@20003,@48001,@72007,@96000]) {
@@ -844,7 +846,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
         tap = [self->_player debugLevelTap];
-        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
     [self render:192000];
@@ -869,7 +871,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
         XCTAssertFalse([tap pollSignalDiagnostics:request]);
         XCTAssertEqual(completed.count, 1u);
-        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, [signal[@"request"] unsignedLongLongValue]);
     }];
     [self render:16000];
@@ -889,7 +891,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block uint64_t request;
         [_player runSyncOnQueue:^{
             tap = [self->_player debugLevelTap];
-            request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         }];
         [self render:16000];
         [_player runSyncOnQueue:^{
@@ -897,7 +899,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertGreaterThan([partial[@"frames"] unsignedLongLongValue], 0u);
             XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
             if ([action isEqual:@"tap removed"]) [tap remove];
-            else [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            else [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
             XCTAssertEqual(completed.count, 1u);
             NSDictionary *result = completed.firstObject;
             XCTAssertEqualObjects(result[@"completion"], action);

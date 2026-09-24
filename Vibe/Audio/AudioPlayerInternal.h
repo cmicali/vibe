@@ -128,7 +128,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // ---- The render pipeline (AudioPlayer+Graph.m).
     VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated once, freed at dealloc
     AVAudioFormat           *_masterFormat;     // the pipeline's format: stereo at the output's rate
-    NSMutableArray          *_retiredRenderState; // objects a render would not leave in time, released at a later edge
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
     uint64_t                _outputIdleStopGeneration;
@@ -136,7 +135,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
 #if !TARGET_OS_OSX
     AVAudioEngine           *_engine;           // the carrier: one source node into its output node
-    AVAudioSourceNode       *_sourceNode;
 #endif
     // The equalizer's tap: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.

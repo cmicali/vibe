@@ -10,7 +10,6 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 #include <stdatomic.h>
-#include <unistd.h>
 
 // The low-kill cutoffs and the default tap tempo are in AudioFXMath.h, with
 // the functions that resolve them. The EQ runs two cascaded high-pass bands
@@ -47,15 +46,14 @@ static const float kReverbSendLevel = 0.3f;
 // tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
 #if TARGET_OS_OSX
-// MatrixReverb tuning, applied on top of the Cathedral preset; Reverb2 sounds
-// thin and digital by comparison. CAUTION: the ranges documented in
-// AudioUnitParameters.h are stale. The AU's real LargeSize range, queried
-// through kAudioUnitProperty_ParameterInfo, is 0.005-0.15, not the header's
-// "0.4->10.0 Secs", and an out-of-range value asserts in the render thread
-// through caulk CAVerboseAbort, killing the app on first play. MatrixReverb
-// has no decay-seconds knob at all, so the size, mix and density maxed out
-// below give the longest tail this engine does. Cathedral ships at LargeSize
-// 0.06 and mix 35.
+// MatrixReverb tuning, applied on top of the Cathedral preset. CAUTION: the
+// ranges documented in AudioUnitParameters.h are stale. The AU's real
+// LargeSize range, queried through kAudioUnitProperty_ParameterInfo, is
+// 0.005-0.15, not the header's "0.4->10.0 Secs", and an out-of-range value
+// asserts in the render thread through caulk CAVerboseAbort, killing the app
+// on first play. MatrixReverb has no decay-seconds knob at all, so the size,
+// mix and density maxed out below give the longest tail this engine does.
+// Cathedral ships at LargeSize 0.06 and mix 35.
 static const float kReverbLargeSize = 0.15f;     // the real max: the tail knob
 static const float kReverbSmallLargeMix = 90.0f; // 0-100: mostly the large hall engine
 static const float kReverbLargeDensity = 0.9f;   // lush, smooth tail
@@ -97,10 +95,6 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
 // so the queue's millisecond steps reach the output as they did through the
 // mixer.
 static const double kGateSlewSeconds = 0.025;
-// A stage is reset only once no render is inside the chain; this bounds the
-// wait, as the output unit's stop does.
-static const useconds_t kDrainSpinMicroseconds = 200;
-static const int kDrainSpinLimit = 500; // 100 ms
 
 // One complete ping-pong delay send and return, built once per tap length, so
 // that the 1/8-note (R) and 1/16-note (T) echoes are the same machine at
@@ -137,45 +131,59 @@ typedef struct {
     AudioBuffer mBuffers[2];
 } VibeFXStereoList;
 
-// One hosted unit and the scratch pair its input callback hands it.
+// One hosted unit and the scratch pair its input callback copies from.
 typedef struct {
     AudioUnit _Nullable unit;
     float *source[2];
 } VibeFXUnit;
 
-// A send-return: its gate and its activity. The queue writes the target,
-// the shadow and the generation and flips `active`; the audio thread slews
+// The units, in the order the render meets them; a stage owns a run of them.
+typedef enum {
+    VibeFXUnitEQ,
+    VibeFXUnitReverb,
+    VibeFXUnitReverbLowCut,
+    VibeFXUnitDelayLowCut, // both delay sends' returns, summed first
+    VibeFXUnitHalf0, VibeFXUnitLeft0, VibeFXUnitRight0,
+    VibeFXUnitHalf1, VibeFXUnitLeft1, VibeFXUnitRight1,
+    VibeFXUnitCount,
+} VibeFXUnitIndex;
+
+// A stage: the low kill, or a send-return with its gate. The queue writes
+// the target and the generation and flips `active`; the audio thread slews
 // `gain` toward the target and reads `active` before touching the stage.
 typedef struct {
-    _Atomic float target;
-    _Atomic int32_t active;
-    float gain;
-    float shadow;        // the queue's last target, what the next ramp starts from
-    uint64_t generation; // the ramp in flight; a newer toggle preempts by bumping it
-    double tailSeconds;  // how long the stage renders after its gate closed
+    _Atomic float target;      // the send gate's level; the low kill has no gate
+    _Atomic int32_t active;    // 1 while the stage is in the render
+    float gain;                // the audio thread's slewed gate
+    uint64_t generation;       // the ramp in flight; a newer toggle preempts by bumping it
+    double tailSeconds;        // how long the stage renders after its gate closed
+    VibeFXUnitIndex firstUnit; // the units the stage owns, for its rest
+    int unitCount;
+    BOOL enabled;              // the send's intent, lock-guarded
+    float level;               // the send's open level, and how far it swells while held
+    float swellRatio;
 } VibeFXStage;
+
+typedef enum {
+    VibeFXStageLowKill,
+    VibeFXStageReverb,
+    VibeFXStageDelay,      // the 1/8-note send
+    VibeFXStageShortDelay, // the 1/16-note send
+    VibeFXStageCount,
+} VibeFXStageIndex;
 
 struct VibeFXChain {
     _Atomic int32_t connected;
-    _Atomic int32_t inRender;   // 1 while the audio thread is inside the chain
-    _Atomic int32_t eqActive;   // the low kill: on, sweeping, or settling after it parked
     _Atomic uint64_t unitRenders;
     double sampleRate;
     float slewPerFrame;
     UInt32 maxFrames;
-    VibeFXStage reverbStage;
-    VibeFXStage delayStage[2]; // 0: the 1/8-note send, 1: the 1/16-note send
-    VibeFXUnit eq;
-    VibeFXUnit reverb;
-    VibeFXUnit reverbLowCut;
-    VibeFXUnit delayLowCut;    // both sends' returns, summed first
-    VibeFXUnit half[2];
-    VibeFXUnit left[2];
-    VibeFXUnit right[2];
-    // Scratch, stereo, maxFrames each: the dry signal the EQ reads, a gated
-    // send, a unit's output on its way to the next, the half-tap lane, a
-    // lane in flight, and the delay returns summed before their one low-cut.
-    float *dry[2];
+    double delayLowCutTail; // the shared return filter's tail, read once at host
+    VibeFXStage stages[VibeFXStageCount];
+    VibeFXUnit units[VibeFXUnitCount];
+    // Scratch, stereo, maxFrames each: a gated send, a unit's output on its
+    // way to the next, the half-tap lane, a lane in flight, and the delay
+    // returns summed before their one low-cut.
     float *send[2];
     float *wet[2];
     float *halfTap[2];
@@ -189,10 +197,7 @@ struct VibeFXChain {
 // The one call the compiler cannot check: AudioToolbox documents
 // AudioUnitRender as the render thread's own entry point and attributes it
 // with nothing. Everything around it is under the error pragma below.
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfunction-effects"
-#endif
+VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, const AudioTimeStamp *timestamp,
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
     VibeFXStereoList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
@@ -200,14 +205,9 @@ static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, co
     atomic_fetch_add_explicit(&chain->unitRenders, 1, memory_order_relaxed);
     return AudioUnitRender(unit->unit, &flags, timestamp, 0, frames, (AudioBufferList *)&list);
 }
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic pop
-#endif
+VIBE_REALTIME_END
 
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic push
-#pragma clang diagnostic error "-Wfunction-effects"
-#endif
+VIBE_REALTIME_CHECKED_BEGIN
 static inline void VibeFXCopy(float *const to[2], float *const from[2], UInt32 frames) CA_REALTIME_API {
     memcpy(to[0], from[0], frames * sizeof(float));
     memcpy(to[1], from[1], frames * sizeof(float));
@@ -255,40 +255,41 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
             || !atomic_load_explicit(&chain->connected, memory_order_seq_cst)) {
         return noErr;
     }
-    atomic_store_explicit(&chain->inRender, 1, memory_order_seq_cst);
-    AudioTimeStamp stamp = {0};
-    if (!timestamp) {
-        stamp.mFlags = kAudioTimeStampSampleTimeValid;
-        timestamp = &stamp;
-    }
     float *out[2] = { io->mBuffers[0].mData, io->mBuffers[1].mData };
     OSStatus status = noErr;
-    // The low kill, in place: the EQ reads a copy of the dry signal and
-    // writes the output. Parked and settled it is skipped, and the dry path
-    // is the bus sample for sample.
-    if (atomic_load_explicit(&chain->eqActive, memory_order_seq_cst)) {
-        VibeFXCopy(chain->dry, out, frames);
-        status = VibeFXRenderUnit(chain, &chain->eq, timestamp, frames, out);
+    // The low kill, in place: the EQ pulls its input from the output buffers
+    // themselves — the unit copies them into its own buffer before it writes
+    // — so the dry path costs one copy. Parked and settled it is skipped, and
+    // the dry path is the bus sample for sample.
+    if (atomic_load_explicit(&chain->stages[VibeFXStageLowKill].active, memory_order_seq_cst)) {
+        VibeFXUnit *eq = &chain->units[VibeFXUnitEQ];
+        eq->source[0] = out[0];
+        eq->source[1] = out[1];
+        status = VibeFXRenderUnit(chain, eq, timestamp, frames, out);
     }
     // The sends tap the post-low-kill signal. A stage renders while its gate
     // is open or its tail rings; the returns re-enter beside the dry path.
-    if (atomic_load_explicit(&chain->reverbStage.active, memory_order_seq_cst)) {
-        VibeFXGate(&chain->reverbStage, out, chain->send, frames, chain->slewPerFrame);
-        VibeFXRenderUnit(chain, &chain->reverb, timestamp, frames, chain->wet);
-        VibeFXRenderUnit(chain, &chain->reverbLowCut, timestamp, frames, chain->lane);
+    VibeFXStage *reverb = &chain->stages[VibeFXStageReverb];
+    if (atomic_load_explicit(&reverb->active, memory_order_seq_cst)) {
+        VibeFXGate(reverb, out, chain->send, frames, chain->slewPerFrame);
+        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverb], timestamp, frames, chain->wet);
+        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverbLowCut], timestamp, frames, chain->lane);
         VibeFXAdd(out, chain->lane, frames);
     }
     BOOL echoes = NO;
-    for (int i = 0; i < 2; i++) {
-        VibeFXStage *stage = &chain->delayStage[i];
+    for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay; i++) {
+        VibeFXStage *stage = &chain->stages[i];
         if (!atomic_load_explicit(&stage->active, memory_order_seq_cst)) {
             continue;
         }
+        VibeFXUnit *half = &chain->units[stage->firstUnit];
+        VibeFXUnit *left = half + 1;
+        VibeFXUnit *right = half + 2;
         VibeFXGate(stage, out, chain->send, frames, chain->slewPerFrame);
-        VibeFXRenderUnit(chain, &chain->half[i], timestamp, frames, chain->halfTap);
+        VibeFXRenderUnit(chain, half, timestamp, frames, chain->halfTap);
         // The right lane, panned right at one hop of decay: it first sounds at
         // 2T, a full hop after the left lane's T.
-        VibeFXRenderUnit(chain, &chain->right[i], timestamp, frames, chain->lane);
+        VibeFXRenderUnit(chain, right, timestamp, frames, chain->lane);
         VibeFXPan(chain->lane, frames, kDelayPingPongPan, kDelayFeedbackPercent / 100.0f);
         if (echoes) {
             VibeFXAdd(chain->echoes, chain->lane, frames);
@@ -298,23 +299,81 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
             echoes = YES;
         }
         // The left lane, fed by the half-tap lane, summed with it and panned left.
-        VibeFXRenderUnit(chain, &chain->left[i], timestamp, frames, chain->lane);
+        VibeFXRenderUnit(chain, left, timestamp, frames, chain->lane);
         VibeFXAdd(chain->lane, chain->halfTap, frames);
         VibeFXPan(chain->lane, frames, -kDelayPingPongPan, 1.0f);
         VibeFXAdd(chain->echoes, chain->lane, frames);
     }
     if (echoes) {
-        VibeFXRenderUnit(chain, &chain->delayLowCut, timestamp, frames, chain->lane);
+        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitDelayLowCut], timestamp, frames, chain->lane);
         VibeFXAdd(out, chain->lane, frames);
     }
-    atomic_store_explicit(&chain->inRender, 0, memory_order_release);
     return status;
 }
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic pop
-#endif
+VIBE_REALTIME_END
 
 #pragma mark - Hosting
+
+BOOL VibeHostAudioUnit(AudioUnit *unit, OSType type, OSType subtype, const AudioStreamBasicDescription *format,
+                       UInt32 maximumFrameCount, AURenderCallbackStruct input, void (^configure)(AudioUnit)) {
+    VibeDisposeAudioUnit(unit);
+    AudioComponentDescription description = {
+        .componentType = type, .componentSubType = subtype, .componentManufacturer = kAudioUnitManufacturer_Apple,
+    };
+    AudioComponent component = AudioComponentFindNext(NULL, &description);
+    AudioUnit instance = NULL;
+    if (!component || AudioComponentInstanceNew(component, &instance) != noErr || !instance) {
+        LogError(@"AudioFX: no '%c%c%c%c' unit", (char)(subtype >> 24), (char)(subtype >> 16), (char)(subtype >> 8), (char)subtype);
+        return NO;
+    }
+    AudioStreamBasicDescription asbd = *format;
+    UInt32 frames = maximumFrameCount;
+    OSStatus status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, sizeof(asbd));
+    if (status == noErr) {
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, sizeof(asbd));
+    }
+    if (status == noErr) {
+        // TRAP: a directly hosted Apple unit defaults to 1156 frames per slice
+        // and refuses the pipeline's 4096-frame slices with
+        // kAudioUnitErr_TooManyFramesToProcess; AVAudioEngine set this on
+        // every node for us.
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
+    }
+    if (status == noErr) {
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
+    }
+    if (status == noErr && configure) {
+        configure(instance);
+    }
+    if (status == noErr) {
+        status = AudioUnitInitialize(instance);
+    }
+    if (status != noErr) {
+        LogError(@"AudioFX: hosting '%c%c%c%c' failed (OSStatus %d)", (char)(subtype >> 24), (char)(subtype >> 16),
+                 (char)(subtype >> 8), (char)subtype, (int)status);
+        AudioComponentInstanceDispose(instance);
+        return NO;
+    }
+    *unit = instance;
+    return YES;
+}
+
+void VibeDisposeAudioUnit(AudioUnit *unit) {
+    if (*unit) {
+        AudioUnitUninitialize(*unit);
+        AudioComponentInstanceDispose(*unit);
+        *unit = NULL;
+    }
+}
+
+double VibeAudioUnitSeconds(AudioUnit unit, AudioUnitPropertyID property) {
+    Float64 value = 0;
+    UInt32 size = sizeof(value);
+    if (!unit || AudioUnitGetProperty(unit, property, kAudioUnitScope_Global, 0, &value, &size) != noErr) {
+        return 0;
+    }
+    return value;
+}
 
 // A unit's input: a copy of the scratch pair it was hosted over, into the
 // buffer the unit allocated for itself. TRAP: a unit told not to allocate
@@ -344,79 +403,25 @@ static void VibeFXSetParameter(AudioUnit unit, AudioUnitParameterID parameter, A
     }
 }
 
-// The unit's own reckoning of how long it keeps sounding after its input
-// stopped, plus its latency.
+// How long a unit keeps sounding after its input stopped, plus its latency.
 static double VibeFXTailSeconds(AudioUnit unit) {
-    Float64 tail = 0, latency = 0;
-    UInt32 size = sizeof(Float64);
-    AudioUnitGetProperty(unit, kAudioUnitProperty_TailTime, kAudioUnitScope_Global, 0, &tail, &size);
-    size = sizeof(Float64);
-    AudioUnitGetProperty(unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &latency, &size);
-    return tail + latency;
+    return VibeAudioUnitSeconds(unit, kAudioUnitProperty_TailTime) + VibeAudioUnitSeconds(unit, kAudioUnitProperty_Latency);
 }
 
-static void VibeFXDispose(VibeFXUnit *unit) {
-    if (unit->unit) {
-        AudioUnitUninitialize(unit->unit);
-        AudioComponentInstanceDispose(unit->unit);
-        unit->unit = NULL;
-    }
-}
-
-// Hosts one of Apple's units at `format` over `source`: formats on both
-// scopes, the largest render, the input callback, `configure` before the
-// initialize (for properties the unit takes only then), then the initialize.
-static BOOL VibeFXHost(VibeFXUnit *unit, OSType type, OSType subtype, const AudioStreamBasicDescription *format,
-                       UInt32 maxFrames, float *const source[2], void (^ _Nullable configure)(AudioUnit)) {
-    VibeFXDispose(unit);
-    unit->source[0] = source[0];
-    unit->source[1] = source[1];
-    AudioComponentDescription description = {
-        .componentType = type, .componentSubType = subtype, .componentManufacturer = kAudioUnitManufacturer_Apple,
-    };
-    AudioComponent component = AudioComponentFindNext(NULL, &description);
-    AudioUnit instance = NULL;
-    if (!component || AudioComponentInstanceNew(component, &instance) != noErr || !instance) {
-        LogError(@"AudioFX: no '%c%c%c%c' unit", (char)(subtype >> 24), (char)(subtype >> 16), (char)(subtype >> 8), (char)subtype);
-        return NO;
-    }
-    unit->unit = instance;
-    AudioStreamBasicDescription description2 = *format;
-    UInt32 frames = maxFrames;
+// Hosts one of the chain's units over `source` (NULL for the EQ, whose
+// source the render points at its buffers), the input callback copying.
+static BOOL VibeFXHostUnit(VibeFXUnit *unit, OSType type, OSType subtype, const AudioStreamBasicDescription *format,
+                           UInt32 maxFrames, float *const _Nullable * _Nullable source, void (^ _Nullable configure)(AudioUnit)) {
+    unit->source[0] = source ? source[0] : NULL;
+    unit->source[1] = source ? source[1] : NULL;
     AURenderCallbackStruct input = { .inputProc = VibeFXInput, .inputProcRefCon = unit };
-    OSStatus status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &description2, sizeof(description2));
-    if (status == noErr) {
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &description2, sizeof(description2));
-    }
-    if (status == noErr) {
-        // TRAP: a directly hosted Apple unit defaults to 1156 frames per slice
-        // and refuses the output unit's 4096-frame slices with
-        // kAudioUnitErr_TooManyFramesToProcess; AVAudioEngine set this on
-        // every node for us.
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
-    }
-    if (status == noErr) {
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
-    }
-    if (status == noErr && configure) {
-        configure(instance);
-    }
-    if (status == noErr) {
-        status = AudioUnitInitialize(instance);
-    }
-    if (status != noErr) {
-        LogError(@"AudioFX: hosting '%c%c%c%c' failed (OSStatus %d)", (char)(subtype >> 24), (char)(subtype >> 16),
-                 (char)(subtype >> 8), (char)subtype, (int)status);
-        VibeFXDispose(unit);
-        return NO;
-    }
-    return YES;
+    return VibeHostAudioUnit(&unit->unit, type, subtype, format, maxFrames, input, configure);
 }
 
 // A one-band high-pass return filter, the tail and echo low-cuts.
 static BOOL VibeFXHostLowCut(VibeFXUnit *unit, const AudioStreamBasicDescription *format, UInt32 maxFrames,
                              float *const source[2], float cutoffHz) {
-    BOOL hosted = VibeFXHost(unit, kAudioUnitType_Effect, kAudioUnitSubType_NBandEQ, format, maxFrames, source, ^(AudioUnit instance) {
+    BOOL hosted = VibeFXHostUnit(unit, kAudioUnitType_Effect, kAudioUnitSubType_NBandEQ, format, maxFrames, source, ^(AudioUnit instance) {
         UInt32 bands = 1;
         AudioUnitSetProperty(instance, kAUNBandEQProperty_NumberOfBands, kAudioUnitScope_Global, 0, &bands, sizeof(bands));
     });
@@ -431,7 +436,7 @@ static BOOL VibeFXHostLowCut(VibeFXUnit *unit, const AudioStreamBasicDescription
 // A 100%-wet delay line.
 static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription *format, UInt32 maxFrames,
                             float *const source[2], float feedbackPercent, NSTimeInterval seconds) {
-    BOOL hosted = VibeFXHost(unit, kAudioUnitType_Effect, kAudioUnitSubType_Delay, format, maxFrames, source, nil);
+    BOOL hosted = VibeFXHostUnit(unit, kAudioUnitType_Effect, kAudioUnitSubType_Delay, format, maxFrames, source, nil);
     if (hosted) {
         VibeFXSetParameter(unit->unit, kDelayParam_WetDryMix, 100);
         VibeFXSetParameter(unit->unit, kDelayParam_Feedback, feedbackPercent);
@@ -440,8 +445,16 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     return hosted;
 }
 
+static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int unitCount, float level, float swellRatio) {
+    stage->firstUnit = firstUnit;
+    stage->unitCount = unitCount;
+    stage->level = level;
+    stage->swellRatio = swellRatio;
+}
+
 @implementation AudioFX {
     void (^_scheduler)(NSTimeInterval, dispatch_block_t);
+    dispatch_block_t        _quiesce;
     // The player's serial queue, shared rather than owned. All hosting and
     // parameter mutation runs here, as every other output touch in the app
     // does.
@@ -450,6 +463,7 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     // queue-confined and need no lock.
     os_unfair_lock          _stateLock;
     VibeFXChain             *_chain;
+    BOOL                    _connected;
 
     // Master-bus low-kill high-pass; the class comment gives its place in the
     // chain. _lowKillEnabled and _lowKillBoostActive are lock-guarded and hold
@@ -463,26 +477,28 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     float                   _lowKillFrequency;
     BOOL                    _lowKillFlat;
 
-    // The sends' intent, lock-guarded; their ramps and tails live in the
-    // chain's stages, queue-confined. _delayTapBPM is the effective tempo
-    // both delay sends follow.
-    BOOL                    _reverbSendEnabled;
-    BOOL                    _delaySendEnabled;
-    BOOL                    _shortDelaySendEnabled;
+    // The effective tempo both delay sends follow, lock-guarded. The sends'
+    // intent lives in their stages.
     float                   _delayTapBPM;
 }
 
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
-                    scheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler {
+                    scheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler
+                      quiesce:(dispatch_block_t)quiesce {
     self = [super init];
     if (self) {
         _queue = queue;
         _scheduler = [scheduler copy];
+        _quiesce = [quiesce copy];
         _stateLock = OS_UNFAIR_LOCK_INIT;
         _chain = calloc(1, sizeof(VibeFXChain));
         if (!_chain) {
             return nil;
         }
+        VibeFXStageSet(&_chain->stages[VibeFXStageLowKill], VibeFXUnitEQ, 1, 0, 0);
+        VibeFXStageSet(&_chain->stages[VibeFXStageReverb], VibeFXUnitReverb, 2, kReverbSendLevel, kReverbSwellRatio);
+        VibeFXStageSet(&_chain->stages[VibeFXStageDelay], VibeFXUnitHalf0, 3, kDelaySendLevel, kDelaySwellRatio);
+        VibeFXStageSet(&_chain->stages[VibeFXStageShortDelay], VibeFXUnitHalf1, 3, kDelaySendLevel, kDelaySwellRatio);
         _lowKillFrequency = kLowKillParkedHz;
         _lowKillFlat = YES;
     }
@@ -500,34 +516,26 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 }
 
 - (BOOL)connected {
-    return atomic_load_explicit(&_chain->connected, memory_order_relaxed) != 0;
+    return _connected;
 }
 
 - (uint64_t)unitRenders {
     return atomic_load_explicit(&_chain->unitRenders, memory_order_relaxed);
 }
 
+- (BOOL)hosted {
+    return _chain->units[VibeFXUnitEQ].unit != NULL;
+}
+
 - (NSUInteger)hostedUnitCount {
-    VibeFXUnit *units[] = { &_chain->eq, &_chain->reverb, &_chain->reverbLowCut, &_chain->delayLowCut,
-                            &_chain->half[0], &_chain->left[0], &_chain->right[0],
-                            &_chain->half[1], &_chain->left[1], &_chain->right[1] };
     NSUInteger count = 0;
-    for (size_t i = 0; i < sizeof(units) / sizeof(units[0]); i++) {
-        count += units[i]->unit != NULL;
+    for (int i = 0; i < VibeFXUnitCount; i++) {
+        count += _chain->units[i].unit != NULL;
     }
     return count;
 }
 
 #pragma mark - Connecting
-
-// Waits, briefly, for a render to leave the chain: the caller has just
-// published a change the render reads before entering a stage, so once it is
-// seen outside, no render can be inside what the caller resets or frees.
-- (void)drainRenderOnQueue {
-    for (int spin = 0; spin < kDrainSpinLimit && atomic_load_explicit(&_chain->inRender, memory_order_seq_cst); spin++) {
-        usleep(kDrainSpinMicroseconds);
-    }
-}
 
 - (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount {
     if (!connected) {
@@ -535,82 +543,68 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
         return;
     }
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved && format.channelCount == 2);
-    BOOL hosted = _chain->eq.unit != NULL;
-    if (hosted && (_chain->sampleRate != format.sampleRate || _chain->maxFrames != maximumFrameCount)) {
+    if (self.hosted && (_chain->sampleRate != format.sampleRate || _chain->maxFrames != maximumFrameCount)) {
         // Hosted at another rate: an effect cannot convert between its input
         // and output, so the units are hosted again at the new one, and the
         // recorded intent re-applied as at the first connect.
         [self disconnectOnQueue];
         [self disposeUnits];
-        hosted = NO;
     }
-    if (!hosted && ![self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount]) {
+    if (!self.hosted && ![self hostUnitsWithFormat:format maximumFrameCount:maximumFrameCount]) {
         [self disposeUnits];
         return;
     }
-    if (self.connected) {
+    if (_connected) {
         return;
     }
+    _connected = YES;
     atomic_store_explicit(&_chain->connected, 1, memory_order_seq_cst);
     // Apply any intent recorded before the chain existed: a key or menu
     // action racing the async init, or the controller's first BPM feed.
     [self applyLowKillTargetOnQueue];
     [self applyDelayTapOnQueue];
-    os_unfair_lock_lock(&_stateLock);
-    BOOL reverbOn = _reverbSendEnabled;
-    BOOL delayOn = _delaySendEnabled;
-    BOOL shortDelayOn = _shortDelaySendEnabled;
-    os_unfair_lock_unlock(&_stateLock);
-    if (reverbOn) {
-        [self applySendGateOnQueue:&_chain->reverbStage enabled:YES level:kReverbSendLevel swellRatio:kReverbSwellRatio];
-    }
-    if (delayOn) {
-        [self applySendGateOnQueue:&_chain->delayStage[0] enabled:YES level:kDelaySendLevel swellRatio:kDelaySwellRatio];
-    }
-    if (shortDelayOn) {
-        [self applySendGateOnQueue:&_chain->delayStage[1] enabled:YES level:kDelaySendLevel swellRatio:kDelaySwellRatio];
+    for (VibeFXStageIndex i = VibeFXStageReverb; i < VibeFXStageCount; i++) {
+        VibeFXStage *stage = &_chain->stages[i];
+        os_unfair_lock_lock(&_stateLock);
+        BOOL on = stage->enabled;
+        os_unfair_lock_unlock(&_stateLock);
+        if (on) {
+            [self applySendGateOnQueue:stage enabled:YES];
+        }
     }
 }
 
 // The bypass: the chain leaves the render, and every tail and unfinished
 // sweep is reset so the next connect starts clean.
 - (void)disconnectOnQueue {
-    atomic_store_explicit(&_chain->connected, 0, memory_order_seq_cst);
-    [self drainRenderOnQueue];
-    _lowKillRampGeneration++;
-    atomic_store_explicit(&_chain->eqActive, 0, memory_order_seq_cst);
-    VibeFXStage *stages[] = { &_chain->reverbStage, &_chain->delayStage[0], &_chain->delayStage[1] };
-    for (size_t i = 0; i < 3; i++) {
-        stages[i]->generation++;
-        atomic_store_explicit(&stages[i]->active, 0, memory_order_seq_cst);
-        atomic_store_explicit(&stages[i]->target, 0, memory_order_relaxed);
-        stages[i]->shadow = 0;
-        stages[i]->gain = 0;
+    if (!_connected) {
+        return;
     }
-    if (_chain->eq.unit) {
+    _connected = NO;
+    atomic_store_explicit(&_chain->connected, 0, memory_order_seq_cst);
+    _quiesce();
+    _lowKillRampGeneration++;
+    for (int i = 0; i < VibeFXStageCount; i++) {
+        VibeFXStage *stage = &_chain->stages[i];
+        stage->generation++;
+        atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
+        atomic_store_explicit(&stage->target, 0, memory_order_relaxed);
+        stage->gain = 0;
+    }
+    if (self.hosted) {
         [self setLowKillBandsFlat:YES];
         [self setLowKillFrequency:kLowKillParkedHz];
     }
-    [self resetUnits];
-}
-
-- (void)resetUnits {
-    VibeFXUnit *units[] = { &_chain->eq, &_chain->reverb, &_chain->reverbLowCut, &_chain->delayLowCut,
-                            &_chain->half[0], &_chain->left[0], &_chain->right[0],
-                            &_chain->half[1], &_chain->left[1], &_chain->right[1] };
-    for (size_t i = 0; i < sizeof(units) / sizeof(units[0]); i++) {
-        if (units[i]->unit) {
-            AudioUnitReset(units[i]->unit, kAudioUnitScope_Global, 0);
+    for (int i = 0; i < VibeFXUnitCount; i++) {
+        if (_chain->units[i].unit) {
+            AudioUnitReset(_chain->units[i].unit, kAudioUnitScope_Global, 0);
         }
     }
 }
 
 - (void)disposeUnits {
-    VibeFXUnit *units[] = { &_chain->eq, &_chain->reverb, &_chain->reverbLowCut, &_chain->delayLowCut,
-                            &_chain->half[0], &_chain->left[0], &_chain->right[0],
-                            &_chain->half[1], &_chain->left[1], &_chain->right[1] };
-    for (size_t i = 0; i < sizeof(units) / sizeof(units[0]); i++) {
-        VibeFXDispose(units[i]);
+    for (int i = 0; i < VibeFXUnitCount; i++) {
+        VibeDisposeAudioUnit(&_chain->units[i].unit);
     }
 }
 
@@ -621,12 +615,12 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 - (BOOL)hostUnitsWithFormat:(AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount {
     VibeFXChain *chain = _chain;
     free(chain->storage);
-    chain->storage = calloc((size_t)maximumFrameCount * 12, sizeof(float));
+    chain->storage = calloc((size_t)maximumFrameCount * 10, sizeof(float));
     if (!chain->storage) {
         return NO;
     }
-    float **pairs[] = { chain->dry, chain->send, chain->wet, chain->halfTap, chain->lane, chain->echoes };
-    for (size_t p = 0; p < 6; p++) {
+    float **pairs[] = { chain->send, chain->wet, chain->halfTap, chain->lane, chain->echoes };
+    for (size_t p = 0; p < 5; p++) {
         pairs[p][0] = chain->storage + (p * 2) * maximumFrameCount;
         pairs[p][1] = chain->storage + (p * 2 + 1) * maximumFrameCount;
     }
@@ -634,13 +628,14 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     chain->maxFrames = maximumFrameCount;
     chain->slewPerFrame = (float)(1.0 / (kGateSlewSeconds * format.sampleRate));
     const AudioStreamBasicDescription *asbd = format.streamDescription;
+    VibeFXUnit *units = chain->units;
 
     // The low kill: both bands stay live and un-bypassed for the chain's life
     // (see kLowKillParkedHz); the controls sweep the cutoff and swap the band
     // types through applyLowKillTargetOnQueue, and the parked state is the
     // transparent one — and, settled, the whole unit is skipped.
-    BOOL hosted = VibeFXHost(&chain->eq, kAudioUnitType_Effect, kAudioUnitSubType_NBandEQ, asbd, maximumFrameCount, chain->dry,
-                             ^(AudioUnit instance) {
+    BOOL hosted = VibeFXHostUnit(&units[VibeFXUnitEQ], kAudioUnitType_Effect, kAudioUnitSubType_NBandEQ, asbd, maximumFrameCount, NULL,
+                                 ^(AudioUnit instance) {
         UInt32 bands = 2;
         AudioUnitSetProperty(instance, kAUNBandEQProperty_NumberOfBands, kAudioUnitScope_Global, 0, &bands, sizeof(bands));
     });
@@ -649,67 +644,92 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
         [self setLowKillBandsFlat:YES];
         [self setLowKillFrequency:kLowKillParkedHz];
         for (UInt32 band = 0; band < 2; band++) {
-            VibeFXSetParameter(chain->eq.unit, kAUNBandEQParam_BypassBand + band, 0);
+            VibeFXSetParameter(units[VibeFXUnitEQ].unit, kAUNBandEQParam_BypassBand + band, 0);
         }
     }
 
-    // The reverb: MatrixReverb on macOS, whose raw kReverbParam_* knobs push
-    // the Cathedral preset's tail out to the target length (see the
-    // constants); Reverb2 elsewhere, plain. Fully wet: the dry signal only
-    // ever travels the dry path, so opening the gate adds reverb on top.
+    // The reverb: MatrixReverb, whose raw kReverbParam_* knobs push the
+    // Cathedral preset's tail out to the target length (see the constants).
+    // Fully wet: the dry signal only ever travels the dry path, so opening
+    // the gate adds reverb on top. macOS only, as the FX are: iOS creates no
+    // AudioFX (enableFX:NO).
 #if TARGET_OS_OSX
-    hosted = hosted && VibeFXHost(&chain->reverb, kAudioUnitType_Effect, kAudioUnitSubType_MatrixReverb, asbd, maximumFrameCount,
-                                  chain->send, ^(AudioUnit instance) {
+    hosted = hosted && VibeFXHostUnit(&units[VibeFXUnitReverb], kAudioUnitType_Effect, kAudioUnitSubType_MatrixReverb, asbd, maximumFrameCount,
+                                      chain->send, ^(AudioUnit instance) {
         AUPreset preset = { .presetNumber = kReverbCathedralPreset, .presetName = NULL };
         AudioUnitSetProperty(instance, kAudioUnitProperty_PresentPreset, kAudioUnitScope_Global, 0, &preset, sizeof(preset));
     });
     if (hosted) {
-        VibeFXSetParameter(chain->reverb.unit, kReverbParam_DryWetMix, 100);
-        VibeFXSetParameter(chain->reverb.unit, kReverbParam_SmallLargeMix, kReverbSmallLargeMix);
-        VibeFXSetParameter(chain->reverb.unit, kReverbParam_LargeSize, kReverbLargeSize);
-        VibeFXSetParameter(chain->reverb.unit, kReverbParam_LargeDensity, kReverbLargeDensity);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverbParam_DryWetMix, 100);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverbParam_SmallLargeMix, kReverbSmallLargeMix);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverbParam_LargeSize, kReverbLargeSize);
+        VibeFXSetParameter(units[VibeFXUnitReverb].unit, kReverbParam_LargeDensity, kReverbLargeDensity);
     }
 #else
-    hosted = hosted && VibeFXHost(&chain->reverb, kAudioUnitType_Effect, kAudioUnitSubType_Reverb2, asbd, maximumFrameCount,
-                                  chain->send, nil);
-    if (hosted) {
-        VibeFXSetParameter(chain->reverb.unit, kReverb2Param_DryWetMix, 100);
-    }
+    hosted = NO;
 #endif
-    hosted = hosted && VibeFXHostLowCut(&chain->reverbLowCut, asbd, maximumFrameCount, chain->wet, kReverbTailLowCutHz);
-    hosted = hosted && VibeFXHostLowCut(&chain->delayLowCut, asbd, maximumFrameCount, chain->echoes, kDelayEchoLowCutHz);
+    hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitReverbLowCut], asbd, maximumFrameCount, chain->wet, kReverbTailLowCutHz);
+    hosted = hosted && VibeFXHostLowCut(&units[VibeFXUnitDelayLowCut], asbd, maximumFrameCount, chain->echoes, kDelayEchoLowCutHz);
 
     // Two ping-pong delay returns, the same machine at different clock
     // divisions; see the topology comment. Lane feedback is the per-hop decay
     // squared, because each lane repeats every two hops.
     float laneFeedbackPercent = VibeDelayLaneFeedbackPercent(kDelayFeedbackPercent);
-    for (int i = 0; i < 2 && hosted; i++) {
-        float beatsPerTap = i == 0 ? kDelayTapBeats : kShortDelayTapBeats;
-        hosted = VibeFXHostDelay(&chain->half[i], asbd, maximumFrameCount, chain->send, 0, VibeDelayTapSeconds(0, beatsPerTap))
-                && VibeFXHostDelay(&chain->left[i], asbd, maximumFrameCount, chain->halfTap, laneFeedbackPercent, VibeDelayLaneSeconds(0, beatsPerTap))
-                && VibeFXHostDelay(&chain->right[i], asbd, maximumFrameCount, chain->send, laneFeedbackPercent, VibeDelayLaneSeconds(0, beatsPerTap));
+    for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay && hosted; i++) {
+        float beatsPerTap = i == VibeFXStageDelay ? kDelayTapBeats : kShortDelayTapBeats;
+        VibeFXUnit *half = &units[chain->stages[i].firstUnit];
+        hosted = VibeFXHostDelay(half, asbd, maximumFrameCount, chain->send, 0, VibeDelayTapSeconds(0, beatsPerTap))
+                && VibeFXHostDelay(half + 1, asbd, maximumFrameCount, chain->halfTap, laneFeedbackPercent, VibeDelayLaneSeconds(0, beatsPerTap))
+                && VibeFXHostDelay(half + 2, asbd, maximumFrameCount, chain->send, laneFeedbackPercent, VibeDelayLaneSeconds(0, beatsPerTap));
     }
     if (!hosted) {
         return NO;
     }
-    [self readTailsOnQueue];
+    // The tails that never move: the reverb's, and the return filters'. The
+    // delays' follow the tap.
+    chain->stages[VibeFXStageReverb].tailSeconds = VibeFXTailSeconds(units[VibeFXUnitReverb].unit)
+            + VibeFXTailSeconds(units[VibeFXUnitReverbLowCut].unit);
+    chain->delayLowCutTail = VibeFXTailSeconds(units[VibeFXUnitDelayLowCut].unit);
+    [self readDelayTailsOnQueue];
     LogDebug(@"AudioFX: hosted %lu units at %.0f Hz", (unsigned long)self.hostedUnitCount, format.sampleRate);
     return YES;
 }
 
-// How long each stage keeps rendering after its gate closes: the longest of
-// its units' own tail times plus the return filter's. Re-read whenever a
-// delay time moves.
-- (void)readTailsOnQueue {
+// How long each delay stage keeps rendering after its gate closes: the
+// longest of its lanes' tails plus the shared return filter's. Re-read
+// whenever a delay time moves.
+- (void)readDelayTailsOnQueue {
     VibeFXChain *chain = _chain;
-    if (!chain->reverb.unit) {
+    for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay; i++) {
+        VibeFXStage *stage = &chain->stages[i];
+        double tail = 0;
+        for (int u = 0; u < stage->unitCount; u++) {
+            tail = MAX(tail, VibeFXTailSeconds(chain->units[stage->firstUnit + u].unit));
+        }
+        stage->tailSeconds = tail + chain->delayLowCutTail;
+    }
+}
+
+// The stage leaves the render and forgets its state, so the next engage
+// starts from silence — or, for the low kill, from an exact identity. The
+// delays' shared low-cut rests with the last of them.
+- (void)restStageOnQueue:(VibeFXStage *)stage {
+    if (!atomic_load_explicit(&stage->active, memory_order_relaxed)) {
         return;
     }
-    chain->reverbStage.tailSeconds = VibeFXTailSeconds(chain->reverb.unit) + VibeFXTailSeconds(chain->reverbLowCut.unit);
-    for (int i = 0; i < 2; i++) {
-        double tail = MAX(VibeFXTailSeconds(chain->half[i].unit),
-                          MAX(VibeFXTailSeconds(chain->left[i].unit), VibeFXTailSeconds(chain->right[i].unit)));
-        chain->delayStage[i].tailSeconds = tail + VibeFXTailSeconds(chain->delayLowCut.unit);
+    atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
+    _quiesce();
+    stage->gain = 0;
+    VibeFXChain *chain = _chain;
+    for (int u = 0; u < stage->unitCount; u++) {
+        AudioUnitReset(chain->units[stage->firstUnit + u].unit, kAudioUnitScope_Global, 0);
+    }
+    VibeFXStage *delays = &chain->stages[VibeFXStageDelay];
+    if (stage >= delays && stage <= delays + 1) {
+        VibeFXStage *other = stage == delays ? delays + 1 : delays;
+        if (!atomic_load_explicit(&other->active, memory_order_relaxed)) {
+            AudioUnitReset(chain->units[VibeFXUnitDelayLowCut].unit, kAudioUnitScope_Global, 0);
+        }
     }
 }
 
@@ -774,10 +794,8 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 // their flat type, which is what makes it colorless — and once the residue
 // has settled the unit is reset and skipped, which is what makes it free.
 - (void)applyLowKillTargetOnQueue {
-    // The guard is the UNIT: nothing is hosted until the first connect, which
-    // re-applies this.
-    if (!_chain->eq.unit || !self.connected) {
-        return;
+    if (!self.hosted || !_connected) {
+        return; // Not hosted yet. The first connect re-applies this.
     }
     os_unfair_lock_lock(&_stateLock);
     BOOL enabled = _lowKillEnabled;
@@ -791,7 +809,7 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     if (target != kLowKillParkedHz) {
         // A reset, parked unit passes the signal exactly, so joining the
         // render here is seamless; then re-arm at the floor and sweep up.
-        atomic_store_explicit(&_chain->eqActive, 1, memory_order_seq_cst);
+        atomic_store_explicit(&_chain->stages[VibeFXStageLowKill].active, 1, memory_order_seq_cst);
         [self setLowKillBandsFlat:NO];
     }
     [self stepLowKillRamp:1 from:_lowKillFrequency to:target generation:generation];
@@ -810,7 +828,7 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
         return;
     }
     _lowKillFlat = flat;
-    AudioUnit unit = _chain->eq.unit;
+    AudioUnit unit = _chain->units[VibeFXUnitEQ].unit;
     if (flat) {
         for (UInt32 band = 0; band < 2; band++) {
             VibeFXSetParameter(unit, kAUNBandEQParam_FilterType + band, kAUNBandEQFilterType_Parametric);
@@ -828,14 +846,14 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 - (void)setLowKillFrequency:(float)frequency {
     _lowKillFrequency = frequency;
     for (UInt32 band = 0; band < 2; band++) {
-        VibeFXSetParameter(_chain->eq.unit, kAUNBandEQParam_Frequency + band, frequency);
+        VibeFXSetParameter(_chain->units[VibeFXUnitEQ].unit, kAUNBandEQParam_Frequency + band, frequency);
     }
 }
 
 // The fade-loop pattern applied to the filter cutoff, stepped along a
 // log-frequency curve — multiplicative interpolation, as in the volume fades
-// — at the finer low-kill cadence. A sweep that lands at the floor goes
-// colorless, and once the swap's residue has settled the unit rests.
+// — so each step is the same musical interval. A sweep that lands at the
+// floor parks the bands flat and, after the settle, rests the unit.
 - (void)stepLowKillRamp:(int)step from:(float)start to:(float)target generation:(uint64_t)generation {
     if (generation != _lowKillRampGeneration) {
         return; // A newer toggle owns the cutoff now.
@@ -851,7 +869,7 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
             _scheduler(kLowKillSettleSeconds, ^{
                 AudioFX *strongSelf = weakSelf;
                 if (strongSelf && generation == strongSelf->_lowKillRampGeneration) {
-                    [strongSelf restLowKillOnQueue];
+                    [strongSelf restStageOnQueue:&strongSelf->_chain->stages[VibeFXStageLowKill]];
                 }
             });
         }
@@ -862,81 +880,35 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     });
 }
 
-// The parked EQ leaves the render and forgets its state, so the next engage
-// starts from an exact identity.
-- (void)restLowKillOnQueue {
-    if (!atomic_load_explicit(&_chain->eqActive, memory_order_relaxed)) {
-        return;
-    }
-    atomic_store_explicit(&_chain->eqActive, 0, memory_order_seq_cst);
-    [self drainRenderOnQueue];
-    AudioUnitReset(_chain->eq.unit, kAudioUnitScope_Global, 0);
-}
-
 #pragma mark - The sends
 
-- (BOOL)reverbSendEnabled {
+- (BOOL)sendEnabled:(VibeFXStageIndex)index {
     os_unfair_lock_lock(&_stateLock);
-    BOOL enabled = _reverbSendEnabled;
+    BOOL enabled = _chain->stages[index].enabled;
     os_unfair_lock_unlock(&_stateLock);
     return enabled;
 }
 
-- (void)setReverbSendEnabled:(BOOL)enabled {
+- (void)setSend:(VibeFXStageIndex)index enabled:(BOOL)enabled {
+    VibeFXStage *stage = &_chain->stages[index];
     os_unfair_lock_lock(&_stateLock);
-    if (_reverbSendEnabled == enabled) {
+    if (stage->enabled == enabled) {
         os_unfair_lock_unlock(&_stateLock);
         return;
     }
-    _reverbSendEnabled = enabled;
+    stage->enabled = enabled;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
-        [self applySendGateOnQueue:&self->_chain->reverbStage enabled:enabled
-                             level:kReverbSendLevel swellRatio:kReverbSwellRatio];
+        [self applySendGateOnQueue:stage enabled:enabled];
     });
 }
 
-- (BOOL)delaySendEnabled {
-    os_unfair_lock_lock(&_stateLock);
-    BOOL enabled = _delaySendEnabled;
-    os_unfair_lock_unlock(&_stateLock);
-    return enabled;
-}
-
-- (void)setDelaySendEnabled:(BOOL)enabled {
-    os_unfair_lock_lock(&_stateLock);
-    if (_delaySendEnabled == enabled) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _delaySendEnabled = enabled;
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applySendGateOnQueue:&self->_chain->delayStage[0] enabled:enabled
-                             level:kDelaySendLevel swellRatio:kDelaySwellRatio];
-    });
-}
-
-- (BOOL)shortDelaySendEnabled {
-    os_unfair_lock_lock(&_stateLock);
-    BOOL enabled = _shortDelaySendEnabled;
-    os_unfair_lock_unlock(&_stateLock);
-    return enabled;
-}
-
-- (void)setShortDelaySendEnabled:(BOOL)enabled {
-    os_unfair_lock_lock(&_stateLock);
-    if (_shortDelaySendEnabled == enabled) {
-        os_unfair_lock_unlock(&_stateLock);
-        return;
-    }
-    _shortDelaySendEnabled = enabled;
-    os_unfair_lock_unlock(&_stateLock);
-    dispatch_async(_queue, ^{
-        [self applySendGateOnQueue:&self->_chain->delayStage[1] enabled:enabled
-                             level:kDelaySendLevel swellRatio:kDelaySwellRatio];
-    });
-}
+- (BOOL)reverbSendEnabled { return [self sendEnabled:VibeFXStageReverb]; }
+- (void)setReverbSendEnabled:(BOOL)enabled { [self setSend:VibeFXStageReverb enabled:enabled]; }
+- (BOOL)delaySendEnabled { return [self sendEnabled:VibeFXStageDelay]; }
+- (void)setDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageDelay enabled:enabled]; }
+- (BOOL)shortDelaySendEnabled { return [self sendEnabled:VibeFXStageShortDelay]; }
+- (void)setShortDelaySendEnabled:(BOOL)enabled { [self setSend:VibeFXStageShortDelay enabled:enabled]; }
 
 // Runs on _queue. Opens or closes a send gate. Opening is a fast fade on the
 // volume-fade cadence — an instant volume step clicks, whereas
@@ -945,28 +917,30 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 // send: the stage keeps rendering for its tail, which decays naturally, and
 // only then rests. A re-toggle mid-ramp preempts through the generation and
 // continues from the current gate level.
-- (void)applySendGateOnQueue:(VibeFXStage *)stage enabled:(BOOL)enabled level:(float)level swellRatio:(float)swellRatio {
-    if (!_chain->reverb.unit || !self.connected) {
+- (void)applySendGateOnQueue:(VibeFXStage *)stage enabled:(BOOL)enabled {
+    if (!self.hosted || !_connected) {
         return; // Not hosted yet. The first connect re-applies it.
     }
     uint64_t generation = ++stage->generation;
+    float from = atomic_load_explicit(&stage->target, memory_order_relaxed);
     if (!enabled) {
         [self stepSendGateRamp:stage step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
-                          from:stage->shadow to:0 generation:generation completion:nil];
+                          from:from to:0 generation:generation completion:nil];
         return;
     }
     // A resting stage joins the render before its gate opens; reset, it
     // starts from silence under the gate's fade-in.
     atomic_store_explicit(&stage->active, 1, memory_order_seq_cst);
     __weak AudioFX *weakSelf = self;
+    float level = stage->level;
+    float swell = VibeSendSwellLevel(level, stage->swellRatio);
     [self stepSendGateRamp:stage step:1 of:kFadeSteps stepMicroseconds:kFadeStepMicroseconds
-                      from:stage->shadow to:level generation:generation completion:^{
+                      from:from to:level generation:generation completion:^{
         // The same generation is used, so the release or re-press that would
         // invalidate the swell bumps the generation and the first swell step
         // drops out.
         [weakSelf stepSendGateRamp:stage step:1 of:kSendSwellSteps stepMicroseconds:kSendSwellStepMicroseconds
-                              from:level to:VibeSendSwellLevel(level, swellRatio)
-                        generation:generation completion:nil];
+                              from:level to:swell generation:generation completion:nil];
     }];
 }
 
@@ -980,7 +954,7 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
     }
     __weak AudioFX *weakSelf = self;
     if (step >= steps) {
-        [self setStage:stage target:target];
+        atomic_store_explicit(&stage->target, target, memory_order_relaxed);
         if (completion) {
             completion();
         }
@@ -994,39 +968,10 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
         }
         return;
     }
-    [self setStage:stage target:VibeFadeVolumeOverSteps(start, target, step, steps)];
+    atomic_store_explicit(&stage->target, VibeFadeVolumeOverSteps(start, target, step, steps), memory_order_relaxed);
     _scheduler(stepMicroseconds / 1000000.0, ^{
         [weakSelf stepSendGateRamp:stage step:step + 1 of:steps stepMicroseconds:stepMicroseconds from:start to:target generation:generation completion:completion];
     });
-}
-
-- (void)setStage:(VibeFXStage *)stage target:(float)target {
-    stage->shadow = target;
-    atomic_store_explicit(&stage->target, target, memory_order_relaxed);
-}
-
-// The stage leaves the render and forgets its tail, so the next engage
-// starts from silence. The delays' shared low-cut rests with the last of them.
-- (void)restStageOnQueue:(VibeFXStage *)stage {
-    if (!atomic_load_explicit(&stage->active, memory_order_relaxed)) {
-        return;
-    }
-    atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
-    [self drainRenderOnQueue];
-    stage->gain = 0;
-    VibeFXChain *chain = _chain;
-    if (stage == &chain->reverbStage) {
-        AudioUnitReset(chain->reverb.unit, kAudioUnitScope_Global, 0);
-        AudioUnitReset(chain->reverbLowCut.unit, kAudioUnitScope_Global, 0);
-        return;
-    }
-    int i = stage == &chain->delayStage[0] ? 0 : 1;
-    AudioUnitReset(chain->half[i].unit, kAudioUnitScope_Global, 0);
-    AudioUnitReset(chain->left[i].unit, kAudioUnitScope_Global, 0);
-    AudioUnitReset(chain->right[i].unit, kAudioUnitScope_Global, 0);
-    if (!atomic_load_explicit(&chain->delayStage[1 - i].active, memory_order_relaxed)) {
-        AudioUnitReset(chain->delayLowCut.unit, kAudioUnitScope_Global, 0);
-    }
 }
 
 - (float)delayTapBPM {
@@ -1051,24 +996,23 @@ static BOOL VibeFXHostDelay(VibeFXUnit *unit, const AudioStreamBasicDescription 
 
 // Runs on _queue. The delays sit post-varispeed, so tap time is wall-clock and
 // matches the effective, pitch-scaled tempo the controller provides. Each
-// send's lanes run at twice its tap; see the topology comment. AUDelay caps
-// its delay time at two seconds, so the 1/8-note send's lanes pin there below
-// an effective 30 BPM, well beyond any real tempo.
+// lane's time is twice the tap, as the topology comment explains.
 - (void)applyDelayTapOnQueue {
-    if (!_chain->half[0].unit) {
+    if (!self.hosted) {
         return; // Not hosted yet. The first connect re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);
     float bpm = _delayTapBPM;
     os_unfair_lock_unlock(&_stateLock);
-    for (int i = 0; i < 2; i++) {
-        float beatsPerTap = i == 0 ? kDelayTapBeats : kShortDelayTapBeats;
+    for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay; i++) {
+        float beatsPerTap = i == VibeFXStageDelay ? kDelayTapBeats : kShortDelayTapBeats;
         float lane = (float)VibeDelayLaneSeconds(bpm, beatsPerTap);
-        VibeFXSetParameter(_chain->half[i].unit, kDelayParam_DelayTime, (float)VibeDelayTapSeconds(bpm, beatsPerTap));
-        VibeFXSetParameter(_chain->left[i].unit, kDelayParam_DelayTime, lane);
-        VibeFXSetParameter(_chain->right[i].unit, kDelayParam_DelayTime, lane);
+        VibeFXUnit *half = &_chain->units[_chain->stages[i].firstUnit];
+        VibeFXSetParameter(half->unit, kDelayParam_DelayTime, (float)VibeDelayTapSeconds(bpm, beatsPerTap));
+        VibeFXSetParameter((half + 1)->unit, kDelayParam_DelayTime, lane);
+        VibeFXSetParameter((half + 2)->unit, kDelayParam_DelayTime, lane);
     }
-    [self readTailsOnQueue];
+    [self readDelayTailsOnQueue];
 }
 
 @end

@@ -39,20 +39,23 @@ NS_ASSUME_NONNULL_BEGIN
 // sweeps and gate ramps stay queue-confined; the gate targets and the
 // activity flags are atomics the audio thread reads. Hosting, connecting,
 // disconnecting and a format change run on the queue with the output stopped,
-// and a stage is reset only after the render has been seen outside the chain,
-// so no render is ever inside a unit being created, reset or torn down. The
-// object is created before the pipeline exists, in AudioPlayer's synchronous
-// init, so intent set early — a menu action or the BPM feed racing the async
-// init — is never lost, and the first connect applies whatever was recorded.
+// and a stage is reset only after the render has been seen outside the
+// pipeline (the player's `quiesce`), so no render is ever inside a unit being
+// created, reset or torn down. The object is created before the pipeline
+// exists, in AudioPlayer's synchronous init, so intent set early — a menu
+// action or the BPM feed racing the async init — is never lost, and the
+// first connect applies whatever was recorded.
 @interface AudioFX : NSObject
 
 // queue is the player's serial queue. Every mutation this class makes runs
 // there. scheduler runs a block on that queue after a delay — the player's
 // own scheduleAfterSeconds:block:, so the sweeps, gate ramps and tail windows
 // ride whatever clock the player does (the debug pump's, under manual
-// rendering).
+// rendering). quiesce returns once no render is inside the pipeline — the
+// player's own wait — so a stage that just left the render can be reset.
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
-                    scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
+                    scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler
+                      quiesce:(dispatch_block_t)quiesce;
 
 // Connects or disconnects the segment, on the queue with the output stopped.
 // The units are hosted at the first connect, at `format` (stereo float32,
@@ -60,7 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 // across toggles; a connect at another rate re-hosts them and re-applies the
 // recorded intent. Disconnecting resets every unit and tail without changing
 // intent and reads no format; the caller clears intent before submitting a
-// bypass.
+// bypass. Both are idempotent.
 - (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount;
 
 // Whether the segment is in the chain. Player-queue only.
@@ -119,5 +122,20 @@ typedef struct VibeFXChain VibeFXChain;
 // the hosted maximumFrameCount frames. Audio thread; a disconnected chain
 // returns at once, and an idle stage costs nothing.
 OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
+
+// Hosting one of Apple's units through the C API, the one sequence the FX
+// units and the player's varispeed share: instantiate, the stream format on
+// both scopes, the largest render, the input callback, `configure` before
+// the initialize (for properties a unit takes only then), then the
+// initialize. NO, with nothing hosted, when any step is refused. Player queue,
+// with the output stopped.
+BOOL VibeHostAudioUnit(AudioUnit _Nullable * _Nonnull unit, OSType type, OSType subtype,
+                       const AudioStreamBasicDescription *format, UInt32 maximumFrameCount,
+                       AURenderCallbackStruct input, void (^ _Nullable configure)(AudioUnit));
+// Uninitializes and disposes `*unit` when there is one, leaving NULL.
+void VibeDisposeAudioUnit(AudioUnit _Nullable * _Nonnull unit);
+// A unit's Float64 global property — latency, tail time — in seconds; 0 when
+// unreadable.
+double VibeAudioUnitSeconds(AudioUnit _Nullable unit, AudioUnitPropertyID property);
 
 NS_ASSUME_NONNULL_END

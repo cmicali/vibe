@@ -330,7 +330,7 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
         BOOL engineRunning = [strongPlayer diagnosticEngineRunning];
         if (playing && engineRunning) {
             @try {
-                render = [strongPlayer outputSignalRenderTimeOnQueue];
+                render = [strongPlayer outputRenderTimeOnQueue];
             }
             @catch (NSException *exception) {
                 render = nil; // instrumentation must never take playback down with it
@@ -609,7 +609,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
     NSString *track = self.currentTrack.url.lastPathComponent;
     __block uint64_t request = 0;
     __weak AudioPlayer *weakSelf = self;
-    request = [tap beginSignalDiagnosticsAtTime:[self outputSignalRenderTimeOnQueue]
+    request = [tap beginSignalDiagnosticsAtTime:[self outputRenderTimeOnQueue]
                          waitingForRetiredAudio:_retiringVoices.count > 0
                                      completion:^(NSDictionary *snapshot) {
         if (!([snapshot[@"completion"] isEqual:@"superseded"] && [snapshot[@"status"] isEqual:@"no buffers observed"])) {
@@ -638,7 +638,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 // skipped, and the meter reads the render's final samples.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
-    AVAudioTime *time = [self outputSignalRenderTimeOnQueue];
+    AVAudioTime *time = [self outputRenderTimeOnQueue];
     NSTimeInterval latency = [self varispeedLatencyOnQueue];
     if (time && latency > 0) {
         AudioTimeStamp stamp = time.audioTimeStamp;
@@ -650,11 +650,6 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
-// The pipeline's own clock, the same on every carrier: frames rendered plus
-// the block in flight, the sample time the render stamps its blocks with.
-- (AVAudioTime *)outputSignalRenderTimeOnQueue {
-    return [self outputRenderTimeOnQueue];
-}
 
 #pragma mark - The first displayed position
 

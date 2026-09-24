@@ -193,7 +193,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // segment in the chain while the mode or the setting says not, or absent
 // while both say so.
 - (BOOL)masterBusRouteStaleOnQueue {
-    return self.fx.connected != (_fxEnabled && !_bitPerfectWanted);
+    return self.fx.connected != [self fxWantedOnQueue];
 }
 
 // The graph runs at the bound device's rate, so the unit never resamples:
@@ -407,9 +407,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return NO;
     }
     [self followOutputDeviceRateOnQueue];
-    if ([self masterBusRouteStaleOnQueue]) {
-        [self reconcileFXOnQueue];
-    }
+    [self reconcileFXOnQueue];
     VIBE_REBIND_PHASE(bindS);
 
     if (shouldRestore) {
@@ -974,9 +972,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // Restore the original format, forget the prepared device and release it.
 // Every step is idempotent, so this is free to call with nothing owed.
 - (void)leaveOutputDeviceOnQueue {
-    if ([self masterBusRouteStaleOnQueue]) {
-        [self reconcileFXOnQueue];
-    }
+    [self reconcileFXOnQueue];
     [self restoreOutputFormatOnQueue];
     [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT

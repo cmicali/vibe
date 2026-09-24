@@ -133,7 +133,7 @@ iOS copy cannot slip through.
 The iOS copy deliberately does not reuse the macOS text, and must not: that
 copy sells BPM and key analysis, the pitch fader and the FX rack, and says the
 formats are "decoded by macOS" — all macOS-only by construction (root
-`CLAUDE.md`, "Three features are macOS-only"). A product page describing
+`CLAUDE.md`, "Four features are macOS-only"). A product page describing
 features the app does not have is a review rejection, not a cosmetic
 problem.
 

@@ -24,15 +24,17 @@
 //  nothing follows the system default on its own; the unit, the bus and the
 //  FX all run at the device's rate, and applyOutputRateOnQueue: is the one
 //  place that changes. On iOS it is AVAudioEngine, shrunk to one source node
-//  wired to its output node, whose render block calls the same function. The
-//  debug pump calls it directly on macOS and through the engine's offline
-//  render on iOS.
+//  wired to its output node, whose render block calls the same function.
+//  Under --no-audio-hw there is no carrier on either platform: the debug pump
+//  calls the function at real-time pace, or frame by frame in the tests. The
+//  render slices whatever count a carrier hands it.
 //
 //  Everything the audio thread reads is plain memory and atomics in the
 //  master bus. A structural change — the bus, the varispeed, the FX chain's
-//  hosting, the meter — happens with the output stopped, or is published
-//  through an atomic the render checks before entering the stage and then
-//  retired only once no render is inside (retireRenderObjectOnQueue:).
+//  hosting — happens with the output stopped; the meter comes and goes live
+//  by its pointer. An object the render could still be inside is freed only
+//  after its pointer was withdrawn and the render seen outside
+//  (waitForRenderToLeaveOnQueue).
 //
 //  The output is not held running for the life of the player, because a
 //  running output owns the device — on Bluetooth it keeps the link up, on any
@@ -57,7 +59,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The largest render the pipeline accepts; a larger IO cycle is sliced.
+// The largest slice the pipeline renders at once, and every hosted unit's
+// frames per slice; a carrier's larger cycle is rendered in slices.
 static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 
 @interface AudioPlayer (Graph)
@@ -67,35 +70,41 @@ static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 // pump under --no-audio-hw — and the master bus it pulls; the init path and
 // the iOS media-services rebuild must configure them identically.
 - (void)createOutputOnQueue;
-// Connects or disconnects the FX segment per the setting and the mode, with
-// the output stopped.
+// Whether the FX segment belongs in the chain: the setting, unless
+// bit-perfect output outranks it. The one home of the rule.
+- (BOOL)fxWantedOnQueue;
+// Connects or disconnects the FX segment per fxWantedOnQueue, with the
+// output stopped. Idempotent.
 - (void)reconcileFXOnQueue;
-// Reconciles the equalizer's meter with the queue-side demand. Live: the
-// meter is installed before the gate opens and retired after the render was
-// seen outside it. removeLevelTapOnQueue retires it whatever the demand,
-// for a replacement.
+// Reconciles the equalizer's meter with the queue-side demand: the tap is
+// created at the first demand and kept, so a demand toggle is the render's
+// pointer and a publisher session, live. dropLevelTapOnQueue frees it for a
+// replacement — a rate or normalization-mode change — after the render was
+// seen outside it.
 - (void)applyLevelTapOnQueue;
-- (void)removeLevelTapOnQueue;
+- (void)dropLevelTapOnQueue;
+// Returns once no render is inside the pipeline: the caller has withdrawn
+// what it is about to reset or free, and a render that read it before that
+// finishes on its own within a block's time. The wait is bounded, as the
+// output unit's stop is.
+- (void)waitForRenderToLeaveOnQueue;
 #if !TARGET_OS_OSX
 // Forgets every reference bound to the dead engine without messaging it —
 // the media-services-reset rebuild's first half.
 - (void)dropEngineBoundStateOnQueue;
 #endif
-// Publishes the removal of a render-visible object (the bus, the meter) and
-// waits for the render to leave; when it will not within the bound, the
-// object is parked until a later edge sees the render outside.
-- (void)retireRenderObjectOnQueue:(nullable id)object;
 #if TARGET_OS_OSX
 // Brings the unit and the pipeline to `rate`: the output stopped, the unit
-// reconfigured, the FX chain re-hosted, the bus rebuilt if it exists. A no-op
-// at the current rate. NO without a unit, or when the unit refuses.
+// reconfigured, the FX chain re-hosted, the meter replaced, the bus rebuilt
+// if it exists. A no-op at the current rate. NO without a unit, or when the
+// unit refuses.
 - (BOOL)applyOutputRateOnQueue:(double)rate;
 #endif
 
 // The pipeline's format: stereo float32 at the output's rate.
 - (AVAudioFormat *)masterBusFormatOnQueue;
 // Whether the carrier is rendering: the gate the start opens and the stop
-// closes on macOS, the engine's own state on iOS.
+// closes, or on iOS the engine's own state, since it can stop itself.
 - (BOOL)renderingOnQueue;
 // The output-timeline frame the next render begins at, plus the block in
 // flight: the signal probe's clock on every carrier.

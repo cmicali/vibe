@@ -80,12 +80,9 @@
         _chunk.frameLength = 0;
         if ([self outputRunning] && _render) {
             if (self.beforeRender && !self.starveDecoder) self.beforeRender();
-            AudioTimeStamp stamp = {0};
-            stamp.mSampleTime = (Float64)_renderedFrames;
-            stamp.mFlags = kAudioTimeStampSampleTimeValid;
             // A partial or failed slice fails the render rather than silently
             // losing or duplicating samples.
-            OSStatus status = _render(&stamp, _chunk, count);
+            OSStatus status = _render(_chunk, count);
             if (status != noErr || _chunk.frameLength != count) {
                 if (error) *error = [NSError errorWithDomain:@"VibeManualRender" code:2 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Render status %d, %u of %u frames", (int)status, _chunk.frameLength, count]}];
                 return nil;

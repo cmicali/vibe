@@ -2,8 +2,9 @@
 //  AudioFXChainTests.m
 //  VibeTests
 //
-//  The FX chain hosted and rendered on its own, over the test's buffers and
-//  a virtual clock: an idle chain renders no unit and passes the signal
+//  The FX chain hosted and rendered on its own, over the debug pump's
+//  frame-driven clock — the same virtual clock the render suite drives the
+//  whole player on: an idle chain renders no unit and passes the signal
 //  exactly, a held send echoes at its tap and rests after its tail, the low
 //  kill cuts and rests exactly, and a chain follows a rate change.
 //
@@ -11,6 +12,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioFX.h"
+#import "VibeManualRenderPump.h"
 
 static const double kRate = 48000;
 static const UInt32 kBlock = 512;
@@ -45,26 +47,31 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
 @implementation AudioFXChainTests {
     dispatch_queue_t _queue;
     AudioFX *_fx;
-    NSMutableArray<NSDictionary *> *_pending; // the virtual clock's scheduled blocks
-    double _now;
-    uint64_t _frame;
-    AVAudioPCMBuffer *_block;
+    VibeManualRenderPump *_pump;
+    VibeTestSource _source; // what the render fills its input from; nil is silence
 }
 
 - (void)setUp {
     [super setUp];
     _queue = dispatch_queue_create("com.vibe.test.fx-chain", DISPATCH_QUEUE_SERIAL);
-    _pending = [NSMutableArray array];
     __weak AudioFXChainTests *weakSelf = self;
+    // The scheduler is the pump's virtual clock, as the player's is under the
+    // pump; the chain renders on the test thread, so there is no render to
+    // wait out.
     _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
-        [weakSelf scheduleAfter:seconds block:block];
-    }];
-    _block = [[AVAudioPCMBuffer alloc] initWithPCMFormat:[self formatAt:kRate] frameCapacity:kMaxFrames];
+        AudioFXChainTests *strongSelf = weakSelf;
+        [strongSelf->_pump scheduleAfter:seconds block:block];
+    } quiesce:^{}];
+    [self attachPumpAt:kRate];
 }
 
 - (void)tearDown {
     AudioFX *fx = _fx;
-    dispatch_sync(_queue, ^{ [fx setConnected:NO format:nil maximumFrameCount:kMaxFrames]; });
+    VibeManualRenderPump *pump = _pump;
+    dispatch_sync(_queue, ^{
+        [fx setConnected:NO format:nil maximumFrameCount:kMaxFrames];
+        [pump cancel];
+    });
     _fx = nil;
     [super tearDown];
 }
@@ -77,23 +84,26 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     dispatch_sync(_queue, block);
 }
 
-// The scheduler: blocks land on the virtual clock and run, on the queue, as
-// the render advances it, which is how the pump drives the production chain.
-- (void)scheduleAfter:(NSTimeInterval)seconds block:(dispatch_block_t)block {
-    NSDictionary *entry = @{@"time": @(_now + seconds), @"block": [block copy]};
-    NSUInteger index = 0;
-    while (index < _pending.count && [_pending[index][@"time"] doubleValue] <= _now + seconds) {
-        index++;
-    }
-    [_pending insertObject:entry atIndex:index];
-}
-
-- (void)runDueBlocks {
-    while (_pending.count && [_pending[0][@"time"] doubleValue] <= _now + 1e-9) {
-        dispatch_block_t block = _pending[0][@"block"];
-        [_pending removeObjectAtIndex:0];
-        [self onQueue:block];
-    }
+// A frame-driven pump at `rate` whose render fills the chunk from the source
+// and runs the chain over it, stamped on the pump's timeline.
+- (void)attachPumpAt:(double)rate {
+    _pump = [[VibeManualRenderPump alloc] initWithFormat:[self formatAt:rate] automatic:NO];
+    __weak AudioFXChainTests *weakSelf = self;
+    [_pump attachRender:^OSStatus(AVAudioPCMBuffer *chunk, AVAudioFrameCount count) {
+        AudioFXChainTests *strongSelf = weakSelf;
+        uint64_t first = strongSelf->_pump.renderedFrames;
+        VibeTestSource source = strongSelf->_source;
+        for (int c = 0; c < 2; c++) {
+            for (UInt32 f = 0; f < count; f++) {
+                chunk.floatChannelData[c][f] = source ? source(first + f, c) : 0;
+            }
+        }
+        chunk.frameLength = count;
+        AudioTimeStamp stamp = {0};
+        stamp.mSampleTime = (Float64)first;
+        stamp.mFlags = kAudioTimeStampSampleTimeValid;
+        return VibeFXChainRender(strongSelf->_fx.chain, &stamp, count, chunk.mutableAudioBufferList);
+    } running:^BOOL{ return YES; } queue:_queue];
 }
 
 - (void)connectAt:(double)rate {
@@ -103,41 +113,26 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(_fx.hostedUnitCount, 10u);
 }
 
-// Renders `frames` of `source` through the chain in blocks, running the
-// scheduled steps as the clock reaches them — a block ends where the next
-// step is due, so a sweep's 2 ms steps land on their frames rather than on
-// block boundaries; the output, interleaved, lands in `capture` when given.
+// Renders `frames` of `source` through the chain in blocks on the queue, the
+// pump running the scheduled steps at their exact frames; the output,
+// interleaved, lands in `capture` when given.
 - (void)render:(NSUInteger)frames source:(VibeTestSource)source into:(NSMutableData *)capture {
+    _source = source;
     while (frames) {
-        [self runDueBlocks];
-        UInt32 count = (UInt32)MIN(frames, (NSUInteger)kBlock);
-        if (_pending.count) {
-            double untilDue = ([_pending[0][@"time"] doubleValue] - _now) * _block.format.sampleRate;
-            if (untilDue > 0 && untilDue < count) {
-                count = (UInt32)ceil(untilDue);
-            }
-        }
-        for (int c = 0; c < 2; c++) {
-            for (UInt32 f = 0; f < count; f++) {
-                _block.floatChannelData[c][f] = source ? source(_frame + f, c) : 0;
-            }
-        }
-        _block.frameLength = count;
-        AudioTimeStamp stamp = {0};
-        stamp.mSampleTime = (Float64)_frame;
-        stamp.mFlags = kAudioTimeStampSampleTimeValid;
-        XCTAssertEqual(VibeFXChainRender(_fx.chain, &stamp, count, _block.mutableAudioBufferList), noErr);
-        if (capture) {
+        AVAudioFrameCount count = (AVAudioFrameCount)MIN(frames, (NSUInteger)kBlock);
+        __block AVAudioPCMBuffer *buffer = nil;
+        __block NSError *error = nil;
+        [self onQueue:^{ buffer = [self->_pump renderFrames:count error:&error]; }];
+        XCTAssertNotNil(buffer, @"%@", error);
+        if (capture && buffer) {
             NSUInteger start = capture.length;
             [capture increaseLengthBy:count * 2 * sizeof(float)];
             float *out = (float *)((uint8_t *)capture.mutableBytes + start);
             for (UInt32 f = 0; f < count; f++) {
-                out[f * 2] = _block.floatChannelData[0][f];
-                out[f * 2 + 1] = _block.floatChannelData[1][f];
+                out[f * 2] = buffer.floatChannelData[0][f];
+                out[f * 2 + 1] = buffer.floatChannelData[1][f];
             }
         }
-        _frame += count;
-        _now += count / _block.format.sampleRate;
         frames -= count;
     }
 }
@@ -159,7 +154,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
 - (void)testAnIdleChainRendersNoUnitAndPassesTheSignalExactly {
     [self connectAt:kRate];
     NSMutableData *capture = [NSMutableData data];
-    uint64_t first = _frame;
+    uint64_t first = _pump.renderedFrames;
     [self render:48000 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:capture];
     [self assertCapture:capture isNoiseFrom:first];
     XCTAssertEqual(_fx.unitRenders, 0ull, @"an idle chain rendered a unit");
@@ -174,7 +169,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     [self render:4800 source:nil into:nil];
     XCTAssertGreaterThan(_fx.unitRenders, 0ull, @"a held send renders its units");
     NSMutableData *capture = [NSMutableData data];
-    uint64_t impulse = _frame;
+    uint64_t impulse = _pump.renderedFrames;
     [self render:48000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:capture];
     // At 120 BPM the 1/8-note tap is 0.25 s: the first echo lands left, the
     // second right, and the trail decays.
@@ -213,7 +208,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     [self render:24000 source:nil into:nil];
     uint64_t rested = _fx.unitRenders;
     NSMutableData *capture = [NSMutableData data];
-    uint64_t first = _frame;
+    uint64_t first = _pump.renderedFrames;
     [self render:48000 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:capture];
     [self assertCapture:capture isNoiseFrom:first];
     XCTAssertEqual(_fx.unitRenders, rested, @"a parked low kill rendered");
@@ -221,12 +216,12 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
 
 - (void)testTheChainFollowsARateChange {
     [self connectAt:kRate];
-    _block = [[AVAudioPCMBuffer alloc] initWithPCMFormat:[self formatAt:96000] frameCapacity:kMaxFrames];
+    [self attachPumpAt:96000];
     [self connectAt:96000];
     _fx.reverbSendEnabled = YES;
     [self onQueue:^{}];
     NSMutableData *capture = [NSMutableData data];
-    uint64_t impulse = _frame + 9600;
+    uint64_t impulse = _pump.renderedFrames + 9600;
     [self render:96000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:capture];
     XCTAssertGreaterThan(VibeTestRMS(capture, 0, 9600 + 4800, 9600), 0.000001, @"the reverb tail at the new rate");
     const float *out = capture.bytes;

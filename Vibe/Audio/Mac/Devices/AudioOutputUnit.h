@@ -26,8 +26,9 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // What the unit pulls: `frames` of the unit's format into `data`, one buffer
-// per channel, on the IO thread under the callback's discipline. A status
-// other than noErr is a dropout: the slice is written as silence.
+// per channel, on the IO thread under the callback's discipline, whatever
+// count the device's cycle is. A status other than noErr is a dropout: the
+// cycle is written as silence.
 typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTimeStamp *timestamp, UInt32 frames,
                                          AudioBufferList *data) CA_REALTIME_API;
 
@@ -60,12 +61,10 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice.
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID;
 
-// Stopped only: uninitialize, set the input stream format, remember the proc
-// and the largest pull it accepts, initialize. The frame counter restarts at
-// 0. refCon is the caller's to keep valid until the next configure or the
-// unit's end.
+// Stopped only: uninitialize, set the input stream format, remember the
+// proc, initialize. refCon is the caller's to keep valid until the next
+// configure or the unit's end.
 - (BOOL)configureFormat:(AVAudioFormat *)format
-      maximumFrameCount:(AVAudioFrameCount)maximumFrameCount
              renderProc:(VibeOutputRenderProc)renderProc
                  refCon:(void * _Nullable)refCon
                   error:(NSError * _Nullable * _Nullable)error;
@@ -75,11 +74,6 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // Closes the gate, stops the unit, and returns with no render inside the callback.
 - (void)stop;
 
-// Any thread. The output-timeline frame the next render begins at, plus the
-// block in flight: the same one-block exclusion the engine's output node gave.
-- (AVAudioTime *)renderTime;
-// Any thread. The device's timestamp of the last IO cycle; zero flags before the first.
-- (AudioTimeStamp)lastIOTimeStamp;
 
 @end
 

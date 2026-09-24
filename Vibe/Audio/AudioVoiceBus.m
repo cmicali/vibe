@@ -182,10 +182,7 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
 
 // Everything the audio thread does. Plain memory and atomics, no call that
 // can block; the pragma below makes the compiler hold that line.
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic push
-#pragma clang diagnostic error "-Wfunction-effects"
-#endif
+VIBE_REALTIME_CHECKED_BEGIN
 OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
                             AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
     atomic_store_explicit(&mix->inRender, 1, memory_order_seq_cst);
@@ -319,9 +316,7 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
     atomic_store_explicit(&mix->inRender, 0, memory_order_release);
     return noErr;
 }
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic pop
-#endif
+VIBE_REALTIME_END
 
 #pragma mark - The records the queue and decoder share
 

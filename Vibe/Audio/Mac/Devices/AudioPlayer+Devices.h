@@ -87,6 +87,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The HAL bind boundary, replaced by a refusal in the device-free render
 // tests: binds the hosted unit, which never moves on its own. Stopped only.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
+// Brings the pipeline to the bound device's nominal rate, so the unit never
+// resamples; an unreadable rate keeps the current one. After every bind.
+- (void)followOutputDeviceRateOnQueue;
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
 // the gapless successor's gate, since a continuation on one voice cannot
