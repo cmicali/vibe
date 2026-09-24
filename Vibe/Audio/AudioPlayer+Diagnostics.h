@@ -30,6 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
 // IO cycles the hosted output unit wrote as silence because the engine could
 // not render; cumulative, any thread. 0 without a unit.
 - (uint64_t)diagnosticOutputDropouts;
+// The unit's callback cost over the cycles it rendered: their count, and the
+// mean and longest time inside the callback in microseconds. Cumulative, any
+// thread; 0 without a unit.
+- (uint64_t)diagnosticRenderCycles;
+- (double)diagnosticRenderMeanMicroseconds;
+- (double)diagnosticRenderMaxMicroseconds;
 
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.

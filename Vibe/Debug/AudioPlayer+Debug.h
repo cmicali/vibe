@@ -52,9 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 // retiring voices (`retiredFades`, the name the stress tooling reads), live
 // voices, whether the hardware drain is polling, running state, rendered
 // frames, pitch-unit presence and latency, the current voice's gain and
-// underrun count, and the mixer rate. A retiring voice that never ends is
-// the leak this exists to catch, and since a soak run is thousands of track
-// changes, unbounded growth is the signal.
+// underrun count, the mixer rate, and the hosted output unit's callback cost
+// (`renderCycles`, `renderMeanMicros`, `renderMaxMicros`, cumulative). A
+// retiring voice that never ends is the leak this exists to catch, and since
+// a soak run is thousands of track changes, unbounded growth is the signal.
 //
 // One dispatch_sync serves all. It reads on _queue, so it must not be called
 // from there, and it doubles as a liveness probe for that queue: the command

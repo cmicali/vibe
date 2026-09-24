@@ -302,6 +302,11 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             // IO cycles the hosted output unit wrote as silence because the
             // engine could not render; cumulative, and a soak holds it at 0.
             @"outputDropouts": engine[@"outputDropouts"],
+            // The output unit's callback cost over the cycles it rendered:
+            // cumulative, so diff across a run, and mean against max.
+            @"renderCycles": engine[@"renderCycles"],
+            @"renderMeanMicros": engine[@"renderMeanMicros"],
+            @"renderMaxMicros": engine[@"renderMaxMicros"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },

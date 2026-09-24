@@ -1344,6 +1344,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
         counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
                    @"outputDropouts": @([self diagnosticOutputDropouts]),
+                   @"renderCycles": @([self diagnosticRenderCycles]),
+                   @"renderMeanMicros": @([self diagnosticRenderMeanMicroseconds]),
+                   @"renderMaxMicros": @([self diagnosticRenderMaxMicroseconds]),
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
                    @"pollActive": @(self->_drainTimer != nil),

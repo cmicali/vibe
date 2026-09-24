@@ -44,6 +44,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) AudioUnit audioUnit;
 // IO cycles the engine could not render, so silence was written. Cumulative.
 @property (nonatomic, readonly) uint64_t dropouts;
+// The callback's cost, for dump_health and a before/after measurement: the
+// IO cycles the gate was open for, and the mean and the longest time spent
+// inside the callback over them, in microseconds. Cumulative.
+@property (nonatomic, readonly) uint64_t renderCycles;
+@property (nonatomic, readonly) double renderMeanMicroseconds;
+@property (nonatomic, readonly) double renderMaxMicroseconds;
 
 // Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice.
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID;

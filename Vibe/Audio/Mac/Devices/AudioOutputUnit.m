@@ -136,9 +136,24 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
 #pragma clang diagnostic pop
 #endif
 
+// The cost of every cycle the gate was open for is measured here, around the
+// checked function: the clock read is not on the checker's list, and it is a
+// commpage read that blocks on nothing.
 OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
                               UInt32 bus, UInt32 frameCount, AudioBufferList *data) {
-    return VibeOutputUnitRenderCycle((VibeOutputUnitState *)refCon, actionFlags, timestamp, frameCount, data);
+    VibeOutputUnitState *state = refCon;
+    BOOL open = atomic_load_explicit(&state->gate, memory_order_relaxed) != 0;
+    uint64_t began = open ? clock_gettime_nsec_np(CLOCK_UPTIME_RAW) : 0;
+    OSStatus status = VibeOutputUnitRenderCycle(state, actionFlags, timestamp, frameCount, data);
+    if (open) {
+        uint64_t nanos = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began;
+        atomic_fetch_add_explicit(&state->cycles, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&state->renderNanos, nanos, memory_order_relaxed);
+        if (nanos > atomic_load_explicit(&state->renderMaxNanos, memory_order_relaxed)) {
+            atomic_store_explicit(&state->renderMaxNanos, nanos, memory_order_relaxed);
+        }
+    }
+    return status;
 }
 
 #pragma mark - The unit
@@ -192,6 +207,19 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
 
 - (uint64_t)dropouts {
     return atomic_load_explicit(&_state->dropouts, memory_order_relaxed);
+}
+
+- (uint64_t)renderCycles {
+    return atomic_load_explicit(&_state->cycles, memory_order_relaxed);
+}
+
+- (double)renderMeanMicroseconds {
+    uint64_t cycles = atomic_load_explicit(&_state->cycles, memory_order_relaxed);
+    return cycles ? (double)atomic_load_explicit(&_state->renderNanos, memory_order_relaxed) / cycles / 1000.0 : 0;
+}
+
+- (double)renderMaxMicroseconds {
+    return atomic_load_explicit(&_state->renderMaxNanos, memory_order_relaxed) / 1000.0;
 }
 
 static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,

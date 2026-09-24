@@ -27,6 +27,12 @@ typedef struct {
     _Atomic uint64_t frames;        // engine-timeline frames rendered
     _Atomic uint32_t pendingFrames; // the block in flight
     _Atomic uint64_t dropouts;
+    // The callback's cost: IO cycles the gate was open for, the nanoseconds
+    // spent inside the callback over them, and the longest one. Cumulative;
+    // written by the callback, outside its checked function.
+    _Atomic uint64_t cycles;
+    _Atomic uint64_t renderNanos;
+    _Atomic uint64_t renderMaxNanos;
     _Atomic uint32_t stampVersion;  // odd while the stamp is being written
     AudioTimeStamp stamp;           // the device's stamp of the last cycle
     uint32_t channels;

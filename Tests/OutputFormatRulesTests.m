@@ -1193,6 +1193,31 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     VibeOutputUnitStateFree(&state);
 }
 
+- (void)testOutputUnitCallbackCountsItsCostOnlyWhileTheGateIsOpen {
+    VibeTestEngine engine = { .maxFrames = 4096 };
+    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+    VibeOutputUnitState state = {0};
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    AudioBufferList *data = VibeTestIOBuffers(2, 512, 0.5f);
+    AudioUnitRenderActionFlags flags = 0;
+    // A closed gate writes silence and is not a rendered cycle.
+    XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 1), noErr);
+    XCTAssertEqual(atomic_load(&state.cycles), 0ull);
+    XCTAssertEqual(atomic_load(&state.renderNanos), 0ull);
+    atomic_store(&state.gate, 1);
+    for (UInt64 cycle = 2; cycle <= 3; cycle++) {
+        flags = 0;
+        XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, cycle), noErr);
+    }
+    uint64_t nanos = atomic_load(&state.renderNanos), longest = atomic_load(&state.renderMaxNanos);
+    XCTAssertEqual(atomic_load(&state.cycles), 2ull);
+    XCTAssertGreaterThan(nanos, 0ull);
+    XCTAssertGreaterThanOrEqual(longest * 2, nanos);
+    XCTAssertLessThanOrEqual(longest, nanos);
+    VibeTestFreeIOBuffers(data);
+    VibeOutputUnitStateFree(&state);
+}
+
 - (void)testOutputUnitRefusesAFormatItCannotSlice {
     VibeOutputUnitState state = {0};
     XCTAssertFalse(VibeOutputUnitStateInitialize(&state, 0, 4096, NULL));
@@ -1209,6 +1234,9 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertNil(unit.format);
     XCTAssertFalse(unit.running);
     XCTAssertEqual(unit.dropouts, 0ull);
+    XCTAssertEqual(unit.renderCycles, 0ull);
+    XCTAssertEqual(unit.renderMeanMicroseconds, 0.0);
+    XCTAssertEqual(unit.renderMaxMicroseconds, 0.0);
     XCTAssertEqual([unit renderTime].sampleTime, 0ll);
     XCTAssertEqual([unit lastIOTimeStamp].mFlags, 0u);
     [unit stop];

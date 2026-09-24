@@ -422,6 +422,30 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
+- (uint64_t)diagnosticRenderCycles {
+#if TARGET_OS_OSX
+    return _outputUnit.renderCycles;
+#else
+    return 0;
+#endif
+}
+
+- (double)diagnosticRenderMeanMicroseconds {
+#if TARGET_OS_OSX
+    return _outputUnit.renderMeanMicroseconds;
+#else
+    return 0;
+#endif
+}
+
+- (double)diagnosticRenderMaxMicroseconds {
+#if TARGET_OS_OSX
+    return _outputUnit.renderMaxMicroseconds;
+#else
+    return 0;
+#endif
+}
+
 - (uint64_t)diagnosticPlayIdentifierOnQueue {
     return _state == VibePlayerStateLoading ? self.loadingSubmittedPlayIdentifier : _activeSubmittedPlayIdentifier;
 }
