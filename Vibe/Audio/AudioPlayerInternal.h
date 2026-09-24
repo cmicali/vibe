@@ -282,6 +282,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
+// A new voice for the current file at `position`, the old one retiring beside
+// it; requires a current voice and file.
+- (void)revoiceOnQueueAtPosition:(NSTimeInterval)position;
 
 // The writer model for the published tuple: this is the FULL-TUPLE publisher,
 // and the two unpublish variants are the only partial writers. Anything that

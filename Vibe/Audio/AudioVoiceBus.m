@@ -651,7 +651,11 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 - (void)setRamp:(VibeVoiceRamp)ramp forVoice:(VibeVoiceID)voice {
     VibeVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
+        // Adopting a ramp un-pauses, and a pending voice adopts at its bind,
+        // so the flag follows the ramp now: a resume that arrives before the
+        // slot does must not bind as a paused start with its ramp dropped.
         pending->ramp = ramp;
+        pending->paused = NO;
         return;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -861,6 +865,9 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         }
         VibeVoiceRecord *record = _records[slot];
         VibeVoiceID identifier = record->identifier;
+        if (!identifier) {
+            continue; // dead, its recycle already queued behind decode work
+        }
         if (state == VibeVoiceStateArmed) {
             if (!_inlineDecoding) {
                 [self scheduleFillForSlot:slot];
@@ -898,11 +905,12 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
         uint64_t died = atomic_load_explicit(&s->diedAtRender, memory_order_acquire);
         if (renderSequence > died || noRenderPossible) {
             [self setIdentifier:0 forSlot:slot];
+            VibeVoiceID generation = atomic_load_explicit(&s->generation, memory_order_acquire);
             if (_inlineDecoding) {
-                [self recycleSlot:slot];
+                [self recycleSlot:slot generation:generation];
             }
             else {
-                dispatch_async(_decodeQueue, ^{ [self recycleSlot:slot]; });
+                dispatch_async(_decodeQueue, ^{ [self recycleSlot:slot generation:generation]; });
             }
         }
     }
@@ -920,10 +928,17 @@ static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 #pragma mark - The decoder
 
 // Decode queue, or the caller's thread under inline decoding — never both:
-// the ring has one producer.
-- (void)recycleSlot:(NSUInteger)slot {
+// the ring has one producer. TRAP: a recycle queued behind decode work can
+// run after the slot was freed and taken by a new voice, so it cleans only
+// the death it was queued for; without the check it erased the new voice and
+// playback went silent with no end event.
+- (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
+    if (atomic_load_explicit(&s->state, memory_order_acquire) != VibeVoiceStateDead
+            || atomic_load_explicit(&s->generation, memory_order_acquire) != generation) {
+        return;
+    }
     record->file = nil;
     record->converter = nil;
     record->readBuffer = nil;

@@ -587,6 +587,25 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertLessThan(ToneAmplitude(_capture,2,0,48000,1000,NSMakeRange(48000,48000)),0.01);
     }
 }
+- (void)testCancellingABufferedSuccessorRevoicesTheCurrentTrack {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    AudioTrack *current = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    AudioTrack *next = [AudioTrack withURL:[self fixture:@"1000.wav"]];
+    [_player prefetchTrack:next];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self render:72000];
+    [_player prefetchTrack:nil];
+    [_player runSyncOnQueue:^{}];
+    XCTAssertFalse(_player.gaplessArmed);
+    NSData *tail = [self renderSeconds:1.5];
+    XCTAssertEqualObjects(_player.currentTrack, current);
+    XCTAssertEqual([self count:@"advance"], 0u);
+    XCTAssertEqual([self count:@"finish"], 1u, @"The current track must finish after the cancelled boundary");
+    XCTAssertLessThan(ToneAmplitude(tail, 2, 0, 48000, 1000, NSMakeRange(36000, 24000)), 0.01,
+                     @"Cancelled successor must not be audible");
+}
+
 - (void)testMeterTapDoesNotChangeSamples {
     for (NSNumber *fx in @[@NO,@YES]) {
         [self startPlayerAt:48000 channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];

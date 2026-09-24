@@ -653,6 +653,63 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([self endedSnapshot:pending].ended, VibeVoiceEndOfStream);
 }
 
+- (void)testAPendingPausedVoiceResumesBeforeItBinds {
+    NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:42] rate:kRate channels:2 name:@"pending-resume.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    VibeVoiceID first = 0;
+    for (int i = 0; i < 8; i++) {
+        VibeVoiceID v = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+        if (i == 0) first = v;
+    }
+    [self render:64 into:nil];
+    VibeVoiceID pending = [self startFile:[self open:url] gain:0 ramp:[self unity] paused:YES];
+    XCTAssertEqual([_bus pendingVoiceCount], 1u);
+    [_bus setRamp:[self unity] forVoice:pending];
+    [_bus killVoice:first];
+    [self render:64 into:nil];
+    [self render:64 into:nil];
+    XCTAssertFalse([_bus snapshotOfVoice:pending].paused);
+    XCTAssertEqual([_bus snapshotOfVoice:pending].consumed, 64u);
+}
+
+- (void)testAQueuedRecycleCannotEraseAReusedSlot {
+    self.continueAfterFailure = YES;
+    NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43] rate:kRate channels:2 name:@"recycle.wav"];
+    [self makeBusAtRate:kRate channels:2];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:kRate channels:2];
+    _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:NO];
+    [self renderWithoutFilling:64 into:nil];
+    dispatch_queue_t decoder = [_bus valueForKey:@"decodeQueue"];
+    dispatch_semaphore_t initial = dispatch_semaphore_create(0);
+    dispatch_semaphore_t initialEntered = dispatch_semaphore_create(0);
+    dispatch_semaphore_t between = dispatch_semaphore_create(0);
+    dispatch_semaphore_t betweenEntered = dispatch_semaphore_create(0);
+    dispatch_async(decoder, ^{
+        dispatch_semaphore_signal(initialEntered);
+        dispatch_semaphore_wait(initial, DISPATCH_TIME_FOREVER);
+    });
+    dispatch_semaphore_wait(initialEntered, DISPATCH_TIME_FOREVER);
+    VibeVoiceID old = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    [_bus killVoice:old];
+    [_bus drainWithEngineRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+    dispatch_async(decoder, ^{
+        dispatch_semaphore_signal(betweenEntered);
+        dispatch_semaphore_wait(between, DISPATCH_TIME_FOREVER);
+    });
+    // A second poll while recycling is still waiting behind decoder work.
+    [_bus drainWithEngineRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+    dispatch_semaphore_signal(initial);
+    dispatch_semaphore_wait(betweenEntered, DISPATCH_TIME_FOREVER);
+    XCTAssertEqual([_bus occupiedSlotCount], 0u);
+    VibeVoiceID fresh = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    XCTAssertEqual([_bus snapshotOfVoice:fresh].state, VibeVoiceStateArmed);
+    dispatch_semaphore_signal(between);
+    dispatch_sync(decoder, ^{});
+    XCTAssertNotEqual([_bus snapshotOfVoice:fresh].state, VibeVoiceStateNone,
+                      @"The second recycle must not erase the new allocation");
+    XCTAssertEqual([_bus occupiedSlotCount], 1u);
+}
+
 #pragma mark - Conversion
 
 static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUInteger channel, double rate, double frequency, NSRange frames) {

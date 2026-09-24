@@ -62,11 +62,17 @@
     [self setSuccessorArmedForUI:YES];
 }
 
+// The decoder may have won: once it has switched into the successor, its
+// frames are in the ring behind the current file's, and withdrawing the
+// metadata alone leaves them to play under a track the UI still names, with
+// no boundary to promote and no end to report. Only a new voice discards
+// them, so the current file is re-voiced at its position.
 - (void)unqueueSuccessorOnQueue {
-    if (_voice) {
-        [_voiceBus unqueueSuccessorForVoice:_voice];
-    }
+    BOOL withdrawn = !_voice || [_voiceBus unqueueSuccessorForVoice:_voice];
     [self clearSuccessorOnQueue];
+    if (!withdrawn && _file) {
+        [self revoiceOnQueueAtPosition:self.position];
+    }
 }
 
 // The boundary passed: the successor is sounding on the same voice. Promote

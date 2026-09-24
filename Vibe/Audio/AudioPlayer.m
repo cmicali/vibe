@@ -767,20 +767,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self notifySeekFinishedOnQueue:track reason:@"ignored: track changed" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
-    VibeVoiceID oldVoice = _voice;
-    AVAudioFile *file = _file;
-    if (!oldVoice || !file) {
+    if (!_voice || !_file) {
         [self notifySeekFinishedOnQueue:track reason:@"no playable voice" submittedPlay:owningSubmittedPlayIdentifier];
         return;
     }
-    double sampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
     BOOL paused = _state == VibePlayerStatePaused;
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
-                                      fadeMilliseconds:kFadeDurationMilliseconds paused:paused];
-    [self unpublishVoiceOnQueue];
-    [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
-    [self publishState:_state voice:voice file:file startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+    [self revoiceOnQueueAtPosition:position];
     if (!paused) {
         // Playing can carry a stopped engine for the moment between a
         // configuration change and its recovery.
@@ -930,6 +922,23 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self noteVoiceStarted:voice file:file fromFrame:frame reason:paused ? @"parked" : @"started"];
     [self updateDrainTimerOnQueue];
     return voice;
+}
+
+// A new voice for the current file at `position`, the old one retiring at
+// the declick beside it: the seek's shape, shared with an unqueue the decoder
+// won, where only a new voice discards the successor frames already in the
+// ring. Playing or paused alike; the published tuple moves with the voice.
+- (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
+    VibeVoiceID oldVoice = _voice;
+    AVAudioFile *file = _file;
+    double sampleRate = file.processingFormat.sampleRate;
+    AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+                                      fadeMilliseconds:kFadeDurationMilliseconds
+                                                paused:_state == VibePlayerStatePaused];
+    [self unpublishVoiceOnQueue];
+    [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
+    [self publishState:_state voice:voice file:file startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
 }
 
 // An audible voice fades out for `milliseconds` and dies; one that cannot be
