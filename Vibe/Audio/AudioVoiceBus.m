@@ -1040,6 +1040,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     s->rampCurve = s->rampAction = 0;
     s->rampSequence = 0;
     s->consuming = 0;
+    s->startStamp.mFlags = s->boundaryStamp.mFlags = s->lastStamp.mFlags = 0; // no render of the next voice yet
     atomic_store_explicit(&s->generation, 0, memory_order_release);
     atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
 }

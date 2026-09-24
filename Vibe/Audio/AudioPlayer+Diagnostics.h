@@ -54,6 +54,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AVAudioFile *)file error:(nullable NSError *)error;
 - (void)noteVoiceStarted:(VibeVoiceID)voice file:(AVAudioFile *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current;
+// Every drain: the first-render line for a voice whose live event preceded its render.
+- (void)noteDrainOnQueue;
 - (void)noteSettled:(NSString *)what reason:(NSString *)reason;
 // Wraps a main-thread delivery: logs its latency and whether it was accepted.
 - (void)noteDelivery:(NSString *)what forPlay:(uint64_t)submittedPlay accepted:(BOOL)accepted deliveredAt:(uint64_t)deliveredAt;

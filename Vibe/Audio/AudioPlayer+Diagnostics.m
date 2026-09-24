@@ -516,6 +516,36 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
+// The voice's own stamp names when its first frame rendered, and the live
+// event precedes that render as often as not — the decoder's first fill hops
+// to the drain before the audio thread has consumed — so the line waits for
+// the drain that first sees the stamp. Neither proves when a DAC produced
+// sound.
+- (void)noteDrainOnQueue {
+#if VIBE_VERBOSE_LOGGING
+    VibeVoiceID voice = _firstRenderVoice;
+    if (!voice || voice != _voice) {
+        return;
+    }
+    AudioTimeStamp start = [_voiceBus snapshotOfVoice:voice].startOfConsumption;
+    if (!(start.mFlags & (kAudioTimeStampHostTimeValid | kAudioTimeStampSampleTimeValid))) {
+        return; // not yet rendered
+    }
+    _firstRenderVoice = 0;
+    NSString *when = (start.mFlags & kAudioTimeStampHostTimeValid)
+            ? [NSString stringWithFormat:@"host time %llu (%.1f ms ago)", start.mHostTime,
+               ([AVAudioTime secondsForHostTime:mach_absolute_time()] - [AVAudioTime secondsForHostTime:start.mHostTime]) * 1000]
+            : [NSString stringWithFormat:@"sample time %.0f", start.mSampleTime];
+#if TARGET_OS_OSX
+    NSTimeInterval latency = _outputUnit.presentationLatency;
+#else
+    NSTimeInterval latency = _engine.outputNode.presentationLatency;
+#endif
+    LogInfo(@"Timeline: play %llu voice %llu %@ live; first render at %@; reported output presentation latency %.1f ms (not measured audible output)",
+            [self diagnosticPlayIdentifierOnQueue], voice, self.currentTrack.url.lastPathComponent, when, latency * 1000);
+#endif
+}
+
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current {
 #if VIBE_VERBOSE_LOGGING
     NSString *name = event == VibeVoiceEventLive ? @"live" : event == VibeVoiceEventBoundary ? @"boundary" : @"ended";
@@ -524,23 +554,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
             [self diagnosticPlayIdentifierOnQueue], voice, name, current ? @"current" : @"retiring",
             snapshot.consumed, snapshot.underrunFrames, (long)_state);
     if (event == VibeVoiceEventLive && voice == _firstRenderVoice && current) {
-        // The voice's own stamp names when its first frame rendered; polling
-        // sees it a drain later. Neither proves when a DAC produced sound.
-        _firstRenderVoice = 0;
-        AudioTimeStamp start = snapshot.startOfConsumption;
-        NSString *when = (start.mFlags & kAudioTimeStampHostTimeValid)
-                ? [NSString stringWithFormat:@"host time %llu (%.1f ms ago)", start.mHostTime,
-                   ([AVAudioTime secondsForHostTime:mach_absolute_time()] - [AVAudioTime secondsForHostTime:start.mHostTime]) * 1000]
-                : (start.mFlags & kAudioTimeStampSampleTimeValid) ? [NSString stringWithFormat:@"sample time %.0f", start.mSampleTime]
-                : @"not yet rendered";
-#if TARGET_OS_OSX
-        NSTimeInterval latency = _outputUnit.presentationLatency;
-#else
-        NSTimeInterval latency = _engine.outputNode.presentationLatency;
-#endif
-        LogInfo(@"Timeline: play %llu voice %llu %@ live; first render at %@; reported output presentation latency %.1f ms (not measured audible output)",
-                [self diagnosticPlayIdentifierOnQueue], voice, self.currentTrack.url.lastPathComponent, when,
-                latency * 1000);
+        [self noteDrainOnQueue];
     }
     if (snapshot.underrunFrames && event == VibeVoiceEventEnded) {
         LogWarn(@"Stall: voice %llu underran %llu frames over its life", voice, snapshot.underrunFrames);

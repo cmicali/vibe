@@ -716,6 +716,7 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
                 break;
         }
     }];
+    [self noteDrainOnQueue];
     [self updateDrainTimerOnQueue];
 }
 

@@ -170,7 +170,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
 
     checked++;
     // Beta builds also hold the tap for each start's bounded signal capture.
-    if (tapInstalled != tapObject || (tapInstalled && !queueRequested && !signalProbe)) {
+    // The tap object is kept across demand; its installation is what follows.
+    if (tapInstalled && !queueRequested && !signalProbe) {
         VibeDebugViolation(v, @"equalizer.tap_follows_demand",
                 @"installed=%d, tap object=%d, requested=%d, signal probe=%d",
                 tapInstalled, tapObject, queueRequested, signalProbe);
