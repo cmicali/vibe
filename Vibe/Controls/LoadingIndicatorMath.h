@@ -12,7 +12,8 @@
 //  there are no waveform bars in a row to match.
 //
 //  The macOS empty-state line is the waveform style's track at rest, so it
-//  reads its height and alpha from here rather than restating them.
+//  reads its height and alpha from here rather than restating them — and so
+//  does the widget's empty strip, which draws that line again.
 //
 
 #import <CoreGraphics/CoreGraphics.h>
