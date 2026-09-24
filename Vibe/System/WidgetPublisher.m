@@ -263,6 +263,13 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     if (placed) {
         [self republish];
     }
+    else {
+        // The last widget went, and nothing is written from here on — so the
+        // snapshot on disk must not keep claiming a track. A widget added
+        // while the app is closed would draw it, and quitting writes nothing
+        // once the gate is shut.
+        [self commitEmptyIfPublished];
+    }
 }
 
 // The gate has just opened. Nothing was worked out while it was shut, so the
@@ -510,23 +517,13 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
 - (void)publishEmptyForTermination {
     if (!_widgetPlaced) {
-        return;     // nothing was ever written, so nothing claims a track
-    }
-    // Strips the empty state never shows are not worth waiting for.
-    if (_pendingBake) {
-        dispatch_block_cancel(_pendingBake);
+        return;     // the gate shutting already left the empty state on disk
     }
     // A hold with no deadline: every write from here owes its reload to the
     // one sent below.
     _holdingReload = YES;
     _reloadHoldGeneration++;
-    if (_published.hasTrack) {
-        VibeWidgetState *empty = [[VibeWidgetState alloc] init];
-        empty.theme = _theme;
-        _published = empty;
-        _publishedTrack = nil;
-        [self commitState:empty artwork:nil writeArtwork:NO];
-    }
+    [self commitEmptyIfPublished];
     BOOL reload = _reloadOwed;
     _reloadOwed = NO;
     // Behind every queued write, so the widget's last read is the empty state.
@@ -535,6 +532,24 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             [VibeWidgetReloaderClass() reload];
         }
     });
+}
+
+// The empty snapshot in place of a published track, for the two moments
+// nothing will publish again: quitting, and the last widget going. The strips
+// a queued bake would write are for a track the empty state never shows.
+- (void)commitEmptyIfPublished {
+    if (_pendingBake) {
+        dispatch_block_cancel(_pendingBake);
+        _pendingBake = nil;
+    }
+    if (!_published.hasTrack) {
+        return;
+    }
+    VibeWidgetState *empty = [[VibeWidgetState alloc] init];
+    empty.theme = _theme;
+    _published = empty;
+    _publishedTrack = nil;
+    [self commitState:empty artwork:nil writeArtwork:NO];
 }
 
 #pragma mark - Settings

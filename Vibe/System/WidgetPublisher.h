@@ -36,9 +36,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface WidgetPublisher : NSObject
 
 // Whether at least one widget is placed, as last known. Turned off only by
-// WidgetKit's own answer (asked at init and by refreshPlaced); turned on by
-// that answer or by the extension's read signal (kVibeWidgetReadNotification),
-// whichever comes first.
+// WidgetKit's own answer (asked at init and by refreshPlaced), which also
+// leaves the empty snapshot on disk, since nothing is written after it; turned
+// on by that answer or by the extension's read signal
+// (kVibeWidgetReadNotification), whichever comes first.
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
 // Asks WidgetKit whether a widget is still placed, and only while one is: the

@@ -61,12 +61,25 @@ struct VibeWidgetView: View {
             && (themeValues[kVibeWidgetThemeLight] as? [String: [NSNumber]])?[kVibeWidgetColorBackground] != nil
     }
 
-    private func themeColor(_ key: String) -> Color? {
+    private func themeComponents(_ key: String) -> [Double]? {
         let side = lightSurface ? kVibeWidgetThemeLight : kVibeWidgetThemeDark
         guard let palette = themeValues[side] as? [String: [NSNumber]],
               let rgba = palette[key], rgba.count == 4 else { return nil }
-        return Color(.sRGB, red: rgba[0].doubleValue, green: rgba[1].doubleValue,
-                     blue: rgba[2].doubleValue, opacity: rgba[3].doubleValue)
+        return rgba.map { $0.doubleValue }
+    }
+
+    private func themeColor(_ key: String) -> Color? {
+        themeComponents(key).map { Color(.sRGB, red: $0[0], green: $0[1], blue: $0[2], opacity: $0[3]) }
+    }
+
+    // Whether the tile itself is light, which is not lightSurface: that picks
+    // the palette, and a single-mode theme publishes its dark look on both
+    // sides. So the painted background's own lightness decides, and the
+    // widget's own tile is dark.
+    private var surfaceIsLight: Bool {
+        guard let rgb = themeComponents(kVibeWidgetColorBackground) else { return false }
+        let luma: Double = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+        return luma > 0.5
     }
 
     private func themeGlyph(_ key: String) -> String? {
@@ -308,7 +321,7 @@ struct VibeWidgetView: View {
                     // midline at rest, full width, in the same height and alpha.
                     let line = VibeLoadingIndicatorMetricsForStyle(.waveform, geometry.size.width)
                     Rectangle()
-                        .fill((lightSurface ? Color.black : Color.white).opacity(line.trackAlpha))
+                        .fill((surfaceIsLight ? Color.black : Color.white).opacity(line.trackAlpha))
                         .frame(height: line.height)
                         .frame(maxHeight: .infinity)
                 }

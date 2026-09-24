@@ -25,6 +25,11 @@
 #import "VibeWorkTally.h"
 #import <sys/resource.h>
 
+// The publisher's private gate setter, for set_widget_placed.
+@interface WidgetPublisher (DebugPlacement)
+- (void)setWidgetPlaced:(BOOL)placed;
+@end
+
 #pragma mark Command table
 
 // The undo and redo verbs. A conversion's file moves settle after the manager
@@ -287,6 +292,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 [controller.trackDisplay showWaveformLoadingIndicator];
                 [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
+            }),
+            VibeDebugCmd(@"set_widget_placed <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The publisher's gate, as WidgetKit's answer (off) or the
+                // extension's read signal (on) moves it — so the last widget
+                // going can be staged without taking one off the desktop.
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
+                    return VibeErrorJSON(@"usage: set_widget_placed <on|off>");
+                }
+                [controller.widgetPublisher setWidgetPlaced:on];
+                return VibeJSONString(@{@"ok": @YES, @"placed": @(controller.widgetPublisher.widgetPlaced)});
             }),
             VibeDebugCmd(@"widget_seek <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // The widget strip's click, through the same entry the seek
