@@ -55,6 +55,13 @@ static void VibeRestoreTestFilesystem(void) {
             [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
     setenv("VIBE_THEME_ART_DIR",
            [gRoot stringByAppendingPathComponent:@"ThemeArt"].UTF8String, 1);
+    // The widget's shared container: unredirected, WidgetPublisher would
+    // write the user's real snapshot, the one a placed widget draws, and its
+    // Darwin signal would reach a running Vibe (VibeWidgetState.h).
+    NSString *widgetContainer = [gRoot stringByAppendingPathComponent:@"WidgetContainer"];
+    [NSFileManager.defaultManager createDirectoryAtPath:widgetContainer
+                            withIntermediateDirectories:YES attributes:nil error:NULL];
+    setenv("VIBE_WIDGET_CONTAINER_DIR", widgetContainer.UTF8String, 1);
 
     gDefaultsDomain = NSBundle.mainBundle.bundleIdentifier ?: @"com.apple.dt.xctest.tool";
     gDefaultsSnapshot = [[NSUserDefaults.standardUserDefaults

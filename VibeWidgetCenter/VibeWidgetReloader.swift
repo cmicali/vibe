@@ -34,22 +34,27 @@ public final class VibeWidgetReloader: NSObject {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    // Whether any widget is placed, from the one party that knows. The answer
-    // arrives on WidgetKit's queue. Fails OPEN: a wrong NO silences the widget
-    // until the next foreground, a wrong YES costs one publish nobody reads.
+    // Whether the now-playing widget is placed, from the one party that knows,
+    // on WidgetKit's queue. A failed query is an error, not an answer: the
+    // caller keeps what it knew rather than publishing on a guess or deleting
+    // the mark on one.
     @objc(queryPlaced:)
-    public static func queryPlaced(_ completion: @escaping (Bool) -> Void) {
+    public static func queryPlaced(_ completion: @escaping (Bool, Error?) -> Void) {
         WidgetCenter.shared.getCurrentConfigurations { result in
             switch result {
-            case .success(let placed):
-                log.notice("Widget: WidgetKit lists \(placed.count) placed: \(placed.map { "\($0.kind)/\($0.family)" }.joined(separator: ", "), privacy: .public)")
-                completion(!placed.isEmpty)
+            case .success(let configurations):
+                let placed = configurations.filter { $0.kind == kind }
+                log.notice("Widget: WidgetKit lists \(placed.count) placed: \(placed.map { "\($0.family)" }.joined(separator: ", "), privacy: .public)")
+                completion(!placed.isEmpty, nil)
             case .failure(let error):
-                log.error("Widget: WidgetKit query failed, assuming placed: \(error.localizedDescription, privacy: .public)")
-                completion(true)
+                log.error("Widget: WidgetKit query failed: \(error.localizedDescription, privacy: .public)")
+                completion(false, error)
             }
         }
     }
+
+    // VibeWidget.swift's StaticConfiguration kind.
+    private static let kind = "VibeNowPlaying"
 
     private static let log = Logger(subsystem: "com.commonwealthrecordings.Vibe", category: "app")
 }

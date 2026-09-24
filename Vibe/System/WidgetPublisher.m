@@ -5,7 +5,7 @@
 //  See WidgetPublisher.h.
 //
 
-#import "WidgetPublisher.h"
+#import "WidgetPublisherInternal.h"
 
 #import <notify.h>
 
@@ -75,14 +75,14 @@ static void VibeWidgetWriteImage(CGImageRef image, NSURL *url) {
 // runtime lookup.
 @protocol VibeWidgetReloading <NSObject>
 + (void)reload;
-+ (void)queryPlaced:(void (^)(BOOL placed))completion;
++ (void)queryPlaced:(void (^)(BOOL placed, NSError *_Nullable error))completion;
 @end
 
 // The reloader, loaded on the mac the first time it is asked for — which is
 // only ever once a widget may exist (VibeWidgetState.widgetMayBePlaced, the
-// read signal) — so an app with none never loads WidgetKit. Only ever called
-// on the publish queue, which reloads and queries, so the load never blocks
-// main. Nil only if the bundle failed to load, and every caller treats that as
+// demand signal) — so an app that never had one never loads WidgetKit. Only
+// ever called on the publish queue, which reloads and queries, so the load
+// never blocks main. Nil only if the bundle failed to load, and every caller treats that as
 // "no WidgetKit to tell".
 static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 #if TARGET_OS_OSX
@@ -110,7 +110,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
 @implementation WidgetPublisher {
     // What the widget was last told. nil until the first update while a
-    // widget is placed, and again whenever republish forgets it.
+    // widget is placed, and again once the last one goes (deactivate).
     VibeWidgetState      *_published;
     // The track that snapshot describes, held only to compare identity on the
     // 3 Hz tick. A pointer compare, deliberately: AudioTrack.cacheKey stats the
@@ -126,9 +126,12 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     NSString             *_committedKey;
 
     // The last complete envelope offered, and the track it came from, so a
-    // settings change can re-bake without the card being asked again.
-    CodableAudioWaveform *_waveform;
-    AudioTrack           *_waveformTrack;
+    // settings change, or a widget placed after the envelope landed, bakes
+    // without the card being asked again. Weak: the mac's waveform view and the
+    // iOS pager's coordinator own it while it is on screen, so nothing is kept
+    // alive for a widget — placed or not, and not after the file closes.
+    __weak CodableAudioWaveform *_waveform;
+    __weak AudioTrack    *_waveformTrack;
     // Everything the bake reads. A settings change that does not move one of
     // these is not a re-bake — which is what makes this safe to hang off
     // every settings change, whose posters include a continuous slider and a
@@ -160,22 +163,15 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // because each can only be right about one direction: WidgetKit's own
     // answer (queryPlacedOnlyIfMarked:) is authoritative but asked only at
     // launch and on foreground, so it is what turns this OFF; the extension's
-    // read signal arrives the instant a widget renders, wherever the app is,
-    // so it is what turns it ON. While NO, nothing is computed, captured or written: every
-    // entry point returns at this flag, and updateWithTrack: only records its
-    // inputs (below) for republish to replay.
+    // demand signal arrives the instant a placed widget renders, wherever the
+    // app is, so it is what turns it ON. While NO, every entry point returns at
+    // this flag before it keeps, computes or writes anything; activation asks
+    // the shell for the current state (activationHandler) instead.
     BOOL                  _widgetPlaced;
+    // The last query failed, so the flag is a guess: the next foreground asks
+    // again even while it reads NO.
+    BOOL                  _placementUnresolved;
     int                   _readToken;
-
-    // The last update while no widget was placed, as handed in — a quiet tick
-    // with nobody looking is these stores and nothing else. _heldAt is 0 when
-    // there is none.
-    __weak AudioTrack    *_heldTrack;
-    NSTimeInterval        _heldPosition;
-    NSTimeInterval        _heldDuration;
-    CFAbsoluteTime        _heldAt;
-    BOOL                  _heldPlaying;
-    BOOL                  _heldStartPending;
 
     dispatch_queue_t      _queue;
 }
@@ -201,7 +197,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         // ordered with everything else that touches _published.
         __weak WidgetPublisher *weakSelf = self;
         _readToken = NOTIFY_TOKEN_INVALID;
-        notify_register_dispatch(kVibeWidgetReadNotification, &_readToken,
+        notify_register_dispatch(VibeWidgetDemandNotification(), &_readToken,
                                  dispatch_get_main_queue(), ^(int token) {
             [weakSelf setWidgetPlaced:YES];
         });
@@ -220,10 +216,11 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
 #pragma mark - Whether anyone is looking
 
-// Only while one is placed: nothing can turn the flag on but the read signal,
-// so with none placed there is nothing to ask.
+// Only while one is placed, or a failed query left that unknown: otherwise
+// nothing can turn the flag on but the demand signal, so there is nothing to
+// ask.
 - (void)refreshPlaced {
-    if (_widgetPlaced) {
+    if (_widgetPlaced || _placementUnresolved) {
         [self queryPlacedOnlyIfMarked:NO];
     }
 }
@@ -242,13 +239,22 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         if (!reloader) {
             return;     // nothing could be told anyway; the flag stays off
         }
-        [reloader queryPlaced:^(BOOL placed) {
-            if (!placed) {
+        [reloader queryPlaced:^(BOOL placed, NSError *error) {
+            if (!placed && !error) {
                 // The next launch loads nothing until a widget renders again.
                 [VibeWidgetState forgetWidget];
             }
             dispatch_async(dispatch_get_main_queue(), ^{
-                [weakSelf setWidgetPlaced:placed];
+                WidgetPublisher *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+                // A failure is no answer: keep the flag and the mark, and ask
+                // again on the next foreground.
+                strongSelf->_placementUnresolved = (error != nil);
+                if (!error) {
+                    [strongSelf setWidgetPlaced:placed];
+                }
             });
         }];
     });
@@ -261,39 +267,37 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     _widgetPlaced = placed;
     LogInfo(@"Widget: %@", placed ? @"now publishing" : @"no widget placed; publishing stops");
     if (placed) {
-        [self republish];
+        // Nothing was worked out while the gate was shut, so the shell hands
+        // over what is true now — a track change, from the widget's side,
+        // since the snapshot starts forgotten. A widget added while a track
+        // plays in the background renders once from whatever was on disk, its
+        // demand lands here, and the next render is current.
+        [self captureTheme];
+        if (self.activationHandler) {
+            self.activationHandler();
+        }
     }
     else {
-        // The last widget went, and nothing is written from here on — so the
-        // snapshot on disk must not keep claiming a track. A widget added
-        // while the app is closed would draw it, and quitting writes nothing
-        // once the gate is shut.
-        [self commitEmptyIfPublished];
+        [self deactivate];
     }
 }
 
-// The gate has just opened. Nothing was worked out while it was shut, so the
-// last input is replayed against a forgotten snapshot — a track change, which
-// from the widget's side is exactly what happened, the playhead advanced by
-// the time it waited. A widget added while a track plays in the background
-// renders once from whatever was on disk, its read lands here, and the next
-// render is current.
-- (void)republish {
-    [self captureTheme];
-    _published      = nil;
-    _publishedTrack = nil;
-    _bakedSignature = nil;
-    _artworkOnDisk  = nil;
-    if (!_heldAt) {
-        return;     // nothing handed over yet; the first update publishes
-    }
-    NSTimeInterval position = _heldPosition;
-    if (_heldPlaying && !_heldStartPending) {
-        position += CFAbsoluteTimeGetCurrent() - _heldAt;   // clamped on read
-    }
-    _heldAt = 0;
-    [self updateWithTrack:_heldTrack position:position duration:_heldDuration
-                  playing:_heldPlaying startPending:_heldStartPending];
+// The last widget went. Publishing lets go of everything it holds, and the
+// snapshot on disk must not keep claiming a track: a widget added while the
+// app is closed would draw it, and quitting writes nothing once the gate is
+// shut (it only waits for this clear to land).
+- (void)deactivate {
+    // A hold's deadline then finds nothing to end.
+    _holdingReload = NO;
+    _reloadOwed = NO;
+    _reloadHoldGeneration++;
+    [self commitEmptyIfPublished];
+    _published         = nil;
+    _publishedTrack    = nil;
+    _artworkOnDisk     = nil;
+    _artworkColor      = nil;
+    _artworkColorImage = nil;
+    _bakedSignature    = nil;
 }
 
 #pragma mark - What is playing
@@ -304,12 +308,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
                 playing:(BOOL)playing
            startPending:(BOOL)startPending {
     if (!_widgetPlaced) {
-        _heldTrack        = track;
-        _heldPosition     = position;
-        _heldDuration     = duration;
-        _heldPlaying      = playing;
-        _heldStartPending = startPending;
-        _heldAt           = CFAbsoluteTimeGetCurrent();
         return;
     }
     VibeImage *artwork = track.cachedArt;
@@ -517,7 +515,11 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
 - (void)publishEmptyForTermination {
     if (!_widgetPlaced) {
-        return;     // the gate shutting already left the empty state on disk
+        // The gate shutting queued the empty state, and this quit may come
+        // before it lands behind a slow write; with nothing queued this is one
+        // pass through an idle queue.
+        dispatch_sync(_queue, ^{});
+        return;
     }
     // A hold with no deadline: every write from here owes its reload to the
     // one sent below.
@@ -555,7 +557,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 #pragma mark - Settings
 
 - (void)settingsDidChange {
-    // Not captured while nobody looks: republish captures and bakes when one
+    // Not captured while nobody looks: activation captures and bakes when one
     // appears.
     if (!_widgetPlaced) {
         return;
@@ -673,12 +675,14 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
     if (!waveform || !track) {
         return;
     }
-    // Kept whichever side of the adoption it lands on; only the bake waits for
-    // the track to be the published one, so an offer for a page the user is
-    // merely swiping past cannot overwrite the strip.
+    // Kept whichever side of the adoption it lands on, and while no widget is
+    // placed too — weakly, so that costs nothing and a widget added later
+    // finds it; only the bake waits for the track to be the published one, so
+    // an offer for a page the user is merely swiping past cannot overwrite the
+    // strip.
     _waveform      = waveform;
     _waveformTrack = track;
-    if (track == _publishedTrack) {
+    if (_widgetPlaced && track == _publishedTrack) {
         [self bakeWaveformIfNeeded];
     }
 }
@@ -701,7 +705,7 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
     // _widgetPlaced before the signature is taken, so the bake is still owed.
-    if (!waveform || _waveformTrack != _publishedTrack || !_widgetPlaced) {
+    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack || !_widgetPlaced) {
         return;
     }
     AppSettings *settings = AppSettings.sharedInstance;

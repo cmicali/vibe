@@ -74,12 +74,13 @@ struct VibeWidgetView: View {
 
     // Whether the tile itself is light, which is not lightSurface: that picks
     // the palette, and a single-mode theme publishes its dark look on both
-    // sides. So the painted background's own lightness decides, and the
-    // widget's own tile is dark.
+    // sides. So the painted background's own lightness decides, as it shows:
+    // over the black the container draws under it, so a transparent white is
+    // a dark tile. The widget's own tile is dark.
     private var surfaceIsLight: Bool {
-        guard let rgb = themeComponents(kVibeWidgetColorBackground) else { return false }
-        let luma: Double = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
-        return luma > 0.5
+        guard let rgba = themeComponents(kVibeWidgetColorBackground) else { return false }
+        let luma: Double = 0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]
+        return luma * rgba[3] > 0.5
     }
 
     private func themeGlyph(_ key: String) -> String? {

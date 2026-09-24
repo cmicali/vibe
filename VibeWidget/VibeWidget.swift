@@ -57,10 +57,12 @@ struct VibeProvider: TimelineProvider {
     func placeholder(in context: Context) -> VibeEntry { .empty }
 
     func getSnapshot(in context: Context, completion: @escaping (VibeEntry) -> Void) {
+        noteDemand(context)
         completion(loadEntry(at: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<VibeEntry>) -> Void) {
+        noteDemand(context)
         let now = Date()
         let first = loadEntry(at: now)
         guard let state = first.state, state.hasTrack, state.playing, !state.startPending,
@@ -84,6 +86,14 @@ struct VibeProvider: TimelineProvider {
             return entry
         }
         completion(Timeline(entries: entries, policy: .atEnd))
+    }
+
+    // A placed widget rendering is what turns the app's publishing on; the
+    // gallery renders its preview with nothing placed (VibeWidgetState.h's TRAP).
+    private func noteDemand(_ context: Context) {
+        if !context.isPreview {
+            VibeWidgetState.noteWidgetDemand()
+        }
     }
 
     private func loadEntry(at date: Date) -> VibeEntry {
@@ -133,6 +143,7 @@ struct VibeWidgetBundle: WidgetBundle {
 
 struct VibeNowPlayingWidget: Widget {
     var body: some WidgetConfiguration {
+        // VibeWidgetReloader.swift counts placements of this kind alone.
         StaticConfiguration(kind: "VibeNowPlaying", provider: VibeProvider()) { entry in
             VibeWidgetView(entry: entry)
         }

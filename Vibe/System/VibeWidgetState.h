@@ -20,13 +20,13 @@ NS_ASSUME_NONNULL_BEGIN
 // mismatch shows up as containerURL returning nil, never as stale data.
 extern NSString *const kVibeWidgetAppGroup;
 
-// Posted by loadState — a Darwin notification, so it crosses from the
-// extension's process to the app's. A read IS the signal that a widget exists:
-// WidgetKit spawns this extension only to render a placed widget or a gallery
-// preview, and nothing else ever loads the snapshot. The app publishes only
-// while it believes a widget is placed (WidgetPublisher), and this is how a
-// widget added while the app is in the background gets it publishing again.
-extern const char *const kVibeWidgetReadNotification;
+// Posted by noteWidgetDemand — a Darwin notification, so it crosses from the
+// extension's process to the app's. The app publishes only while it believes
+// a widget is placed (WidgetPublisher), and this is how a widget added while
+// the app is in the background gets it publishing again. Under the unit
+// tests' container override the name is that directory's own, so a test
+// publisher never hears a real widget, nor a real app a test.
+FOUNDATION_EXPORT const char *VibeWidgetDemandNotification(void);
 
 // The theme dictionary's keys. Two palettes, one per appearance, each mapping
 // a color key to sRGB components [r, g, b, a]; and the transport glyphs, as
@@ -106,18 +106,25 @@ extern NSString *const kVibeWidgetColorBackground;
 
 // The app's WidgetKit-free first answer to "is a widget placed?", so a launch
 // with none never loads WidgetKit to ask (VibeWidgetReloader.swift says what
-// that costs). loadState marks the container on every render; the app asks
-// WidgetKit only while the mark is there, and clears it when the answer is
-// none. A widget added later renders, marks, and posts the read signal.
+// that costs). noteWidgetDemand marks the container; the app asks WidgetKit
+// only while the mark is there, and clears it when the answer is none. A mark
+// left by a widget removed while the app was closed costs that one query.
 @property (class, nonatomic, readonly) BOOL widgetMayBePlaced;
 + (void)forgetWidget;
 
+// A placed widget is rendering: marks the container and posts
+// VibeWidgetDemandNotification. The extension calls it for its timelines and
+// non-preview snapshots only. TRAP: never for a gallery preview — WidgetKit
+// renders those with nothing placed, and each one turned publishing on.
++ (void)noteWidgetDemand;
+
 #pragma mark - Reading and writing
 
-// nil when nothing has been published yet, or the file is unreadable. Posts
-// kVibeWidgetReadNotification either way. The Swift names are pinned rather
-// than left to the importer's own shortening, since the extension is the only
-// caller and a rename here would break a build the app target never compiles.
+// nil when nothing has been published yet, or the file is unreadable. Only a
+// read: it signals nothing (noteWidgetDemand does). The Swift names are pinned
+// rather than left to the importer's own shortening, since the extension is
+// the only caller and a rename here would break a build the app target never
+// compiles.
 + (nullable VibeWidgetState *)loadState NS_SWIFT_NAME(load());
 - (BOOL)save;
 

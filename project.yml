@@ -795,6 +795,8 @@ targets:
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/System/NowPlayingController.m
+      - path: Vibe/System/VibeWidgetState.m
+      - path: Vibe/System/WidgetPublisher.m
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m

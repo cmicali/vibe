@@ -23,12 +23,8 @@
 #if DEBUG
 
 #import "VibeWorkTally.h"
+#import "WidgetPublisherInternal.h"
 #import <sys/resource.h>
-
-// The publisher's private gate setter, for set_widget_placed.
-@interface WidgetPublisher (DebugPlacement)
-- (void)setWidgetPlaced:(BOOL)placed;
-@end
 
 #pragma mark Command table
 

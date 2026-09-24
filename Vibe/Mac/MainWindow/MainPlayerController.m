@@ -179,10 +179,17 @@
     // updateUI funnel. Registering the command handlers now lets the media
     // keys route to us as soon as the first track starts playing.
     self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
-    // The desktop widget, fed from the same publish (System/CLAUDE.md).
-    self.widgetPublisher = [[WidgetPublisher alloc] init];
-
     __weak MainPlayerController *weakSelf = self;
+    // The desktop widget, fed from the same publish (System/CLAUDE.md). Its
+    // extension needs macOS 26, so below that there is no publisher at all —
+    // every call to it is a message to nil.
+    if (@available(macOS 26.0, *)) {
+        self.widgetPublisher = [[WidgetPublisher alloc] init];
+        self.widgetPublisher.activationHandler = ^{
+            [weakSelf updateNowPlaying];
+        };
+    }
+
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
         [weakSelf updatePlaybackUI];
         // Reconciliation, not an edge: a play settlement dropped as stale

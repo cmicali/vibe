@@ -52,6 +52,10 @@ static const NSUInteger kUIUpdateHz = 3;
         _folderSession.delegate = self;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
+        __weak PlaybackController *weakPlayback = self;
+        _widgetPublisher.activationHandler = ^{
+            [weakPlayback publishNowPlaying];
+        };
         _launchOpenWaiters = [NSMutableArray array];
         // TRAP: this must precede the player, and cannot move down to where
         // the session controller is created. AVAudioEngine wires its master

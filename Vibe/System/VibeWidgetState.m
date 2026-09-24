@@ -21,7 +21,16 @@ NSString *const kVibeWidgetAppGroup = @"4UEV752JH4.com.commonwealthrecordings.Vi
 #else
 NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
 #endif
-const char *const kVibeWidgetReadNotification = "com.commonwealthrecordings.Vibe.widget.read";
+const char *VibeWidgetDemandNotification(void) {
+    static NSString *name;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        const char *override = getenv("VIBE_WIDGET_CONTAINER_DIR");
+        name = override ? [NSString stringWithFormat:@"com.commonwealthrecordings.Vibe.widget.read.%s", override]
+                        : @"com.commonwealthrecordings.Vibe.widget.read";
+    });
+    return name.UTF8String;
+}
 
 NSString *const kVibeWidgetThemeDark       = @"dark";
 NSString *const kVibeWidgetThemeLight      = @"light";
@@ -69,8 +78,14 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     static NSURL *container;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        container = [NSFileManager.defaultManager
-                containerURLForSecurityApplicationGroupIdentifier:kVibeWidgetAppGroup];
+        // The unit tests' directory (Tests/TestFilesystemGuard.m): a host-less
+        // test is unsandboxed, and the group would resolve to the user's real
+        // container — the one a placed widget reads.
+        const char *override = getenv("VIBE_WIDGET_CONTAINER_DIR");
+        container = override
+                ? [NSURL fileURLWithPath:@(override) isDirectory:YES]
+                : [NSFileManager.defaultManager
+                        containerURLForSecurityApplicationGroupIdentifier:kVibeWidgetAppGroup];
     });
     return container;
 }
@@ -157,15 +172,16 @@ static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL li
     }
 }
 
-+ (VibeWidgetState *)loadState {
-    // Before the read, not after a successful one: an empty container is still
-    // a widget asking, and it is exactly the widget that needs the app to
-    // start publishing. The mark is for an app not running to hear the signal.
++ (void)noteWidgetDemand {
+    // The mark is for an app not running to hear the signal.
     NSURL *mark = [self fileNamed:kWidgetMark];
     if (mark && ![NSFileManager.defaultManager fileExistsAtPath:mark.path]) {
         [NSData.data writeToURL:mark atomically:NO];
     }
-    notify_post(kVibeWidgetReadNotification);
+    notify_post(VibeWidgetDemandNotification());
+}
+
++ (VibeWidgetState *)loadState {
     NSURL *url = [self fileNamed:kStateFileName];
     if (!url) {
         return nil;

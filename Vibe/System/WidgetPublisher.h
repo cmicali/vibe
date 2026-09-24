@@ -14,13 +14,14 @@
 //  publishes is derived from what it is handed here, so nothing else needs to
 //  know the widget exists.
 //
-//  It does nothing while no widget is placed. With none placed anywhere every
-//  publish was two renders, two PNG encodes and ~220 KB of writes per track
-//  change for nobody, so everything is gated on `widgetPlaced`: no snapshot is
-//  built, no theme captured, no image drawn and no WidgetKit query made. The
-//  one thing kept is the last update's raw inputs, so a widget that appears
-//  mid-track is handed the current track at once (republish) rather than at
-//  the next event.
+//  It publishes nothing while no widget is placed. With none placed anywhere
+//  every publish was two renders, two PNG encodes and ~220 KB of writes per
+//  track change for nobody, so every entry point returns at `widgetPlaced`
+//  before it keeps, builds, captures, draws or writes anything. A widget that
+//  appears mid-track gets the current track from the shell at once
+//  (activationHandler), not a copy the publisher kept while nobody looked.
+//  What stays for everyone is the object, its queue, one Darwin registration
+//  and a marker check at launch; the System doc lists what discovery costs.
 //
 //  Main thread only, like the controller that drives it. Every file write and
 //  every WidgetKit reload lands on its own serial queue.
@@ -38,15 +39,23 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether at least one widget is placed, as last known. Turned off only by
 // WidgetKit's own answer (asked at init and by refreshPlaced), which also
 // leaves the empty snapshot on disk, since nothing is written after it; turned
-// on by that answer or by the extension's read signal
-// (kVibeWidgetReadNotification), whichever comes first.
+// on by that answer or by the extension's demand signal
+// (VibeWidgetDemandNotification), whichever comes first.
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
-// Asks WidgetKit whether a widget is still placed, and only while one is: the
-// shell calls it on every return to the foreground — the one moment a widget
-// can have been REMOVED, since removing one means leaving the app. Adding one
-// is covered by the read signal, so with none placed there is nothing to ask.
-// init asks once if a widget has rendered since WidgetKit last said none
+// Called on main each time publishing starts, for the shell to hand over what
+// is true now: its Now Playing publish (updateWithTrack:…). The complete
+// waveform needs no second offer — offerWaveform: keeps it weakly whatever
+// the gate says.
+@property (nonatomic, copy, nullable) dispatch_block_t activationHandler;
+
+// Asks WidgetKit whether a widget is still placed, while one is (or the last
+// query failed): the shell calls it on every return to the foreground, when a
+// removal is most likely to have happened, since removing one means using the
+// desktop. A removal while the app stays in the background is found only
+// then, so publishing carries on until it. Adding one is covered by the demand
+// signal, so with none placed there is nothing to ask. init asks once if a
+// widget has rendered since WidgetKit last said none
 // (VibeWidgetState.widgetMayBePlaced), to learn of one placed before launch.
 - (void)refreshPlaced;
 
@@ -54,8 +63,8 @@ NS_ASSUME_NONNULL_BEGIN
 // holds — the widget's snapshot must never disagree with the lock screen's,
 // and re-reading the player would be four more lock round-trips per tick.
 //
-// This runs at 3 Hz. With no widget placed it records its arguments and
-// returns. With one placed it is cheap on a tick that changes nothing: the
+// This runs at 3 Hz. With no widget placed it returns at once. With one
+// placed it is cheap on a tick that changes nothing: the
 // gate is scalars, a pointer compare and the two line compares, and no
 // snapshot object is built unless something is actually going to be published.
 //
@@ -76,8 +85,9 @@ NS_ASSUME_NONNULL_BEGIN
 // anything but the published track is dropped — a decode outlives the track
 // change that superseded it. Partial envelopes are the caller's to filter.
 //
-// The envelope is retained so a later settings change can re-bake without the
-// card being involved.
+// The envelope is referenced weakly, so a later settings change or a widget
+// placed afterwards can bake without the card being involved while the card
+// still holds it — and the publisher keeps no envelope, or track, alive itself.
 - (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
 
 // The app is quitting: publishes the empty snapshot and blocks until every
