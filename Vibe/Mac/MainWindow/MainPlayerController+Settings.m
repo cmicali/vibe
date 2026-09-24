@@ -64,6 +64,9 @@
     if (effects & VibeSettingsLiveEffectCrossfade) {
         self.audioPlayer.crossfadeMilliseconds = settings.effectiveCrossfadeMilliseconds;
     }
+    if (effects & VibeSettingsLiveEffectDeclick) {
+        self.audioPlayer.declick = settings.declick;
+    }
     if (effects & VibeSettingsLiveEffectBitPerfect) {
         BOOL bitPerfect = settings.bitPerfectOutput;
         if (bitPerfect) {

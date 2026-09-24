@@ -145,6 +145,7 @@
                                                      enableFX:AppSettings.sharedInstance.audioFXAllowed
                                                      delegate:self];
     self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
+    self.audioPlayer.declick = AppSettings.sharedInstance.declick;
     // The mode is wanted from the first play; the saved device binds
     // asynchronously and the report follows it.
     [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput

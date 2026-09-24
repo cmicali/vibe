@@ -10,8 +10,9 @@ implementation plan is available in git history.
 - **Bit-perfect output**, off by default, requires an explicitly chosen eligible
   output device. It matches the file's rate and lossless depth; lossy files prefer
   16-bit output, then a wider integer format or floating point if needed. It removes
-  varispeed, disables FX and pitch controls, and writes no volume: no crossfade,
-  and no declick or fade at a start, pause, resume, seek, track change or stop.
+  varispeed, disables FX and pitch controls, and writes no volume but the declick:
+  no crossfade, and — with Declick on, the default — a 10 ms ramp at a start, pause,
+  resume, seek, track change or stop; with it off, a cut there and every sample untouched.
 - **Exclusive output** is a separate opt-in immediately below it. Physical and virtual devices
   may request it when the HAL hog property is writable, the device that is currently
   the system output included — taking that one makes macOS move the system default to

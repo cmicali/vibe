@@ -248,8 +248,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // directly, because rendered frames must not advance them.
 - (void)scheduleAfterSeconds:(NSTimeInterval)seconds block:(dispatch_block_t)block;
 
-// Bit-perfect output changes no sample, so the player applies no gain while
-// it is on: every ramp is a cut. Always NO on iOS.
+// The mode: bit-perfect output wanted. Always NO on iOS.
+- (BOOL)bitPerfectOnQueue;
+// The gain rule: bit-perfect output with declick off applies no gain, so
+// every ramp is a cut; otherwise every edge ramps.
 - (BOOL)leavesSamplesUntouchedOnQueue;
 
 // The terminus every file open lands in, whether the play opened it or the
@@ -267,9 +269,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // stopped engine the pause is a cut, applied at the next render.
 - (void)pauseCurrentVoiceOnQueue;
 
-// The voice vocabulary the transport speaks. Every ramp is a cut under
-// bit-perfect output; a retire at the declick length stops the voice's reads,
-// so its file may be handed on. Retired voices are tracked until they end.
+// The voice vocabulary the transport speaks. Under bit-perfect output every
+// ramp is at most the declick, and a cut with Declick off; a retire at the
+// declick length stops the voice's reads, so its file may be handed on.
+// Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
 - (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;

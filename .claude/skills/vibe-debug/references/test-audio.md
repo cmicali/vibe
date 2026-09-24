@@ -81,7 +81,7 @@ V="$PWD/build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe"
 "$V" --debug-cmd set_bit_perfect off
 ```
 
-Enabling bit-perfect bypasses Audio FX live, including a run launched with effects enabled. Set pitch to zero. Grant the **fixture directory** through Launch Services, then close playback. This covers temporary M3U files created beside the audio as well as the WAVs:
+Enabling bit-perfect bypasses Audio FX live, including a run launched with effects enabled. Set pitch to zero. The verifier turns Declick off for its captures and restores the choice at exit: a capture is compared from its first frame, and with Declick on a bit-perfect start ramps its first 10 ms. Grant the **fixture directory** through Launch Services, then close playback. This covers temporary M3U files created beside the audio as well as the WAVs:
 
 ```bash
 open -a "$PWD/build/DerivedData/Build/Products/Debug/Vibe.app" "$PWD/build/audio-fixtures"

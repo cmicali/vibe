@@ -59,6 +59,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // to bitPerfectOutput uses BitPerfectApply below; exclusiveOutput alone
     // needs only this effect. The settled report redraws the header and pane.
     VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
+    // Declick: pushes the choice to the player; nothing is rebuilt.
+    VibeSettingsLiveEffectDeclick          = 1UL << 24,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the

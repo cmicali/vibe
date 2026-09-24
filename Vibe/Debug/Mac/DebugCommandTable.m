@@ -526,6 +526,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
                 });
             }),
+            VibeDebugCmd(@"set_declick <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The pane's switch without its gate: the choice is stored and
+                // pushed whatever the mode, and applies only under it.
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
+                    return VibeErrorJSON(@"usage: set_declick <on|off>");
+                }
+                AppSettings.sharedInstance.declick = on;
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+                return VibeJSONString(@{@"ok": @YES, @"declick": @(AppSettings.sharedInstance.declick)});
+            }),
             VibeDebugCmd(@"set_reopen_playlist <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {

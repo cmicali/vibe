@@ -226,9 +226,10 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 // The startup the comparison may skip: ordinary playback's 10 ms declick and
 // the node's volume smoothing after it, and nothing at all for bit-perfect
-// output, which writes no volume, so its first sample must already be exact.
+// output with declick off, which writes no volume, so its first sample must
+// already be exact; with declick on, the default, its start ramps too.
 - (NSUInteger)startupSkip {
-    return _player.bitPerfectReport.enabled ? 0 : (NSUInteger)(_rate * 0.05);
+    return _player.bitPerfectReport.enabled && !_player.declick ? 0 : (NSUInteger)(_rate * 0.05);
 }
 - (void)assertReference:(NSData *)reference capture:(NSData *)capture skip:(NSUInteger)skip tolerance:(float)tolerance {
     NSDictionary *result=ComparePCM(reference,capture,_channels,skip,tolerance);
@@ -382,9 +383,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 // Every audible frame of capture must continue an exact excerpt of one of the
 // references: bit-perfect output may cut between excerpts, never scale a
 // sample. Each excerpt is found by an exact 32-frame match, so a ramp's scaled
-// samples, which match nothing, fail it. Returns the excerpts found.
-- (NSUInteger)assertExactExcerptsOf:(NSArray<NSData *> *)references inCapture:(NSData *)capture {
-    NSUInteger channels = _channels, frames = capture.length / sizeof(float) / channels, excerpts = 0;
+// samples match nothing; with declick on, a run of up to `rampFrames` of them
+// is allowed between excerpts and counted in `ramped`. Returns the excerpts found.
+- (NSUInteger)assertExactExcerptsOf:(NSArray<NSData *> *)references inCapture:(NSData *)capture
+                         rampFrames:(NSUInteger)rampFrames ramped:(NSUInteger *)ramped {
+    NSUInteger channels = _channels, frames = capture.length / sizeof(float) / channels, excerpts = 0, run = 0;
     const float *a = capture.bytes;
     const float *r = NULL;
     NSUInteger at = 0, length = 0; // the current excerpt's next reference frame
@@ -393,11 +396,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         BOOL silent = YES;
         for (NSUInteger c = 0; c < channels; c++) silent &= frame[c] == 0;
         if (r && at < length && memcmp(frame, r + at * channels, channels * sizeof(float)) == 0) {
-            at++;
+            at++; run = 0;
             continue;
         }
         r = NULL;
-        if (silent) continue;
+        if (silent) { run = 0; continue; }
         for (NSData *reference in references) {
             const float *candidate = reference.bytes;
             NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
@@ -409,9 +412,14 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             if (r) break;
         }
         if (!r) {
+            if (++run <= rampFrames) {
+                if (ramped) (*ramped)++;
+                continue;
+            }
             XCTFail(@"Frame %lu is audible but continues no exact excerpt: %g", (unsigned long)f, frame[0]);
             return excerpts;
         }
+        run = 0;
         excerpts++;
     }
     return excerpts;
@@ -420,6 +428,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (void)testBitPerfectTransportCutsWithoutChangingSamples {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     _player.crossfadeMilliseconds = 2000; // bit-perfect output ignores it
+    _player.declick = NO; // the cut rule; the default, which ramps, is the next test
     NSURL *first = [self fixture:@"noise-48000-24-2.wav"], *second = [self fixture:@"noise-48000-16-2.wav"];
     NSArray *references = @[PCM([self read:first]), PCM([self read:second])];
     [_capture setLength:0];
@@ -431,9 +440,35 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     [_player stop]; [self render:4800]; XCTAssertTrue(_player.isStopped);
     // start, seek, resume and the track change each begin an excerpt; a cut
     // between two that happens to abut adds none.
-    XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture], 3u);
+    XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture rampFrames:0 ramped:NULL], 3u);
     const float *tail = (const float *)_capture.bytes + (_capture.length / sizeof(float) - 4800 * 2);
     for (NSUInteger i = 0; i < 4800 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
+}
+
+// The default: every edge is the 10 ms declick, and nothing else is touched.
+- (void)testBitPerfectDeclickRampsOnlyTheEdges {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    XCTAssertTrue(_player.declick);
+    _player.crossfadeMilliseconds = 2000; // still clamped to the declick under the mode
+    NSURL *first = [self fixture:@"noise-48000-24-2.wav"], *second = [self fixture:@"noise-48000-16-2.wav"];
+    NSArray *references = @[PCM([self read:first]), PCM([self read:second])];
+    [_capture setLength:0];
+    [self play:first paused:NO position:0]; [self render:14400];
+    [_player seekToPosition:1.0]; [self render:9600];
+    [_player pause]; [self render:4800]; XCTAssertTrue(_player.isPaused);
+    [_player resume]; [self render:9600];
+    [self play:second paused:NO position:0]; [self render:14400];
+    [_player stop]; [self render:4800]; XCTAssertTrue(_player.isStopped);
+    // The same edges begin the same excerpts, and every gap between excerpts
+    // is one declick: at most 10 ms of scaled frames in a row.
+    NSUInteger ramp = (NSUInteger)(_rate * 0.010) + 8, ramped = 0;
+    XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture rampFrames:ramp ramped:&ramped], 3u);
+    // The start, the seek, the pause, the resume, the track change and the
+    // stop each ramp once (a seek or a track change overlaps its two ramps).
+    XCTAssertGreaterThan(ramped, ramp / 2, @"declick applied no ramp");
+    XCTAssertLessThanOrEqual(ramped, ramp * 6);
+    const float *tail = (const float *)_capture.bytes + (_capture.length / sizeof(float) - 4000 * 2);
+    for (NSUInteger i = 0; i < 4000 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
 }
 
 - (void)testPauseResumeAndIdleRestart {
@@ -698,6 +733,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;
+        _player.declick = fx.boolValue; // the bit-perfect case is the cut, which nothing overlaps
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"1000.wav"] paused:NO position:0];
         [self render:12123];
@@ -1195,7 +1231,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSUInteger sourceFrames=reference.length/8;
     [self play:url paused:NO position:0];
     NSData *head=[self renderSeconds:0.5];
-    [self assertReference:[reference subdataWithRange:NSMakeRange(0,head.length)] capture:head skip:0 tolerance:0];
+    [self assertReference:[reference subdataWithRange:NSMakeRange(0,head.length)] capture:head skip:[self startupSkip] tolerance:0];
     [_player debugStarveDecoder:YES];
     NSData *starved=[self renderSeconds:1.5];
     NSUInteger held=(NSUInteger)llround(_player.position*_rate);
@@ -1222,18 +1258,21 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertGreaterThan(captured.length,4800u*8); [self assertFinite:captured peak:0.251];
     XCTAssertEqual([self count:@"finish"],0u);
 }
-// Ordinary playback declicks both edges; bit-perfect output writes no volume,
-// so its first sample is the file's and a stop cuts at once.
+// Ordinary playback declicks both edges, and so does bit-perfect output by
+// default; with Declick off it writes no volume, so its first sample is the
+// file's and a stop cuts at once. Modes: 0 ordinary, 1 bit-perfect, 2
+// bit-perfect with Declick off.
 - (void)testStartupAndStopEnvelopesAreBounded {
-    for (NSNumber *bitPerfect in @[@NO, @YES])
+    for (NSNumber *mode in @[@0, @1, @2])
     for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000]) {
-        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:bitPerfect.boolValue automatic:NO];
+        [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:mode.intValue>0 automatic:NO];
+        _player.declick = mode.intValue != 2;
         NSMutableData *constant=[NSMutableData dataWithLength:(NSUInteger)_rate*2*4];
         float *values=constant.mutableBytes; for(NSUInteger i=0;i<constant.length/4;i++) values[i]=0.25;
         NSURL *url=[self write:constant rate:_rate channels:2 name:@"constant.wav"];
         [self play:url paused:NO position:0]; NSData *start=[self renderSeconds:0.1]; const float *s=start.bytes;
         NSUInteger end=start.length/8, settled=(NSUInteger)(_rate*0.05);
-        if (bitPerfect.boolValue) {
+        if (mode.intValue == 2) {
             for(NSUInteger i=0;i<end;i++) XCTAssertEqual(s[i*2],0.25f,@"%@ Hz frame %lu",rate,(unsigned long)i);
             [_player stop]; NSData *stop=[self renderSeconds:0.1]; const float *e=stop.bytes;
             for(NSUInteger i=0;i<end;i++) XCTAssertEqual(e[i*2],0.0f,@"%@ Hz frame %lu after stop",rate,(unsigned long)i);

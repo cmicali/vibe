@@ -35,6 +35,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSSwitch *_exclusiveOutputSwitch;
     SettingsRowView *_exclusiveOutputRow;
 #endif
+    // Enabled only while bit-perfect output is on: ordinary playback always ramps.
+    NSSwitch *_declickSwitch;
+    SettingsRowView *_declickRow;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSSwitch *_reopenPlaylistSwitch;
@@ -140,6 +143,10 @@ static const CGFloat kGeneralPopUpWidth = 280;
                                                caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
                                                control:_exclusiveOutputSwitch];
 #endif
+    _declickSwitch = [self switchWithAction:@selector(toggleDeclick:)];
+    _declickRow = [SettingsRowView rowWithTitle:STR_SETTINGS_DECLICK
+                                        caption:STR_SETTINGS_DECLICK_CAPTION
+                                        control:_declickSwitch];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
@@ -150,6 +157,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             _exclusiveOutputRow,
 #endif
+            _declickRow,
         ]],
     ]];
     _refreshingOutputList = NO;
@@ -216,6 +224,10 @@ static const CGFloat kGeneralPopUpWidth = 280;
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
 #endif
+    // The choice applies only under the mode; ordinary playback always ramps.
+    [SettingsRowView setControl:_declickSwitch enabled:on];
+    _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
+    captionChanged |= [_declickRow setCaption:on ? STR_SETTINGS_DECLICK_CAPTION : STR_SETTINGS_DECLICK_ALWAYS_ON];
     if (captionChanged) {
         [self paneContentDidChange];
     }
@@ -234,6 +246,12 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self refreshBitPerfectRows];
 }
 #endif
+
+- (void)toggleDeclick:(id)sender {
+    AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+    [self refreshBitPerfectRows];
+}
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);

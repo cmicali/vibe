@@ -329,6 +329,15 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setExclusiveOutput:(BOOL)enabled;
 #endif
 
+// Settings > Audio > Declick, default YES, one choice for every device. What
+// bit-perfect output does at a transport edge: on, the ≤10 ms declick ramp
+// every edge gets in ordinary playback; off, a cut that leaves every sample
+// untouched and may click. Ordinary playback always ramps, so the pane
+// disables the switch while bitPerfectOutput is off. Writers request
+// VibeSettingsLiveEffectDeclick.
+- (BOOL)declick;
+- (void)setDeclick:(BOOL)declick;
+
 // The one answer to "do FX exist for the user": audioFXEnabled and not
 // bitPerfectOutput. Every gate reads this — the launch-time graph choice,
 // the FX menu's visibility and key equivalents, menu validation, the key

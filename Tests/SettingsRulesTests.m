@@ -199,6 +199,20 @@
     XCTAssertTrue(settings.bitPerfectOutput);
 }
 
+// Declick is one choice for every device, on by default; the mode it applies
+// to is the per-device one.
+- (void)testDeclickDefaultsOnForEveryDevice {
+    AppSettings *settings = [self freshSettings];
+    XCTAssertTrue(settings.declick);
+    settings.audioOutputDeviceUID = @"dac";
+    settings.declick = NO;
+    XCTAssertFalse(settings.declick);
+    settings.audioOutputDeviceUID = @"speakers";
+    XCTAssertFalse(settings.declick);
+    settings.declick = YES;
+    XCTAssertTrue(settings.declick);
+}
+
 - (void)testPitchRangeNormalizesToSupportedValues {
     XCTAssertEqual(VibeNormalizedPitchRange(8), 8);
     XCTAssertEqual(VibeNormalizedPitchRange(16), 16);

@@ -152,6 +152,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
         @"outputAudioActive": @(player.outputAudioActive),
         @"gaplessArmed": @(player.isGaplessArmed),
         @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
+        @"declick": @(player.declick),
         @"pitch": @(player.pitch),
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
         @"bitPerfect": player.bitPerfectReportDictionary,

@@ -63799,6 +63799,564 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.declick": {
+      "comment": "Settings, Audio pane: switch beneath Exclusive output. On, bit-perfect output ramps the volume over the first and last few milliseconds of every start, stop, pause, seek and track change so the edge cannot click; off, it cuts, leaving every sample untouched. A short noun phrase for removing clicks.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахване на щракания"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstranění lupání"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjernelse af klik"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knackschutz"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση κλικ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Declick"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminación de clics"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Napsahdusten poisto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suppression des clics"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uklanjanje klikova"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kattanások eltávolítása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penghilangan klik"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimozione dei clic"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリックノイズ除去"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클릭 노이즈 제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjerning av klikk"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klikonderdrukking"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuwanie trzasków"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remoção de cliques"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remoção de cliques"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminarea clicurilor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устранение щелчков"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstránenie praskania"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klickdämpning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ลดเสียงคลิก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tıklama giderme"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Усунення клацань"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khử tiếng click"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去除爆音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去除爆音"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.declick.always_on": {
+      "comment": "Settings: why the declick switch is disabled while bit-perfect output is off — ordinary playback always ramps, so the choice applies only to bit-perfect output. No trailing period.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Винаги включено, докато битово точният изход е изключен"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy zapnuto při vypnutém bitově přesném výstupu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altid til, mens bitperfekt output er slået fra"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immer an, während die bitgenaue Ausgabe ausgeschaltet ist"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πάντα ενεργό όσο είναι ανενεργή η έξοδος bit-perfect"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always on while bit-perfect output is off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siempre activado mientras la salida bit-perfect está desactivada"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aina käytössä, kun bittitarkka lähtö on pois päältä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toujours activé lorsque la sortie bit-perfect est désactivée"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uvijek uključeno dok je bitovno točan izlaz isključen"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mindig bekapcsolva, amíg a bitpontos kimenet ki van kapcsolva"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selalu menyala saat output bit-perfect mati"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre attivo quando l’uscita bit-perfect è disattivata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビットパーフェクト出力がオフの間は常にオンになります"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비트 퍼펙트 출력이 꺼져 있는 동안 항상 켜짐"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid på mens bitperfekt utgang er av"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altijd aan terwijl bitperfecte uitvoer uit staat"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zawsze włączone, gdy wyjście bit-perfect jest wyłączone"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre ativado enquanto a saída bit-perfect estiver desativada"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sempre ativado enquanto a saída bit-perfect estiver desativada"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Întotdeauna activat cât timp ieșirea bit-perfect este dezactivată"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всегда включено, пока выключен побитово точный вывод"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vždy zapnuté pri vypnutom bitovo presnom výstupe"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alltid på medan bitperfekt utmatning är av"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดเสมอขณะปิดเอาต์พุตแบบบิตเพอร์เฟกต์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bit düzeyinde kusursuz çıkış kapalıyken her zaman açık"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завжди ввімкнено, поки вимкнено побітово точне виведення"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn bật khi đầu ra bit-perfect đang tắt"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭比特完美输出时始终开启"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉位元完美輸出時始終開啟"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.declick.caption": {
+      "comment": "Settings: declick explanation while bit-perfect output is on. No trailing period.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Използва плавни промени на силата на звука, за да намали щракането"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Používá plynulé změny hlasitosti, aby omezilo lupání"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bruger bløde lydstyrkeovergange for at mindske klik"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blendet die Lautstärke kurz ein und aus, um Knacken zu vermeiden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Χρησιμοποιεί ομαλές μεταβολές έντασης για να μειώσει τα κλικ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses volume ramps to reduce clicking"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa rampas de volumen para reducir los clics"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Käyttää pehmeitä äänenvoimakkuuden liukuja napsahdusten vähentämiseksi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilise des rampes de volume pour réduire les clics"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koristi postupne promjene glasnoće kako bi smanjio klikove"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fokozatos hangerőváltással csökkenti a kattanásokat"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menggunakan perubahan volume bertahap untuk mengurangi klik"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa rampe di volume per ridurre i clic"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音量をなめらかに変化させてクリックノイズを抑えます"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "볼륨을 부드럽게 조절하여 클릭 노이즈를 줄입니다"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bruker myke volumoverganger for å redusere klikk"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gebruikt geleidelijke volumeovergangen om klikken te verminderen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Używa płynnych zmian głośności, aby ograniczyć trzaski"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa rampas de volume para reduzir cliques"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa rampas de volume para reduzir cliques"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folosește rampe de volum pentru a reduce clicurile"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плавно изменяет громкость, чтобы уменьшить щелчки"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Používa plynulé zmeny hlasitosti, aby obmedzilo praskanie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Använder mjuka volymövergångar för att minska klick"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ใช้การปรับระดับเสียงแบบค่อยเป็นค่อยไปเพื่อลดเสียงคลิก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tıklamaları azaltmak için ses düzeyini kademeli olarak değiştirir"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плавно змінює гучність, щоб зменшити клацання"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng thay đổi âm lượng dần để giảm tiếng click"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过音量渐变减少爆音"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過音量漸變減少爆音"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.default_player.is": {
       "comment": "Settings, General pane, 'Default music player' row: disabled button title replacing 'Set … as default' once the app already holds every audio type. %@ is the app name.",
       "localizations": {

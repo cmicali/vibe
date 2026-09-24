@@ -146,6 +146,7 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"numChannels": @(player.numChannels),
             @"gaplessArmed": @(player.isGaplessArmed),
             @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
+            @"declick": @(player.declick),
             @"silent": @([arguments containsObject:@"--silent"]),
             @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
         } mutableCopy],

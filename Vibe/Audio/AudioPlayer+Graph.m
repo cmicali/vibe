@@ -156,7 +156,7 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
     // varispeed; ordinary playback has one bus format for the engine's life,
     // the mixer's own, so the bus converts every file once and the mixer
     // converts nothing.
-    BOOL bitPerfect = [self leavesSamplesUntouchedOnQueue];
+    BOOL bitPerfect = [self bitPerfectOnQueue];
     AVAudioFormat *wanted = bitPerfect ? file.processingFormat : [_engine.mainMixerNode outputFormatForBus:0];
     AVAudioFormat *busFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate
                                                                               channels:wanted.channelCount];

@@ -118,6 +118,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             // The saved device's remembered modes, not the player's report.
             @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
             @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
+            @"declick": @(AppSettings.sharedInstance.declick),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
             // The stored choice; player.crossfadeMilliseconds is the effective one.
             @"crossfadeMilliseconds": @(AppSettings.sharedInstance.crossfadeMilliseconds),

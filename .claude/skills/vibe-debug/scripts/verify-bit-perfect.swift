@@ -607,6 +607,7 @@ if acceptance || blackholeCheck {
     var unavailableChecks: [String] = []
     let pauseAtEnd = settings["pauseAtTrackEnd"] as? Bool ?? false
     let reopen = settings["reopenLastPlaylist"] as? Bool ?? false
+    let declick = settings["declick"] as? Bool ?? true
     var appQuit = false
     func relaunch(_ grant: String? = nil) {
         let task = Process()
@@ -636,6 +637,7 @@ if acceptance || blackholeCheck {
         _ = debug(binary, ["set_bit_perfect", "off"])
         _ = debug(binary, ["set_pause_at_track_end", pauseAtEnd ? "on" : "off"])
         _ = debug(binary, ["set_reopen_playlist", reopen ? "on" : "off"])
+        _ = debug(binary, ["set_declick", declick ? "on" : "off"])
         _ = debug(binary, ["dump_menu"])
         _ = debug(binary, ["click_menu", deviceName])
         // The mode is remembered per device: a removal or a switch away keeps
@@ -652,6 +654,9 @@ if acceptance || blackholeCheck {
     }
     _ = debug(binary, ["set_pause_at_track_end", "off"])
     _ = debug(binary, ["set_reopen_playlist", "off"])
+    // Every capture is compared sample-exact from its first frame, and with
+    // declick on a bit-perfect start ramps its first 10 ms.
+    _ = debug(binary, ["set_declick", "off"])
     func fixture(_ name: String) -> String { fileURL.appendingPathComponent(name).path }
     func started(_ path: String, active: Bool) {
         waitFor("settled \(path)") {

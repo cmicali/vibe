@@ -32,7 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Bit-perfect output. While on, each track's settlement sets the chosen
 // device to the file's rate and word length, and the source segment is the
 // bus at the file's own format straight into the mixer, without varispeed;
-// no gain is ever applied, so every transport edge is a cut. The shell owns
+// the only gain ever applied is the declick at each transport edge, and none
+// with AudioPlayer.declick off, when every edge is a cut. The shell owns
 // the rest of the pruning (minimum crossfade, hidden pitch fader) and only
 // turns this on for an eligible device — explicitly chosen, on a transport
 // that carries bits unchanged (OutputFormatRules.h). Either direction

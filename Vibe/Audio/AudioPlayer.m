@@ -110,6 +110,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
+        _declick = YES;
         _loadingConfiguration = [loadingConfiguration copy];
         _retiringVoices = [NSMutableArray array];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
@@ -181,12 +182,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return self;
 }
 
-- (BOOL)leavesSamplesUntouchedOnQueue {
+- (BOOL)bitPerfectOnQueue {
 #if TARGET_OS_OSX
     return _bitPerfectWanted;
 #else
     return NO;
 #endif
+}
+
+- (BOOL)leavesSamplesUntouchedOnQueue {
+    return [self bitPerfectOnQueue] && !self.declick;
 }
 
 // The one home for the same-queue guard every synchronous accessor needs.
@@ -387,10 +392,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // length applies to; everything else fades at the declick minimum.
 - (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick {
     BOOL replacingAudibleTrack = _voice != 0 && _engine.isRunning && _state == VibePlayerStatePlaying;
-#if TARGET_OS_OSX
     // A device's mode lands before main applies its dependent settings.
-    declick |= _bitPerfectWanted;
-#endif
+    declick |= [self bitPerfectOnQueue];
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:_incomingFadeMilliseconds];
@@ -468,7 +471,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
 #if TARGET_OS_OSX
     // Gates itself on the mode. A format switch stops the engine, which cuts
-    // any declick still fading — bit-perfect edges are cuts anyway.
+    // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
 #endif
     if (![self ensureSourceSegmentOnQueueForFile:file rebuilt:NULL]) {
@@ -906,9 +909,18 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - Voices
 
+// The one gain rule. Bit-perfect output ramps at most the declick, and with
+// Declick off nothing: the crossfade setting is already held at the minimum
+// under the mode, but a play submitted before the mode landed carries the
+// length it was retired with, so the clamp lives here, at the funnel.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action {
-    uint32_t frames = [self leavesSamplesUntouchedOnQueue] ? 0
-            : (uint32_t)VibeFadeFramesForMilliseconds(milliseconds, _voiceBus.format.sampleRate);
+    if ([self leavesSamplesUntouchedOnQueue]) {
+        milliseconds = 0;
+    }
+    else if ([self bitPerfectOnQueue]) {
+        milliseconds = MIN(milliseconds, kFadeDurationMilliseconds);
+    }
+    uint32_t frames = (uint32_t)VibeFadeFramesForMilliseconds(milliseconds, _voiceBus.format.sampleRate);
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 

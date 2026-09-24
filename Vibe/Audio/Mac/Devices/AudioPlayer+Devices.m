@@ -937,8 +937,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
     if (VibeBitPerfectOutputNeedsSwitch(current, chosen,
             [_engine.mainMixerNode outputFormatForBus:0].sampleRate)) {
-        // Bit-perfect edges are cuts, so a settlement mid-declick loses at
-        // most that declick; the device restore stopped the engine itself.
+        // Bit-perfect edges are cuts or declicks, so a settlement mid-fade
+        // loses at most a declick; the device restore stopped the engine itself.
         [self stopEngineOnQueue];
     }
     if (formatDiffers) {
