@@ -145,12 +145,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _firstRenderVoice;
 
 #if TARGET_OS_OSX
-    // ---- The output device (AudioPlayer+Devices.m owns every field).
-    // The launch preference awaiting a successful HAL snapshot and bind.
-    // The hosted HAL output unit that pulls the engine (AudioPlayer+Graph.h):
-    // its bound device is the output. nil under the debug pump, whose offline
-    // engine has no device.
+    // ---- The output device. The hosted HAL output unit that pulls the
+    // engine is AudioPlayer+Graph.m's: its bound device is the output, and it
+    // is nil under the debug pump, whose offline engine has no device.
+    // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
+    // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).
     NSString                *_pendingSavedDeviceUID;

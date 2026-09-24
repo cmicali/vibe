@@ -90,9 +90,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
 // the gapless successor's gate, since a continuation on one voice cannot
-// switch the device. NO whenever the mode cannot apply. Unknown format cannot
-// splice; paused recovery must not rebuild from its own events.
-- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file unknownNeedsSwitch:(BOOL)unknownNeedsSwitch;
+// switch the device. NO whenever the mode cannot apply; YES for a format the
+// device will not report, since unknown compatibility cannot splice.
+- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
 // and when the device's format or the graph's rate differs, stops the

@@ -41,14 +41,12 @@ void VibeOutputUnitStateFree(VibeOutputUnitState *state) {
     state->slice = NULL;
 }
 
-static inline void VibeOutputUnitSilence(AudioBufferList *data, AudioUnitRenderActionFlags *actionFlags) CA_REALTIME_API {
-    for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
+// Zeroes every buffer from `first` on.
+static inline void VibeOutputUnitZero(AudioBufferList *data, UInt32 first) CA_REALTIME_API {
+    for (UInt32 b = first; b < data->mNumberBuffers; b++) {
         if (data->mBuffers[b].mData) {
             memset(data->mBuffers[b].mData, 0, data->mBuffers[b].mDataByteSize);
         }
-    }
-    if (actionFlags) {
-        *actionFlags |= kAudioUnitRenderAction_OutputIsSilence;
     }
 }
 
@@ -87,7 +85,10 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
     if (!data || !atomic_load_explicit(&state->gate, memory_order_seq_cst) || !state->renderBlock
             || data->mNumberBuffers < state->channels) {
         if (data) {
-            VibeOutputUnitSilence(data, actionFlags);
+            VibeOutputUnitZero(data, 0);
+            if (actionFlags) {
+                *actionFlags |= kAudioUnitRenderAction_OutputIsSilence;
+            }
         }
         atomic_store_explicit(&state->inRender, 0, memory_order_release);
         return noErr;
@@ -115,20 +116,13 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
             rendered = YES;
         }
         else {
-            for (uint32_t c = 0; c < state->channels; c++) {
-                memset(slice->mBuffers[c].mData, 0, slice->mBuffers[c].mDataByteSize);
-            }
+            VibeOutputUnitZero(slice, 0);
             dropped = YES;
         }
         atomic_store_explicit(&state->pendingFrames, 0, memory_order_release);
         offset += count;
     }
-    // Buffers past the format's channels, on a wider device, stay silent.
-    for (UInt32 b = state->channels; b < data->mNumberBuffers; b++) {
-        if (data->mBuffers[b].mData) {
-            memset(data->mBuffers[b].mData, 0, data->mBuffers[b].mDataByteSize);
-        }
-    }
+    VibeOutputUnitZero(data, state->channels); // a wider device's extra channels stay silent
     if (dropped) {
         atomic_fetch_add_explicit(&state->dropouts, 1, memory_order_relaxed);
     }
@@ -227,7 +221,7 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
     }
     _deviceID = deviceID;
     // The device's own reckoning of when a rendered sample is heard, for the
-    // diagnostics that used to read the engine's output node.
+    // diagnostics.
     AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     Float64 rate = 0;
     UInt32 size = sizeof(rate);

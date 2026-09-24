@@ -59,7 +59,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL signalProbeWanted;
 - (void)armSignalProbeOnQueue:(NSString *)reason;
 - (void)noteRetiringAudioSilentOnQueue;
-// The output node's own render clock, one block ahead; nil while it has none.
+// The output's render clock — the hosted unit's on macOS, the output node's
+// on iOS — one block ahead; nil while it has none.
 - (nullable AVAudioTime *)outputSignalRenderTimeOnQueue;
 
 // Beta builds record the first UI position beyond each published playing

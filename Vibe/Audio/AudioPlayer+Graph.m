@@ -89,7 +89,7 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
         // asynchronously through the checked device-switch path.
         _outputUnit = [[AudioOutputUnit alloc] init];
         if (!_outputUnit) {
-            LogError(@"AudioPlayer: no HAL output unit; nothing will pull the engine");
+            LogError(@"AudioPlayer: no HAL output unit; falling back to the engine's own output node");
         }
         AudioDeviceID deviceID = kAudioObjectUnknown;
         Float64 rate = 0;
@@ -125,15 +125,15 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
 // configuration: engine init, the iOS rebuild, and the macOS device rebind
 // whenever the standing route disagrees with the flags.
 - (void)installMasterBusOnQueue {
-    // Apple's default SRC leaves measurable ultrasonic aliases when reducing
-    // the output rate. The render suite holds their RMS below -90 dBFS.
-    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
     [self reconnectMasterBusOnQueueWithFormat:[_engine.mainMixerNode outputFormatForBus:0]];
 }
 
 - (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format {
     [_levelTap remove];
     _levelTap = nil;
+    // Apple's default SRC leaves measurable ultrasonic aliases when reducing
+    // the output rate. The render suite holds their RMS below -90 dBFS.
+    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
     BOOL enableFX = _fxEnabled;
 #if TARGET_OS_OSX
     enableFX &= !_bitPerfectWanted;
@@ -197,7 +197,6 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     // The master bus is wired at the new format directly, never read back
     // from the mixer, whose output still carries the old rate until the
     // wiring sets it; the FX segment rewires itself whole across a rate.
-    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
     [self reconnectMasterBusOnQueueWithFormat:format];
     LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
     return YES;
@@ -505,9 +504,6 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     [_levelTap abandon];
     _levelTap = nil;
     _engine = nil;
-#if TARGET_OS_OSX
-    _outputUnit = nil;
-#endif
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];

@@ -1330,12 +1330,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
-        uint64_t outputDropouts = 0;
-#if TARGET_OS_OSX
-        outputDropouts = self->_outputUnit.dropouts;
-#endif
         counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
-                   @"outputDropouts": @(outputDropouts),
+                   @"outputDropouts": @([self diagnosticOutputDropouts]),
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
                    @"pollActive": @(self->_drainTimer != nil),

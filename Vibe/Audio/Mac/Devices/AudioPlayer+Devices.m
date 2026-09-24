@@ -16,8 +16,8 @@
 
 static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 
-// Format changes and restoration wait with the engine stopped, before a
-// restart can reuse the output unit's old render-buffer sizing.
+// Format changes and restoration wait, with the engine stopped, for the
+// device to confirm the write before the graph follows its rate.
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
@@ -177,6 +177,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return _outputUnit.deviceID;
 }
 
+// Without a unit — the debug pump — there is nothing to bind, and a selection
+// keeps its menu and persistence behaviour.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
     return [self performDiagnosticPhase:@"device bind" device:deviceID operation:^BOOL{
         OSStatus status = self->_outputUnit ? [self->_outputUnit bindToDevice:deviceID] : noErr;
@@ -195,8 +197,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // The graph runs at the bound device's rate, so the unit never resamples:
-// re-read after every bind, and by the prepare after it moved the device.
-// An unreadable rate keeps the current one.
+// re-read after every bind; the prepare applies the rate its own format
+// write settled on. An unreadable rate keeps the current one.
 - (void)followOutputDeviceRateOnQueue {
     Float64 rate = 0;
     if (_outputUnit && [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:_outputUnit.deviceID] && rate > 0) {
@@ -355,7 +357,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // confirms instantly but will not cycle IO spends it all in the start. A
     // single total cannot tell those apart, and the remedies are opposite.
     uint64_t phaseAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    NSTimeInterval teardownS = 0, leaveS = 0, pinS = 0, restoreS = 0, startS = 0;
+    NSTimeInterval teardownS = 0, leaveS = 0, bindS = 0, restoreS = 0, startS = 0;
 #define VIBE_REBIND_PHASE(accum) do { \
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW); \
         (accum) = (double)(now - phaseAt) / NSEC_PER_SEC; \
@@ -408,7 +410,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if ([self masterBusRouteStaleOnQueue]) {
         [self installMasterBusOnQueue];
     }
-    VIBE_REBIND_PHASE(pinS);
+    VIBE_REBIND_PHASE(bindS);
 
     if (shouldRestore) {
         // Reuse the already-open handle rather than reopening the URL. A
@@ -465,11 +467,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     VIBE_REBIND_PHASE(startS);
 
-    NSTimeInterval total = teardownS + leaveS + pinS + restoreS + startS;
+    NSTimeInterval total = teardownS + leaveS + bindS + restoreS + startS;
     if (total > kSlowDeviceRebindLogThresholdSeconds) {
         LogWarn(@"AudioPlayer: slow rebind to %u, %.3fs total — teardown %.3f, "
-                @"leave/restore-format %.3f, pin+graph %.3f, reschedule %.3f, "
-                @"engine start %.3f", deviceID, total, teardownS, leaveS, pinS,
+                @"leave/restore-format %.3f, bind+graph %.3f, reschedule %.3f, "
+                @"engine start %.3f", deviceID, total, teardownS, leaveS, bindS,
                 restoreS, startS);
     }
     return YES;
@@ -517,12 +519,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     LogWarn(@"AudioPlayer: rebind current: %@ new: %@%@", @(currentDeviceID), @(newDeviceID),
             currentDeviceID == newDeviceID ? @" (no-op)" : @"");
 
-    // Choosing the already-active System Output device can make a wanted
-    // mode eligible for the first time. Rebuild so the current track gets
-    // prepared too; merely pinning the unit would leave its old rate behind.
-    // The same holds for a switch whose destination wants the mode off while
-    // this device is its system default too: the unit does not move, but the
-    // prepared device and the FX route are still the mode's.
+    // Choosing the device already bound can still change the graph: a wanted
+    // mode newly eligible prepares the current track, and a destination that
+    // wants the mode off on the same hardware restores its format and the FX
+    // route. The unit does not move for either.
     BOOL needsPreparation = (_bitPerfectWanted
             ? outputDeviceID >= 0 && _preparedDeviceID != newDeviceID
             : (_voiceBus && !_varispeed) || _preparedDeviceID != kAudioObjectUnknown)
@@ -621,11 +621,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 // The device the mode can apply to right now, else nil.
 - (nullable AudioDevice *)bitPerfectDeviceOnQueue {
-    if (!_bitPerfectWanted) {
-        return nil;
-    }
-    if (!_outputUnit) {
-        return nil; // the debug pump: no device to prepare
+    if (!_bitPerfectWanted || !_outputUnit) {
+        return nil; // off, or the debug pump, which has no device to prepare
     }
     return [self eligibleRequestedDeviceOnQueue];
 }
@@ -655,7 +652,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES;
 }
 
-- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file unknownNeedsSwitch:(BOOL)unknownNeedsSwitch {
+- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     if (!device) {
         return NO;
@@ -664,7 +661,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     AudioStreamBasicDescription current = {0}, chosen = {0};
     if (![self resolveOutputFormatOnQueueForFile:file device:device stream:&stream
                                          current:&current chosen:&chosen]) {
-        return unknownNeedsSwitch;
+        return YES; // unknown compatibility cannot splice
     }
     double mixerRate = [_engine.mainMixerNode outputFormatForBus:0].sampleRate;
     BOOL needsSwitch = VibeBitPerfectOutputNeedsSwitch(current, chosen, mixerRate);

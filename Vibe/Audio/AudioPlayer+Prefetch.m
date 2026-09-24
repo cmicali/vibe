@@ -48,7 +48,7 @@
     if (_bitPerfectWanted) {
         AVAudioFormat *current = _file.processingFormat, *next = _prefetchedFile.processingFormat;
         if (current.sampleRate != next.sampleRate || current.channelCount != next.channelCount
-                || [self outputNeedsSwitchOnQueueForFile:_prefetchedFile unknownNeedsSwitch:YES]) {
+                || [self outputNeedsSwitchOnQueueForFile:_prefetchedFile]) {
             return;
         }
     }

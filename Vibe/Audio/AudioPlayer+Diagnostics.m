@@ -641,7 +641,7 @@ static AVAudioTime *VibeAudioTimeByAddingSeconds(AVAudioTime *time, NSTimeInterv
     if (_engine.isInManualRenderingMode) {
         return [AVAudioTime timeWithSampleTime:_engine.manualRenderingSampleTime atRate:_engine.manualRenderingFormat.sampleRate];
     }
-    // iOS: the engine's own output node.
+    // The engine's own output node: iOS, or macOS without a unit.
     AVAudioOutputNode *output = _engine.outputNode;
     AVAudioTime *time = output.lastRenderTime;
     if (!time || time.sampleRate <= 0) {
