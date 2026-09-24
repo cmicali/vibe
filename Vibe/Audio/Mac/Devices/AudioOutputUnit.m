@@ -12,7 +12,8 @@ static const int kStopSpinLimit = 500; // 100 ms
 
 #pragma mark - The audio thread
 
-BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels, uint32_t maxFrames, void *renderBlock) {
+BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels, uint32_t maxFrames,
+                                   VibeOutputRenderProc renderProc, void *renderRefCon) {
     if (channels == 0 || channels > kVibeOutputUnitMaxChannels || maxFrames == 0) {
         return NO;
     }
@@ -30,7 +31,8 @@ BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels
     state->slice = slice;
     state->channels = channels;
     state->maxFrames = maxFrames;
-    state->renderBlock = renderBlock;
+    state->renderProc = renderProc;
+    state->renderRefCon = renderRefCon;
     atomic_store_explicit(&state->frames, 0, memory_order_relaxed);
     atomic_store_explicit(&state->pendingFrames, 0, memory_order_relaxed);
     return YES;
@@ -50,25 +52,9 @@ static inline void VibeOutputUnitZero(AudioBufferList *data, UInt32 first) CA_RE
     }
 }
 
-// The one call the compiler cannot check: AVFoundation documents the realtime
-// manual-rendering block as safe to call from a render thread, and attributes
-// it with nothing. Everything around it is under the error pragma below.
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfunction-effects"
-#endif
-static inline AVAudioEngineManualRenderingStatus VibeOutputUnitPull(void *renderBlock, uint32_t frames,
-                                                                     AudioBufferList *buffer) CA_REALTIME_API {
-    __unsafe_unretained AVAudioEngineManualRenderingBlock block = (__bridge __unsafe_unretained AVAudioEngineManualRenderingBlock)renderBlock;
-    OSStatus status = noErr;
-    return block(frames, buffer, &status);
-}
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic pop
-#endif
-
 // Everything the IO thread does. Plain memory and atomics, no call that can
-// block; the pragma makes the compiler hold that line.
+// block; the pragma makes the compiler hold that line, the proc's own
+// attribute included.
 #if defined(__has_warning) && __has_warning("-Wfunction-effects")
 #pragma clang diagnostic push
 #pragma clang diagnostic error "-Wfunction-effects"
@@ -82,7 +68,7 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
         state->stamp = *timestamp;
         atomic_fetch_add_explicit(&state->stampVersion, 1, memory_order_release);
     }
-    if (!data || !atomic_load_explicit(&state->gate, memory_order_seq_cst) || !state->renderBlock
+    if (!data || !atomic_load_explicit(&state->gate, memory_order_seq_cst) || !state->renderProc
             || data->mNumberBuffers < state->channels) {
         if (data) {
             VibeOutputUnitZero(data, 0);
@@ -93,8 +79,8 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
         atomic_store_explicit(&state->inRender, 0, memory_order_release);
         return noErr;
     }
-    // Pull in slices no larger than the block accepts, each pointed straight
-    // into the HAL's buffers; a refused slice is retried, then silence.
+    // Pull in slices no larger than the proc accepts, each pointed straight
+    // into the HAL's buffers; a slice the proc fails is silence.
     uint64_t frames = atomic_load_explicit(&state->frames, memory_order_relaxed);
     BOOL dropped = NO, rendered = NO;
     for (UInt32 offset = 0; offset < frameCount; ) {
@@ -105,12 +91,8 @@ static OSStatus VibeOutputUnitRenderCycle(VibeOutputUnitState *state, AudioUnitR
             slice->mBuffers[c].mDataByteSize = count * (UInt32)sizeof(float);
         }
         atomic_store_explicit(&state->pendingFrames, count, memory_order_release);
-        AVAudioEngineManualRenderingStatus status = AVAudioEngineManualRenderingStatusCannotDoInCurrentContext;
-        for (int attempt = 0; attempt <= kVibeOutputUnitRenderRetries
-                && status == AVAudioEngineManualRenderingStatusCannotDoInCurrentContext; attempt++) {
-            status = VibeOutputUnitPull(state->renderBlock, count, slice);
-        }
-        if (status == AVAudioEngineManualRenderingStatusSuccess) {
+        OSStatus status = state->renderProc(state->renderRefCon, timestamp, count, slice);
+        if (status == noErr) {
             frames += count;
             atomic_store_explicit(&state->frames, frames, memory_order_release);
             rendered = YES;
@@ -161,7 +143,6 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
 @implementation AudioOutputUnit {
     AudioUnit _unit;
     VibeOutputUnitState *_state;
-    AVAudioEngineManualRenderingBlock _renderBlock; // the retained copy the struct points at
     BOOL _initialized;
 }
 
@@ -271,7 +252,7 @@ static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
 }
 
 - (BOOL)configureFormat:(AVAudioFormat *)format maximumFrameCount:(AVAudioFrameCount)maximumFrameCount
-            renderBlock:(AVAudioEngineManualRenderingBlock)renderBlock error:(NSError **)error {
+             renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon error:(NSError **)error {
     NSParameterAssert(!self.running);
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
     AudioUnitUninitialize(_unit);
@@ -283,8 +264,7 @@ static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
         if (error) *error = VibeOutputUnitError(status, @"Could not set the output unit's format");
         return NO;
     }
-    _renderBlock = [renderBlock copy];
-    if (!VibeOutputUnitStateInitialize(_state, format.channelCount, maximumFrameCount, (__bridge void *)_renderBlock)) {
+    if (!VibeOutputUnitStateInitialize(_state, format.channelCount, maximumFrameCount, renderProc, refCon)) {
         if (error) *error = VibeOutputUnitError(kAudioUnitErr_FormatNotSupported, @"Unsupported output unit format");
         return NO;
     }

@@ -168,6 +168,29 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
 }
 
 #if TARGET_OS_OSX
+// The unit's proc: the engine's realtime block, which is the refCon. The one
+// call the compiler cannot check: AVFoundation documents the block as safe to
+// call from a render thread and attributes it with nothing. A render the
+// engine refuses because a queue-side mutation holds its lock is asked again
+// before the slice becomes silence.
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfunction-effects"
+#endif
+static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timestamp, UInt32 frames,
+                                     AudioBufferList *data) CA_REALTIME_API {
+    __unsafe_unretained AVAudioEngineManualRenderingBlock block = (__bridge __unsafe_unretained AVAudioEngineManualRenderingBlock)refCon;
+    OSStatus status = noErr;
+    AVAudioEngineManualRenderingStatus result = AVAudioEngineManualRenderingStatusCannotDoInCurrentContext;
+    for (int attempt = 0; attempt < 4 && result == AVAudioEngineManualRenderingStatusCannotDoInCurrentContext; attempt++) {
+        result = block(frames, data, &status);
+    }
+    return result == AVAudioEngineManualRenderingStatusSuccess ? noErr : (status != noErr ? status : (OSStatus)result);
+}
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic pop
+#endif
+
 // TRAP: never disableManualRenderingMode — it opens the default output
 // device. The rate changes by enabling manual rendering again at the new
 // format, which keeps every node and connection (measured: rtrender.swift).
@@ -189,8 +212,9 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
         LogError(@"AudioPlayer: realtime manual rendering at %.0f Hz refused (%@)", rate, error);
         return NO;
     }
+    _engineRenderBlock = _engine.manualRenderingBlock;
     if (![_outputUnit configureFormat:format maximumFrameCount:kVibeOutputUnitMaxFrames
-                          renderBlock:_engine.manualRenderingBlock error:&error]) {
+                           renderProc:VibeEngineRenderProc refCon:(__bridge void *)_engineRenderBlock error:&error]) {
         LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
         return NO;
     }

@@ -150,6 +150,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // is nil under the debug pump, whose offline engine has no device.
     // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
+    // The engine's realtime block the unit's proc pulls, retained here.
+    AVAudioEngineManualRenderingBlock _engineRenderBlock;
     // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).
