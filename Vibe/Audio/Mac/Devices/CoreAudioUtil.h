@@ -92,9 +92,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readOutputVolume:(Float32 *)volume balance:(Float32 *)balance mute:(BOOL *)muted
                channels:(UInt32)channels inStream:(AudioStreamID)stream
             forDeviceID:(AudioDeviceID)deviceID;
-// One listener for all output elements, delivered on queue.
-// The caller filters addresses for volume/balance/mute. The block is the handle:
-// removal must use the same block object, queue and device.
+// One listener for all output elements and the device's nominal rate,
+// delivered on queue. The caller filters addresses for volume/balance/mute and
+// the rate. The block is the handle: removal must use the same block object,
+// queue and device.
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
                   forDeviceID:(AudioDeviceID)deviceID;

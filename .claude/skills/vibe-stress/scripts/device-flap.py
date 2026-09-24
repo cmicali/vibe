@@ -69,6 +69,9 @@ HEALTH_KEYS = (
     "process.threads",
     "process.machPorts",
     "app.engineNodes",
+    # Cumulative silence cycles from the hosted output unit: a zero baseline,
+    # so any dropout across the soak is reported.
+    "app.outputDropouts",
     "ui.views",
     "ui.layers",
 )

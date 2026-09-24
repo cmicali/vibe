@@ -2,9 +2,10 @@
 //  AudioPlayer+Devices.h
 //  Vibe
 //
-//  The output-device half of the player, macOS only: device switching, the
-//  bit-perfect and exclusive modes, config-change recovery, no-device parking
-//  and the report. (Devices) is the public API a shell imports beside
+//  The output-device half of the player, macOS only: which device the hosted
+//  output unit is bound to and at what rate, the bit-perfect and exclusive
+//  modes, no-device parking and the report. Policy over AudioOutputUnit,
+//  which AudioPlayer+Graph owns. (Devices) is the public API a shell imports beside
 //  AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
 //  tests reach. AudioPlayer+Devices.m implements both. It lives under Mac/ so
 //  only the macOS target compiles it: a shared caller would compile on iOS
@@ -83,11 +84,8 @@ NS_ASSUME_NONNULL_BEGIN
 // mode; an unpublished snapshot never settles that lookup.
 - (void)resolvePendingSavedOutputDeviceOnQueue;
 
-// The AVAudioEngineConfigurationChangeNotification handler. The observer that
-// AudioPlayer's init installs dispatches it onto _queue.
-- (void)handleEngineConfigurationChange;
-
-// The HAL bind boundary, replaced by a refusal in the device-free render tests.
+// The HAL bind boundary, replaced by a refusal in the device-free render
+// tests: binds the hosted unit, which never moves on its own. Stopped only.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID;
 
 // Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
@@ -97,12 +95,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file unknownNeedsSwitch:(BOOL)unknownNeedsSwitch;
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
-// and when the device's format or the master bus's rate differs, stops the
+// and when the device's format or the graph's rate differs, stops the
 // engine — the callers guarantee nothing is audible — writes one physical
-// format, waits (bounded) for the device and output unit to agree, and rewires the
-// master bus at the device's rate. Remembers the device's format before the
-// first change so it can be put back, and records the prepared device,
-// stream and format the report reads live against.
+// format, waits (bounded) for the device to confirm it, and brings the graph
+// to the device's rate. Remembers the device's format before the first
+// change so it can be put back, and records the prepared device, stream and
+// format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
 
 // VibeBitPerfectDecodesAsInteger16 against the device prepared for file: the
@@ -113,8 +111,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Hog for the bound device, when the setting, an eligible device and writable
 // HAL hog mode all hold. Idempotent through the HAL read; a rebuild on the
 // device already hogged keeps the hog. Taking the device that is currently
-// the system default moves the default and drags the output unit with it, so
-// the acquisition settles the binding before the caller starts the engine.
+// the system default moves the default elsewhere; the hosted unit stays.
 - (void)acquireExclusiveOutputOnQueue;
 - (void)releaseExclusiveOutputOnQueue;
 #endif

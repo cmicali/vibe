@@ -7,6 +7,9 @@
 #import "AudioPlayerInternal.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
+#if TARGET_OS_OSX
+#import "CoreAudioUtil.h"
+#endif
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #endif
@@ -18,6 +21,11 @@ static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 // An engine start holding the player queue longer than this is worth a line
 // even in stable builds.
 static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
+#if TARGET_OS_OSX
+// The largest pull the engine's realtime block accepts; the unit slices a
+// larger IO cycle into pulls of this.
+static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
+#endif
 
 @implementation AudioPlayer (Graph)
 
@@ -25,6 +33,7 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
 
 - (void)createEngineAndMasterBusOnQueue {
     _engine = [[AVAudioEngine alloc] init];
+    BOOL masterBusWired = NO;
 #if DEBUG
     // --no-audio-hw, for testing: put the engine in manual rendering mode so
     // it never opens a CoreAudio output device. Starting the hardware IO —
@@ -67,7 +76,36 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
         LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
     }
 #endif
-    [self installMasterBusOnQueue];
+#if TARGET_OS_OSX
+#if DEBUG
+    BOOL hosted = !manualRendering;
+#else
+    BOOL hosted = YES;
+#endif
+    if (hosted) {
+        // Vibe hosts the output: the engine renders in realtime manual mode
+        // and the unit's callback pulls it into the device. It begins on the
+        // system default at that device's rate; the saved device binds
+        // asynchronously through the checked device-switch path.
+        _outputUnit = [[AudioOutputUnit alloc] init];
+        if (!_outputUnit) {
+            LogError(@"AudioPlayer: no HAL output unit; nothing will pull the engine");
+        }
+        AudioDeviceID deviceID = kAudioObjectUnknown;
+        Float64 rate = 0;
+        if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
+            OSStatus status = [_outputUnit bindToDevice:deviceID];
+            if (status != noErr) {
+                LogError(@"AudioPlayer: could not bind the output unit to device %u (OSStatus %d)", deviceID, (int)status);
+            }
+            [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID];
+        }
+        masterBusWired = [self applyOutputRateOnQueue:rate > 0 ? rate : 44100];
+    }
+#endif
+    if (!masterBusWired) {
+        [self installMasterBusOnQueue];
+    }
 #if DEBUG
     // --silent, for testing: zero the main mixer so that playback runs
     // normally but nothing audible reaches the output device, which still gets
@@ -128,6 +166,43 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
         _levelTap = nil;
     }
 }
+
+#if TARGET_OS_OSX
+// TRAP: never disableManualRenderingMode — it opens the default output
+// device. The rate changes by enabling manual rendering again at the new
+// format, which keeps every node and connection (measured: rtrender.swift).
+- (BOOL)applyOutputRateOnQueue:(double)rate {
+    if (!_outputUnit) {
+        return NO;
+    }
+    if (_engine.isInManualRenderingMode && _engine.manualRenderingFormat.sampleRate == rate
+            && _outputUnit.format.sampleRate == rate) {
+        return YES;
+    }
+    [self stopEngineOnQueue];
+    [_levelTap remove];
+    _levelTap = nil;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
+    NSError *error = nil;
+    if (![_engine enableManualRenderingMode:AVAudioEngineManualRenderingModeRealtime format:format
+                          maximumFrameCount:kVibeOutputUnitMaxFrames error:&error]) {
+        LogError(@"AudioPlayer: realtime manual rendering at %.0f Hz refused (%@)", rate, error);
+        return NO;
+    }
+    if (![_outputUnit configureFormat:format maximumFrameCount:kVibeOutputUnitMaxFrames
+                          renderBlock:_engine.manualRenderingBlock error:&error]) {
+        LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
+        return NO;
+    }
+    // The master bus is wired at the new format directly, never read back
+    // from the mixer, whose output still carries the old rate until the
+    // wiring sets it; the FX segment rewires itself whole across a rate.
+    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
+    [self reconnectMasterBusOnQueueWithFormat:format];
+    LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
+    return YES;
+}
+#endif
 
 #pragma mark - The source segment
 
@@ -271,12 +346,31 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
     // temporarily unusable output format and return nil; an engine start is
     // the next lifecycle edge to retry it on.
     [self applyLevelTapOnQueue];
+#if TARGET_OS_OSX
+    // The unit starts last, so the engine is running whenever its gate is open.
+    if (_outputUnit && !_outputUnit.running) {
+        __block NSError *unitError = nil;
+        BOOL pulling = [self performDiagnosticPhase:@"output unit start" device:(NSInteger)_outputUnit.deviceID operation:^BOOL{
+            return [self->_outputUnit startWithError:&unitError];
+        }];
+        if (!pulling) {
+            [_engine stop];
+            if (outError) {
+                *outError = unitError;
+            }
+            return NO;
+        }
+    }
+#endif
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
     return YES;
 }
 
 - (void)stopEngineOnQueue {
+#if TARGET_OS_OSX
+    [_outputUnit stop]; // gate closed and no cycle in flight before the engine stops
+#endif
     [_engine stop];
     for (NSNumber *voice in _retiringVoices) {
         [_voiceBus killVoice:voice.unsignedLongLongValue];
@@ -411,6 +505,9 @@ static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
     [_levelTap abandon];
     _levelTap = nil;
     _engine = nil;
+#if TARGET_OS_OSX
+    _outputUnit = nil;
+#endif
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];

@@ -32,6 +32,7 @@
 // category it uses. Exactly one platform member is compiled.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
+#import "AudioOutputUnit.h"
 #import <AudioToolbox/AudioToolbox.h>
 #endif
 #import "AudioPlayer+Diagnostics.h"
@@ -127,7 +128,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioUnitVarispeed    *_varispeed;        // one, for the bus; none under bit-perfect output
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
     uint64_t                _engineIdleStopGeneration;
-    id                      _configChangeObserver;
     dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the engine runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
     // The equalizer's tap: queue-confined intent and installation; the
@@ -147,6 +147,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 #if TARGET_OS_OSX
     // ---- The output device (AudioPlayer+Devices.m owns every field).
     // The launch preference awaiting a successful HAL snapshot and bind.
+    // The hosted HAL output unit that pulls the engine (AudioPlayer+Graph.h):
+    // its bound device is the output. nil under the debug pump, whose offline
+    // engine has no device.
+    AudioOutputUnit         *_outputUnit;
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).
     NSString                *_pendingSavedDeviceUID;
@@ -189,9 +193,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioStreamID           _preparedStreamID;
     AudioStreamBasicDescription _preparedFormat;
     AudioObjectPropertyListenerBlock _outputLevelListener;
-    AUEventListenerRef      _outputDeviceListener;
-    // The original non-bit-perfect master-bus connection, restored on leaving.
-    AVAudioFormat           *_masterBusFormatBeforeBitPerfect;
     // The prepared device's volume, balance and mute as the report last read
     // them, trusted only while _outputLevelListener is registered.
     AudioDeviceID           _outputControlsDeviceID;
@@ -253,6 +254,9 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // The gain rule: bit-perfect output with declick off applies no gain, so
 // every ramp is a cut; otherwise every edge ramps.
 - (BOOL)leavesSamplesUntouchedOnQueue;
+// Whether a real output device is being driven: the hosted unit on macOS,
+// the engine's own output node on iOS; never under the debug pump.
+- (BOOL)drivesOutputDeviceOnQueue;
 
 // The terminus every file open lands in, whether the play opened it or the
 // prefetch did.

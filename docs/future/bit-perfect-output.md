@@ -61,8 +61,8 @@ Measured 2026-09-15 on this Mac, macOS 27.0, using the Xcode 26 SDK:
 | 32-bit integer source through AVAudioFile | 24,641,537 becomes 24,641,536 in float32 decoding. The report refuses Active even if the physical device offers 32-bit integer output. |
 | Speaker balance at main volume 1.0 | Left/right balance changes do not change virtual main volume. Balance must be read and watched separately. |
 
-These findings explain the direct node → mixer path, the bit-perfect master-bus rewiring
-helper, and the separate rate, channel, depth, gain and ownership report inputs.
+These findings explain the direct bus → mixer path, the graph following the device's
+rate, and the separate rate, channel, depth, gain and ownership report inputs.
 
 ### System-output experiment
 
@@ -104,12 +104,13 @@ Vibe-owned HAL unit would remove the settle, the re-pin and the recovery edge
 that exist for it; direct control of the unit's stream format and IO buffer size
 is the rest of the Stage 2 case.
 
-So the rule is not "never hog the default" but "wait for the follow the take
-causes, then take the binding back" — `settleOutputUnitAfterHoggingSystemDefaultOnQueue:`,
-entered only when the device was the default *and* the unit was bound to it.
-While a bit-perfect device is prepared, a listener on the output unit also catches
-same-rate default moves that produce no AVAudioEngine configuration notification,
-using the normal recovery path.
+Stage 2 (2026-09-24) made that the shipped shape: `AudioOutputUnit` hosts a
+HALOutput unit that pulls the engine, in realtime manual rendering mode, from its
+own render callback. The settle, the re-pin, the AU listener on the unit, the
+engine-configuration recovery and the bit-perfect master-bus rewire went with the
+follow they existed for; the graph runs at the bound device's rate in every mode,
+and a rate another process moves under a prepared device reaches that device's
+own listener.
 
 ### Ownership failures
 

@@ -126,8 +126,7 @@ def check_track(report, want_rate, want_exclusive, device, label, failures,
         bad(f"device at {report.get('sampleRate')} Hz, file is {want_rate:.0f} Hz")
     # All three equal is the bit-perfect shape; any difference means the graph
     # resamples somewhere, which is the whole thing the mode exists to prevent.
-    rates = {report.get("mixerOutputRate"), report.get("outputNodeInputRate"),
-             report.get("outputNodeOutputRate")}
+    rates = {report.get("mixerOutputRate"), report.get("outputUnitRate")}
     if len(rates) != 1:
         bad(f"graph rates disagree: {sorted(r for r in rates if r is not None)}")
     if report.get("varispeedPresent"):

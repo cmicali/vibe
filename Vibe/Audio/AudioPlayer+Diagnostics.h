@@ -27,6 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The watcher's reads of queue-confined engine state, from its timer on the queue.
 - (BOOL)diagnosticEngineRunning;
+// IO cycles the hosted output unit wrote as silence because the engine could
+// not render; cumulative, any thread. 0 without a unit.
+- (uint64_t)diagnosticOutputDropouts;
 
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.

@@ -21,10 +21,6 @@ static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 
-// Taking the system default costs one output-unit follow, measured at about
-// 50 ms. This is the ceiling on waiting for it and for the re-bind after it.
-static const NSTimeInterval kHogSettleDeadlineSeconds = 0.5;
-
 // A rebind slower than this held the player queue long enough for the user to
 // feel it as a freeze; see #53 and the comment at configureOutputDeviceOnQueue:.
 // A bit-perfect switch legitimately reached 0.73s on healthy hardware, so a
@@ -61,10 +57,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     });
 }
 
-// Covers the explicitly chosen device disappearing while playback is idle.
-// handleEngineConfigurationChange sees only removals that kill the running
-// graph. The pending preference survives the fallback until a successful
-// re-adoption or an explicit user selection.
+// The explicitly chosen device disappearing, playing or idle: the manager
+// refreshes its snapshot before fanning out, so a vanished device reads as
+// absent here. The pending preference survives the fallback until a
+// successful re-adoption or an explicit user selection.
 - (void)audioOutputDevicesDidChange {
     dispatch_async(_queue, ^{
         if (self->_terminating) return;
@@ -171,49 +167,41 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     _pendingSavedDeviceLookupInFlight = NO;
 }
 
+// The bound device is a field of the hosted unit, never a HAL read, and
+// kAudioObjectUnknown only before a first bind that found no device. Without
+// a unit — the debug pump — the system default stands in.
 - (AudioDeviceID)activeOutputDeviceID {
-#if DEBUG
-    if (_engine.isInManualRenderingMode) {
-        return [CoreAudioUtil systemDefaultOutputDeviceID]; // no hardware output unit to query
+    if (!_outputUnit) {
+        return [CoreAudioUtil systemDefaultOutputDeviceID];
     }
-#endif
-    AudioUnit outputUnit = _engine.outputNode.audioUnit;
-    if (outputUnit) {
-        AudioDeviceID deviceID = kAudioObjectUnknown;
-        UInt32 size = sizeof(deviceID);
-        if (AudioUnitGetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global, 0, &deviceID, &size) == noErr && deviceID != kAudioObjectUnknown) {
-            return deviceID;
-        }
-    }
-    // Bit-perfect needs a confirmed binding; ordinary recovery retains its
-    // original system-default fallback.
-    return _bitPerfectWanted ? kAudioObjectUnknown : [CoreAudioUtil systemDefaultOutputDeviceID];
-}
-
-- (OSStatus)writeOutputUnitDevice:(AudioDeviceID)deviceID {
-#if DEBUG
-    // --no-audio-hw manual rendering: there is no output unit and no device
-    // to bind. Report success so device selection keeps its menu and
-    // persistence behavior without tripping the failure paths.
-    if (_engine.isInManualRenderingMode) {
-        return noErr;
-    }
-#endif
-    AudioUnit outputUnit = _engine.outputNode.audioUnit;
-    if (!outputUnit) return kAudioUnitErr_Uninitialized;
-    return AudioUnitSetProperty(outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global, 0, &deviceID, sizeof(deviceID));
+    return _outputUnit.deviceID;
 }
 
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
-    return [self performDiagnosticPhase:@"device pin" device:deviceID operation:^BOOL{
-        OSStatus status = [self writeOutputUnitDevice:deviceID];
+    return [self performDiagnosticPhase:@"device bind" device:deviceID operation:^BOOL{
+        OSStatus status = self->_outputUnit ? [self->_outputUnit bindToDevice:deviceID] : noErr;
         if (status != noErr) {
-            LogError(@"AudioPlayer: could not set output device %u (OSStatus %d)", deviceID, (int)status);
+            LogError(@"AudioPlayer: could not bind the output unit to device %u (OSStatus %d)", deviceID, (int)status);
         }
         return status == noErr;
     }];
+}
+
+// Whether the standing master-bus route disagrees with the flags: the FX
+// segment in the chain while the mode or the setting says not, or absent
+// while both say so.
+- (BOOL)masterBusRouteStaleOnQueue {
+    return (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted);
+}
+
+// The graph runs at the bound device's rate, so the unit never resamples:
+// re-read after every bind, and by the prepare after it moved the device.
+// An unreadable rate keeps the current one.
+- (void)followOutputDeviceRateOnQueue {
+    Float64 rate = 0;
+    if (_outputUnit && [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:_outputUnit.deviceID] && rate > 0) {
+        [self applyOutputRateOnQueue:rate];
+    }
 }
 
 // Rebuilds the graph, restoring the track, position and play or pause state.
@@ -266,154 +254,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     }
     [self stopEngineOnQueue];
     [self pauseCurrentVoiceOnQueue];
-}
-
-// Handles engine configuration and output-unit device changes: the hardware
-// can stop the engine or silently move its output to another device. The health check is
-// idempotent: bit-perfect also requires the requested device, so
-// notifications caused by our own completed rebuilds are no-ops. Whichever
-// branch the recovery takes, the report is published once at the end.
-- (void)handleEngineConfigurationChange {
-    [self recoverEngineConfigurationOnQueue];
-    [self publishBitPerfectReportOnQueue];
-}
-
-// The output unit's hardware side at the prepared device's rate. An unreadable
-// device format is unknown, never a mismatch: a rebuild on a guess is a gap.
-- (BOOL)outputUnitAtPreparedDeviceRateOnQueue {
-    AudioStreamBasicDescription physical = {0};
-    if (_preparedStreamID == kAudioObjectUnknown
-            || ![CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID]) {
-        return YES;
-    }
-    return [_engine.outputNode outputFormatForBus:0].sampleRate == physical.mSampleRate;
-}
-
-- (void)recoverEngineConfigurationOnQueue {
-    if (_terminating) return;
-    // This notification comes from AVAudioEngine, not the device manager, so
-    // unlike audioOutputDevicesDidChange it can land before the first snapshot
-    // is published or while one is being retried. knowsOutputDeviceIsAbsent:
-    // is what keeps that from reading as removal and persisting System Output
-    // over a device that is still there; a merely-unpublished list falls
-    // through to the graph rebuild below, which is the right answer anyway.
-    NSInteger requested = self.currentlyRequestedAudioDeviceId;
-    VibePlayerState state = _state;
-    BOOL hasVoice = _voice != 0;
-    // Only the mode requires the requested device: off, the output unit may
-    // follow the system default wherever it goes, and the binding is read
-    // only for the paused-graph check below, as before the mode existed.
-    BOOL onRequestedDevice = !_bitPerfectWanted || requested < 0
-            || [self activeOutputDeviceID] == (AudioDeviceID)requested;
-    // The mode needs the unit's formats to be that device's too. A pin that
-    // collides with the unit following the default connects the device without
-    // updating them (see settleOutputUnitAfterHoggingSystemDefaultOnQueue:),
-    // and this notification is the one edge left to catch that on: #47's
-    // launch with exclusive on played the whole session "switch failed".
-    BOOL unitAtDeviceRate = !_bitPerfectWanted || requested < 0
-            || (AudioDeviceID)requested != _preparedDeviceID || [self outputUnitAtPreparedDeviceRateOnQueue];
-    BOOL graphHealthy = _engine.isRunning && hasVoice && onRequestedDevice && unitAtDeviceRate;
-#if VIBE_VERBOSE_LOGGING
-    // Beta instrumentation (#47): every recovery says what it saw and what it
-    // decided. "Healthy, nothing to do" used to be silent, which is how a unit
-    // at the wrong rate went unnoticed for a whole session.
-    NSString *seen = [NSString stringWithFormat:@"play %llu voice %llu, engine %@, voice %@, requested %ld, bound %u, unit at device rate %@, state %ld",
-                      [self diagnosticPlayIdentifierOnQueue], _voice,
-                      _engine.isRunning ? @"running" : @"stopped", hasVoice ? @"present" : @"absent", (long)requested,
-                      [self activeOutputDeviceID], unitAtDeviceRate ? @"yes" : @"NO", (long)state];
-#endif
-    if (!graphHealthy) {
-        // Publish the stopped graph before any recovery branch can wait or
-        // return. Transport state intentionally remains unchanged so a
-        // successful rebuild can resume it.
-        [self refreshOutputAudioActiveOnQueue];
-    }
-    // TRAP: the snapshot lags an unplug. It only refreshes when the device-list
-    // notification is processed, and while a bit-perfect device is prepared the
-    // output-unit listener can fire first — the unit has already followed the
-    // default off the vanished device. knowsOutputDeviceIsAbsent then still
-    // answers NO, recovery fell through to rebind onto a device that no longer
-    // existed, and that failed with -10851, raised a user-visible error and
-    // unloaded the track (#62). So ask the device itself too. Only a confirmed
-    // "dead" counts: a failed read is unknown, never removal.
-    BOOL snapshotKnowsAbsent = [[AudioDeviceManager sharedInstance] knowsOutputDeviceIsAbsent:requested];
-    if (snapshotKnowsAbsent
-            || (requested >= 0 && [CoreAudioUtil deviceIsConfirmedDead:(AudioDeviceID)requested])) {
-        // Which check caught it is the difference between the snapshot keeping
-        // up and this guard earning its place, so say which.
-        LogError(@"Audio output device failed; falling back to system default (%@)",
-                 snapshotKnowsAbsent ? @"the device list had caught up"
-                                     : @"the device list was stale; the device itself reports gone");
-        [self abandonBitPerfectForVanishedDeviceOnQueue];
-        [self retainVanishedOutputDeviceIntentOnQueue];
-        [self setOutputDeviceOnQueue:-1];
-        return;
-    }
-    // Nothing to recover while idle. In bit-perfect mode, Loading may have no
-    // running engine — its settlement will start it, and rebinding the same
-    // device here only produces another notification while leaving that open
-    // waiting on this queue — but idle on the wrong device still rebinds.
-    BOOL idle = state == VibePlayerStateStopped
-            || (_bitPerfectWanted && state == VibePlayerStateLoading);
-    if (idle && onRequestedDevice) {
-#if VIBE_VERBOSE_LOGGING
-        LogInfo(@"Recovery: idle on the requested device, nothing to do (%@)", seen);
-#endif
-        return;
-    }
-    if (graphHealthy) {
-        // The graph survived, so there is nothing to recover.
-#if VIBE_VERBOSE_LOGGING
-        LogInfo(@"Recovery: graph healthy, nothing to do (%@)", seen);
-#endif
-        return;
-    }
-    // The engine stopped or left the chosen device. Rebuild while preserving
-    // transport; a Stopped player only rebinds, without resurrecting its file.
-    AudioDeviceID deviceID = kAudioObjectUnknown;
-    if (requested >= 0) {
-        deviceID = (AudioDeviceID)requested;
-    }
-    else if (![CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID]) {
-        // A failed property read is not proof that every output vanished. The
-        // coalesced retry below gives CoreAudio one later recovery edge; do not
-        // park a potentially intact track on an unknown verdict.
-        LogWarn(@"AudioPlayer: could not read system default during engine recovery");
-        [self scheduleSystemOutputBindRetryOnQueue];
-        [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                @"Could not read the system output device", nil)];
-        return;
-    }
-    if (deviceID == kAudioObjectUnknown) {
-        // No output device exists at all, because the last one vanished. Park
-        // the track as Paused, restorable when a device returns — see
-        // parkPlaybackForMissingOutputDeviceOnQueue — and say why.
-        if (state == VibePlayerStatePlaying) {
-            [self parkPlaybackForMissingOutputDeviceOnQueue];
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                    @"No audio output device is available", nil)];
-        }
-        return;
-    }
-    // Idempotence while paused. A Paused rebuild deliberately leaves the
-    // engine stopped, so the isRunning check above cannot attest to graph
-    // health for it, and without this every notification while paused re-ran a
-    // full rebuild. A voice present, the right device bound and the device
-    // still at the format the mode set means the graph is intact, and the
-    // resume starts the engine, just as after a normal idle stop. A format
-    // another process moved during the pause is what this notification
-    // often IS, and the rebuild's prepare sets it back.
-    if (state == VibePlayerStatePaused && hasVoice && [self activeOutputDeviceID] == deviceID && unitAtDeviceRate
-            && !(_file && [self outputNeedsSwitchOnQueueForFile:_file unknownNeedsSwitch:NO])) {
-#if VIBE_VERBOSE_LOGGING
-        LogInfo(@"Recovery: paused with the graph intact, nothing to do (%@)", seen);
-#endif
-        return;
-    }
-#if VIBE_VERBOSE_LOGGING
-    LogInfo(@"Recovery: rebinding to device %u (%@)", deviceID, seen);
-#endif
-    [self configureOutputDeviceOnQueue:deviceID];
 }
 
 #pragma mark - Output device mutation
@@ -564,7 +404,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 @"Could not switch audio output device", nil)];
         return NO;
     }
-    if ((self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
+    [self followOutputDeviceRateOnQueue];
+    if ([self masterBusRouteStaleOnQueue]) {
         [self installMasterBusOnQueue];
     }
     VIBE_REBIND_PHASE(pinS);
@@ -685,21 +526,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL needsPreparation = (_bitPerfectWanted
             ? outputDeviceID >= 0 && _preparedDeviceID != newDeviceID
             : (_voiceBus && !_varispeed) || _preparedDeviceID != kAudioObjectUnknown)
-            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted);
+            || [self masterBusRouteStaleOnQueue];
     if (newDeviceID != currentDeviceID || needsPreparation) {
         if (![self configureOutputDeviceOnQueue:newDeviceID]) {
             // configureOutputDeviceOnQueue has already reported the error.
             // Do not record or persist a device we failed to switch to.
-            return NO;
-        }
-    }
-    else if (outputDeviceID >= 0) {
-        // The chosen device is already the active one, but "active" may mean
-        // only that the output unit is tracking the system default and was
-        // never explicitly bound. Pin it before committing the requested ID.
-        if (![self setOutputUnitDevice:newDeviceID]) {
-            [self sendDelegateError:VibeAudioError(VibeAudioErrorDeviceUnavailable,
-                    @"Could not switch audio output device", nil)];
             return NO;
         }
     }
@@ -775,9 +606,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // eligibility fold, shared by the report and the mechanism. During a device
 // switch it is the destination, which configureOutputDeviceOnQueue: prepares
 // and hogs before setOutputDeviceOnQueue: commits the id (a failed switch
-// must not). Never the output unit's own device: AVAudioEngine's default
-// output unit follows the system default whenever it moves — which a hog
-// makes it do — so that reading names a device the engine is about to leave.
+// must not); the unit's own device would name the one the switch is leaving.
 - (nullable AudioDevice *)eligibleRequestedDeviceOnQueue {
     NSInteger requested = self.currentlyRequestedAudioDeviceId;
     if (_rebindDeviceID != kAudioObjectUnknown) {
@@ -795,11 +624,9 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (!_bitPerfectWanted) {
         return nil;
     }
-#if DEBUG
-    if (_engine.isInManualRenderingMode) {
-        return nil;
+    if (!_outputUnit) {
+        return nil; // the debug pump: no device to prepare
     }
-#endif
     return [self eligibleRequestedDeviceOnQueue];
 }
 
@@ -886,19 +713,16 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return NO;
     }
     NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + kFormatSwitchDeadlineSeconds;
-    // TRAP: an accepted write and even the nominal rate can precede the
-    // output unit. Starting then leaves stale render-buffer sizing and
-    // node.play waiting for IO that fails with TooManyFramesToProcess.
-    // Restoration must confirm the full sample representation too, including packing.
+    // TRAP: an accepted write precedes the nominal rate, so both are confirmed
+    // before the graph follows the rate; a restoration must confirm the full
+    // sample representation too, including packing.
     do {
         AudioStreamBasicDescription current = {0};
         Float64 rate = 0;
         if ([CoreAudioUtil readPhysicalFormat:&current forStream:stream]
                 && VibePhysicalFormatsEquivalent(current, format)
                 && [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]
-                && rate == format.mSampleRate
-                && ([self activeOutputDeviceID] != deviceID
-                    || [_engine.outputNode outputFormatForBus:0].sampleRate == rate)) {
+                && rate == format.mSampleRate) {
             return YES;
         }
         usleep(kFormatSwitchPollMicroseconds);
@@ -972,68 +796,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             [CoreAudioUtil readPhysicalFormat:&current forStream:stream];
         }
     }
-    AVAudioFormat *format = [_engine.mainMixerNode outputFormatForBus:0];
-    if (format.sampleRate != current.mSampleRate) {
-        if (!_masterBusFormatBeforeBitPerfect) {
-            _masterBusFormatBeforeBitPerfect = format;
-        }
-        AudioStreamBasicDescription description = *format.streamDescription;
-        description.mSampleRate = current.mSampleRate;
-        [self reconnectMasterBusOnQueueWithFormat:[[AVAudioFormat alloc]
-                initWithStreamDescription:&description channelLayout:format.channelLayout]];
-        LogInfo(@"bit-perfect: master bus reconnected at %.0f Hz", current.mSampleRate);
+    // The graph follows the device: the mixer, the FX segment and the unit
+    // all run at its rate, so nothing resamples.
+    if (current.mSampleRate > 0 && current.mSampleRate != _engine.manualRenderingFormat.sampleRate) {
+        [self applyOutputRateOnQueue:current.mSampleRate];
     }
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// TRAP: taking the device macOS currently points at makes coreaudiod move the
-// system default elsewhere, and AVAudioEngine's output unit — a default output
-// unit whatever kAudioOutputUnitProperty_CurrentDevice last named — then
-// follows the default off the device it was just bound to. Measured on a
-// Fireface 802: the default has already moved when the hog write returns, but
-// the unit follows about 50 ms LATER, so reading the unit straight after the
-// take still names our device and means nothing. Pinning inside that window is
-// simply followed again, and an engine started inside it never gets an IO
-// cycle — measured: the start blocked 5 s in awaitIOCycle and the recovery
-// rebuilt the graph underneath it. So wait for the follow to land
-// and only then pin the unit back, leaving the caller's engine start the one
-// configuration edge outstanding. Reproducible in hogfollow.swift (vibe-debug);
-// the engine is stopped at every ownership edge, so none of this is audible.
-// Even after the unit has left, the pin can collide with the follow's own
-// SelectDevice still finishing (#47's A300, at launch): AUHAL answers 'nope'
-// having connected the device's IO but not the unit's formats, and a
-// same-device pin is then a no-op. recoverEngineConfigurationOnQueue's rate
-// check is what repairs that, on the configuration change that follows.
-// TRAP: do not reach for -[AVAudioEngine prepare] here. It dispatch_syncs onto
-// the AVAudioIOUnit queue, which is draining the property listener for the very
-// re-bind above and is blocked in CoreAudio while the HAL reorganizes around
-// the take: the player queue then deadlocks against it and the whole app hangs.
-- (BOOL)settleOutputUnitAfterHoggingSystemDefaultOnQueue:(AudioDeviceID)deviceID {
-    NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + kHogSettleDeadlineSeconds;
-    NSUInteger pinAttempts = 0;
-    OSStatus lastPinStatus = noErr;
-    BOOL settled = NO;
-    // The unit leaving is the observable end of the default move that caused
-    // it, so this needs no second reading of the default.
-    while (NSProcessInfo.processInfo.systemUptime < deadline
-            && [self activeOutputDeviceID] == deviceID) {
-        usleep(kFormatSwitchPollMicroseconds);
-    }
-    while (NSProcessInfo.processInfo.systemUptime < deadline) {
-        if ([self activeOutputDeviceID] == deviceID) {
-            settled = YES;
-            break;
-        }
-        pinAttempts++;
-        lastPinStatus = [self writeOutputUnitDevice:deviceID];
-        usleep(kFormatSwitchPollMicroseconds);
-    }
-    LogTiming(!settled, @"bit-perfect: default-follow %@ on device %u, %lu pin attempts, last OSStatus %d%@",
-            settled ? @"settled" : @"unsettled", deviceID, (unsigned long)pinAttempts, (int)lastPinStatus,
-            settled ? @"" : @" (deadline expired)");
-    return settled;
-}
-
 // The engine is stopped at both ownership edges.
 - (void)acquireExclusiveOutputOnQueue {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
@@ -1049,22 +819,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             return; // never overwrite an outstanding release with a second device
         }
     }
-    // A follow is coming only when the take has a default to move AND the unit
-    // is bound to the device being taken. Both are read BEFORE the take, which
-    // moves them. An unreadable default counts as "this is it": the settle is
-    // bounded, while skipping it strands the engine on whichever device the
-    // HAL moved to.
-    AudioDeviceID systemDefault = kAudioObjectUnknown;
-    BOOL followExpected = (![CoreAudioUtil readSystemDefaultOutputDeviceID:&systemDefault]
-                    || systemDefault == deviceID)
-            && [self activeOutputDeviceID] == deviceID;
+    // Taking the device that is the system default moves the default elsewhere;
+    // the hosted unit stays bound and nothing here waits for anything.
     // A successful write followed by a failed read-back may still own the
     // device. Record the cleanup obligation BEFORE asking the HAL to take it.
     _hoggedDeviceID = deviceID;
 #if VIBE_VERBOSE_LOGGING
-    LogInfo(@"Phase: play %llu voice %llu exclusive context: requested %ld, default %u, follow expected %d",
+    LogInfo(@"Phase: play %llu voice %llu exclusive context: requested %ld, bound %u",
             [self diagnosticPlayIdentifierOnQueue], _voice,
-            (long)self.currentlyRequestedAudioDeviceId, systemDefault, followExpected);
+            (long)self.currentlyRequestedAudioDeviceId, [self activeOutputDeviceID]);
 #endif
     if (![self performDiagnosticPhase:@"hog acquire" device:deviceID operation:^BOOL{
         return [CoreAudioUtil setHogOwnedByThisProcess:YES forDeviceID:deviceID];
@@ -1072,11 +835,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         LogWarn(@"bit-perfect: could not confirm exclusive access to %@", device.name);
         [self releaseExclusiveOutputOnQueue]; // publishes
         return;
-    }
-    if (followExpected) {
-        [self performDiagnosticPhase:@"default-follow settlement" device:deviceID operation:^BOOL{
-            return [self settleOutputUnitAfterHoggingSystemDefaultOnQueue:deviceID];
-        }];
     }
     [self publishBitPerfectReportOnQueue];
 }
@@ -1102,18 +860,11 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 #endif
 
-// Watch the output binding and the prepared device's volume/balance/mute.
-// kAudioObjectUnknown removes both listeners. Copy the HAL block before adding
+// Watch the prepared device's volume, balance, mute and nominal rate.
+// kAudioObjectUnknown removes the listener. Copy the HAL block before adding
 // it, because removal must receive the same block object.
 - (BOOL)setPreparedDeviceOnQueue:(AudioDeviceID)deviceID {
-    if (deviceID == kAudioObjectUnknown && _outputDeviceListener) {
-        if (AUListenerDispose(_outputDeviceListener) != noErr) {
-            return NO;
-        }
-        _outputDeviceListener = NULL;
-    }
-    if (_preparedDeviceID == deviceID
-            && ((_outputLevelListener && _outputDeviceListener) || deviceID == kAudioObjectUnknown)) {
+    if (_preparedDeviceID == deviceID && (_outputLevelListener || deviceID == kAudioObjectUnknown)) {
         return YES;
     }
     // The third device obligation, and it retires like the other two. A device
@@ -1147,46 +898,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return YES;
     }
     __weak AudioPlayer *weakSelf = self;
-    if (!_outputDeviceListener && _engine.outputNode.audioUnit) {
-        AudioUnit outputUnit = _engine.outputNode.audioUnit;
-        OSStatus status = AUEventListenerCreateWithDispatchQueue(
-                &_outputDeviceListener, 0.01, 0.01, _queue,
-                ^(void *object, const AudioUnitEvent *event, UInt64 time, AudioUnitParameterValue value) {
-                    AudioPlayer *strongSelf = weakSelf;
-#if VIBE_VERBOSE_LOGGING
-                    AudioUnitPropertyID property = event->mArgument.mProperty.mPropertyID;
-                    LogInfo(@"Callback: output unit %@ changed; bound to device %u",
-                            property == kAudioOutputUnitProperty_CurrentDevice ? @"current device" : @"channel map",
-                            [strongSelf activeOutputDeviceID]);
-#endif
-                    // Rebinding from the AU event drain can keep that drain
-                    // alive forever. Recover on the next queue turn instead,
-                    // if the mode still wants this listener by then.
-                    if (strongSelf && strongSelf->_bitPerfectWanted) {
-                        dispatch_async(strongSelf->_queue, ^{
-                            if (strongSelf->_bitPerfectWanted) {
-                                [strongSelf handleEngineConfigurationChange];
-                            }
-                        });
-                    }
-                });
-        if (status == noErr) {
-            AudioUnitEvent event = { .mEventType = kAudioUnitEvent_PropertyChange,
-                .mArgument.mProperty = { outputUnit, kAudioOutputUnitProperty_CurrentDevice,
-                                         kAudioUnitScope_Global, 0 } };
-            status = AUEventListenerAddEventType(_outputDeviceListener, NULL, &event);
-            if (status == noErr) {
-                event.mArgument.mProperty.mPropertyID = kAudioOutputUnitProperty_ChannelMap;
-                event.mArgument.mProperty.mScope = kAudioUnitScope_Input;
-                status = AUEventListenerAddEventType(_outputDeviceListener, NULL, &event);
-            }
-        }
-        if (status != noErr) {
-            LogDebug(@"bit-perfect: output device listener failed: %d", (int)status);
-            if (_outputDeviceListener) AUListenerDispose(_outputDeviceListener);
-            _outputDeviceListener = NULL;
-        }
-    }
     AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
         AudioPlayer *strongSelf = weakSelf;
         if (strongSelf && strongSelf->_bitPerfectWanted && strongSelf->_preparedDeviceID == deviceID) {
@@ -1196,6 +907,21 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
                 LogInfo(@"Callback: bit-perfect device listener, '%c%c%c%c' changed on device %u", (char)(selector >> 24),
                         (char)(selector >> 16), (char)(selector >> 8), (char)selector, deviceID);
 #endif
+                if (selector == kAudioDevicePropertyNominalSampleRate) {
+                    // Another process moved the prepared device's rate: the
+                    // rebind's prepare sets the mode's format back. Vibe's own
+                    // writes arrive with the graph already at the rate, a
+                    // no-op; a vanished device is the device-list observer's.
+                    Float64 rate = 0;
+                    if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]
+                            && rate != strongSelf->_engine.manualRenderingFormat.sampleRate
+                            && ![CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
+                        LogInfo(@"bit-perfect: device %u moved to %.0f Hz under the graph; rebinding", deviceID, rate);
+                        [strongSelf configureOutputDeviceOnQueue:deviceID];
+                        [strongSelf publishBitPerfectReportOnQueue];
+                    }
+                    break;
+                }
                 if (selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
                         || selector == kAudioHardwareServiceDeviceProperty_VirtualMainBalance
                         || selector == kAudioDevicePropertyVolumeScalar
@@ -1252,11 +978,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // Restore the original format, forget the prepared device and release it.
 // Every step is idempotent, so this is free to call with nothing owed.
 - (void)leaveOutputDeviceOnQueue {
-    if (_masterBusFormatBeforeBitPerfect
-            || (self.fx.masterBusOutputNode != nil) != (_fxEnabled && !_bitPerfectWanted)) {
-        [self reconnectMasterBusOnQueueWithFormat:_masterBusFormatBeforeBitPerfect
-                ?: [_engine.mainMixerNode outputFormatForBus:0]];
-        _masterBusFormatBeforeBitPerfect = nil;
+    if ([self masterBusRouteStaleOnQueue]) {
+        [self installMasterBusOnQueue];
     }
     [self restoreOutputFormatOnQueue];
     [self setPreparedDeviceOnQueue:kAudioObjectUnknown];
@@ -1293,27 +1016,24 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         AudioStreamBasicDescription physical = {0};
         BOOL readFormat = [CoreAudioUtil readPhysicalFormat:&physical forStream:_preparedStreamID];
         AVAudioFormat *mixerFormat = [_engine.mainMixerNode outputFormatForBus:0];
-        AVAudioFormat *outputInputFormat = [_engine.outputNode inputFormatForBus:0];
+        AVAudioFormat *unitFormat = _outputUnit.format;
         report.sampleRate = physical.mSampleRate;
         report.bitsPerChannel = physical.mBitsPerChannel;
         report.isFloat = VibePhysicalFormatIsFloat(physical);
         // Named rather than folded into one flag: "switch failed" alone sent #47
         // round the houses, and the debug info log is where this is read.
         AudioDeviceID bound = [self activeOutputDeviceID];
-        double unitRate = [_engine.outputNode outputFormatForBus:0].sampleRate;
         unconfirmed = !readFormat ? @"the device's format could not be read"
                 : _varispeed ? @"a varispeed is in the chain"
                 : self.fx.masterBusOutputNode ? @"the FX bus is in the chain"
-                : !_outputLevelListener || !_outputDeviceListener ? @"a device listener is missing"
+                : !_outputLevelListener ? @"the device listener is missing"
                 : bound != _preparedDeviceID
                         ? [NSString stringWithFormat:@"the output unit is bound to device %u", bound]
                 : !VibePhysicalFormatsEquivalent(physical, _preparedFormat) ? @"the device left the format set on it"
                 : mixerFormat.sampleRate != physical.mSampleRate
                         ? [NSString stringWithFormat:@"the mixer runs at %.0f Hz", mixerFormat.sampleRate]
-                : outputInputFormat.sampleRate != physical.mSampleRate
-                        ? [NSString stringWithFormat:@"the output unit takes %.0f Hz", outputInputFormat.sampleRate]
-                : unitRate != physical.mSampleRate
-                        ? [NSString stringWithFormat:@"the output unit runs at %.0f Hz", unitRate]
+                : unitFormat.sampleRate != physical.mSampleRate
+                        ? [NSString stringWithFormat:@"the output unit pulls at %.0f Hz", unitFormat.sampleRate]
                 : nil;
         report.formatConfirmed = (unconfirmed == nil);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
@@ -1352,8 +1072,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             report.channelsMatch = channels > 0
                     && file.processingFormat.channelCount == channels
                     && mixerFormat.channelCount == channels
-                    && outputInputFormat.channelCount == channels
-                    && [CoreAudioUtil outputUnit:_engine.outputNode.audioUnit preservesChannels:channels
+                    && unitFormat.channelCount == channels
+                    && [CoreAudioUtil outputUnit:_outputUnit.audioUnit preservesChannels:channels
                             inStream:_preparedStreamID physicalChannelCount:physical.mChannelsPerFrame];
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
             report.depthOK = VibePhysicalFormatSatisfies(physical, source,
@@ -1465,12 +1185,12 @@ static NSString *VibeFormatText(AVAudioFormat *format) {
             @"restoreOwedToDeviceId": @(self->_changedFormatDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_changedFormatDeviceID),
             @"preparedDeviceId": @(self->_preparedDeviceID == kAudioObjectUnknown ? -1 : (NSInteger)self->_preparedDeviceID),
             @"outputLevelListenerPresent": @(self->_outputLevelListener != nil),
-            @"outputDeviceListenerPresent": @(self->_outputDeviceListener != NULL),
             @"varispeedPresent": @(self->_varispeed != nil),
             @"mixerOutputRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate),
-            @"outputNodeInputRate": @([self->_engine.outputNode inputFormatForBus:0].sampleRate),
-            @"outputNodeOutputRate": @([self->_engine.outputNode outputFormatForBus:0].sampleRate),
-            @"presentationLatency": @(self->_engine.outputNode.presentationLatency),
+            @"outputUnitRate": @(self->_outputUnit.format.sampleRate),
+            @"outputUnitRunning": @(self->_outputUnit.running),
+            @"outputDropouts": @(self->_outputUnit.dropouts),
+            @"presentationLatency": @(self->_outputUnit.presentationLatency),
             @"engineRunning": @(self->_engine.isRunning),
             @"terminating": @(self->_terminating),
             @"activeSubmittedPlayIdentifier": @(self->_activeSubmittedPlayIdentifier),

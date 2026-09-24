@@ -200,7 +200,23 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         [self installInEngine:engine format:format];
         return;
     }
-    if (connected == (self.masterBusOutputNode != nil)) {
+    BOOL wired = self.masterBusOutputNode != nil;
+    if (connected && [_lowKillEQ inputFormatForBus:0].sampleRate != format.sampleRate) {
+        // Wired at another rate. TRAP: a connect over a connection that
+        // already exists can leave the destination's side at the old format,
+        // and an effect whose input and output rates differ fails to
+        // initialize at the next start (AUNBandEQ, -10868, measured on a
+        // 44.1 -> 96 kHz device switch). So every connection of the chain
+        // goes first, then it is wired whole at the new format, with the
+        // recorded intent re-applied as at install.
+        [self bypassInEngine:engine];
+        for (AVAudioNode *node in [self chainNodes]) {
+            [engine disconnectNodeOutput:node];
+        }
+        [self wireInEngine:engine format:format];
+        return;
+    }
+    if (connected == wired) {
         return;
     }
     if (connected) {
@@ -208,6 +224,21 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
         [engine connect:_masterMix to:engine.outputNode format:[_masterMix outputFormatForBus:0]];
         return;
     }
+    [self bypassInEngine:engine];
+}
+
+// Every node of the installed chain but the mixers' shared sum.
+- (NSArray<AVAudioNode *> *)chainNodes {
+    NSMutableArray *nodes = [NSMutableArray arrayWithObjects:_lowKillEQ, _reverbSendGate, _reverb, _reverbLowCut, nil];
+    for (VibeDelaySend *send in @[_delayEighth, _delaySixteenth]) {
+        [nodes addObjectsFromArray:@[send.gate, send.half, send.left, send.right, send.panLeft, send.panRight, send.sum, send.lowCut]];
+    }
+    return nodes;
+}
+
+// The bypass: the chain's two ends leave the master bus, and every tail and
+// unfinished sweep is reset so the next enable starts clean.
+- (void)bypassInEngine:(AVAudioEngine *)engine {
     [engine disconnectNodeOutput:engine.mainMixerNode];
     [engine disconnectNodeOutput:_masterMix];
     // A bypass must not freeze a wet tail or an unfinished sweep for the next enable.
@@ -236,8 +267,8 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     // un-bypassed for the engine's lifetime (see kLowKillParkedHz); the
     // controls sweep the cutoff and swap the band types through
     // applyLowKillTargetOnQueue, and the parked state is the transparent one.
-    // The output node converts if a later device runs at a different sample
-    // rate from this format.
+    // A later device at another rate has the player rewire the chain there
+    // (setConnected:inEngine:format:).
     _lowKillEQ = [[AVAudioUnitEQ alloc] initWithNumberOfBands:2];
     for (AVAudioUnitEQFilterParameters *band in _lowKillEQ.bands) {
         band.frequency = kLowKillParkedHz;
@@ -292,7 +323,13 @@ static const uint64_t kSendSwellStepMicroseconds = 50000; // 120 x 50ms = 6s
     // return that grabbed bus 0 first.
     _delayEighth = [self createDelaySendWithBeatsPerTap:kDelayTapBeats engine:engine];
     _delaySixteenth = [self createDelaySendWithBeatsPerTap:kShortDelayTapBeats engine:engine];
+    [self wireInEngine:engine format:mixerFormat];
+}
 
+// The chain's connections at mixerFormat, and the state that can only be
+// written once the mixers are wired. Every connect replaces the node's
+// existing output connection, so a rate change re-runs this whole.
+- (void)wireInEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)mixerFormat {
     [engine connect:engine.mainMixerNode to:_lowKillEQ format:mixerFormat];
     // One-to-many: the post-low-kill master signal feeds the dry path, on
     // masterMix bus 0, and every send tap in parallel.

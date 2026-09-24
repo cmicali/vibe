@@ -299,6 +299,9 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             // The bus's drain timer: on only while the engine runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.
             @"drainPolling": engine[@"pollActive"],
+            // IO cycles the hosted output unit wrote as silence because the
+            // engine could not render; cumulative, and a soak holds it at 0.
+            @"outputDropouts": engine[@"outputDropouts"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },

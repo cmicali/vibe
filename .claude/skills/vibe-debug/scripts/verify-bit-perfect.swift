@@ -525,7 +525,7 @@ func requireOrdinary(_ binary: String) {
     guard facts["enabled"] as? Bool == false, facts["status"] as? String == "off",
           (facts["varispeedPresent"] as? Bool == true || live["numChannels"] as? Int == 0),
           ["preparedDeviceId", "restoreOwedToDeviceId", "hoggedDeviceId"].allSatisfy({ (facts[$0] as? Int ?? 0) == -1 }),
-          ["outputLevelListenerPresent", "outputDeviceListenerPresent"].allSatisfy({ facts[$0] as? Bool == false }) else {
+          facts["outputLevelListenerPresent"] as? Bool == false else {
         report(facts); fail("mode off did not retain the ordinary, dormant path")
     }
     report(["case": "ordinary-path", "report": facts])

@@ -1288,6 +1288,39 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertLessThan(worst,0.02f,@"%@ Hz",rate);
     }
 }
+// An ordinary-mode device switch across rates rewires the connected FX chain
+// at the device's new rate. An effect left with its input at one rate and its
+// output at another fails to initialize at the next start (-10868), which is
+// what a connect over a standing fan-out produced on a 44.1 -> 96 kHz switch.
+- (void)testFXChainRewiresAtANewRate {
+    AVAudioEngine *engine = [[AVAudioEngine alloc] init];
+    dispatch_queue_t queue = dispatch_queue_create("com.vibe.test.fx-rewire", DISPATCH_QUEUE_SERIAL);
+    AudioFX *fx = [[AudioFX alloc] initWithQueue:queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), queue, block);
+    }];
+    AVAudioSourceNode *source = [[AVAudioSourceNode alloc] initWithRenderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
+        for (UInt32 b = 0; b < outputData->mNumberBuffers; b++) {
+            memset(outputData->mBuffers[b].mData, 0, outputData->mBuffers[b].mDataByteSize);
+        }
+        *isSilence = YES;
+        return noErr;
+    }];
+    [engine attachNode:source];
+    for (NSNumber *rate in @[@44100, @96000, @48000, @96000]) {
+        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate.doubleValue channels:2];
+        NSError *error = nil;
+        XCTAssertTrue([engine enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline format:format
+                                      maximumFrameCount:4096 error:&error], @"%@", error);
+        [engine connect:source to:engine.mainMixerNode format:format];
+        dispatch_sync(queue, ^{ [fx setConnected:YES inEngine:engine format:format]; });
+        XCTAssertNotNil(fx.masterBusOutputNode, @"%@ Hz", rate);
+        XCTAssertTrue([engine startAndReturnError:&error], @"%@ Hz: %@", rate, error);
+        AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:1024];
+        XCTAssertEqual([engine renderOffline:1024 toBuffer:buffer error:&error], AVAudioEngineManualRenderingStatusSuccess, @"%@ Hz: %@", rate, error);
+        XCTAssertEqualWithAccuracy([engine.mainMixerNode outputFormatForBus:0].sampleRate, rate.doubleValue, 0);
+        [engine stop];
+    }
+}
 - (void)testCrossfadePowerAndInterruption {
     for (NSNumber *milliseconds in @[@500,@2000]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
@@ -1529,7 +1562,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         for(NSUInteger i=0;i<2;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
     }
 }
-- (void)testTerminationCannotRestartOnConfigurationCallback {
+- (void)testTerminationCannotRestartOnDeviceCallbacks {
     AudioDevice *device=[[AudioDevice alloc] initWithName:@"Saved DAC" uid:@"saved" deviceId:2 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];
     AudioDeviceManager *devices=[[AudioDeviceManager alloc] initWithEnumerator:^NSArray *(BOOL partial) { return @[device]; } retryScheduler:nil];
     (void)devices.outputDevices;
@@ -1552,11 +1585,6 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block BOOL running;
         [_player runSyncOnQueue:^{ running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning; }];
         XCTAssertFalse(running);
-        [_player runSyncOnQueue:^{
-            [self->_player handleEngineConfigurationChange];
-            running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning;
-        }];
-        XCTAssertFalse(running,@"A queued configuration notification must not restart the engine after termination cleanup");
         AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];

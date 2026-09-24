@@ -29,8 +29,8 @@ Every verb with its arguments and reply schema, including bit-perfect reports an
 
 **Audio flags, and what each run proves.** `launch.sh` passes both debug-only argv flags by default:
 
-- `--no-audio-hw`: manual rendering with a real-time-paced pump. No CoreAudio device is opened, so a run cannot trigger AirPods auto-switching; playback, position, waveform, and FX behave normally. `dump_state.player.manualRendering` is what actually happened (`enableManualRenderingMode` can fail, and the engine then opens the device as usual) — **trust `manualRendering`, not `noAudioHw`**.
-- `--silent`: zeroes the main mixer but opens and drives the real output device — real-HAL behavior without noise (device switching, config-change notifications, output-latency timing).
+- `--no-audio-hw`: manual rendering with a real-time-paced pump. No CoreAudio device is opened, so a run cannot trigger AirPods auto-switching; playback, position, waveform, and FX behave normally. `dump_state.player.manualRendering` is what actually happened (`enableManualRenderingMode` can fail, and Vibe's own output unit then opens the device as usual) — **trust `manualRendering`, not `noAudioHw`**.
+- `--silent`: zeroes the main mixer but opens and drives the real output device — real-HAL behavior without noise (device switching, rate changes, output-latency timing).
 - `VIBE_AUDIBLE=1` uses real hardware audibly; `VIBE_AUDIBLE=silent` is `--silent` alone.
 - Test launches also pass `--no-now-playing` by default, suppressing media focus and remote commands without changing the audio graph. Set `VIBE_NOW_PLAYING=1` only to verify media integration; loopback captures must keep suppression so they do not pull AirPods off another device.
 

@@ -153,6 +153,7 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
     AudioUnit _unit;
     VibeOutputUnitState *_state;
     AVAudioEngineManualRenderingBlock _renderBlock; // the retained copy the struct points at
+    BOOL _initialized;
 }
 
 - (instancetype)init {
@@ -210,8 +211,17 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
 }
 
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID {
+    NSParameterAssert(!self.running);
+    // AUHAL takes a new device cleanly only across an initialize, and a bind
+    // at the same rate is not followed by a reconfigure.
+    if (_initialized) {
+        AudioUnitUninitialize(_unit);
+    }
     OSStatus status = AudioUnitSetProperty(_unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
                                            &deviceID, sizeof(deviceID));
+    if (_initialized && AudioUnitInitialize(_unit) != noErr) {
+        _initialized = NO;
+    }
     if (status != noErr) {
         return status;
     }
@@ -243,6 +253,7 @@ static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
     NSParameterAssert(!self.running);
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
     AudioUnitUninitialize(_unit);
+    _initialized = NO;
     AudioStreamBasicDescription description = *format.streamDescription;
     OSStatus status = AudioUnitSetProperty(_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
                                            &description, sizeof(description));
@@ -260,6 +271,7 @@ static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
         if (error) *error = VibeOutputUnitError(status, @"Could not initialize the output unit");
         return NO;
     }
+    _initialized = YES;
     _format = format;
     return YES;
 }

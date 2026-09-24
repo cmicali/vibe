@@ -316,7 +316,7 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
     dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
     __weak AudioPlayer *weakPlayer = player;
     __block AVAudioFramePosition lastSample = -1;
-    __block uint64_t lastAdvance = 0, stalledSince = 0;
+    __block uint64_t lastAdvance = 0, stalledSince = 0, lastDropouts = 0;
     dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
     dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC, 10 * NSEC_PER_MSEC);
     dispatch_source_set_event_handler(timer, ^{
@@ -335,6 +335,16 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
             @catch (NSException *exception) {
                 render = nil; // instrumentation must never take playback down with it
             }
+        }
+        // The other stall: the device keeps pulling, the engine cannot render.
+        uint64_t dropouts = [strongPlayer diagnosticOutputDropouts];
+        if (dropouts != lastDropouts) {
+            if (playing) {
+                LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the engine could not render (play %llu, %@)",
+                        dropouts - lastDropouts, [strongPlayer diagnosticPlayIdentifierOnQueue],
+                        strongPlayer.currentTrack.url.lastPathComponent);
+            }
+            lastDropouts = dropouts;
         }
         BOOL advancing = render.sampleTimeValid && render.sampleTime != lastSample;
         if (!playing || advancing) {
@@ -402,6 +412,14 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 
 - (BOOL)diagnosticEngineRunning {
     return _engine.isRunning;
+}
+
+- (uint64_t)diagnosticOutputDropouts {
+#if TARGET_OS_OSX
+    return _outputUnit.dropouts;
+#else
+    return 0;
+#endif
 }
 
 - (uint64_t)diagnosticPlayIdentifierOnQueue {
@@ -491,9 +509,14 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
                    ([AVAudioTime secondsForHostTime:mach_absolute_time()] - [AVAudioTime secondsForHostTime:start.mHostTime]) * 1000]
                 : (start.mFlags & kAudioTimeStampSampleTimeValid) ? [NSString stringWithFormat:@"sample time %.0f", start.mSampleTime]
                 : @"not yet rendered";
+#if TARGET_OS_OSX
+        NSTimeInterval latency = _outputUnit ? _outputUnit.presentationLatency : _engine.outputNode.presentationLatency;
+#else
+        NSTimeInterval latency = _engine.outputNode.presentationLatency;
+#endif
         LogInfo(@"Timeline: play %llu voice %llu %@ live; first render at %@; reported output presentation latency %.1f ms (not measured audible output)",
                 [self diagnosticPlayIdentifierOnQueue], voice, self.currentTrack.url.lastPathComponent, when,
-                _engine.outputNode.presentationLatency * 1000);
+                latency * 1000);
     }
     if (snapshot.underrunFrames && event == VibeVoiceEventEnded) {
         LogWarn(@"Stall: voice %llu underran %llu frames over its life", voice, snapshot.underrunFrames);
@@ -553,7 +576,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
     // The playlist's indicator may be hidden (its column is a theme choice),
     // and a tap installed after the start misses its opening: on hardware the
     // probe holds the tap itself for each capture.
-    if (!_engine.isInManualRenderingMode && !_signalProbeWanted) {
+    if ([self drivesOutputDeviceOnQueue] && !_signalProbeWanted) {
         _signalProbeWanted = YES;
         [self applyLevelTapOnQueue];
     }
@@ -610,9 +633,15 @@ static AVAudioTime *VibeAudioTimeByAddingSeconds(AVAudioTime *time, NSTimeInterv
 }
 
 - (AVAudioTime *)outputSignalRenderTimeOnQueue {
+#if TARGET_OS_OSX
+    if (_outputUnit) {
+        return [_outputUnit renderTime]; // frames rendered plus the block in flight
+    }
+#endif
     if (_engine.isInManualRenderingMode) {
         return [AVAudioTime timeWithSampleTime:_engine.manualRenderingSampleTime atRate:_engine.manualRenderingFormat.sampleRate];
     }
+    // iOS: the engine's own output node.
     AVAudioOutputNode *output = _engine.outputNode;
     AVAudioTime *time = output.lastRenderTime;
     if (!time || time.sampleRate <= 0) {

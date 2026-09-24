@@ -46,7 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Connects or bypasses the segment with the engine stopped, on its queue.
 // Nodes are created on first enable and retained across toggles. Disconnecting
 // resets processing and tails without changing intent; the caller clears intent
-// before submitting a bypass and wires the direct route.
+// before submitting a bypass and wires the direct route. A connected segment
+// asked for another rate — a device switch across rates — is rewired whole,
+// because an effect cannot convert between its input and output.
 - (void)setConnected:(BOOL)connected inEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)format;
 
 // The last node of the connected segment, or nil while bypassed/uninstalled.

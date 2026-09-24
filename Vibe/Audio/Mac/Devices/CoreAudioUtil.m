@@ -420,8 +420,13 @@ static BOOL VibeReadOutputControl(AudioDeviceID deviceID, AudioObjectPropertySel
 }
 
 // One registration and lifetime, including devices with only some controls.
+// The nominal rate is a global-scope property the output wildcard does not
+// cover, so it rides the same block under its own address.
 static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
     kAudioObjectPropertySelectorWildcard, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementWildcard
+};
+static const AudioObjectPropertyAddress kVibeNominalRateAddress = {
+    kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
 };
 
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
@@ -431,6 +436,12 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
         return NO;
     }
     OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    if (status == noErr) {
+        status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+        if (status != noErr) {
+            AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+        }
+    }
     if (status != noErr) {
         LogWarn(@"CoreAudioUtil: output level listener on %u failed (OSStatus %d)", deviceID, (int)status);
     }
@@ -440,8 +451,10 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
 + (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID {
-    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
-    return status == noErr || status == kAudioHardwareBadObjectError;
+    OSStatus levels = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    OSStatus rate = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    return (levels == noErr || levels == kAudioHardwareBadObjectError)
+            && (rate == noErr || rate == kAudioHardwareBadObjectError);
 }
 
 #pragma mark - Diagnostics

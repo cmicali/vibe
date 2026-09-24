@@ -150,23 +150,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             LogDebug(@"AudioPlayer init");
             [self createEngineAndMasterBusOnQueue];
 #if TARGET_OS_OSX
-            if (!self->_engine.isInManualRenderingMode) {
+            if (self->_outputUnit) {
                 [[AudioDeviceManager sharedInstance] addObserver:self];
-                __weak AudioPlayer *weakSelf = self;
-                self->_configChangeObserver = [[NSNotificationCenter defaultCenter]
-                        addObserverForName:AVAudioEngineConfigurationChangeNotification
-                                    object:self->_engine
-                                     queue:nil
-                                usingBlock:^(NSNotification *note) {
-                                    AudioPlayer *strongSelf = weakSelf;
-                                    if (strongSelf) {
-                                        LogInfo(@"Callback: AVAudioEngine configuration changed (engine %@)",
-                                                strongSelf->_engine.isRunning ? @"running" : @"stopped");
-                                        dispatch_async(strongSelf->_queue, ^{
-                                            [strongSelf handleEngineConfigurationChange];
-                                        });
-                                    }
-                                }];
                 // Do not put first-use HAL discovery on the player's sole queue.
                 // The engine begins honestly on System Output; a successful
                 // async snapshot later applies the saved preference through
@@ -192,6 +177,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 - (BOOL)leavesSamplesUntouchedOnQueue {
     return [self bitPerfectOnQueue] && !self.declick;
+}
+
+- (BOOL)drivesOutputDeviceOnQueue {
+#if TARGET_OS_OSX
+    return _outputUnit != nil;
+#else
+    return !_engine.isInManualRenderingMode;
+#endif
 }
 
 // The one home for the same-queue guard every synchronous accessor needs.
@@ -221,18 +214,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (void)dealloc {
-    if (_configChangeObserver) {
-        [[NSNotificationCenter defaultCenter] removeObserver:_configChangeObserver];
-    }
 #if DEBUG
     [(VibeManualRenderPump *)_manualPump cancel];
 #endif
 #if TARGET_OS_OSX
-    if (_outputDeviceListener) AUListenerDispose(_outputDeviceListener);
     if (_outputLevelListener) {
         [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue forDeviceID:_preparedDeviceID];
     }
-    if (_configChangeObserver) [[AudioDeviceManager sharedInstance] removeObserver:self];
+    [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync
     // from here cannot deadlock against in-flight queue work: a queued block
@@ -245,6 +234,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // a whole file down for a play that can never land.
     AudioLevelTap *levelTap = _levelTap;
     _levelTap = nil;
+#if TARGET_OS_OSX
+    AudioOutputUnit *outputUnit = _outputUnit;
+#endif
     AVAudioEngine *engine = _engine;
     dispatch_source_t drainTimer = _drainTimer;
     _drainTimer = nil;
@@ -259,6 +251,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [pendingRequest invalidate];
         [levelTap remove];
         if (drainTimer) dispatch_source_cancel(drainTimer);
+#if TARGET_OS_OSX
+        [outputUnit stop]; // no cycle in flight before the engine it pulls stops
+#endif
         [engine stop];
     };
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
@@ -1335,7 +1330,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
+        uint64_t outputDropouts = 0;
+#if TARGET_OS_OSX
+        outputDropouts = self->_outputUnit.dropouts;
+#endif
         counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
+                   @"outputDropouts": @(outputDropouts),
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
                    @"pollActive": @(self->_drainTimer != nil),

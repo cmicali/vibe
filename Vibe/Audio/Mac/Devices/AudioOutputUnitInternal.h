@@ -31,8 +31,8 @@ typedef struct {
     AudioTimeStamp stamp;           // the device's stamp of the last cycle
     uint32_t channels;
     uint32_t maxFrames;             // the largest pull the block accepts; larger IO cycles are sliced
-    void *renderBlock;              // AVAudioEngineManualRenderingBlock, unretained here
-    AudioBufferList *slice;         // one buffer per channel, pointed into the HAL's buffers per slice
+    void * _Nullable renderBlock;   // AVAudioEngineManualRenderingBlock, unretained here
+    AudioBufferList * _Nullable slice; // one buffer per channel, pointed into the HAL's buffers per slice
 } VibeOutputUnitState;
 
 // Allocates the slice list for `channels` and zeroes the counters.

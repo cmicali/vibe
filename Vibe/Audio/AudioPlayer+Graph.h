@@ -16,6 +16,14 @@
 //  The MASTER bus is the mixer to the output, through the FX segment when it
 //  is enabled (AudioFX.h). The level tap sits on whatever feeds the output.
 //
+//  The OUTPUT on macOS is Vibe's: the engine renders in realtime manual mode
+//  and a hosted HAL output unit bound to the chosen device pulls it from its
+//  render callback (AudioOutputUnit.h), so nothing follows the system default
+//  on its own. The graph runs at the device's rate — the mixer, the FX and
+//  the unit alike, so nothing resamples — and applyOutputRateOnQueue: is the
+//  one place that changes. iOS keeps the engine's own output node; the debug
+//  pump keeps offline rendering and has no unit.
+//
 //  The engine is not held running for the life of the player, because a
 //  running engine owns the output device — on Bluetooth it keeps the link up,
 //  on any device it blocks another app's exclusive format. Nor is it stopped
@@ -51,6 +59,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format;
 // Reconciles the equalizer tap with the queue-side demand.
 - (void)applyLevelTapOnQueue;
+#if TARGET_OS_OSX
+// Brings the engine and the hosted unit to `rate`: both stopped, realtime
+// manual rendering enabled again at that rate (never disabled: that opens the
+// default device), the unit reconfigured with the new block, the master bus
+// re-wired and its tap reconciled. A no-op at the current rate. The source
+// segment is the caller's to reconcile. NO without a unit.
+- (BOOL)applyOutputRateOnQueue:(double)rate;
+#endif
 
 // Makes the source segment what `file` wants — the bus at the file's format
 // under bit-perfect output, else the one ordinary bus — building or
@@ -64,11 +80,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Pitch in percent onto the varispeed's rate and bypass; a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;
 
-// Starts the engine if it is not running. Every path that starts or resumes
-// playback goes through here, which is what dissolves a pending idle stop.
+// Starts the engine if it is not running, then its tap, then, on macOS, the
+// output unit, so the engine runs whenever the unit's gate is open; a unit
+// that will not start stops the engine again. Every path that starts or
+// resumes playback goes through here, which is what dissolves a pending idle
+// stop.
 - (BOOL)startEngineOnQueue:(NSError * _Nullable * _Nullable)outError;
-// Stops the engine and kills every retiring voice: silence cannot click, and
-// nothing would ever land their fades. The one stop site.
+// Stops the unit, then the engine, and kills every retiring voice: silence
+// cannot click, and nothing would ever land their fades. The one stop site.
 - (void)stopEngineOnQueue;
 // Arms the deferred idle stop. Call it wherever playback goes idle.
 - (void)scheduleEngineIdleStopOnQueue;
