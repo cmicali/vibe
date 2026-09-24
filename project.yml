@@ -728,6 +728,7 @@ targets:
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/Mac/Devices/AudioOutputUnit.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
@@ -841,6 +842,7 @@ targets:
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/Mac/Devices/AudioOutputUnit.m
       - path: Vibe/Audio/Levels/AudioLevelTap.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
