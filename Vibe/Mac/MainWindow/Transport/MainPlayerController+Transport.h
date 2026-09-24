@@ -34,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 // opens, so the tags' stands in, and a seek submitted then binds to the open;
 // with neither known — a cloud file still downloading — it is held until the
 // tags arrive or the open lands, whichever is first, and dropped by any other
-// track's start.
+// track's start or any new play submitted, the same row's replay included.
 - (void)seekToProgress:(double)progress ofTrack:(AudioTrack *)track;
 // The held seek's two moments, from the metadata and start deliveries.
 - (void)applyPendingSeekForTrack:(AudioTrack *)track started:(BOOL)started;

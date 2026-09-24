@@ -230,6 +230,10 @@
         // its reloadData — so the mark keeps this updateUI from rebuilding a
         // row that was just built.
         strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
+        // A held widget seek belonged to the play before this one. Replaying
+        // the same row keeps the same AudioTrack, so its start would otherwise
+        // match the held seek and land a restart mid-track.
+        strongSelf->_pendingSeekTrack = nil;
         [strongSelf updateUI];
     };
 

@@ -69,6 +69,10 @@ extern NSString *const kVibeWidgetColorBackground;
 // between timeline entries.
 @property (nonatomic) NSTimeInterval position;
 @property (nonatomic, copy, nullable) NSDate *positionDate;
+// Playing, but the file is still opening: the position is a pinned
+// placeholder, and advancing it would show progress through audio that has
+// not played. The app publishes again when the open lands.
+@property (nonatomic) BOOL startPending;
 
 // The mac theme's choices for what the widget draws, under the kVibeWidgetTheme
 // keys; nil on iOS, which has no themes. An absent key is the widget's own

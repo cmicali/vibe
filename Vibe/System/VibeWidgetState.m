@@ -53,6 +53,7 @@ static NSString *const kKeyPlaying      = @"playing";
 static NSString *const kKeyDuration     = @"duration";
 static NSString *const kKeyPosition     = @"position";
 static NSString *const kKeyPositionDate = @"positionDate";
+static NSString *const kKeyStartPending = @"startPending";
 static NSString *const kKeyTheme        = @"theme";
 
 // Bumped when a field's meaning changes. A reader that does not recognize the
@@ -111,6 +112,7 @@ static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL li
     copy.trackKey     = self.trackKey;
     copy.position     = self.position;
     copy.positionDate = self.positionDate;
+    copy.startPending = self.startPending;
     copy.theme        = self.theme;
     return copy;
 }
@@ -182,6 +184,7 @@ static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL li
     state.duration     = [plist[kKeyDuration] doubleValue];
     state.position     = [plist[kKeyPosition] doubleValue];
     state.positionDate = plist[kKeyPositionDate];
+    state.startPending = [plist[kKeyStartPending] boolValue];
     NSDictionary *theme = plist[kKeyTheme];
     state.theme        = [theme isKindOfClass:NSDictionary.class] ? theme : nil;
     return state;
@@ -202,13 +205,14 @@ static NSString *VibeWidgetWaveformName(NSString *trackKey, BOOL played, BOOL li
     plist[kKeyDuration]     = @(self.duration);
     plist[kKeyPosition]     = @(self.position);
     plist[kKeyPositionDate] = self.positionDate;
+    plist[kKeyStartPending] = @(self.startPending);
     plist[kKeyTheme]        = self.theme;
     return [plist writeToURL:url error:NULL];
 }
 
 - (NSTimeInterval)positionAtDate:(NSDate *)date {
     NSTimeInterval elapsed = 0;
-    if (self.playing && self.positionDate) {
+    if (self.playing && !self.startPending && self.positionDate) {
         elapsed = MAX(0, [date timeIntervalSinceDate:self.positionDate]);
     }
     NSTimeInterval position = self.position + elapsed;

@@ -63,9 +63,10 @@ struct VibeProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<VibeEntry>) -> Void) {
         let now = Date()
         let first = loadEntry(at: now)
-        guard let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
-            // Paused, parked or empty: one entry, held until the app publishes
-            // again. Nothing moves, so nothing needs re-rendering.
+        guard let state = first.state, state.hasTrack, state.playing, !state.startPending,
+              state.duration > 0 else {
+            // Paused, parked, still opening or empty: one entry, held until the
+            // app publishes again. Nothing moves, so nothing needs re-rendering.
             completion(Timeline(entries: [first], policy: .never))
             return
         }

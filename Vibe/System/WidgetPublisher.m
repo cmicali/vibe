@@ -335,6 +335,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     next.duration     = duration;
     next.position     = position;
     next.positionDate = [NSDate date];
+    next.startPending = startPending;
     next.theme        = _theme;
 
     _published      = next;
@@ -481,7 +482,9 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     if (!last || track != _publishedTrack) {
         return YES;
     }
-    if (last.hasTrack != (track != nil) || last.playing != playing) {
+    // startPending too: the open landing is what starts the widget's playhead.
+    if (last.hasTrack != (track != nil) || last.playing != playing
+            || last.startPending != startPending) {
         return YES;
     }
     if (fabs(last.duration - duration) > 0.5) {

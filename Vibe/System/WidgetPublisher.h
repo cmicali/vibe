@@ -62,7 +62,9 @@ NS_ASSUME_NONNULL_BEGIN
 // iOS's `_trackStartPending`, the mac's Loading display state. While it is set
 // the player reports playing with a pinned position, so the seek detector is
 // skipped — otherwise a slow cloud open republishes every couple of seconds
-// for its whole duration with byte-identical content.
+// for its whole duration with byte-identical content — and it is published
+// (VibeWidgetState.startPending), so the widget holds its playhead until the
+// open lands rather than playing through audio that has not started.
 - (void)updateWithTrack:(nullable AudioTrack *)track
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
