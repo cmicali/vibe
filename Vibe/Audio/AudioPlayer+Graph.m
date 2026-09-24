@@ -232,8 +232,12 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     // converts nothing.
     BOOL bitPerfect = [self bitPerfectOnQueue];
     AVAudioFormat *wanted = bitPerfect ? file.processingFormat : [_engine.mainMixerNode outputFormatForBus:0];
-    AVAudioFormat *busFormat = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate
-                                                                              channels:wanted.channelCount];
+    // A standard format stops at stereo; a wider file's bus keeps its layout,
+    // which is what the mixer folds it down by.
+    AVAudioFormat *busFormat = wanted.channelCount > 2 && wanted.channelLayout
+            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:wanted.sampleRate
+                                              interleaved:NO channelLayout:wanted.channelLayout]
+            : [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate channels:wanted.channelCount];
     if (_voiceBus && _voiceBus.format.sampleRate == busFormat.sampleRate
             && _voiceBus.format.channelCount == busFormat.channelCount && (_varispeed == nil) == bitPerfect) {
         return YES;
@@ -244,6 +248,12 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     [self stopEngineOnQueue];
     if (_voiceBus) {
         [_engine detachNode:_voiceBus.sourceNode];
+        // TRAP: the new voice takes the same AVAudioFile, and the old bus's
+        // decoder may be inside a read of it — its queued turns retain the
+        // bus, not this player — so it is stopped and waited for first;
+        // without that both decoders moved the file's position and the new
+        // voice ended early.
+        [_voiceBus stopReading];
         os_unfair_lock_lock(&_stateLock);
         _voiceBus = nil;
         os_unfair_lock_unlock(&_stateLock);

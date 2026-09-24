@@ -113,7 +113,8 @@ typedef struct {
 
 // busFormat is the source node's format for the bus's life: float32,
 // non-interleaved. Every file is delivered in it — converted on the decode
-// queue when its own format differs. inlineDecoding is the frame-driven test
+// queue when its own format differs, a wider or narrower file mixed by
+// layout as the mixer would. inlineDecoding is the frame-driven test
 // pump's mode: no decode queue exists, fillInline does every read on the
 // caller's thread, and the ring keeps one producer. queue is the player queue,
 // where voiceWentLive and every method here run.
@@ -151,15 +152,25 @@ typedef struct {
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
-// Queues `file` to continue at the voice's end without a gap. A voice whose
+// Ends the bus's reading for good: every voice reads no more, and the call
+// returns once the decoder has left every file — the turn inside a read
+// finishes, and none after it reads — so the files may be handed to a
+// replacement bus. Nothing is asked of the bus after it.
+- (void)stopReading;
+
+// Queues `file` to continue at the voice's end without a gap. A successor
+// read the same way as the file before it continues through the same
+// converter, so a resampler carries across the boundary. A voice whose
 // stream already ended still takes one while it is live: the decoder
-// reopens the stream at the old end, unless the audio thread reaches it
-// first, in which case the voice ends as it would have. NO for a dead voice,
-// one retired at declick length, or one already continuing.
+// reopens the stream at the old end, unless the audio thread reached it
+// first, in which case the voice ends as it would have and the successor
+// never begins. NO for a dead voice, one retired at declick length, or one
+// already continuing.
 - (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice;
 
-// Drops the queued successor. NO means the decoder had already switched to
-// it: successor frames sit in the ring, and the caller must re-voice.
+// Drops the queued successor. NO means the decoder had already claimed it:
+// successor frames sit in the ring or are on their way, and the caller must
+// re-voice.
 - (BOOL)unqueueSuccessorForVoice:(VibeVoiceID)voice;
 
 // A retire of zero frames: silent from the next render, dead right after.

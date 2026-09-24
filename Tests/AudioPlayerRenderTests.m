@@ -542,6 +542,61 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertEqual([self count:@"finish"],1u);
     }
 }
+// A continuous 44.1 kHz signal split across two tracks, played at 48 kHz:
+// the resampler carries across the gapless boundary.
+- (void)testGaplessContinuesTheResamplerAcrossTheBoundary {
+    NSMutableData *whole = [NSMutableData dataWithLength:44100 * 8];
+    float *samples = whole.mutableBytes;
+    for (NSUInteger i = 0; i < 44100 * 2; i++) samples[i] = 0.25f;
+    NSURL *full = [self write:whole rate:44100 channels:2 name:@"whole441.wav"];
+    NSURL *first = [self write:[whole subdataWithRange:NSMakeRange(0, 22050 * 8)] rate:44100 channels:2 name:@"first441.wav"];
+    NSURL *second = [self write:[whole subdataWithRange:NSMakeRange(22050 * 8, 22050 * 8)] rate:44100 channels:2 name:@"second441.wav"];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:full paused:NO position:0];
+    NSData *reference = [self renderSeconds:1.1];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _chain = @[[AudioTrack withURL:first], [AudioTrack withURL:second]];
+    _nextPrefetch = 1;
+    [_player play:_chain.firstObject];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    NSData *capture = [self renderSeconds:1.1];
+    XCTAssertEqual([self count:@"advance"], 1u);
+    const float *expected = reference.bytes, *actual = capture.bytes;
+    double peak = 0;
+    NSUInteger peakFrame = 0;
+    for (NSUInteger f = 23000; f < 25000; f++) {
+        double error = fabs(actual[f * 2] - expected[f * 2]);
+        if (error > peak) { peak = error; peakFrame = f; }
+    }
+    XCTAssertLessThan(peak, 0.001, @"the resampler restarted at the boundary: error at frame %lu", (unsigned long)peakFrame);
+}
+
+// A 5.1 file with sound in the center only, which a first-channels map
+// silences: ordinary playback folds it by layout on the bus, bit-perfect on
+// the mixer, the bus being the file's own width with its layout.
+- (void)testASurroundFileIsAudibleInStereo {
+    AVAudioChannelLayout *layout = [[AVAudioChannelLayout alloc] initWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:48000 interleaved:NO channelLayout:layout];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:48000];
+    buffer.frameLength = 48000;
+    for (NSUInteger f = 0; f < 48000; f++) buffer.floatChannelData[2][f] = 0.25f;
+    NSURL *url = [_temporary URLByAppendingPathComponent:@"center51.wav"];
+    NSMutableDictionary *settings = [format.settings mutableCopy];
+    settings[AVLinearPCMIsNonInterleaved] = @NO;
+    NSError *error = nil;
+    AVAudioFile *writer = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
+    XCTAssertNotNil(writer, @"%@", error);
+    XCTAssertTrue([writer writeFromBuffer:buffer error:&error]);
+    writer = nil;
+    for (NSNumber *bitPerfect in @[@NO, @YES]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:bitPerfect.boolValue automatic:NO];
+        [self play:url paused:NO position:0];
+        NSData *capture = [self renderSeconds:0.5];
+        XCTAssertGreaterThan(RMS(capture, 2, 0, NSMakeRange(4800, 12000)), 0.05, @"bit-perfect %@", bitPerfect);
+        XCTAssertGreaterThan(RMS(capture, 2, 1, NSMakeRange(4800, 12000)), 0.05, @"bit-perfect %@", bitPerfect);
+    }
+}
+
 - (void)testGaplessSplitSignalAcrossRenderBlocks {
     NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
     for (NSNumber *block in @[@63,@256,@1024,@4096]) for (NSNumber *mode in @[@NO,@YES]) {
