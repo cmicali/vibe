@@ -28,6 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Decoder steps the race tests hold the decode queue inside.
 - (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat;
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final;
+- (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation;
 
 @end
 

@@ -1020,7 +1020,11 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // the ring has one producer. TRAP: a recycle queued behind decode work can
 // run after the slot was freed and taken by a new voice, so it cleans only
 // the death it was queued for; without the check it erased the new voice and
-// playback went silent with no end event.
+// playback went silent with no end event. A decode turn queued for the dead
+// voice is the mirror: every turn checks the slot's generation first, and the
+// recycle clears it, so no turn of the old voice can enter the slot while the
+// next voice binds it; without that one wrote an end into a voice that had
+// not read a frame, and it died at its first render.
 - (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
@@ -1055,6 +1059,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     s->rampCurve = s->rampAction = 0;
     s->rampSequence = 0;
     s->consuming = 0;
+    atomic_store_explicit(&s->generation, 0, memory_order_release);
     atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
 }
 
@@ -1070,12 +1075,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 
 // One chunk per turn, re-dispatched while the ring wants more, so a start's
-// first chunk never queues behind another voice's full fill.
+// first chunk never queues behind another voice's full fill. A turn of a
+// voice since recycled touches nothing: the slot, its record and its fill
+// flag belong to whoever holds the slot now.
 - (void)decodeTurnForSlot:(NSUInteger)slot identifier:(VibeVoiceID)identifier {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
-    BOOL more = atomic_load_explicit(&s->generation, memory_order_acquire) == identifier
-            && [self decodeChunkForSlot:slot];
+    if (atomic_load_explicit(&s->generation, memory_order_acquire) != identifier) {
+        return;
+    }
+    BOOL more = [self decodeChunkForSlot:slot];
     if (more) {
         uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
                 - atomic_load_explicit(&s->consumed, memory_order_acquire);

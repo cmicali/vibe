@@ -987,7 +987,129 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     }
 }
 
+// A decode turn queued for a voice can run after that voice died, its slot
+// was recycled, and another voice began binding it — before the new
+// generation is published. It must touch nothing: a turn that entered the
+// half-bound slot read the recycled record's nil file and declared an end,
+// and the new voice died at its first render.
+- (void)testAStaleDecodeTurnCannotEnterARebindingSlot {
+    self.continueAfterFailure = YES;
+    NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:1201] rate:kRate channels:2 name:@"rebind.wav"];
+    AVAudioFile *oldFile = [self open:url], *newFile = [self open:url];
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    AudioVoiceBus *bus = _bus;
+    dispatch_queue_t decoder = bus.decodeQueue;
+    dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
+    dispatch_semaphore_t recycled = dispatch_semaphore_create(0), letRecycle = dispatch_semaphore_create(0);
+    dispatch_semaphore_t preparing = dispatch_semaphore_create(0), letPrepare = dispatch_semaphore_create(0);
+    Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
+    Method recycle = class_getInstanceMethod(AudioVoiceBus.class, @selector(recycleSlot:generation:));
+    Method prepare = class_getInstanceMethod(AudioVoiceBus.class, @selector(prepareRecord:file:decodeFormat:));
+    __block IMP originalProduce, originalRecycle, originalPrepare;
+    __block BOOL heldRead = NO, heldRecycle = NO;
+    // The old voice's first read is held; its recycle is held after it ran;
+    // the new voice's preparation is held, with the slot armed and the old
+    // generation still published.
+    IMP replacementProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
+        if (receiver == bus && !heldRead) {
+            heldRead = YES;
+            dispatch_semaphore_signal(reading);
+            dispatch_semaphore_wait(letRead, DISPATCH_TIME_FOREVER);
+        }
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+    });
+    IMP replacementRecycle = imp_implementationWithBlock(^(id receiver, NSUInteger slot, VibeVoiceID generation) {
+        ((void (*)(id, SEL, NSUInteger, VibeVoiceID))originalRecycle)(receiver, @selector(recycleSlot:generation:), slot, generation);
+        if (receiver == bus && !heldRecycle) {
+            heldRecycle = YES;
+            dispatch_semaphore_signal(recycled);
+            dispatch_semaphore_wait(letRecycle, DISPATCH_TIME_FOREVER);
+        }
+    });
+    IMP replacementPrepare = imp_implementationWithBlock(^BOOL(id receiver, id record, AVAudioFile *file, AVAudioFormat *format) {
+        if (receiver == bus && file == newFile) {
+            dispatch_semaphore_signal(preparing);
+            dispatch_semaphore_wait(letPrepare, DISPATCH_TIME_FOREVER);
+        }
+        return ((BOOL (*)(id, SEL, id, AVAudioFile *, AVAudioFormat *))originalPrepare)(receiver, @selector(prepareRecord:file:decodeFormat:), record, file, format);
+    });
+    originalProduce = method_setImplementation(produce, replacementProduce);
+    originalRecycle = method_setImplementation(recycle, replacementRecycle);
+    originalPrepare = method_setImplementation(prepare, replacementPrepare);
+    __block VibeVoiceID current = 0;
+    @try {
+        VibeVoiceID old = [self startFile:oldFile gain:1 ramp:[self unity] paused:NO];
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        [bus killVoice:old];
+        [bus drainWithEngineRunning:NO handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+        dispatch_semaphore_signal(letRead); // the read finishes and re-dispatches a turn behind the recycle
+        XCTAssertEqual(dispatch_semaphore_wait(recycled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        dispatch_async(_queue, ^{ current = [self startFile:newFile gain:1 ramp:[self unity] paused:NO]; });
+        XCTAssertEqual(dispatch_semaphore_wait(preparing, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        dispatch_semaphore_signal(letRecycle); // the old voice's turn runs against the half-bound slot
+        dispatch_sync(decoder, ^{});
+        dispatch_semaphore_signal(letPrepare);
+        dispatch_sync(_queue, ^{});
+        for (int turn = 0; turn < 12; turn++) dispatch_sync(decoder, ^{});
+        XCTAssertEqual([bus snapshotOfVoice:current].endOfStream, UINT64_MAX, @"a stale turn wrote an end into the new voice");
+        [self renderWithoutFilling:256 into:nil];
+        XCTAssertEqual([bus snapshotOfVoice:current].state, VibeVoiceStateLive, @"the new voice ended after its first render");
+    }
+    @finally {
+        dispatch_semaphore_signal(letRead);
+        dispatch_semaphore_signal(letRecycle);
+        dispatch_semaphore_signal(letPrepare);
+        dispatch_sync(_queue, ^{});
+        [bus stopReading];
+        method_setImplementation(produce, originalProduce);
+        method_setImplementation(recycle, originalRecycle);
+        method_setImplementation(prepare, originalPrepare);
+        imp_removeBlock(replacementProduce);
+        imp_removeBlock(replacementRecycle);
+        imp_removeBlock(replacementPrepare);
+    }
+}
+
 #pragma mark - Conversion
+
+// The resampler across a gapless boundary at every rate pair the player
+// meets, the successor named early or late, at every pull size: the split's
+// output is the unsplit file's, frame for frame, and ends where it ends.
+- (void)testTheResamplerContinuesAtEveryRatePairAndPullSize {
+    NSArray<NSArray<NSNumber *> *> *pairs = @[@[@44100, @48000], @[@96000, @44100], @[@192000, @48000], @[@32000, @44100], @[@48000, @192000]];
+    for (NSArray<NSNumber *> *pair in pairs) {
+        double sourceRate = pair[0].doubleValue, busRate = pair[1].doubleValue;
+        NSUInteger count = (NSUInteger)sourceRate, split = count / 2 + 7;
+        NSData *whole = [self noiseFrames:count channels:2 seed:1129];
+        NSURL *full = [self writePCM:whole rate:sourceRate channels:2 name:@"full.wav"];
+        NSURL *a = [self writePCM:[whole subdataWithRange:NSMakeRange(0, split * 8)] rate:sourceRate channels:2 name:@"a.wav"];
+        NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, (count - split) * 8)] rate:sourceRate channels:2 name:@"b.wav"];
+        [self makeBusAtRate:busRate channels:2];
+        VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
+        NSData *reference = [self renderUntilEnded:voice blockSize:256 limit:500000];
+        uint64_t end = [self endedSnapshot:voice].endOfStream;
+        for (NSNumber *late in @[@NO, @YES]) {
+            for (NSNumber *block in @[@63, @1024, @4096]) {
+                [self makeBusAtRate:busRate channels:2];
+                voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
+                if (late.boolValue) {
+                    [_bus fillInline];
+                }
+                AVAudioFile *next = [self open:b];
+                XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
+                NSData *capture = [self renderUntilEnded:voice blockSize:block.unsignedIntValue limit:500000];
+                XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@ late %@ block %@", pair, late, block);
+                XCTAssertGreaterThanOrEqual(capture.length, end * 8);
+                double peak = 0;
+                const float *expected = reference.bytes, *actual = capture.bytes;
+                for (NSUInteger i = 0; i < end * 2; i++) {
+                    peak = MAX(peak, fabs(actual[i] - expected[i]));
+                }
+                XCTAssertLessThan(peak, 0.0001, @"%@ late %@ block %@", pair, late, block);
+            }
+        }
+    }
+}
 
 static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUInteger channel, double rate, double frequency, NSRange frames) {
     double re = 0, im = 0;
