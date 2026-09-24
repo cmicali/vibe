@@ -86,6 +86,23 @@ default from inside the player queue):
 | `-[AVAudioEngine prepare]` after the re-pin | **Deadlock.** It `dispatch_sync`s onto the AVAudioIOUnit queue, which is draining the property listener for that re-bind and blocked in CoreAudio (`HALC_ProxyObject::HasProperty`) while the HAL reorganizes around the take. The player queue waits on it and the app hangs. |
 | Release | The system default returns to the device by itself; quit restores the format and releases ownership. |
 
+Measured 2026-09-24, macOS 26.6, BlackHole 2ch made the system default for the
+run (`hogfollow.swift <device> hal --make-default`): the Stage 2 candidate, an
+explicitly hosted `kAudioUnitSubType_HALOutput` unit with its own render
+callback, against the engine's default output unit in the same run shape.
+
+| Observation | Default output unit (engine) | Explicit HALOutput unit |
+| --- | --- | --- |
+| Hog while running | The default moved to the speakers and the unit followed it within the first 250 ms poll, IO cycles continuing on the new device | The default moved the same way; the unit stayed bound and its IO cycles never changed cadence |
+| Re-bind under the hog | Sticks, and stays across the release | A no-op: nothing had moved |
+| Hog while stopped | The stopped unit follows too, so a start without a re-bind opens on the wrong device | Stays bound; the first start under the hog succeeds in 10 ms with IO cycles from the first poll |
+| Release | The default returns to the device by itself | The same |
+
+So the follow is the default output unit's own behavior, not the HAL's. A
+Vibe-owned HAL unit would remove the settle, the re-pin and the recovery edge
+that exist for it; direct control of the unit's stream format and IO buffer size
+is the rest of the Stage 2 case.
+
 So the rule is not "never hog the default" but "wait for the follow the take
 causes, then take the binding back" — `settleOutputUnitAfterHoggingSystemDefaultOnQueue:`,
 entered only when the device was the default *and* the unit was bound to it.
