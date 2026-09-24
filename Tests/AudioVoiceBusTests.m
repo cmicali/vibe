@@ -19,35 +19,6 @@
 
 static const double kRate = 48000;
 
-// Two ways to hold the decode queue where a race is: inside the successor's
-// preparation (the window between the decoder's claim and its boundary), and
-// inside a read (the window a replaced bus's decoder is still in the file).
-// Each signals HeldEntered, then waits for HeldRelease.
-static dispatch_semaphore_t HeldEntered;
-static dispatch_semaphore_t HeldRelease;
-
-static BOOL (*OriginalPrepare)(id, SEL, id, AVAudioFile *, AVAudioFormat *);
-static AVAudioFile *HeldFile;
-static BOOL HeldPrepare(id receiver, SEL selector, id record, AVAudioFile *file, AVAudioFormat *format) {
-    if (file == HeldFile) {
-        HeldFile = nil;
-        dispatch_semaphore_signal(HeldEntered);
-        dispatch_semaphore_wait(HeldRelease, DISPATCH_TIME_FOREVER);
-    }
-    return OriginalPrepare(receiver, selector, record, file, format);
-}
-
-static uint32_t (*OriginalProduce)(id, SEL, NSUInteger, BOOL *);
-static AudioVoiceBus *HeldBus;
-static uint32_t HeldProduce(id receiver, SEL selector, NSUInteger slot, BOOL *final) {
-    if (receiver == HeldBus) {
-        HeldBus = nil;
-        dispatch_semaphore_signal(HeldEntered);
-        dispatch_semaphore_wait(HeldRelease, DISPATCH_TIME_FOREVER);
-    }
-    return OriginalProduce(receiver, selector, slot, final);
-}
-
 @interface AudioVoiceBusTests : XCTestCase
 @end
 
@@ -142,9 +113,14 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 #pragma mark - The bus and the render
 
 - (void)makeBusAtRate:(double)rate channels:(NSUInteger)channels {
+    [self makeBusAtRate:rate channels:channels inlineDecoding:YES];
+}
+
+// With a real decode queue, for the race tests: the fills are the bus's own.
+- (void)makeBusAtRate:(double)rate channels:(NSUInteger)channels inlineDecoding:(BOOL)inlineDecoding {
     [self releaseOutput];
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels];
-    _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:YES];
+    _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:inlineDecoding];
     XCTAssertNotNil(_bus);
     _output = calloc(1, sizeof(AudioBufferList) + (channels - 1) * sizeof(AudioBuffer));
     _output->mNumberBuffers = (UInt32)channels;
@@ -709,11 +685,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 - (void)testAQueuedRecycleCannotEraseAReusedSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43] rate:kRate channels:2 name:@"recycle.wav"];
-    [self makeBusAtRate:kRate channels:2];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:kRate channels:2];
-    _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:NO];
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     [self renderWithoutFilling:64 into:nil];
-    dispatch_queue_t decoder = [_bus valueForKey:@"decodeQueue"];
+    dispatch_queue_t decoder = _bus.decodeQueue;
     dispatch_semaphore_t initial = dispatch_semaphore_create(0);
     dispatch_semaphore_t initialEntered = dispatch_semaphore_create(0);
     dispatch_semaphore_t between = dispatch_semaphore_create(0);
@@ -752,21 +726,26 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     self.continueAfterFailure = YES;
     NSURL *first = [self writePCM:[self noiseFrames:2000 channels:2 seed:81] rate:kRate channels:2 name:@"first.wav"];
     NSURL *second = [self writePCM:[self noiseFrames:10000 channels:2 seed:82] rate:kRate channels:2 name:@"second.wav"];
-    [self makeBusAtRate:kRate channels:2];
-    _bus = [[AudioVoiceBus alloc] initWithFormat:_bus.format queue:_queue inlineDecoding:NO];
-    dispatch_queue_t decoder = [_bus valueForKey:@"decodeQueue"];
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     VibeVoiceID voice = [self startFile:[self open:first] gain:1 ramp:[self unity] paused:NO];
-    dispatch_sync(decoder, ^{});
+    dispatch_sync(_bus.decodeQueue, ^{});
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 2000u);
     AVAudioFile *successor = [self open:second];
-    HeldFile = successor;
-    HeldEntered = dispatch_semaphore_create(0);
-    HeldRelease = dispatch_semaphore_create(0);
-    Method method = class_getInstanceMethod(AudioVoiceBus.class, NSSelectorFromString(@"prepareRecord:file:decodeFormat:"));
-    OriginalPrepare = (void *)method_setImplementation(method, (IMP)HeldPrepare);
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    Method method = class_getInstanceMethod(AudioVoiceBus.class, @selector(prepareRecord:file:decodeFormat:));
+    __block IMP original = NULL;
+    IMP replacement = imp_implementationWithBlock(^BOOL(id bus, id record, AVAudioFile *file, AVAudioFormat *format) {
+        if (file == successor) {
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
+        }
+        return ((BOOL (*)(id, SEL, id, AVAudioFile *, AVAudioFormat *))original)(bus, @selector(prepareRecord:file:decodeFormat:),
+                                                                                  record, file, format);
+    });
+    original = method_setImplementation(method, replacement);
     @try {
         XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
-        XCTAssertEqual(dispatch_semaphore_wait(HeldEntered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
         if (ending) {
             [self renderWithoutFilling:2000 into:nil];
             XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateDead);
@@ -776,9 +755,10 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         }
     }
     @finally {
-        dispatch_semaphore_signal(HeldRelease);
-        dispatch_sync(decoder, ^{});
-        method_setImplementation(method, (IMP)OriginalPrepare);
+        dispatch_semaphore_signal(release);
+        dispatch_sync(_bus.decodeQueue, ^{});
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
     }
     [self drain];
     if (ending) {
@@ -871,21 +851,35 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     AVAudioFile *file = [self open:url];
     [self makeBusAtRate:kRate channels:2];
     AudioVoiceBus *old = [[AudioVoiceBus alloc] initWithFormat:_bus.format queue:_queue inlineDecoding:NO];
-    HeldBus = old;
-    HeldEntered = dispatch_semaphore_create(0);
-    HeldRelease = dispatch_semaphore_create(0);
-    Method method = class_getInstanceMethod(AudioVoiceBus.class, NSSelectorFromString(@"produceChunkForSlot:final:"));
-    OriginalProduce = (void *)method_setImplementation(method, (IMP)HeldProduce);
-    [old startVoiceWithFile:file atFrame:0 decodeFormat:file.processingFormat gain:1 ramp:[self unity] paused:NO];
-    XCTAssertEqual(dispatch_semaphore_wait(HeldEntered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
-    // The rebuild: the old bus is told to stop while its decoder is inside the
-    // first read, which finishes a moment later.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-        dispatch_semaphore_signal(HeldRelease);
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    Method method = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
+    __block IMP original = NULL;
+    __block BOOL held = NO;
+    IMP replacement = imp_implementationWithBlock(^uint32_t(id bus, NSUInteger slot, BOOL *final) {
+        if (bus == old && !held) {
+            held = YES;
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
+        }
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))original)(bus, @selector(produceChunkForSlot:final:), slot, final);
     });
-    [old stopReading];
-    method_setImplementation(method, (IMP)OriginalProduce);
-    XCTAssertEqual(file.framePosition, 4096); // the read that was in flight, and no more
+    original = method_setImplementation(method, replacement);
+    @try {
+        [old startVoiceWithFile:file atFrame:0 decodeFormat:file.processingFormat gain:1 ramp:[self unity] paused:NO];
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        // The rebuild: the old bus is told to stop while its decoder is inside
+        // the first read, which finishes a moment later.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            dispatch_semaphore_signal(release);
+        });
+        [old stopReading];
+        XCTAssertEqual(file.framePosition, 4096); // the read that was in flight, and no more
+    }
+    @finally {
+        dispatch_semaphore_signal(release);
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
     VibeVoiceID current = [self startFile:file gain:1 ramp:[self unity] paused:NO];
     [self renderUntilEnded:current blockSize:256 limit:300000];
     XCTAssertEqual([self endedSnapshot:current].endOfStream, 96000u);

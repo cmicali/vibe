@@ -142,9 +142,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     buffer.frameLength = buffer.frameCapacity;
     const float *p = data.bytes;
     for (NSUInteger f=0;f<buffer.frameLength;f++) for (NSUInteger c=0;c<channels;c++) buffer.floatChannelData[c][f]=p[f*channels+c];
+    return [self writeBuffer:buffer name:name];
+}
+- (NSURL *)writeBuffer:(AVAudioPCMBuffer *)buffer name:(NSString *)name {
     NSURL *url = [_temporary URLByAppendingPathComponent:name];
     NSError *error = nil;
-    NSMutableDictionary *settings=[format.settings mutableCopy];
+    NSMutableDictionary *settings=[buffer.format.settings mutableCopy];
     settings[AVLinearPCMIsNonInterleaved]=@NO;
     AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
     XCTAssertNotNil(file, @"%@", error);
@@ -575,19 +578,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 // silences: ordinary playback folds it by layout on the bus, bit-perfect on
 // the mixer, the bus being the file's own width with its layout.
 - (void)testASurroundFileIsAudibleInStereo {
-    AVAudioChannelLayout *layout = [[AVAudioChannelLayout alloc] initWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:48000 interleaved:NO channelLayout:layout];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:48000 interleaved:NO
+            channelLayout:[AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A]];
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:48000];
     buffer.frameLength = 48000;
     for (NSUInteger f = 0; f < 48000; f++) buffer.floatChannelData[2][f] = 0.25f;
-    NSURL *url = [_temporary URLByAppendingPathComponent:@"center51.wav"];
-    NSMutableDictionary *settings = [format.settings mutableCopy];
-    settings[AVLinearPCMIsNonInterleaved] = @NO;
-    NSError *error = nil;
-    AVAudioFile *writer = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
-    XCTAssertNotNil(writer, @"%@", error);
-    XCTAssertTrue([writer writeFromBuffer:buffer error:&error]);
-    writer = nil;
+    NSURL *url = [self writeBuffer:buffer name:@"center51.wav"];
     for (NSNumber *bitPerfect in @[@NO, @YES]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:bitPerfect.boolValue automatic:NO];
         [self play:url paused:NO position:0];

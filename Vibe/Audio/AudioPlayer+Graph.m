@@ -232,11 +232,9 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     // converts nothing.
     BOOL bitPerfect = [self bitPerfectOnQueue];
     AVAudioFormat *wanted = bitPerfect ? file.processingFormat : [_engine.mainMixerNode outputFormatForBus:0];
-    // A standard format stops at stereo; a wider file's bus keeps its layout,
-    // which is what the mixer folds it down by.
-    AVAudioFormat *busFormat = wanted.channelCount > 2 && wanted.channelLayout
-            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:wanted.sampleRate
-                                              interleaved:NO channelLayout:wanted.channelLayout]
+    // A standard format stops at stereo; a wider bus is the format itself,
+    // layout included, which is what the mixer folds it down by.
+    AVAudioFormat *busFormat = wanted.channelCount > 2 ? wanted
             : [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate channels:wanted.channelCount];
     if (_voiceBus && _voiceBus.format.sampleRate == busFormat.sampleRate
             && _voiceBus.format.channelCount == busFormat.channelCount && (_varispeed == nil) == bitPerfect) {

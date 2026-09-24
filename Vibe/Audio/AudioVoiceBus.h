@@ -177,7 +177,6 @@ typedef struct {
 // Every started voice ends exactly once through the drain, a pending one
 // killed before it had a slot included.
 - (void)killVoice:(VibeVoiceID)voice;
-- (void)killAllVoices;
 
 // Any thread. Retries a torn read; a recycled or unknown id answers None. A
 // voice is readable until the drain has reported it ended — read what its
