@@ -171,21 +171,27 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // widget existed when it rendered, not later. Stored as a permit, one
     // covered the whole next track after a removal, and same-track work —
     // seeks, pauses, settings — was never checked at all. So every write is
-    // admitted by an answer given after it was asked for (mayPublish):
-    // _admitting is YES only inside that admission, and _awaitingPlacement
-    // holds all publishing while the question is out, later work joining it.
+    // admitted by an answer to a question asked after it was wanted
+    // (mayPublish): _admitting is YES only inside that admission, and
+    // _awaitingPlacement holds all publishing while the question is out, later
+    // work joining it. _placementRequest numbers the questions writes ask: a
+    // query carries the number current when it was asked, and a "yes" to an
+    // older one admits nothing held — the one asked for the held work does.
     BOOL                  _admitting;
     BOOL                  _awaitingPlacement;
+    NSUInteger            _placementRequest;
     // The last query failed, so the flag is a guess: the next foreground asks
     // again even while it reads NO.
     BOOL                  _placementUnresolved;
     int                   _readToken;
     // Queue-only. Bumped by every demand signal, so an answer to a question
     // asked before it is dropped (finishQueryFromGeneration:); and one query
-    // at a time, a request meanwhile asking once more after it.
+    // at a time, a request meanwhile asking once more after it, for the
+    // newest request number it was asked for.
     NSUInteger            _placementGeneration;
     BOOL                  _queryInFlight;
     BOOL                  _queryAgain;
+    NSUInteger            _queryAgainRequest;
 
     dispatch_queue_t      _queue;
 }
@@ -223,7 +229,11 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             // extension writing it and this signal; it is placed after all.
             [VibeWidgetState markWidgetMayBePlaced];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [strongSelf setWidgetPlaced:YES];
+                // It opens a shut gate, and admits nothing held: the render
+                // may predate the held write, which waits for its own answer.
+                if (!strongSelf->_widgetPlaced) {
+                    [strongSelf setWidgetPlaced:YES];
+                }
             });
         });
         // Asked only if a widget has rendered since WidgetKit last said none:
@@ -261,16 +271,19 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 // and the first query loads VibeWidgetCenter.bundle and with it WidgetKit and
 // SwiftUI. Neither belongs on a launch's main thread.
 - (void)queryPlacedOnlyIfMarked:(BOOL)onlyIfMarked {
+    // The newest write's question, as of now: this query can admit it.
+    NSUInteger request = _placementRequest;
     dispatch_async(_queue, ^{
-        [self startQueryOnlyIfMarked:onlyIfMarked];
+        [self startQueryOnlyIfMarked:onlyIfMarked forRequest:request];
     });
 }
 
 // Queue. One query at a time: a request while one is out asks once more
 // after it, for the answer as of then, rather than racing it.
-- (void)startQueryOnlyIfMarked:(BOOL)onlyIfMarked {
+- (void)startQueryOnlyIfMarked:(BOOL)onlyIfMarked forRequest:(NSUInteger)request {
     if (_queryInFlight) {
         _queryAgain = YES;
+        _queryAgainRequest = MAX(_queryAgainRequest, request);
         return;
     }
     if (onlyIfMarked && !VibeWidgetState.widgetMayBePlaced) {
@@ -289,7 +302,8 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             return;
         }
         dispatch_async(strongSelf->_queue, ^{
-            [strongSelf finishQueryFromGeneration:generation placed:placed error:error];
+            [strongSelf finishQueryFromGeneration:generation request:request
+                                           placed:placed error:error];
         });
     }];
 }
@@ -299,9 +313,10 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 // the answer is dropped — mark and gate untouched. Applied late, a "none"
 // asked before a widget was placed shut the gate under it for good (its
 // empty timeline never asks again), and a "yes" landing after a newer "none"
-// turned publishing back on with nothing placed.
-- (void)finishQueryFromGeneration:(NSUInteger)generation placed:(BOOL)placed
-                            error:(nullable NSError *)error {
+// turned publishing back on with nothing placed. A dropped answer is asked
+// again, since a write held for it has no other.
+- (void)finishQueryFromGeneration:(NSUInteger)generation request:(NSUInteger)request
+                           placed:(BOOL)placed error:(nullable NSError *)error {
     _queryInFlight = NO;
     if (generation == _placementGeneration) {
         if (!placed && !error) {
@@ -309,22 +324,39 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             [VibeWidgetState forgetWidget];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error) {
-                // A failure is no answer: the flag and the mark stay, the next
-                // foreground asks again, and a publish held for this answer
-                // waits for that or for a widget to render.
-                self->_placementUnresolved = YES;
-            }
-            else {
-                self->_placementUnresolved = NO;
-                [self setWidgetPlaced:placed];
-            }
+            [self applyPlacement:placed error:error answeringRequest:request];
         });
+    }
+    else {
+        _queryAgain = YES;
+        _queryAgainRequest = MAX(_queryAgainRequest, request);
     }
     if (_queryAgain) {
         _queryAgain = NO;
-        [self startQueryOnlyIfMarked:NO];
+        [self startQueryOnlyIfMarked:NO forRequest:_queryAgainRequest];
     }
+}
+
+// Main. A "none" stands whenever it was asked: a widget gone then is gone.
+// A "yes" admits held work only if it answers the question that work asked,
+// or a later one — checked here, on main, since a write can start waiting
+// after the answer left the queue. TRAP: an older "yes", from a foreground
+// question asked before a removal, admitted a track and its strip written
+// after it while the question asked for them was still out.
+- (void)applyPlacement:(BOOL)placed error:(nullable NSError *)error
+      answeringRequest:(NSUInteger)request {
+    if (error) {
+        // A failure is no answer: the flag and the mark stay, the next
+        // foreground asks again, and a publish held for this answer waits
+        // for that.
+        _placementUnresolved = YES;
+        return;
+    }
+    _placementUnresolved = NO;
+    if (placed && _awaitingPlacement && request < _placementRequest) {
+        return;     // the question asked for the held work is still coming
+    }
+    [self setWidgetPlaced:placed];
 }
 
 - (void)setWidgetPlaced:(BOOL)placed {
@@ -360,6 +392,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     }
     if (!_awaitingPlacement) {
         _awaitingPlacement = YES;
+        _placementRequest++;
         [self queryPlacedOnlyIfMarked:NO];
     }
     return NO;
@@ -374,11 +407,20 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 // lands here, and the next render is current.
 - (void)admitCurrentState {
     _admitting = YES;
-    [self captureTheme];
+    BOOL themeMoved = [self captureTheme];
+    VibeWidgetState *published = _published;
     if (self.activationHandler) {
         self.activationHandler();
     }
-    [self commitThemeIfStale];
+    // A theme the shell's publish did not carry out, placeholders included:
+    // their files are written, but only a commit reloads the widget to them.
+    if (themeMoved && _published && _published == published) {
+        // A copy: the snapshot in _published may still be on its way to disk.
+        VibeWidgetState *next = [_published copy];
+        next.theme = _theme;
+        _published = next;
+        [self commitState:next artwork:nil writeArtwork:NO];
+    }
     [self bakeWaveformIfNeeded];
     _admitting = NO;
 }
@@ -667,24 +709,11 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     if (!_widgetPlaced || _awaitingPlacement) {
         return;
     }
+    // Outside an admission nothing here writes: what moved asks, and the
+    // admission captures, commits and bakes it.
     [self captureTheme];
-    [self commitThemeIfStale];
     // After the theme, since whether the strip needs a light half follows it.
     [self bakeWaveformIfNeeded];
-}
-
-// The published snapshot again, with the theme captured since it went out.
-// Only ever after an admitted capture: an unadmitted one leaves _theme as it
-// was, so there is nothing stale to commit.
-- (void)commitThemeIfStale {
-    if (!_published || [_published.theme ?: @{} isEqualToDictionary:_theme ?: @{}]) {
-        return;
-    }
-    // A copy: the snapshot in _published may still be on its way to disk.
-    VibeWidgetState *next = [_published copy];
-    next.theme = _theme;
-    _published = next;
-    [self commitState:next artwork:nil writeArtwork:NO];
 }
 
 #if TARGET_OS_OSX

@@ -12,6 +12,9 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AppSettings.h"
+#import "AppSettings+Mac.h"
+#import "AppTheme.h"
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "VibeWidgetState.h"
@@ -25,10 +28,14 @@
 static NSMutableArray<void (^)(BOOL, NSError *)> *gHeldQueries;
 static NSUInteger gQueriesAsked;
 static NSUInteger gMostQueriesOut;
+static NSUInteger gReloads;
 
 @implementation WidgetTestReloader
 
 + (void)reload {
+    @synchronized (self) {
+        gReloads++;
+    }
 }
 
 + (void)queryPlaced:(void (^)(BOOL, NSError *))completion {
@@ -73,6 +80,7 @@ static NSUInteger gMostQueriesOut;
     gHeldQueries = [NSMutableArray array];
     gQueriesAsked = 0;
     gMostQueriesOut = 0;
+    gReloads = 0;
 }
 
 - (void)tearDown {
@@ -239,14 +247,20 @@ static WidgetPublisher *ActivePublisher(AudioTrack *track) {
     XCTAssertEqual(WidgetTestReloader.queriesOut, 1u);
     WidgetRenders(publisher);
     XCTAssertTrue(publisher.widgetPlaced);
-    // The launch question's "none", asked before that widget existed.
+    // The launch question's "none", asked before that widget existed: dropped,
+    // and asked again.
     [WidgetTestReloader answerPlaced:NO error:nil];
     Settle(publisher);
     XCTAssertTrue(publisher.widgetPlaced, @"a stale none shut the gate under a placed widget");
     XCTAssertTrue(VibeWidgetState.widgetMayBePlaced, @"a stale none deleted the mark");
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"the dropped answer was not asked again");
     current = WidgetTestTrack(@"after-stale-none.wav");
     [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
     Settle(publisher);
+    // The re-asked question predates the write; the one asked for it admits.
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertFalse(SnapshotNamesTrack(current), @"an answer asked before the write admitted it");
     [WidgetTestReloader answerPlaced:YES error:nil];
     Settle(publisher);
     XCTAssertTrue(SnapshotNamesTrack(current), @"playback after a stale none is not published");
@@ -389,6 +403,97 @@ static WidgetPublisher *ActivePublisher(AudioTrack *track) {
     [publisher updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
     Settle(publisher);
     XCTAssertEqual(gQueriesAsked, 1u);
+}
+
+- (void)testAnOlderYesAdmitsNothingWrittenAfterItWasAsked {
+    __block AudioTrack *current = WidgetTestTrack(@"older-yes-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    AudioTrack *first = current;
+    WidgetRenders(publisher);
+    // The foreground asks while the widget is there; its answer is held.
+    [publisher refreshPlaced];
+    Settle(publisher);
+    // Removed; B and its strip come, and ask after that question.
+    current = WidgetTestTrack(@"older-yes-b.wav");
+    CodableAudioWaveform *waveform = (CodableAudioWaveform *)[NSObject new];
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    [publisher offerWaveform:waveform forTrack:current];
+    Settle(publisher);
+    // The foreground's "yes", from before the removal.
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(first), @"an older yes admitted B");
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"B's own question was not asked");
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced);
+    XCTAssertFalse([VibeWidgetState loadState].hasTrack);
+}
+
+- (void)testAYesAlreadyOnItsWayToMainAdmitsNothingThatStartedWaitingMeanwhile {
+    __block AudioTrack *current = WidgetTestTrack(@"in-flight-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    AudioTrack *first = current;
+    [publisher refreshPlaced];
+    Settle(publisher);
+    // The answer leaves the queue for main; before main takes it, B waits.
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Drain(publisher);
+    current = WidgetTestTrack(@"in-flight-b.wav");
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    Settle(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(first), @"a yes asked before B's wait admitted B");
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u);
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertTrue(SnapshotNamesTrack(current));
+}
+
+// A 256px opaque red square, the theme's custom placeholder.
+static NSData *RedSquarePNG(void) {
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
+            initWithBitmapDataPlanes:NULL pixelsWide:256 pixelsHigh:256
+            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+            colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    unsigned char *pixels = rep.bitmapData;
+    for (NSInteger i = 0; i < 256 * 256; i++) {
+        pixels[i * 4] = 0xFF;
+        pixels[i * 4 + 1] = 0;
+        pixels[i * 4 + 2] = 0;
+        pixels[i * 4 + 3] = 0xFF;
+    }
+    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+}
+
+- (void)testAPlaceholderOnlyEditReloadsTheWidgetOnceAdmitted {
+    AppTheme *working = AppSettings.sharedInstance.currentTheme;
+    NSString *original = [working imageReferenceForKey:kVibeThemeImageDefaultArtworkDark];
+    WidgetPublisher *publisher = ShellPublisher(^{ return (AudioTrack *)nil; });
+    [publisher setWidgetPlaced:YES];
+    Settle(publisher);
+    NSURL *placeholder = [VibeWidgetState placeholderURLForDark:YES];
+    NSData *before = [NSData dataWithContentsOfURL:placeholder];
+    NSUInteger reloads = gReloads;
+    // Only the dark no-artwork image changes: no palette, track or strip.
+    NSError *error = nil;
+    NSString *custom = [AppTheme storeCustomImageData:RedSquarePNG() error:&error];
+    XCTAssertNotNil(custom, @"%@", error);
+    [working setImageReference:custom forKey:kVibeThemeImageDefaultArtworkDark];
+    [publisher settingsDidChange];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:placeholder], before,
+                          @"the placeholder was written before the answer");
+    XCTAssertEqual(gReloads, reloads);
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    XCTAssertNotEqualObjects([NSData dataWithContentsOfURL:placeholder], before);
+    XCTAssertEqual(gReloads, reloads + 1, @"the new placeholder was written but the widget not reloaded");
+    [working setImageReference:original forKey:kVibeThemeImageDefaultArtworkDark];
 }
 
 - (void)testAStripForTheSameTrackWaitsForTheAnswer {
