@@ -110,17 +110,24 @@ static BOOL SnapshotNamesTrack(AudioTrack *track) {
     return state.hasTrack && [state.trackKey isEqualToString:[track.url pathKey]];
 }
 
-// A publisher answering to the tests' WidgetKit whose activation hands over
-// whatever `current` answers, as a shell hands over its current track.
-static WidgetPublisher *ShellPublisher(AudioTrack *(^current)(void)) {
+// A publisher answering to the tests' WidgetKit whose admissions hand over
+// whatever `publishCurrent` publishes, as a shell hands over its playback as
+// it is by then.
+static WidgetPublisher *ShellPublisherPublishing(void (^publishCurrent)(WidgetPublisher *publisher)) {
     [WidgetPublisher setReloaderClass:WidgetTestReloader.class];
     WidgetPublisher *publisher = [[WidgetPublisher alloc] init];
     __weak WidgetPublisher *weakPublisher = publisher;
     publisher.activationHandler = ^{
-        [weakPublisher updateWithTrack:current() position:0 duration:100
-                               playing:YES startPending:NO];
+        publishCurrent(weakPublisher);
     };
     return publisher;
+}
+
+// The same, playing whatever `current` answers from the top.
+static WidgetPublisher *ShellPublisher(AudioTrack *(^current)(void)) {
+    return ShellPublisherPublishing(^(WidgetPublisher *publisher) {
+        [publisher updateWithTrack:current() position:0 duration:100 playing:YES startPending:NO];
+    });
 }
 
 // A publisher whose gate is open, publishing `track` as playing from the shell
@@ -239,7 +246,9 @@ static WidgetPublisher *ActivePublisher(AudioTrack *track) {
     XCTAssertTrue(VibeWidgetState.widgetMayBePlaced, @"a stale none deleted the mark");
     current = WidgetTestTrack(@"after-stale-none.wav");
     [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
-    Drain(publisher);
+    Settle(publisher);
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
     XCTAssertTrue(SnapshotNamesTrack(current), @"playback after a stale none is not published");
 }
 
@@ -322,19 +331,85 @@ static WidgetPublisher *ActivePublisher(AudioTrack *track) {
     [WidgetTestReloader answerPlaced:YES error:nil];
     Settle(publisher);
     XCTAssertTrue(SnapshotNamesTrack(current), @"the answer published a track the shell had moved past");
+    XCTAssertEqual(gQueriesAsked, 1u, @"publishing what the answer admitted asked again");
 }
 
-- (void)testAWidgetThatRendersSinceTheLastTrackCostsNoQuery {
-    __block AudioTrack *current = WidgetTestTrack(@"rendering-a.wav");
+- (void)testAWidgetThatRenderedGrantsNothingToTheNextTrack {
+    __block AudioTrack *current = WidgetTestTrack(@"acknowledged-a.wav");
+    WidgetPublisher *publisher = ShellPublisher(^{ return current; });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    AudioTrack *first = current;
+    // The widget draws A, then is removed; B comes, strip and all.
+    WidgetRenders(publisher);
+    current = WidgetTestTrack(@"acknowledged-b.wav");
+    CodableAudioWaveform *waveform = (CodableAudioWaveform *)[NSObject new];
+    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    [publisher offerWaveform:waveform forTrack:current];
+    Settle(publisher);
+    XCTAssertEqual(WidgetTestReloader.queriesOut, 1u, @"A's render was taken as leave to publish B");
+    XCTAssertTrue(SnapshotNamesTrack(first), @"B was written before the answer");
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced);
+    XCTAssertFalse([VibeWidgetState loadState].hasTrack);
+    XCTAssertEqual(gQueriesAsked, 1u);
+}
+
+- (void)testSameTrackChangesAskFirstAndJoinOneQuestion {
+    AudioTrack *track = WidgetTestTrack(@"same-track.wav");
+    __block BOOL playing = YES;
+    __block NSTimeInterval position = 0;
+    WidgetPublisher *publisher = ShellPublisherPublishing(^(WidgetPublisher *p) {
+        [p updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
+    });
+    [publisher setWidgetPlaced:YES];
+    Drain(publisher);
+    WidgetRenders(publisher);
+    NSDate *publishedAt = [VibeWidgetState loadState].positionDate;
+    // Removed; then Control Center pauses, seeks and resumes, the app still
+    // in the background.
+    playing = NO;
+    [publisher updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
+    position = 50;
+    [publisher updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
+    playing = YES;
+    [publisher updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
+    Settle(publisher);
+    XCTAssertEqual(gQueriesAsked, 1u, @"same-track changes were not asked about, or not as one question");
+    XCTAssertEqualObjects([VibeWidgetState loadState].positionDate, publishedAt,
+                          @"a same-track change was written before the answer");
+    [WidgetTestReloader answerPlaced:YES error:nil];
+    Settle(publisher);
+    VibeWidgetState *state = [VibeWidgetState loadState];
+    XCTAssertEqualWithAccuracy(state.position, 50, 0.001, @"the answer did not publish the state as of then");
+    XCTAssertTrue(state.playing);
+    XCTAssertEqual(gQueriesAsked, 1u, @"publishing what the answer admitted asked again");
+    // An unchanged tick has nothing to write, so nothing to ask.
+    [publisher updateWithTrack:track position:position duration:100 playing:playing startPending:NO];
+    Settle(publisher);
+    XCTAssertEqual(gQueriesAsked, 1u);
+}
+
+- (void)testAStripForTheSameTrackWaitsForTheAnswer {
+    __block AudioTrack *current = WidgetTestTrack(@"strip.wav");
     WidgetPublisher *publisher = ShellPublisher(^{ return current; });
     [publisher setWidgetPlaced:YES];
     Drain(publisher);
     WidgetRenders(publisher);
-    current = WidgetTestTrack(@"rendering-b.wav");
-    [publisher updateWithTrack:current position:0 duration:100 playing:YES startPending:NO];
+    // Removed; the envelope for the track on screen lands afterwards.
+    CodableAudioWaveform *waveform = (CodableAudioWaveform *)[NSObject new];
+    [publisher offerWaveform:waveform forTrack:current];
+    [publisher settingsDidChange];
     Settle(publisher);
-    XCTAssertEqual(gQueriesAsked, 0u, @"a widget that rendered was asked about anyway");
-    XCTAssertTrue(SnapshotNamesTrack(current));
+    XCTAssertEqual(gQueriesAsked, 1u, @"the strip was not asked about");
+    NSURL *strip = [[VibeWidgetState loadState] waveformURLPlayed:YES light:NO];
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:strip.path],
+                   @"the strip was baked before the answer");
+    [WidgetTestReloader answerPlaced:NO error:nil];
+    Settle(publisher);
+    XCTAssertFalse(publisher.widgetPlaced);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:strip.path]);
 }
 
 - (void)testReadingTheSnapshotSignalsNoWidget {

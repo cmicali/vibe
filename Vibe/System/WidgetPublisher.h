@@ -45,19 +45,22 @@ NS_ASSUME_NONNULL_BEGIN
 // (VibeWidgetDemandNotification), whichever comes first.
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
-// Called on main each time publishing starts, for the shell to hand over what
-// is true now: its Now Playing publish (updateWithTrack:…). The complete
-// waveform needs no second offer — offerWaveform: keeps it weakly whatever
-// the gate says.
+// Called on main at every admission — publishing starting, and each placement
+// answer that lets held work go out — for the shell to hand over what is true
+// now: its Now Playing publish (updateWithTrack:…), which the publisher then
+// compares with what the widget has. The complete waveform needs no second
+// offer — offerWaveform: keeps it weakly whatever the gate says.
 @property (nonatomic, copy, nullable) dispatch_block_t activationHandler;
 
 // Asks WidgetKit whether a widget is still placed, while one is (or the last
 // query failed): the shell calls it on every return to the foreground, when a
 // removal is most likely to have happened, since removing one means using the
-// desktop. A removal while the app stays in the background is found at the
-// next track change instead: a widget re-renders after every reload, so one
-// that has sent no demand signal since the last track is asked about before
-// the new track's work starts. Adding one is covered by the demand signal, so
+// desktop. A removal while the app stays in the background is found by the
+// next write instead: every write — a track, a seek or pause, a cover, a
+// strip, a theme — waits for an answer asked after it was wanted, and what
+// arrives meanwhile joins that one question. So a placed widget costs one
+// query per change that writes, and an unchanged tick asks nothing. Adding
+// one is covered by the demand signal, so
 // with none placed there is nothing to ask. init asks once if a widget has
 // rendered since WidgetKit last said none (VibeWidgetState.widgetMayBePlaced),
 // to learn of one placed before launch. Queries run one at a time, and an

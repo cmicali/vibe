@@ -166,13 +166,15 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // computes or writes anything; activation asks the shell for the current
     // state (activationHandler) instead.
     BOOL                  _widgetPlaced;
-    // Whether a placed widget has confirmed itself — a demand signal or a
-    // positive answer — since the last track change was published. A widget
-    // re-renders after every reload, so one that has gone silent across a
-    // whole track is one that may have been removed while the app stayed in
-    // the background: the next track change asks before doing its work, and
-    // _awaitingPlacement holds all publishing until the answer.
-    BOOL                  _placementConfirmed;
+    // TRAP: a widget can be removed with the app in the background, where no
+    // foreground asks, and nothing reports it; and a demand signal proves a
+    // widget existed when it rendered, not later. Stored as a permit, one
+    // covered the whole next track after a removal, and same-track work —
+    // seeks, pauses, settings — was never checked at all. So every write is
+    // admitted by an answer given after it was asked for (mayPublish):
+    // _admitting is YES only inside that admission, and _awaitingPlacement
+    // holds all publishing while the question is out, later work joining it.
+    BOOL                  _admitting;
     BOOL                  _awaitingPlacement;
     // The last query failed, so the flag is a guess: the next foreground asks
     // again even while it reads NO.
@@ -247,7 +249,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 // nothing can turn the flag on but the demand signal, so there is nothing to
 // ask. The foreground is where a removal is likeliest to be seen, since
 // removing one means using the desktop; one while the app stays in the
-// background is found at the next track change (_placementConfirmed).
+// background is found by the next write, which asks first (mayPublish).
 - (void)refreshPlaced {
     if (_widgetPlaced || _placementUnresolved) {
         [self queryPlacedOnlyIfMarked:NO];
@@ -328,7 +330,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 - (void)setWidgetPlaced:(BOOL)placed {
     if (!placed) {
         _awaitingPlacement = NO;
-        _placementConfirmed = NO;
         if (_widgetPlaced) {
             _widgetPlaced = NO;
             LogInfo(@"Widget: no widget placed; publishing stops");
@@ -336,7 +337,8 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         }
         return;
     }
-    _placementConfirmed = YES;
+    // Placed and nothing held: this answer admits nothing, since nothing
+    // asked — the next write asks for its own.
     if (_widgetPlaced && !_awaitingPlacement) {
         return;
     }
@@ -345,15 +347,40 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     }
     _widgetPlaced = YES;
     _awaitingPlacement = NO;
-    // Nothing was worked out while the gate was shut or the answer awaited, so
-    // the shell hands over what is true now — a track change, from the
-    // widget's side. A widget added while a track plays in the background
-    // renders once from whatever was on disk, its demand lands here, and the
-    // next render is current.
+    [self admitCurrentState];
+}
+
+// Main. Whether a write may go ahead: only inside an admission. Otherwise it
+// asks, holds everything until the answer, and says no; the answer's "yes"
+// republishes whatever is true by then, so held work is folded in, not
+// replayed.
+- (BOOL)mayPublish {
+    if (_admitting) {
+        return YES;
+    }
+    if (!_awaitingPlacement) {
+        _awaitingPlacement = YES;
+        [self queryPlacedOnlyIfMarked:NO];
+    }
+    return NO;
+}
+
+// Main. One admitted pass over everything the widget draws, as it stands now:
+// the theme, the shell's playback (activationHandler — the shell's own
+// publish, not a copy kept here), and the strip. Nothing held is replayed:
+// the snapshot is compared with what is true, so what moved while the answer
+// was out goes out once, and nothing else does. A widget added while a track
+// plays in the background renders once from whatever was on disk, its demand
+// lands here, and the next render is current.
+- (void)admitCurrentState {
+    _admitting = YES;
     [self captureTheme];
     if (self.activationHandler) {
         self.activationHandler();
     }
+    [self commitThemeIfStale];
+    [self bakeWaveformIfNeeded];
+    _admitting = NO;
 }
 
 // The last widget went. Publishing lets go of everything it holds, and the
@@ -385,19 +412,6 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
         return;
     }
     BOOL trackChanged = (track != _publishedTrack);
-    if (trackChanged && track) {
-        if (!_placementConfirmed) {
-            // No widget has rendered since the last track went out: it may
-            // have been removed with the app in the background, where no
-            // foreground asks. So ask before this track's cover, strip and
-            // writes, and publish nothing until the answer — whose "yes"
-            // hands back to the shell for the state as of then.
-            _awaitingPlacement = YES;
-            [self queryPlacedOnlyIfMarked:NO];
-            return;
-        }
-        _placementConfirmed = NO;
-    }
     VibeImage *artwork = track.cachedArt;
     // TRAP: cachedArt is nil until the artwork DECODES, so a track change
     // almost always arrives before there is any art — and writing nil deletes
@@ -415,6 +429,10 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 
     if (!writeArtwork && ![self needsPublishForTrack:track playing:playing duration:duration
                                             position:position startPending:startPending]) {
+        return;
+    }
+    // Only now, with something to write: an unchanged tick asks nothing.
+    if (![self mayPublish]) {
         return;
     }
 
@@ -644,20 +662,29 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 #pragma mark - Settings
 
 - (void)settingsDidChange {
-    // Not captured while nobody looks, or while that is being asked:
-    // activation captures and bakes when the answer is yes.
+    // Not captured while nobody looks, or while that is being asked: the
+    // admission captures and bakes when the answer is yes.
     if (!_widgetPlaced || _awaitingPlacement) {
         return;
     }
-    if ([self captureTheme] && _published) {
-        // A copy: the snapshot in _published may still be on its way to disk.
-        VibeWidgetState *next = [_published copy];
-        next.theme = _theme;
-        _published = next;
-        [self commitState:next artwork:nil writeArtwork:NO];
-    }
+    [self captureTheme];
+    [self commitThemeIfStale];
     // After the theme, since whether the strip needs a light half follows it.
     [self bakeWaveformIfNeeded];
+}
+
+// The published snapshot again, with the theme captured since it went out.
+// Only ever after an admitted capture: an unadmitted one leaves _theme as it
+// was, so there is nothing stale to commit.
+- (void)commitThemeIfStale {
+    if (!_published || [_published.theme ?: @{} isEqualToDictionary:_theme ?: @{}]) {
+        return;
+    }
+    // A copy: the snapshot in _published may still be on its way to disk.
+    VibeWidgetState *next = [_published copy];
+    next.theme = _theme;
+    _published = next;
+    [self commitState:next artwork:nil writeArtwork:NO];
 }
 
 #if TARGET_OS_OSX
@@ -736,6 +763,9 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
     NSString *placeholderSignature = [NSString stringWithFormat:@"%@|%@", darkReference, lightReference];
     BOOL themeMoved = ![theme isEqualToDictionary:_theme ?: @{}];
     BOOL placeholderMoved = !VibeNowPlayingStringsEqual(placeholderSignature, _placeholderSignature);
+    if ((themeMoved || placeholderMoved) && ![self mayPublish]) {
+        return NO;      // the admission captures it again, as it is by then
+    }
     _theme = theme;
     if (placeholderMoved) {
         _placeholderSignature = placeholderSignature;
@@ -850,6 +880,9 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
                            theme.flatFill, normalize, gainDB, barDensity, barWidth];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
+    }
+    if (![self mayPublish]) {
+        return;     // the admission bakes, from the settings as they are by then
     }
     _bakedSignature = signature;
     // A bake still waiting behind the queue is superseded, not run. One that

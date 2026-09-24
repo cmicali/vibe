@@ -25,9 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setReloaderClass:(nullable Class<VibeWidgetReloading>)reloaderClass;
 
 // The gate, as a current WidgetKit answer or the extension's demand signal
-// (on) moves it. Opening it, or confirming it while a track change awaits the
-// answer, runs activationHandler; closing it commits the empty snapshot and
-// releases everything publishing held.
+// (on) moves it. Opening it, or confirming it while a write awaits the answer,
+// admits the current state (activationHandler included); closing it commits
+// the empty snapshot and releases everything publishing held.
 - (void)setWidgetPlaced:(BOOL)placed;
 
 // The one writer of the shared container, serial: tests hold it to stage a
