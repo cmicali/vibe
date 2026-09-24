@@ -2,12 +2,15 @@
 //  MainPlayerController+Transport.h
 //  Vibe
 //
-//  The relative-seek skips, bar-aligned when the track's tempo is known, and
-//  the DJ performance-effect pass-throughs. They touch only the public
-//  collaborators, never internal state.
+//  The relative-seek skips, bar-aligned when the track's tempo is known, the
+//  widget's absolute seek, and the DJ performance-effect pass-throughs. They
+//  touch only the public collaborators, except the one seek the widget can
+//  leave pending (MainPlayerControllerInternal.h).
 //
 
 #import "MainPlayerController.h"
+
+@class AudioTrack;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -25,6 +28,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)skipBack:(nullable id)sender;         // −base bars (−10s without BPM)
 - (IBAction)skipBackMore:(nullable id)sender;     // −2× base (−30s without BPM)
 - (IBAction)skipBackMost:(nullable id)sender;     // −4× base (−60s without BPM)
+
+// The widget's seek: `progress` of `track`, in file time, and nothing when
+// `track` is no longer current. The player has no duration while the file
+// opens, so the tags' stands in, and a seek submitted then binds to the open;
+// with neither known — a cloud file still downloading — it is held until the
+// tags arrive or the open lands, whichever is first, and dropped by any other
+// track's start.
+- (void)seekToProgress:(double)progress ofTrack:(AudioTrack *)track;
+// The held seek's two moments, from the metadata and start deliveries.
+- (void)applyPendingSeekForTrack:(AudioTrack *)track started:(BOOL)started;
 
 // One toggle per performance effect, for the FX menu. The bare keys do not use
 // these: they go through the getter and setter pairs below, so that their hold

@@ -17,6 +17,8 @@
 #import "DebugInfo.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
+#import "NSURL+Hash.h"
+#import "WidgetPublisher.h"
 
 #if DEBUG
 
@@ -284,6 +286,18 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 [controller.trackDisplay showWaveformLoadingIndicator];
                 [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
+                return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
+            }),
+            VibeDebugCmd(@"widget_seek <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The widget strip's click, through the same entry the seek
+                // intent calls — the launch waiter and a held seek included —
+                // aimed at the current track, as a fresh render would be.
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: widget_seek <fraction>");
+                }
+                double fraction = MIN(MAX(tokens[1].doubleValue, 0), 1);
+                VibeWidgetPerformAction(VibeWidgetActionSeek, fraction,
+                                        controller.playlistController.currentTrack.url.pathKey, ^{});
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
             VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+Delivery.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+Transport.h"
 
 #import "AudioPlayer.h"
 #import "AudioPlayer+Seek.h"
@@ -19,6 +20,7 @@
     if ([self.playlistController isCurrentTrack:track]) {
         _lastReloadedTrack = nil;
         [self updateUI];
+        [self applyPendingSeekForTrack:track started:NO];
     }
     else {
         [self.playlistController reloadTrack:track];

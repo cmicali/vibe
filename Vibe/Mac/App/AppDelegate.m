@@ -9,6 +9,7 @@
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Transport.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
@@ -25,7 +26,6 @@
 #import "FolderArtResolver.h"
 #import "VibeStrings.h"
 #import "WidgetPublisher.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "PlaylistController.h"
@@ -462,18 +462,10 @@ void VibeWidgetPerformAction(VibeWidgetAction action, double progress, NSString 
                 if (![track.url.pathKey isEqualToString:trackKey]) {
                     break;
                 }
-                // File time, as the window's own waveform seeks: the widget's
-                // progress is the same fraction at any rate. The player has no
-                // duration while the file is still opening — the launch waiter
-                // settles before the open does — so the tags' stands in; a seek
-                // submitted while loading binds to that open.
-                NSTimeInterval duration = controller.audioPlayer.duration;
-                if (duration <= 0) {
-                    duration = track.duration;
-                }
-                if (duration > 0) {
-                    [controller.audioPlayer seekToPosition:progress * duration];
-                }
+                // The launch waiter settles before the open does, so this can
+                // arrive with the file still opening; the controller holds it
+                // until a duration is known.
+                [controller seekToProgress:progress ofTrack:track];
                 break;
             }
         }
