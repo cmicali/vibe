@@ -118,8 +118,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 // With a real decode queue, for the race tests: the fills are the bus's own.
 - (void)makeBusAtRate:(double)rate channels:(NSUInteger)channels inlineDecoding:(BOOL)inlineDecoding {
+    [self makeBusWithFormat:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels]
+             inlineDecoding:inlineDecoding];
+}
+
+- (void)makeBusWithFormat:(AVAudioFormat *)format inlineDecoding:(BOOL)inlineDecoding {
     [self releaseOutput];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels];
+    NSUInteger channels = format.channelCount;
     _bus = [[AudioVoiceBus alloc] initWithFormat:format queue:_queue inlineDecoding:inlineDecoding];
     XCTAssertNotNil(_bus);
     _output = calloc(1, sizeof(AudioBufferList) + (channels - 1) * sizeof(AudioBuffer));
@@ -781,9 +786,11 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 // A continuous signal split across two files at another rate: the resampler
-// carries across the boundary, so the output matches the unsplit file's.
-- (void)testTheResamplerContinuesAcrossAGaplessBoundary {
-    NSData *whole = [self constant:0.25 frames:44100 channels:2];
+// carries across the boundary, so the output matches the unsplit file's,
+// whether the successor is named while the first file is decoding or after
+// it was decoded whole.
+- (void)assertASplitAtAnotherRateContinuesWithALateSuccessor:(BOOL)late {
+    NSData *whole = [self noiseFrames:44100 channels:2 seed:927];
     NSURL *full = [self writePCM:whole rate:44100 channels:2 name:@"whole441.wav"];
     NSURL *a = [self writePCM:[whole subdataWithRange:NSMakeRange(0, 22050 * 8)] rate:44100 channels:2 name:@"first441.wav"];
     NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(22050 * 8, 22050 * 8)] rate:44100 channels:2 name:@"second441.wav"];
@@ -792,18 +799,54 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSData *reference = [self renderUntilEnded:voice blockSize:256 limit:200000];
     [self makeBusAtRate:48000 channels:2];
     voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
+    if (late) {
+        // The whole file is decoded, and the stream is still open for a successor.
+        [_bus fillInline];
+        XCTAssertEqualWithAccuracy((double)[_bus snapshotOfVoice:voice].written, 24000, 64);
+        XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
+    }
     AVAudioFile *next = [self open:b];
     XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
     NSData *capture = [self renderUntilEnded:voice blockSize:256 limit:200000];
+    XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].boundary, 24000, 64);
+    XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].endOfStream, 48000, 2);
     XCTAssertGreaterThanOrEqual(capture.length, 48000u * 8);
     const float *expected = reference.bytes, *actual = capture.bytes;
     double peak = 0;
     NSUInteger peakFrame = 0;
-    for (NSUInteger f = 23000; f < 25000; f++) {
-        double error = fabs(actual[f * 2] - expected[f * 2]);
-        if (error > peak) { peak = error; peakFrame = f; }
+    for (NSUInteger i = 0; i < 48000 * 2; i++) {
+        double error = fabs(actual[i] - expected[i]);
+        if (error > peak) { peak = error; peakFrame = i / 2; }
     }
-    XCTAssertLessThan(peak, 0.001, @"the resampler restarted at the boundary: error at frame %lu", (unsigned long)peakFrame);
+    XCTAssertLessThan(peak, 0.0001, @"the resampler restarted: error at frame %lu, late %d", (unsigned long)peakFrame, late);
+}
+
+- (void)testTheResamplerContinuesAcrossAGaplessBoundary {
+    [self assertASplitAtAnotherRateContinuesWithALateSuccessor:NO];
+}
+
+- (void)testTheResamplerContinuesIntoASuccessorNamedAfterTheFileWasDecoded {
+    [self assertASplitAtAnotherRateContinuesWithALateSuccessor:YES];
+}
+
+// With no successor named, a converter's stream stays open past its file
+// while the render is far from the end, and is ended — the tail flushed,
+// the end declared — once the render is within two chunks of it.
+- (void)testAConverterStaysOpenPastItsFileUntilTheRenderNears {
+    NSURL *url = [self writePCM:[self noiseFrames:22050 channels:2 seed:928] rate:44100 channels:2 name:@"short441.wav"];
+    [self makeBusAtRate:48000 channels:2];
+    VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    [_bus fillInline];
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
+    for (NSUInteger rendered = 0; rendered < 15000; rendered += 1000) {
+        [self render:1000 into:nil]; // about 9000 frames left buffered: still open
+    }
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
+    [self render:1024 into:nil];     // under two chunks: the next fill ends it
+    [_bus fillInline];
+    XCTAssertEqualWithAccuracy((double)[_bus snapshotOfVoice:voice].endOfStream, 24000, 2);
+    [self renderUntilEnded:voice blockSize:1024 limit:100000];
+    XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].endOfStream, 24000, 2);
 }
 
 // A successor in another format takes a converter of its own after the first
@@ -911,6 +954,36 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     for (NSUInteger f = 256; f < 4096; f++) {
         XCTAssertEqualWithAccuracy(out[f * 2], left, 0.001f, @"frame %lu left", (unsigned long)f);
         XCTAssertEqualWithAccuracy(out[f * 2 + 1], right, 0.001f, @"frame %lu right", (unsigned long)f);
+    }
+}
+
+// The same width in another order is a permutation into the bus's order —
+// exact, as a bit-perfect delivery must be: a 5.1 file laid out
+// L R Ls Rs C LFE into a bus laid out L R C LFE Ls Rs.
+- (void)testAFileInAnotherChannelOrderIsRemappedIntoTheBus {
+    const float level[6] = { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f };
+    AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:kRate interleaved:NO
+            channelLayout:[AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_B]];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fileFormat frameCapacity:8192];
+    buffer.frameLength = 8192;
+    for (NSUInteger c = 0; c < 6; c++) {
+        for (NSUInteger f = 0; f < 8192; f++) {
+            buffer.floatChannelData[c][f] = level[c];
+        }
+    }
+    NSURL *url = [self writeBuffer:buffer name:@"surround-b.aif"];
+    XCTAssertEqual([self open:url].processingFormat.channelLayout.layoutTag, kAudioChannelLayoutTag_MPEG_5_1_B);
+    [self makeBusWithFormat:[[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:kRate interleaved:NO
+            channelLayout:[AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A]] inlineDecoding:YES];
+    [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    NSMutableData *capture = [NSMutableData data];
+    [self render:4096 into:capture];
+    const float *out = capture.bytes;
+    const float expected[6] = { level[0], level[1], level[4], level[5], level[2], level[3] }; // L R C LFE Ls Rs
+    for (NSUInteger f = 0; f < 4096; f++) {
+        for (NSUInteger c = 0; c < 6; c++) {
+            XCTAssertEqual(out[f * 6 + c], expected[c], @"frame %lu channel %lu", (unsigned long)f, (unsigned long)c);
+        }
     }
 }
 

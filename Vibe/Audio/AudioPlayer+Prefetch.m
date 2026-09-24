@@ -42,15 +42,13 @@
         return;
     }
 #if TARGET_OS_OSX
-    // A splice keeps the bus at the current file's format and the device's
-    // too, so under bit-perfect output the next file must want both; a
-    // boundary that needs a switch takes the ordinary track end instead.
-    if (_bitPerfectWanted) {
-        AVAudioFormat *current = _file.processingFormat, *next = _prefetchedFile.processingFormat;
-        if (current.sampleRate != next.sampleRate || current.channelCount != next.channelCount
-                || [self outputNeedsSwitchOnQueueForFile:_prefetchedFile]) {
-            return;
-        }
+    // A splice keeps the bus at the current file's format — its channel order
+    // included — and the device's too, so under bit-perfect output the next
+    // file must want both; a boundary that needs a switch or a rebuild takes
+    // the ordinary track end instead.
+    if (_bitPerfectWanted && (!VibeFormatsMatch(_file.processingFormat, _prefetchedFile.processingFormat)
+            || [self outputNeedsSwitchOnQueueForFile:_prefetchedFile])) {
+        return;
     }
 #endif
     if (![_voiceBus queueSuccessor:_prefetchedFile decodeFormat:[self decodeFormatOnQueueForFile:_prefetchedFile]

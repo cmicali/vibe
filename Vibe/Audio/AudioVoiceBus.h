@@ -88,6 +88,21 @@ static inline VibeVoiceRamp VibeVoiceRampMake(float target, uint32_t frames, Vib
     return ramp;
 }
 
+// The same channels: the width, and, wider than stereo, the order the
+// layout names. A layout on a mono or stereo format says nothing the width
+// does not.
+static inline BOOL VibeChannelsMatch(AVAudioFormat *a, AVAudioFormat *b) {
+    return a.channelCount == b.channelCount
+            && (a.channelCount <= 2 || a.channelLayout == b.channelLayout || [a.channelLayout isEqual:b.channelLayout]);
+}
+
+// The same delivery: rate, sample format, and channels. What the bus reads a
+// file direct by, what the transport splices by, what the graph keeps a bus by.
+static inline BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
+    return a.sampleRate == b.sampleRate && a.commonFormat == b.commonFormat && a.isInterleaved == b.isInterleaved
+            && VibeChannelsMatch(a, b);
+}
+
 // A coherent read of one voice. Frame counters are relative to the voice's
 // start: `consumed` is what the audio thread has rendered, `boundary` where
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
@@ -160,9 +175,11 @@ typedef struct {
 
 // Queues `file` to continue at the voice's end without a gap. A successor
 // read the same way as the file before it continues through the same
-// converter, so a resampler carries across the boundary. A voice whose
-// stream already ended still takes one while it is live: the decoder
-// reopens the stream at the old end, unless the audio thread reached it
+// converter, so a resampler carries across the boundary; a converter stays
+// open past its file until the render nears the end, so a successor named
+// late still continues it. A voice whose stream's end was declared still
+// takes one while it is live: the decoder reopens the stream at the old end
+// with a converter of its own, unless the audio thread reached the end
 // first, in which case the voice ends as it would have and the successor
 // never begins. NO for a dead voice, one retired at declick length, or one
 // already continuing.

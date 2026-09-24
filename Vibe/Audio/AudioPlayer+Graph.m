@@ -236,8 +236,7 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
     // layout included, which is what the mixer folds it down by.
     AVAudioFormat *busFormat = wanted.channelCount > 2 ? wanted
             : [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate channels:wanted.channelCount];
-    if (_voiceBus && _voiceBus.format.sampleRate == busFormat.sampleRate
-            && _voiceBus.format.channelCount == busFormat.channelCount && (_varispeed == nil) == bitPerfect) {
+    if (_voiceBus && VibeFormatsMatch(_voiceBus.format, busFormat) && (_varispeed == nil) == bitPerfect) {
         return YES;
     }
     // Every voice dies with the old segment; the callers made sure none was

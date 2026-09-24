@@ -28,12 +28,24 @@ enum {
     kLowWaterDivisor = 2,
     // Free slots at or below which a start cuts the oldest retiring voice.
     kFreeSlotReserve = 2,
+    // A converter stays open past its file's last frame while the render is
+    // at least this far behind it, so a successor named late still continues
+    // it; nearer, its tail is flushed and the end declared.
+    kOpenStreamReserveFrames = 2 * kDecodeChunkFrames,
 };
 
 typedef NS_ENUM(int32_t, VibeSuccessorState) {
     VibeSuccessorNone = 0,
     VibeSuccessorQueued,
     VibeSuccessorSwitching,
+};
+
+// Where a voice's stream stands past its file's frames.
+typedef NS_ENUM(int32_t, VibeStreamState) {
+    VibeStreamReading = 0,  // the file has frames
+    VibeStreamDrained,      // the file ran out; the stream is open for a successor
+    VibeStreamFlushing,     // the end is decided; a converter's tail is coming
+    VibeStreamEnded,        // endOfStream is published
 };
 
 static const uint64_t kUnset = UINT64_MAX;
@@ -331,7 +343,7 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
     NSData *mixMap;                  // Float32[source channels][bus channels], when the widths differ
     AVAudioFramePosition startFrame;
     BOOL positioned;
-    BOOL exhausted;
+    VibeStreamState stream;
     AVAudioFile *successorFile;
     AVAudioFormat *successorDecodeFormat;
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
@@ -503,11 +515,6 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
 
 #pragma mark - Starting
 
-static BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
-    return a.sampleRate == b.sampleRate && a.channelCount == b.channelCount
-            && a.commonFormat == b.commonFormat && a.isInterleaved == b.isInterleaved;
-}
-
 // A mono or stereo format leaves its layout unsaid; the mix map needs one.
 static AVAudioChannelLayout *VibeAssumedLayout(AVAudioFormat *format) {
     if (format.channelLayout) {
@@ -519,9 +526,10 @@ static AVAudioChannelLayout *VibeAssumedLayout(AVAudioFormat *format) {
     return format.channelCount == 2 ? [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_Stereo] : nil;
 }
 
-// The mix between two widths, input-major (`map[in * outputs + out]`): the
-// standard matrix between the two layouts, as the mixer applies it; mono into
-// every channel; otherwise the first channels.
+// The mix between two channel sets, input-major (`map[in * outputs + out]`):
+// the standard matrix between the two layouts, as the mixer applies it — a
+// fold across widths, a permutation across orders; mono into every channel;
+// otherwise the first channels.
 static NSData *VibeMixMap(AVAudioFormat *source, AVAudioFormat *target) {
     uint32_t inputs = source.channelCount, outputs = target.channelCount;
     NSMutableData *map = [NSMutableData dataWithLength:inputs * outputs * sizeof(Float32)];
@@ -563,9 +571,10 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 
 // The file's processing format is float32; the bus is float32 at its own rate
-// and width. Nothing to do when they agree. A width difference is mixed
-// first, on the file's own rate, as the mixer would, so a converter carries
-// the bus's channels only and none is needed at the bus rate. A rate
+// and width. Nothing to do when they agree. A channel difference — the width,
+// or the order a wider layout names — is mixed first, on the file's own rate,
+// as the mixer would, so a converter carries the bus's channels only and none
+// is needed at the bus rate. A rate
 // difference is converted at maximum quality; a lossy source under
 // bit-perfect output is converted to the 16-bit form it wants, which the
 // decoder expands back to float exactly so the bus stays float on the 16-bit
@@ -579,13 +588,13 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->mixBuffer = nil;
     record->convertBuffer = nil;
     record->mixMap = nil;
-    record->exhausted = NO;
+    record->stream = VibeStreamReading;
     BOOL integer = decodeFormat.commonFormat == AVAudioPCMFormatInt16;
     if (!integer && VibeFormatsMatch(source, _format)) {
         return YES;
     }
     AVAudioFormat *fed = source; // what the converter takes
-    if (!integer && source.channelCount != _format.channelCount) {
+    if (!integer && !VibeChannelsMatch(source, _format)) {
         record->mixMap = VibeMixMap(source, _format);
         record->readBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
         if (source.sampleRate == _format.sampleRate) {
@@ -797,9 +806,9 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
                                                  memory_order_release, memory_order_relaxed)) {
         return NO;
     }
-    // A stream that ended before its successor was named is reopened by the
-    // decoder, which has no turn scheduled while exhausted.
-    if (record->exhausted && !_inlineDecoding) {
+    // The decoder may have no turn scheduled — its stream drained or ended —
+    // so one is asked for; a turn with nothing to do returns.
+    if (!_inlineDecoding) {
         [self scheduleFillForSlot:slot];
     }
     return YES;
@@ -1109,9 +1118,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // carries across as the mixer's once did; the next read is the successor's
 // from its start. NO when it needs a converter of its own.
 - (BOOL)continueRecord:(VibeVoiceRecord *)record intoSuccessor:(AVAudioFile *)successor {
-    AVAudioFormat *a = record->file.processingFormat, *b = successor.processingFormat;
-    if (!VibeFormatsMatch(a, b) || !VibeFormatsMatch(record->decodeFormat, record->successorDecodeFormat)
-            || (a.channelCount > 2 && ![a.channelLayout isEqual:b.channelLayout])) {
+    if (!VibeFormatsMatch(record->file.processingFormat, successor.processingFormat)
+            || !VibeFormatsMatch(record->decodeFormat, record->successorDecodeFormat)) {
         return NO;
     }
     record->file = successor;
@@ -1123,7 +1131,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 
 // Takes the claimed successor out of the record, with a converter of its
-// own, to be read from its start.
+// own, to be read from its start; NO with none there.
 - (BOOL)prepareSuccessorForRecord:(VibeVoiceRecord *)record {
     AVAudioFile *successor = record->successorFile;
     AVAudioFormat *decodeFormat = record->successorDecodeFormat;
@@ -1131,20 +1139,24 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->successorDecodeFormat = nil;
     record->startFrame = 0;
     record->positioned = NO;
-    return [self prepareRecord:record file:successor decodeFormat:decodeFormat];
+    return successor && [self prepareRecord:record file:successor decodeFormat:decodeFormat];
 }
 
 // Reads one chunk of the voice's file into the stage buffer, in the bus
 // format. The file's end is a read that comes up short or empty — never
-// framePosition == length, which a truncated file never reaches — and there
-// the queued successor is claimed: one that continues in place makes this
-// the boundary chunk; any other stays claimed in the record for the caller
-// to prepare once *final says the stream ran out.
+// framePosition == length, which a truncated file never reaches — and drains
+// the stream: a converter is told nothing of it until the stream is flushing,
+// when it is told the end and gives up its tail. *final says the end is out.
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final {
     VibeVoiceRecord *record = _records[slot];
+    BOOL flushing = record->stream == VibeStreamFlushing;
     *final = NO;
     NSError *error = nil;
     if (!record->converter) {
+        if (flushing) {
+            *final = YES; // nothing held back: the end is now
+            return 0;
+        }
         AVAudioPCMBuffer *into = record->mixMap ? record->readBuffer : record->stageBuffer;
         into.frameLength = 0;
         BOOL read = [record->file readIntoBuffer:into frameCount:kDecodeChunkFrames error:&error];
@@ -1156,19 +1168,17 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             VibeApplyMixMap(record->mixMap.bytes, record->readBuffer, record->stageBuffer, frames);
         }
         if (!read || frames < kDecodeChunkFrames || record->file.framePosition >= record->file.length) {
-            AVAudioFile *successor = [self claimSuccessorForSlot:slot];
-            *final = !(successor && [self continueRecord:record intoSuccessor:successor]);
+            record->stream = VibeStreamDrained;
         }
         return frames;
     }
-    __block BOOL ended = NO;
     AVAudioConverterOutputStatus status = [record->converter convertToBuffer:record->convertBuffer error:&error
             withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount packets, AVAudioConverterInputStatus *inputStatus) {
         AVAudioPCMBuffer *readBuffer = record->readBuffer;
         readBuffer.frameLength = 0;
         NSError *readError = nil;
         AVAudioFrameCount wanted = packets < kDecodeChunkFrames ? packets : kDecodeChunkFrames;
-        if ([record->file readIntoBuffer:readBuffer frameCount:wanted error:&readError] && readBuffer.frameLength > 0) {
+        if (!flushing && [record->file readIntoBuffer:readBuffer frameCount:wanted error:&readError] && readBuffer.frameLength > 0) {
             *inputStatus = AVAudioConverterInputStatus_HaveData;
             if (!record->mixMap) {
                 return readBuffer;
@@ -1176,16 +1186,14 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             VibeApplyMixMap(record->mixMap.bytes, readBuffer, record->mixBuffer, readBuffer.frameLength);
             return record->mixBuffer;
         }
-        // The file ran out. A successor continuing in place ends this chunk
-        // at the boundary with the converter told nothing; any other end is
-        // the converter's, which flushes its tail.
-        AVAudioFile *successor = [self claimSuccessorForSlot:slot];
-        if (successor && [self continueRecord:record intoSuccessor:successor]) {
-            *inputStatus = AVAudioConverterInputStatus_NoDataNow;
+        if (flushing) {
+            *inputStatus = AVAudioConverterInputStatus_EndOfStream;
             return nil;
         }
-        ended = YES;
-        *inputStatus = AVAudioConverterInputStatus_EndOfStream;
+        // The file ran out with the stream open: no data now, and nothing of
+        // an end, so the filter stays primed for a successor.
+        record->stream = VibeStreamDrained;
+        *inputStatus = AVAudioConverterInputStatus_NoDataNow;
         return nil;
     }];
     if (status == AVAudioConverterOutputStatus_Error) {
@@ -1195,7 +1203,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     AVAudioPCMBuffer *converted = record->convertBuffer;
     uint32_t frames = converted.frameLength;
-    *final = status == AVAudioConverterOutputStatus_EndOfStream || (ended && frames < kDecodeChunkFrames);
+    *final = status == AVAudioConverterOutputStatus_EndOfStream || (flushing && frames < kDecodeChunkFrames);
     if (converted.format.commonFormat == AVAudioPCMFormatInt16) {
         // Back to float on the 16-bit grid: v / 32768 is exact.
         const int16_t *in = converted.int16ChannelData[0];
@@ -1225,48 +1233,73 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)) {
         return NO;
     }
-    if (record->exhausted) {
+    if (record->stream == VibeStreamEnded) {
         return [self reopenStreamForSlot:slot];
     }
     uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
-    uint64_t space = _mix->capacity - (written - atomic_load_explicit(&s->consumed, memory_order_acquire));
-    if (space < kDecodeChunkFrames) {
+    uint64_t consumed = atomic_load_explicit(&s->consumed, memory_order_acquire);
+    if (_mix->capacity - (written - consumed) < kDecodeChunkFrames) {
         return NO;
     }
     if (!record->positioned) {
         record->positioned = YES;
         record->file.framePosition = record->startFrame;
     }
+    if (record->stream == VibeStreamDrained) {
+        // The file ran out with the stream open. A successor read the same
+        // way continues it here, the boundary at what is written; one that
+        // needs a converter of its own, or the render nearing the end, ends
+        // it first, the tail after the last frame. With none named, a
+        // converter stays open while the render is far from the end, so a
+        // successor named late still continues it; a bus-format file has
+        // nothing to keep open and ends at once.
+        AVAudioFile *successor = [self claimSuccessorForSlot:slot];
+        if (successor && [self continueRecord:record intoSuccessor:successor]) {
+            record->stream = VibeStreamReading;
+            atomic_store_explicit(&s->boundary, written, memory_order_release);
+            atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
+            return YES;
+        }
+        if (!successor && record->converter && written - consumed >= kOpenStreamReserveFrames) {
+            return NO;
+        }
+        record->stream = VibeStreamFlushing;
+    }
     BOOL final = NO;
     uint32_t frames = [self produceChunkForSlot:slot final:&final];
-    // The successor follows this chunk when the claim continued in place, or
-    // when the converter's tail is out ahead of one that needs its own.
-    BOOL switching = atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorSwitching
-            && (!record->successorFile || final);
+    // A successor claimed above follows the tail through a converter of its own.
+    BOOL switching = final && atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorSwitching;
     if (!switching) {
-        record->exhausted = final;
+        if (final) {
+            record->stream = VibeStreamEnded;
+        }
         [self writeFrames:frames fromRecord:record toSlot:slot written:written final:final];
         [self markLiveIfReadyForSlot:slot];
-        return !final;
+        // A file that ran out in this chunk is settled in this turn: a
+        // successor already named continues at once, and a bus-format file,
+        // with nothing to keep open, ends at once.
+        return record->stream == VibeStreamDrained ? [self decodeChunkForSlot:slot] : !final;
     }
     // A converter that could not be made ends the stream at this chunk
     // instead; otherwise the boundary is published after the chunk and before
     // any successor frame, so a render that sees them sees where they begin.
     // The None ends the claim.
-    record->exhausted = record->successorFile && ![self prepareSuccessorForRecord:record];
-    [self writeFrames:frames fromRecord:record toSlot:slot written:written final:record->exhausted];
-    if (!record->exhausted) {
+    BOOL ended = ![self prepareSuccessorForRecord:record];
+    if (ended) {
+        record->stream = VibeStreamEnded;
+    }
+    [self writeFrames:frames fromRecord:record toSlot:slot written:written final:ended];
+    if (!ended) {
         atomic_store_explicit(&s->boundary, written + frames, memory_order_release);
     }
     atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
     [self markLiveIfReadyForSlot:slot];
-    return !record->exhausted;
+    return !ended;
 }
 
-// The stream ended before a successor was named — a file shorter than the
-// ring, decoded whole before its boundary rendered — and a live voice still
-// takes one. The converter, if any, has flushed, so the successor gets its
-// own.
+// The stream's end was declared before a successor was named — the render
+// had neared it, or a bus-format file decoded whole before its boundary
+// rendered — and a live voice still takes one, with a converter of its own.
 - (BOOL)reopenStreamForSlot:(NSUInteger)slot {
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
@@ -1277,13 +1310,15 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     BOOL continues = [self prepareSuccessorForRecord:record];
     if (continues) {
         // TRAP: only the audio thread decides that the voice reached its end,
-        // and it may be inside that render now. Withdraw the end, let any
-        // render that loaded it finish (the render's own load is sequentially
-        // consistent for this), then read the verdict. Publishing the
-        // boundary over a voice that had died at the end made the transport
-        // promote, and at once finish, a track that never played.
-        uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
+        // and it may be inside that render now. Withdraw the end, then let
+        // every render that could have loaded it finish — the sequence is
+        // read after the withdrawal, so a render that began between the two
+        // is waited for too — and read the verdict; the render's own load is
+        // sequentially consistent for this. Publishing the boundary over a
+        // voice that had died at the end made the transport promote, and at
+        // once finish, a track that never played.
         atomic_store_explicit(&s->endOfStream, kUnset, memory_order_seq_cst);
+        uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
         while (atomic_load_explicit(&_mix->inRender, memory_order_seq_cst)
                 && atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst) == renderSequence) {
             sched_yield();
@@ -1297,7 +1332,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         atomic_store_explicit(&s->boundary, end, memory_order_release);
     }
     else {
-        record->exhausted = YES;
+        record->stream = VibeStreamEnded;
     }
     atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
     return continues;
