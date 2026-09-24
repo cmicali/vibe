@@ -199,8 +199,7 @@
     XCTAssertTrue(settings.bitPerfectOutput);
 }
 
-// Declick is one choice for every device, on by default; the mode it applies
-// to is the per-device one.
+// Declick is one choice for every device and every mode, on by default.
 - (void)testDeclickDefaultsOnForEveryDevice {
     AppSettings *settings = [self freshSettings];
     XCTAssertTrue(settings.declick);

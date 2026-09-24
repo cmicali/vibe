@@ -251,9 +251,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 // The mode: bit-perfect output wanted. Always NO on iOS.
 - (BOOL)bitPerfectOnQueue;
-// The gain rule: bit-perfect output with declick off applies no gain, so
-// every ramp is a cut; otherwise every edge ramps.
-- (BOOL)leavesSamplesUntouchedOnQueue;
 // Whether a real output device is being driven: the hosted unit on macOS,
 // the engine's own output node on iOS; never under the debug pump.
 - (BOOL)drivesOutputDeviceOnQueue;
@@ -273,10 +270,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // stopped engine the pause is a cut, applied at the next render.
 - (void)pauseCurrentVoiceOnQueue;
 
-// The voice vocabulary the transport speaks. Under bit-perfect output every
-// ramp is at most the declick, and a cut with Declick off; a retire at the
-// declick length stops the voice's reads, so its file may be handed on.
-// Retired voices are tracked until they end.
+// The voice vocabulary the transport speaks. Every declick-length ramp is a
+// cut with Declick off, and under bit-perfect output every ramp is at most
+// the declick; a retire at the declick length stops the voice's reads, so
+// its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
 - (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;

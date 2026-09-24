@@ -53,13 +53,14 @@ NS_ASSUME_NONNULL_BEGIN
 // current voice, and lowering it back re-queues the parked next track.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
-// What bit-perfect output does at a transport edge: a play, seek, pause,
-// resume, stop or track change. YES, the default: the same ≤10 ms declick
-// ramp ordinary playback applies, touching only those frames, so the body of
-// the track and every gapless boundary stay sample-exact. NO: a cut, leaving
-// every sample untouched and letting the edge click. Ordinary playback always
-// ramps and never reads this. Atomic: the UI writes it, the player queue reads
-// it per ramp.
+// What a transport edge does: a play, seek, pause, resume, stop or track
+// change. YES, the default: a ≤10 ms declick ramp, touching only those
+// frames, so the body of the track and every gapless boundary stay
+// sample-exact. NO: a cut, leaving every sample untouched and letting the
+// edge click. A crossfade longer than the declick is the user's choice and
+// fades either way; bit-perfect output holds the crossfade at the declick,
+// so NO applies no gain at all there. Atomic: the UI writes it, the player
+// queue reads it per ramp.
 @property (atomic) BOOL declick;
 
 // Whether a tap publishes band levels for active equalizer indicators. Off by

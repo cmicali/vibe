@@ -175,10 +175,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #endif
 }
 
-- (BOOL)leavesSamplesUntouchedOnQueue {
-    return [self bitPerfectOnQueue] && !self.declick;
-}
-
 - (BOOL)drivesOutputDeviceOnQueue {
 #if TARGET_OS_OSX
     return _outputUnit != nil;
@@ -896,16 +892,18 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - Voices
 
-// The one gain rule. Bit-perfect output ramps at most the declick, and with
-// Declick off nothing: the crossfade setting is already held at the minimum
-// under the mode, but a play submitted before the mode landed carries the
-// length it was retired with, so the clamp lives here, at the funnel.
+// The one gain rule. Bit-perfect output ramps at most the declick: the
+// crossfade setting is already held at the minimum under the mode, but a play
+// submitted before the mode landed carries the length it was retired with,
+// so the clamp lives here, at the funnel. With Declick off a declick-length
+// ramp — every transport edge — is a cut, in either mode; a longer one is
+// the user's crossfade, and fades.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action {
-    if ([self leavesSamplesUntouchedOnQueue]) {
-        milliseconds = 0;
-    }
-    else if ([self bitPerfectOnQueue]) {
+    if ([self bitPerfectOnQueue]) {
         milliseconds = MIN(milliseconds, kFadeDurationMilliseconds);
+    }
+    if (!self.declick && milliseconds <= kFadeDurationMilliseconds) {
+        milliseconds = 0;
     }
     uint32_t frames = (uint32_t)VibeFadeFramesForMilliseconds(milliseconds, _voiceBus.format.sampleRate);
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
@@ -913,11 +911,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
-    BOOL cut = [self leavesSamplesUntouchedOnQueue];
+    VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     _decodeFormat = [self decodeFormatOnQueueForFile:file];
     VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame decodeFormat:_decodeFormat
-                                                 gain:cut ? 1 : 0
-                                                 ramp:[self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone]
+                                                 gain:ramp.frames ? 0 : 1
+                                                 ramp:ramp
                                                paused:paused];
     [self noteVoiceStarted:voice file:file fromFrame:frame reason:paused ? @"parked" : @"started"];
     [self updateDrainTimerOnQueue];
@@ -942,11 +940,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 // An audible voice fades out for `milliseconds` and dies; one that cannot be
-// heard — not yet live, paused, cut by bit-perfect output, or under a stopped
+// heard — not yet live, paused, cut with Declick off, or under a stopped
 // engine — is killed outright, since silence cannot click, and is silent at
-// once, so only fading voices join _retiringVoices. A declick-length retire
-// reads no more of its file, so the file may be handed to the next voice; a
-// crossfade-length one keeps reading its own, never its successor.
+// once, so only fading voices join _retiringVoices. A declick-length retire,
+// fading or cut, reads no more of its file, so the file may be handed to the
+// next voice; a crossfade-length one keeps reading its own, never its
+// successor.
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds {
     if (!voice) {
         return;
@@ -956,16 +955,17 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     if (snapshot.state != VibeVoiceStateArmed && snapshot.state != VibeVoiceStateLive) {
         return; // already dead: its end is the drain's to report, or has been
     }
+    if (milliseconds <= kFadeDurationMilliseconds) {
+        [_voiceBus stopReadingForVoice:voice];
+    }
+    VibeVoiceRamp ramp = [self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionRetire];
     BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused
-            && _engine.isRunning && _state == VibePlayerStatePlaying && ![self leavesSamplesUntouchedOnQueue];
+            && _engine.isRunning && _state == VibePlayerStatePlaying && ramp.frames > 0;
     if (!audible) {
         [_voiceBus killVoice:voice];
         return;
     }
-    if (milliseconds <= kFadeDurationMilliseconds) {
-        [_voiceBus stopReadingForVoice:voice];
-    }
-    [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionRetire] forVoice:voice];
+    [_voiceBus setRamp:ramp forVoice:voice];
     [_retiringVoices addObject:@(voice)];
     [self refreshOutputAudioActiveOnQueue];
 }

@@ -243,12 +243,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAttachment *attachment=[XCTAttachment attachmentWithContentsOfFileAtURL:url];
     attachment.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:attachment];
 }
-// The startup the comparison may skip: ordinary playback's 10 ms declick and
-// the node's volume smoothing after it, and nothing at all for bit-perfect
-// output with declick off, which writes no volume, so its first sample must
-// already be exact; with declick on, the default, its start ramps too.
+// The startup the comparison may skip: the 10 ms declick and the settling
+// after it, and nothing at all with Declick off, which cuts, so the first
+// sample must already be exact.
 - (NSUInteger)startupSkip {
-    return _player.bitPerfectReport.enabled && !_player.declick ? 0 : (NSUInteger)(_rate * 0.05);
+    return _player.declick ? (NSUInteger)(_rate * 0.05) : 0;
 }
 - (void)assertReference:(NSData *)reference capture:(NSData *)capture skip:(NSUInteger)skip tolerance:(float)tolerance {
     NSDictionary *result=ComparePCM(reference,capture,_channels,skip,tolerance);
@@ -488,6 +487,41 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertLessThanOrEqual(ramped, ramp * 6);
     const float *tail = (const float *)_capture.bytes + (_capture.length / sizeof(float) - 4000 * 2);
     for (NSUInteger i = 0; i < 4000 * 2; i++) XCTAssertEqual(tail[i], 0.0f, @"sound after stop");
+}
+
+// Declick is every mode's: off, ordinary playback cuts its declick-length
+// edges too, while a crossfade longer than the declick is the user's choice
+// and still fades.
+- (void)testDeclickOffCutsOrdinaryEdgesAndKeepsTheCrossfade {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.declick = NO;
+    NSURL *first = [self fixture:@"noise-48000-24-2.wav"], *second = [self fixture:@"noise-48000-16-2.wav"];
+    NSArray *references = @[PCM([self read:first]), PCM([self read:second])];
+    [_capture setLength:0];
+    [self play:first paused:NO position:0]; [self render:14400];
+    [_player seekToPosition:1.0]; [self render:9600];
+    [_player pause]; [self render:4800]; XCTAssertTrue(_player.isPaused);
+    [_player resume]; [self render:9600];
+    [self play:second paused:NO position:0]; [self render:14400];
+    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 0u, @"a cut voice is killed, not faded");
+    [_player stop];
+    NSUInteger stopped = _capture.length / sizeof(float) / 2;
+    [self render:14400]; XCTAssertTrue(_player.isStopped);
+    XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture rampFrames:0 ramped:NULL], 3u);
+    // The varispeed, bypassed but in the chain, delays the cut by its latency.
+    NSUInteger latency = (NSUInteger)llround([_player.debugEngineCounts[@"varispeedLatency"] doubleValue] * _rate) + _blockSize;
+    const float *out = _capture.bytes;
+    for (NSUInteger i = (stopped + latency) * 2; i < _capture.length / sizeof(float); i++) {
+        XCTAssertEqual(out[i], 0.0f, @"sound %lu frames after stop", (unsigned long)(i / 2 - stopped));
+    }
+    // The crossfade is longer than the declick, so a plain play — the one
+    // verb that crossfades — leaves the outgoing voice fading.
+    _player.crossfadeMilliseconds = 2000;
+    [self play:first paused:NO position:0]; [self render:14400];
+    NSUInteger starts = [self count:@"start"];
+    [_player play:[AudioTrack withURL:second]];
+    [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
+    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
 
 - (void)testPauseResumeAndIdleRestart {
