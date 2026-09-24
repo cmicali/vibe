@@ -457,12 +457,25 @@ void VibeWidgetPerformAction(VibeWidgetAction action, double progress, NSString 
                 [controller next:nil];
                 break;
             case VibeWidgetActionSeek:
-                if ([controller.playlistController.currentTrack.url.pathKey isEqualToString:trackKey]) {
-                    // File time, as the window's own waveform seeks: the
-                    // widget's progress is the same fraction at any rate.
-                    [controller.audioPlayer seekToPosition:progress * controller.audioPlayer.duration];
+            {
+                AudioTrack *track = controller.playlistController.currentTrack;
+                if (![track.url.pathKey isEqualToString:trackKey]) {
+                    break;
+                }
+                // File time, as the window's own waveform seeks: the widget's
+                // progress is the same fraction at any rate. The player has no
+                // duration while the file is still opening — the launch waiter
+                // settles before the open does — so the tags' stands in; a seek
+                // submitted while loading binds to that open.
+                NSTimeInterval duration = controller.audioPlayer.duration;
+                if (duration <= 0) {
+                    duration = track.duration;
+                }
+                if (duration > 0) {
+                    [controller.audioPlayer seekToPosition:progress * duration];
                 }
                 break;
+            }
         }
         completion();
     }];

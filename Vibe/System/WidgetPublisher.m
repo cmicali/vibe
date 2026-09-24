@@ -11,6 +11,7 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "PlatformColor.h"           // VibeHexStringFromColor, the palette signature
@@ -117,9 +118,9 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // dropped mount that would be a blocking syscall three times a second.
     // Strong, so closing a track is a change to nil, never nil meeting nil.
     AudioTrack           *_publishedTrack;
-    // Whether the published track's artwork has been written. Cleared on a
-    // track change, set once a decode has actually been written.
-    BOOL                  _artworkOnDisk;
+    // The image the artwork file holds, nil for none: compared by identity,
+    // so a cover that appears, is replaced or goes away is written again.
+    VibeImage            *_artworkOnDisk;
     // The track the plist on disk names, so the sweep after the next commit
     // can keep that track's images through one more publish.
     NSString             *_committedKey;
@@ -275,7 +276,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     _published      = nil;
     _publishedTrack = nil;
     _bakedSignature = nil;
-    _artworkOnDisk  = NO;
+    _artworkOnDisk  = nil;
     if (!_heldAt) {
         return;     // nothing handed over yet; the first update publishes
     }
@@ -310,8 +311,15 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
     // almost always arrives before there is any art — and writing nil deletes
     // the file. Keyed on the track alone, the cover was cleared and never
     // written back. _artworkOnDisk re-fires the write on the first tick that
-    // sees decoded art.
-    BOOL writeArtwork = trackChanged || (artwork && !_artworkOnDisk);
+    // sees decoded art, or different art. A nil is artlessness only once the
+    // art has resolved — the window's own rule — since a folder cover evicted
+    // from its cache reads nil too until it decodes again; folder art switched
+    // off is the nil that must clear.
+    BOOL writeArtwork = trackChanged || artwork != _artworkOnDisk;
+    if (!artwork && writeArtwork && !trackChanged) {
+        AudioTrackMetadata *metadata = track.metadata;
+        writeArtwork = metadata && !metadata.artNeedsLoad && !metadata.isArtLoadPending;
+    }
 
     if (!writeArtwork && ![self needsPublishForTrack:track playing:playing duration:duration
                                             position:position startPending:startPending]) {
@@ -347,7 +355,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
             _pendingBake = nil;
         }
         _bakedSignature = nil;
-        _artworkOnDisk  = NO;
+        _artworkOnDisk  = nil;
     }
     if (trackChanged && track) {
         [self beginReloadHold];
@@ -373,7 +381,7 @@ static Class<VibeWidgetReloading> _Nullable VibeWidgetReloaderClass(void) {
 - (void)commitState:(VibeWidgetState *)state artwork:(VibeImage *)artwork
        writeArtwork:(BOOL)writeArtwork {
     if (writeArtwork) {
-        _artworkOnDisk = (artwork != nil);
+        _artworkOnDisk = artwork;
     }
     // Taken here, on main, and only the CGImage crosses to the queue: on the
     // mac this is the NSImage the header is drawing, and NSImage is not safe
@@ -696,7 +704,9 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
     const double barWidth = appTheme.waveformBarWidth;
     WaveformTheme *theme = [WaveformTheme themeForAppTheme:appTheme isDark:YES
                                               artworkColor:artworkColor];
-    if (_theme[kVibeWidgetThemeLight][kVibeWidgetColorBackground]) {
+    // Not in single mode, whose light side is its dark one (captureTheme): the
+    // widget then finds no light strip and draws the dark pair.
+    if (_theme[kVibeWidgetThemeLight][kVibeWidgetColorBackground] && !appTheme.isSingleMode) {
         lightTheme = [WaveformTheme themeForAppTheme:appTheme isDark:NO artworkColor:artworkColor];
     }
 #else
@@ -742,11 +752,12 @@ static CGImageRef VibeWidgetPlaceholder(NSString *reference) CF_RETURNS_RETAINED
     _pendingBake = dispatch_block_create(0, ^{
         // The whole envelope in each side's colours, played and unplayed. The
         // widget reveals the played one up to the playhead, which is what
-        // keeps a moving playhead free of a re-render.
-        for (int strip = 0; strip < (lightTheme ? 4 : 2); strip++) {
+        // keeps a moving playhead free of a re-render. With no light palette
+        // the light pair is removed, not left from an earlier theme.
+        for (int strip = 0; strip < 4; strip++) {
             BOOL played = (strip & 1) != 0;
             BOOL light = (strip & 2) != 0;
-            CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
+            CGImageRef baked = light && !lightTheme ? NULL : [WaveformRendererRegistry newImageForCodableWaveform:waveform
                     identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
                       progress:played ? 1 : 0 dark:!light theme:light ? lightTheme : theme
                     barDensity:barDensity barWidth:barWidth normalize:normalize gainDB:gainDB];
