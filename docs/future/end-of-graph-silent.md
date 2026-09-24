@@ -4,6 +4,12 @@ Written 2026-08-21, revised 2026-08-22 (twice; the second revision is an adversa
 every anchor re-checked against `main`). Planned, not implemented. The file:line anchors are
 against `main` at the revision date and should be re-checked before acting.
 
+**Update 2026-09-24.** Part 1 landed by construction with the render pipeline (Stage 3): macOS has no
+engine, and `--silent` zeroes the output's buffers *after* the meter in `VibeMasterBusRender`
+(`Vibe/Audio/AudioPlayer+Graph.m`), so the equalizer is live under the debug scripts' default
+launch and the FX run against real signal. The engine-graph anchors and the silence-gate design
+below describe the graph that was removed. Part 2 stands as written.
+
 Two parts. Part 1 is the engine change and stands alone — it fixes interactive equalizer
 validation by itself, with no harness change, and the anchors and reasoning behind it survived
 the adversarial pass intact. Part 2 moves the stress harness onto real audio hardware, depends

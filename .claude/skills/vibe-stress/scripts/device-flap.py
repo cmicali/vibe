@@ -68,7 +68,7 @@ HEALTH_KEYS = (
     "process.fileDescriptors",
     "process.threads",
     "process.machPorts",
-    "app.engineNodes",
+    "app.hostedUnits",
     # Cumulative silence cycles from the hosted output unit: a zero baseline,
     # so any dropout across the soak is reported.
     "app.outputDropouts",
@@ -76,7 +76,7 @@ HEALTH_KEYS = (
     "ui.layers",
 )
 # A single sample over the limit means nothing: the opening decode peaks far
-# above resting and engine nodes swing widely as crossfade pairs drain. Baseline
+# above resting and retiring voices swing widely as crossfade pairs drain. Baseline
 # is the element-wise minimum of the first three samples, and a metric is only
 # reported after this many consecutive breaches.
 BASELINE_SAMPLES = 3

@@ -4,6 +4,10 @@
 #import <AVFoundation/AVFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
 static const AVAudioFrameCount kVibeManualPumpMaxFrames = 4096;
+// What the pump pulls: `count` frames into `chunk` (its frameLength set on
+// return), stamped `timestamp` on the pump's own timeline. The player hands
+// it the pipeline's render on macOS and the engine's offline render on iOS.
+typedef OSStatus (^VibeManualRenderBlock)(const AudioTimeStamp *timestamp, AVAudioPCMBuffer *chunk, AVAudioFrameCount count);
 @interface VibeManualRenderPump : NSObject
 @property (nonatomic, readonly) AVAudioFormat *format;
 @property (nonatomic, readonly) BOOL automatic;
@@ -19,7 +23,8 @@ static const AVAudioFrameCount kVibeManualPumpMaxFrames = 4096;
 // frame-driven bus underruns and zero-fills until it is cleared.
 @property (nonatomic) BOOL starveDecoder;
 - (instancetype)initWithFormat:(AVAudioFormat *)format automatic:(BOOL)automatic;
-- (void)attachToEngine:(AVAudioEngine *)engine queue:(dispatch_queue_t)queue;
+// `running` says whether the output is started; stopped, a slice is silence.
+- (void)attachRender:(VibeManualRenderBlock)render running:(BOOL (^)(void))running queue:(dispatch_queue_t)queue;
 // Queue-confined. The returned buffer belongs to the pump until the next call.
 - (nullable AVAudioPCMBuffer *)renderFrames:(AVAudioFrameCount)frames error:(NSError **)error;
 - (void)scheduleAfter:(NSTimeInterval)seconds block:(dispatch_block_t)block;

@@ -8,7 +8,6 @@
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <mach/mach_time.h>
-#import <objc/runtime.h>
 #import <os/lock.h>
 #include <sched.h>
 #include <stdatomic.h>
@@ -103,7 +102,7 @@ typedef struct {
     int32_t consuming;
 } VibeVoiceSlot;
 
-typedef struct {
+struct VibeVoiceMix {
     uint32_t channels;
     uint32_t capacity;  // frames per ring, a power of two
     uint32_t mask;
@@ -111,15 +110,15 @@ typedef struct {
     float *rings[kVoiceSlots][kMaxBusChannels];
     VibeVoiceSlot slots[kVoiceSlots];
     // Bumped at the end of every render; inRender brackets each one, so the
-    // queue can tell "no render is inside any slot" from "the engine says it
+    // queue can tell "no render is inside any slot" from "the output says it
     // is stopped", which on iOS the render thread can lag.
     _Atomic uint64_t renderSequence;
     _Atomic int32_t inRender;
-} VibeVoiceMix;
+};
 
-// The block's capture. Attached to the source node as an associated object,
-// so the slot memory lives exactly as long as the block that reads it: a late
-// render from a defunct engine touches valid memory whatever the bus did.
+// The slot memory, held by the bus for its life. The master bus publishes
+// the mix pointer with the output stopped and retires it only once no
+// render is inside, so the render never reads memory a bus has freed.
 @interface VibeVoiceMixOwner : NSObject
 @property (nonatomic, readonly) VibeVoiceMix *mix;
 @end
@@ -187,8 +186,8 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
 #pragma clang diagnostic push
 #pragma clang diagnostic error "-Wfunction-effects"
 #endif
-static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
-                                   AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
+OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
+                            AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
     atomic_store_explicit(&mix->inRender, 1, memory_order_seq_cst);
     uint64_t renderSequence = atomic_load_explicit(&mix->renderSequence, memory_order_relaxed);
     uint32_t channels = output->mNumberBuffers < mix->channels ? output->mNumberBuffers : mix->channels;
@@ -363,11 +362,10 @@ static OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const Aud
 @implementation VibeVoiceRecord
 @end
 
-static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
-
 @implementation AudioVoiceBus {
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueue;
+    VibeVoiceMixOwner *_mixOwner;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
     NSMutableArray<VibeVoiceRecord *> *_pending;
@@ -379,7 +377,6 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
     uint64_t _nextIdentifier;
     uint32_t _rampSequence;
     uint64_t _nextRetireOrder;
-    AVAudioSourceNodeRenderBlock _renderBlock;
 }
 
 - (instancetype)initWithFormat:(AVAudioFormat *)busFormat queue:(dispatch_queue_t)queue inlineDecoding:(BOOL)inlineDecoding {
@@ -414,6 +411,7 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
         _decodeQueue = dispatch_queue_create("com.vibe.voicebus.decode",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
     }
+    _mixOwner = owner;
     _mix = owner.mix;
     _pending = [NSMutableArray array];
     _endedPending = [NSMutableArray array];
@@ -427,23 +425,11 @@ static const void *kVibeVoiceMixOwnerKey = &kVibeVoiceMixOwnerKey;
             return nil;
         }
     }
-    // The block sees a C pointer and nothing else; the owner rides the node.
-    // The attribute on the literal puts its body under the same check as the
-    // render function.
-    VibeVoiceMix *mix = _mix;
-    AVAudioSourceNodeRenderBlock render = ^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp,
-                                                    AVAudioFrameCount frameCount, AudioBufferList *outputData)
-            CA_REALTIME_API {
-        return VibeVoiceBusRender(mix, isSilence, timestamp, frameCount, outputData);
-    };
-    _renderBlock = render;
-    _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:busFormat renderBlock:render];
-    objc_setAssociatedObject(_sourceNode, kVibeVoiceMixOwnerKey, owner, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return self;
 }
 
-- (AVAudioSourceNodeRenderBlock)renderBlock {
-    return _renderBlock;
+- (VibeVoiceMix *)mix {
+    return _mix;
 }
 
 - (dispatch_queue_t)decodeQueue {
@@ -943,9 +929,9 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 
 #pragma mark - The drain
 
-- (void)drainWithEngineRunning:(BOOL)engineRunning handler:(void (^)(VibeVoiceID, VibeVoiceEvent))handler {
+- (void)drainWithOutputRunning:(BOOL)outputRunning handler:(void (^)(VibeVoiceID, VibeVoiceEvent))handler {
     uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_acquire);
-    BOOL noRenderPossible = !engineRunning && atomic_load_explicit(&_mix->inRender, memory_order_acquire) == 0;
+    BOOL noRenderPossible = !outputRunning && atomic_load_explicit(&_mix->inRender, memory_order_acquire) == 0;
     for (NSUInteger slot = 0; slot < kVoiceSlots; slot++) {
         VibeVoiceSlot *s = &_mix->slots[slot];
         int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);

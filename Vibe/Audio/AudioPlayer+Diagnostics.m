@@ -411,7 +411,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 }
 
 - (BOOL)diagnosticEngineRunning {
-    return _engine.isRunning;
+    return [self renderingOnQueue];
 }
 
 - (uint64_t)diagnosticOutputDropouts {
@@ -534,7 +534,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
                 : (start.mFlags & kAudioTimeStampSampleTimeValid) ? [NSString stringWithFormat:@"sample time %.0f", start.mSampleTime]
                 : @"not yet rendered";
 #if TARGET_OS_OSX
-        NSTimeInterval latency = _outputUnit ? _outputUnit.presentationLatency : _engine.outputNode.presentationLatency;
+        NSTimeInterval latency = _outputUnit.presentationLatency;
 #else
         NSTimeInterval latency = _engine.outputNode.presentationLatency;
 #endif
@@ -629,55 +629,31 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
-#if VIBE_VERBOSE_LOGGING
-// TRAP: the FX segment's dry path is about a millisecond behind the bus.
-// AUNBandEQ holds roughly 45 frames it never declares (`latency` reads 0;
-// measured at 44.1 kHz through the render suite), so the last frames of a
-// faded voice reach the tap that long after it died. The cutoff pads for it
-// whenever the segment is in the chain; without the pad the probe reads the
-// tail of the outgoing track as the incoming one's first signal.
-static const NSTimeInterval kMasterBusProcessingDelaySeconds = 0.002;
-
-static AVAudioTime *VibeAudioTimeByAddingSeconds(AVAudioTime *time, NSTimeInterval seconds) {
-    if (!time || seconds <= 0) {
-        return time;
-    }
-    AudioTimeStamp stamp = time.audioTimeStamp;
-    if (time.sampleTimeValid) stamp.mSampleTime += seconds * time.sampleRate;
-    if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:seconds];
-    return [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
-}
-#endif
-
+// TRAP: the varispeed emits the bus's frames its declared latency late — a
+// constant 47 frames bypassed, declared as 1 ms (measured) — so the last
+// frames of a faded voice reach the meter that long after the render saw the
+// voice die, and the cutoff pads for it whenever the varispeed is in the
+// chain; without the pad the probe reads the outgoing track's tail as the
+// incoming one's first signal. The FX chain adds nothing: an idle chain is
+// skipped, and the meter reads the render's final samples.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
-    NSTimeInterval delay = self.fx.masterBusOutputNode ? kMasterBusProcessingDelaySeconds : 0;
-    [_levelTap endSignalOverlapAtTime:VibeAudioTimeByAddingSeconds([self outputSignalRenderTimeOnQueue], delay)];
+    AVAudioTime *time = [self outputSignalRenderTimeOnQueue];
+    NSTimeInterval latency = [self varispeedLatencyOnQueue];
+    if (time && latency > 0) {
+        AudioTimeStamp stamp = time.audioTimeStamp;
+        if (time.sampleTimeValid) stamp.mSampleTime += ceil(latency * time.sampleRate);
+        if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:latency];
+        time = [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
+    }
+    [_levelTap endSignalOverlapAtTime:time];
 #endif
 }
 
+// The pipeline's own clock, the same on every carrier: frames rendered plus
+// the block in flight, the sample time the render stamps its blocks with.
 - (AVAudioTime *)outputSignalRenderTimeOnQueue {
-#if TARGET_OS_OSX
-    if (_outputUnit) {
-        return [_outputUnit renderTime]; // frames rendered plus the block in flight
-    }
-#endif
-    if (_engine.isInManualRenderingMode) {
-        return [AVAudioTime timeWithSampleTime:_engine.manualRenderingSampleTime atRate:_engine.manualRenderingFormat.sampleRate];
-    }
-    // The engine's own output node: iOS, or macOS without a unit.
-    AVAudioOutputNode *output = _engine.outputNode;
-    AVAudioTime *time = output.lastRenderTime;
-    if (!time || time.sampleRate <= 0) {
-        return nil;
-    }
-    // lastRenderTime is the block's beginning; exclude its whole possible
-    // extent, since its tail may have rendered before a retiring voice died.
-    AudioTimeStamp stamp = time.audioTimeStamp;
-    double frames = output.AUAudioUnit.maximumFramesToRender;
-    if (time.sampleTimeValid) stamp.mSampleTime += frames;
-    if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:frames / time.sampleRate];
-    return [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
+    return [self outputRenderTimeOnQueue];
 }
 
 #pragma mark - The first displayed position

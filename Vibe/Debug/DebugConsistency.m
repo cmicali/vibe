@@ -34,12 +34,12 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
     [violations addObject:@{@"id": identifier, @"detail": detail}];
 }
 
-// A generous ceiling, not a tight one. The engine carries the output and main
-// mixer, the FX chain, and one voice bus with its varispeed, which does not
-// move across a burst of track changes, so this is roughly 5x headroom. A
-// leak is unbounded and blows past it either way; the sensitive detector is
-// the stress driver diffing the same number against its own baseline.
-static const NSUInteger kVibeMaxReasonableEngineNodes = 128;
+// A generous ceiling, not a tight one. The pipeline hosts one varispeed and
+// the FX chain's ten units, created once and kept across a burst of track
+// changes, so this is headroom over the whole set. A leak is unbounded and
+// blows past it either way; the sensitive detector is the stress driver
+// diffing the same number against its own baseline.
+static const NSUInteger kVibeMaxReasonableHostedUnits = 16;
 
 // How long a track may render before its metadata not having been attempted
 // counts as a fault rather than a race. Generous on purpose: the parse itself
@@ -123,10 +123,10 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
 #endif
 
     checked++;
-    NSUInteger nodes = [player debugEngineCounts][@"attachedNodes"].unsignedIntegerValue;
-    if (nodes > kVibeMaxReasonableEngineNodes) {
-        VibeDebugViolation(v, @"engine.node_count_bounded",
-                @"%lu nodes attached to the engine", (unsigned long)nodes);
+    NSUInteger units = [player debugEngineCounts][@"hostedUnits"].unsignedIntegerValue;
+    if (units > kVibeMaxReasonableHostedUnits) {
+        VibeDebugViolation(v, @"graph.hosted_units_bounded",
+                @"%lu units hosted by the pipeline", (unsigned long)units);
     }
 
     // The barrier above drains the player queue, not callbacks waiting on main:

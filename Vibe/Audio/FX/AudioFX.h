@@ -4,9 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <AudioToolbox/AudioToolbox.h>
 
-@class AVAudioEngine;
-@class AVAudioNode;
 @class AVAudioFormat;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -17,48 +16,64 @@ NS_ASSUME_NONNULL_BEGIN
 // holds. TransportKeyMonitor owns that distinction; this class simply holds
 // plain on-off state per effect.
 //
-// It owns the FX segment of the engine graph, everything between the main
-// mixer and the output node:
+// It owns the FX segment of the render pipeline, everything between the bus
+// and the meter:
 //
-//   mainMixer -> lowKillEQ -+-> masterMix -> output
-//                           +-> reverb send/return       -> masterMix
-//                           +-> 1/8 delay send/return    -> masterMix
-//                           +-> 1/16 delay send/return   -> masterMix
+//   bus -> lowKill -+-> dry -----------------------------------> out
+//                   +-> reverb send -> reverb -> lowCut -------> +
+//                   +-> 1/8 delay send  -> lanes -> pans -> sum -+-> lowCut -> +
+//                   +-> 1/16 delay send -> lanes -> pans -> sum -+
 //
-// It sits downstream of the per-track player and varispeed chains, so track
-// changes, seeks and the crossfade never touch it.
+// Apple's units do the DSP — AUNBandEQ, MatrixReverb, AUDelay — hosted
+// through the AudioUnit C API and rendered in place by VibeFXChainRender on
+// the audio thread. The mixers the engine graph needed are buffer math: a
+// gate is a gain the queue targets and the audio thread slews at the rate
+// AVAudioMixerNode slewed its volume, a pan is that mixer's balance law, a
+// sum is an add. A stage renders only while it has work — a gate open or a
+// tail still ringing, the low kill on or settling after it parked — and is
+// reset and skipped otherwise, so idle effects cost nothing and dormant FX
+// are sample-exact.
 //
 // Threading mirrors AudioPlayer. Property setters record lock-guarded intent
-// and dispatch the graph and parameter work onto the player's serial engine
-// queue, while the ramp and sweep state stays queue-confined. The object is
-// created before the engine exists, in AudioPlayer's synchronous init, so
-// intent set early — a menu action or the BPM feed racing the async engine
-// init — is never lost, and installInEngine: applies whatever was recorded.
+// and dispatch the parameter work onto the player's serial queue, where the
+// sweeps and gate ramps stay queue-confined; the gate targets and the
+// activity flags are atomics the audio thread reads. Hosting, connecting,
+// disconnecting and a format change run on the queue with the output stopped,
+// and a stage is reset only after the render has been seen outside the chain,
+// so no render is ever inside a unit being created, reset or torn down. The
+// object is created before the pipeline exists, in AudioPlayer's synchronous
+// init, so intent set early — a menu action or the BPM feed racing the async
+// init — is never lost, and the first connect applies whatever was recorded.
 @interface AudioFX : NSObject
 
-// queue is the player's serial engine queue. Every mutation this class makes
-// runs there. scheduler runs a block on that queue after a delay — the
-// player's own scheduleAfterSeconds:block:, so the sweeps and gate ramps ride
-// whatever clock the player does (the debug pump's, under manual rendering).
+// queue is the player's serial queue. Every mutation this class makes runs
+// there. scheduler runs a block on that queue after a delay — the player's
+// own scheduleAfterSeconds:block:, so the sweeps, gate ramps and tail windows
+// ride whatever clock the player does (the debug pump's, under manual
+// rendering).
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
                     scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler;
 
-// Connects or bypasses the segment with the engine stopped, on its queue.
-// Nodes are created on first enable and retained across toggles. Disconnecting
-// resets processing and tails without changing intent; the caller clears intent
-// before submitting a bypass and wires the direct route. A connected segment
-// asked for another rate — a device switch across rates — is rewired whole,
-// because an effect cannot convert between its input and output.
-- (void)setConnected:(BOOL)connected inEngine:(AVAudioEngine *)engine format:(AVAudioFormat *)format;
+// Connects or disconnects the segment, on the queue with the output stopped.
+// The units are hosted at the first connect, at `format` (stereo float32,
+// non-interleaved) with `maximumFrameCount` the largest render, and kept
+// across toggles; a connect at another rate re-hosts them and re-applies the
+// recorded intent. Disconnecting resets every unit and tail without changing
+// intent and reads no format; the caller clears intent before submitting a
+// bypass.
+- (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount;
 
-// The last node of the connected segment, or nil while bypassed/uninstalled.
-//
-// It exists for the band-level tap, which has to sit on whatever feeds the
-// output if the bars are to follow what is actually heard. mainMixerNode is
-// that node only while this segment is absent; with it, the reverb and delay
-// returns re-enter downstream of the mixer, so a tap there would miss every wet
-// tail. Player-queue only, like the rest of this class.
-@property (nonatomic, readonly, nullable) AVAudioNode *masterBusOutputNode;
+// Whether the segment is in the chain. Player-queue only.
+@property (nonatomic, readonly) BOOL connected;
+
+// The audio thread's view of the segment, valid for the object's life.
+typedef struct VibeFXChain VibeFXChain;
+- (VibeFXChain *)chain;
+
+// Hosted units alive, and renders they have done: idle effects render
+// nothing, which the tests and the stress oracle read. Any thread.
+- (NSUInteger)hostedUnitCount;
+- (uint64_t)unitRenders;
 
 // DJ-style low kill on the Q key: a resonant high-pass filter on the master
 // bus that cuts the bass. It is a deck control, so it persists across tracks
@@ -99,5 +114,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float delayTapBPM;
 
 @end
+
+// The segment, in place over `io`: stereo float32, non-interleaved, at most
+// the hosted maximumFrameCount frames. Audio thread; a disconnected chain
+// returns at once, and an idle stage costs nothing.
+OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
 
 NS_ASSUME_NONNULL_END

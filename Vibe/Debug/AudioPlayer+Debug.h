@@ -13,6 +13,8 @@
 #import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
+@class AudioLevelTap;
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioPlayer (Debug)
@@ -47,21 +49,27 @@ NS_ASSUME_NONNULL_BEGIN
 // lock-free.
 - (BOOL)manualRenderingActive;
 
-// Engine snapshot for dump_health, check_consistency and the render tests:
-// attached nodes (constant now: the bus and its varispeed are built once),
-// retiring voices (`retiredFades`, the name the stress tooling reads), live
-// voices, whether the hardware drain is polling, running state, rendered
-// frames, pitch-unit presence and latency, the current voice's gain and
-// underrun count, the mixer rate, and the hosted output unit's callback cost
-// (`renderCycles`, `renderMeanMicros`, `renderMaxMicros`, cumulative). A
-// retiring voice that never ends is the leak this exists to catch, and since
-// a soak run is thousands of track changes, unbounded growth is the signal.
+// Pipeline snapshot for dump_health, check_consistency and the render tests:
+// hosted units (`hostedUnits`: the varispeed and the FX chain's, created once
+// and kept) and the FX chain's renders so far (`unitRenders`, flat while no
+// effect is engaged), retiring voices (`retiredFades`, the name the stress
+// tooling reads), live voices, whether the hardware drain is polling, whether
+// the output is running, rendered frames, varispeed presence and latency, the
+// current voice's gain and underrun count, the output rate (`outputRate`), and
+// the hosted output unit's dropouts and callback cost (`renderCycles`,
+// `renderMeanMicros`, `renderMaxMicros`, cumulative). A retiring voice that
+// never ends is the leak this exists to catch, and since a soak run is
+// thousands of track changes, unbounded growth is the signal.
 //
 // One dispatch_sync serves all. It reads on _queue, so it must not be called
 // from there, and it doubles as a liveness probe for that queue: the command
 // channel runs on the main thread and would otherwise never see the player
 // wedged.
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts;
+
+// The installed meter, for the render suite's signal-probe reads; nil while
+// no indicator or probe wants levels.
+- (nullable AudioLevelTap *)debugLevelTap;
 
 // Mode selection is session-only. A valid change synchronously replaces an
 // active tap, so the next state snapshot describes the replacement analyzer.

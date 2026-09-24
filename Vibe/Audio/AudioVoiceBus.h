@@ -2,11 +2,12 @@
 //  AudioVoiceBus.h
 //  Vibe
 //
-//  Vibe's own playback core: decode, ring, gain and mix, feeding one source
-//  node. A VOICE is one file being rendered — a decoder filling a
+//  Vibe's own playback core: decode, ring, gain and mix, feeding the render
+//  pipeline. A VOICE is one file being rendered — a decoder filling a
 //  ring buffer, a gain with at most one pending ramp, an optional queued
-//  successor file that continues gaplessly at the boundary. The bus mixes every
-//  live voice into the one AVAudioSourceNode the engine graph pulls from.
+//  successor file that continues gaplessly at the boundary. The bus mixes
+//  every live voice into the buffers the master bus's render hands it
+//  (AudioPlayer+Graph.h).
 //
 //  The transport (AudioPlayer) never waits on the bus. It starts a voice,
 //  ramps it, retires it, and learns three things back through the drain it
@@ -35,8 +36,8 @@
 //  is a retire of zero frames, applied before any mixing). dead→free runs on
 //  the decode queue after the audio thread has completed a render past the
 //  death, so no reader or writer can be inside the slot when it is recycled.
-//  Slot memory is allocated once and owned by the render block, so a late
-//  render from a defunct engine reads valid memory.
+//  Slot memory is allocated once and owned by the bus for its life; the
+//  master bus retires a bus only once no render is inside it.
 //
 //  Bit-perfect output never applies gain: the transport submits every ramp
 //  with zero frames there, and every edge is a cut.
@@ -124,15 +125,18 @@ typedef struct {
     AudioTimeStamp lastRender;
 } VibeVoiceSnapshot;
 
+// The audio thread's view of the bus: the slots and their rings.
+typedef struct VibeVoiceMix VibeVoiceMix;
+
 @interface AudioVoiceBus : NSObject
 
-// busFormat is the source node's format for the bus's life: float32,
-// non-interleaved. Every file is delivered in it — converted on the decode
-// queue when its own format differs, a wider or narrower file mixed by
-// layout as the mixer would. inlineDecoding is the frame-driven test
-// pump's mode: no decode queue exists, fillInline does every read on the
-// caller's thread, and the ring keeps one producer. queue is the player queue,
-// where voiceWentLive and every method here run.
+// busFormat is the bus's format for its life: float32, non-interleaved.
+// Every file is delivered in it — converted on the decode queue when its own
+// format differs, a wider or narrower file mixed by layout as a mixer would.
+// inlineDecoding is the frame-driven test pump's mode: no decode queue
+// exists, fillInline does every read on the caller's thread, and the ring
+// keeps one producer. queue is the player queue, where voiceWentLive and
+// every method here run.
 - (instancetype)initWithFormat:(AVAudioFormat *)busFormat
                          queue:(dispatch_queue_t)queue
                 inlineDecoding:(BOOL)inlineDecoding NS_DESIGNATED_INITIALIZER;
@@ -140,8 +144,8 @@ typedef struct {
 
 @property (nonatomic, readonly) AVAudioFormat *format;
 @property (nonatomic, readonly) BOOL inlineDecoding;
-// The node the graph attaches and connects, once, at the bus format.
-@property (nonatomic, readonly) AVAudioSourceNode *sourceNode;
+// What VibeVoiceBusRender reads; valid for the bus's life.
+- (VibeVoiceMix *)mix;
 // Called on the queue when a voice goes live off the decode queue, so the
 // player can drain promptly rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t voiceWentLive;
@@ -205,10 +209,10 @@ typedef struct {
 - (NSUInteger)liveVoiceCount;
 
 // The poll. Binds pending voices, emits each voice's events in the order
-// live → boundary → ended (one boundary per successor), tops up rings, and recycles dead slots
-// once no render can be inside them — which needs engineRunning, since a
-// stopped engine renders nothing.
-- (void)drainWithEngineRunning:(BOOL)engineRunning
+// live → boundary → ended (one boundary per successor), tops up rings, and
+// recycles dead slots once no render can be inside them — which needs
+// outputRunning, since a stopped output renders nothing.
+- (void)drainWithOutputRunning:(BOOL)outputRunning
                        handler:(void (^)(VibeVoiceID voice, VibeVoiceEvent event))handler;
 
 // inlineDecoding only: decodes on the caller's thread until every armed and
@@ -216,5 +220,11 @@ typedef struct {
 - (void)fillInline;
 
 @end
+
+// The audio thread's entry: mixes every live voice into `output` — one
+// buffer per channel, the bus's channels or fewer — for `frameCount` frames
+// stamped `timestamp`, any count; `isSilence` reports a block no voice mixed.
+OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
+                            AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API;
 
 NS_ASSUME_NONNULL_END

@@ -6,6 +6,7 @@
 //
 
 #import "AudioLevelPublisher.h"
+#import <CoreAudioTypes/CoreAudioBaseTypes.h>
 
 typedef struct VibeLevelPublisherState VibeLevelPublisherState;
 
@@ -17,19 +18,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)endSession:(uint64_t)session;
 @end
 
-// A single nonblocking write claim protects the rare overlap between an old
-// abandoned engine callback and its replacement. Contention drops one target;
-// it never spins or waits on the audio thread.
+// A single nonblocking write claim protects the rare overlap between a
+// retired meter's last render and its replacement. Contention drops one
+// target; it never spins or waits on the audio thread.
 BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state,
                                uint64_t session,
-                               const float levels[_Nonnull kLevelBandCount]);
+                               const float levels[_Nonnull kLevelBandCount]) CA_REALTIME_API;
 
-// Called only from DEBUG tap code. Their Release bodies are empty, keeping
-// diagnostics out of the render path without putting #if DEBUG in a header.
+// Their Release bodies are empty, keeping diagnostics out of the render path
+// without putting #if DEBUG in a header.
 void VibeLevelPublisherRecordCallback(VibeLevelPublisherState *state,
                                       uint64_t frameLength,
-                                      double sampleRate);
+                                      double sampleRate) CA_REALTIME_API;
 void VibeLevelPublisherRecordAnalyzedWindows(VibeLevelPublisherState *state,
-                                             uint64_t count);
+                                             uint64_t count) CA_REALTIME_API;
 
 NS_ASSUME_NONNULL_END

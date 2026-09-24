@@ -30,7 +30,7 @@
             return; // idle, Loading, or the engine survived the change
         }
         NSError *startError = nil;
-        if (![self startEngineOnQueue:&startError]) {
+        if (![self startOutputOnQueue:&startError]) {
             // No output to restart on. Park Paused at the same position, so
             // the next resume restarts the engine, and say why.
             LogError(@"AudioPlayer: config-change restart failed (%@)", startError);
@@ -43,7 +43,7 @@
 
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and createEngineAndMasterBusOnQueue
+// dropEngineBoundStateOnQueue's contract — and createOutputOnQueue
 // rebuilds exactly what init built: fresh FX nodes with the recorded intent
 // re-applied (or the bare mixer -> output wire), and the debug argv modes. The
 // source segment rebuilds itself at the next settlement.
@@ -72,7 +72,7 @@
         self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
         [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
-        [self createEngineAndMasterBusOnQueue];
+        [self createOutputOnQueue];
         if (!completion) {
             return;
         }

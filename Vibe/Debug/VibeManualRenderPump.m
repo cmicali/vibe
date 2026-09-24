@@ -1,7 +1,8 @@
 #import "VibeManualRenderPump.h"
 #if DEBUG
 @implementation VibeManualRenderPump {
-    __weak AVAudioEngine *_engine;
+    VibeManualRenderBlock _render;
+    BOOL (^_running)(void);
     dispatch_queue_t _queue;
     dispatch_source_t _timer;
     AVAudioPCMBuffer *_buffer;
@@ -21,10 +22,11 @@
     }
     return self;
 }
-- (void)attachToEngine:(AVAudioEngine *)engine queue:(dispatch_queue_t)queue {
+- (void)attachRender:(VibeManualRenderBlock)render running:(BOOL (^)(void))running queue:(dispatch_queue_t)queue {
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     _frameDebt = 0;
-    _engine = engine;
+    _render = [render copy];
+    _running = [running copy];
     _queue = queue;
     if (!_automatic) return;
     _lastNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -38,9 +40,14 @@
 - (void)cancel {
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     [_pending removeAllObjects];
+    _render = nil;
+    _running = nil;
     self.capture = nil;
     self.beforeRender = nil;
     self.afterRender = nil;
+}
+- (BOOL)outputRunning {
+    return _running && _running();
 }
 - (void)scheduleAfter:(NSTimeInterval)seconds block:(dispatch_block_t)block {
     if (_automatic) {
@@ -71,18 +78,16 @@
             count = MIN(count, (AVAudioFrameCount)MAX(1, ceil(until - 1e-7)));
         }
         _chunk.frameLength = 0;
-        if (_engine.isRunning) {
+        if ([self outputRunning] && _render) {
             if (self.beforeRender && !self.starveDecoder) self.beforeRender();
-            AVAudioEngineManualRenderingStatus status;
-            // A graph mutation can temporarily prevent rendering. Retry only
-            // a zero-frame result; never discard or duplicate a partial block.
-            NSUInteger attempts = 0;
-            do {
-                status = [_engine renderOffline:count toBuffer:_chunk error:error];
-            } while (status == AVAudioEngineManualRenderingStatusCannotDoInCurrentContext
-                     && _chunk.frameLength == 0 && ++attempts < 8);
-            if (status != AVAudioEngineManualRenderingStatusSuccess || _chunk.frameLength != count) {
-                if (error && !*error) *error = [NSError errorWithDomain:@"VibeManualRender" code:2 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Render status %ld, %u of %u frames", (long)status, _chunk.frameLength, count]}];
+            AudioTimeStamp stamp = {0};
+            stamp.mSampleTime = (Float64)_renderedFrames;
+            stamp.mFlags = kAudioTimeStampSampleTimeValid;
+            // A partial or failed slice fails the render rather than silently
+            // losing or duplicating samples.
+            OSStatus status = _render(&stamp, _chunk, count);
+            if (status != noErr || _chunk.frameLength != count) {
+                if (error) *error = [NSError errorWithDomain:@"VibeManualRender" code:2 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Render status %d, %u of %u frames", (int)status, _chunk.frameLength, count]}];
                 return nil;
             }
         } else {
@@ -103,7 +108,7 @@
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     double elapsed = (double)(now - _lastNs) / NSEC_PER_SEC;
     _lastNs = now;
-    if (!_engine.isRunning) { _frameDebt = 0; return; }
+    if (![self outputRunning]) { _frameDebt = 0; return; }
     _frameDebt += MIN(elapsed, 0.25) * _format.sampleRate;
     while (_frameDebt >= 1) {
         AVAudioFrameCount frames = (AVAudioFrameCount)MIN(_frameDebt, kVibeManualPumpMaxFrames);

@@ -13,83 +13,205 @@
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #endif
+#include <stdatomic.h>
+#include <unistd.h>
 
-// Give the next track time to open before releasing the idle engine.
-static const NSTimeInterval kEngineIdleStopDelaySeconds = 6.0;
+// Give the next track time to open before releasing the idle output.
+static const NSTimeInterval kOutputIdleStopDelaySeconds = 6.0;
 // The hardware drain: the bus reports its events within this of their render.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
-// An engine start holding the player queue longer than this is worth a line
+// An output start holding the player queue longer than this is worth a line
 // even in stable builds.
-static const NSTimeInterval kSlowEngineStartLogThresholdSeconds = 0.25;
+static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
+// A retire waits this long, at most, for a render already inside the bus.
+static const useconds_t kRetireSpinMicroseconds = 200;
+static const int kRetireSpinLimit = 500; // 100 ms
+
+#pragma mark - The master bus
+
+// The most channels the meter is handed; wider outputs meter their first ones.
+enum { kVibeOutputMaxChannelsForMeter = 8 };
+
+// What the audio thread reads. Writers: the queue (the pointers, with the
+// output stopped or through the flag the render checks first; the gate and
+// the flags), the render (the counters and inRender).
+struct VibeMasterBus {
+    _Atomic int32_t gate;            // 1 while the output may render
+    _Atomic int32_t inRender;        // 1 while the render is inside the pipeline
+    _Atomic uint64_t frames;         // the output timeline: frames rendered
+    _Atomic uint32_t pendingFrames;  // the block in flight
+    _Atomic int32_t meterWanted;
+    _Atomic int32_t silent;          // --silent: the meter sees the signal, the device zeros
+    _Atomic uint64_t varispeedRenders;
+    _Atomic(VibeVoiceMix *) mix;     // the bus; NULL until the first settlement
+    _Atomic(AudioUnit) varispeed;    // ordinary playback on macOS; NULL otherwise
+    _Atomic(VibeFXChain *) chain;    // the FX segment, which decides for itself whether it is connected
+    _Atomic(VibeLevelMeter *) meter; // the equalizer's, while wanted
+    double sampleRate;
+    uint32_t channels;
+};
+
+// The two calls the compiler cannot check: the varispeed's render, which
+// AudioToolbox documents as the render thread's own entry point and
+// attributes with nothing, and the meter's, which wraps the analyzer's FFT.
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfunction-effects"
+#endif
+static inline OSStatus VibeMasterBusRenderVarispeed(AudioUnit varispeed, const AudioTimeStamp *stamp, UInt32 frames,
+                                                    AudioBufferList *data) CA_REALTIME_API {
+    AudioUnitRenderActionFlags flags = 0;
+    return AudioUnitRender(varispeed, &flags, stamp, 0, frames, data);
+}
+
+static inline void VibeMasterBusMeter(VibeLevelMeter *meter, float *const *channels, UInt32 channelCount, UInt32 frames,
+                                      double sampleRate, const AudioTimeStamp *stamp) CA_REALTIME_API {
+    VibeLevelMeterRender(meter, channels, channelCount, frames, sampleRate, stamp);
+}
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic pop
+#endif
+
+// Everything the audio thread does. Plain memory and atomics, no call that
+// can block; the pragma makes the compiler hold that line.
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wfunction-effects"
+#endif
+static inline void VibeMasterBusZero(AudioBufferList *data, UInt32 frames) CA_REALTIME_API {
+    for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
+        if (data->mBuffers[b].mData) {
+            memset(data->mBuffers[b].mData, 0, frames * sizeof(float));
+        }
+    }
+}
+
+// The varispeed's input: the bus, for whatever count the unit asks.
+static OSStatus VibeMasterBusVarispeedInput(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp,
+                                            UInt32 bus, UInt32 frames, AudioBufferList *data) CA_REALTIME_API {
+    VibeMasterBus *master = refCon;
+    VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_relaxed);
+    if (!mix || !data) {
+        if (data) {
+            VibeMasterBusZero(data, frames);
+        }
+        if (flags) {
+            *flags |= kAudioUnitRenderAction_OutputIsSilence;
+        }
+        return noErr;
+    }
+    BOOL silence = NO;
+    OSStatus status = VibeVoiceBusRender(mix, &silence, stamp, frames, data);
+    if (silence && flags) {
+        *flags |= kAudioUnitRenderAction_OutputIsSilence;
+    }
+    return status;
+}
+
+static OSStatus VibeMasterBusRender(VibeMasterBus *master, const AudioTimeStamp *hostStamp, UInt32 frames,
+                                    AudioBufferList *data) CA_REALTIME_API {
+    atomic_store_explicit(&master->inRender, 1, memory_order_seq_cst);
+    if (!atomic_load_explicit(&master->gate, memory_order_seq_cst) || !data || data->mNumberBuffers < master->channels
+            || frames == 0 || frames > kVibeMasterBusMaxFrames) {
+        if (data) {
+            VibeMasterBusZero(data, frames);
+        }
+        atomic_store_explicit(&master->inRender, 0, memory_order_release);
+        return noErr;
+    }
+    // The stamp every stage sees: sample time on the output timeline, host
+    // time from the carrier's cycle when it has one.
+    uint64_t rendered = atomic_load_explicit(&master->frames, memory_order_relaxed);
+    AudioTimeStamp stamp = {0};
+    stamp.mSampleTime = (Float64)rendered;
+    stamp.mFlags = kAudioTimeStampSampleTimeValid;
+    if (hostStamp && (hostStamp->mFlags & kAudioTimeStampHostTimeValid)) {
+        stamp.mHostTime = hostStamp->mHostTime;
+        stamp.mFlags |= kAudioTimeStampHostTimeValid;
+    }
+    atomic_store_explicit(&master->pendingFrames, frames, memory_order_release);
+    OSStatus status = noErr;
+    VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_relaxed);
+    AudioUnit varispeed = atomic_load_explicit(&master->varispeed, memory_order_relaxed);
+    if (!mix) {
+        VibeMasterBusZero(data, frames);
+    }
+    else if (varispeed) {
+        atomic_fetch_add_explicit(&master->varispeedRenders, 1, memory_order_relaxed);
+        status = VibeMasterBusRenderVarispeed(varispeed, &stamp, frames, data);
+    }
+    else {
+        BOOL silence = NO;
+        status = VibeVoiceBusRender(mix, &silence, &stamp, frames, data);
+    }
+    VibeFXChain *chain = atomic_load_explicit(&master->chain, memory_order_relaxed);
+    if (chain) {
+        VibeFXChainRender(chain, &stamp, frames, data);
+    }
+    VibeLevelMeter *meter = atomic_load_explicit(&master->meterWanted, memory_order_seq_cst)
+            ? atomic_load_explicit(&master->meter, memory_order_relaxed) : NULL;
+    if (meter) {
+        float *channels[kVibeOutputMaxChannelsForMeter];
+        UInt32 count = master->channels < kVibeOutputMaxChannelsForMeter ? master->channels : kVibeOutputMaxChannelsForMeter;
+        for (UInt32 c = 0; c < count; c++) {
+            channels[c] = data->mBuffers[c].mData;
+        }
+        VibeMasterBusMeter(meter, channels, count, frames, master->sampleRate, &stamp);
+    }
+    if (atomic_load_explicit(&master->silent, memory_order_relaxed)) {
+        VibeMasterBusZero(data, frames);
+    }
+    atomic_store_explicit(&master->frames, rendered + frames, memory_order_release);
+    atomic_store_explicit(&master->pendingFrames, 0, memory_order_release);
+    atomic_store_explicit(&master->inRender, 0, memory_order_release);
+    return status;
+}
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#pragma clang diagnostic pop
+#endif
+
 #if TARGET_OS_OSX
-// The largest pull the engine's realtime block accepts; the unit slices a
-// larger IO cycle into pulls of this.
-static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
+// The output unit's proc; the master bus is the refCon.
+static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *timestamp, UInt32 frames,
+                                        AudioBufferList *data) CA_REALTIME_API {
+    return VibeMasterBusRender(refCon, timestamp, frames, data);
+}
 #endif
 
 @implementation AudioPlayer (Graph)
 
-#pragma mark - The engine and the master bus
+#pragma mark - The carrier
 
-- (void)createEngineAndMasterBusOnQueue {
-    _engine = [[AVAudioEngine alloc] init];
-    BOOL masterBusWired = NO;
+- (void)createOutputOnQueue {
+    if (!_masterBus) {
+        _masterBus = calloc(1, sizeof(VibeMasterBus));
+    }
+    _retiredRenderState = _retiredRenderState ?: [NSMutableArray array];
 #if DEBUG
-    // --no-audio-hw, for testing: put the engine in manual rendering mode so
-    // it never opens a CoreAudio output device. Starting the hardware IO —
-    // even with the mixer muted — counts as the Mac playing audio, which is
-    // enough for macOS to yank auto-switching AirPods over from another device
-    // mid-test. Must be enabled while the engine is stopped and before the
-    // graph is wired.
+    // --no-audio-hw, for testing: no device is opened at all, and the pump
+    // stands in for the IO thread, calling the pipeline at real-time pace or,
+    // frame-driven, when a test asks. Starting the hardware IO — even muted —
+    // counts as the Mac playing audio, which is enough for macOS to yank
+    // auto-switching AirPods over from another device mid-test.
     VibeManualRenderPump *pump = _manualPump;
     BOOL noAudioHW = pump != nil || [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
-    BOOL manualRendering = NO;
-    if (noAudioHW) {
-        NSError *manualError = nil;
-        AVAudioFormat *renderFormat = pump.format ?: [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0 channels:2];
-        manualRendering = [_engine enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline
-                                                      format:renderFormat
-                                           maximumFrameCount:kVibeManualPumpMaxFrames
-                                                       error:&manualError];
-        if (!manualRendering) {
-            if (pump) [NSException raise:NSInternalInconsistencyException format:@"Manual rendering required: %@", manualError];
-            // Pair --no-audio-hw with --silent, as launch.sh does, and
-            // playback at least stays inaudible.
-            LogError(@"AudioPlayer: --no-audio-hw manual rendering unavailable (%@)", manualError);
-        }
-    }
-    if (manualRendering) {
-        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:_engine.manualRenderingFormat];
-        if (!pump) {
-            pump = [[VibeManualRenderPump alloc] initWithFormat:_engine.manualRenderingFormat automatic:YES];
-            _manualPump = pump;
-        }
-        // The pump stands in for the IO thread: the frame-driven mode decodes
-        // inline before each slice, and both modes drain after it.
-        __weak AudioPlayer *weakSelf = self;
-        pump.beforeRender = pump.automatic ? nil : ^{
-            AudioPlayer *strongSelf = weakSelf;
-            [strongSelf->_voiceBus fillInline];
-        };
-        pump.afterRender = ^{ [weakSelf drainVoiceBusOnQueue]; };
-        [pump attachToEngine:_engine queue:_queue];
-        LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
-    }
+    // --silent, for testing: the pipeline renders normally, the meter sees
+    // the signal, and the buffers are zeroed on their way to the device,
+    // which still gets opened and driven.
+    atomic_store_explicit(&_masterBus->silent, [NSProcessInfo.processInfo.arguments containsObject:@"--silent"] ? 1 : 0,
+                          memory_order_relaxed);
+#elif TARGET_OS_OSX
+    const BOOL noAudioHW = NO;
 #endif
 #if TARGET_OS_OSX
-#if DEBUG
-    BOOL hosted = !manualRendering;
-#else
-    BOOL hosted = YES;
-#endif
-    if (hosted) {
-        // Vibe hosts the output: the engine renders in realtime manual mode
-        // and the unit's callback pulls it into the device. It begins on the
-        // system default at that device's rate; the saved device binds
-        // asynchronously through the checked device-switch path.
+    if (!noAudioHW) {
+        // Vibe hosts the output: the unit's callback pulls the pipeline into
+        // the device. It begins on the system default at that device's rate;
+        // the saved device binds asynchronously through the checked
+        // device-switch path.
         _outputUnit = [[AudioOutputUnit alloc] init];
         if (!_outputUnit) {
-            LogError(@"AudioPlayer: no HAL output unit; falling back to the engine's own output node");
+            LogError(@"AudioPlayer: no HAL output unit; nothing will play");
         }
         AudioDeviceID deviceID = kAudioObjectUnknown;
         Float64 rate = 0;
@@ -100,132 +222,267 @@ static const AVAudioFrameCount kVibeOutputUnitMaxFrames = 4096;
             }
             [CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID];
         }
-        masterBusWired = [self applyOutputRateOnQueue:rate > 0 ? rate : 44100];
-    }
-#endif
-    if (!masterBusWired) {
-        [self installMasterBusOnQueue];
+        if (![self applyOutputRateOnQueue:rate > 0 ? rate : 44100]) {
+            [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2]];
+        }
+        return;
     }
 #if DEBUG
-    // --silent, for testing: zero the main mixer so that playback runs
-    // normally but nothing audible reaches the output device, which still gets
-    // opened and driven. It sits downstream of every voice's gain and upstream
-    // of the FX returns, so wet tails are silenced too. It must run after the
-    // master bus is wired, because a mixer volume written before the mixer is
-    // attached and wired is silently dropped. See AudioFX.m.
-    if ([NSProcessInfo.processInfo.arguments containsObject:@"--silent"]) {
-        _engine.mainMixerNode.outputVolume = 0;
-        LogInfo(@"AudioPlayer: --silent, output muted");
+    AVAudioFormat *format = pump.format ?: [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0 channels:2];
+    if (!pump) {
+        pump = [[VibeManualRenderPump alloc] initWithFormat:format automatic:YES];
+        _manualPump = pump;
     }
+    // The pump is attached before the format lands: the format's FX reconcile
+    // schedules its ramps through the pump, which needs its queue by then.
+    // The gate is closed, so the paced pump renders silence until a start.
+    VibeMasterBus *master = _masterBus; // the blocks capture the pointer, never self
+    [self attachPumpOnQueue:pump render:^OSStatus(const AudioTimeStamp *timestamp, AVAudioPCMBuffer *chunk, AVAudioFrameCount count) {
+        chunk.frameLength = count;
+        return VibeMasterBusRender(master, timestamp, count, chunk.mutableAudioBufferList);
+    } running:^BOOL{
+        return atomic_load_explicit(&master->gate, memory_order_relaxed) != 0;
+    }];
+    [self setMasterBusFormatOnQueue:format];
+    LogInfo(@"AudioPlayer: --no-audio-hw, no output device");
+#endif
+#else
+    // iOS: the engine is the carrier and nothing else — one source node,
+    // whose block is the pipeline, into its output node.
+    _engine = [[AVAudioEngine alloc] init];
+    AVAudioFormat *format = nil;
+#if DEBUG
+    if (noAudioHW) {
+        NSError *manualError = nil;
+        AVAudioFormat *renderFormat = pump.format ?: [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0 channels:2];
+        if ([_engine enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline format:renderFormat
+                             maximumFrameCount:kVibeManualPumpMaxFrames error:&manualError]) {
+            format = _engine.manualRenderingFormat;
+            if (!pump) {
+                pump = [[VibeManualRenderPump alloc] initWithFormat:format automatic:YES];
+                _manualPump = pump;
+            }
+            AVAudioEngine *engine = _engine;
+            [self attachPumpOnQueue:pump render:^OSStatus(const AudioTimeStamp *timestamp, AVAudioPCMBuffer *chunk, AVAudioFrameCount count) {
+                // A graph mutation can temporarily prevent rendering. Retry only
+                // a zero-frame result; never discard or duplicate a partial block.
+                NSError *error = nil;
+                AVAudioEngineManualRenderingStatus status;
+                NSUInteger attempts = 0;
+                do {
+                    status = [engine renderOffline:count toBuffer:chunk error:&error];
+                } while (status == AVAudioEngineManualRenderingStatusCannotDoInCurrentContext
+                         && chunk.frameLength == 0 && ++attempts < 8);
+                return status == AVAudioEngineManualRenderingStatusSuccess && chunk.frameLength == count ? noErr : (OSStatus)(status ?: -1);
+            } running:^BOOL{
+                return engine.isRunning;
+            }];
+            LogInfo(@"AudioPlayer: --no-audio-hw, manual rendering, no output device");
+        }
+        else {
+            if (pump) [NSException raise:NSInternalInconsistencyException format:@"Manual rendering required: %@", manualError];
+            LogError(@"AudioPlayer: --no-audio-hw manual rendering unavailable (%@)", manualError);
+        }
+    }
+#endif
+    if (!format) {
+        double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+        format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2];
+    }
+    [self setMasterBusFormatOnQueue:format];
+    VibeMasterBus *master = _masterBus; // the block captures the pointer, never self
+    _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:format
+            renderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
+        *isSilence = NO;
+        return VibeMasterBusRender(master, timestamp, frameCount, outputData);
+    }];
+    [_engine attachNode:_sourceNode];
+    [_engine connect:_sourceNode to:_engine.outputNode format:format];
 #endif
 }
 
-// The explicit connect stands in for the implicit one AVAudioEngine makes on
-// mainMixerNode access, so the wiring is the same deterministic step in every
-// configuration: engine init, the iOS rebuild, and the macOS device rebind
-// whenever the standing route disagrees with the flags.
-- (void)installMasterBusOnQueue {
-    [self reconnectMasterBusOnQueueWithFormat:[_engine.mainMixerNode outputFormatForBus:0]];
+#if DEBUG
+- (void)attachPumpOnQueue:(VibeManualRenderPump *)pump
+                   render:(OSStatus (^)(const AudioTimeStamp *timestamp, AVAudioPCMBuffer *chunk, AVAudioFrameCount count))render
+                  running:(BOOL (^)(void))running {
+    // The pump stands in for the IO thread: the frame-driven mode decodes
+    // inline before each slice, and both modes drain after it.
+    __weak AudioPlayer *weakSelf = self;
+    pump.beforeRender = pump.automatic ? nil : ^{
+        AudioPlayer *strongSelf = weakSelf;
+        [strongSelf->_voiceBus fillInline];
+    };
+    pump.afterRender = ^{ [weakSelf drainVoiceBusOnQueue]; };
+    [pump attachRender:render running:running queue:_queue];
+}
+#endif
+
+// The pipeline's format changed: the master bus follows, and the FX chain is
+// re-hosted at it. The bus is the source segment's to rebuild.
+- (void)setMasterBusFormatOnQueue:(AVAudioFormat *)format {
+    _masterFormat = format;
+    _masterBus->sampleRate = format.sampleRate;
+    _masterBus->channels = format.channelCount;
+    [self reconcileFXOnQueue];
 }
 
-- (void)reconnectMasterBusOnQueueWithFormat:(AVAudioFormat *)format {
-    [_levelTap remove];
-    _levelTap = nil;
-    // Apple's default SRC leaves measurable ultrasonic aliases when reducing
-    // the output rate. The render suite holds their RMS below -90 dBFS.
-    _engine.mainMixerNode.AUAudioUnit.renderQuality = kRenderQuality_Max;
+- (AVAudioFormat *)masterBusFormatOnQueue {
+    return _masterFormat;
+}
+
+- (void)reconcileFXOnQueue {
+    if (!self.fx || !_masterFormat) {
+        return;
+    }
     BOOL enableFX = _fxEnabled;
 #if TARGET_OS_OSX
     enableFX &= !_bitPerfectWanted;
 #endif
-    [self.fx setConnected:enableFX inEngine:_engine format:format];
-    if (!self.fx.masterBusOutputNode) {
-        [_engine connect:_engine.mainMixerNode to:_engine.outputNode format:format];
-    }
-    // TRAP: every master-bus rewire must reconcile the tap on the new output path.
-    [self applyLevelTapOnQueue];
+    [self.fx setConnected:enableFX format:_masterFormat maximumFrameCount:kVibeMasterBusMaxFrames];
+    atomic_store_explicit(&_masterBus->chain, self.fx.chain, memory_order_release);
 }
 
 - (void)applyLevelTapOnQueue {
     BOOL wanted = _levelsWanted || self.signalProbeWanted;
-    if (wanted && _engine && !_levelTap && _levelPublisher) {
-        // Whatever feeds the output, which is the only place the bars can
-        // follow what is actually heard: the FX segment's sum when there is
-        // one, the mixer itself when there is not, since the returns re-enter
-        // downstream of it.
-        AVAudioNode *tapNode = self.fx.masterBusOutputNode ?: _engine.mainMixerNode;
-        _levelTap = [[AudioLevelTap alloc] initWithNode:tapNode
-                                              publisher:_levelPublisher
-                                       normalizationMode:_levelNormalizationMode];
+    if (wanted && !_levelTap && _levelPublisher && _masterFormat) {
+        // The final output samples, the only place the bars can follow what
+        // is actually heard: after the FX returns re-enter, before --silent.
+        _levelTap = [[AudioLevelTap alloc] initWithFormat:_masterFormat publisher:_levelPublisher
+                                        normalizationMode:_levelNormalizationMode];
+        if (!_levelTap) {
+            return;
+        }
+        atomic_store_explicit(&_masterBus->meter, _levelTap.meter, memory_order_release);
+        atomic_store_explicit(&_masterBus->meterWanted, 1, memory_order_seq_cst);
         if (_state == VibePlayerStatePlaying && _voice) {
             [self armSignalProbeOnQueue:@"tap installed during playback"];
         }
     }
     else if (!wanted && _levelTap) {
-        [_levelTap remove];
-        _levelTap = nil;
+        [self removeLevelTapOnQueue];
+    }
+}
+
+#if !TARGET_OS_OSX
+// The iOS media-services reset: every audio object is dead and must not be
+// messaged. The gate closes first, so a late render writes silence — the
+// engine is dead, but the guarantee costs nothing — and the bus goes with
+// it, its voices' files having died with the media server. The park and the
+// pending open go too: the file handles they would produce are dead, and a
+// download without a consumer is waste. createOutputOnQueue rebuilds.
+- (void)dropEngineBoundStateOnQueue {
+    if (_drainTimer) {
+        dispatch_source_cancel(_drainTimer);
+        _drainTimer = nil;
+    }
+    [_retiringVoices removeAllObjects];
+    atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
+    atomic_store_explicit(&_masterBus->mix, NULL, memory_order_seq_cst);
+    [self retireRenderObjectOnQueue:_voiceBus];
+    os_unfair_lock_lock(&_stateLock);
+    _voiceBus = nil;
+    _voice = 0;
+    os_unfair_lock_unlock(&_stateLock);
+    [self removeLevelTapOnQueue];
+    _sourceNode = nil;
+    _engine = nil;
+    [self refreshOutputAudioActiveOnQueue];
+    [self cancelPlayOpenOnQueue];
+    [self clearPrefetchOnQueue];
+    [_pendingRequest invalidate];
+    [self clearSuccessorOnQueue];
+}
+#endif
+
+- (void)removeLevelTapOnQueue {
+    AudioLevelTap *tap = _levelTap;
+    _levelTap = nil;
+    atomic_store_explicit(&_masterBus->meterWanted, 0, memory_order_seq_cst);
+    atomic_store_explicit(&_masterBus->meter, NULL, memory_order_relaxed);
+    [self retireRenderObjectOnQueue:tap];
+    [tap remove];
+}
+
+// The removal was published before this is called: a render that read the
+// object set inRender before that store was seen, and finishes on its own
+// within a block's time, so a render seen outside guarantees none is inside.
+// A render that does not leave within the bound keeps the object alive in
+// the graveyard until an edge sees the render outside.
+- (void)retireRenderObjectOnQueue:(id)object {
+    VibeMasterBus *master = _masterBus;
+    for (int spin = 0; spin < kRetireSpinLimit; spin++) {
+        if (!atomic_load_explicit(&master->inRender, memory_order_seq_cst)) {
+            [_retiredRenderState removeAllObjects];
+            return;
+        }
+        usleep(kRetireSpinMicroseconds);
+    }
+    if (object) {
+        [_retiredRenderState addObject:object];
     }
 }
 
 #if TARGET_OS_OSX
-// The unit's proc: the engine's realtime block, which is the refCon. The one
-// call the compiler cannot check: AVFoundation documents the block as safe to
-// call from a render thread and attributes it with nothing. A render the
-// engine refuses because a queue-side mutation holds its lock is asked again
-// before the slice becomes silence.
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfunction-effects"
-#endif
-static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timestamp, UInt32 frames,
-                                     AudioBufferList *data) CA_REALTIME_API {
-    __unsafe_unretained AVAudioEngineManualRenderingBlock block = (__bridge __unsafe_unretained AVAudioEngineManualRenderingBlock)refCon;
-    OSStatus status = noErr;
-    AVAudioEngineManualRenderingStatus result = AVAudioEngineManualRenderingStatusCannotDoInCurrentContext;
-    for (int attempt = 0; attempt < 4 && result == AVAudioEngineManualRenderingStatusCannotDoInCurrentContext; attempt++) {
-        result = block(frames, data, &status);
-    }
-    return result == AVAudioEngineManualRenderingStatusSuccess ? noErr : (status != noErr ? status : (OSStatus)result);
-}
-#if defined(__has_warning) && __has_warning("-Wfunction-effects")
-#pragma clang diagnostic pop
-#endif
-
-// TRAP: never disableManualRenderingMode — it opens the default output
-// device. The rate changes by enabling manual rendering again at the new
-// format, which keeps every node and connection (measured: rtrender.swift).
 - (BOOL)applyOutputRateOnQueue:(double)rate {
     if (!_outputUnit) {
         return NO;
     }
-    if (_engine.isInManualRenderingMode && _engine.manualRenderingFormat.sampleRate == rate
-            && _outputUnit.format.sampleRate == rate) {
+    if (_masterBus->sampleRate == rate && _outputUnit.format.sampleRate == rate) {
         return YES;
     }
-    [self stopEngineOnQueue];
-    [_levelTap remove];
-    _levelTap = nil;
+    [self stopOutputOnQueue];
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
     NSError *error = nil;
-    if (![_engine enableManualRenderingMode:AVAudioEngineManualRenderingModeRealtime format:format
-                          maximumFrameCount:kVibeOutputUnitMaxFrames error:&error]) {
-        LogError(@"AudioPlayer: realtime manual rendering at %.0f Hz refused (%@)", rate, error);
-        return NO;
-    }
-    _engineRenderBlock = _engine.manualRenderingBlock;
-    if (![_outputUnit configureFormat:format maximumFrameCount:kVibeOutputUnitMaxFrames
-                           renderProc:VibeEngineRenderProc refCon:(__bridge void *)_engineRenderBlock error:&error]) {
+    if (![_outputUnit configureFormat:format maximumFrameCount:kVibeMasterBusMaxFrames
+                           renderProc:VibeMasterBusRenderProc refCon:_masterBus error:&error]) {
         LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
         return NO;
     }
-    // The master bus is wired at the new format directly, never read back
-    // from the mixer, whose output still carries the old rate until the
-    // wiring sets it; the FX segment rewires itself whole across a rate.
-    [self reconnectMasterBusOnQueueWithFormat:format];
+    [self setMasterBusFormatOnQueue:format];
+    // A bus at the old rate would play at the wrong speed with nothing left
+    // to resample it; the callers guarantee nothing audible.
+    if (_voiceBus) {
+        [self ensureSourceSegmentOnQueueRebuilt:NULL];
+    }
     LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
     return YES;
 }
 #endif
+
+- (BOOL)renderingOnQueue {
+#if TARGET_OS_OSX
+    return atomic_load_explicit(&_masterBus->gate, memory_order_relaxed) != 0;
+#else
+    return _engine.isRunning;
+#endif
+}
+
+- (AVAudioTime *)outputRenderTimeOnQueue {
+    if (!_masterFormat) {
+        return nil;
+    }
+    uint64_t frames = atomic_load_explicit(&_masterBus->frames, memory_order_acquire)
+            + atomic_load_explicit(&_masterBus->pendingFrames, memory_order_acquire);
+    return [AVAudioTime timeWithSampleTime:(AVAudioFramePosition)frames atRate:_masterFormat.sampleRate];
+}
+
+- (BOOL)varispeedPresentOnQueue {
+    return atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed) != NULL;
+}
+
+- (NSTimeInterval)varispeedLatencyOnQueue {
+    AudioUnit varispeed = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
+    Float64 latency = 0;
+    UInt32 size = sizeof(latency);
+    if (varispeed) {
+        AudioUnitGetProperty(varispeed, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &latency, &size);
+    }
+    return latency;
+}
+
+- (NSUInteger)hostedUnitCountOnQueue {
+    return ([self varispeedPresentOnQueue] ? 1 : 0) + self.fx.hostedUnitCount;
+}
 
 #pragma mark - The source segment
 
@@ -246,45 +503,95 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
     return format;
 }
 
-- (BOOL)ensureSourceSegmentOnQueueForFile:(AVAudioFile *)file rebuilt:(BOOL *)rebuilt {
+// Hosts Apple's Varispeed unit at `format` over the bus. TRAP: a directly
+// hosted unit defaults to 1156 frames per slice and refuses the output's
+// 4096-frame slices with kAudioUnitErr_TooManyFramesToProcess; AVAudioEngine
+// set this on every node for us.
+- (AudioUnit)hostVarispeedOnQueueWithFormat:(AVAudioFormat *)format {
+    AudioComponentDescription description = {
+        .componentType = kAudioUnitType_FormatConverter, .componentSubType = kAudioUnitSubType_Varispeed,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+    };
+    AudioComponent component = AudioComponentFindNext(NULL, &description);
+    AudioUnit unit = NULL;
+    if (!component || AudioComponentInstanceNew(component, &unit) != noErr || !unit) {
+        LogError(@"AudioPlayer: no Varispeed unit");
+        return NULL;
+    }
+    AudioStreamBasicDescription asbd = *format.streamDescription;
+    UInt32 maxFrames = kVibeMasterBusMaxFrames;
+    AURenderCallbackStruct input = { .inputProc = VibeMasterBusVarispeedInput, .inputProcRefCon = _masterBus };
+    OSStatus status = AudioUnitSetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, sizeof(asbd));
+    if (status == noErr) {
+        status = AudioUnitSetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, sizeof(asbd));
+    }
+    if (status == noErr) {
+        status = AudioUnitSetProperty(unit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFrames, sizeof(maxFrames));
+    }
+    if (status == noErr) {
+        status = AudioUnitSetProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
+    }
+    if (status == noErr) {
+        status = AudioUnitInitialize(unit);
+    }
+    if (status != noErr) {
+        LogError(@"AudioPlayer: hosting the Varispeed unit failed (OSStatus %d)", (int)status);
+        AudioComponentInstanceDispose(unit);
+        return NULL;
+    }
+    return unit;
+}
+
+- (void)disposeVarispeedOnQueue {
+    AudioUnit varispeed = atomic_exchange_explicit(&_masterBus->varispeed, NULL, memory_order_seq_cst);
+    if (!varispeed) {
+        return;
+    }
+    [self retireRenderObjectOnQueue:nil];
+    AudioUnitUninitialize(varispeed);
+    AudioComponentInstanceDispose(varispeed);
+}
+
+- (BOOL)ensureSourceSegmentOnQueueRebuilt:(BOOL *)rebuilt {
     if (rebuilt) {
         *rebuilt = NO;
     }
-    // Bit-perfect output delivers each file at its own format, with no
-    // varispeed; ordinary playback has one bus format for the engine's life,
-    // the mixer's own, so the bus converts every file once and the mixer
-    // converts nothing.
-    BOOL bitPerfect = [self bitPerfectOnQueue];
-    AVAudioFormat *wanted = bitPerfect ? file.processingFormat : [_engine.mainMixerNode outputFormatForBus:0];
-    // A standard format stops at stereo; a wider bus is the format itself,
-    // layout included, which is what the mixer folds it down by.
-    AVAudioFormat *busFormat = wanted.channelCount > 2 ? wanted
-            : [[AVAudioFormat alloc] initStandardFormatWithSampleRate:wanted.sampleRate channels:wanted.channelCount];
-    if (_voiceBus && VibeFormatsMatch(_voiceBus.format, busFormat) && (_varispeed == nil) == bitPerfect) {
+    AVAudioFormat *busFormat = _masterFormat;
+    if (!busFormat) {
+        return NO;
+    }
+    // The bus always runs at the output's format, so a mode toggle or an
+    // output rate change rebuilds it; the varispeed exists only for ordinary
+    // playback on macOS, where pitch can leave zero.
+#if TARGET_OS_OSX
+    BOOL wantVarispeed = ![self bitPerfectOnQueue];
+#else
+    BOOL wantVarispeed = NO;
+#endif
+    if (_voiceBus && VibeFormatsMatch(_voiceBus.format, busFormat) && [self varispeedPresentOnQueue] == wantVarispeed) {
         return YES;
     }
     // Every voice dies with the old segment; the callers made sure none was
-    // audible. The engine must be stopped to rewire. The bus pointer is
+    // audible. The output must be stopped to rebuild. The bus pointer is
     // written under the lock because the position getter reads it off it.
-    [self stopEngineOnQueue];
+    [self stopOutputOnQueue];
     if (_voiceBus) {
-        [_engine detachNode:_voiceBus.sourceNode];
+        AudioVoiceBus *old = _voiceBus;
+        atomic_store_explicit(&_masterBus->mix, NULL, memory_order_seq_cst);
+        [self retireRenderObjectOnQueue:old];
         // TRAP: the new voice takes the same AVAudioFile, and the old bus's
         // decoder may be inside a read of it — its queued turns retain the
         // bus, not this player — so it is stopped and waited for first;
         // without that both decoders moved the file's position and the new
         // voice ended early.
-        [_voiceBus stopReading];
+        [old stopReading];
         os_unfair_lock_lock(&_stateLock);
         _voiceBus = nil;
         os_unfair_lock_unlock(&_stateLock);
         [_retiringVoices removeAllObjects];
         [self unpublishVoiceOnQueue];
     }
-    if (_varispeed) {
-        [_engine detachNode:_varispeed];
-        _varispeed = nil;
-    }
+    [self disposeVarispeedOnQueue];
 #if DEBUG
     BOOL inlineDecoding = _manualPump != nil && ![(VibeManualRenderPump *)_manualPump automatic];
 #else
@@ -297,34 +604,20 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
     }
     __weak AudioPlayer *weakSelf = self;
     bus.voiceWentLive = ^{ [weakSelf drainVoiceBusOnQueue]; };
-    [_engine attachNode:bus.sourceNode];
-    if (!bitPerfect) {
-        _varispeed = [[AVAudioUnitVarispeed alloc] init];
-        [_engine attachNode:_varispeed];
-    }
-    @try {
-        if (_varispeed) {
-            [_engine connect:bus.sourceNode to:_varispeed format:busFormat];
-            [_engine connect:_varispeed to:_engine.mainMixerNode format:busFormat];
+    AudioUnit varispeed = NULL;
+    if (wantVarispeed) {
+        varispeed = [self hostVarispeedOnQueueWithFormat:busFormat];
+        if (!varispeed) {
+            return NO;
         }
-        else {
-            [_engine connect:bus.sourceNode to:_engine.mainMixerNode format:busFormat];
-        }
-    }
-    @catch (NSException *exception) {
-        LogError(@"AudioPlayer: engine connect failed for %@: %@", busFormat, exception);
-        [_engine detachNode:bus.sourceNode];
-        if (_varispeed) {
-            [_engine detachNode:_varispeed];
-            _varispeed = nil;
-        }
-        return NO;
     }
     os_unfair_lock_lock(&_stateLock);
     _voiceBus = bus;
     _busSampleRate = busFormat.sampleRate;
     float pitch = _pitch;
     os_unfair_lock_unlock(&_stateLock);
+    atomic_store_explicit(&_masterBus->mix, bus.mix, memory_order_release);
+    atomic_store_explicit(&_masterBus->varispeed, varispeed, memory_order_release);
     [self applyPitchOnQueue:pitch];
     if (rebuilt) {
         *rebuilt = YES;
@@ -333,36 +626,66 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
 }
 
 // The one mapping from the published pitch to the varispeed: a ratio, and
-// bypass at zero, because even a ratio of 1.0 is not a pass-through.
+// bypass at zero, because even a ratio of 1.0 is not a pass-through
+// (measured: 0.04 on noise) while the unit's own bypass is exact.
 - (void)applyPitchOnQueue:(float)pitch {
-    _varispeed.rate = 1.0f + pitch / 100.0f;
-    _varispeed.bypass = pitch == 0;
+    AudioUnit varispeed = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
+    if (!varispeed) {
+        return;
+    }
+    AudioUnitSetParameter(varispeed, kVarispeedParam_PlaybackRate, kAudioUnitScope_Global, 0, 1.0f + pitch / 100.0f, 0);
+    UInt32 bypass = pitch == 0;
+    AudioUnitSetProperty(varispeed, kAudioUnitProperty_BypassEffect, kAudioUnitScope_Global, 0, &bypass, sizeof(bypass));
 }
 
 #pragma mark - Starting and stopping
 
-- (BOOL)startEngineOnQueue:(NSError **)outError {
+- (BOOL)startOutputOnQueue:(NSError **)outError {
     if (outError) {
         *outError = nil;
     }
     if (_terminating) {
         return NO;
     }
-    _engineIdleStopGeneration++; // playback is starting: cancel any pending idle stop
-    if (!_engine.isRunning) {
-#if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
-        [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
-            [self acquireExclusiveOutputOnQueue];
-            return YES; // ownership confirmation is logged by the nested hog phase
-        }];
+    _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
+    if (![self renderingOnQueue]) {
+#if TARGET_OS_OSX
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        if (_outputUnit) {
+            [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
+                [self acquireExclusiveOutputOnQueue];
+                return YES; // ownership confirmation is logged by the nested hog phase
+            }];
+        }
 #endif
+        // The gate opens before the unit starts, so the first cycle renders.
+        atomic_store_explicit(&_masterBus->gate, 1, memory_order_seq_cst);
+        if (_outputUnit && !_outputUnit.running) {
+            __block NSError *unitError = nil;
+            uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+            BOOL pulling = [self performDiagnosticPhase:@"output unit start" device:(NSInteger)_outputUnit.deviceID operation:^BOOL{
+                return [self->_outputUnit startWithError:&unitError];
+            }];
+            NSTimeInterval seconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startedAt) / NSEC_PER_SEC;
+            BOOL slow = seconds > kSlowOutputStartLogThresholdSeconds;
+            LogTiming(slow, @"AudioPlayer: %@output start %.3fs (the player queue was blocked for this long)",
+                      slow ? @"slow " : @"", seconds);
+            if (!pulling) {
+                atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
+                if (outError) {
+                    *outError = unitError;
+                }
+                return NO;
+            }
+        }
+#else
         __block NSError *startError = nil;
         uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         BOOL started = [self performDiagnosticPhase:@"engine start" device:-1 operation:^BOOL{
             return [self->_engine startAndReturnError:&startError];
         }];
         NSTimeInterval seconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startedAt) / NSEC_PER_SEC;
-        BOOL slow = seconds > kSlowEngineStartLogThresholdSeconds;
+        BOOL slow = seconds > kSlowOutputStartLogThresholdSeconds;
         LogTiming(slow, @"AudioPlayer: %@engine start %.3fs (the player queue was blocked for this long)",
                   slow ? @"slow " : @"", seconds);
         if (!started) {
@@ -371,37 +694,23 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
             }
             return NO;
         }
-    }
-    // A tap request made against a not-yet-runnable graph can observe a
-    // temporarily unusable output format and return nil; an engine start is
-    // the next lifecycle edge to retry it on.
-    [self applyLevelTapOnQueue];
-#if TARGET_OS_OSX
-    // The unit starts last, so the engine is running whenever its gate is open.
-    if (_outputUnit && !_outputUnit.running) {
-        __block NSError *unitError = nil;
-        BOOL pulling = [self performDiagnosticPhase:@"output unit start" device:(NSInteger)_outputUnit.deviceID operation:^BOOL{
-            return [self->_outputUnit startWithError:&unitError];
-        }];
-        if (!pulling) {
-            [_engine stop];
-            if (outError) {
-                *outError = unitError;
-            }
-            return NO;
-        }
-    }
+        atomic_store_explicit(&_masterBus->gate, 1, memory_order_seq_cst);
 #endif
+    }
+    [self applyLevelTapOnQueue];
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
     return YES;
 }
 
-- (void)stopEngineOnQueue {
+- (void)stopOutputOnQueue {
 #if TARGET_OS_OSX
-    [_outputUnit stop]; // gate closed and no cycle in flight before the engine stops
-#endif
+    [_outputUnit stop]; // gate closed and no cycle in flight before the pipeline's own gate closes
+#else
     [_engine stop];
+#endif
+    atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
+    [self retireRenderObjectOnQueue:nil];
     for (NSNumber *voice in _retiringVoices) {
         [_voiceBus killVoice:voice.unsignedLongLongValue];
     }
@@ -409,27 +718,27 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
     [self updateDrainTimerOnQueue];
 }
 
-- (void)scheduleEngineIdleStopOnQueue {
+- (void)scheduleOutputIdleStopOnQueue {
     if (_terminating) {
         return;
     }
-    uint64_t generation = ++_engineIdleStopGeneration;
+    uint64_t generation = ++_outputIdleStopGeneration;
     __weak AudioPlayer *weakSelf = self;
-    [self scheduleAfterSeconds:kEngineIdleStopDelaySeconds block:^{
+    [self scheduleAfterSeconds:kOutputIdleStopDelaySeconds block:^{
         AudioPlayer *strongSelf = weakSelf;
-        if (!strongSelf || generation != strongSelf->_engineIdleStopGeneration) {
+        if (!strongSelf || generation != strongSelf->_outputIdleStopGeneration) {
             return;
         }
         os_unfair_lock_lock(&strongSelf->_stateLock);
         VibePlayerState state = strongSelf->_state;
         os_unfair_lock_unlock(&strongSelf->_stateLock);
-        // Only a still-idle player stops the engine. Loading counts as busy,
-        // because the in-flight open's settlement wants a warm engine. A
-        // paused voice keeps its state; resume restarts the engine.
+        // Only a still-idle player stops the output. Loading counts as busy,
+        // because the in-flight open's settlement wants a warm output. A
+        // paused voice keeps its state; resume restarts the output.
         if (state != VibePlayerStateStopped && state != VibePlayerStatePaused) {
             return;
         }
-        [strongSelf stopEngineOnQueue];
+        [strongSelf stopOutputOnQueue];
 #if TARGET_OS_OSX && VIBE_ENABLE_EXCLUSIVE_OUTPUT
         [strongSelf releaseExclusiveOutputOnQueue];
 #endif
@@ -443,7 +752,7 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
     if (!bus) {
         return;
     }
-    [bus drainWithEngineRunning:_engine.isRunning handler:^(VibeVoiceID voice, VibeVoiceEvent event) {
+    [bus drainWithOutputRunning:[self renderingOnQueue] handler:^(VibeVoiceID voice, VibeVoiceEvent event) {
         BOOL current = voice == self->_voice;
         [self noteBusEvent:event voice:voice current:current];
         switch (event) {
@@ -495,7 +804,7 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
         return; // the pump drains after every slice
     }
 #endif
-    BOOL wanted = _engine.isRunning && _voiceBus.occupiedSlotCount > 0;
+    BOOL wanted = [self renderingOnQueue] && _voiceBus.occupiedSlotCount > 0;
     if (wanted == (_drainTimer != nil)) {
         return;
     }
@@ -510,36 +819,6 @@ static OSStatus VibeEngineRenderProc(void *refCon, const AudioTimeStamp *timesta
     __weak AudioPlayer *weakSelf = self;
     dispatch_source_set_event_handler(_drainTimer, ^{ [weakSelf drainVoiceBusOnQueue]; });
     dispatch_resume(_drainTimer);
-}
-
-#pragma mark - Rebuilding
-
-// The caller may hold a defunct engine whose graph must not be touched, as
-// after an iOS media-services reset. The bus goes with it: its voices' files
-// died with the media server, and the render block's memory outlives the bus
-// on its own. The park and the pending open go too — the file handles they
-// would produce are dead, and a download without a consumer is waste.
-- (void)dropEngineBoundStateOnQueue {
-    if (_drainTimer) {
-        dispatch_source_cancel(_drainTimer);
-        _drainTimer = nil;
-    }
-    [_retiringVoices removeAllObjects];
-    os_unfair_lock_lock(&_stateLock);
-    _voiceBus = nil;
-    _voice = 0;
-    os_unfair_lock_unlock(&_stateLock);
-    _varispeed = nil;
-    // Abandoned rather than removed: removeTapOnBus: would message a node
-    // belonging to the engine this method exists to stop touching.
-    [_levelTap abandon];
-    _levelTap = nil;
-    _engine = nil;
-    [self refreshOutputAudioActiveOnQueue];
-    [self cancelPlayOpenOnQueue];
-    [self clearPrefetchOnQueue];
-    [_pendingRequest invalidate];
-    [self clearSuccessorOnQueue];
 }
 
 @end

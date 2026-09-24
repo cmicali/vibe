@@ -9,7 +9,7 @@
 //  AudioPlayer.h.
 //
 //  Ownership, in one place. The PLAYER QUEUE runs every transport verb and
-//  every graph mutation. _stateLock guards only the snapshot the main-thread
+//  every output mutation. _stateLock guards only the snapshot the main-thread
 //  getters read — the published tuple that publishState:… writes whole. The
 //  audio itself is the bus's (AudioVoiceBus.h): the transport starts voices,
 //  ramps them, retires them, and drains the three events it needs back.
@@ -40,6 +40,9 @@
 #import "AudioPlayer+Prefetch.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+// The pipeline's audio-thread state, AudioPlayer+Graph.m's.
+typedef struct VibeMasterBus VibeMasterBus;
 
 typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
@@ -122,14 +125,19 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
     AVAudioFile             *_successorFile;    // the park's instance the bus was handed
 
-    // ---- The engine graph (AudioPlayer+Graph.m).
-    AVAudioEngine           *_engine;
+    // ---- The render pipeline (AudioPlayer+Graph.m).
+    VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated once, freed at dealloc
+    AVAudioFormat           *_masterFormat;     // the pipeline's format: stereo at the output's rate
+    NSMutableArray          *_retiredRenderState; // objects a render would not leave in time, released at a later edge
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
-    AVAudioUnitVarispeed    *_varispeed;        // one, for the bus; none under bit-perfect output
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
-    uint64_t                _engineIdleStopGeneration;
-    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the engine runs voices
+    uint64_t                _outputIdleStopGeneration;
+    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
+#if !TARGET_OS_OSX
+    AVAudioEngine           *_engine;           // the carrier: one source node into its output node
+    AVAudioSourceNode       *_sourceNode;
+#endif
     // The equalizer's tap: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
     BOOL                    _levelsWanted;
@@ -146,12 +154,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 #if TARGET_OS_OSX
     // ---- The output device. The hosted HAL output unit that pulls the
-    // engine is AudioPlayer+Graph.m's: its bound device is the output, and it
-    // is nil under the debug pump, whose offline engine has no device.
+    // pipeline is AudioPlayer+Graph.m's: its bound device is the output, and
+    // it is nil under the debug pump, which has no device.
     // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
-    // The engine's realtime block the unit's proc pulls, retained here.
-    AVAudioEngineManualRenderingBlock _engineRenderBlock;
     // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).

@@ -176,7 +176,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     stamp.mSampleTime = _sampleTime;
     stamp.mFlags = kAudioTimeStampSampleTimeValid;
     BOOL silence = NO;
-    OSStatus status = _bus.renderBlock(&silence, &stamp, frames, _output);
+    OSStatus status = VibeVoiceBusRender(_bus.mix, &silence, &stamp, frames, _output);
     XCTAssertEqual(status, noErr);
     _sampleTime += frames;
     if (capture) {
@@ -193,7 +193,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 - (void)drain {
-    [_bus drainWithEngineRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {
+    [_bus drainWithOutputRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {
         [self->_events addObject:@{@"voice": @(voice), @"event": @(event)}];
         if (event == VibeVoiceEventEnded) {
             VibeVoiceSnapshot snapshot = [self->_bus snapshotOfVoice:voice];
@@ -563,7 +563,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
     XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateArmed);
     [_bus killVoice:voice];
-    [_bus drainWithEngineRunning:NO handler:^(VibeVoiceID v, VibeVoiceEvent e) {}];
+    [_bus drainWithOutputRunning:NO handler:^(VibeVoiceID v, VibeVoiceEvent e) {}];
     XCTAssertEqual([_bus occupiedSlotCount], 0u);
 }
 
@@ -704,13 +704,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     dispatch_semaphore_wait(initialEntered, DISPATCH_TIME_FOREVER);
     VibeVoiceID old = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
     [_bus killVoice:old];
-    [_bus drainWithEngineRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+    [_bus drainWithOutputRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
     dispatch_async(decoder, ^{
         dispatch_semaphore_signal(betweenEntered);
         dispatch_semaphore_wait(between, DISPATCH_TIME_FOREVER);
     });
     // A second poll while recycling is still waiting behind decoder work.
-    [_bus drainWithEngineRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+    [_bus drainWithOutputRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
     dispatch_semaphore_signal(initial);
     dispatch_semaphore_wait(betweenEntered, DISPATCH_TIME_FOREVER);
     XCTAssertEqual([_bus occupiedSlotCount], 0u);
@@ -1041,7 +1041,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         VibeVoiceID old = [self startFile:oldFile gain:1 ramp:[self unity] paused:NO];
         XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
         [bus killVoice:old];
-        [bus drainWithEngineRunning:NO handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+        [bus drainWithOutputRunning:NO handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
         dispatch_semaphore_signal(letRead); // the read finishes and re-dispatches a turn behind the recycle
         XCTAssertEqual(dispatch_semaphore_wait(recycled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
         dispatch_async(_queue, ^{ current = [self startFile:newFile gain:1 ramp:[self unity] paused:NO]; });

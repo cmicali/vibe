@@ -12,7 +12,7 @@ corpus of real audio files, and checks four oracles between batches:
   consistency check_consistency has no       (re-checked after a settle, since a
               surviving violations           render can lag its state change)
   health      dump_health has not grown      (footprint, fds, threads, windows,
-              without bound                   views, engine nodes)
+              without bound                   views, hosted units)
   crash       the process is still alive     (and no fresh .ips landed)
 
 Every run is reproducible: the seed is printed at the start and `--seed N`
@@ -1367,7 +1367,7 @@ GROWTH_LIMITS = {
     # shared mask path. Views stay the sensitive UI metric; a real layer leak
     # is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
-    ("app", "engineNodes"): (4, "engine nodes"),
+    ("app", "hostedUnits"): (4, "hosted units"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1379,8 +1379,8 @@ GROWTH_LIMITS = {
 # Every headroom below is set from measured ranges over loading-profile runs,
 # not guessed:
 #
-#   views 47, windows 1, engine nodes flat (the voice bus and its varispeed
-#   are built once), every pending counter 0 — dead stable across runs, so
+#   views 47, windows 1, hosted units flat (the varispeed and the FX units
+#   are hosted once), every pending counter 0 — dead stable across runs, so
 #   these are the sensitive ones. Layers are NOT; see the limit below.
 #   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
 #   folder is open.
@@ -1421,7 +1421,7 @@ RESTING_GROWTH_LIMITS = {
     # ~101 with any Detailed style at any width, ~2,048 with Sonic Cirrus at a
     # wide one. Until the resting sample pins both, this cannot be tight.
     ("ui", "layers"): (2400, "resting layers"),
-    ("app", "engineNodes"): (4, "resting engine nodes"),
+    ("app", "hostedUnits"): (4, "resting hosted units"),
     **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1551,7 +1551,7 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
         print(f"  rest {executed:6d} ops   "
               f"{health['process'].get('footprintBytes', 0) // (1024 * 1024):5d} MB   "
               f"{health['process'].get('mallocLiveBytes', 0) // (1024 * 1024):4d} MB live   "
-              f"{health['app'].get('engineNodes', '?')} nodes   pending {pending}")
+              f"{health['app'].get('hostedUnits', '?')} units   pending {pending}")
     if baseline is None:
         if len(samples) >= RESTING_CONFIRMATIONS:
             return None, min_baseline(samples, RESTING_GROWTH_LIMITS)
@@ -1987,7 +1987,7 @@ def run(args):
                     if len(health_samples) % 5 == 0 or args.verbose:
                         footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
                         print(f"  {executed:6d} ops   {footprint:5d} MB   "
-                              f"{health['app'].get('engineNodes', '?')} nodes   "
+                              f"{health['app'].get('hostedUnits', '?')} units   "
                               f"{health['process'].get('fileDescriptors', '?')} fds")
 
                 batches += 1

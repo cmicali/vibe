@@ -15,7 +15,7 @@
 // Lossless paths still require exact samples; AAC stays below -126 dBFS.
 static const float kVibeAACDecodeTolerance = 4 * FLT_EPSILON;
 
-// Interleaved float PCM keeps the oracle independent of AVAudioEngine's buffers.
+// Interleaved float PCM keeps the oracle independent of the render's buffers.
 static NSMutableData *PCM(AVAudioPCMBuffer *buffer) {
     NSUInteger channels = buffer.format.channelCount;
     NSMutableData *data = [NSMutableData dataWithLength:buffer.frameLength * channels * sizeof(float)];
@@ -194,7 +194,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (NSDictionary *)settledSignalSnapshot {
     __block NSDictionary *signal;
     BOOL (^read)(void) = ^BOOL {
-        [self->_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+        [self->_player runSyncOnQueue:^{ signal = [[self->_player debugLevelTap] signalDiagnosticSnapshot]; }];
         return [signal[@"aboveThreshold"] boolValue];
     };
     [self settleUntil:read];
@@ -209,7 +209,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player = [[AudioPlayer alloc] initForManualRendering:format enableFX:fx automatic:automatic delegate:self];
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
-    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"mixerRate"] doubleValue], rate, 0);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], rate, 0);
     [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx];
     [_player runSyncOnQueue:^{}]; // Land setup before a test replaces the mode provider.
 }
@@ -313,7 +313,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:NO automatic:NO];
         NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
         NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:fx.boolValue ? 1e-10f : 0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
     }
 }
 - (void)testLosslessContainersAndExtensionAliases {
@@ -606,8 +606,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 
 // Two 5.1 files in different channel orders under bit-perfect output: the bus
-// is rebuilt for the second, so its center still reaches both sides.
-- (void)testBitPerfectRebuildsTheBusForAChangedChannelLayout {
+// folds each by its own layout, so its center still reaches both sides.
+- (void)testBitPerfectFoldsEachChannelLayoutInsideTheStereoBus {
     NSMutableArray<NSURL *> *files = [NSMutableArray array];
     NSArray<NSNumber *> *tags = @[@(kAudioChannelLayoutTag_MPEG_5_1_A), @(kAudioChannelLayoutTag_MPEG_5_1_B)];
     NSUInteger center[2] = { 2, 4 };
@@ -631,8 +631,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 
 // A 5.1 file with sound in the center only, which a first-channels map
-// silences: ordinary playback folds it by layout on the bus, bit-perfect on
-// the mixer, the bus being the file's own width with its layout.
+// silences: both modes fold it by layout inside the stereo bus.
 - (void)testASurroundFileIsAudibleInStereo {
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:48000 interleaved:NO
             channelLayout:[AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A]];
@@ -816,7 +815,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         _player.levelsEnabled=YES;
         __block AudioLevelTap *tap;
         [_player runSyncOnQueue:^{
-            tap = [self->_player valueForKey:@"levelTap"];
+            tap = [self->_player debugLevelTap];
             XCTAssertNotEqual([[tap signalDiagnosticSnapshot][@"request"] unsignedLongLongValue], 0u);
         }];
         [self render:16000];
@@ -844,7 +843,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     __block NSDictionary *signal;
     NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
-        tap = [self->_player valueForKey:@"levelTap"];
+        tap = [self->_player debugLevelTap];
         request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
@@ -881,7 +880,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
 }
 - (void)testSignalDiagnosticsKeepInterruptedCaptures {
-    for (NSString *action in @[@"tap removed", @"tap abandoned", @"superseded"]) {
+    for (NSString *action in @[@"tap removed", @"superseded"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"silence.wav"] paused:NO position:0];
@@ -889,7 +888,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block AudioLevelTap *tap;
         __block uint64_t request;
         [_player runSyncOnQueue:^{
-            tap = [self->_player valueForKey:@"levelTap"];
+            tap = [self->_player debugLevelTap];
             request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         }];
         [self render:16000];
@@ -898,7 +897,6 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertGreaterThan([partial[@"frames"] unsignedLongLongValue], 0u);
             XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
             if ([action isEqual:@"tap removed"]) [tap remove];
-            else if ([action isEqual:@"tap abandoned"]) [tap abandon];
             else [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
             XCTAssertEqual(completed.count, 1u);
             NSDictionary *result = completed.firstObject;
@@ -915,7 +913,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
                 XCTAssertEqualObjects(completed.lastObject[@"status"], @"no buffers observed");
             } else {
                 XCTAssertEqualObjects([tap signalDiagnosticSnapshot], result);
-                [tap remove]; [tap abandon];
+                [tap remove]; [tap remove];
                 XCTAssertEqual(completed.count, 1u);
             }
         }];
@@ -936,17 +934,18 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 250, 1000.0 / 48000);
     [self render:24000];
     [_player runSyncOnQueue:^{
-        AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
+        AudioLevelTap *tap = [self->_player debugLevelTap];
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
     }];
 }
 - (void)testSignalDiagnosticsExcludePreviousTrack {
     for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
     for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
-        // Bit-perfect output cuts the old track rather than fading it, and a
-        // mixer resampling the 48 kHz fixtures carries a few milliseconds of it
-        // past the cut in its history. Real bit-perfect output sets the device
-        // to the file's rate, so the mixer does not resample; test that case.
+        // Bit-perfect output cuts the old track rather than fading it, and
+        // under the pump the output cannot follow the file's rate, so the bus's
+        // converter resampling the 48 kHz fixtures carries a few milliseconds
+        // of it past the cut in its history. Real bit-perfect output sets the
+        // device to the file's rate, so nothing resamples; test that case.
         if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;
@@ -1082,6 +1081,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
+// Under the pump the output cannot follow the file's rate, so this measures
+// the bus's converter: the fallback a device that refuses a rate takes.
 - (void)testSampleRateConversionQuality {
     for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@48000,@96000],@[@48000,@32000],@[@44100,@48000],@[@96000,@44100]]) {
         NSNumber *rate=rates[1];
@@ -1117,7 +1118,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     for (NSNumber *rate in @[@44100, @48000, @96000]) for (NSNumber *initialFX in @[@NO, @YES]) {
         [self startPlayerAt:rate.doubleValue channels:2 fx:initialFX.boolValue bitPerfect:NO automatic:NO];
         if (!initialFX.boolValue) {
-            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue], 2u);
+            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue], 1u);
         }
         NSURL *url = [self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav", rate]];
         AudioTrack *track = [self play:url paused:YES position:0.25];
@@ -1131,8 +1132,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertTrue(_player.isPaused);
             XCTAssertEqual(_player.currentTrack, track);
             XCTAssertEqualWithAccuracy(_player.position, 0.25, 1.0 / _rate);
-            if (i == 0) installedNodes = [counts[@"attachedNodes"] unsignedIntegerValue];
-            XCTAssertLessThanOrEqual([counts[@"attachedNodes"] unsignedIntegerValue], installedNodes);
+            if (i == 0) installedNodes = [counts[@"hostedUnits"] unsignedIntegerValue];
+            XCTAssertLessThanOrEqual([counts[@"hostedUnits"] unsignedIntegerValue], installedNodes);
         }
         [_player resume];
         [self render:4096];
@@ -1376,7 +1377,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self play:[self fixture:i%2?@"noise-48000-24-2.wav":@"noise-48000-24-1.wav"] paused:NO position:0];
         [self render:512]; [_player pause]; [_player resume]; [_player seekToPosition:0.25];
         [self render:2048]; [_player stop]; [self render:2048];
-        XCTAssertEqual([self count:@"finish"],0u); XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue],4u);
+        XCTAssertEqual([self count:@"finish"],0u); XCTAssertEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue],0u);
         XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
@@ -1497,39 +1498,6 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         // The node is retired only after its ramp; no full-amplitude discontinuity.
         float worst=0; for(NSUInteger i=1;i<end;i++) worst=MAX(worst,fabsf(e[i*2]-e[(i-1)*2]));
         XCTAssertLessThan(worst,0.02f,@"%@ Hz",rate);
-    }
-}
-// An ordinary-mode device switch across rates rewires the connected FX chain
-// at the device's new rate. An effect left with its input at one rate and its
-// output at another fails to initialize at the next start (-10868), which is
-// what a connect over a standing fan-out produced on a 44.1 -> 96 kHz switch.
-- (void)testFXChainRewiresAtANewRate {
-    AVAudioEngine *engine = [[AVAudioEngine alloc] init];
-    dispatch_queue_t queue = dispatch_queue_create("com.vibe.test.fx-rewire", DISPATCH_QUEUE_SERIAL);
-    AudioFX *fx = [[AudioFX alloc] initWithQueue:queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), queue, block);
-    }];
-    AVAudioSourceNode *source = [[AVAudioSourceNode alloc] initWithRenderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
-        for (UInt32 b = 0; b < outputData->mNumberBuffers; b++) {
-            memset(outputData->mBuffers[b].mData, 0, outputData->mBuffers[b].mDataByteSize);
-        }
-        *isSilence = YES;
-        return noErr;
-    }];
-    [engine attachNode:source];
-    for (NSNumber *rate in @[@44100, @96000, @48000, @96000]) {
-        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate.doubleValue channels:2];
-        NSError *error = nil;
-        XCTAssertTrue([engine enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline format:format
-                                      maximumFrameCount:4096 error:&error], @"%@", error);
-        [engine connect:source to:engine.mainMixerNode format:format];
-        dispatch_sync(queue, ^{ [fx setConnected:YES inEngine:engine format:format]; });
-        XCTAssertNotNil(fx.masterBusOutputNode, @"%@ Hz", rate);
-        XCTAssertTrue([engine startAndReturnError:&error], @"%@ Hz: %@", rate, error);
-        AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:1024];
-        XCTAssertEqual([engine renderOffline:1024 toBuffer:buffer error:&error], AVAudioEngineManualRenderingStatusSuccess, @"%@ Hz: %@", rate, error);
-        XCTAssertEqualWithAccuracy([engine.mainMixerNode outputFormatForBus:0].sampleRate, rate.doubleValue, 0);
-        [engine stop];
     }
 }
 - (void)testCrossfadePowerAndInterruption {
@@ -1793,9 +1761,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player prepareForTermination];
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
         XCTAssertEqual([self count:@"finish"],0u,@"Termination must not deliver natural track-end and auto-advance during NSTerminateLater");
-        __block BOOL running;
-        [_player runSyncOnQueue:^{ running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning; }];
-        XCTAssertFalse(running);
+        XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
         AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];
@@ -1804,7 +1770,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player systemDefaultOutputDeviceDidChange];
         [_player runSyncOnQueue:^{}];
         XCTAssertTrue(_player.isStopped);
-        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"engineRunning"] boolValue]);
+        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"outputRunning"] boolValue]);
         XCTAssertNil([_player valueForKey:@"playOpenToken"]);
         XCTAssertNil([_player valueForKey:@"prefetchOpenToken"]);
     } @finally {
