@@ -926,16 +926,19 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // the declick beside it: the seek's shape, shared with an unqueue the decoder
 // won, where only a new voice discards the successor frames already in the
 // ring. Playing or paused alike; the published tuple moves with the voice.
+// TRAP: the old voice retires before the new one starts. Both read the same
+// AVAudioFile, whose cursor the new voice's first decode turn positions; a
+// turn of the old voice queued between the two calls reads after that and
+// the new voice's next chunk starts 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
-    VibeVoiceID oldVoice = _voice;
     AVAudioFile *file = _file;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
+    VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
+    [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
     VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
                                       fadeMilliseconds:kFadeDurationMilliseconds
                                                 paused:_state == VibePlayerStatePaused];
-    [self unpublishVoiceOnQueue];
-    [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
     [self publishState:_state voice:voice file:file startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
 }
 

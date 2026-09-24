@@ -7,6 +7,7 @@
 #import "CoreAudioUtil.h"
 #import "AudioDevice.h"
 #import "VibeManualRenderPump.h"
+#import "AudioVoiceBusInternal.h"
 #import <objc/runtime.h>
 #include <float.h>
 
@@ -726,6 +727,85 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([self count:@"finish"], 1u, @"The current track must finish after the cancelled boundary");
     XCTAssertLessThan(ToneAmplitude(tail, 2, 0, 48000, 1000, NSMakeRange(36000, 24000)), 0.01,
                      @"Cancelled successor must not be audible");
+}
+
+// The seek's replacement voice reads the same AVAudioFile as the voice it
+// retires, on the production decode queue: the old voice's reads must stop
+// before the new voice positions the shared cursor, or a turn of the old
+// voice queued between the two advances it and the new voice skips a chunk.
+// The retire is held open with the decoder running, so a start before it
+// loses its second chunk.
+- (void)testSeekStopsTheOldVoiceReadingBeforeItsFileIsHandedOn {
+    self.continueAfterFailure = YES;
+    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
+    __block IMP originalInit;
+    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
+        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
+    });
+    originalInit = method_setImplementation(initializer, asyncInit);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player debugStarveDecoder:YES]; // only the production decode queue fills
+        _player.declick = NO;
+        [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    } @finally {
+        method_setImplementation(initializer, originalInit);
+        imp_removeBlock(asyncInit);
+    }
+    __block AudioVoiceBus *bus;
+    [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
+    dispatch_queue_t decoder = bus.decodeQueue;
+    XCTAssertNotNil(decoder);
+    for (int i = 0; i < 20; i++) dispatch_sync(decoder, ^{});
+    dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
+    Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
+    Method retire = class_getInstanceMethod(AudioPlayer.class, @selector(retireVoiceOnQueue:milliseconds:));
+    __block IMP originalProduce, originalRetire;
+    __block BOOL heldRead = NO, heldRetire = NO;
+    IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
+        if (receiver == bus && !heldRead) {
+            heldRead = YES;
+            dispatch_semaphore_signal(reading);
+            dispatch_semaphore_wait(letRead, DISPATCH_TIME_FOREVER);
+        }
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+    });
+    IMP heldRetirement = imp_implementationWithBlock(^(id receiver, VibeVoiceID voice, uint64_t milliseconds) {
+        if (receiver == self->_player && !heldRetire) {
+            heldRetire = YES;
+            // Let the serial decoder run while the seek is between its two
+            // halves, before the old voice's reads are stopped.
+            dispatch_semaphore_signal(letRead);
+            for (int i = 0; i < 30; i++) dispatch_sync(decoder, ^{});
+        }
+        ((void (*)(id, SEL, VibeVoiceID, uint64_t))originalRetire)(receiver, @selector(retireVoiceOnQueue:milliseconds:), voice, milliseconds);
+    });
+    originalProduce = method_setImplementation(produce, heldProduce);
+    originalRetire = method_setImplementation(retire, heldRetirement);
+    @try {
+        // The play's settle filled the ring to the top, so render it down past
+        // the low-water mark until the drain asks for a chunk and the hold takes.
+        for (int i = 0; i < 64 && !heldRead; i++) {
+            [self render:1024];
+        }
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        [_player seekToPosition:0.5];
+        [_player runSyncOnQueue:^{}];
+        XCTAssertTrue(heldRetire);
+        [_capture setLength:0];
+        [self render:16384];
+        NSData *whole = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+        NSData *expected = [whole subdataWithRange:NSMakeRange(24000 * 8, 16384 * 8)];
+        NSDictionary *comparison = ComparePCM(expected, _capture, 2, 0, 0);
+        XCTAssertTrue([comparison[@"pass"] boolValue], @"seek output differs: %@", comparison);
+    } @finally {
+        dispatch_semaphore_signal(letRead);
+        [bus stopReading];
+        method_setImplementation(produce, originalProduce);
+        method_setImplementation(retire, originalRetire);
+        imp_removeBlock(heldProduce);
+        imp_removeBlock(heldRetirement);
+    }
 }
 
 - (void)testMeterTapDoesNotChangeSamples {
