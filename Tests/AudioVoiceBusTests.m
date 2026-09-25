@@ -814,19 +814,16 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     // The reopen withdraws the end and waits for the stuck render.
     XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]);
-    dispatch_group_t stop = dispatch_group_create();
-    dispatch_group_async(stop, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        [self->_bus stopReading];
-    });
-    XCTAssertEqual(dispatch_group_wait(stop, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
-                   @"stopReading joined a decoder waiting for the stuck render");
+    dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+    [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+    XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+                   @"the decoder stayed in its wait for the stuck render after its reads were stopped");
     XCTAssertEqual(_bus.debugRendersHeld, 1u, @"the render was still stuck when the decoder left its wait");
     VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
     XCTAssertEqual(snapshot.endOfStream, 2000u, @"the withdrawn end goes back");
     XCTAssertEqual(snapshot.boundary, UINT64_MAX, @"no boundary over a stream whose verdict was never read");
     [_bus debugHoldRender:NO];
     XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
-    XCTAssertEqual(dispatch_group_wait(stop, DISPATCH_TIME_FOREVER), 0L);
     // The voice ends at its end, the successor never begun.
     [self renderWithoutFilling:4096 into:nil];
     [self drain];
@@ -866,6 +863,55 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self renderWithoutFilling:4096 into:nil];
     [self drain];
     XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateNone, @"the voice ends at its restored end");
+}
+
+// A file a retired decoder may still be inside is withheld: a voice started
+// on it reads nothing until the file is allowed, then plays it from its
+// frame exactly, and a successor queued on it is refused until then.
+- (void)testAWithheldFileIsReadOnlyOnceAllowed {
+    [self makeBusAtRate:kRate channels:2];
+    NSData *source = [self noiseFrames:20000 channels:2 seed:91];
+    AVAudioFile *file = [self open:[self writePCM:source rate:kRate channels:2 name:@"withheld.wav"]];
+    [_bus withholdReadsOfFile:file];
+    VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:4000 decodeFormat:file.processingFormat gain:1
+                                            ramp:[self unity] paused:NO];
+    for (int i = 0; i < 5; i++) {
+        [self render:256 into:nil]; // fills inline before each render: nothing to read
+    }
+    XCTAssertEqual([_bus snapshotOfVoice:voice].written, 0u, @"a withheld file was read");
+    XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateArmed);
+    // Its own file allowed, the voice reads; a successor on a withheld file
+    // is still refused until that file is allowed too.
+    [_bus allowReadsOfFile:file];
+    AVAudioFile *next = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:92] rate:kRate channels:2 name:@"withheld-next.wav"]];
+    [_bus withholdReadsOfFile:next];
+    XCTAssertFalse([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice], @"a withheld successor was queued");
+    [_bus allowReadsOfFile:next];
+    XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
+    NSMutableData *capture = [NSMutableData data];
+    [self render:4096 into:capture];
+    XCTAssertGreaterThan([_bus snapshotOfVoice:voice].written, 0u, @"the allowed file was not read");
+    [self assertCapture:capture equalsSource:[source subdataWithRange:NSMakeRange(4000 * 2 * sizeof(float), 4096 * 2 * sizeof(float))]];
+}
+
+// stopReadingThen: reports once the decoder has left its read, however long
+// that takes, and never joins it: the block runs behind the turn in flight.
+- (void)testStopReadingReportsOnceTheDecoderHasLeft {
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    dispatch_queue_t decoder = _bus.decodeQueue;
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0);
+    dispatch_semaphore_t release = dispatch_semaphore_create(0);
+    dispatch_semaphore_t left = dispatch_semaphore_create(0);
+    dispatch_async(decoder, ^{
+        dispatch_semaphore_signal(entered);
+        dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
+    });
+    XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    [_bus stopReadingThen:^{ dispatch_semaphore_signal(left); }];
+    XCTAssertNotEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC)), 0L,
+                      @"the decoder was reported gone while its turn was still inside");
+    dispatch_semaphore_signal(release);
+    XCTAssertEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
 }
 
 - (void)testAQueuedRecycleCannotEraseAReusedSlot {
@@ -1070,10 +1116,10 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 // A rebuilt source segment hands the current file to a new bus while the old
-// bus's decoder may be inside a read of it. stopReading returns once that
-// read is over and no later turn reads, so the file's position is the new
-// voice's alone; without it the two decoders shared the position and the
-// new voice ended early.
+// bus's decoder may be inside a read of it. stopReadingThen: reports once
+// that read is over and no later turn reads, so the file's position is the
+// new voice's alone from then; without that the two decoders shared the
+// position and the new voice ended early.
 - (void)testAReplacedBusStopsReadingBeforeItsFileIsReused {
     NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:83] rate:kRate channels:2 name:@"rebuild.wav"];
     AVAudioFile *file = [self open:url];
@@ -1100,7 +1146,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
             dispatch_semaphore_signal(release);
         });
-        [old stopReading];
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [old stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+        XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
         XCTAssertEqual(file.framePosition, 4096); // the read that was in flight, and no more
     }
     @finally {
@@ -1245,7 +1293,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         dispatch_semaphore_signal(letRecycle);
         dispatch_semaphore_signal(letPrepare);
         dispatch_sync(_queue, ^{});
-        [bus stopReading];
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)); // the swizzled reads must be over before their IMPs go
         method_setImplementation(produce, originalProduce);
         method_setImplementation(recycle, originalRecycle);
         method_setImplementation(prepare, originalPrepare);

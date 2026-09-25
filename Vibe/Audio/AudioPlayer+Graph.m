@@ -8,6 +8,7 @@
 #import "AudioFX.h"
 #import "AudioTrack.h"
 #if TARGET_OS_OSX
+#import "AudioDeviceManager.h"
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "OutputFormatRules.h"
@@ -424,7 +425,13 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     }
     VibeFXChain *chain = atomic_load_explicit(&master->chain, memory_order_relaxed);
     if (chain) {
-        VibeFXChainRender(chain, &stamp, frames, list);
+        OSStatus fxStatus = VibeFXChainRender(chain, &stamp, frames, list);
+        if (fxStatus != noErr) {
+            // A failed effect leaves nothing usable: the slice is silence,
+            // and the status reaches the carrier, which counts a dropout.
+            VibeMasterBusZero(list, 0, frames);
+            status = fxStatus;
+        }
     }
     VibeLevelMeter *meter = atomic_load_explicit(&master->meter, memory_order_seq_cst);
     if (meter) {
@@ -535,19 +542,7 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
     }
 #endif
 #if TARGET_OS_OSX
-    // Vibe hosts the output: the unit's callback pulls the pipeline into the
-    // device. It begins on the system default at that device's rate; the
-    // saved device binds asynchronously through the checked device-switch
-    // path.
-    _outputUnit = [[AudioOutputUnit alloc] init];
-    if (!_outputUnit) {
-        LogError(@"AudioPlayer: no HAL output unit; nothing will play");
-    }
-    AudioDeviceID deviceID = kAudioObjectUnknown;
-    if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
-        [self setOutputUnitDevice:deviceID];
-    }
-    [self followOutputDeviceRateOnQueue];
+    [self createOutputUnitOnQueue];
     if (!_masterFormat) {
         // No unit, or an unreadable or refused rate: the pipeline still has a format.
         [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100.0 channels:2]];
@@ -562,6 +557,33 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
     [self attachSourceNodeOnQueueWithFormat:format];
 #endif
 }
+
+#if TARGET_OS_OSX
+// Vibe hosts the output: the unit's callback pulls the pipeline into the
+// device. It begins on the system default at that device's rate; the saved
+// device binds asynchronously through the checked device-switch path. NO
+// with no unit — the component could not be made — which the next start
+// tries again rather than play into nothing.
+- (BOOL)createOutputUnitOnQueue {
+    _outputUnit = [[AudioOutputUnit alloc] init];
+    if (!_outputUnit) {
+        LogError(@"AudioPlayer: no HAL output unit; nothing will play until one can be made");
+        return NO;
+    }
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
+        [self setOutputUnitDevice:deviceID];
+    }
+    [self followOutputDeviceRateOnQueue];
+    [[AudioDeviceManager sharedInstance] addObserver:self];
+    // Do not put first-use HAL discovery on the player's sole queue. The
+    // output begins honestly on System Output; a successful async snapshot
+    // later applies the saved preference through the checked device-switch
+    // path.
+    [self resolvePendingSavedOutputDeviceOnQueue];
+    return YES;
+}
+#endif
 
 #if !TARGET_OS_OSX
 // The source node at the pipeline's format, wired straight to the output
@@ -761,16 +783,38 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
     atomic_store_explicit(&_masterBus->mix, NULL, memory_order_seq_cst);
     // TRAP: the new voice takes the same AVAudioFile, and the old bus's
     // decoder may be inside a read of it — its queued turns retain the bus,
-    // not this player — so it is stopped and waited for first; without that
-    // both decoders moved the file's position and the new voice ended early.
-    [old stopReading];
+    // not this player. Its reads are stopped, and every file it may be
+    // inside is withheld from the new bus's voices until it has left them
+    // (retiredDecoderLeftOnQueue:), so two decoders never move one file's
+    // cursor; without that the new voice ended early. Never joined here: a
+    // read on a stalled mount held the player queue, and every transport
+    // command behind it, for its whole stall.
+    NSSet<AVAudioFile *> *files = old.filesInUse;
+    for (AVAudioFile *file in files) {
+        [_retiredDecoderFiles addObject:file];
+    }
     os_unfair_lock_lock(&_stateLock);
     _voiceBus = nil;
     os_unfair_lock_unlock(&_stateLock);
+    __weak AudioPlayer *weakSelf = self;
+    [old stopReadingThen:^{ [weakSelf retiredDecoderLeftOnQueue:files]; }];
     [_retiringVoices removeAllObjects];
     [self unpublishVoiceOnQueue];
     // The slots' rings are freed with the bus, which a render may still be inside.
     [self afterRenderLeavesOnQueue:^{ (void)old; }];
+}
+
+// A retired bus's decoder has left its files: the current bus may read the
+// ones no other retired decoder is still inside, and a successor refused
+// while its file was withheld may queue now.
+- (void)retiredDecoderLeftOnQueue:(NSSet<AVAudioFile *> *)files {
+    for (AVAudioFile *file in files) {
+        [_retiredDecoderFiles removeObject:file];
+        if ([_retiredDecoderFiles countForObject:file] == 0) {
+            [_voiceBus allowReadsOfFile:file];
+        }
+    }
+    [self maybeArmSuccessorOnQueue];
 }
 
 #if !TARGET_OS_OSX
@@ -1030,6 +1074,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     __weak AudioPlayer *weakSelf = self;
     bus.voiceWentLive = ^{ [weakSelf drainVoiceBusOnQueue]; };
+    for (AVAudioFile *file in _retiredDecoderFiles) {
+        [bus withholdReadsOfFile:file];
+    }
     if (wantVarispeed && ![self hostVarispeedOnQueueWithFormat:busFormat]) {
         return NO;
     }
@@ -1153,6 +1200,26 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     if (![self renderingOnQueue]) {
+        // A carrier, unless the pump stands in for one: a production player
+        // whose unit could not be made tries once more here, and a start
+        // with nothing to pull the pipeline fails rather than open the gate
+        // over it. TRAP: the no-carrier shortcut below is the pump's alone;
+        // taken by a production player it published Playing and sent
+        // didStartPlaying: with no callback to advance the voice, and no
+        // error reached the shell.
+        if ([self drivesOutputDeviceOnQueue]) {
+#if TARGET_OS_OSX
+            BOOL carrier = _outputUnit != nil || [self createOutputUnitOnQueue];
+#else
+            BOOL carrier = _engine != nil;
+#endif
+            if (!carrier) {
+                if (outError) {
+                    *outError = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
+                }
+                return NO;
+            }
+        }
         NSInteger device = -1;
 #if TARGET_OS_OSX
         device = _outputUnit ? (NSInteger)_outputUnit.deviceID : -1;

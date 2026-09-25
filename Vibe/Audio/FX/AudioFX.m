@@ -295,11 +295,18 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
     // themselves — the unit copies them into its own buffer before it writes
     // — so the dry path costs one copy. Parked and settled it is skipped, and
     // the dry path is the bus sample for sample.
+    // TRAP: every unit's status is read, and the first failure returns at
+    // once — a return whose render failed holds stale scratch, and summed in
+    // it would have played as the current audio; silently, since the failed
+    // status went nowhere.
     if (atomic_load_explicit(&chain->stages[VibeFXStageLowKill].active, memory_order_seq_cst)) {
         VibeFXUnit *eq = &chain->units[VibeFXUnitEQ];
         eq->source[0] = out[0];
         eq->source[1] = out[1];
         status = VibeFXRenderUnit(chain, eq, timestamp, frames, out);
+        if (status != noErr) {
+            return status;
+        }
     }
     // Every send taps the same post-low-kill signal, so the returns are
     // summed apart and rejoin the dry path only once every send has read it
@@ -309,8 +316,10 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
     VibeFXStage *reverb = &chain->stages[VibeFXStageReverb];
     if (atomic_load_explicit(&reverb->active, memory_order_seq_cst)) {
         VibeFXGate(reverb, out, chain->send, frames, chain->slewPerFrame);
-        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverb], timestamp, frames, chain->wet);
-        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverbLowCut], timestamp, frames, chain->returns);
+        if ((status = VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverb], timestamp, frames, chain->wet)) != noErr
+                || (status = VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverbLowCut], timestamp, frames, chain->returns)) != noErr) {
+            return status;
+        }
         returns = YES;
     }
     BOOL echoes = NO;
@@ -323,19 +332,27 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
         VibeFXUnit *left = half + 1;
         VibeFXUnit *right = half + 2;
         VibeFXGate(stage, out, chain->send, frames, chain->slewPerFrame);
-        VibeFXRenderUnit(chain, half, timestamp, frames, chain->halfTap);
+        if ((status = VibeFXRenderUnit(chain, half, timestamp, frames, chain->halfTap)) != noErr) {
+            return status;
+        }
         // The right lane, panned right at one hop of decay: it first sounds at
         // 2T, a full hop after the left lane's T.
-        VibeFXRenderUnit(chain, right, timestamp, frames, chain->lane);
+        if ((status = VibeFXRenderUnit(chain, right, timestamp, frames, chain->lane)) != noErr) {
+            return status;
+        }
         VibeFXPanInto(chain->lane, chain->echoes, frames, kDelayPingPongPan, kDelayFeedbackPercent / 100.0f, echoes);
         echoes = YES;
         // The left lane, fed by the half-tap lane, summed with it and panned left.
-        VibeFXRenderUnit(chain, left, timestamp, frames, chain->lane);
+        if ((status = VibeFXRenderUnit(chain, left, timestamp, frames, chain->lane)) != noErr) {
+            return status;
+        }
         VibeFXAdd(chain->lane, chain->halfTap, frames);
         VibeFXPanInto(chain->lane, chain->echoes, frames, -kDelayPingPongPan, 1.0f, YES);
     }
     if (echoes) {
-        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitDelayLowCut], timestamp, frames, chain->lane);
+        if ((status = VibeFXRenderUnit(chain, &chain->units[VibeFXUnitDelayLowCut], timestamp, frames, chain->lane)) != noErr) {
+            return status;
+        }
         if (returns) {
             VibeFXAdd(chain->returns, chain->lane, frames);
         }
@@ -605,6 +622,16 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     }
     return count;
 }
+
+#if DEBUG
+- (BOOL)debugUninitializeUnitAtIndex:(NSUInteger)index {
+    VibeFXChain *chain = _chain;
+    if (!chain || index >= VibeFXUnitCount || !chain->units[index].unit) {
+        return NO;
+    }
+    return AudioUnitUninitialize(chain->units[index].unit) == noErr;
+}
+#endif
 
 - (NSDictionary<NSString *, id> *)diagnosticSnapshot {
     VibeFXChain *chain = _chain;

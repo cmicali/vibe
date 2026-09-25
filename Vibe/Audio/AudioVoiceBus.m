@@ -456,6 +456,7 @@ VIBE_REALTIME_END
     VibeVoiceRamp ramp;
     BOOL paused;
     BOOL readsStopped;
+    BOOL readsWithheld;              // started on a withheld file: reads allowed once allowReadsOfFile: says so
 }
 @end
 
@@ -466,6 +467,7 @@ VIBE_REALTIME_END
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueue;
     _Atomic uint64_t _decodeTurns;   // turns run so far, for the tests
+    NSMutableSet<AVAudioFile *> *_withheldFiles; // a retired decoder may be inside these; queue-owned
     VibeVoiceMixOwner *_mixOwner;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
@@ -515,6 +517,7 @@ VIBE_REALTIME_END
     _mixOwner = owner;
     _mix = owner.mix;
     _pending = [NSMutableArray array];
+    _withheldFiles = [NSMutableSet set];
     _endedPending = [NSMutableArray array];
     _tableLock = OS_UNFAIR_LOCK_INIT;
     _nextIdentifier = 1;
@@ -850,7 +853,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     bound->convertedBase = atomic_load_explicit(&s->written, memory_order_relaxed);
     atomic_store_explicit(&s->armedWritten, atomic_load_explicit(&s->written, memory_order_relaxed), memory_order_relaxed);
     atomic_store_explicit(&s->armedConsumed, atomic_load_explicit(&s->consumed, memory_order_relaxed), memory_order_relaxed);
-    atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped, memory_order_relaxed);
+    bound->readsWithheld = !record->readsStopped && [_withheldFiles containsObject:record->file];
+    atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped && !bound->readsWithheld, memory_order_relaxed);
     atomic_store_explicit(&s->successorState, record->successorFile ? VibeSuccessorQueued : VibeSuccessorNone,
                           memory_order_relaxed);
     atomic_store_explicit(&s->paused, record->paused, memory_order_relaxed);
@@ -918,18 +922,64 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
     if (slot != NSNotFound) {
+        _records[slot]->readsWithheld = NO; // stopped stays stopped, whatever its file's standing
         atomic_store_explicit(&_mix->slots[slot].readsAllowed, 0, memory_order_release);
     }
 }
 
-// The decoder never hops to the player queue synchronously, so the wait
-// cannot deadlock.
-- (void)stopReading {
+// The decoder's queue is serial: a block behind the turn in flight runs once
+// that turn — and the read inside it — has finished, and nothing after it
+// reads, since every voice's reads are stopped first.
+- (void)stopReadingThen:(dispatch_block_t)decoderLeft {
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         [self stopReadingForVoice:_slotIdentifiers[s]];
     }
-    if (_decodeQueue) {
-        dispatch_sync(_decodeQueue, ^{});
+    if (!_decodeQueue) {
+        decoderLeft();
+        return;
+    }
+    dispatch_queue_t queue = _queue;
+    dispatch_async(_decodeQueue, ^{ dispatch_async(queue, decoderLeft); });
+}
+
+- (NSSet<AVAudioFile *> *)filesInUse {
+    NSMutableSet<AVAudioFile *> *files = [NSMutableSet set];
+    for (NSUInteger s = 0; s < kVoiceSlots; s++) {
+        if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeVoiceStateNone) {
+            continue;
+        }
+        if (_records[s]->file) [files addObject:_records[s]->file];
+        if (_records[s]->successorFile) [files addObject:_records[s]->successorFile];
+    }
+    for (VibeVoiceRecord *record in _pending) {
+        if (record->file) [files addObject:record->file];
+        if (record->successorFile) [files addObject:record->successorFile];
+    }
+    return files;
+}
+
+- (void)withholdReadsOfFile:(AVAudioFile *)file {
+    [_withheldFiles addObject:file];
+}
+
+// The voices started on the file while it was withheld read from here: a
+// fill is asked for at once, as a start asks for its first.
+- (void)allowReadsOfFile:(AVAudioFile *)file {
+    [_withheldFiles removeObject:file];
+    for (NSUInteger s = 0; s < kVoiceSlots; s++) {
+        VibeVoiceRecord *record = _records[s];
+        if (!record->readsWithheld || record->file != file) {
+            continue;
+        }
+        record->readsWithheld = NO;
+        int32_t state = atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire);
+        if (state != VibeVoiceStateArmed && state != VibeVoiceStateLive) {
+            continue;
+        }
+        atomic_store_explicit(&_mix->slots[s].readsAllowed, 1, memory_order_release);
+        if (!_inlineDecoding) {
+            [self scheduleFillForSlot:s];
+        }
     }
 }
 
@@ -944,6 +994,9 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 #endif
 
 - (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice {
+    if ([_withheldFiles containsObject:file]) {
+        return NO; // a retired decoder may be inside it; the transport asks again once it has left
+    }
     VibeVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         pending->successorFile = file;
@@ -1506,9 +1559,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         // no verdict, when the voice's reads are stopped or the render is
         // stuck past the bound: the end goes back and the stream ends, and
         // the transport re-voices the successor as after any end. TRAP: an
-        // unconditional wait here held the decode queue for as long as a
-        // render was stuck, and the player queue behind it, since a rebuild
-        // joins the decoder (stopReading) after its own bounded wait gave up.
+        // unconditional wait here held the decode queue, and every other
+        // voice's reads, for as long as a render was stuck.
         atomic_store_explicit(&s->endOfStream, kUnset, memory_order_seq_cst);
         uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
         uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + kRenderLeaveWaitNanos;

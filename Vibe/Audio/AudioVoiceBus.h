@@ -168,11 +168,27 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
-// Ends the bus's reading for good: every voice reads no more, and the call
-// returns once the decoder has left every file — the turn inside a read
-// finishes, and none after it reads — so the files may be handed to a
-// replacement bus. Nothing is asked of the bus after it.
-- (void)stopReading;
+// Ends the bus's reading for good: every voice reads no more, and
+// `decoderLeft` runs on the bus's queue once the decoder has left every file
+// — the turn inside a read finishes on its own, however long a stalled mount
+// makes that, and none after it reads — so the files may then be handed to a
+// replacement bus; at once when decoding inline. Nothing is asked of the bus
+// after it. TRAP: never a synchronous join: a read on a stalled mount held
+// the player queue, and every transport command behind it, for its whole
+// stall, and a bounded join would have handed the file's cursor to a second
+// decoder while the first was still inside it.
+- (void)stopReadingThen:(dispatch_block_t)decoderLeft;
+
+// Every file a decoder of this bus may still be inside: each voice's, each
+// queued successor's, a pending start's. Player queue.
+- (NSSet<AVAudioFile *> *)filesInUse;
+
+// A file a retired bus's decoder may still be inside: a voice started on it
+// reads nothing until allowReadsOfFile: says that decoder has left it, and a
+// successor queued on it is refused until then, so two decoders never move
+// one file's cursor. Player queue.
+- (void)withholdReadsOfFile:(AVAudioFile *)file;
+- (void)allowReadsOfFile:(AVAudioFile *)file;
 
 // Queues `file` to continue at the voice's end without a gap. A successor
 // read the same way as the file before it continues through the same

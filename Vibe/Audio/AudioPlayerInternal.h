@@ -100,6 +100,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     NSMutableArray<NSNumber *> *_retiringVoices;
     // The current voice's decode format, for the report and dump_state.
     AVAudioFormat           *_decodeFormat;
+    // Files a retired bus's decoder may still be inside — a rebuild leaves
+    // that decoder to finish its read on its own — counted per retired bus;
+    // the current bus withholds reads of them until the count reaches zero.
+    NSCountedSet<AVAudioFile *> *_retiredDecoderFiles;
 
     // ---- The pending open: its token, and the abandon deadline in monotonic
     // uptime. A new underlying open snapshots its configuration; a same-row

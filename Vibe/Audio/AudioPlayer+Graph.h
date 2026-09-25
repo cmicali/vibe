@@ -46,7 +46,10 @@
 //  wired to its output node, whose render block calls the same function.
 //  Under --no-audio-hw there is no carrier on either platform: the debug pump
 //  calls the function at real-time pace, or frame by frame in the tests. The
-//  render slices whatever count a carrier hands it.
+//  render slices whatever count a carrier hands it. A production player has
+//  a carrier or fails the start: a unit that could not be made at init is
+//  tried again at each start, and a start with none reports
+//  VibeAudioErrorEngineStartFailed rather than open the gate over nothing.
 //
 //  Everything the audio thread reads is plain memory and atomics in the
 //  master bus. A structural change — the bus, the varispeed, the FX chain's

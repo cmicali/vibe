@@ -12,6 +12,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioFX.h"
+#import "AudioFX+Debug.h"
 #import "VibeManualRenderPump.h"
 
 static const double kRate = 48000;
@@ -149,6 +150,34 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
         }
     }
     XCTAssertEqual(mismatches, 0u, @"%lu of %lu samples changed", (unsigned long)mismatches, (unsigned long)frames * 2);
+}
+
+// A unit whose render fails ends the chain's render with its status: the
+// EQ's on the dry path, and a return's, whose stale scratch would otherwise
+// have been summed into the current audio with the failure unreported.
+- (void)testAFailedUnitRenderReturnsItsStatus {
+    for (NSNumber *unit in @[@0, @1]) {
+        [self connectAt:kRate];
+        BOOL lowKill = unit.intValue == 0;
+        [self onQueue:^{
+            if (lowKill) self->_fx.lowKillEnabled = YES;
+            else self->_fx.reverbSendEnabled = YES;
+        }];
+        [self render:kBlock * 4 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:nil];
+        __block BOOL uninitialized = NO;
+        [self onQueue:^{ uninitialized = [self->_fx debugUninitializeUnitAtIndex:unit.unsignedIntegerValue]; }];
+        XCTAssertTrue(uninitialized);
+        __block AVAudioPCMBuffer *buffer = nil;
+        __block NSError *error = nil;
+        [self onQueue:^{ buffer = [self->_pump renderFrames:kBlock error:&error]; }];
+        XCTAssertNil(buffer, @"unit %@: a failed render was reported as a rendered slice", unit);
+        XCTAssertNotNil(error, @"unit %@", unit);
+        [self onQueue:^{
+            self->_fx.lowKillEnabled = NO;
+            self->_fx.reverbSendEnabled = NO;
+            [self->_fx setConnected:NO format:nil maximumFrameCount:kMaxFrames];
+        }];
+    }
 }
 
 - (void)testAnIdleChainRendersNoUnitAndPassesTheSignalExactly {

@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 #import "AudioPlayer+Debug.h"
+#import "AudioFX+Debug.h"
 #import "AudioLevelTap+Debug.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
@@ -11,6 +12,7 @@
 #import "AudioVoiceBusInternal.h"
 #import <objc/runtime.h>
 #include <float.h>
+#include <stdatomic.h>
 
 // Independent Apple AAC decodes can differ by a few float rounding bits.
 // Lossless paths still require exact samples; AAC stays below -126 dBFS.
@@ -833,7 +835,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAssertTrue([comparison[@"pass"] boolValue], @"seek output differs: %@", comparison);
     } @finally {
         dispatch_semaphore_signal(letRead);
-        [bus stopReading];
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)); // the swizzled read must be over before its IMP goes
         method_setImplementation(produce, originalProduce);
         method_setImplementation(retire, originalRetire);
         imp_removeBlock(heldProduce);
@@ -2530,6 +2534,112 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
     [_player runSyncOnQueue:^{ [self->_player drainVoiceBusOnQueue]; }];
     [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+}
+
+// A rebuild leaves the old bus's decoder to finish its read on its own:
+// the player queue answers at once, the rate change completes with the read
+// still stalled, and the re-voiced track reads the file only after that
+// decoder has left it, then plays.
+- (void)testAStalledFileReadHoldsNeitherTheQueueNorTheRebuild {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:YES];
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    dispatch_semaphore_t reading = dispatch_semaphore_create(0), releaseRead = dispatch_semaphore_create(0);
+    dispatch_semaphore_t rebuilt = dispatch_semaphore_create(0), responsive = dispatch_semaphore_create(0);
+    Method read = class_getInstanceMethod(AVAudioFile.class, @selector(readIntoBuffer:frameCount:error:));
+    __block IMP original;
+    __block _Atomic(BOOL) held = NO;
+    IMP blocked = imp_implementationWithBlock(^BOOL(AVAudioFile *file, AVAudioPCMBuffer *buffer, AVAudioFrameCount frames, NSError **error) {
+        if ([file.url isEqual:url] && !atomic_exchange(&held, YES)) {
+            dispatch_semaphore_signal(reading);
+            dispatch_semaphore_wait(releaseRead, DISPATCH_TIME_FOREVER);
+        }
+        return ((BOOL (*)(id, SEL, AVAudioPCMBuffer *, AVAudioFrameCount, NSError **))original)
+                (file, @selector(readIntoBuffer:frameCount:error:), buffer, frames, error);
+    });
+    original = method_setImplementation(read, blocked);
+    long rebuildWait = 0, queueWait = 0;
+    @try {
+        [self play:url paused:NO position:0];
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        AudioPlayer *player = _player;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            XCTAssertTrue([player debugSetOutputRate:96000]);
+            dispatch_semaphore_signal(rebuilt);
+        });
+        rebuildWait = dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            [player runSyncOnQueue:^{ dispatch_semaphore_signal(responsive); }];
+        });
+        queueWait = dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        XCTAssertEqual(rebuildWait, 0L, @"the rate change waited on the stalled read");
+        XCTAssertEqual(queueWait, 0L, @"the player queue waited on the stalled read");
+        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+        XCTAssertTrue(_player.isPlaying);
+        // The re-voiced track reads nothing while the retired decoder may be
+        // inside its file: the pump runs, and the position holds.
+        NSTimeInterval before = _player.position;
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+        XCTAssertEqualWithAccuracy(_player.position, before, 0.0001, @"the file was read under the stalled decoder");
+    } @finally {
+        dispatch_semaphore_signal(releaseRead);
+        if (rebuildWait) dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        if (queueWait) dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        [_player runSyncOnQueue:^{}];
+    }
+    // The read released, the retired decoder leaves and the track plays on.
+    NSTimeInterval resumedFrom = _player.position;
+    [self settleUntil:^BOOL { return self->_player.position > resumedFrom + 0.1; }];
+    XCTAssertGreaterThan(_player.position, resumedFrom + 0.1, @"the track never played after the decoder left");
+    XCTAssertNil(_playError);
+    method_setImplementation(read, original);
+    imp_removeBlock(blocked);
+}
+
+// A failed effect render is silence, not audio, and the status reaches the
+// carrier; a rebuild hosts the units again and the chain renders.
+- (void)testAFailedEffectSilencesTheSliceAndReachesTheCarrier {
+    for (NSNumber *unit in @[@0, @1]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.fx.lowKillEnabled = unit.intValue == 0;
+        _player.fx.reverbSendEnabled = unit.intValue == 1;
+        [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+        [self render:4800];
+        __block BOOL uninitialized = NO;
+        [_player runSyncOnQueue:^{ uninitialized = [self->_player.fx debugUninitializeUnitAtIndex:unit.unsignedIntegerValue]; }];
+        XCTAssertTrue(uninitialized, @"unit %@", unit);
+        NSError *error = nil;
+        AVAudioPCMBuffer *output = [_player debugRenderFrames:256 error:&error];
+        XCTAssertNil(output, @"unit %@: the carrier received a failed slice as audio", unit);
+        XCTAssertNotNil(error, @"unit %@", unit);
+        XCTAssertTrue([_player debugSetOutputRate:96000], @"unit %@", unit);
+        [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+    }
+}
+
+// A production player with no carrier — the output unit could not be made —
+// fails the start with an error instead of publishing Playing over nothing.
+- (void)testAMissingOutputUnitFailsTheStart {
+    self.continueAfterFailure = YES;
+    Method initializer = class_getInstanceMethod(AudioOutputUnit.class, @selector(init));
+    IMP failure = imp_implementationWithBlock(^id(id receiver) { return nil; });
+    IMP original = method_setImplementation(initializer, failure);
+    @try {
+        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self
+                                  loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+        [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
+        XCTAssertFalse(_player.manualRenderingActive);
+        [_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
+        XCTAssertNotNil(_playError, @"a missing carrier must fail the start");
+        XCTAssertEqual(_playError.code, VibeAudioErrorEngineStartFailed);
+        XCTAssertTrue(_player.isStopped);
+        XCTAssertFalse(_player.outputAudioActive);
+        XCTAssertEqual([self count:@"start"], 0u);
+    } @finally {
+        method_setImplementation(initializer, original);
+        imp_removeBlock(failure);
+    }
 }
 
 // The path, stage by stage, as the Settings window and dump_audio_path read it.

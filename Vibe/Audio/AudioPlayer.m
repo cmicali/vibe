@@ -114,6 +114,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _loadingConfiguration = [loadingConfiguration copy];
         _retiringVoices = [NSMutableArray array];
         _renderLeaveWork = [NSMutableArray array];
+        _retiredDecoderFiles = [NSCountedSet set];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
@@ -163,16 +164,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         dispatch_async(_queue, ^{
             LogDebug(@"AudioPlayer init");
             [self createOutputOnQueue];
-#if TARGET_OS_OSX
-            if (self->_outputUnit) {
-                [[AudioDeviceManager sharedInstance] addObserver:self];
-                // Do not put first-use HAL discovery on the player's sole queue.
-                // The engine begins honestly on System Output; a successful
-                // async snapshot later applies the saved preference through
-                // the checked device-switch path.
-                [self resolvePendingSavedOutputDeviceOnQueue];
-            }
-#endif
             run_on_main_thread({
                 [self.delegate audioPlayerDidInitialize:self];
             });

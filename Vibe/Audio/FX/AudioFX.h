@@ -131,7 +131,9 @@ typedef struct VibeFXChain VibeFXChain;
 // the hosted maximumFrameCount frames. Audio thread; an idle stage costs
 // nothing. The player calls it only while the segment is connected — a
 // disconnected chain is not in the render at all — and a disconnected
-// chain's stages are all at rest anyway, so the call changes nothing.
+// chain's stages are all at rest anyway, so the call changes nothing. The
+// first unit render that fails ends the call with its status, nothing of
+// that unit mixed; the caller silences the slice and hands the status on.
 OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
 
 // Hosting one of Apple's units through the C API, the one sequence the FX
