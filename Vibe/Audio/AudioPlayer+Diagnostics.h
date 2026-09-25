@@ -27,6 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Installs the process-lifetime stall watchers for the production player. Main thread.
 - (void)startStallWatchers;
+// Whether the render-clock watcher ticks: YES from an output start, NO at its
+// stop, so an idle player wakes nothing. A no-op without the watchers.
+- (void)setRenderClockWatcherRunningOnQueue:(BOOL)running;
 
 // The watcher's reads of queue-confined output state, from its timer on the queue.
 - (BOOL)diagnosticOutputRunning;

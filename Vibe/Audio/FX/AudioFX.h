@@ -73,6 +73,16 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether the segment is in the chain. Player-queue only.
 @property (nonatomic, readonly) BOOL connected;
 
+// Whether a send is still in the render — its gate open, or closed with its
+// tail (the unit's own declared tail time) still ringing — and the longest
+// tail a send rings for after its gate closes, 0 while unhosted. The
+// output's idle stop reads both: a tail is a sound the units are still
+// making, so the stop waits for it, and a send still held at a pause has
+// nothing left to ring past its tail. The low kill has no tail worth
+// waiting for. Player-queue only.
+@property (nonatomic, readonly) BOOL sendsActive;
+@property (nonatomic, readonly) NSTimeInterval longestTailSeconds;
+
 // The audio thread's view of the segment: the current hosting, NULL while
 // unhosted. A chain the player published into the render stays valid for
 // every render that read it, whatever replaced it since. Player queue.

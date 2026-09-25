@@ -606,6 +606,25 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     return _connected;
 }
 
+- (BOOL)sendsActive {
+    VibeFXChain *chain = _chain;
+    for (int i = VibeFXStageReverb; chain && i < VibeFXStageCount; i++) {
+        if (atomic_load_explicit(&chain->stages[i].active, memory_order_seq_cst)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (NSTimeInterval)longestTailSeconds {
+    VibeFXChain *chain = _chain;
+    NSTimeInterval longest = 0;
+    for (int i = VibeFXStageReverb; chain && i < VibeFXStageCount; i++) {
+        longest = MAX(longest, chain->stages[i].tailSeconds);
+    }
+    return longest;
+}
+
 - (uint64_t)unitRenders {
     return atomic_load_explicit(&_unitRenders, memory_order_relaxed);
 }

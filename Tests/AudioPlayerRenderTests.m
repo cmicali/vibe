@@ -2799,6 +2799,44 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
+// The idle stop waits for a send's tail: a reverb released before a pause
+// keeps the output past the delay until the unit's declared tail rests, and
+// a send still held through the pause keeps it no longer than that tail.
+- (void)testAReleasedTailKeepsTheOutputPastTheIdleStop {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    _player.fx.reverbSendEnabled = YES;
+    [self render:24000];
+    _player.fx.reverbSendEnabled = NO; // the gate closes; the tail rings for the unit's declared time
+    [_player pause];
+    [self render:2048];
+    __block BOOL active = NO;
+    __block NSTimeInterval tail = 0;
+    [_player runSyncOnQueue:^{ active = self->_player.fx.sendsActive; tail = self->_player.fx.longestTailSeconds; }];
+    XCTAssertTrue(active, @"the released reverb's tail is not ringing");
+    XCTAssertGreaterThan(tail, 6.0, @"a tail the idle stop's delay already covers proves nothing");
+    [self renderSeconds:6.5];
+    XCTAssertTrue([_player.debugRenderCounts[@"running"] boolValue], @"the idle stop cut a ringing tail");
+    XCTAssertTrue([_player.audioPathSnapshot[6][@"idleStopPending"] boolValue]);
+    [self renderSeconds:tail + 1.5];
+    [_player runSyncOnQueue:^{ active = self->_player.fx.sendsActive; }];
+    XCTAssertFalse(active, @"the tail never rested");
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue], @"the output kept running after the tail rested");
+    XCTAssertTrue(_player.isPaused);
+    // A send held through the pause: the stop waits its tail and no longer.
+    [_player resume];
+    [self render:4800];
+    _player.fx.reverbSendEnabled = YES;
+    [self render:4800];
+    [_player pause];
+    [self render:2048];
+    [self renderSeconds:6.5];
+    XCTAssertTrue([_player.debugRenderCounts[@"running"] boolValue]);
+    [self renderSeconds:tail + 1.5];
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue], @"a held send held the output past its tail");
+    _player.fx.reverbSendEnabled = NO;
+}
+
 
 - (void)checkDecodeFailureForSuccessor:(BOOL)successor afterFrames:(NSUInteger)after superseded:(BOOL)superseded repeatedURL:(BOOL)repeatedURL {
     NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);

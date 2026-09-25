@@ -311,7 +311,9 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach
 // that stops means the device's IO stopped pulling audio — the one source of
 // a frozen time counter that is neither the main thread nor a late first
 // frame. Reports both onset and recovery, including a missing render clock.
-static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
+// Returned suspended: the player resumes it while the output runs and
+// suspends it at the stop, so an idle player wakes nothing.
+static dispatch_source_t VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
     static NSMutableArray *timers;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
@@ -381,10 +383,10 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
             }
         }
     });
-    dispatch_resume(timer);
     @synchronized (timers) {
         [timers addObject:timer];
     }
+    return timer;
 }
 
 static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
@@ -533,7 +535,26 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     // The player queue runs on whichever pool thread is free; the watcher
     // finds the one draining it at each sample.
     VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL);
-    VibeWatchOutputRender(self, _queue);
+    _renderClockWatcher = VibeWatchOutputRender(self, _queue);
+#endif
+}
+
+// The render-clock watcher has nothing to watch while the output is stopped,
+// so it ticks only between an output start and its stop; the two queue
+// watchers keep ticking, since a stalled main thread or player queue is a
+// bug whenever it happens. Balanced: one resume per suspend.
+- (void)setRenderClockWatcherRunningOnQueue:(BOOL)running {
+#if VIBE_VERBOSE_LOGGING
+    if (!_renderClockWatcher || running == _renderClockWatcherRunning) {
+        return;
+    }
+    _renderClockWatcherRunning = running;
+    if (running) {
+        dispatch_resume(_renderClockWatcher);
+    }
+    else {
+        dispatch_suspend(_renderClockWatcher);
+    }
 #endif
 }
 

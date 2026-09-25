@@ -20,6 +20,11 @@
 
 // Give the next track time to open before releasing the idle output.
 static const NSTimeInterval kOutputIdleStopDelaySeconds = 6.0;
+// A send's tail still ringing at the delay keeps the output, re-checked at
+// this interval for at most the chain's longest tail past the delay: a
+// released send rests on its own before that, and one held through the
+// pause has nothing left to ring by then.
+static const NSTimeInterval kOutputIdleStopTailIntervalSeconds = 1.0;
 // The hardware drain: the bus reports its events within this of their render.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 // An output start holding the player queue longer than this is worth a line
@@ -1105,6 +1110,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     [self applyLevelMeterOnQueue];
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
+    [self setRenderClockWatcherRunningOnQueue:YES];
     return YES;
 }
 
@@ -1117,15 +1123,20 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
+    [self setRenderClockWatcherRunningOnQueue:NO];
 }
 
 - (void)scheduleOutputIdleStopOnQueue {
     if (_terminating) {
         return;
     }
-    uint64_t generation = ++_outputIdleStopGeneration;
+    [self armOutputIdleStopOnQueueAfter:kOutputIdleStopDelaySeconds generation:++_outputIdleStopGeneration waited:0];
+}
+
+// `waited` is how long the stop has already held for a tail past the delay.
+- (void)armOutputIdleStopOnQueueAfter:(NSTimeInterval)seconds generation:(uint64_t)generation waited:(NSTimeInterval)waited {
     __weak AudioPlayer *weakSelf = self;
-    [self scheduleAfterSeconds:kOutputIdleStopDelaySeconds block:^{
+    [self scheduleAfterSeconds:seconds block:^{
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_outputIdleStopGeneration) {
             return;
@@ -1137,6 +1148,16 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         // because the in-flight open's settlement wants a warm output. A
         // paused voice keeps its state; resume restarts the output.
         if (state != VibePlayerStateStopped && state != VibePlayerStatePaused) {
+            return;
+        }
+        // A send's tail is a sound the units are still making — the stages
+        // rest on the units' own declared tail times, not on a guess — so
+        // the stop waits for it, bounded by the longest tail so a send held
+        // through the pause cannot hold the device.
+        AudioFX *fx = strongSelf.fx;
+        if (fx.sendsActive && waited < fx.longestTailSeconds) {
+            [strongSelf armOutputIdleStopOnQueueAfter:kOutputIdleStopTailIntervalSeconds generation:generation
+                                               waited:waited + kOutputIdleStopTailIntervalSeconds];
             return;
         }
         [strongSelf stopOutputOnQueue];

@@ -153,6 +153,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _outputIdleStopGeneration;
     dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
+#if VIBE_VERBOSE_LOGGING
+    // The beta render-clock watcher, ticking only while the output runs
+    // (startOutputOnQueue:, stopOutputOnQueue), so an idle player wakes nothing.
+    dispatch_source_t       _renderClockWatcher;
+    BOOL                    _renderClockWatcherRunning;
+#endif
     // Teardowns of what a render was still inside when their wait ran out —
     // a meter, a bus, a varispeed or FX hosting — run at the first later moment
     // the render is seen outside (afterRenderLeavesOnQueue:). The render the
