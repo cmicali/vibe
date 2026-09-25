@@ -1,5 +1,7 @@
 # Plan: preserve source PCM through bit-perfect output
 
+**Status: parked (2026-09-25).** Two pieces landed on their own. The device-selected Int16 path for lossy files is gone: a lossy file now picks the float format, else the widest integer depth, and reaches the bus as float32 like every other file. The host-less render suite compares wider sources at full width (`CompareWidePCM`), so float32's narrowing of integer32 and float64 samples is counted rather than shared by the reference. The remainder only changes output for 32-bit integer and float64 sources, which the report already refuses to call Active (`depthOK`) and which are rare in real libraries, at the cost of rewriting the bus's sample storage. Revisit when users bring such files, and only with a digital loopback that captures wider than float32 to prove the result.
+
 Validated 2026-09-25 against [PR66](https://github.com/cmicali/vibe/pull/66) on `worktree-voice-bus`, including the consolidation and review fixes. Source-preserving playback remains unimplemented: the production opener still selects float32, and the bus and HAL client still require planar float32. The owned reader and carrier consolidation are already complete; do not reimplement them.
 
 The proposal is to preserve the source's decoded PCM representation through the existing voice bus and into CoreAudio wherever the destination permits it. Ordinary mixing and FX retain their float32 path. This is a change to the bus's sample storage, copy operations, decoder opening and output negotiation, not a second player or transport.
@@ -13,8 +15,7 @@ Float32 is not inherently an obstacle to bit-perfect playback: its 24-bit signif
 The useful improvements are therefore:
 
 - Preserve 32-bit integer and float64 source precision when the entire output path supports it.
-- Remove unnecessary format changes, including the lossy float32 → int16 → float32 round trip.
-- Stop choosing a lossy file's decoded precision from the device's preferred integer depth.
+- Remove unnecessary format changes.
 - Show where conversion actually occurs when the device cannot carry the decoded samples unchanged.
 
 There are three different facts to report: preserving decoded sample values, preserving the PCM representation, and using a lossless source. A 16-bit source carried exactly in a wider integer container preserves its values. A lossy file can have an unchanged decoded PCM path without recovering what compression discarded. A physical device's advertised word length does not establish its analog resolution.
@@ -46,10 +47,10 @@ Initial scope is macOS bit-perfect playback through the existing `AudioOutputUni
 | Current owner | Current constraint | Planned change |
 | --- | --- | --- |
 | `Audio/AudioFileHandle.{h,m}` and `Loading/AudioFileMaterializationCoordinator.m`, `kProductionFileOpener` | The reader supports explicit PCM formats, but the production opener chooses float32 before any voice exists | Source-preserving reader selection within the existing admitted handle-open run |
-| `Audio/AudioVoiceBus.{h,m}` | Float pointers, float buffers and float-only initialization; lossy Int16 expanded back into float | Format-sized PCM storage and a direct copy operation, sharing all slot, decode and transport machinery |
+| `Audio/AudioVoiceBus.{h,m}` | Float pointers, float buffers and float-only initialization | Format-sized PCM storage and a direct copy operation, sharing all slot, decode and transport machinery |
 | `Audio/AudioPlayer+Pipeline.{h,m}` | Master slicing and pointer offsets assume `sizeof(float)`; `_masterFormat` selected around float playback | A full-format reconcile and byte-correct rendering for the selected PCM format |
 | `Audio/Mac/Devices/AudioOutputUnit.{h,m}` and its existing internal header | Client format asserts noninterleaved float32; callback shape assumes one buffer per channel | Validated PCM client formats and buffer geometry derived from their ASBD |
-| `Audio/Mac/Devices/OutputFormatRules.h`, `AudioPlayer+Devices.m`, `CoreAudioUtil` | Lossy depth defaults to 16; precision report checks source/reader/physical format | One format choice and precision assessment across the actual reader, bus, client, virtual and physical formats |
+| `Audio/Mac/Devices/OutputFormatRules.h`, `AudioPlayer+Devices.m`, `CoreAudioUtil` | Lossy picks float, else the widest integer; precision report checks source/reader/physical format | One format choice and precision assessment across the actual reader, bus, client, virtual and physical formats |
 | `Audio/Levels/AudioLevelMeter` and `AudioPlayer+Diagnostics` | Meter and diagnostic signal capture read floats | Bounded conversion of an observation copy only, with no write back into playback |
 | `Debug/VibeManualRenderPump`, existing audio tests and verifier | Pump/capture and comparison use float32 | Preserve reference and capture precision independently of playback |
 
@@ -93,8 +94,6 @@ Treat the Declick setting explicitly:
 - Keep several retiring voices and rapid seeks/skips correct. Cut/retire adoption occurs before deciding a span can be copied. No unchecked integer addition, clipping, or accidental second unity voice may hide inside the copy branch.
 
 Preserve the current render admission, deferred teardown, decoder ownership, acquire/release publication and realtime compiler checks. This feature changes sample operations, not the lifetime protocol fixed by the PR reviews.
-
-Remove `VibeBitPerfectDecodesAsInteger16`, `decodesAsInteger16OnQueueForFile:`, the `quantizesToInt16OnQueueForFile:` policy and per-voice/successor `quantizeToInt16` flags, and the expand-to-float loop when the general format path replaces them. Do not retain them as a parallel fallback mechanism.
 
 ### 4. Negotiate the whole output format and restore it safely
 
@@ -159,7 +158,7 @@ Use six reviewable commits following the steps above, keeping each commit's supp
 
 Budget: **zero new production files, zero new test files, zero new types**. Extend the existing bus/record/master/output structures and tests. If implementation reveals a need for a new type or backend, revisit the design before writing it.
 
-The feature must remove the device-selected Int16 lossy special path and unify format choice, compatibility and precision reporting around the same actual PCM formats. Replace the existing float-only assumptions in place; do not maintain two transports, two decode schedulers, or competing format/rebuild owners. Re-read the touched files and consolidate after the behavior works.
+The feature must unify format choice, compatibility and precision reporting around the same actual PCM formats. Replace the existing float-only assumptions in place; do not maintain two transports, two decode schedulers, or competing format/rebuild owners. Re-read the touched files and consolidate after the behavior works.
 
 Report the measured additions, deletions, net lines, new files and types for each implementation commit and the final feature. No implementation line-count estimate is presented as a result here. Completion means demonstrated source precision on supported paths, explicit reasons on converted paths, preserved transport/recovery behavior, and the wider comparator capable of catching the precision loss this work addresses.
 

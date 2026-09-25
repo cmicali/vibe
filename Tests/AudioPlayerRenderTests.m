@@ -70,6 +70,37 @@ static NSDictionary *ComparePCM(NSData *reference, NSData *capture, NSUInteger c
              @"comparedFrames": @(count), @"aligned": @(aligned), @"sourceSkip": @(skip)};
 }
 
+// Float PCM can only be compared against a float32 reference, which carries
+// the same narrowing as a float32 capture and so hides it. This compares the
+// capture against the source at full width — doubles, which hold every
+// integer to 32 bits and every float64 exactly — at the alignment ComparePCM
+// found, counting every sample float32 did not carry.
+static NSDictionary *CompareWidePCM(NSData *wide, NSData *capture, NSUInteger channels,
+                                    NSUInteger aligned, NSUInteger skip) {
+    NSUInteger count = wide.length / sizeof(double) - skip * channels;
+    if (!channels || (aligned * channels + count) * sizeof(float) > capture.length)
+        return @{@"pass": @NO, @"reason": @"Incomplete capture"};
+    const double *r = (const double *)wide.bytes + skip * channels;
+    const float *a = (const float *)capture.bytes + aligned * channels;
+    NSUInteger mismatches = 0;
+    double peak = 0;
+    for (NSUInteger i = 0; i < count; i++) {
+        if ((double)a[i] != r[i]) mismatches++;
+        peak = MAX(peak, fabs((double)a[i] - r[i]));
+    }
+    return @{@"pass": @(mismatches == 0), @"mismatchedSamples": @(mismatches), @"comparedSamples": @(count),
+             @"maxError": @(peak)};
+}
+
+// Each sample rounded to the nearest float32, as a float capture would hold it.
+static NSData *Float32PCM(NSData *wide) {
+    NSMutableData *pcm = [NSMutableData dataWithLength:wide.length / sizeof(double) * sizeof(float)];
+    const double *in = wide.bytes;
+    float *out = pcm.mutableBytes;
+    for (NSUInteger i = 0; i < pcm.length / sizeof(float); i++) out[i] = (float)in[i];
+    return pcm;
+}
+
 static double RMS(NSData *data, NSUInteger channels, NSUInteger channel, NSRange frames) {
     const float *p = data.bytes; double energy = 0;
     if (NSMaxRange(frames) * channels * sizeof(float) > data.length || frames.length == 0) return NAN;
@@ -158,23 +189,32 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 // The generator emits a fixed 44-byte RIFF header. Read those bytes directly
 // for the lossless matrix so the handle is not its own decode oracle.
-- (NSData *)sourcePCM:(NSURL *)url bits:(NSUInteger)bits {
+// A generated fixture's samples from its own bytes, at full width: integers
+// to 32 bits scaled by their full scale, float32 or float64 as stored.
+- (NSData *)wideSourcePCM:(NSURL *)url {
     NSData *wav=[NSData dataWithContentsOfURL:url];
     XCTAssertGreaterThan(wav.length,44u);
     XCTAssertEqual(memcmp(wav.bytes,"RIFF",4),0);
+    uint16_t format=0, bits=0;
+    memcpy(&format,(const uint8_t *)wav.bytes+20,2); memcpy(&bits,(const uint8_t *)wav.bytes+34,2);
     const uint8_t *bytes=(const uint8_t *)wav.bytes+44;
     NSUInteger width=bits/8, count=(wav.length-44)/width;
-    NSMutableData *pcm=[NSMutableData dataWithLength:count*sizeof(float)];
-    float *out=pcm.mutableBytes;
+    NSMutableData *pcm=[NSMutableData dataWithLength:count*sizeof(double)];
+    double *out=pcm.mutableBytes;
     for (NSUInteger i=0;i<count;i++) {
-        if (bits==32) memcpy(out+i,bytes+i*4,4); // float32 fixtures, little endian host
+        if (format==3 && bits==64) memcpy(out+i,bytes+i*8,8); // little endian host
+        else if (format==3) { float value; memcpy(&value,bytes+i*4,4); out[i]=value; }
         else {
-            uint32_t value=0;
-            for(NSUInteger b=0;b<width;b++) value|=(uint32_t)bytes[i*width+b]<<(b*8);
-            int32_t signedValue=(value & (1u<<(bits-1))) ? (int32_t)value-(1<<bits) : (int32_t)value;
-            out[i]=(float)signedValue/(float)(1u<<(bits-1));
+            int64_t value=0;
+            for(NSUInteger b=0;b<width;b++) value|=(int64_t)bytes[i*width+b]<<(b*8);
+            if (value & ((int64_t)1<<(bits-1))) value-=(int64_t)1<<bits;
+            out[i]=(double)value/(double)((int64_t)1<<(bits-1));
         }
     }
+    return pcm;
+}
+- (NSData *)sourcePCM:(NSURL *)url {
+    NSData *pcm=Float32PCM([self wideSourcePCM:url]);
     XCTAssertEqualObjects(pcm,PCM([self read:url]),@"Lossless decode %@",url.lastPathComponent);
     return pcm;
 }
@@ -294,6 +334,12 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         else p[at]+=1.0f/8388608;
         XCTAssertFalse([ComparePCM(reference,bad,2,0,0)[@"pass"] boolValue],@"%@ escaped",mutation);
     }
+    // One bit below float32's significand, which no float reference can hold.
+    NSData *wide=[self wideSourcePCM:[self fixture:@"integer32.wav"]], *capture=Float32PCM(wide);
+    XCTAssertTrue([CompareWidePCM(wide,capture,2,0,0)[@"pass"] boolValue]);
+    NSMutableData *bad=[wide mutableCopy];
+    ((double *)bad.mutableBytes)[24000]+=1.0/2147483648;
+    XCTAssertEqual([CompareWidePCM(bad,capture,2,0,0)[@"mismatchedSamples"] unsignedIntegerValue],1u);
 }
 - (void)testBitPerfectRateDepthAndChannelMatrix {
     for (NSNumber *rate in @[@44100,@48000,@88200,@96000,@176400,@192000])
@@ -301,7 +347,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         @autoreleasepool {
             [self startPlayerAt:rate.doubleValue channels:channels.unsignedIntegerValue fx:NO bitPerfect:YES automatic:NO];
             NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-%@-%@.wav",rate,bits,channels]];
-            NSData *reference=[self sourcePCM:url bits:bits.unsignedIntegerValue]; [self play:url paused:NO position:0];
+            NSData *reference=[self sourcePCM:url]; [self play:url paused:NO position:0];
             NSData *capture=[self renderSeconds:2.1];
             [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:0];
             XCTAssertFalse([_player.debugRenderCounts[@"varispeed"] boolValue]);
@@ -347,8 +393,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (void)testMP3VBR { [self checkLossy:@"vbr.mp3" tolerance:0]; }
 - (void)testMP2 { [self checkLossy:@"lossy.mp2" tolerance:0]; }
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
-- (void)testFloatLimitsSilenceAndInteger32Precision {
-    for (NSString *name in @[@"limits.wav",@"silence.wav",@"integer32.wav"]) {
+- (void)testFloatLimitsAndSilence {
+    for (NSString *name in @[@"limits.wav",@"silence.wav"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         AVAudioPCMBuffer *source=[self read:[self fixture:name]];
         [self play:[self fixture:name] paused:NO position:0];
@@ -357,10 +403,27 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         else [self assertReference:PCM(source) capture:capture skip:[self startupSkip] tolerance:0];
         [self assertFinite:capture peak:1];
     }
-    // Float32's precision is an explicit limit; decoded equality above does
-    // not claim the integer source's low bits survive the AudioFileHandle boundary.
-    volatile int32_t sample=16777217; float converted=(float)sample;
-    XCTAssertNotEqual((int32_t)converted,(int32_t)sample);
+}
+// Wider sources, compared at full width. A 32-bit file whose samples sit on
+// float32's grid plays exactly. Integer32 and float64 samples finer than
+// float32's significand arrive rounded once, to the nearest float32 and
+// nothing coarser, and the wide comparison counts every one: the loss the
+// report calls DepthInsufficient, visible to the oracle rather than shared
+// by its reference.
+- (void)testWideSourcesArriveRoundedOnceToFloat32 {
+    for (NSString *name in @[@"integer32.wav",@"integer32-low-bits.wav",@"float64-low-bits.wav"]) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        NSURL *url=[self fixture:name];
+        NSData *wide=[self wideSourcePCM:url], *rounded=Float32PCM(wide);
+        [self play:url paused:NO position:0];
+        NSData *capture=[self renderSeconds:wide.length/sizeof(double)/2/_rate+0.1];
+        [self assertReference:rounded capture:capture skip:[self startupSkip] tolerance:0];
+        NSUInteger aligned=[ComparePCM(rounded,capture,2,[self startupSkip],0)[@"aligned"] unsignedIntegerValue];
+        NSDictionary *full=CompareWidePCM(wide,capture,2,aligned,[self startupSkip]);
+        NSUInteger mismatched=[full[@"mismatchedSamples"] unsignedIntegerValue], compared=[full[@"comparedSamples"] unsignedIntegerValue];
+        if ([name isEqual:@"integer32.wav"]) XCTAssertEqual(mismatched,0u,@"%@",full);
+        else XCTAssertGreaterThan(mismatched,compared/2,@"%@: %@",name,full);
+    }
 }
 // Every audible frame of capture must continue an exact excerpt of one of the
 // references: bit-perfect output may cut between excerpts, never scale a
