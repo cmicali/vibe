@@ -134,7 +134,12 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
                        description:[NSString stringWithFormat:@"%@ is not a file", name]];
     }
-    _descriptor = open(url.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
+    // TRAP: nonblocking, so a FIFO with no writer — a path a playlist or a
+    // restored session can name — returns at once for fstat to refuse below
+    // rather than parking an uncancellable open worker until a writer comes.
+    // A regular file is never made to wait by the flag: pread on one does
+    // not block on readiness.
+    _descriptor = open(url.fileSystemRepresentation, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (_descriptor < 0) {
         int code = errno;
         if (error) {
