@@ -303,6 +303,26 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds), @"depth": @(depth),
                                         @"alternating": @(alternating)});
             }),
+            // A render stuck on the audio IO thread: the next real callback
+            // spins inside the pipeline (debugHoldRenderInside:) until the
+            // hold lifts, so the render clock stops and the beta watcher
+            // samples the IO thread. Bounded like block_main; audible as a gap.
+            VibeDebugCmd(@"block_render <seconds>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0;
+                if (tokens.count != 2 || !VibeParseDouble(tokens[1], &seconds)
+                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
+                    return VibeErrorJSON(@"usage: block_render <seconds 0-%g>", kMaxBlockMainSeconds);
+                }
+                AudioPlayer *player = surface.debugPlayer;
+                [player debugHoldRenderInside:YES];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)),
+                               dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    [player debugHoldRenderInside:NO];
+                });
+                return VibeJSONString(@{@"ok": @YES, @"heldSeconds": @(seconds)});
+            }),
             VibeDebugCmd(@"block_main <seconds> [<verb> ...]", 30,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
