@@ -42,7 +42,7 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 - Out-of-range `seek` and `set_pitch` — the clamp escaping is the finding.
 - `folder_art` — flips `set_folder_art`, the one change that drops every answer the resolver holds, onto resolves and decodes in flight. Emits `off`/`on` as a pair.
 - `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a convert, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
-- `block_main` — `reference/cloud-scenarios.md`.
+- `block_main` — `references/cloud-scenarios.md`.
 
 **There is no `waveform_style` op, deliberately.** The style is a theme field, so a `click_menu waveform_style_*` answers "no menu item" — which the tolerated-error list swallowed, scoring a clean run over an op that did nothing. Its weight went to `theme`, which swaps the renderer anyway. A tolerated error over a dead op is the pattern to watch for when a menu moves.
 

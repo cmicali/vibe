@@ -367,7 +367,12 @@ static const double kWaveformGainDetentDB = 0.75;
     [SettingsRowView setControl:_removeThemeButton enabled:!builtIn];
 
     [self refreshWaveformPreviews];
-    [self refreshEditorFromSettings];
+    // The editor page's wells, image checks and control walk are refreshed
+    // only while it is the page shown; every way onto it refreshes through
+    // here with _editorShown already set.
+    if (_editorShown) {
+        [self refreshEditorFromSettings];
+    }
     [self resolveLayoutStateFromSettings];
 }
 

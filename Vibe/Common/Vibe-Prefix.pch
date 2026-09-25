@@ -127,6 +127,22 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
     } while (0)
 #endif
 
+// The audio thread's discipline. VIBE_REALTIME_CHECKED_BEGIN … VIBE_REALTIME_END
+// compiles the code between them under -Werror=function-effects, so a
+// CA_REALTIME_API function there cannot allocate, lock, log, dispatch or send
+// an Objective-C message. VIBE_REALTIME_UNCHECKED_BEGIN brackets the one-line
+// shims around the calls the checker cannot see — AudioUnitRender, the vDSP
+// FFT, the clock — each documented at its site; nothing else goes inside one.
+#if defined(__has_warning) && __has_warning("-Wfunction-effects")
+#define VIBE_REALTIME_CHECKED_BEGIN   _Pragma("clang diagnostic push") _Pragma("clang diagnostic error \"-Wfunction-effects\"")
+#define VIBE_REALTIME_UNCHECKED_BEGIN _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wfunction-effects\"")
+#define VIBE_REALTIME_END             _Pragma("clang diagnostic pop")
+#else
+#define VIBE_REALTIME_CHECKED_BEGIN
+#define VIBE_REALTIME_UNCHECKED_BEGIN
+#define VIBE_REALTIME_END
+#endif
+
 // Frame-budget instrumentation — DEBUG ONLY, all of it.
 //
 // An interval lands in Instruments' Points of Interest track, which sits

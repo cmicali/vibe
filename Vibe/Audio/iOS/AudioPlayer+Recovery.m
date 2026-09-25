@@ -10,18 +10,84 @@
 #import "AudioPlayerInternal.h"
 #import "PlaybackDeliveryRules.h"
 
-@interface AudioPlayer (RecoveryPrivate)
-- (NSTimeInterval)lastValidPositionSnapshot;
+@implementation AudioPlayer (Carrier)
+
+- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
+    NSMutableDictionary *output = [NSMutableDictionary dictionary];
+    output[@"carrier"] = @"engine";
+    output[@"engineRunning"] = @(_engine.isRunning);
+    output[@"outputNodeSampleRate"] = @([_engine.outputNode outputFormatForBus:0].sampleRate);
+    output[@"presentationLatency"] = @(_engine.outputNode.presentationLatency);
+    return @[output];
+}
+
+- (void)attachSourceNodeOnQueueWithFormat:(AVAudioFormat *)format {
+    if (_sourceNode) {
+        [_engine detachNode:_sourceNode];
+    }
+    VibeMasterBus *master = _masterBus; // the block captures the pointer, never self
+    _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:format
+            renderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
+        *isSilence = NO;
+        return VibeMasterBusRender(master, timestamp, frameCount, outputData);
+    }];
+    [_engine attachNode:_sourceNode];
+    [_engine connect:_sourceNode to:_engine.outputNode format:format];
+}
+
+- (void)createCarrierOnQueue {
+    _engine = [[AVAudioEngine alloc] init];
+    double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2];
+    [self setMasterBusFormatOnQueue:format];
+    [self attachSourceNodeOnQueueWithFormat:format];
+}
+
+- (BOOL)startCarrierOnQueueWithError:(NSError **)error {
+    if (!_engine) {
+        if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
+        return NO;
+    }
+    __block NSError *startError = nil;
+    BOOL started = [self performDiagnosticPhase:@"output start" device:-1 operation:^BOOL{
+        return [self->_engine startAndReturnError:&startError];
+    }];
+    if (error) *error = startError;
+    return started;
+}
+- (void)stopCarrierOnQueue { [_engine stop]; }
+- (BOOL)carrierRunningOnQueue { return _engine.isRunning; }
+- (void)releaseIdleCarrierOnQueue {}
+- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
+    [self attachSourceNodeOnQueueWithFormat:format];
+    [self setMasterBusFormatOnQueue:format];
+    return YES;
+}
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+    return @{@"dropouts": @0, @"renderCycles": @0, @"renderMeanMicros": @0, @"renderMaxMicros": @0};
+}
+- (void)clearCarrierCountersOnQueue {}
+
+- (BOOL)followOutputRouteOnQueue {
+    double rate = _engine ? [_engine.outputNode outputFormatForBus:0].sampleRate : 0;
+    if (rate <= 0 || !_masterFormat || rate == _masterFormat.sampleRate) {
+        return YES;
+    }
+    return [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2]];
+}
+
 @end
 
 @implementation AudioPlayer (Recovery)
 
-// The in-place restart is the same ballet as the paused idle stop's
-// reschedule: [node stop] fires the old segment's completion, so _segmentGeneration
-// bumps first; scheduling needs no running engine; and
-// startEngineAndPlayNode: restarts it. The output node converts if the new
-// route runs at a different sample rate from the wired format, so no
-// reconnection is needed (see AudioFX's wiring note).
+// A route at the pipeline's rate is a restart: the voice's ring and gain
+// survived the stop, so nothing is rescheduled. A route at another rate is
+// followed — the source node and the bus rebuilt at it, the track kept —
+// so the bus converts once, at the route's rate, and the output node
+// converts nothing; the follow restarts a playing output itself. The same
+// follow runs before every engine start (a resume, a play's settlement),
+// because a route loss or an interruption can leave this recovery
+// unanswered and the next start would otherwise run on the stale rate.
 - (void)recoverFromEngineConfigurationChange {
     dispatch_async(_queue, ^{
         BOOL engineRunning = self->_engine.isRunning;
@@ -30,66 +96,34 @@
             // Publish that edge before any state-specific recovery can return
             // or wait; a quick successful restart coalesces active on main.
             [self refreshOutputAudioActiveOnQueue];
+            [self updateDrainTimerOnQueue];
         }
-        if (self->_state != VibePlayerStatePlaying || self->_pausePending) {
-            // Paused and stopped recover lazily on the next start, and a
-            // pending pause owns the transport: its completion pauses in
-            // place, engine running or not.
+        double routeRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
+        if (routeRate > 0 && routeRate != [self masterBusFormatOnQueue].sampleRate) {
+            [self followOutputRouteOnQueue];
             return;
         }
-        AVAudioPlayerNode *node = self->_node;
-        AVAudioFile *file = self->_file;
-        if (!node || !file || engineRunning) {
-            return; // Loading, or the engine survived the change.
+        if (self->_state != VibePlayerStatePlaying || !self->_voice || engineRunning) {
+            return; // idle, Loading, or the engine survived the change
         }
-        // The getter serves the last-valid cache here: lastRenderTime went
-        // nil when the engine stopped itself.
-        NSTimeInterval position = self.position;
-        self->_segmentGeneration++; // the [node stop] below fires the old segment's completion
-        uint64_t rampGen = [self preemptRampsOnQueue];
-        [self setGaplessQueuedOnQueue:NO]; // the stop below drops the queued segment
-        [node stop];
-        double sampleRate = file.processingFormat.sampleRate;
-        AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
-        [self scheduleFile:file onNode:node fromFrame:startFrame];
-        [self maybeArmGaplessOnQueue]; // re-queue the splice behind the restored segment
         NSError *startError = nil;
-        if (![self startEngineAndPlayNode:node error:&startError]) {
+        if (![self startOutputOnQueue:&startError]) {
             // No output to restart on. Park Paused at the same position, so
             // the next resume restarts the engine, and say why.
             LogError(@"AudioPlayer: config-change restart failed (%@)", startError);
-            [self publishPlaybackState:VibePlayerStatePaused node:node file:file
-                          segmentStart:startFrame position:position];
-            [self scheduleEngineIdleStopOnQueue];
-            AudioTrack *track = self.currentTrack;
-            run_on_main_thread({
-                [self.delegate audioPlayer:self didPausePlaying:track];
-            });
+            [self pauseCurrentVoiceOnQueue];
             return;
         }
-        [self publishPlaybackState:VibePlayerStatePlaying node:node file:file
-                      segmentStart:startFrame position:position];
-        [self rampNodeAsync:node step:1 from:node.volume to:1.0 generation:rampGen completion:nil];
+        [self armSignalProbeOnQueue:@"configuration change"];
     });
 }
 
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and createEngineAndMasterBusOnQueue
-// rebuilds exactly what init built: fresh FX nodes with the recorded intent
-// re-applied (or the bare mixer -> output wire), and the debug argv modes.
-- (NSTimeInterval)lastValidPositionSnapshot {
-    os_unfair_lock_lock(&_stateLock);
-    // Natural completion leaves the finished file and its last position in
-    // place for cheap auto-advance, but Stopped still means a later replay
-    // begins at zero. The public position getter made that distinction before
-    // media reset invalidated the file; preserve it without messaging the file.
-    NSTimeInterval position = _state == VibePlayerStateStopped
-            ? 0 : _lastValidPosition;
-    os_unfair_lock_unlock(&_stateLock);
-    return MAX(position, 0);
-}
-
+// dropEngineBoundStateOnQueue's contract — and createOutputOnQueue
+// rebuilds exactly what init built: one source node wired to the engine
+// output, or the shared debug pump. The
+// source segment rebuilds itself at the next settlement.
 - (void)beginMediaServicesResetWithCompletion:
         (VibeMediaServicesResetCompletion)completion {
     // TRAP: playTrack: mints its identifier and enqueues its work under this
@@ -102,20 +136,20 @@
     dispatch_async(_queue, ^{
         LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
         AudioTrack *resetTrack = self.currentTrack;
-        NSTimeInterval lastValidPosition =
-                [self lastValidPositionSnapshot];
+        // The voice's consumed frames, read before the bus is dropped; 0 for
+        // a Stopped player, so a later replay of a finished track begins at
+        // zero as it always did.
+        NSTimeInterval position = self.position;
         if (!resetTrack) {
             os_unfair_lock_lock(&self->_stateLock);
             resetTrack = self.loadingTrack ?: self.lastSubmittedPlayTrack;
             os_unfair_lock_unlock(&self->_stateLock);
         }
-        self->_segmentGeneration++;
-        [self preemptRampsOnQueue];
         [self dropEngineBoundStateOnQueue];
         self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
-        [self publishPlaybackState:VibePlayerStateStopped node:nil file:nil segmentStart:0 position:0];
-        [self createEngineAndMasterBusOnQueue];
+        [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
+        [self createOutputOnQueue];
         if (!completion) {
             return;
         }
@@ -129,7 +163,7 @@
                     newestSubmittedPlayIdentifier)) {
                 return;
             }
-            completion(resetTrack, lastValidPosition);
+            completion(resetTrack, position);
         });
     });
     os_unfair_lock_unlock(&_stateLock);

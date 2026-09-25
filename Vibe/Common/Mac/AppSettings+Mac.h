@@ -282,6 +282,10 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
+// Advanced testing override, default NO. Changes request BitPerfectApply.
+- (BOOL)allowBitPerfectOnAnyDevice;
+- (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
+
 // The DJ performance FX — low kill, reverb and delay returns. Off routes the
 // mixer straight to output; nodes are created on first enable and retained.
 // Changes apply through the player's stopped-engine rebuild. iOS has no FX.
@@ -328,6 +332,14 @@ static const double kVibeWaveformGainMaxDB = 12;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 - (void)setExclusiveOutput:(BOOL)enabled;
 #endif
+
+// Settings > Audio > Declick, default YES, one choice for every device and
+// every mode. What a transport edge does: on, a ≤10 ms declick ramp; off, a
+// cut that leaves every sample untouched and may click. A crossfade longer
+// than the declick fades either way. Writers request
+// VibeSettingsLiveEffectDeclick.
+- (BOOL)declick;
+- (void)setDeclick:(BOOL)declick;
 
 // The one answer to "do FX exist for the user": audioFXEnabled and not
 // bitPerfectOutput. Every gate reads this — the launch-time graph choice,

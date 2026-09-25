@@ -2,9 +2,8 @@
 //  AudioLevelMathTests.m
 //  VibeTests
 //
-//  The tunable half of the reactive equalizer indicator. AudioLevelTap owns an
-//  AVAudioEngine tap and cannot be reached from a host-less suite, so these
-//  are the decisions that actually shape how the bars look.
+//  AudioLevelMeter is fed by VibeMasterBusRender. Its arithmetic lives here
+//  so the decisions that shape the equalizer bars can be tested without rendering.
 //
 
 #import <XCTest/XCTest.h>
@@ -170,10 +169,10 @@
     }
 }
 
-- (void)testTapRequestsTheMinimumDocumentedDuration {
-    XCTAssertEqual(VibeLevelTapBufferFrameCount(44100.0), 4410u);
-    XCTAssertEqual(VibeLevelTapBufferFrameCount(48000.0), 4800u);
-    XCTAssertEqual(VibeLevelTapBufferFrameCount(192000.0), 19200u);
+- (void)testMeterRequestsTheMinimumDocumentedDuration {
+    XCTAssertEqual(VibeLevelPublicationFrameCount(44100.0), 4410u);
+    XCTAssertEqual(VibeLevelPublicationFrameCount(48000.0), 4800u);
+    XCTAssertEqual(VibeLevelPublicationFrameCount(192000.0), 19200u);
 }
 
 - (void)testFFTEnergyScalingIsFrameSizeIndependent {

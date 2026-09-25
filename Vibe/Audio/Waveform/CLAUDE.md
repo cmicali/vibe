@@ -2,7 +2,7 @@
 
 This directory owns the waveform *data*: generation, chunking and persistence. Rendering is `Vibe/WaveformUI/`; the BPM and key analyzers that ride this decode pass are `Vibe/Audio/Analysis/`.
 
-`AudioWaveform` is a C++ structure storing, per chunk, the peak min/max and the energy — a sum of squared samples plus a frame count, so merging partial buffers into a chunk and chunks into a drawn column stays exact in any order. `AVFAudioWaveformLoader`, backed by `AVAudioFile`, generates the data asynchronously and hands immutable snapshots to the main thread for progressive rendering. `AudioWaveformCache` owns the loader lifecycle and persists through PINCache.
+`AudioWaveform` is a C++ structure storing, per chunk, the peak min/max and the energy — a sum of squared samples plus a frame count, so merging partial buffers into a chunk and chunks into a drawn column stays exact in any order. `AudioWaveformLoader`, reading through `AudioFileHandle` (`Audio/`), generates the data asynchronously and hands immutable snapshots to the main thread for progressive rendering. `AudioWaveformCache` owns the loader lifecycle and persists through PINCache.
 
 ## Whether the analyzers ride at all is an input, not a setting this layer reads
 
@@ -16,11 +16,11 @@ The pass is decode-bound — CoreAudio's MP3 and FLAC codecs cost several times 
 
 All processing-side state — the progress throttle and its snapshots included — lives on that queue and is read only after the final drain.
 
-Cache-key stats, serial cache lookups, opens and decodes pass through **fixed-slot utility `AudioWorkScheduler`s**. `stat` and `AVAudioFile` open have no cancellation point and can block for minutes on a cloud placeholder, so fixed admission slots are the resource bound. A stat keeps its slot while it synchronously visits the serial cache queue, so a wedged cache lookup cannot grow a tail there either. Playback has a separate user-initiated scheduler again, so background analysis cannot starve the open the user is waiting on.
+Cache-key stats, serial cache lookups, opens and decodes pass through **fixed-slot utility `AudioWorkScheduler`s**. `stat` and the handle open have no cancellation point and can block for minutes on a cloud placeholder, so fixed admission slots are the resource bound. A stat keeps its slot while it synchronously visits the serial cache queue, so a wedged cache lookup cannot grow a tail there either. Playback opens do not pass through these schedulers at all: they run on the coordinator's own user-initiated queue under the handle ceiling, so background analysis cannot starve the open the user is waiting on.
 
 **Two lanes here, not one, because the stages block on different things.** The lookup lane (cache-key stat plus the serial cache lookup) runs two; the decode lane (open plus decode) runs `kMaxDetachedWaveformLoads + 1` = three. They must be independent because a decode is submitted from *inside* a lookup that still holds its slot: sharing one scheduler let a burst of lookups fill the pending list and then reject or expire the very decode they had asked for — delivered to the delegate as that file failing to load, when nothing about the file had failed.
 
-Pending work is held inside the scheduler — never submitted to `NSOperationQueue` or libdispatch until a slot is free — with an explicit four-item memory bound. Cancellation removes a still-pending block synchronously. If all three slots remain occupied for ten seconds, the pending request fails *admission* without pretending its file open ran and timed out. A truly never-returning OS call still owns its fixed slot for the process lifetime; only process restart (or future killable helper-process isolation) can reclaim that thread, but retries cannot multiply it.
+Pending work is held inside the scheduler — never submitted to `NSOperationQueue` or libdispatch until a slot is free — with an explicit four-item memory bound. Cancellation removes a still-pending block synchronously. If a lane's slots remain occupied for ten seconds, the pending request fails *admission* without pretending its file open ran and timed out. A truly never-returning OS call still owns its fixed slot for the process lifetime; only process restart (or future killable helper-process isolation) can reclaim that thread, but retries cannot multiply it.
 
 ## A superseded load is detached, not aborted
 

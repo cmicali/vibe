@@ -15,6 +15,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
 #import "AudioWaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"
@@ -62,6 +63,9 @@
     }
     if (effects & VibeSettingsLiveEffectCrossfade) {
         self.audioPlayer.crossfadeMilliseconds = settings.effectiveCrossfadeMilliseconds;
+    }
+    if (effects & VibeSettingsLiveEffectDeclick) {
+        self.audioPlayer.declick = settings.declick;
     }
     if (effects & VibeSettingsLiveEffectBitPerfect) {
         BOOL bitPerfect = settings.bitPerfectOutput;
@@ -145,7 +149,7 @@
         if (updatingOutputModes) {
             [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
                                  exclusiveOutput:settings.exclusiveOutput
-                                        enableFX:settings.audioFXEnabled];
+                                        enableFX:settings.audioFXEnabled allowAnyDevice:settings.allowBitPerfectOnAnyDevice];
         }
         [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];

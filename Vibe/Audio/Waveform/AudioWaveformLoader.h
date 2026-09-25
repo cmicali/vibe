@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol AudioWaveformLoaderDelegate;
 
 // Which analyzers the decode pass should run, since both ride it (see
-// AVFAudioWaveformLoader). It is a provider rather than a stored pair because
+// AudioWaveformLoader). It is a provider rather than a stored pair because
 // it is asked once per load: a settings change then applies to the next decode
 // with nobody having to republish it, which is how the two flags behaved when
 // the loader read them itself. Same shape as FolderArtResolver's enabled

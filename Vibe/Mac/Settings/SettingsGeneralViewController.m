@@ -35,6 +35,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSSwitch *_exclusiveOutputSwitch;
     SettingsRowView *_exclusiveOutputRow;
 #endif
+    // Enabled only while bit-perfect output is on: ordinary playback always ramps.
+    NSSwitch *_declickSwitch;
+    SettingsRowView *_declickRow;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
     NSSwitch *_reopenPlaylistSwitch;
@@ -55,9 +58,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     self = [super initWithPlayerController:playerController];
     if (self) {
         _audioPane = audioPane;
-        if (audioPane) {
-            [AudioDeviceManager.sharedInstance addObserver:self];
-        }
     }
     return self;
 }
@@ -140,12 +140,17 @@ static const CGFloat kGeneralPopUpWidth = 280;
                                                caption:STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION
                                                control:_exclusiveOutputSwitch];
 #endif
+    _declickSwitch = [self switchWithAction:@selector(toggleDeclick:)];
+    _declickRow = [SettingsRowView rowWithTitle:STR_SETTINGS_DECLICK
+                                        caption:STR_SETTINGS_DECLICK_CAPTION
+                                        control:_declickSwitch];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
             [SettingsRowView rowWithTableView:_outputTable rowCount:7],
         ]],
         [SettingsSectionView sectionWithRows:@[
+            _declickRow,
             _bitPerfectRow,
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
             _exclusiveOutputRow,
@@ -181,7 +186,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
-    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType, AppSettings.sharedInstance.allowBitPerfectOnAnyDevice);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
     BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
     // TRAP: until the bind settles, mode writes still name the old saved UID.
@@ -216,6 +221,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
             : STR_SETTINGS_EXCLUSIVE_OUTPUT_CAPTION;
     captionChanged |= [_exclusiveOutputRow setCaption:exclusiveCaption];
 #endif
+    _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
     if (captionChanged) {
         [self paneContentDidChange];
     }
@@ -234,6 +240,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self refreshBitPerfectRows];
 }
 #endif
+
+- (void)toggleDeclick:(id)sender {
+    AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+}
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
@@ -353,6 +364,25 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSInteger deviceId = row == 0 ? -1 : [self outputDeviceAtRow:row].deviceId;
     if (deviceId != self.playerController.audioPlayer.currentlyRequestedAudioDeviceId) {
         [self.playerController.devicesMenuController selectOutputDevice:deviceId];
+    }
+}
+
+// The device manager is observed only while the Audio pane is on screen, like
+// the Files pane's grants: every pane outlives the window, so an observer
+// registered at init reloaded the device list for a pane nobody could see on
+// every device change. viewWillAppear's refresh covers whatever changed
+// while hidden.
+- (void)viewDidAppear {
+    [super viewDidAppear];
+    if (_audioPane) {
+        [AudioDeviceManager.sharedInstance addObserver:self];
+    }
+}
+
+- (void)viewWillDisappear {
+    [super viewWillDisappear];
+    if (_audioPane) {
+        [AudioDeviceManager.sharedInstance removeObserver:self];
     }
 }
 

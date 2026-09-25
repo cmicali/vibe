@@ -9,7 +9,6 @@
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioFX.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
@@ -70,7 +69,7 @@ static double SkipBaseBars(void) {
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
     // When Stopped, at the end of the playlist or after an error, the finished
-    // file stays open, so duration alone looks seekable with no node left to
+    // file stays open, so duration alone looks seekable with no voice left to
     // seek. Menu validation mirrors this, and the guard here covers the bare
     // keys, which bypass it.
     if (!self.playlistController.currentTrack || self.audioPlayer.isStopped) {

@@ -58,8 +58,8 @@ HELPER_SRC = HERE / "device-flap.swift"
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
 # Metrics worth watching across a flap soak, as dotted paths into dump_health.
-# Each rebind builds and tears down a CoreAudio aggregate and rewires the master
-# bus, so a leak here would be a leak per device event — invisible in a run that
+# Each rebind rebinds the hosted output unit and rebuilds the source segment,
+# so a leak here would be a leak per device event — invisible in a run that
 # never flaps. footprintBytes is deliberately absent: it is the allocator's
 # high-water mark, wanders hundreds of MB in both directions at rest, and
 # mallocLiveBytes is the sensitive metric that actually means something.
@@ -68,12 +68,19 @@ HEALTH_KEYS = (
     "process.fileDescriptors",
     "process.threads",
     "process.machPorts",
-    "app.engineNodes",
+    "app.hostedUnits",
+    # Cumulative silence cycles from the hosted output unit: a zero baseline,
+    # so any dropout across the soak is reported.
+    "app.outputDropouts",
+    # Renders the pipeline refused because a stuck one was still inside when
+    # the next carrier's callback came: a rebind is exactly where two
+    # carriers meet, and a zero baseline makes any refusal a finding.
+    "app.renderRefusals",
     "ui.views",
     "ui.layers",
 )
 # A single sample over the limit means nothing: the opening decode peaks far
-# above resting and engine nodes swing widely as crossfade pairs drain. Baseline
+# above resting and retiring voices swing widely as crossfade pairs drain. Baseline
 # is the element-wise minimum of the first three samples, and a metric is only
 # reported after this many consecutive breaches.
 BASELINE_SAMPLES = 3

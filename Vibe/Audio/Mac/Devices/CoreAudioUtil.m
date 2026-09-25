@@ -296,13 +296,15 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
         availableFormats:(AudioStreamRangedDescription **)availableFormats
                    count:(UInt32 *)count
              forDeviceID:(AudioDeviceID)deviceID {
-    if (!stream || !format || !availableFormats || !count) {
+    if (!stream || !format || (availableFormats != NULL) != (count != NULL)) {
         return NO;
     }
     *stream = kAudioObjectUnknown;
     memset(format, 0, sizeof(*format));
-    *availableFormats = NULL;
-    *count = 0;
+    if (availableFormats) {
+        *availableFormats = NULL;
+        *count = 0;
+    }
     if (deviceID == kAudioObjectUnknown) {
         return NO;
     }
@@ -332,7 +334,7 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
                                                  kAudioObjectPropertyScopeGlobal,
                                                  kAudioObjectPropertyElementMain };
     UInt32 availableSize = 0;
-    if (AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
+    if (availableFormats && AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
             && availableSize >= sizeof(AudioStreamRangedDescription)) {
         AudioStreamRangedDescription *formats = (AudioStreamRangedDescription *)malloc(availableSize);
         if (formats && AudioObjectGetPropertyData(first, &availableAddr, 0, NULL,
@@ -420,8 +422,13 @@ static BOOL VibeReadOutputControl(AudioDeviceID deviceID, AudioObjectPropertySel
 }
 
 // One registration and lifetime, including devices with only some controls.
+// The nominal rate is a global-scope property the output wildcard does not
+// cover, so it rides the same block under its own address.
 static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
     kAudioObjectPropertySelectorWildcard, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementWildcard
+};
+static const AudioObjectPropertyAddress kVibeNominalRateAddress = {
+    kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
 };
 
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
@@ -431,6 +438,12 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
         return NO;
     }
     OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    if (status == noErr) {
+        status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+        if (status != noErr) {
+            AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+        }
+    }
     if (status != noErr) {
         LogWarn(@"CoreAudioUtil: output level listener on %u failed (OSStatus %d)", deviceID, (int)status);
     }
@@ -440,7 +453,29 @@ static const AudioObjectPropertyAddress kVibeOutputLevelAddress = {
 + (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID {
-    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    OSStatus levels = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeOutputLevelAddress, queue, listener);
+    OSStatus rate = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    return (levels == noErr || levels == kAudioHardwareBadObjectError)
+            && (rate == noErr || rate == kAudioHardwareBadObjectError);
+}
+
++ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    if (status != noErr) {
+        LogWarn(@"CoreAudioUtil: nominal rate listener on %u failed (OSStatus %d)", deviceID, (int)status);
+    }
+    return status == noErr;
+}
+
++ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID {
+    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
     return status == noErr || status == kAudioHardwareBadObjectError;
 }
 

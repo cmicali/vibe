@@ -15,8 +15,8 @@
 
 // The CLI half of the debug command channel: VibeDebugCommandClientMain, which
 // main.m runs for `Vibe --debug-cmd ...` before NSApplicationMain. The local
-// verbs (sleep, scan_bpm, clear_disk_caches, set_appearance) run in this
-// process; everything else rides the file-and-notification transport to the
+// verbs (sleep, script, scan_bpm, scan_key, clear_disk_caches, set_analysis)
+// run in this process; everything else rides the file-and-notification transport to the
 // running app. See DebugUtil.h for the transport contract and DebugUtil.m for
 // the app side.
 
@@ -180,8 +180,14 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         NSFileManager *fileManager = NSFileManager.defaultManager;
         // Per-verb wait from the same table the app dispatches with — slow
         // verbs (file_cache's full decode, clear_caches' blocking clear)
-        // declare their own window there; everything else gets 5s.
+        // declare their own window there; everything else gets 5s, or
+        // VIBE_DEBUG_TIMEOUT seconds when the caller sets it: a script that
+        // drives the failure fixtures (the bit-perfect verifier) knows the
+        // app's main thread waits out a dead device for longer than that.
         NSTimeInterval timeout = [VibeCommandSpecForVerb(args.firstObject)[@"clientTimeout"] doubleValue];
+        if (timeout <= 0) {
+            timeout = [NSProcessInfo.processInfo.environment[@"VIBE_DEBUG_TIMEOUT"] doubleValue];
+        }
         if (timeout <= 0) {
             timeout = 5;
         }

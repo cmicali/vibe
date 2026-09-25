@@ -68,13 +68,15 @@ NS_ASSUME_NONNULL_BEGIN
 // effect reads this back.
 + (BOOL)readNominalSampleRate:(Float64 *)rate forDeviceID:(AudioDeviceID)deviceID;
 
-// The device's first output stream: its id, its current physical format and
-// the formats it offers. availableFormats is malloc'd and owned by the caller
-// (free() it); it is NULL with count 0 when the stream lists none.
+// The device's first output stream: its id, its current physical format and,
+// when asked for, the formats it offers. availableFormats is malloc'd and
+// owned by the caller (free() it); it is NULL with count 0 when the stream
+// lists none. Both NULL skips that enumeration, a HAL query of its own that
+// a reader of the current format alone has no use for.
 + (BOOL)readOutputStream:(AudioStreamID *)stream
           physicalFormat:(AudioStreamBasicDescription *)format
-        availableFormats:(AudioStreamRangedDescription * _Nullable * _Nonnull)availableFormats
-                   count:(UInt32 *)count
+        availableFormats:(AudioStreamRangedDescription * _Nullable * _Nullable)availableFormats
+                   count:(UInt32 * _Nullable)count
              forDeviceID:(AudioDeviceID)deviceID;
 // kAudioStreamPropertyPhysicalFormat, which carries rate and depth together.
 + (BOOL)readPhysicalFormat:(AudioStreamBasicDescription *)format forStream:(AudioStreamID)stream;
@@ -92,13 +94,22 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readOutputVolume:(Float32 *)volume balance:(Float32 *)balance mute:(BOOL *)muted
                channels:(UInt32)channels inStream:(AudioStreamID)stream
             forDeviceID:(AudioDeviceID)deviceID;
-// One listener for all output elements, delivered on queue.
-// The caller filters addresses for volume/balance/mute. The block is the handle:
-// removal must use the same block object, queue and device.
+// One listener for all output elements and the device's nominal rate,
+// delivered on queue. The caller filters addresses for volume/balance/mute and
+// the rate. The block is the handle: removal must use the same block object,
+// queue and device.
 + (BOOL)addOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                         queue:(dispatch_queue_t)queue
                   forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID;
+// The device's nominal rate alone, delivered on queue; the block is the
+// handle, as above.
++ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID;
++ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
 

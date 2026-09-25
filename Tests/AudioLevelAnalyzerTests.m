@@ -34,6 +34,13 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     return strongest;
 }
 
+// Consume then summarize: what the meter does at a publication boundary.
+static NSUInteger VibeTestAnalyze(VibeAudioLevelAnalyzer *analyzer, float *const *channels, NSUInteger channelCount,
+                                  NSUInteger frameCount, float levels[kLevelBandCount]) {
+    VibeAudioLevelAnalyzerConsume(analyzer, channels, channelCount, frameCount);
+    return VibeAudioLevelAnalyzerSummarize(analyzer, levels);
+}
+
 @interface AudioLevelAnalyzerTests : XCTestCase
 @end
 
@@ -63,7 +70,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
             VibeTestAddBinTone(samples.mutableBytes, frameCount, centerBin, 0.5f);
             float *channels[] = {samples.mutableBytes};
             float levels[kLevelBandCount] = {0};
-            XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+            XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                           frameCount, levels), 1u);
             XCTAssertEqual(VibeTestStrongestBand(levels), expectedBand,
                            @"rate %.0f band %lu", sampleRate,
@@ -94,7 +101,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
             VibeTestAddBinTone(samples.mutableBytes, fftSize, bins[index], 0.5f);
             float *channels[] = {samples.mutableBytes};
             float levels[kLevelBandCount];
-            XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+            XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                           fftSize, levels), 1u);
             XCTAssertEqual(VibeTestStrongestBand(levels), expectedBands[index],
                            @"rate %.0f bin %lu", sampleRate,
@@ -127,7 +134,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
             }
             float *channels[] = {values};
             float levels[kLevelBandCount] = {0};
-            XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+            XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                           frameCount, levels), 1u);
             for (NSUInteger band = 0; band < kLevelBandCount; band++) {
                 XCTAssertEqual(levels[band], 0.0f,
@@ -156,9 +163,9 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float relativeLevels[kLevelBandCount] = {0};
     float sharedLevels[kLevelBandCount] = {0};
 
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(relative, channels, 1,
                                                   frameCount, relativeLevels), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(shared, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(shared, channels, 1,
                                                   frameCount, sharedLevels), 1u);
     XCTAssertGreaterThan(relativeLevels[0], 0.99f);
     XCTAssertGreaterThan(relativeLevels[1], 0.99f);
@@ -190,11 +197,11 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float sharedLevels[kLevelBandCount] = {0};
     float balancedLevels[kLevelBandCount] = {0};
 
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(relative, channels, 1,
                                                   window * 2, relativeLevels), 2u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(shared, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(shared, channels, 1,
                                                   window * 2, sharedLevels), 2u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(balanced, channels, 1,
                                                   window * 2, balancedLevels), 2u);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         float expected = VibeLevelBalancedSpectrumLevel(sharedLevels[band],
@@ -226,7 +233,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float *channels[] = {samples.mutableBytes};
     float levels[kLevelBandCount] = {0};
 
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                   window, levels), 1u);
     XCTAssertEqualWithAccuracy(levels[0], kLevelBalancedOutputScale, 0.001f);
     for (NSUInteger band = 1; band < kLevelBandCount; band++) {
@@ -253,11 +260,11 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float sharedLevels[kLevelBandCount] = {0};
     float balancedLevels[kLevelBandCount] = {0};
 
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(relative, channels, 1,
                                                   window, relativeLevels), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(shared, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(shared, channels, 1,
                                                   window, sharedLevels), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(balanced, channels, 1,
                                                   window, balancedLevels), 1u);
     const NSUInteger adjacentBand = 2;
     XCTAssertGreaterThan(sharedLevels[1], 0.99f);
@@ -294,9 +301,9 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float *strongChannels[] = {strongSamples.mutableBytes};
     float initialBalanced[kLevelBandCount] = {0};
     float relativeLevels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, strongChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(balanced, strongChannels, 1,
                                                   window, initialBalanced), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, strongChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(relative, strongChannels, 1,
                                                   window, relativeLevels), 1u);
     XCTAssertEqualWithAccuracy(initialBalanced[0], kLevelBalancedOutputScale,
                                0.001f);
@@ -312,10 +319,10 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     }
     float *continuedChannels[] = {continuedValues};
     float continuedBalanced[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(
+    XCTAssertEqual(VibeTestAnalyze(
             balanced, continuedChannels, 1, window * referenceDecayWindows,
             continuedBalanced), referenceDecayWindows);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(
+    XCTAssertEqual(VibeTestAnalyze(
             relative, continuedChannels, 1, window * referenceDecayWindows,
             relativeLevels), referenceDecayWindows);
     XCTAssertEqualWithAccuracy(continuedBalanced[1], kLevelBalancedOutputScale,
@@ -327,9 +334,9 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestAddBinTone(reducedSamples.mutableBytes, window, 7, 0.5f);
     float *reducedChannels[] = {reducedSamples.mutableBytes};
     float reducedBalanced[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(balanced, reducedChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(balanced, reducedChannels, 1,
                                                   window, reducedBalanced), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(relative, reducedChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(relative, reducedChannels, 1,
                                                   window, relativeLevels), 1u);
 
     XCTAssertGreaterThan(relativeLevels[0], 0.99f);
@@ -359,7 +366,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         float *channels[] = {values};
         float levels[kLevelBandCount] = {0};
 
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                       window * 2, levels), 2u);
         XCTAssertGreaterThan(levels[0], 0.99f);
         float weakToStrong = 0.01f
@@ -392,7 +399,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         float *channels[] = {values};
         float levels[kLevelBandCount] = {0};
 
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                       window * 2, levels), 2u);
         // These bars summarize equal energy density over the whole callback;
         // they do not claim the two tones occupied the same FFT window.
@@ -412,7 +419,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestAddBinTone(strong.mutableBytes, window, 7, 0.5f);
     float *strongChannels[] = {strong.mutableBytes};
     float levels[kLevelBandCount];
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, strongChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(analyzer, strongChannels, 1,
                                                   window, levels), 1u);
 
     const NSUInteger quietWindowCount = 8;
@@ -423,7 +430,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         VibeTestAddBinTone(quietValues + index * window, window, 7, 0.05f);
     }
     float *quietChannels[] = {quietValues};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(
+    XCTAssertEqual(VibeTestAnalyze(
             analyzer, quietChannels, 1, window * quietWindowCount, levels),
             quietWindowCount);
 
@@ -455,10 +462,10 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         float *bassChannels[] = {bass.mutableBytes};
         float *trebleChannels[] = {treble.mutableBytes};
 
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, bassChannels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, bassChannels, 1,
                                                       window, levels), 1u);
         XCTAssertGreaterThan(levels[0], 0.99f);
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, trebleChannels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, trebleChannels, 1,
                                                       window, levels), 1u);
         XCTAssertLessThan(levels[0], 0.01f);
         XCTAssertGreaterThan(levels[4], 0.99f);
@@ -466,7 +473,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             levels[band] = 0.37f;
         }
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, bassChannels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, bassChannels, 1,
                                                       window / 2, levels), 0u);
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             XCTAssertEqual(levels[band], 0.37f);
@@ -488,7 +495,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestAddBinTone(values, window, 400, 0.2f);
     float *wholeChannels[] = {values};
     float expected[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(whole, wholeChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(whole, wholeChannels, 1,
                                                   window, expected), 1u);
 
     const float sentinel = -7.0f;
@@ -497,14 +504,14 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         levels[band] = sentinel;
     }
     float *firstHalfChannels[] = {values};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(chunked, firstHalfChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(chunked, firstHalfChannels, 1,
                                                   window / 2, levels), 0u);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         XCTAssertEqual(levels[band], sentinel);
     }
 
     float *secondHalfChannels[] = {values + window / 2};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(chunked, secondHalfChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(chunked, secondHalfChannels, 1,
                                                   window / 2, levels), 1u);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         XCTAssertNotEqual(levels[band], sentinel);
@@ -531,7 +538,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         VibeTestAddBinTone(samples.mutableBytes, frameCount, weakBin, 0.05f);
         float *channels[] = {samples.mutableBytes};
         float levels[kLevelBandCount] = {0};
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                       frameCount, levels), 1u);
         if (!hasBaseline) {
             memcpy(baseline, levels, sizeof(baseline));
@@ -565,7 +572,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         VibeTestAddBinTone(values, window, transientBin, 0.1f);
         float *channels[] = {values};
         float levels[kLevelBandCount] = {0};
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                       window * 2, levels), 2u);
         if (!hasBaseline) {
             memcpy(baseline, levels, sizeof(baseline));
@@ -591,7 +598,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestFillTone(samples.mutableBytes, frameCount, 192000.0, 1000.0, 1.0f);
     float *channels[] = {samples.mutableBytes};
     float levels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                   frameCount, levels), 1u);
     XCTAssertEqual(VibeTestStrongestBand(levels), 3u);
     XCTAssertGreaterThan(levels[3], 0.9f);
@@ -610,7 +617,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestAddBinTone(oldSamples.mutableBytes, oldWindow, 400, 0.4f);
     float *oldChannels[] = {oldSamples.mutableBytes};
     float oldLevels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, oldChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(rebound, oldChannels, 1,
                                                   oldWindow, oldLevels), 1u);
     XCTAssertGreaterThan(oldLevels[VibeTestStrongestBand(oldLevels)], 0.8f);
 
@@ -619,7 +626,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestFillTone(partialSamples.mutableBytes, oldWindow / 2,
                      oldRate, 6000.0, 1.0f);
     float *partialChannels[] = {partialSamples.mutableBytes};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, partialChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(rebound, partialChannels, 1,
                                                   oldWindow / 2, oldLevels), 0u);
 
     XCTAssertTrue(VibeAudioLevelAnalyzerSetSampleRate(rebound, newRate));
@@ -634,9 +641,9 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float *newChannels[] = {newSamples.mutableBytes};
     float reboundLevels[kLevelBandCount] = {0};
     float freshLevels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(rebound, newChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(rebound, newChannels, 1,
                                                   newWindow, reboundLevels), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(fresh, newChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(fresh, newChannels, 1,
                                                   newWindow, freshLevels), 1u);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         XCTAssertEqualWithAccuracy(reboundLevels[band], freshLevels[band], 0.0001f,
@@ -663,9 +670,9 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     float *oppositeChannels[] = {positive.mutableBytes, negative.mutableBytes};
     float sameLevels[kLevelBandCount] = {0};
     float oppositeLevels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(inPhase, sameChannels, 2,
+    XCTAssertEqual(VibeTestAnalyze(inPhase, sameChannels, 2,
                                                   frameCount, sameLevels), 1u);
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(antiphase, oppositeChannels, 2,
+    XCTAssertEqual(VibeTestAnalyze(antiphase, oppositeChannels, 2,
                                                   frameCount, oppositeLevels), 1u);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         XCTAssertEqualWithAccuracy(oppositeLevels[band], sameLevels[band], 0.0001,
@@ -674,6 +681,37 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     XCTAssertGreaterThan(sameLevels[VibeTestStrongestBand(sameLevels)], 0.9f);
     VibeAudioLevelAnalyzerDestroy(inPhase);
     VibeAudioLevelAnalyzerDestroy(antiphase);
+}
+
+// The same frames in three callbacks are three windows analyzed as they
+// fill, and one summary covers them all, as it does in the meter at its
+// publication; a summary clears what it covered.
+- (void)testWindowsAnalyzedAcrossCallbacksSummarizeOnce {
+    const double sampleRate = 48000.0;
+    VibeAudioLevelAnalyzer *whole = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    VibeAudioLevelAnalyzer *spread = VibeAudioLevelAnalyzerCreate(
+            sampleRate, VibeAudioLevelNormalizationModeBalancedSpectrum);
+    NSUInteger frameCount = VibeAudioLevelAnalyzerFFTSize(whole);
+    NSMutableData *samples = [NSMutableData dataWithLength:3 * frameCount * sizeof(float)];
+    VibeTestFillTone(samples.mutableBytes, 3 * frameCount, sampleRate, 1000.0, 0.5f);
+    float *wholeChannels[] = {samples.mutableBytes};
+    float wholeLevels[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeTestAnalyze(whole, wholeChannels, 1, 3 * frameCount, wholeLevels), 3u);
+    for (NSUInteger i = 0; i < 3; i++) {
+        float *channels[] = {(float *)samples.mutableBytes + i * frameCount};
+        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(spread, channels, 1, frameCount), 1u);
+    }
+    float spreadLevels[kLevelBandCount] = {0};
+    float untouched[kLevelBandCount] = {0};
+    XCTAssertEqual(VibeAudioLevelAnalyzerSummarize(spread, spreadLevels), 3u);
+    XCTAssertEqual(VibeAudioLevelAnalyzerSummarize(spread, untouched), 0u, @"a summary clears the windows it covered");
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        XCTAssertEqualWithAccuracy(spreadLevels[band], wholeLevels[band], 0.0001, @"band %lu", (unsigned long)band);
+        XCTAssertEqual(untouched[band], 0.0f);
+    }
+    VibeAudioLevelAnalyzerDestroy(whole);
+    VibeAudioLevelAnalyzerDestroy(spread);
 }
 
 - (void)testArbitraryCallbackChunksMatchOneCompleteWindow {
@@ -688,7 +726,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
 
     float *wholeChannels[] = {samples.mutableBytes};
     float wholeLevels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(whole, wholeChannels, 1,
+    XCTAssertEqual(VibeTestAnalyze(whole, wholeChannels, 1,
                                                   frameCount, wholeLevels), 1u);
 
     const NSUInteger chunkSizes[] = {7, 113, 509, 31, 877, 211, 300};
@@ -702,7 +740,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         NSUInteger count = MIN(requested, frameCount - offset);
         float *channel = (float *)samples.mutableBytes + offset;
         float *channels[] = {channel};
-        windows += VibeAudioLevelAnalyzerConsume(chunked, channels, 1, count,
+        windows += VibeTestAnalyze(chunked, channels, 1, count,
                                                   chunkedLevels);
         offset += count;
     }
@@ -726,7 +764,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
     VibeTestFillTone(values + window, window, sampleRate, 6000.0, 1.0f);
     float *channels[] = {values};
     float levels[kLevelBandCount] = {0};
-    XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+    XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                   window * 2, levels), 2u);
     XCTAssertGreaterThan(levels[1], 0.9f);
     XCTAssertGreaterThan(levels[4], 0.9f);
@@ -751,7 +789,7 @@ static NSUInteger VibeTestStrongestBand(const float levels[kLevelBandCount]) {
         }
         float *channels[] = {values};
         float levels[kLevelBandCount] = {0};
-        XCTAssertEqual(VibeAudioLevelAnalyzerConsume(analyzer, channels, 1,
+        XCTAssertEqual(VibeTestAnalyze(analyzer, channels, 1,
                                                       frameCount, levels), 1u);
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             XCTAssertTrue(isfinite(levels[band]));

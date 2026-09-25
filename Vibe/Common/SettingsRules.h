@@ -246,4 +246,18 @@ static inline BOOL VibeSettingsAreAtDefaults(NSDictionary<NSString *, id> *_Null
     return YES;
 }
 
+#if TARGET_OS_OSX
+// The Advanced pane's Audio group is a debug readout: a Debug build always
+// shows it, a Release build hides it until the Version row is clicked
+// kVibeAudioPathRevealClicks times in a row, each within
+// kVibeAudioPathRevealGapSeconds of the last. The count after a click
+// `sinceLast` seconds after the previous one: a slower click starts over.
+static const NSUInteger kVibeAudioPathRevealClicks = 7;
+static const NSTimeInterval kVibeAudioPathRevealGapSeconds = 1.5;
+
+static inline NSUInteger VibeAudioPathRevealClickCount(NSUInteger count, NSTimeInterval sinceLast) {
+    return sinceLast <= kVibeAudioPathRevealGapSeconds ? count + 1 : 1;
+}
+#endif
+
 NS_ASSUME_NONNULL_END

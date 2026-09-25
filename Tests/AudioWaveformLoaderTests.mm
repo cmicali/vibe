@@ -1,5 +1,5 @@
 //
-//  AVFAudioWaveformLoaderTests.mm
+//  AudioWaveformLoaderTests.mm
 //  VibeTests
 //
 //  The decode pass's phases, one at a time. Three of them read the pass struct
@@ -17,7 +17,8 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 
-#import "AVFAudioWaveformLoaderInternal.h"
+#import "AudioWaveformLoaderInternal.h"
+#import "AudioFixtures.h"
 #import "AudioWaveform.h"
 
 @interface RecordingWaveformLoaderDelegate : NSObject <AudioWaveformLoaderDelegate>
@@ -32,17 +33,17 @@
 }
 @end
 
-@interface AVFAudioWaveformLoaderTests : XCTestCase
+@interface AudioWaveformLoaderTests : XCTestCase
 @end
 
-@implementation AVFAudioWaveformLoaderTests {
-    AVFAudioWaveformLoader *_loader;
+@implementation AudioWaveformLoaderTests {
+    AudioWaveformLoader *_loader;
     NSURL *_tempDirectory;
 }
 
 - (void)setUp {
     [super setUp];
-    _loader = [[AVFAudioWaveformLoader alloc] init];
+    _loader = [[AudioWaveformLoader alloc] init];
     _tempDirectory = [NSURL fileURLWithPath:
             [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtURL:_tempDirectory
@@ -243,21 +244,13 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 
 #pragma mark - openFileAtPath: and the whole pass, over a written file
 
-// Writes a WAV of the given duration. AVAudioFile only, so no engine and no
-// audio hardware is involved — the same class the loader reads it back with.
+// Writes a float32 WAV of the given duration — no engine, no audio hardware.
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds {
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                                              sampleRate:44100
                                                                channels:2
                                                             interleaved:NO];
-    NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url
-                                                   settings:format.settings
-                                               commonFormat:AVAudioPCMFormatFloat32
-                                                interleaved:NO
-                                                      error:&error];
-    XCTAssertNotNil(file, @"could not write fixture: %@", error);
 
     const AVAudioFrameCount total = (AVAudioFrameCount)(44100.0 * seconds);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format
@@ -271,14 +264,15 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
         buffer.floatChannelData[0][i] = v;
         buffer.floatChannelData[1][i] = v;
     }
-    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"write failed: %@", error);
+    NSError *error = nil;
+    XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"could not write fixture: %@", error);
     return url.path;
 }
 
 - (void)testOpenReportsTheFileShape {
     NSString *path = [self writeWAVNamed:@"shape.wav" seconds:1.0];
     struct VibeWaveformDecodePass pass = {};
-    AVAudioFile *file = [_loader openFileAtPath:path pass:&pass];
+    AudioFileHandle *file = [_loader openFileAtPath:path pass:&pass];
     XCTAssertNotNil(file);
     XCTAssertEqual(pass.totalFrames, (AVAudioFramePosition)44100);
     XCTAssertEqual(pass.numChannels, (NSUInteger)2);
@@ -311,7 +305,7 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     progress.inverted = YES;
     RecordingWaveformLoaderDelegate *delegate = [RecordingWaveformLoaderDelegate new];
     delegate.progressExpectation = progress;
-    AVFAudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:delegate];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:delegate];
     [loader detach];
 
     XCTAssertNotNil([loader load:path]);

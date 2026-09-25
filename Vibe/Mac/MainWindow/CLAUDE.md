@@ -26,7 +26,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:` and its cu
 
 ## Track end, close and save
 
-**Whether a track end advances is `AppSettings.pauseAtTrackEnd`, enforced at both places an end can advance from**: `successorPrefetchTrack` for the audio (nil under Pause, so no gapless splice is armed) and `advanceOrParkAtTrackEnd` for the shell (re-reads the setting, since it decides from `hasNextTrack` alone). Root `CLAUDE.md` carries the guarantee.
+**Whether a track end advances is `AppSettings.pauseAtTrackEnd`, enforced at both places an end can advance from**: `successorPrefetchTrack` for the audio (nil under Pause, so no gapless successor is queued) and `advanceOrParkAtTrackEnd` for the shell (re-reads the setting, since it decides from `hasNextTrack` alone). Root `CLAUDE.md` carries the guarantee.
 
 **File > Close (⌘W, `closeFile:`) is nil-targeted**: the key window's target owns the action and the shared item's title. The player retitles it Close File / Close All Files and enables it for a nonempty playlist; Settings and About restore the singular and close themselves. The player's action calls `AudioPlayer.stop` (no delegate event), clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelScan` — **a cancelled loader still strongly holds every queued track**.
 

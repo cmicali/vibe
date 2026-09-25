@@ -17,18 +17,9 @@ that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 A snapshot-restored guest kills all four by construction, and gives cold caches and a cold
 container every run without trusting `clear_caches` to have covered everything.
 
-**This is isolation work, not a safety prerequisite.** An earlier version of this plan argued
-that stress could only move onto real audio hardware once a VM existed, because a hardware run
-claims the media-app role and can pull the developer's auto-switching AirPods over. That
-coupling turned out to be one line of argv parsing (`NowPlayingController.m:98`) rather than a
-fact about hardware; `end-of-graph-silent.md` splits it apart and makes hardware-silent stress
-safe on the desktop. The two documents are independent — build this one when the isolation is
-worth the maintenance, not because something else is blocked on it.
+**This is isolation work, not a prerequisite for hardware testing.** Validated against the PR66 working copy on 2026-09-25: the macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering remains the default. The remaining hardware measurements are in [render-pipeline-follow-ups.md](render-pipeline-follow-ups.md#hardware-stress-campaigns); suppression alone does not establish AirPods isolation.
 
-The one real coupling runs the other way: **if `end-of-graph-silent.md` has landed, the guest
-needs a working CoreAudio output device**, because hardware-silent is then the harness default
-and a guest with no sound device fails at launch instead of testing anything. See the audio
-decision below.
+A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected carrier explicit; do not make VM provisioning depend on an assumed future harness-default change.
 
 ## Decisions
 
@@ -44,8 +35,8 @@ decision below.
 - **Audio in the guest.** Check what the pinned Tart attaches (`system_profiler SPAudioDataType`
   in-guest). If there is no output device, `brew install blackhole-2ch` and set it as default
   output — BlackHole is a real HAL device with no hardware behind it, precisely the shape
-  wanted. Record which path was taken in the golden image notes. Under the pre-`end-of-graph-silent`
-  default (`--no-audio-hw`) a device-less guest is harmless; after it, it is a hard failure.
+  wanted. Record which path was taken in the golden image notes. The current pump default
+  (`--no-audio-hw`) needs no device; an explicitly requested HAL campaign must have one.
 - **TCC cannot be pre-seeded** (SIP stays on in VZ guests): grant Screen Recording and
   Accessibility to the terminal once over VNC, then snapshot. Most of the harness needs neither
   — in-process screenshots and channel verbs are permission-free; only `screencapture`
@@ -105,9 +96,10 @@ green VM campaign will eventually be read as coverage it never had.
 
 - Provision the golden image, clone it, and confirm the clone reaches SSH readiness without a
   guessed sleep.
-- In-guest `system_profiler SPAudioDataType` reports an output device, and a `--silent` launch
-  brings the engine up with `silenceGateActive` — the check that matters if
-  `end-of-graph-silent.md` has landed.
+- For a HAL campaign, in-guest `system_profiler SPAudioDataType` reports an output device.
+  Launch with `VIBE_AUDIBLE=silent`; confirm `dump_state.player.manualRendering` is false
+  and `dump_audio_path` reports the pipeline’s `silent` state. For a pump campaign,
+  require `manualRendering` true instead.
 - One short `make stress-vm` end to end: the run header prints the pushed SHA, progress streams
   live to the host, and artifacts land under `build/vm-runs/`.
 - Force a failure (a bad seed, or a deliberately broken build) and confirm the clone is kept,
@@ -117,8 +109,8 @@ green VM campaign will eventually be read as coverage it never had.
 
 ## Open questions
 
-- Does the pinned Tart version attach a virtio sound device that `AVAudioEngine` accepts as
-  default output, or is BlackHole required? One in-guest command; the plan works either way.
+- Does the pinned Tart version attach a virtio sound device that CoreAudio lists as an output
+  device, or is BlackHole required? One in-guest command; the plan works either way.
 - Is one guest enough, or do stress and torture campaigns want the second EULA slot as a
   standing pair?
 - Does the maintenance cost of the golden image (Xcode upgrades, corpus refreshes, TCC

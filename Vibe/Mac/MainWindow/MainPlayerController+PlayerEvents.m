@@ -325,7 +325,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     *exclusiveOutput = [settings exclusiveOutputForDeviceUID:deviceUID];
 }
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex {
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didChangeOutputDevice:(NSInteger)newDeviceIndex
+involuntaryFallbackUID:(NSString *)fallbackUID involuntaryFallbackName:(NSString *)fallbackName
+carriedModesFromUID:(NSString *)carriedModesUID {
     LogDebug(@"MainPlayerController: didChangeOutputDevice: %zd", newDeviceIndex);
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL bitPerfectBefore = settings.bitPerfectOutput;
@@ -334,8 +336,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         // vanished keeps it as the saved preference, which is what re-adopts
         // it when it returns — in this session through the player's pending
         // intent, after a relaunch through the ordinary launch resolution.
-        if (audioPlayer.involuntaryFallbackDeviceUID.length == 0
-                && audioPlayer.involuntaryFallbackDeviceName.length == 0) {
+        if (fallbackUID.length == 0 && fallbackName.length == 0) {
             settings.audioOutputDeviceName = @"";
             settings.audioOutputDeviceUID = @"";
             settings.audioOutputDeviceModelUID = @"";
@@ -349,9 +350,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         if (device) {
             // Persist only the carry the player actually applied. Manual
             // selection and a destination with its own modes never carry.
-            NSString *carriedUID = audioPlayer.carriedOutputModesDeviceUID;
-            if (carriedUID.length) {
-                [settings carryOutputModesFromDeviceUID:carriedUID toDeviceUID:device.uid];
+            if (carriedModesUID.length) {
+                [settings carryOutputModesFromDeviceUID:carriedModesUID toDeviceUID:device.uid];
             }
             settings.audioOutputDeviceName = device.name;
             settings.audioOutputDeviceUID = device.uid;

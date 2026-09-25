@@ -27,8 +27,8 @@
 // as Paused. The rebuild already restores a paused track as Paused rather than
 // resuming it, so a settled pause is as safe to rebind as a stop.
 static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL paused,
-                                                BOOL engineRunning, BOOL audioActive) {
-    return stopped || (loading && !engineRunning) || (paused && !audioActive);
+                                                BOOL outputRunning, BOOL audioActive) {
+    return stopped || (loading && !outputRunning) || (paused && !audioActive);
 }
 
 // Whether a direct HAL read of kAudioDevicePropertyDeviceIsAlive proves the
@@ -77,8 +77,8 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusVolumeScaled,
     // Hog held by another process.
     VibeBitPerfectStatusExclusiveRefused,
-    // Everything held, but the file is lossy: the decoded audio is delivered
-    // unchanged.
+    // Everything held, but the file is lossy: its decoded audio plays at its
+    // own rate with no volume change, rounded only to the device's depth.
     VibeBitPerfectStatusSourceLossy,
 };
 
@@ -173,7 +173,7 @@ static inline BOOL VibePCMFormatCarries(AudioStreamBasicDescription pcm,
 }
 
 // YES when the path delivers `source` unchanged: the device at the source's
-// rate, and both the decode's processing format (AVAudioFile decodes to
+// rate, and both the decode's processing format (AudioFileHandle decodes to
 // float32, so a 32-bit integer source is never delivered in full, whatever
 // the device offers — measured: 24,641,537 came out 24,641,536) and the
 // device's physical format carry it. The report's depth check, not the
@@ -193,8 +193,10 @@ static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physi
 // points at) is never eligible, but that is the absence of a chosen device,
 // not a property of one: the device that happens to be the current default
 // is judged by its transport like any other. Read by the switch, the Output
-// menu and the report, so the three cannot disagree.
-static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
+// menu and the report, so the three cannot disagree. The Advanced testing
+// override bypasses this transport allowlist; format/signal checks still apply.
+static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType, BOOL allowAnyDevice) {
+    if (allowAnyDevice) return YES;
     switch (transportType) {
         case kAudioDeviceTransportTypeBuiltIn:
         case kAudioDeviceTransportTypePCI:
@@ -259,19 +261,6 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
             && a.mChannelsPerFrame == b.mChannelsPerFrame;
 }
 
-// A lossy source played to a device prepared at 16-bit integer is decoded
-// straight to 16-bit integers: the player node reads its file in the format it
-// is connected at, so the decoder does the one rounding and the output unit
-// only repacks. Apple's MP3 decoder produces 16-bit samples natively, so for
-// MP3 no sample changes; AAC decodes to float and rounds here instead of in
-// the HAL. Lossless sources keep float32, which carries their depth exactly.
-static inline BOOL VibeBitPerfectDecodesAsInteger16(AudioStreamBasicDescription source,
-                                                    AudioStreamBasicDescription prepared) {
-    return source.mFormatID != 0 && VibeSourceBitDepth(source) == 0
-            && prepared.mFormatID == kAudioFormatLinearPCM
-            && !VibePhysicalFormatIsFloat(prepared) && prepared.mBitsPerChannel == 16;
-}
-
 // Shared by the silent settlement and the gapless gate: even an unchanged
 // device needs a rebuild when the mixer would resample into it.
 static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription current,
@@ -281,17 +270,21 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
 }
 
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
-// source's (a lossy source prefers 16), else the smallest integer depth above
-// it, else float32 — and for a float source the float format first, since
-// no integer depth delivers one unchanged. Only formats wide enough for all
-// source channels qualify. Returns NO when none is usable at `rate`; the
-// caller compares the choice against what the device has before writing.
+// source's, else the smallest integer depth above it, else float32 — and for
+// a float source the float format first, since no integer depth delivers one
+// unchanged. A lossy source has no depth of its own: what reaches the device
+// is its float32 decode, so it is chosen like a float source, the float
+// format first, else the widest integer, which rounds that decode least —
+// never 16 bits because it is lossy, which rounded every AAC sample to 16
+// bits. Only formats wide enough for all source channels qualify. Returns NO when none is usable at `rate`;
+// the caller compares the choice against what the device has before writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count,
                                               AudioStreamBasicDescription *chosen) {
-    UInt32 depth = VibeSourceBitDepth(source) ?: 16;
+    UInt32 depth = VibeSourceBitDepth(source);
+    BOOL lossy = depth == 0;
     BOOL haveInteger = NO, haveFloat = NO;
     AudioStreamBasicDescription integerPick = {0}, floatPick = {0};
     for (UInt32 i = 0; i < count; i++) {
@@ -312,8 +305,10 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
         if (candidate.mBitsPerChannel < depth) {
             continue; // never below the source
         }
-        // Candidates below the source were excluded, so the smallest wins.
-        if (!haveInteger || candidate.mBitsPerChannel < integerPick.mBitsPerChannel) {
+        // Candidates below the source were excluded, so the smallest wins;
+        // a lossy source's widest.
+        if (!haveInteger || (lossy ? candidate.mBitsPerChannel > integerPick.mBitsPerChannel
+                                   : candidate.mBitsPerChannel < integerPick.mBitsPerChannel)) {
             integerPick = candidate;
             haveInteger = YES;
         }
@@ -321,7 +316,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    BOOL preferFloat = VibeSourceIsFloat(source) ? haveFloat : !haveInteger;
+    BOOL preferFloat = VibeSourceIsFloat(source) || lossy ? haveFloat : !haveInteger;
     *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }

@@ -8,7 +8,7 @@
 # Audio is OFF-HARDWARE by default (launches with --no-audio-hw --silent), so
 # no output device is opened and macOS's automatic AirPods switching can't
 # trigger; set VIBE_AUDIBLE=1 to use real hardware and hear playback, or
-# VIBE_AUDIBLE=silent for real hardware with the mixer muted (--silent only).
+# VIBE_AUDIBLE=silent for real hardware with final output buffers zeroed (--silent only).
 # --no-audio-hw also suppresses the system Now Playing publish, because
 # registering as the active media app takes the AirPods on its own.
 # Now Playing stays suppressed on hardware too unless VIBE_NOW_PLAYING=1.

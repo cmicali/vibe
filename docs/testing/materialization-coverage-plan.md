@@ -35,7 +35,7 @@ On the final audited run, `make test` completed 1,022 XTests with no failures (2
 | B1 | Teardown accounting guarantee in both coordinator test files | done — **passed on all 911 pre-existing tests**, proving the original failure needed a never-returning open |
 | B2 | `testAWedgedOpenIsNotAForegroundTransfer` | passes |
 | B3 | `testAWedgedPlaybackOpenDoesNotStarveForegroundTransfers` | passes — the asymmetry is now a test result, not a comment |
-| A1 | `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers`, and the gapless twin | **XFAIL before J8; pass after it** — the bug reproduced host-lessly on both paths, then the fix closed it |
+| A1 | `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers` | **XFAIL before J8; pass after it** — the bug reproduced host-lessly on both paths, then the fix closed it |
 | E1 | `handleOpensInFlight` in `dump_health`'s `pending` | done, **verified live**: wedged → `quiesce` returns `settled: false, {handleOpensInFlight: 1}`; released → `settled: true` |
 | C1 | `hang_open <basename>\|release` debug verb + a chained opener wrapper | done — the open-side seam the fake provider never had |
 | E5-field | `resolvedRows` in `dump_state.playlist` | done |
@@ -66,7 +66,7 @@ The substrate was executable before the fix. A2–A4 landed with J8; A5 was supe
 | E5-field, C1 | `resolvedRows`, `hang-open` fake-cloud mode | yes — prerequisites for every D item |
 | D1, D3, D4, E2 | S19 (expected-fail before J8), S21, S18 retrofit | yes |
 | E3, E4, F1, F2 | Saturation, admission rate, coverage reporting | yes |
-| **A2–A4** | Handle-run ceiling, lifecycle and gapless path | **no** — these landed with J8 |
+| **A2–A4** | Handle-run ceiling and lifecycle (the gapless open purpose is gone) | **no** — these landed with J8 |
 | **A5** | Proposed configuration surface | deliberately omitted — the ceiling is private and not tunable |
 
 **Expected-fail was the proof pattern, not a workaround.** The A1 tests and S19 first ran marked so the unfixed behavior was captured rather than skipped. J8 removes those marks; an XPASS would now mean the harness was not updated with the implementation. The original gapless-purpose S20 was deliberately omitted for the basename ambiguity described above. S9 is now the suite's one XFAIL for the separate unflagged-placeholder gap.
@@ -85,7 +85,7 @@ With those, the violation is one line: *demand > 0, progress flat across the win
 
 Two cheaper derivations of the same idea are worth having on their own, because they need no new concepts:
 
-- **In-flight opens must reach zero at rest.** `handleOpensStarted - handleOpensCompleted` is the count of live handle runs; if it is non-zero after a `quiesce`, an open is stranded. That is this bug, stated as a guarantee, and `quiesce` already has the machinery — `VibeIsSettled` (`DebugHealth.m:264`) iterates the whole `pending` dictionary, so a counter added to `VibePendingCounts` is automatically waited on, and a wedged run keeps `settled: false` and names itself in the reported `pending` block at the 15 s deadline. Highest leverage single change in this document.
+- **In-flight opens must reach zero at rest.** `handleOpensStarted - handleOpensCompleted` is the count of live handle runs; if it is non-zero after a `quiesce`, an open is stranded. That is this bug, stated as a guarantee, and `quiesce` already has the machinery — `VibeIsSettled` (`DebugHealth.m:332`) iterates the whole `pending` dictionary, so a counter added to `VibePendingCounts` is automatically waited on, and a wedged run keeps `settled: false` and names itself in the reported `pending` block at the 15 s deadline. Highest leverage single change in this document.
 - **Convergence, stated in user terms.** After a folder is opened and everything settles, *every* row should carry resolved metadata. That assertion knows nothing about lanes, claims or slots, so it survives every refactor of the mechanism and catches the whole class rather than this instance. `resolvedRows` is the landed signal; see item E5.
 
 ## Test coverage to add
@@ -98,10 +98,10 @@ A1 reproduced the bug as expected-fail and is now must-pass. A2–A4 land with J
 
 Host-less, in `Tests/AudioFileHandleOpenTests.m`, using `initWithConfiguration:operationFactory:datalessProbe:clock:fileOpener:` so a hanging opener and a fake dataless probe compose.
 
-- **A1. The B1 regression itself.** Wedge a gapless or prefetch open on path A, then submit a dataless metadata claim on path B and assert its transfer starts. This is the test whose absence is the bug.
+- **A1. The B1 regression itself.** Wedge a prefetch open on path A, then submit a dataless metadata claim on path B and assert its transfer starts. This is the test whose absence is the bug.
 - **A2. Wedged opens are bounded by exact admission.** Six distinct live runs admit; the seventh settles `AdmissionExhausted` before stage 1, increments `requestsAdmissionExhausted`, and leaves transfer counts untouched.
 - **A3. Membership follows the run lifecycle.** Stage-1 detach removes it; cancellation after stage 2 keeps it until the uncancellable call returns. The rebound test samples before rebind, after rebind and during the restarted native open to prove that restart retains one membership rather than releasing and reacquiring; the shared B1 teardown pins ordinary completion at zero.
-- **A4. Gapless uses the same handle-run ceiling without touching a transfer slot.** A same-key replacement still rebinds when all six memberships are occupied.
+- **A4. A same-key replacement still rebinds when all six memberships are occupied.** (The gapless open purpose this once covered is gone: the successor is the parked prefetch handle itself.)
 - **A5. No configuration surface.** The six-run ceiling is a private safety fuse, with no queue, grace, pending allowance, debug key, or user-facing tuning.
 
 ### B. Durable unit guarantees that would catch the next one

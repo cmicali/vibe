@@ -8,6 +8,7 @@
 #import "AppSettings+Mac.h"
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Devices.h"
 #import "MainPlayerController.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"

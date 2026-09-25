@@ -37,7 +37,6 @@
 #import "MainWindow.h"
 #import "MainPlayerContentView.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Seek.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"

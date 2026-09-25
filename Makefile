@@ -101,7 +101,7 @@ test-bit-perfect: build/verify-bit-perfect
 	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
 	@build/verify-bit-perfect --acceptance "$(abspath build/audio-fixtures)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" --require-driver-fixtures $(ARGS)
 
-# The engine suite renders real PCM without opening hardware. ARGS can narrow XCTest.
+# The render suite produces real PCM without opening hardware. ARGS can narrow XCTest.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
 test-audio: project build/verify-bit-perfect
 	@build/verify-bit-perfect --self-test

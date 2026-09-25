@@ -73,7 +73,7 @@ static NSUInteger VibeMachPortCount(void) {
     return nameCount;
 }
 
-// A leaked AVAudioFile or an unclosed cache handle shows here long before it
+// A leaked AudioFileHandle or an unclosed cache handle shows here long before it
 // shows in the footprint. Passing a null buffer asks only for the size.
 // TRAP: the sizing call is not a count. proc_pidinfo(PROC_PIDLISTFDS) with a
 // NULL buffer answers how big the process's descriptor TABLE is, and that table
@@ -203,7 +203,7 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // An AVAudioFile call the OS still owes an answer for. Unlike everything
+    // An AudioFileHandle call the OS still owes an answer for. Unlike everything
     // above it is not a container the app can drain — a never-returning open
     // cannot be cancelled — so nonzero here at rest is not "work still in
     // flight" but "work that will never finish", which is the only reading
@@ -277,7 +277,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
 
     // Blocks on the player's serial queue, so a wedged queue times the command
     // out rather than letting it answer from stale state.
-    NSDictionary *engine = [player debugEngineCounts];
+    NSDictionary *counts = [player debugRenderCounts];
 
     return VibeJSONString(@{
         @"ok": @YES,
@@ -295,11 +295,27 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"tableRows": @(controller.playlistTableView.numberOfRows),
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
-            @"engineNodes": engine[@"attachedNodes"],
+            // Hosted units, the varispeed and the FX chain's: created once
+            // and kept, so a count that moves is a rebuild that leaked.
+            @"hostedUnits": counts[@"hostedUnits"],
+            // The bus's drain timer: on only while the output runs voices, so
+            // 1 at rest is a wakeup the idle guarantee forbids.
+            @"drainPolling": counts[@"pollActive"],
+            // IO cycles the hosted output unit wrote as silence because the
+            // pipeline failed to render; cumulative, and a soak holds it at 0.
+            @"outputDropouts": counts[@"outputDropouts"],
+            // Renders the pipeline turned away because a stuck one was still
+            // inside when the next carrier's callback came; cumulative, 0.
+            @"renderRefusals": counts[@"renderRefusals"],
+            // The output unit's callback cost over the cycles it rendered:
+            // cumulative, so diff across a run, and mean against max.
+            @"renderCycles": counts[@"renderCycles"],
+            @"renderMeanMicros": counts[@"renderMeanMicros"],
+            @"renderMaxMicros": counts[@"renderMaxMicros"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },
-        @"pending": VibePendingCounts(controller, engine),
+        @"pending": VibePendingCounts(controller, counts),
         // Diagnosis, not scoring: the lane gauges and the cumulative outcome
         // counters that say whether work is still being *attempted*. The one
         // number here that belongs at zero at rest is already in `pending`.
@@ -340,7 +356,7 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
             poll = nil;
             return;
         }
-        NSDictionary *pending = VibePendingCounts(strong, [strong.audioPlayer debugEngineCounts]);
+        NSDictionary *pending = VibePendingCounts(strong, [strong.audioPlayer debugRenderCounts]);
         BOOL settled = VibeIsSettled(strong, pending);
         if (!settled && [deadline timeIntervalSinceNow] > 0) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kQuiescePollInterval * NSEC_PER_SEC)),

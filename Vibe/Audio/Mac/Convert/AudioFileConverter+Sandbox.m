@@ -58,7 +58,7 @@
 // Rung 2; see the header. TRAP: a successful presenter is kept for the
 // session, because the sandbox extension lives exactly as long as the
 // registration — unregistering after the move leaves a file the app has just
-// written and can no longer read (avfaudio error -54).
+// written and can no longer read (a permission error from the open).
 - (nullable NSURL *)moveTemp:(NSURL *)tempURL
                toRelatedItem:(NSURL *)destinationURL
                    ofPrimary:(NSURL *)primaryURL {

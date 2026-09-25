@@ -28,9 +28,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
   no-op for a local file). At most **one materialization operation exists per
   standardized path** at any time; every interested party joins it rather than starting
   a second transfer. This is the single most load-bearing rule in the subsystem.
-- **A3. Open.** Producing a usable `AVAudioFile` handle for a purpose (playback,
+- **A3. Open.** Producing a usable `AudioFileHandle` for a purpose (playback,
   prefetch, gapless). Purposes hold **independent handles** for the same path —
-  `AVAudioFile` has one stateful read position, so handles are never shared.
+  a handle has one stateful read position, so handles are never shared.
 - **A4. Roles.** Work competing for transfers is one of: playback, prefetch, metadata
   for the current track ("priority"), metadata for the playlist sweep ("scan"),
   artwork extraction. Playback and prefetch are *foreground*; the rest are
@@ -64,10 +64,10 @@ H policy numbers · I platform differences · J open items · K non-goals.
   play consumes the parked prefetch handle; whichever of a racing prefetch/playback
   open succeeds first serves the play, and the loser's park state is retired so the
   current track cannot become its own successor.
-- **B6. Gapless.** With the crossfade at minimum and formats matching, the successor
-  is also scheduled as a queued segment on the current node from a **private second
-  handle** (never the parked instance a play would consume). Gapless bypasses
-  materialization: the parked file already proved the bytes local.
+- **B6. Gapless.** With the crossfade at minimum (and, under bit-perfect output, the
+  formats matching), the parked prefetch handle itself is queued as the current
+  voice's successor; there is no second open. Gapless bypasses materialization: the
+  parked file already proved the bytes local.
 - **B7. Successor prefetch is where "On track end" is enforced.** Every prefetch site
   asks one function for the track to park; under Pause-at-track-end it answers nil,
   and with nothing parked no splice can advance the audio by itself.
@@ -225,7 +225,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 | Policy | Value | Where |
 | --- | --- | --- |
-| Slow-open indicator threshold | 0.5 s | `AudioPlayer.m:72` |
+| Slow-open indicator threshold | 0.5 s | `AudioPlayer.m:64` |
 | Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h:15` |
 | Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h:16` |
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
@@ -237,7 +237,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |
 | Parse concurrency | 4 | `AudioLoadingConfiguration.m` |
 | Sweep deferral fallback | 2 s | both shells |
-| Neighborhood offsets | +1, +2, −1 | `AudioTrackMetadataCache.m:223` |
+| Neighborhood offsets | +1, +2, −1 | `AudioTrackMetadataCache.m:174` |
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s, 5 steps | same |
 | Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
@@ -249,7 +249,7 @@ H policy numbers · I platform differences · J open items · K non-goals.
 
 ## I. Platform differences
 
-- **I1.** Folder art, BPM/key analysis, and the DJ FX graph are macOS-only, each
+- **I1.** Folder art, BPM/key analysis, and the DJ FX chain are macOS-only, each
   switched off at one place (root `CLAUDE.md`); iOS reads no preference it cannot
   act on.
 - **I2.** File > Close is macOS-only; iOS tears down via playlist replacement and
@@ -302,8 +302,8 @@ H policy numbers · I platform differences · J open items · K non-goals.
   resized the foreground lane 2 → 3. That spanning lifetime coupled two different
   resources and is retired by J8.
 - **J8. Transfer/open lifetime separation (defect → DECIDED; supersedes J7).** A
-  never-returning prefetch or gapless `AVAudioFile` call carried the sole background
-  transfer slot forever, permanently starving dataless metadata and prefetch work.
+  never-returning prefetch or gapless open (then an `AVAudioFile` call; the gapless
+  open no longer exists) carried the sole background transfer slot forever, permanently starving dataless metadata and prefetch work.
   **Resolution:** every transfer slot ends when its stage-1 materialization settles;
   no slot is carried into stage 2. Independently, at most 6 distinct
   `(purpose, standardized path)` handle runs may be live per coordinator. Production

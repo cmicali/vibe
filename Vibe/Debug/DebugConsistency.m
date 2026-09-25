@@ -34,13 +34,12 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
     [violations addObject:@{@"id": identifier, @"detail": detail}];
 }
 
-// A generous ceiling, not a tight one. The engine carries the output and main
-// mixer, the FX chain, and a player node plus varispeed per live track, which
-// measures 25 at rest and does not move across a burst of track changes, so
-// this is roughly 5x headroom. A leak is unbounded and blows past it either
-// way; the sensitive detector is the stress driver diffing the same number
-// against its own baseline.
-static const NSUInteger kVibeMaxReasonableEngineNodes = 128;
+// A generous ceiling, not a tight one. The pipeline hosts one varispeed and
+// the FX chain's ten units, created once and kept across a burst of track
+// changes, so this is headroom over the whole set. A leak is unbounded and
+// blows past it either way; the sensitive detector is the stress driver
+// diffing the same number against its own baseline.
+static const NSUInteger kVibeMaxReasonableHostedUnits = 16;
 
 // How long a track may render before its metadata not having been attempted
 // counts as a fault rather than a race. Generous on purpose: the parse itself
@@ -123,11 +122,21 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 #endif
 
+    NSDictionary<NSString *, NSNumber *> *engine = [player debugRenderCounts];
     checked++;
-    NSUInteger nodes = [player debugEngineCounts][@"attachedNodes"].unsignedIntegerValue;
-    if (nodes > kVibeMaxReasonableEngineNodes) {
-        VibeDebugViolation(v, @"engine.node_count_bounded",
-                @"%lu nodes attached to the engine", (unsigned long)nodes);
+    NSUInteger units = engine[@"hostedUnits"].unsignedIntegerValue;
+    if (units > kVibeMaxReasonableHostedUnits) {
+        VibeDebugViolation(v, @"graph.hosted_units_bounded",
+                @"%lu units hosted by the pipeline", (unsigned long)units);
+    }
+
+    // The pipeline admits one render at a time; a refusal means a carrier's
+    // callback found a stuck one inside, which nothing in a healthy run does.
+    checked++;
+    NSUInteger refusals = engine[@"renderRefusals"].unsignedIntegerValue;
+    if (refusals > 0) {
+        VibeDebugViolation(v, @"graph.no_render_refused",
+                @"%lu renders refused by the pipeline", (unsigned long)refusals);
     }
 
     // The barrier above drains the player queue, not callbacks waiting on main:
@@ -151,8 +160,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     NSUInteger activeLinks =
             (NSUInteger)[EqualizerIndicatorView vibeDebugActiveDisplayLinkCount];
     BOOL queueRequested = [equalizer[@"requested"] boolValue];
-    BOOL tapObject = [equalizer[@"tapObject"] boolValue];
-    BOOL tapInstalled = [equalizer[@"installed"] boolValue];
+    BOOL meterObject = [equalizer[@"meterObject"] boolValue];
+    BOOL meterInstalled = [equalizer[@"installed"] boolValue];
     BOOL signalProbe = [equalizer[@"signalProbe"] boolValue];
 
     checked++;
@@ -170,18 +179,20 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     checked++;
-    // Beta builds also hold the tap for each start's bounded signal capture.
-    if (tapInstalled != tapObject || (tapInstalled && !queueRequested && !signalProbe)) {
-        VibeDebugViolation(v, @"equalizer.tap_follows_demand",
-                @"installed=%d, tap object=%d, requested=%d, signal probe=%d",
-                tapInstalled, tapObject, queueRequested, signalProbe);
+    // Beta builds also hold the meter for each start's bounded signal capture.
+    // The meter object is kept across demand; its installation is what follows.
+    if (meterInstalled && !queueRequested && !signalProbe) {
+        VibeDebugViolation(v, @"equalizer.meter_follows_demand",
+                @"installed=%d, meter object=%d, requested=%d, signal probe=%d",
+                meterInstalled, meterObject, queueRequested, signalProbe);
     }
 
     checked++;
-    if ((activeLinks > 0 || tapInstalled) && !player.outputAudioActive) {
+    // A beta capture may finish after transport pauses; pixels never keep polling.
+    if ((activeLinks > 0 || (meterInstalled && !signalProbe)) && !player.outputAudioActive) {
         VibeDebugViolation(v, @"equalizer.requires_audio_output",
                 @"links=%lu and installed=%d while output is inactive",
-                (unsigned long)activeLinks, tapInstalled);
+                (unsigned long)activeLinks, meterInstalled);
     }
 
     // ---- Track: the now-playing track's metadata actually arrives ----
@@ -273,7 +284,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     // than in the one scenario that stages it: the comment above says a lost
     // release is invisible "until the sweep visibly never runs", and a stranded
     // handle open is a second, unrelated cause of exactly that. It holds
-    // admission capacity that is never given back — an AVAudioFile call cannot
+    // admission capacity that is never given back — an AudioFileHandle call cannot
     // be cancelled — so with the player stopped and nothing loading, a nonzero
     // count is not work in flight but work that will never finish.
     //
@@ -284,7 +295,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
             [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];
     if (strandedOpens > 0 && player.isStopped && !isLoading) {
         VibeDebugViolation(v, @"cloud.handle_open_stranded",
-                @"%llu AVAudioFile open(s) still outstanding with the player "
+                @"%llu AudioFileHandle open(s) still outstanding with the player "
                 @"stopped — that much admission capacity is gone for good",
                 strandedOpens);
     }

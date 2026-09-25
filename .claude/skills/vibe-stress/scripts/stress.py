@@ -12,7 +12,7 @@ corpus of real audio files, and checks four oracles between batches:
   consistency check_consistency has no       (re-checked after a settle, since a
               surviving violations           render can lag its state change)
   health      dump_health has not grown      (footprint, fds, threads, windows,
-              without bound                   views, engine nodes)
+              without bound                   views, hosted units)
   crash       the process is still alive     (and no fresh .ips landed)
 
 Every run is reproducible: the seed is printed at the start and `--seed N`
@@ -896,13 +896,12 @@ class OpGenerator:
         return [("audio_loading", argv, [])]
 
     def op_equalizer_mode(self):
-        """Replace the live FFT tap, synchronously, whenever.
+        """Replace the live level meter, synchronously, whenever.
 
-        A mode change tears the tap off the node feeding the output and
-        installs another, invalidating the current publication and the
-        analyzer's partial window — and which node that is depends on whether
-        the FX segment is present, which the fx ops are flipping underneath.
-        Landing one on a track change or an engine reconfigure is the point.
+        A mode change retires the render's meter stage and applies another,
+        invalidating the current publication and the analyzer's partial
+        window, while the fx ops flip the FX segment underneath it. Landing
+        one on a track change or an output rebuild is the point.
         """
         return [("equalizer_mode",
                  ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)], [])]
@@ -1320,7 +1319,7 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 # counter carried it.
 #
 # handleOpensInFlight is the stranded-open signal, and it is a growth metric in
-# the strictest sense: an AVAudioFile call that never returns cannot be
+# the strictest sense: a file open that never returns cannot be
 # cancelled, so the count only ever goes up. At rest it must be zero, and a
 # single stuck open is a permanent loss of admission capacity that no other
 # counter here carries — the wedged-open starvation bug (file-loading spec J8)
@@ -1348,9 +1347,8 @@ GROWTH_LIMITS = {
     # than the descriptor TABLE, which only ever grew (see
     # VibeOpenFileDescriptorCount). True counts sit in single digits at rest and
     # a few dozen mid-burst, so this is now a real detector rather than a number
-    # that could not fire — and an fd leak IS a documented hazard here: a failed
-    # AVAudioFile open against an empty file strands its descriptor, and 300 of
-    # those meet a 256 soft limit.
+    # that could not fire — and a descriptor leak is the kind of growth this
+    # catches: 300 stranded descriptors meet a 256 soft limit.
     ("process", "fileDescriptors"): (64, "open file descriptors"),
     ("process", "threads"): (48, "threads"),
     ("process", "machPorts"): (2000, "mach ports"),
@@ -1367,7 +1365,10 @@ GROWTH_LIMITS = {
     # shared mask path. Views stay the sensitive UI metric; a real layer leak
     # is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
-    ("app", "engineNodes"): (16, "engine nodes"),
+    ("app", "hostedUnits"): (4, "hosted units"),
+    # Cumulative and zero in a healthy run: a refusal is a carrier's callback
+    # meeting a render stuck past its bounded stop.
+    ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1379,9 +1380,9 @@ GROWTH_LIMITS = {
 # Every headroom below is set from measured ranges over loading-profile runs,
 # not guessed:
 #
-#   views 47, windows 1, engine nodes 23, every pending counter 0 — dead
-#   stable across runs, so these are the sensitive ones. Layers are NOT; see
-#   the limit below.
+#   views 47, windows 1, hosted units flat (the varispeed and the FX units
+#   are hosted once), every pending counter 0 — dead stable across runs, so
+#   these are the sensitive ones. Layers are NOT; see the limit below.
 #   threads 14-26 and fds 45-70 breathe with the loader pool and whether a
 #   folder is open.
 #   footprint 47-335 MB, and NOT accumulating: the same seed rests at 298 MB in
@@ -1421,7 +1422,8 @@ RESTING_GROWTH_LIMITS = {
     # ~101 with any Detailed style at any width, ~2,048 with Sonic Cirrus at a
     # wide one. Until the resting sample pins both, this cannot be tight.
     ("ui", "layers"): (2400, "resting layers"),
-    ("app", "engineNodes"): (4, "resting engine nodes"),
+    ("app", "hostedUnits"): (4, "resting hosted units"),
+    ("app", "renderRefusals"): (0, "resting render refusals"),
     **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1445,10 +1447,10 @@ def min_baseline(samples, limits=GROWTH_LIMITS):
 
 
 # A single sample over the limit means nothing. Measured over a loading-profile
-# run, the engine node count swings between 25 and 67 with no trend as retired
-# crossfade pairs pile up and drain, and the footprint spikes past 350MB during
-# a decode before falling back to ~120MB. Only a metric that stays over the
-# limit for this many CONSECUTIVE samples is growth rather than churn.
+# run, retiredFades swings as crossfades overlap and drain, and the footprint
+# spikes past 350MB during a decode before falling back to ~120MB. Only a
+# metric that stays over the limit for this many CONSECUTIVE samples is growth
+# rather than churn.
 GROWTH_CONFIRMATIONS = 3
 
 # Resting samples are far rarer — one per --quiesce-every batches — so waiting
@@ -1551,7 +1553,7 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
         print(f"  rest {executed:6d} ops   "
               f"{health['process'].get('footprintBytes', 0) // (1024 * 1024):5d} MB   "
               f"{health['process'].get('mallocLiveBytes', 0) // (1024 * 1024):4d} MB live   "
-              f"{health['app'].get('engineNodes', '?')} nodes   pending {pending}")
+              f"{health['app'].get('hostedUnits', '?')} units   pending {pending}")
     if baseline is None:
         if len(samples) >= RESTING_CONFIRMATIONS:
             return None, min_baseline(samples, RESTING_GROWTH_LIMITS)
@@ -1695,7 +1697,7 @@ def collect_menu_ids(channel):
     walk(payload.get("menu", []))
     missing = MENU_IDS - set(ids)
     if missing:
-        # FX can be absent by design when launched without its graph. Still
+        # FX can be absent by design when the chain is disabled. Still
         # name every missing item so a rename never silently erases coverage.
         print("WARNING: missing allowed menu IDs (not exercised): "
               + ", ".join(sorted(missing)), file=sys.stderr)
@@ -1987,7 +1989,7 @@ def run(args):
                     if len(health_samples) % 5 == 0 or args.verbose:
                         footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
                         print(f"  {executed:6d} ops   {footprint:5d} MB   "
-                              f"{health['app'].get('engineNodes', '?')} nodes   "
+                              f"{health['app'].get('hostedUnits', '?')} units   "
                               f"{health['process'].get('fileDescriptors', '?')} fds")
 
                 batches += 1

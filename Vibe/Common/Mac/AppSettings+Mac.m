@@ -32,11 +32,13 @@
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
+#define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
 #define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
+#define SETTING_DECLICK                             @"AudioPlayer.declick"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
 #define SETTING_ANALYZE_KEY                         @"Audio.analyzeKey"
 #define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
@@ -87,6 +89,8 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
+            SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
+            SETTING_DECLICK:                        @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
@@ -791,6 +795,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
 }
 
+- (BOOL)allowBitPerfectOnAnyDevice {
+    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
+}
+
+- (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed {
+    [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
+}
+
 - (BOOL)audioFXEnabled {
     return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_AUDIO_FX_ENABLED];
 }
@@ -881,6 +893,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
     [self setOutputMode:OUTPUT_MODE_EXCLUSIVE enabled:enabled];
 }
 #endif
+
+- (BOOL)declick {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_DECLICK];
+}
+
+- (void)setDeclick:(BOOL)declick {
+    [[NSUserDefaults standardUserDefaults] setBool:declick forKey:SETTING_DECLICK];
+}
 
 - (BOOL)audioFXAllowed {
     return self.audioFXEnabled && !self.bitPerfectOutput;

@@ -160,10 +160,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
         table = @[
             // The stress driver's two oracles; see DebugHealth.h. dump_health
             // and check_consistency (shared table) both reach the player's
-            // serial queue for the engine node count, so a wedged queue times
+            // serial queue for the hosted-unit and render counts, so a wedged queue times
             // them out rather than letting them answer from stale state.
             VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugHealthJSON(controller);
+            }),
+            // The render counters are cumulative; this zeroes them so a
+            // measurement phase is read on its own rather than as a delta
+            // against the previous sample. Same queue reach as dump_health.
+            VibeDebugCmd(@"clear_render_counters", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                [controller.audioPlayer debugClearRenderCounters];
+                return VibeJSONString(@{@"ok": @YES});
             }),
             // Async: it closes the file and then polls for the pending
             // counters to unwind, so the response arrives from the poll rather
@@ -525,6 +532,17 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     @"ok": @YES,
                     @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
                 });
+            }),
+            VibeDebugCmd(@"set_declick <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The pane's switch without its gate: the choice is stored and
+                // pushed whatever the mode, and applies in every mode.
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
+                    return VibeErrorJSON(@"usage: set_declick <on|off>");
+                }
+                AppSettings.sharedInstance.declick = on;
+                [controller applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+                return VibeJSONString(@{@"ok": @YES, @"declick": @(AppSettings.sharedInstance.declick)});
             }),
             VibeDebugCmd(@"set_reopen_playlist <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 BOOL on;
