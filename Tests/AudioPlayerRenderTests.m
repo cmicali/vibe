@@ -83,6 +83,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     }
     return 2 * hypot(real, imaginary) / frames.length;
 }
+static float PeakLevel(const float levels[kLevelBandCount]) {
+    float peak = 0; for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]); return peak;
+}
 
 @interface AudioPlayerRenderTests : XCTestCase <AudioPlayerDelegate>
 @end
@@ -846,25 +849,20 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
                                          normalizationMode:kLevelDefaultNormalizationMode];
     UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
     XCTAssertGreaterThanOrEqual(tone.frameLength, count);
-    AVAudioPCMBuffer *silence = [[AVAudioPCMBuffer alloc] initWithPCMFormat:tone.format frameCapacity:count];
-    silence.frameLength = count;
-    for (NSUInteger c = 0; c < tone.format.channelCount; c++) memset(silence.floatChannelData[c], 0, count * sizeof(float));
+    AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
+    XCTAssertGreaterThanOrEqual(silence.frameLength, count);
     AudioTimeStamp stamp = { .mFlags = kAudioTimeStampSampleTimeValid };
     float levels[kLevelBandCount];
     for (int toggle = 0; toggle < 3; toggle++) {
         [tap install];
         VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, count, &stamp);
         XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
-        float peak = 0;
-        for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]);
-        XCTAssertGreaterThan(peak, 0.0f, @"toggle %d: the tone was not published", toggle);
+        XCTAssertGreaterThan(PeakLevel(levels), 0.0f, @"toggle %d: the tone was not published", toggle);
         [tap remove];
         [tap install];
         VibeLevelMeterRender(tap.meter, silence.floatChannelData, tone.format.channelCount, count, &stamp);
         XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
-        peak = 0;
-        for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]);
-        XCTAssertEqual(peak, 0.0f, @"toggle %d: the new session published the tone before it", toggle);
+        XCTAssertEqual(PeakLevel(levels), 0.0f, @"toggle %d: the new session published the tone before it", toggle);
         [tap remove];
     }
 }

@@ -132,8 +132,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
     // Teardowns of what a render was still inside when their wait ran out —
     // a tap, a bus, a varispeed or FX hosting — run at the first later moment
-    // the render is seen outside (afterRenderLeavesOnQueue:).
+    // the render is seen outside (afterRenderLeavesOnQueue:). The render the
+    // last wait found stuck is bounded once: later withdrawals park behind
+    // it without a spin of their own until a slice has finished since.
     NSMutableArray<dispatch_block_t> *_renderLeaveWork;
+    BOOL                    _renderStuck;
+    uint64_t                _renderStuckFrames;
 #if !TARGET_OS_OSX
     AVAudioEngine           *_engine;           // the carrier: one source node into its output node
     AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves

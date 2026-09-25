@@ -7,6 +7,7 @@
 //
 
 #import "AudioLevelMath.h"
+#import <CoreAudioTypes/CoreAudioBaseTypes.h>
 
 typedef struct VibeAudioLevelAnalyzer VibeAudioLevelAnalyzer;
 
@@ -32,7 +33,7 @@ NSUInteger VibeAudioLevelAnalyzerFFTSize(const VibeAudioLevelAnalyzer *analyzer)
 // running reference, so the next window is analyzed as the first: what a
 // fresh install of the meter needs, or its next publication carries the
 // audio before the install. Allocation-free and render-thread safe.
-void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer);
+void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer) CA_REALTIME_API;
 
 // Consumes non-interleaved float channels, preserving at most the stereo pair
 // the app's master bus supplies: the frames join the partial window, and each
@@ -42,7 +43,7 @@ void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer);
 NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
                                          float * _Nonnull const * _Nonnull channels,
                                          NSUInteger channelCount,
-                                         NSUInteger frameCount);
+                                         NSUInteger frameCount) CA_REALTIME_API;
 
 // The summary of every window analyzed since the last summary, which it
 // clears: returns their number, and with one or more overwrites all five
@@ -54,6 +55,6 @@ NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
 // all five once. Balanced spectrum computes both summaries from one FFT per
 // window and lets gated relative activity assist the shared result.
 NSUInteger VibeAudioLevelAnalyzerSummarize(VibeAudioLevelAnalyzer *analyzer,
-                                           float callbackLevels[_Nonnull kLevelBandCount]);
+                                           float callbackLevels[_Nonnull kLevelBandCount]) CA_REALTIME_API;
 
 NS_ASSUME_NONNULL_END

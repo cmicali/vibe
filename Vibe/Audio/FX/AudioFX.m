@@ -174,11 +174,10 @@ typedef enum {
 } VibeFXStageIndex;
 
 // One hosting of the segment: the units and the scratch at one format, over
-// the object's stages. The render is handed it whole and it is freed only
-// once the render was seen outside it, so a re-host never touches what a
-// late render is still inside.
+// the object's stages and render counter; freed only once the render was
+// seen outside it.
 struct VibeFXChain {
-    _Atomic uint64_t unitRenders;
+    _Atomic uint64_t *unitRenders; // the object's, for its life
     double sampleRate;
     float slewPerFrame;
     UInt32 maxFrames;
@@ -210,7 +209,7 @@ static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, co
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
     VibeFXStereoList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
     AudioUnitRenderActionFlags flags = 0;
-    atomic_fetch_add_explicit(&chain->unitRenders, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(chain->unitRenders, 1, memory_order_relaxed);
     return AudioUnitRender(unit->unit, &flags, timestamp, 0, frames, (AudioBufferList *)&list);
 }
 
@@ -505,23 +504,20 @@ static void VibeFXChainFree(VibeFXChain *chain) {
 // starts from silence — or, for the low kill, from an exact identity. A
 // stage engaged again in the meantime is left as it is. The delays' shared
 // low-cut rests with the last of them.
-static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStageIndex index) {
-    VibeFXStage *stage = &stages[index];
+static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     if (atomic_load_explicit(&stage->active, memory_order_seq_cst)) {
         return;
     }
     stage->gain = 0;
-    if (!chain) {
-        return;
-    }
     for (int u = 0; u < stage->unitCount; u++) {
         if (chain->units[stage->firstUnit + u].unit) {
             AudioUnitReset(chain->units[stage->firstUnit + u].unit, kAudioUnitScope_Global, 0);
         }
     }
-    if ((index == VibeFXStageDelay || index == VibeFXStageShortDelay)
-            && !atomic_load_explicit(&stages[VibeFXStageDelay].active, memory_order_seq_cst)
-            && !atomic_load_explicit(&stages[VibeFXStageShortDelay].active, memory_order_seq_cst)
+    VibeFXStage *delays = &chain->stages[VibeFXStageDelay];
+    if (stage >= delays && stage <= delays + 1
+            && !atomic_load_explicit(&delays[0].active, memory_order_seq_cst)
+            && !atomic_load_explicit(&delays[1].active, memory_order_seq_cst)
             && chain->units[VibeFXUnitDelayLowCut].unit) {
         AudioUnitReset(chain->units[VibeFXUnitDelayLowCut].unit, kAudioUnitScope_Global, 0);
     }
@@ -537,13 +533,12 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStage
     // Guards the intent flags and delayTapBPM. The ramp generations are
     // queue-confined and need no lock.
     os_unfair_lock          _stateLock;
-    // The stages — the intent and the gates — for the object's life; the
-    // scheduled ramps point into them. _chain is their current hosting, NULL
-    // while unhosted, replaced whole at a re-host and freed only once the
-    // render has left it.
+    // The stages (the intent and the gates, which the scheduled ramps point
+    // into) and the render counter, for the object's life; _chain is their
+    // current hosting, NULL while unhosted.
     VibeFXStage             _stages[VibeFXStageCount];
+    _Atomic uint64_t        _unitRenders;
     VibeFXChain             *_chain;
-    uint64_t                _retiredUnitRenders; // the renders of every earlier hosting
     BOOL                    _connected;
 
     // Master-bus low-kill high-pass; the class comment gives its place in the
@@ -595,8 +590,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStage
 }
 
 - (uint64_t)unitRenders {
-    VibeFXChain *chain = _chain;
-    return _retiredUnitRenders + (chain ? atomic_load_explicit(&chain->unitRenders, memory_order_relaxed) : 0);
+    return atomic_load_explicit(&_unitRenders, memory_order_relaxed);
 }
 
 - (BOOL)hosted {
@@ -703,28 +697,23 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStage
         atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
         atomic_store_explicit(&stage->target, 0, memory_order_relaxed);
     }
-    if (self.hosted) {
-        [self setLowKillBandsFlat:YES];
-        [self setLowKillFrequency:kLowKillParkedHz];
-    }
+    [self setLowKillBandsFlat:YES];
+    [self setLowKillFrequency:kLowKillParkedHz];
     VibeFXChain *chain = _chain;
-    VibeFXStage *stages = _stages;
     _afterRenderLeaves(^{
         for (int i = 0; i < VibeFXStageCount; i++) {
-            VibeFXRestStage(chain, stages, (VibeFXStageIndex)i);
+            VibeFXRestStage(chain, &chain->stages[i]);
         }
     });
 }
 
-// The hosting leaves the object now and is freed once the render has left
-// it: a render handed this chain finishes inside it, whatever replaces it.
+// The hosting leaves the object now and is freed once the render has left it.
 - (void)retireChain {
     VibeFXChain *chain = _chain;
     if (!chain) {
         return;
     }
     _chain = NULL;
-    _retiredUnitRenders += atomic_load_explicit(&chain->unitRenders, memory_order_relaxed);
     _afterRenderLeaves(^{ VibeFXChainFree(chain); });
 }
 
@@ -740,6 +729,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStage
     }
     _chain = chain;
     chain->stages = _stages;
+    chain->unitRenders = &_unitRenders;
     chain->storage = calloc((size_t)maximumFrameCount * 12, sizeof(float));
     if (!chain->storage) {
         return NO;
@@ -847,9 +837,7 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stages, VibeFXStage
     }
     atomic_store_explicit(&stage->active, 0, memory_order_seq_cst);
     VibeFXChain *chain = _chain;
-    VibeFXStage *stages = _stages;
-    VibeFXStageIndex index = (VibeFXStageIndex)(stage - _stages);
-    _afterRenderLeaves(^{ VibeFXRestStage(chain, stages, index); });
+    _afterRenderLeaves(^{ VibeFXRestStage(chain, stage); });
 }
 
 #pragma mark - Low kill

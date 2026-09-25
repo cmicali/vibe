@@ -52,11 +52,11 @@
 //  master bus. A structural change — the bus, the varispeed, the FX chain's
 //  hosting — happens with the output stopped; the meter comes and goes live
 //  by its pointer. An object the render could still be inside is freed or
-//  reset only after its pointer was withdrawn and the render seen outside
-//  (waitForRenderToLeaveOnQueue); a render not seen outside within the
-//  bound — stuck — defers that teardown until it is (afterRenderLeavesOnQueue:),
-//  and a hosting is one allocation the render is handed whole, so a re-host
-//  swaps it and a late render finishes inside the old one.
+//  reset only once the render was seen outside it (afterRenderLeavesOnQueue:,
+//  the one door: a render not seen outside within its bound — stuck — parks
+//  the teardown until it is), and a hosting is one allocation the render is
+//  handed whole, so a re-host swaps it and a late render finishes inside the
+//  old one.
 //
 //  The output is not held running for the life of the player, because a
 //  running output owns the device — on Bluetooth it keeps the link up, on any
@@ -81,9 +81,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The largest slice the pipeline renders at once, and every hosted unit's
-// frames per slice; a carrier's larger cycle is rendered in slices.
-static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
+// The largest slice the pipeline renders at once — the bus's own span, so
+// the bus mixes every slice whole — and every hosted unit's frames per
+// slice; a carrier's larger cycle is rendered in slices.
+static const AVAudioFrameCount kVibeMasterBusMaxFrames = kVibeVoiceBusMaxRenderFrames;
 
 // The pipeline's audio-thread state, AudioPlayer+Graph.m's.
 typedef struct VibeMasterBus VibeMasterBus;
@@ -108,18 +109,15 @@ typedef struct VibeMasterBus VibeMasterBus;
 // seen outside it.
 - (void)applyLevelTapOnQueue;
 - (void)dropLevelTapOnQueue;
-// Waits for no render to be inside the pipeline: the caller has withdrawn
-// what it is about to reset or free, and a render that read it before that
-// finishes on its own within a block's time. The wait is bounded, as the
-// output unit's stop is, and NO says the bound ran out with a render still
-// inside — never permission to proceed. Every successful wait runs the
-// teardowns parked by the method below.
-- (BOOL)waitForRenderToLeaveOnQueue;
-// Runs `work` once no render is inside the pipeline: now, when the wait
-// above succeeds, else at the first later moment the render is seen outside
-// (a later wait, or the drain). What `work` captures lives until then, so a
-// block that captures an object and does nothing else keeps it alive for
-// exactly as long as a render could be inside it. Never captures the player.
+// Runs `work` once no render is inside the pipeline. The caller has
+// withdrawn what `work` resets or frees, and a render that read it before
+// that finishes on its own within a block's time, so `work` usually runs at
+// once; the wait is bounded, as the output unit's stop is, and a render not
+// seen outside within it — stuck — parks `work` until a later withdrawal or
+// the drain sees the render outside (one bound per stuck render, not per
+// withdrawal). What `work` captures lives until then, so a block that
+// captures an object and does nothing else keeps it alive for exactly as
+// long as a render could be inside it. Never captures the player.
 - (void)afterRenderLeavesOnQueue:(dispatch_block_t)work;
 #if !TARGET_OS_OSX
 // Forgets every reference bound to the dead engine without messaging it —
@@ -222,14 +220,14 @@ typedef struct VibeMasterBus VibeMasterBus;
 @end
 
 // The pipeline's audio-thread state, gate closed and nothing hosted. The
-// player owns it from its init, before the stall watchers or any queue work
-// can run, so no queue-side reader ever finds it absent.
-VibeMasterBus * _Nullable VibeMasterBusCreate(void);
+// player owns it from its init to its dealloc, so no queue-side reader ever
+// finds it absent; a calloc this small fails only with the process.
+VibeMasterBus *VibeMasterBusCreate(void);
 // Whether a render is inside the pipeline right now: the teardown's last
 // check before it frees what one could be inside.
-BOOL VibeMasterBusRenderInside(VibeMasterBus * _Nullable master);
+BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
 // Disposes the hosted varispeed and frees the master bus; the carrier is
 // stopped and no render is inside. The player's dealloc.
-void VibeMasterBusFree(VibeMasterBus * _Nullable master);
+void VibeMasterBusFree(VibeMasterBus *master);
 
 NS_ASSUME_NONNULL_END

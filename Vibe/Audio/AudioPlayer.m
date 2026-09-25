@@ -129,10 +129,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, (__bridge void *)self, NULL);
         _manualPump = pump;
-        // TRAP: before the watchers. The render stall watcher's first tick is
-        // due at once on the player queue and raced the async init below;
-        // with the bus allocated there, a loaded machine let the tick read
-        // through NULL.
+        // The bus exists for the player's life; every queue-side reader
+        // dereferences it. TRAP: allocated in the async init below instead,
+        // the render stall watcher's first tick, due at once on the queue,
+        // ran first on a loaded machine and read the gate through NULL.
         _masterBus = VibeMasterBusCreate();
         // Keep the macOS controls and BPM feed stable across live toggles;
         // the FX nodes themselves are created only when first connected.

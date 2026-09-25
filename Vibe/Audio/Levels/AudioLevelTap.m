@@ -44,22 +44,8 @@ struct VibeLevelMeter {
 
 #pragma mark - The audio thread
 
-// The calls the compiler cannot check: the analyzer's vDSP FFT, and the
-// probe's clock read. Everything around them is under the error pragma below.
+// The one call the compiler cannot check: the probe's clock read.
 VIBE_REALTIME_UNCHECKED_BEGIN
-static inline void VibeLevelMeterConsume(VibeLevelMeter *meter, float *const *channels, UInt32 channelCount,
-                                         UInt32 frames) CA_REALTIME_API {
-    VibeAudioLevelAnalyzerConsume(meter->analyzer, channels, channelCount, frames);
-}
-
-static inline NSUInteger VibeLevelMeterSummarize(VibeLevelMeter *meter, float levels[kLevelBandCount]) CA_REALTIME_API {
-    return VibeAudioLevelAnalyzerSummarize(meter->analyzer, levels);
-}
-
-static inline void VibeLevelMeterResetAnalyzer(VibeLevelMeter *meter) CA_REALTIME_API {
-    VibeAudioLevelAnalyzerReset(meter->analyzer);
-}
-
 #if VIBE_VERBOSE_LOGGING
 static inline uint64_t VibeLevelMeterNow(void) CA_REALTIME_API {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -160,24 +146,22 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
     if (generation != meter->renderGeneration) {
         meter->renderGeneration = generation;
         meter->fill = 0;
-        VibeLevelMeterResetAnalyzer(meter);
+        VibeAudioLevelAnalyzerReset(meter->analyzer);
     }
 #if VIBE_VERBOSE_LOGGING
     if (timestamp) {
         VibeLevelMeterCapture(meter, channels, channelCount, frames, meter->sampleRate, timestamp);
     }
 #endif
-    // The samples go to the analyzer as they come, and it analyzes each
-    // window in the callback that fills it; at every tap buffer's worth the
-    // windows so far are summarized and published once, the cadence the
-    // engine's tap once delivered at.
+    // Each window is analyzed in the callback that fills it; every tap
+    // buffer's worth, the windows so far are summarized and published once.
     UInt32 analyzed = channelCount < kMeterChannels ? channelCount : kMeterChannels;
     UInt32 consumed = 0;
     while (consumed < frames) {
         uint32_t room = meter->target - meter->fill;
         uint32_t take = frames - consumed < room ? frames - consumed : room;
         float *slice[kMeterChannels] = { channels[0] + consumed, channels[analyzed - 1] + consumed };
-        VibeLevelMeterConsume(meter, slice, analyzed, take);
+        VibeAudioLevelAnalyzerConsume(meter->analyzer, slice, analyzed, take);
         meter->fill += take;
         consumed += take;
         if (meter->fill < meter->target) {
@@ -185,7 +169,7 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
         }
         VibeLevelPublisherRecordCallback(meter->publisherState, meter->fill, meter->sampleRate);
         float levels[kLevelBandCount];
-        NSUInteger windows = VibeLevelMeterSummarize(meter, levels);
+        NSUInteger windows = VibeAudioLevelAnalyzerSummarize(meter->analyzer, levels);
         VibeLevelPublisherRecordAnalyzedWindows(meter->publisherState, windows);
         if (windows > 0) {
             VibeLevelPublisherPublish(meter->publisherState, atomic_load_explicit(&meter->session, memory_order_relaxed), levels);

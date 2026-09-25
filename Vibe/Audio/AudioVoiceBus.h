@@ -107,9 +107,8 @@ static inline BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // A coherent read of one voice. Frame counters are relative to the voice's
 // start: `consumed` is what the audio thread has rendered, `boundary` where
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
-// length once known. The stamps are the audio thread's timestamps for the
-// first frame consumed after a start or resume, the boundary crossing, and
-// the end of the last mixed block; hostTime is valid only on hardware.
+// length once known. The stamp is the audio thread's timestamp for the first
+// frame consumed after a start or resume; hostTime is valid only on hardware.
 typedef struct {
     VibeVoiceState state;
     BOOL paused;
@@ -121,8 +120,6 @@ typedef struct {
     uint64_t underrunFrames;
     float gain;               // the audio thread's current gain, as last written; exact once a ramp has landed
     AudioTimeStamp startOfConsumption;
-    AudioTimeStamp boundaryCrossing;
-    AudioTimeStamp lastRender;
 } VibeVoiceSnapshot;
 
 // The audio thread's view of the bus: the slots and their rings.
@@ -216,7 +213,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (NSUInteger)occupiedSlotCount;
 - (NSUInteger)liveVoiceCount;
 // Decoder turns run so far, a diagnostic: a voice that can write nothing
-// asks for none, which the tests and the stress oracle read.
+// asks for none, which the tests read.
 - (uint64_t)decodeTurns;
 
 // The poll. Binds pending voices, emits each voice's events in the order
@@ -231,6 +228,11 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 - (void)fillInline;
 
 @end
+
+// The most frames one render mixes at once: the largest slice the pipeline
+// hands the bus (kVibeMasterBusMaxFrames is this), and the length of the
+// gains scratch a fade is mixed through; a larger ask is mixed in pieces.
+static const uint32_t kVibeVoiceBusMaxRenderFrames = 4096;
 
 // The audio thread's entry: mixes every live voice into `output` — one
 // buffer per channel, the bus's channels or fewer — for `frameCount` frames

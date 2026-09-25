@@ -26,6 +26,7 @@
 //  rather than being fixed, so quiet tracks can still move the bars.
 //
 
+#import <CoreAudioTypes/CoreAudioBaseTypes.h>
 #import <Foundation/Foundation.h>
 #import <math.h>
 #import <stdint.h>
@@ -187,7 +188,7 @@ static inline NSUInteger VibeLevelBandEdgeBin(NSUInteger edge, NSUInteger fftSiz
 // 4/N^2 makes it independent of FFT size, whether the preceding reduction was
 // a mean or sum. A 2048-point 48 kHz window and an 8192-point 192 kHz window can
 // therefore share one AGC floor.
-static inline float VibeLevelScaleFFTEnergy(float spectralEnergy, NSUInteger fftSize) {
+static inline float VibeLevelScaleFFTEnergy(float spectralEnergy, NSUInteger fftSize) CA_REALTIME_API {
     if (!isfinite(spectralEnergy) || spectralEnergy <= 0 || fftSize == 0) {
         return 0;
     }
@@ -200,7 +201,7 @@ static inline float VibeLevelScaleFFTEnergy(float spectralEnergy, NSUInteger fft
 // Opposite-polarity stereo therefore carries the same energy as in-phase
 // stereo instead of cancelling to false silence.
 static inline float VibeLevelMeanChannelEnergy(const float *energies,
-                                                NSUInteger channelCount) {
+                                                NSUInteger channelCount) CA_REALTIME_API {
     if (!energies || channelCount == 0) {
         return 0;
     }
@@ -251,7 +252,7 @@ static inline void VibeLevelBandBinRange(NSUInteger band, NSUInteger fftSize, do
 //
 // The energy and reference must use the same aggregation: mean power against a
 // band's private reference, or energy per octave against the shared reference.
-static inline float VibeLevelNormalize(float energy, float reference) {
+static inline float VibeLevelNormalize(float energy, float reference) CA_REALTIME_API {
     if (!isfinite(energy) || energy <= 0.0f) {
         return 0.0f;
     }
@@ -269,7 +270,7 @@ static inline float VibeLevelNormalize(float energy, float reference) {
 
 // Smoothly opens the balanced mode's activity assist over the bottom of the
 // shared scale. Smoothstep keeps both ends free of a visible slope change.
-static inline float VibeLevelBalancedSharedSupport(float sharedLevel) {
+static inline float VibeLevelBalancedSharedSupport(float sharedLevel) CA_REALTIME_API {
     if (!isfinite(sharedLevel) || sharedLevel <= 0.0f) {
         return 0.0f;
     }
@@ -284,7 +285,7 @@ static inline float VibeLevelBalancedSharedSupport(float sharedLevel) {
 // its positive difference, gated by shared support, and the entire result is
 // scaled down to leave visual headroom.
 static inline float VibeLevelBalancedSpectrumLevel(float sharedLevel,
-                                                    float relativeActivityLevel) {
+                                                    float relativeActivityLevel) CA_REALTIME_API {
     if (!isfinite(sharedLevel) || sharedLevel <= 0.0f) {
         return 0.0f;
     }
@@ -311,7 +312,7 @@ static inline float VibeLevelBalancedSpectrumLevel(float sharedLevel,
 // A louder band IS the new reference immediately, so a bar can never clip for
 // longer than the frame that overshot; quieter only decays, so the reference
 // tracks the passage rather than the last transient.
-static inline float VibeLevelUpdateReference(float reference, float observed, float dt) {
+static inline float VibeLevelUpdateReference(float reference, float observed, float dt) CA_REALTIME_API {
     if (!isfinite(reference) || reference < kLevelReferenceFloor) {
         reference = kLevelReferenceFloor;
     }

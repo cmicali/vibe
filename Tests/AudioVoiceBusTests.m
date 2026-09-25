@@ -712,6 +712,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual([_bus snapshotOfVoice:pending].consumed, 64u);
 }
 
+// Turns of the real decode queue until `condition` holds, or a hundred pass.
+- (void)settleDecoder:(dispatch_queue_t)decoder until:(BOOL (^)(void))condition {
+    for (int i = 0; i < 100 && !condition(); i++) {
+        dispatch_sync(decoder, ^{});
+    }
+}
+
 // A voice that can write nothing is asked for no decoder turn: past a
 // published end with no successor queued, a paused voice near its end sat
 // below the low-water mark and was handed an empty turn every drain. A
@@ -722,9 +729,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *url = [self writePCM:[self noiseFrames:12000 channels:2 seed:5] rate:kRate channels:2 name:@"short.wav"];
     VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:YES];
     dispatch_queue_t decoder = _bus.decodeQueue;
-    for (int i = 0; i < 100 && [_bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; i++) {
-        dispatch_sync(decoder, ^{});
-    }
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX; }];
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 12000u);
     uint64_t turns = _bus.decodeTurns;
     for (int i = 0; i < 100; i++) {
@@ -735,9 +740,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:6] rate:kRate channels:2 name:@"next.wav"];
     AVAudioFile *successor = [self open:next];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
-    for (int i = 0; i < 100 && [_bus snapshotOfVoice:voice].written < 20000; i++) {
-        dispatch_sync(decoder, ^{});
-    }
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].written >= 20000; }];
     XCTAssertEqual([_bus snapshotOfVoice:voice].written, 20000u);
     XCTAssertGreaterThan(_bus.decodeTurns, turns);
 }

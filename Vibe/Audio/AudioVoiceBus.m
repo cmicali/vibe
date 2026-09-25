@@ -31,9 +31,6 @@ enum {
     // at least this far behind it, so a successor named late still continues
     // it; nearer, its tail is flushed and the end declared.
     kOpenStreamReserveFrames = 2 * kDecodeChunkFrames,
-    // The frames the render mixes at once: the gain scratch's length, and the
-    // largest slice a carrier hands the bus; a larger ask is mixed in pieces.
-    kMixSpanFrames = 4096,
 };
 
 typedef NS_ENUM(int32_t, VibeSuccessorState) {
@@ -98,10 +95,8 @@ typedef struct {
     _Atomic int32_t endedReason;
     _Atomic uint64_t underrun;
     _Atomic uint64_t diedAtRender;
-    _Atomic uint32_t stampVersion;  // odd while the stamps below are being written
+    _Atomic uint32_t stampVersion;  // odd while the stamp below is being written
     VibeVoiceStamp startStamp;
-    VibeVoiceStamp boundaryStamp;
-    VibeVoiceStamp lastStamp;
     // Audio thread, private: the ramp in progress and the current gain. The
     // gain is an atomic only so the diagnostic snapshot may read it; it has
     // no other writer while the slot is live.
@@ -122,7 +117,7 @@ struct VibeVoiceMix {
     uint32_t mask;
     double hostTicksPerFrame;
     float *rings[kVoiceSlots][kMaxBusChannels];
-    float *gains;       // the render's scratch: a fading voice's gain per frame, kMixSpanFrames long
+    float *gains;       // the render's scratch: a fading voice's gain per frame, kVibeVoiceBusMaxRenderFrames long
     VibeVoiceSlot slots[kVoiceSlots];
     // Bumped at the end of every render; inRender brackets each one, so the
     // queue can tell "no render is inside any slot" from "the output says it
@@ -130,6 +125,15 @@ struct VibeVoiceMix {
     _Atomic uint64_t renderSequence;
     _Atomic int32_t inRender;
 };
+
+// Whether the decoder could write for the slot: its reads allowed, and no
+// end published — or a successor queued past one, which a turn reopens the
+// stream for. The drain asks before it schedules a turn; the turn asks first.
+static inline BOOL VibeSlotCanWrite(VibeVoiceSlot *s) {
+    return atomic_load_explicit(&s->readsAllowed, memory_order_acquire)
+            && (atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset
+                || atomic_load_explicit(&s->successorState, memory_order_relaxed) != VibeSuccessorNone);
+}
 
 // The slot memory, held by the bus for its life. The master bus publishes
 // the mix pointer with the output stopped and retires it only once no
@@ -146,7 +150,7 @@ struct VibeVoiceMix {
     if (self) {
         _mix = calloc(1, sizeof(VibeVoiceMix));
         size_t ringFloats = (size_t)kVoiceSlots * channels * capacity;
-        _storage = calloc(ringFloats + kMixSpanFrames, sizeof(float)); // touched here, never first on the audio thread
+        _storage = calloc(ringFloats + kVibeVoiceBusMaxRenderFrames, sizeof(float)); // touched here, never first on the audio thread
         if (!_mix || !_storage) {
             return nil;
         }
@@ -287,7 +291,6 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
         // end: either this render sees the end withdrawn, or the reopen sees
         // this render in flight and waits for its verdict.
         uint64_t endOfStream = atomic_load_explicit(&slot->endOfStream, memory_order_seq_cst);
-        uint64_t boundary = atomic_load_explicit(&slot->boundary, memory_order_acquire);
         uint64_t consumed = atomic_load_explicit(&slot->consumed, memory_order_relaxed);
         uint64_t available = written - consumed;
         uint32_t frames = available < frameCount ? (uint32_t)available : frameCount;
@@ -313,8 +316,8 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
                 if (span > mix->capacity - index) {
                     span = mix->capacity - index;
                 }
-                if (span > kMixSpanFrames) {
-                    span = kMixSpanFrames;
+                if (span > kVibeVoiceBusMaxRenderFrames) {
+                    span = kVibeVoiceBusMaxRenderFrames;
                 }
                 if (ramping) {
                     for (uint32_t i = 0; i < span; i++) {
@@ -341,10 +344,6 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
                 slot->consuming = 1;
                 VibeStampWrite(slot, &slot->startStamp, timestamp, 0, mix->hostTicksPerFrame);
             }
-            if (boundary != kUnset && consumed <= boundary && consumed + frames > boundary) {
-                VibeStampWrite(slot, &slot->boundaryStamp, timestamp, boundary - consumed, mix->hostTicksPerFrame);
-            }
-            VibeStampWrite(slot, &slot->lastStamp, timestamp, frames, mix->hostTicksPerFrame);
             consumed += frames;
             atomic_store_explicit(&slot->consumed, consumed, memory_order_release);
             mixed = YES;
@@ -437,7 +436,7 @@ VIBE_REALTIME_END
 @implementation AudioVoiceBus {
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueue;
-    _Atomic uint64_t _decodeTurns;   // turns run so far, for the tests and the stress oracle
+    _Atomic uint64_t _decodeTurns;   // turns run so far, for the tests
     VibeVoiceMixOwner *_mixOwner;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
@@ -690,8 +689,6 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     record->converter = converter;
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-    // A float target is the bus format, so the converter writes the stage
-    // itself; the 16-bit form lands in a buffer of its own, expanded into it.
     record->convertBuffer = integer ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:target frameCapacity:kDecodeChunkFrames]
                                     : record->stageBuffer;
     [self setConversion:[self conversionFrom:source to:target mixed:record->mixMap != nil converter:converter] forRecord:record];
@@ -1022,8 +1019,6 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         snapshot.gain = atomic_load_explicit(&s->gain, memory_order_relaxed); // diagnostic, never a decision
         uint32_t version = atomic_load_explicit(&s->stampVersion, memory_order_acquire);
         snapshot.startOfConsumption = VibeStampRead(&s->startStamp);
-        snapshot.boundaryCrossing = VibeStampRead(&s->boundaryStamp);
-        snapshot.lastRender = VibeStampRead(&s->lastStamp);
         atomic_thread_fence(memory_order_acquire);
         BOOL stampsTorn = (version & 1) || atomic_load_explicit(&s->stampVersion, memory_order_relaxed) != version;
         if (atomic_load_explicit(&s->generation, memory_order_acquire) != generation) {
@@ -1100,16 +1095,9 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             if (!_inlineDecoding) {
                 uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
                         - atomic_load_explicit(&s->consumed, memory_order_relaxed);
-                // A turn is asked for only when one could write: not for a
-                // voice whose reads were stopped, nor past a published end
-                // with no successor queued — a paused voice near its end sat
-                // below the low-water mark and was handed an empty turn every
-                // drain. queueSuccessor: asks for the turn a late successor
-                // needs itself.
-                BOOL canWrite = atomic_load_explicit(&s->readsAllowed, memory_order_relaxed)
-                        && (atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset
-                            || atomic_load_explicit(&s->successorState, memory_order_relaxed) != VibeSuccessorNone);
-                if (canWrite && buffered < _mix->capacity / kLowWaterDivisor) {
+                // A voice paused near its published end sat below the
+                // low-water mark and was handed an empty turn every drain.
+                if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor) {
                     atomic_store_explicit(&record->fillTarget, _mix->capacity, memory_order_release);
                     [self scheduleFillForSlot:slot];
                 }
@@ -1188,10 +1176,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     s->rampCurve = s->rampAction = 0;
     s->rampSequence = 0;
     s->consuming = 0;
-    // No render of the next voice yet.
-    atomic_store_explicit(&s->startStamp.flags, 0, memory_order_relaxed);
-    atomic_store_explicit(&s->boundaryStamp.flags, 0, memory_order_relaxed);
-    atomic_store_explicit(&s->lastStamp.flags, 0, memory_order_relaxed);
+    atomic_store_explicit(&s->startStamp.flags, 0, memory_order_relaxed); // no render of the next voice yet
     atomic_store_explicit(&s->generation, 0, memory_order_release);
     atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
 }
@@ -1368,8 +1353,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
     int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-    if ((state != VibeVoiceStateArmed && state != VibeVoiceStateLive)
-            || !atomic_load_explicit(&s->readsAllowed, memory_order_acquire)) {
+    if ((state != VibeVoiceStateArmed && state != VibeVoiceStateLive) || !VibeSlotCanWrite(s)) {
         return NO;
     }
     if (record->stream == VibeStreamEnded) {
