@@ -675,7 +675,9 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // the bus stays float on the 16-bit grid.
 - (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat {
     AVAudioFormat *source = file.processingFormat;
-    record->file = file;
+    os_unfair_lock_lock(&_tableLock);
+    record->file = file; // filesInUse reads the file pair under the lock; the decoder writes it there
+    os_unfair_lock_unlock(&_tableLock);
     record->decodeFormat = decodeFormat;
     record->converter = nil;
     record->readBuffer = nil;
@@ -942,8 +944,13 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     dispatch_async(_decodeQueue, ^{ dispatch_async(queue, decoderLeft); });
 }
 
+// Under the table lock, which the decoder writes a record's file pair under
+// too (prepareRecord:, continueRecord:intoSuccessor:, the recycle), so the
+// set is coherent with a handoff in flight: the successor is listed in one
+// field or the other, never neither.
 - (NSSet<AVAudioFile *> *)filesInUse {
     NSMutableSet<AVAudioFile *> *files = [NSMutableSet set];
+    os_unfair_lock_lock(&_tableLock);
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeVoiceStateNone) {
             continue;
@@ -955,6 +962,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         if (record->file) [files addObject:record->file];
         if (record->successorFile) [files addObject:record->successorFile];
     }
+    os_unfair_lock_unlock(&_tableLock);
     return files;
 }
 
@@ -1249,14 +1257,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             || atomic_load_explicit(&s->generation, memory_order_acquire) != generation) {
         return;
     }
+    os_unfair_lock_lock(&_tableLock);
     record->file = nil;
+    record->successorFile = nil;
+    os_unfair_lock_unlock(&_tableLock);
     record->converter = nil;
     record->readBuffer = nil;
     record->mixBuffer = nil;
     record->convertBuffer = nil;
     record->mixMap = nil;
     record->decodeFormat = nil;
-    record->successorFile = nil;
     record->successorDecodeFormat = nil;
     record->retireOrder = 0;
     atomic_store_explicit(&record->fillScheduled, 0, memory_order_relaxed);
@@ -1350,10 +1360,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             || !VibeFormatsMatch(record->decodeFormat, record->successorDecodeFormat)) {
         return NO;
     }
+    // TRAP: the pair moves as one under the lock: a retirement snapshot
+    // (filesInUse) taken between the two writes saw the successor in
+    // neither field, and the replacement bus read a file this decoder was
+    // inside.
+    os_unfair_lock_lock(&_tableLock);
     record->file = successor;
+    record->successorFile = nil;
+    os_unfair_lock_unlock(&_tableLock);
     record->startFrame = 0;
     record->positioned = NO;
-    record->successorFile = nil;
     record->successorDecodeFormat = nil;
     return YES;
 }
@@ -1363,11 +1379,19 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 - (BOOL)prepareSuccessorForRecord:(VibeVoiceRecord *)record {
     AVAudioFile *successor = record->successorFile;
     AVAudioFormat *decodeFormat = record->successorDecodeFormat;
-    record->successorFile = nil;
+    if (!successor) {
+        return NO;
+    }
+    // The successor stays in the pair until prepareRecord: makes it the file,
+    // so a retirement snapshot meanwhile still lists it.
     record->successorDecodeFormat = nil;
     record->startFrame = 0;
     record->positioned = NO;
-    return successor && [self prepareRecord:record file:successor decodeFormat:decodeFormat];
+    BOOL prepared = [self prepareRecord:record file:successor decodeFormat:decodeFormat];
+    os_unfair_lock_lock(&_tableLock);
+    record->successorFile = nil;
+    os_unfair_lock_unlock(&_tableLock);
+    return prepared;
 }
 
 // Reads one chunk of the voice's file into the stage buffer, in the bus

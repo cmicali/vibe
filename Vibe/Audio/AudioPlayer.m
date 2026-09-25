@@ -496,6 +496,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
 #if TARGET_OS_OSX
+    [self ensureOutputUnitOnQueue]; // a unit made late brings its device's rate, before the segment is built at it
     // Gates itself on the mode. A format switch stops the engine, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
@@ -717,6 +718,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (![self followOutputRouteOnQueue]) {
         return; // the follow reset the player and said why
     }
+#if TARGET_OS_OSX
+    [self ensureOutputUnitOnQueue]; // a unit made late re-voices the parked voice at its device's rate first
+#endif
     NSError *startError = nil;
     if (![self startOutputOnQueue:&startError]) {
         // startEngineOnQueue cancelled the pending idle stop at entry; the

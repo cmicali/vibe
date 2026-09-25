@@ -914,6 +914,37 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertEqual(dispatch_semaphore_wait(left, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
 }
 
+// A retirement snapshot lists every file the decoder may still be inside,
+// across a gapless handoff in flight: the successor is in one field or the
+// other at every instant, never neither. Under ThreadSanitizer this is the
+// case that reports the pair read without the lock.
+- (void)testFilesInUseFollowsTheDecodersHandoff {
+    self.continueAfterFailure = YES;
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    AVAudioFile *first = [self open:[self writePCM:[self noiseFrames:2000 channels:2 seed:103] rate:kRate channels:2 name:@"handoff-first.wav"]];
+    AVAudioFile *next = [self open:[self writePCM:[self noiseFrames:96000 channels:2 seed:104] rate:kRate channels:2 name:@"handoff-next.wav"]];
+    VibeVoiceID voice = [self startFile:first gain:1 ramp:[self unity] paused:NO];
+    XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
+    AudioVoiceBus *bus = _bus;
+    NSUInteger polls = 0, missing = 0;
+    for (int i = 0; i < 2000; i++) {
+        [self renderWithoutFilling:256 into:nil];
+        [self drain];
+        __block NSSet<AVAudioFile *> *files;
+        dispatch_sync(_queue, ^{ files = bus.filesInUse; });
+        polls++;
+        if (![files containsObject:next]) missing++;
+        VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
+        if (snapshot.boundary != UINT64_MAX && snapshot.consumed > snapshot.boundary + 8192) break;
+    }
+    XCTAssertEqual(missing, 0u, @"%lu of %lu snapshots lacked the successor while the decoder could be inside it",
+                   (unsigned long)missing, (unsigned long)polls);
+    XCTAssertNotEqual([_bus snapshotOfVoice:voice].boundary, UINT64_MAX, @"the handoff never happened");
+    dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+    [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+    dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+}
+
 - (void)testAQueuedRecycleCannotEraseAReusedSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43] rate:kRate channels:2 name:@"recycle.wav"];

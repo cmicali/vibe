@@ -2642,6 +2642,102 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
+// The carrier made late — its unit could not be made at init — brings its
+// device's rate before the play's segment is built, so the voice is built at
+// that rate, not the fallback's; the carrier itself stays device-free here,
+// so the start then fails as one without a unit does.
+- (void)testACarrierMadeLateBringsItsRateBeforeTheVoice {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    AudioPlayer *target = _player;
+    __block NSUInteger created = 0;
+    Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
+    Method create = class_getInstanceMethod(AudioPlayer.class, NSSelectorFromString(@"createOutputUnitOnQueue"));
+    __block IMP originalDrives, originalCreate;
+    IMP driveReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        return receiver == target ? YES : ((BOOL (*)(id, SEL))originalDrives)(receiver, @selector(drivesOutputDeviceOnQueue));
+    });
+    IMP createReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        if (receiver != target) return ((BOOL (*)(id, SEL))originalCreate)(receiver, NSSelectorFromString(@"createOutputUnitOnQueue"));
+        created++;
+        // A unit follows its device's rate through applyOutputRateOnQueue:,
+        // whose pipeline effect is this setter; no device is opened.
+        SEL setter = NSSelectorFromString(@"setMasterBusFormatOnQueue:");
+        ((void (*)(id, SEL, id))[receiver methodForSelector:setter])(receiver, setter,
+                [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2]);
+        return YES;
+    });
+    originalDrives = method_setImplementation(drives, driveReplacement);
+    originalCreate = method_setImplementation(create, createReplacement);
+    @try {
+        [_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
+        XCTAssertEqual(created, 1u);
+        XCTAssertNotNil(_playError, @"no unit came of the creation, so the start fails");
+        XCTAssertEqual([self count:@"start"], 0u);
+        [_player runSyncOnQueue:^{
+            AudioVoiceBus *bus = [target valueForKey:@"voiceBus"];
+            XCTAssertNotNil(bus);
+            XCTAssertEqual([target masterBusFormatOnQueue].sampleRate, 48000.0);
+            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the segment was built at the fallback rate, not the carrier's");
+        }];
+    } @finally {
+        method_setImplementation(drives, originalDrives);
+        method_setImplementation(create, originalCreate);
+        imp_removeBlock(driveReplacement);
+        imp_removeBlock(createReplacement);
+    }
+}
+
+// A voice parked at the fallback rate — a paused start with no unit — is
+// re-voiced at the carrier's rate when a resume makes the unit, before the
+// start; the device-free carrier then fails the start, and the voice stays
+// parked at its position.
+- (void)testACarrierMadeLateReconcilesAParkedVoice {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-44100-24-2.wav"] paused:YES position:1.5];
+    AudioPlayer *target = _player;
+    __block NSUInteger created = 0;
+    Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
+    Method create = class_getInstanceMethod(AudioPlayer.class, NSSelectorFromString(@"createOutputUnitOnQueue"));
+    __block IMP originalDrives, originalCreate;
+    IMP driveReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        return receiver == target ? YES : ((BOOL (*)(id, SEL))originalDrives)(receiver, @selector(drivesOutputDeviceOnQueue));
+    });
+    IMP createReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        if (receiver != target) return ((BOOL (*)(id, SEL))originalCreate)(receiver, NSSelectorFromString(@"createOutputUnitOnQueue"));
+        created++;
+        SEL setter = NSSelectorFromString(@"setMasterBusFormatOnQueue:");
+        ((void (*)(id, SEL, id))[receiver methodForSelector:setter])(receiver, setter,
+                [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2]);
+        return YES;
+    });
+    originalDrives = method_setImplementation(drives, driveReplacement);
+    originalCreate = method_setImplementation(create, createReplacement);
+    @try {
+        NSUInteger events = _events.count;
+        [_player resume];
+        [self settleUntil:^BOOL { return self->_playError != nil || self->_events.count > events; }];
+        [_player runSyncOnQueue:^{}];
+        XCTAssertEqual(created, 1u);
+        XCTAssertNotNil(_playError, @"no unit came of the creation, so the resume's start fails");
+        XCTAssertTrue(_player.isPaused, @"the failed start keeps the voice parked");
+        XCTAssertEqualWithAccuracy(_player.position, 1.5, 0.01);
+        [_player runSyncOnQueue:^{
+            AudioVoiceBus *bus = [target valueForKey:@"voiceBus"];
+            XCTAssertEqual([target masterBusFormatOnQueue].sampleRate, 48000.0);
+            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the parked voice stayed at the fallback rate");
+            XCTAssertEqual(bus.occupiedSlotCount, 1u, @"the voice was not re-voiced at the new rate");
+        }];
+    } @finally {
+        method_setImplementation(drives, originalDrives);
+        method_setImplementation(create, originalCreate);
+        imp_removeBlock(driveReplacement);
+        imp_removeBlock(createReplacement);
+    }
+}
+
 // The path, stage by stage, as the Settings window and dump_audio_path read it.
 - (void)testAudioPathReportsEveryStage {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];

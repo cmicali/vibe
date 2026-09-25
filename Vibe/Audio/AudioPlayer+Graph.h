@@ -48,7 +48,9 @@
 //  calls the function at real-time pace, or frame by frame in the tests. The
 //  render slices whatever count a carrier hands it. A production player has
 //  a carrier or fails the start: a unit that could not be made at init is
-//  tried again at each start, and a start with none reports
+//  tried again before a settlement builds its segment and before a resume
+//  (ensureOutputUnitOnQueue), so a unit made late brings its device's rate
+//  before any voice is built at it, and a start with none reports
 //  VibeAudioErrorEngineStartFailed rather than open the gate over nothing.
 //
 //  Everything the audio thread reads is plain memory and atomics in the
@@ -129,6 +131,14 @@ typedef struct VibeMasterBus VibeMasterBus;
 // Forgets every reference bound to the dead engine without messaging it —
 // the media-services-reset rebuild's first half.
 - (void)dropEngineBoundStateOnQueue;
+#else
+// The carrier, made now if it could not be made at init. A unit brings its
+// device's rate, so a source segment built at the fallback format follows
+// it here — the current voice restarted at its intent — before anything is
+// built or started at the old one. YES with a unit, or under the pump,
+// which needs none; NO with none, which the next start reports. Runs before
+// a settlement builds its segment and before a resume starts.
+- (BOOL)ensureOutputUnitOnQueue;
 #endif
 #if TARGET_OS_OSX
 // Brings the unit and the pipeline to `rate`: the output stopped, the unit

@@ -562,8 +562,8 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 // Vibe hosts the output: the unit's callback pulls the pipeline into the
 // device. It begins on the system default at that device's rate; the saved
 // device binds asynchronously through the checked device-switch path. NO
-// with no unit — the component could not be made — which the next start
-// tries again rather than play into nothing.
+// with no unit — the component could not be made — which
+// ensureOutputUnitOnQueue tries again rather than play into nothing.
 - (BOOL)createOutputUnitOnQueue {
     _outputUnit = [[AudioOutputUnit alloc] init];
     if (!_outputUnit) {
@@ -581,6 +581,24 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
     // later applies the saved preference through the checked device-switch
     // path.
     [self resolvePendingSavedOutputDeviceOnQueue];
+    return YES;
+}
+
+- (BOOL)ensureOutputUnitOnQueue {
+    if (_outputUnit || ![self drivesOutputDeviceOnQueue]) {
+        return YES;
+    }
+    AVAudioFormat *before = _masterFormat;
+    if (![self createOutputUnitOnQueue]) {
+        return NO;
+    }
+    // TRAP: the unit followed its device's rate through applyOutputRateOnQueue:,
+    // which leaves the source segment to its caller: a segment built at the
+    // fallback format, and the voice parked in it, are reconciled here, or
+    // the voice played into the new rate at the old one.
+    if (before && _masterFormat && !VibeFormatsMatch(before, _masterFormat) && ![self reconcileSourceSegmentOnQueue]) {
+        return NO;
+    }
     return YES;
 }
 #endif
@@ -1200,16 +1218,17 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     if (![self renderingOnQueue]) {
-        // A carrier, unless the pump stands in for one: a production player
-        // whose unit could not be made tries once more here, and a start
-        // with nothing to pull the pipeline fails rather than open the gate
-        // over it. TRAP: the no-carrier shortcut below is the pump's alone;
-        // taken by a production player it published Playing and sent
-        // didStartPlaying: with no callback to advance the voice, and no
-        // error reached the shell.
+        // A carrier, unless the pump stands in for one: a start with nothing
+        // to pull the pipeline fails rather than open the gate over it (a
+        // unit that could not be made is tried again by
+        // ensureOutputUnitOnQueue, before a segment is built at its rate).
+        // TRAP: the no-carrier shortcut below is the pump's alone; taken by
+        // a production player it published Playing and sent didStartPlaying:
+        // with no callback to advance the voice, and no error reached the
+        // shell.
         if ([self drivesOutputDeviceOnQueue]) {
 #if TARGET_OS_OSX
-            BOOL carrier = _outputUnit != nil || [self createOutputUnitOnQueue];
+            BOOL carrier = _outputUnit != nil;
 #else
             BOOL carrier = _engine != nil;
 #endif
