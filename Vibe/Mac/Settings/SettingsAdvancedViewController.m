@@ -248,8 +248,12 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
                                VibeAudioPathChannels([stage[@"fromChannels"] unsignedIntegerValue]),
                                VibeAudioPathChannels([stage[@"toChannels"] unsignedIntegerValue])]];
         }
-        return VibeAudioPathRow(nil, rate, VibeAudioPathSampleFormat(stage[@"toSampleFormat"] ?: stage[@"sampleFormat"]),
-                                VibeAudioPathChannelCount([stage[@"channels"] unsignedIntegerValue]), VibeAudioPathJoin(status), nil);
+        // The decoder's output: the conversion's side when there is one,
+        // the file's decoded format when it is read direct.
+        return VibeAudioPathRow(nil, [formatters sampleRateString:[stage[@"toSampleRate"] ?: stage[@"sampleRate"] doubleValue]],
+                                VibeAudioPathSampleFormat(stage[@"toSampleFormat"] ?: stage[@"sampleFormat"]),
+                                VibeAudioPathChannelCount([stage[@"toChannels"] ?: stage[@"channels"] unsignedIntegerValue]),
+                                VibeAudioPathJoin(status), nil);
     }
     if ([name isEqualToString:@"bus"]) {
         if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;

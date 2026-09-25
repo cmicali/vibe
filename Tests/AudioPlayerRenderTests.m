@@ -2441,15 +2441,95 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested);
 }
 
-// A lossless codec's depth is the one it declares, not the container's 0.
+// A lossless codec's depth is the one it declares, not the container's 0,
+// and its flags are never read as PCM's: FLAC's and ALAC's 24-bit flag
+// carries the float bit, and the row once read them as 32-bit float.
 - (void)testAudioPathReportsALosslessCodecsDeclaredDepth {
+    NSDictionary<NSString *, NSArray *> *expected = @{
+        @"lossless.flac": @[@"FLAC", @24, @NO], @"lossless.m4a": @[@"ALAC", @24, @NO],
+        @"noise-48000-24-2.wav": @[@"PCM", @24, @NO], @"noise-48000-32-2.wav": @[@"PCM", @32, @YES],
+    };
+    for (NSString *name in expected) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:[self fixture:name] paused:NO position:0];
+        [self render:4800];
+        NSDictionary *source = _player.audioPathSnapshot[0];
+        XCTAssertEqualObjects(source[@"codec"], expected[name][0], @"%@", name);
+        XCTAssertEqual([source[@"bitsPerChannel"] intValue], [expected[name][1] intValue], @"%@", name);
+        XCTAssertEqual([source[@"float"] boolValue], [expected[name][2] boolValue], @"%@: %@", name, source);
+        XCTAssertTrue([source[@"lossless"] boolValue], @"%@", name);
+    }
+}
+
+// The decoder's stage carries both sides of a conversion: the file's decoded
+// format and the bus's, which the Settings row shows as the decoder's output.
+- (void)testAudioPathDecoderReportsBothSidesOfTheConversion {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    [self play:[self fixture:@"lossless.flac"] paused:NO position:0];
+    [self play:[self fixture:@"noise-44100-24-1.wav"] paused:NO position:0];
     [self render:4800];
-    NSDictionary *source = _player.audioPathSnapshot[0];
-    XCTAssertEqualObjects(source[@"codec"], @"FLAC");
-    XCTAssertEqual([source[@"bitsPerChannel"] intValue], 24);
-    XCTAssertTrue([source[@"lossless"] boolValue]);
+    NSDictionary *decode = _player.audioPathSnapshot[1];
+    XCTAssertEqualObjects(decode[@"read"], @"converted");
+    XCTAssertEqual([decode[@"sampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([decode[@"channels"] intValue], 1);
+    XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
+    XCTAssertEqual([decode[@"toChannels"] intValue], 2);
+    XCTAssertTrue([decode[@"resampled"] boolValue]);
+    XCTAssertTrue([decode[@"mixed"] boolValue]);
+}
+
+// The player's half of the reopen wait's bound: a rebuild's stopReading
+// joins the decoder while a late successor's reopen waits for a render held
+// inside the bus, and completes at the new rate with the render still held.
+- (void)testARebuildCompletesWhileAVoiceRenderIsStuck {
+    self.continueAfterFailure = YES;
+    // The real decode queue under the frame-driven pump, as the seek test does.
+    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
+    __block IMP originalInit;
+    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
+        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
+    });
+    originalInit = method_setImplementation(initializer, asyncInit);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player debugStarveDecoder:YES];
+        NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+        [self play:[self write:[pcm subdataWithRange:NSMakeRange(0, 2000 * 8)] rate:48000 channels:2 name:@"ended-short.wav"] paused:NO position:0];
+    } @finally {
+        method_setImplementation(initializer, originalInit);
+        imp_removeBlock(asyncInit);
+    }
+    __block AudioVoiceBus *bus;
+    __block VibeVoiceID voice;
+    [_player runSyncOnQueue:^{
+        bus = [self->_player valueForKey:@"voiceBus"];
+        voice = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
+    }];
+    dispatch_sync(bus.decodeQueue, ^{});
+    XCTAssertEqual([bus snapshotOfVoice:voice].endOfStream, 2000u);
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_t rebuild = dispatch_group_create();
+    [bus debugHoldRender:YES];
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self->_player debugRenderOnCallerThread:256];
+    });
+    @try {
+        [self settleUntil:^BOOL { return bus.debugRendersHeld == 1; }];
+        [_player prefetchTrack:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]; // the reopen waits
+        dispatch_group_async(rebuild, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            XCTAssertTrue([self->_player debugSetOutputRate:96000]);
+        });
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+                       @"the rebuild joined a decoder waiting for the stuck render");
+        XCTAssertEqual(bus.debugRendersHeld, 1u, @"the render was still stuck when the rebuild completed");
+        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    } @finally {
+        [bus debugHoldRender:NO];
+        XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    }
+    [_player runSyncOnQueue:^{ [self->_player drainVoiceBusOnQueue]; }];
+    [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
 }
 
 // The path, stage by stage, as the Settings window and dump_audio_path read it.
