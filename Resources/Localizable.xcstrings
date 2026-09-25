@@ -68264,186 +68264,186 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.lossy": {
-      "comment": "Bit-perfect output status: the file is a lossy format (MP3, AAC), so bit-perfect delivery applies to the decoded audio, not to a lossless original.",
+      "comment": "Bit-perfect output status: every other check holds, but the file is a lossy format (MP3, AAC). Its decoded audio reaches the device at the file's own sample rate with no volume change, rounded only to the device's bit depth, so it is not a lossless original.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файлът е с компресия със загуби, но битовете от декодера се предават непроменени"
+            "value": "Файлът е със загуби: декодираното аудио се възпроизвежда със собствената си честота на дискретизация, без промяна на силата на звука"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soubor je ztrátový, ale bity z dekodéru se předávají beze změny"
+            "value": "Soubor je ztrátový: dekódovaný zvuk se přehrává ve vlastní vzorkovací frekvenci, beze změny hlasitosti"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filen er komprimeret med tab, men bittene fra dekoderen leveres uændret"
+            "value": "Filen er komprimeret med tab: den afkodede lyd afspilles ved sin egen samplingsfrekvens uden ændring af lydstyrken"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Datei ist verlustbehaftet, aber die Bits aus dem Decoder werden unverändert ausgegeben"
+            "value": "Die Datei ist verlustbehaftet: Der decodierte Ton wird mit seiner eigenen Abtastrate und unveränderter Lautstärke wiedergegeben"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Το αρχείο έχει απωλεστική συμπίεση, αλλά τα bit από τον αποκωδικοποιητή παραδίδονται αμετάβλητα"
+            "value": "Το αρχείο έχει απωλεστική συμπίεση· ο αποκωδικοποιημένος ήχος αναπαράγεται στον δικό του ρυθμό δειγματοληψίας, χωρίς αλλαγή έντασης"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "File is lossy: bits after decode are delivered unchanged"
+            "value": "File is lossy: decoded audio plays at its own sample rate, with no volume change"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El archivo tiene compresión con pérdida, pero los bits del decodificador se entregan sin cambios"
+            "value": "El archivo tiene compresión con pérdida: el audio decodificado se reproduce a su propia frecuencia de muestreo, sin cambios de volumen"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tiedosto on häviöllinen, mutta dekooderin tuottamat bitit välitetään muuttumattomina"
+            "value": "Tiedosto on häviöllinen: dekoodattu ääni toistetaan omalla näytteenottotaajuudellaan ilman äänenvoimakkuuden muutoksia"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le fichier est compressé avec perte, mais les bits du décodeur sont transmis sans modification"
+            "value": "Le fichier est compressé avec perte : l’audio décodé est lu à sa propre fréquence d’échantillonnage, sans modification du volume"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Datoteka je komprimirana s gubitkom, ali bitovi iz dekodera prenose se nepromijenjeni"
+            "value": "Datoteka je komprimirana s gubitkom: dekodirani zvuk reproducira se na vlastitoj frekvenciji uzorkovanja, bez promjene glasnoće"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "A fájl veszteséges, de a dekóderből származó bitek változatlanul kerülnek továbbításra"
+            "value": "A fájl veszteséges: a dekódolt hang a saját mintavételi frekvenciáján, a hangerő módosítása nélkül szól"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "File menggunakan kompresi lossy, tetapi bit dari dekoder diteruskan tanpa perubahan"
+            "value": "File menggunakan kompresi lossy: audio hasil dekode diputar pada laju sampelnya sendiri, tanpa perubahan volume"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Il file è compresso con perdita, ma i bit del decoder vengono trasmessi senza modifiche"
+            "value": "Il file è compresso con perdita: l’audio decodificato viene riprodotto alla sua frequenza di campionamento, senza modifiche al volume"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルは非可逆圧縮ですが、デコーダーの出力ビットは変更せずに送信されます"
+            "value": "ファイルは非可逆圧縮です。デコードされたオーディオは元のサンプルレートのまま、音量を変えずに再生されます"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일은 손실 압축 형식이지만 디코더의 출력 비트는 변경 없이 전달됩니다"
+            "value": "파일은 손실 압축 형식입니다. 디코딩된 오디오는 원래 샘플률 그대로, 음량 변경 없이 재생됩니다"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filen er komprimert med tap, men bitene fra dekoderen leveres uendret"
+            "value": "Filen er komprimert med tap: den dekodede lyden spilles av med sin egen samplingsfrekvens, uten endret volum"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Het bestand heeft compressie met verlies, maar de bits uit de decoder worden ongewijzigd doorgegeven"
+            "value": "Het bestand heeft compressie met verlies: de gedecodeerde audio wordt afgespeeld op de eigen samplefrequentie, zonder volumewijziging"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Plik jest skompresowany stratnie, ale bity z dekodera są przekazywane bez zmian"
+            "value": "Plik jest skompresowany stratnie: zdekodowany dźwięk jest odtwarzany z własną częstotliwością próbkowania, bez zmiany głośności"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O arquivo tem compressão com perdas, mas os bits do decodificador são transmitidos sem alterações"
+            "value": "O arquivo tem compressão com perdas: o áudio decodificado é reproduzido na própria taxa de amostragem, sem alteração de volume"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O ficheiro tem compressão com perdas, mas os bits do descodificador são transmitidos sem alterações"
+            "value": "O ficheiro tem compressão com perdas: o áudio descodificado é reproduzido na sua própria frequência de amostragem, sem alteração de volume"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fișierul este comprimat cu pierderi, dar biții din decodor sunt transmiși fără modificări"
+            "value": "Fișierul este comprimat cu pierderi: sunetul decodat este redat la propria rată de eșantionare, fără modificarea volumului"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файл сжат с потерями, но биты из декодера передаются без изменений"
+            "value": "Файл сжат с потерями: декодированный звук воспроизводится с исходной частотой дискретизации, без изменения громкости"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Súbor je stratový, ale bity z dekodéra sa odovzdávajú bez zmeny"
+            "value": "Súbor je stratový: dekódovaný zvuk sa prehráva vo vlastnej vzorkovacej frekvencii, bez zmeny hlasitosti"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filen är komprimerad med förlust, men bitarna från avkodaren levereras oförändrade"
+            "value": "Filen är komprimerad med förlust: det avkodade ljudet spelas upp med sin egen samplingsfrekvens, utan ändrad volym"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไฟล์บีบอัดแบบสูญเสียข้อมูล แต่บิตจากตัวถอดรหัสจะถูกส่งต่อโดยไม่เปลี่ยนแปลง"
+            "value": "ไฟล์บีบอัดแบบสูญเสียข้อมูล เสียงที่ถอดรหัสแล้วจะเล่นที่อัตราสุ่มตัวอย่างเดิมโดยไม่เปลี่ยนระดับเสียง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dosya kayıplı sıkıştırılmış, ancak kod çözücüden çıkan bitler değiştirilmeden iletiliyor"
+            "value": "Dosya kayıplı sıkıştırılmış: kodu çözülen ses kendi örnekleme hızında, ses yüksekliği değiştirilmeden çalınıyor"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файл стиснуто з втратами, але біти з декодера передаються без змін"
+            "value": "Файл стиснуто з втратами: декодований звук відтворюється з власною частотою дискретизації, без зміни гучності"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tệp được nén mất dữ liệu, nhưng các bit từ bộ giải mã được truyền đi nguyên vẹn"
+            "value": "Tệp được nén mất dữ liệu: âm thanh đã giải mã được phát ở tần số lấy mẫu gốc, không thay đổi âm lượng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件采用有损压缩，但解码器输出的比特会原样传输"
+            "value": "文件采用有损压缩：解码后的音频以原始采样率播放，音量不作改变"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案採用有損壓縮，但解碼器輸出的位元會原樣傳送"
+            "value": "檔案採用有損壓縮：解碼後的音訊以原始取樣率播放，音量不作改變"
           }
         }
       },

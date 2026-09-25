@@ -77,8 +77,8 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusVolumeScaled,
     // Hog held by another process.
     VibeBitPerfectStatusExclusiveRefused,
-    // Everything held, but the file is lossy: the decoded audio is delivered
-    // unchanged.
+    // Everything held, but the file is lossy: its decoded audio plays at its
+    // own rate with no volume change, rounded only to the device's depth.
     VibeBitPerfectStatusSourceLossy,
 };
 
