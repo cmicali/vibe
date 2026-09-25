@@ -123,7 +123,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioFile             *_successorFile;    // the park's instance the bus was handed
 
     // ---- The render pipeline (AudioPlayer+Graph.m).
-    VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated once, freed at dealloc
+    VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated in init, freed at dealloc
     AVAudioFormat           *_masterFormat;     // the pipeline's format: stereo at the output's rate
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it

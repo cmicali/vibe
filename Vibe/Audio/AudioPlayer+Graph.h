@@ -221,6 +221,10 @@ typedef struct VibeMasterBus VibeMasterBus;
 
 @end
 
+// The pipeline's audio-thread state, gate closed and nothing hosted. The
+// player owns it from its init, before the stall watchers or any queue work
+// can run, so no queue-side reader ever finds it absent.
+VibeMasterBus * _Nullable VibeMasterBusCreate(void);
 // Whether a render is inside the pipeline right now: the teardown's last
 // check before it frees what one could be inside.
 BOOL VibeMasterBusRenderInside(VibeMasterBus * _Nullable master);

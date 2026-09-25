@@ -451,9 +451,6 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 #pragma mark - The carrier
 
 - (void)createOutputOnQueue {
-    if (!_masterBus) {
-        _masterBus = calloc(1, sizeof(VibeMasterBus));
-    }
 #if DEBUG
     // --no-audio-hw, for testing: no carrier at all, on either platform. The
     // pump stands in for the IO thread, calling the pipeline at real-time
@@ -843,6 +840,10 @@ static void VibeVarispeedHostFree(VibeVarispeedHost *host) {
     free(host->recent[0]);
     free(host->scratch[0]);
     free(host);
+}
+
+VibeMasterBus *VibeMasterBusCreate(void) {
+    return calloc(1, sizeof(VibeMasterBus));
 }
 
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master) {
