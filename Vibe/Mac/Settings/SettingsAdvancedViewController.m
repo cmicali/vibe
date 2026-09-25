@@ -238,8 +238,9 @@ static NSString *VibeAudioPathSampleFormat(NSString *name) {
         return VibeAudioPathJoin(@[STR_SETTINGS_AUDIO_PATH_ON, rate]);
     }
     if ([name isEqualToString:@"output"]) {
-        return VibeAudioPathJoin(@[rate, STR_SETTINGS_AUDIO_PATH_FLOAT, VibeAudioPathChannels([stage[@"channels"] unsignedIntegerValue]),
-                                   [stage[@"running"] boolValue] ? STR_SETTINGS_AUDIO_PATH_RUNNING : STR_SETTINGS_AUDIO_PATH_IDLE]);
+        NSString *activity = ![stage[@"running"] boolValue] ? STR_SETTINGS_AUDIO_PATH_IDLE
+                : [stage[@"idleStopPending"] boolValue] ? STR_SETTINGS_AUDIO_PATH_WAITING_TO_IDLE : STR_SETTINGS_AUDIO_PATH_RUNNING;
+        return VibeAudioPathJoin(@[rate, STR_SETTINGS_AUDIO_PATH_FLOAT, VibeAudioPathChannels([stage[@"channels"] unsignedIntegerValue]), activity]);
     }
     if ([name isEqualToString:@"device"]) {
         if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;

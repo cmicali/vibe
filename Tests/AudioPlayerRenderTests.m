@@ -2313,7 +2313,19 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualObjects(output[@"carrier"], @"pump");
     XCTAssertEqual([output[@"sampleRate"] doubleValue], 48000.0);
     XCTAssertTrue([output[@"running"] boolValue]);
+    XCTAssertFalse([output[@"idleStopPending"] boolValue]);
     XCTAssertFalse([device[@"present"] boolValue], @"no device under the pump");
+    // Stopped, the output keeps running until the deferred idle stop, and
+    // says so; after it, the output is idle.
+    [_player stop];
+    [self render:4800];
+    output = _player.audioPathSnapshot[6];
+    XCTAssertTrue([output[@"running"] boolValue]);
+    XCTAssertTrue([output[@"idleStopPending"] boolValue]);
+    [self render:48000 * 7];
+    output = _player.audioPathSnapshot[6];
+    XCTAssertFalse([output[@"running"] boolValue]);
+    XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
 @end

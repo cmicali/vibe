@@ -49,7 +49,7 @@ Which run proves what:
 
 ## The channel's contract
 
-**Every command replies with exactly one JSON object**; errors are `{"error": "…"}`. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage. Action replies are read synchronously and lag async pipeline work — confirm with `dump_state`. Arguments reach the app as an array, never re-tokenized, so a quoted path with spaces is safe.
+**Every command replies with exactly one JSON object**; errors are `{"error": "…"}`. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage. The wait is 5 s unless the verb declares its own window; `VIBE_DEBUG_TIMEOUT=<seconds>` raises the default for a script that drives the failure fixtures, whose dead device holds the app's main thread for 14 s and more (the bit-perfect verifier sets 45). Action replies are read synchronously and lag async pipeline work — confirm with `dump_state`. Arguments reach the app as an array, never re-tokenized, so a quoted path with spaces is safe.
 
 Never scrape text. Filter with `jq` — `-r` for shell substitution, `-e` to assert (nonzero on `false` or `null`, so it doubles as the test) — and pipe through `printf '%s' "$out"`, not `echo`, which in zsh rewrites `\t` inside the JSON into illegal control characters. **Use the script runner and `jq`, not generated Python**, for command execution, saved snapshots, comparisons and assertions. Settings opacity and row-label checks belong on `dump_settings_ui`; it exposes them directly without matching addresses in `dump_view_tree`.
 

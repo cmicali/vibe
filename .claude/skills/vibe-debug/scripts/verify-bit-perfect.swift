@@ -173,6 +173,12 @@ func debug(_ binary: String, _ arguments: [String], required: Bool = true) -> [S
     let task = Process(), pipe = Pipe()
     task.executableURL = URL(fileURLWithPath: binary)
     task.arguments = ["--debug-cmd"] + arguments
+    // The failure fixtures hold the app's main thread for as long as CoreAudio
+    // waits out a dead device — measured 14 s, 29 s for the hung open — and a
+    // command that lands inside that window is answered late, not never; the
+    // client's 5 s default read it as an absent app and failed a matrix that
+    // had passed every case.
+    task.environment = ProcessInfo.processInfo.environment.merging(["VIBE_DEBUG_TIMEOUT": "45"]) { $1 }
     task.standardOutput = pipe
     if !required { task.standardError = FileHandle.nullDevice }
     do { try task.run() } catch {

@@ -1203,6 +1203,8 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         @"stage": @"output", @"present": @YES,
         @"sampleRate": @(_masterFormat.sampleRate), @"channels": @(_masterFormat.channelCount), @"sampleFormat": @"float32",
         @"running": @([self renderingOnQueue]),
+        // Running with nothing to play: the deferred idle stop is pending.
+        @"idleStopPending": @([self renderingOnQueue] && (_state == VibePlayerStateStopped || _state == VibePlayerStatePaused)),
         @"silent": @(atomic_load_explicit(&master->silent, memory_order_relaxed) != 0),
         @"framesRendered": @(atomic_load_explicit(&master->frames, memory_order_relaxed)),
     } mutableCopy];
