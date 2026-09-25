@@ -296,13 +296,15 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
         availableFormats:(AudioStreamRangedDescription **)availableFormats
                    count:(UInt32 *)count
              forDeviceID:(AudioDeviceID)deviceID {
-    if (!stream || !format || !availableFormats || !count) {
+    if (!stream || !format || (availableFormats != NULL) != (count != NULL)) {
         return NO;
     }
     *stream = kAudioObjectUnknown;
     memset(format, 0, sizeof(*format));
-    *availableFormats = NULL;
-    *count = 0;
+    if (availableFormats) {
+        *availableFormats = NULL;
+        *count = 0;
+    }
     if (deviceID == kAudioObjectUnknown) {
         return NO;
     }
@@ -332,7 +334,7 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
                                                  kAudioObjectPropertyScopeGlobal,
                                                  kAudioObjectPropertyElementMain };
     UInt32 availableSize = 0;
-    if (AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
+    if (availableFormats && AudioObjectGetPropertyDataSize(first, &availableAddr, 0, NULL, &availableSize) == noErr
             && availableSize >= sizeof(AudioStreamRangedDescription)) {
         AudioStreamRangedDescription *formats = (AudioStreamRangedDescription *)malloc(availableSize);
         if (formats && AudioObjectGetPropertyData(first, &availableAddr, 0, NULL,

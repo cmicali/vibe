@@ -62,7 +62,8 @@ NS_ASSUME_NONNULL_BEGIN
 // hosted units (`hostedUnits`: the varispeed and the FX chain's, created once
 // and kept) and the FX chain's renders so far (`unitRenders`, flat while no
 // effect is engaged), retiring voices (`retiredFades`, the name the stress
-// tooling reads), live voices, whether the hardware drain is polling, whether
+// tooling reads), live voices, decoder turns run so far (`decodeTurns`, flat
+// while every voice is paused at its end), whether the hardware drain is polling, whether
 // the output is running, rendered frames, varispeed presence and latency, the
 // current voice's gain and underrun count, the output rate (`outputRate`),
 // whether the varispeed is in the chain, how often it has rendered and how

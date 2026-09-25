@@ -1362,14 +1362,11 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         Float64 rate = 0;
         AudioStreamID stream = kAudioObjectUnknown;
         AudioStreamBasicDescription physical = {0};
-        AudioStreamRangedDescription *formats = NULL;
-        UInt32 count = 0;
         device[@"deviceId"] = @((NSInteger)deviceID);
         if ([CoreAudioUtil readName:&text forDeviceID:deviceID] && text) device[@"name"] = text;
         if ([CoreAudioUtil readUID:&text forDeviceID:deviceID] && text) device[@"uid"] = text;
         if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]) device[@"nominalSampleRate"] = @(rate);
-        if ([CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:&formats count:&count forDeviceID:deviceID]) {
-            free(formats);
+        if ([CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL count:NULL forDeviceID:deviceID]) {
             device[@"physicalSampleRate"] = @(physical.mSampleRate);
             device[@"physicalBitsPerChannel"] = @(physical.mBitsPerChannel);
             device[@"physicalFloat"] = @((physical.mFormatFlags & kAudioFormatFlagIsFloat) != 0);

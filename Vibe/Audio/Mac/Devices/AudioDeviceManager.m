@@ -429,11 +429,7 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         VibeEventLogListen(object, kVibeEventLogDeviceAddresses, deviceCount, _eventLogQueue, deviceListener, YES);
         AudioStreamID stream = kAudioObjectUnknown;
         AudioStreamBasicDescription physical = {0};
-        AudioStreamRangedDescription *available = NULL;
-        UInt32 availableCount = 0;
-        [CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:&available
-                                  count:&availableCount forDeviceID:object];
-        free(available);
+        [CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL count:NULL forDeviceID:object];
         AudioObjectPropertyListenerBlock streamListener = ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
             for (UInt32 i = 0; i < count; i++) {
                 LogInfo(@"HAL: %@ (%u) %@", name, object,

@@ -31,6 +31,9 @@ enum {
     // at least this far behind it, so a successor named late still continues
     // it; nearer, its tail is flushed and the end declared.
     kOpenStreamReserveFrames = 2 * kDecodeChunkFrames,
+    // The frames the render mixes at once: the gain scratch's length, and the
+    // largest slice a carrier hands the bus; a larger ask is mixed in pieces.
+    kMixSpanFrames = 4096,
 };
 
 typedef NS_ENUM(int32_t, VibeSuccessorState) {
@@ -119,6 +122,7 @@ struct VibeVoiceMix {
     uint32_t mask;
     double hostTicksPerFrame;
     float *rings[kVoiceSlots][kMaxBusChannels];
+    float *gains;       // the render's scratch: a fading voice's gain per frame, kMixSpanFrames long
     VibeVoiceSlot slots[kVoiceSlots];
     // Bumped at the end of every render; inRender brackets each one, so the
     // queue can tell "no render is inside any slot" from "the output says it
@@ -141,7 +145,8 @@ struct VibeVoiceMix {
     self = [super init];
     if (self) {
         _mix = calloc(1, sizeof(VibeVoiceMix));
-        _storage = calloc((size_t)kVoiceSlots * channels * capacity, sizeof(float)); // touched here, never first on the audio thread
+        size_t ringFloats = (size_t)kVoiceSlots * channels * capacity;
+        _storage = calloc(ringFloats + kMixSpanFrames, sizeof(float)); // touched here, never first on the audio thread
         if (!_mix || !_storage) {
             return nil;
         }
@@ -156,6 +161,7 @@ struct VibeVoiceMix {
             atomic_init(&_mix->slots[s].endOfStream, kUnset);
             atomic_init(&_mix->slots[s].boundary, kUnset);
         }
+        _mix->gains = _storage + ringFloats;
     }
     return self;
 }
@@ -212,6 +218,23 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
     atomic_compare_exchange_strong_explicit(&slot->state, &expected, VibeVoiceStateDead,
                                             memory_order_release, memory_order_relaxed);
 }
+
+// The calls the compiler cannot check: vDSP's vector arithmetic, which
+// allocates nothing and blocks on nothing, and which Accelerate attributes
+// with nothing. Everything around them is under the error pragma below.
+VIBE_REALTIME_UNCHECKED_BEGIN
+static inline void VibeVoiceMixAdd(const float *ring, float *out, uint32_t frames) CA_REALTIME_API {
+    vDSP_vadd(ring, 1, out, 1, out, 1, frames);
+}
+
+static inline void VibeVoiceMixAtGain(const float *ring, float gain, float *out, uint32_t frames) CA_REALTIME_API {
+    vDSP_vsma(ring, 1, &gain, out, 1, out, 1, frames);
+}
+
+static inline void VibeVoiceMixAtGains(const float *ring, const float *gains, float *out, uint32_t frames) CA_REALTIME_API {
+    vDSP_vma(ring, 1, gains, 1, out, 1, out, 1, frames);
+}
+VIBE_REALTIME_END
 
 // Everything the audio thread does. Plain memory and atomics, no call that
 // can block; the pragma below makes the compiler hold that line.
@@ -281,26 +304,38 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
         if (frames > 0) {
             uint32_t readIndex = (uint32_t)(consumed & mix->mask);
             float gain = atomic_load_explicit(&slot->gain, memory_order_relaxed);
-            for (uint32_t c = 0; c < channels; c++) {
-                const float *ring = mix->rings[s][c];
-                float *out = (float *)output->mBuffers[c].mData;
+            // The ring read is at most two contiguous spans, each one vector
+            // operation per channel; a fading voice's gains are computed once
+            // per frame and shared by its channels.
+            for (uint32_t done = 0; done < frames; ) {
+                uint32_t index = (readIndex + done) & mix->mask;
+                uint32_t span = frames - done;
+                if (span > mix->capacity - index) {
+                    span = mix->capacity - index;
+                }
+                if (span > kMixSpanFrames) {
+                    span = kMixSpanFrames;
+                }
                 if (ramping) {
-                    for (uint32_t i = 0; i < frames; i++) {
-                        float g = VibeFadeGainAtFrame((VibeFadeCurve)slot->rampCurve, slot->rampFrom, slot->rampTo,
-                                                      slot->rampElapsed + i, slot->rampFrames);
-                        out[i] += g * ring[(readIndex + i) & mix->mask];
+                    for (uint32_t i = 0; i < span; i++) {
+                        mix->gains[i] = VibeFadeGainAtFrame((VibeFadeCurve)slot->rampCurve, slot->rampFrom, slot->rampTo,
+                                                            slot->rampElapsed + done + i, slot->rampFrames);
                     }
                 }
-                else if (gain == 1.0f) {
-                    for (uint32_t i = 0; i < frames; i++) {
-                        out[i] += ring[(readIndex + i) & mix->mask];
+                for (uint32_t c = 0; c < channels; c++) {
+                    const float *ring = mix->rings[s][c] + index;
+                    float *out = (float *)output->mBuffers[c].mData + done;
+                    if (ramping) {
+                        VibeVoiceMixAtGains(ring, mix->gains, out, span);
+                    }
+                    else if (gain == 1.0f) {
+                        VibeVoiceMixAdd(ring, out, span);
+                    }
+                    else {
+                        VibeVoiceMixAtGain(ring, gain, out, span);
                     }
                 }
-                else {
-                    for (uint32_t i = 0; i < frames; i++) {
-                        out[i] += gain * ring[(readIndex + i) & mix->mask];
-                    }
-                }
+                done += span;
             }
             if (!slot->consuming) {
                 slot->consuming = 1;
@@ -367,7 +402,7 @@ VIBE_REALTIME_END
     AVAudioConverter *converter;
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
     AVAudioPCMBuffer *mixBuffer;     // the bus's channels at the file's rate, what a converter takes after the mix
-    AVAudioPCMBuffer *convertBuffer; // the converter's output
+    AVAudioPCMBuffer *convertBuffer; // the converter's output: the stage itself for a float target, a buffer of its own for the 16-bit form
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life
     NSData *mixMap;                  // Float32[source channels][bus channels], when the widths differ
     NSDictionary *conversion;        // how the file reaches the bus, for conversionOfVoice:; _tableLock; nil = direct
@@ -402,6 +437,7 @@ VIBE_REALTIME_END
 @implementation AudioVoiceBus {
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueue;
+    _Atomic uint64_t _decodeTurns;   // turns run so far, for the tests and the stress oracle
     VibeVoiceMixOwner *_mixOwner;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
@@ -471,6 +507,10 @@ VIBE_REALTIME_END
 
 - (dispatch_queue_t)decodeQueue {
     return _decodeQueue;
+}
+
+- (uint64_t)decodeTurns {
+    return atomic_load_explicit(&_decodeTurns, memory_order_relaxed);
 }
 
 // 20 bits, never 0: a zero word is "no ramp", which a paused start relies on.
@@ -650,7 +690,10 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     record->converter = converter;
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-    record->convertBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:target frameCapacity:kDecodeChunkFrames];
+    // A float target is the bus format, so the converter writes the stage
+    // itself; the 16-bit form lands in a buffer of its own, expanded into it.
+    record->convertBuffer = integer ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:target frameCapacity:kDecodeChunkFrames]
+                                    : record->stageBuffer;
     [self setConversion:[self conversionFrom:source to:target mixed:record->mixMap != nil converter:converter] forRecord:record];
     return record->readBuffer && record->convertBuffer && (!record->mixMap || record->mixBuffer);
 }
@@ -1057,7 +1100,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             if (!_inlineDecoding) {
                 uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
                         - atomic_load_explicit(&s->consumed, memory_order_relaxed);
-                if (buffered < _mix->capacity / kLowWaterDivisor) {
+                // A turn is asked for only when one could write: not for a
+                // voice whose reads were stopped, nor past a published end
+                // with no successor queued — a paused voice near its end sat
+                // below the low-water mark and was handed an empty turn every
+                // drain. queueSuccessor: asks for the turn a late successor
+                // needs itself.
+                BOOL canWrite = atomic_load_explicit(&s->readsAllowed, memory_order_relaxed)
+                        && (atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset
+                            || atomic_load_explicit(&s->successorState, memory_order_relaxed) != VibeSuccessorNone);
+                if (canWrite && buffered < _mix->capacity / kLowWaterDivisor) {
                     atomic_store_explicit(&record->fillTarget, _mix->capacity, memory_order_release);
                     [self scheduleFillForSlot:slot];
                 }
@@ -1160,6 +1212,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // voice since recycled touches nothing: the slot, its record and its fill
 // flag belong to whoever holds the slot now.
 - (void)decodeTurnForSlot:(NSUInteger)slot identifier:(VibeVoiceID)identifier {
+    atomic_fetch_add_explicit(&_decodeTurns, 1, memory_order_relaxed);
     VibeVoiceRecord *record = _records[slot];
     VibeVoiceSlot *s = &_mix->slots[slot];
     if (atomic_load_explicit(&s->generation, memory_order_acquire) != identifier) {
@@ -1295,7 +1348,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     AVAudioPCMBuffer *converted = record->convertBuffer;
     uint32_t frames = converted.frameLength;
     *final = status == AVAudioConverterOutputStatus_EndOfStream || (flushing && frames < kDecodeChunkFrames);
-    if (converted.format.commonFormat == AVAudioPCMFormatInt16) {
+    if (converted != record->stageBuffer) {
         // Back to float on the 16-bit grid: v / 32768 is exact.
         const int16_t *in = converted.int16ChannelData[0];
         uint32_t channels = converted.format.channelCount;
@@ -1305,13 +1358,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
                 out[i] = (float)in[i * channels + c] / 32768.0f;
             }
         }
+        record->stageBuffer.frameLength = frames;
     }
-    else {
-        for (uint32_t c = 0; c < converted.format.channelCount; c++) {
-            memcpy(record->stageBuffer.floatChannelData[c], converted.floatChannelData[c], frames * sizeof(float));
-        }
-    }
-    record->stageBuffer.frameLength = frames;
     return frames;
 }
 

@@ -24,6 +24,11 @@ struct VibeAudioLevelAnalyzer {
     double sampleRate;
     NSUInteger channelCount;
     NSUInteger fill;
+    // The windows analyzed since the last summary: their count, each band's
+    // summed energy per octave and its largest normalized activity level.
+    NSUInteger pendingWindows;
+    float pendingSharedEnergy[kLevelBandCount];
+    float pendingRelativePeak[kLevelBandCount];
     float *window;
     float *accum[kMaximumAnalyzedChannels];
     float *windowed;
@@ -194,8 +199,11 @@ void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer) {
         return;
     }
     analyzer->fill = 0;
+    analyzer->pendingWindows = 0;
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         analyzer->relativeReference[band] = kLevelReferenceFloor;
+        analyzer->pendingSharedEnergy[band] = 0;
+        analyzer->pendingRelativePeak[band] = 0;
     }
     analyzer->sharedReference = kLevelReferenceFloor;
 }
@@ -203,9 +211,8 @@ void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer) {
 NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
                                          float * const *channels,
                                          NSUInteger channelCount,
-                                         NSUInteger frameCount,
-                                         float callbackLevels[kLevelBandCount]) {
-    if (!analyzer || !channels || !callbackLevels || frameCount == 0) {
+                                         NSUInteger frameCount) {
+    if (!analyzer || !channels || frameCount == 0) {
         return 0;
     }
     NSUInteger analyzedChannels = MIN(channelCount, (NSUInteger)kMaximumAnalyzedChannels);
@@ -222,16 +229,12 @@ NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
         analyzer->fill = 0;
     }
 
-    BOOL sharedSpectrum = analyzer->normalizationMode
-            == VibeAudioLevelNormalizationModeSharedSpectrum;
-    BOOL relativeActivity = analyzer->normalizationMode
-            == VibeAudioLevelNormalizationModeRelativeActivity;
     BOOL balancedSpectrum = analyzer->normalizationMode
             == VibeAudioLevelNormalizationModeBalancedSpectrum;
-    BOOL usesSharedSpectrum = sharedSpectrum || balancedSpectrum;
-    BOOL usesRelativeActivity = relativeActivity || balancedSpectrum;
-    float relativePeakLevels[kLevelBandCount] = {0};
-    float sharedEnergySum[kLevelBandCount] = {0};
+    BOOL usesSharedSpectrum = balancedSpectrum
+            || analyzer->normalizationMode == VibeAudioLevelNormalizationModeSharedSpectrum;
+    BOOL usesRelativeActivity = balancedSpectrum
+            || analyzer->normalizationMode == VibeAudioLevelNormalizationModeRelativeActivity;
     float windowDuration = (float)((double)analyzer->fftSize / analyzer->sampleRate);
     NSUInteger windows = 0;
     NSUInteger consumed = 0;
@@ -244,36 +247,52 @@ NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
         }
         analyzer->fill += take;
         consumed += take;
-        if (analyzer->fill == analyzer->fftSize) {
-            float spectrumEnergy[kLevelBandCount] = {0};
-            float activityEnergy[kLevelBandCount] = {0};
-            VibeAudioLevelAnalyzerMeasureFrame(analyzer, spectrumEnergy,
-                                                activityEnergy);
+        if (analyzer->fill < analyzer->fftSize) {
+            continue;
+        }
+        // A full window is analyzed here, in the call that filled it, so the
+        // FFT work lands in the callback that brought the frames rather than
+        // piling up at the publication.
+        float spectrumEnergy[kLevelBandCount] = {0};
+        float activityEnergy[kLevelBandCount] = {0};
+        VibeAudioLevelAnalyzerMeasureFrame(analyzer, spectrumEnergy,
+                                            activityEnergy);
+        for (NSUInteger band = 0; band < kLevelBandCount; band++) {
             if (usesSharedSpectrum) {
-                for (NSUInteger band = 0; band < kLevelBandCount; band++) {
-                    sharedEnergySum[band] += spectrumEnergy[band];
-                }
+                analyzer->pendingSharedEnergy[band] += spectrumEnergy[band];
             }
             if (usesRelativeActivity) {
-                for (NSUInteger band = 0; band < kLevelBandCount; band++) {
-                    analyzer->relativeReference[band] = VibeLevelUpdateReference(
-                            analyzer->relativeReference[band], activityEnergy[band],
-                            windowDuration);
-                    float level = VibeLevelNormalize(
-                            activityEnergy[band], analyzer->relativeReference[band]);
-                    relativePeakLevels[band] = MAX(relativePeakLevels[band], level);
-                }
+                analyzer->relativeReference[band] = VibeLevelUpdateReference(
+                        analyzer->relativeReference[band], activityEnergy[band],
+                        windowDuration);
+                float level = VibeLevelNormalize(
+                        activityEnergy[band], analyzer->relativeReference[band]);
+                analyzer->pendingRelativePeak[band] = MAX(analyzer->pendingRelativePeak[band], level);
             }
-            analyzer->fill = 0;
-            windows++;
         }
+        analyzer->pendingWindows++;
+        analyzer->fill = 0;
+        windows++;
     }
+    return windows;
+}
 
-    if (usesSharedSpectrum && windows > 0) {
+NSUInteger VibeAudioLevelAnalyzerSummarize(VibeAudioLevelAnalyzer *analyzer,
+                                           float callbackLevels[kLevelBandCount]) {
+    if (!analyzer || !callbackLevels || analyzer->pendingWindows == 0) {
+        return 0;
+    }
+    NSUInteger windows = analyzer->pendingWindows;
+    BOOL balancedSpectrum = analyzer->normalizationMode
+            == VibeAudioLevelNormalizationModeBalancedSpectrum;
+    BOOL usesSharedSpectrum = balancedSpectrum
+            || analyzer->normalizationMode == VibeAudioLevelNormalizationModeSharedSpectrum;
+    if (usesSharedSpectrum) {
+        float windowDuration = (float)((double)analyzer->fftSize / analyzer->sampleRate);
         float meanEnergy[kLevelBandCount];
         float strongest = 0;
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
-            meanEnergy[band] = sharedEnergySum[band] / (float)windows;
+            meanEnergy[band] = analyzer->pendingSharedEnergy[band] / (float)windows;
             strongest = MAX(strongest, meanEnergy[band]);
         }
         analyzer->sharedReference = VibeLevelUpdateReference(
@@ -283,14 +302,19 @@ NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,
                                                     analyzer->sharedReference);
             callbackLevels[band] = balancedSpectrum
                     ? VibeLevelBalancedSpectrumLevel(sharedLevel,
-                                                     relativePeakLevels[band])
+                                                     analyzer->pendingRelativePeak[band])
                     : sharedLevel;
         }
     }
-    else if (windows > 0) {
+    else {
         for (NSUInteger band = 0; band < kLevelBandCount; band++) {
-            callbackLevels[band] = relativePeakLevels[band];
+            callbackLevels[band] = analyzer->pendingRelativePeak[band];
         }
+    }
+    analyzer->pendingWindows = 0;
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        analyzer->pendingSharedEnergy[band] = 0;
+        analyzer->pendingRelativePeak[band] = 0;
     }
     return windows;
 }

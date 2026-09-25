@@ -215,6 +215,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // Slots that are not free, pending voices included. The drain-timer gate.
 - (NSUInteger)occupiedSlotCount;
 - (NSUInteger)liveVoiceCount;
+// Decoder turns run so far, a diagnostic: a voice that can write nothing
+// asks for none, which the tests and the stress oracle read.
+- (uint64_t)decodeTurns;
 
 // The poll. Binds pending voices, emits each voice's events in the order
 // live → boundary → ended (one boundary per successor), tops up rings, and

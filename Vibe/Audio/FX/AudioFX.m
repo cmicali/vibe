@@ -7,6 +7,7 @@
 #import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
 #import "FadeMath.h"
 #import <AVFoundation/AVFoundation.h>
+#import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>
 #include <stdatomic.h>
@@ -199,9 +200,11 @@ struct VibeFXChain {
 
 #pragma mark - The audio thread
 
-// The one call the compiler cannot check: AudioToolbox documents
+// The calls the compiler cannot check: AudioToolbox documents
 // AudioUnitRender as the render thread's own entry point and attributes it
-// with nothing. Everything around it is under the error pragma below.
+// with nothing, and Accelerate attributes its vector arithmetic, which
+// allocates nothing and blocks on nothing, with nothing either. Everything
+// around them is under the error pragma below.
 VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, const AudioTimeStamp *timestamp,
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
@@ -209,6 +212,18 @@ static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, co
     AudioUnitRenderActionFlags flags = 0;
     atomic_fetch_add_explicit(&chain->unitRenders, 1, memory_order_relaxed);
     return AudioUnitRender(unit->unit, &flags, timestamp, 0, frames, (AudioBufferList *)&list);
+}
+
+static inline void VibeFXVectorAdd(const float *in, float *out, UInt32 frames) CA_REALTIME_API {
+    vDSP_vadd(in, 1, out, 1, out, 1, frames); // out += in
+}
+
+static inline void VibeFXVectorScale(const float *in, float scalar, float *out, UInt32 frames) CA_REALTIME_API {
+    vDSP_vsmul(in, 1, &scalar, out, 1, frames); // out = in × scalar
+}
+
+static inline void VibeFXVectorScaleAdd(const float *in, float scalar, float *out, UInt32 frames) CA_REALTIME_API {
+    vDSP_vsma(in, 1, &scalar, out, 1, out, 1, frames); // out += in × scalar
 }
 VIBE_REALTIME_END
 
@@ -219,29 +234,45 @@ static inline void VibeFXCopy(float *const to[2], float *const from[2], UInt32 f
 }
 
 static inline void VibeFXAdd(float *const to[2], float *const from[2], UInt32 frames) CA_REALTIME_API {
-    for (UInt32 f = 0; f < frames; f++) {
-        to[0][f] += from[0][f];
-        to[1][f] += from[1][f];
-    }
+    VibeFXVectorAdd(from[0], to[0], frames);
+    VibeFXVectorAdd(from[1], to[1], frames);
 }
 
 // The mixer's balance law, measured: the far side attenuates linearly with
-// the pan, the near side keeps its gain; `volume` is the mixer's own.
-static inline void VibeFXPan(float *const io[2], UInt32 frames, float pan, float volume) CA_REALTIME_API {
+// the pan, the near side keeps its gain; `volume` is the mixer's own. The
+// panned lane lands in `out`, on top of what is there or in its place.
+static inline void VibeFXPanInto(float *const lane[2], float *const out[2], UInt32 frames, float pan, float volume,
+                                 BOOL add) CA_REALTIME_API {
     float left = volume * (pan > 0 ? 1.0f - pan : 1.0f);
     float right = volume * (pan < 0 ? 1.0f + pan : 1.0f);
-    for (UInt32 f = 0; f < frames; f++) {
-        io[0][f] *= left;
-        io[1][f] *= right;
+    if (add) {
+        VibeFXVectorScaleAdd(lane[0], left, out[0], frames);
+        VibeFXVectorScaleAdd(lane[1], right, out[1], frames);
+    }
+    else {
+        VibeFXVectorScale(lane[0], left, out[0], frames);
+        VibeFXVectorScale(lane[1], right, out[1], frames);
     }
 }
 
 // The gate: the gain moves toward the queue's target at the mixer's slew,
-// evaluated per frame so a target written mid-block lands smoothly.
+// evaluated per frame so a target written mid-block lands smoothly; settled
+// on its target it is one multiply, and closed it is silence.
 static inline void VibeFXGate(VibeFXStage *stage, float *const in[2], float *const out[2], UInt32 frames,
                               float slew) CA_REALTIME_API {
     float gain = stage->gain;
     float target = atomic_load_explicit(&stage->target, memory_order_relaxed);
+    if (gain == target) {
+        if (gain == 0) {
+            memset(out[0], 0, frames * sizeof(float));
+            memset(out[1], 0, frames * sizeof(float));
+        }
+        else {
+            VibeFXVectorScale(in[0], gain, out[0], frames);
+            VibeFXVectorScale(in[1], gain, out[1], frames);
+        }
+        return;
+    }
     for (UInt32 f = 0; f < frames; f++) {
         if (gain < target) {
             gain = gain + slew > target ? target : gain + slew;
@@ -297,19 +328,12 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
         // The right lane, panned right at one hop of decay: it first sounds at
         // 2T, a full hop after the left lane's T.
         VibeFXRenderUnit(chain, right, timestamp, frames, chain->lane);
-        VibeFXPan(chain->lane, frames, kDelayPingPongPan, kDelayFeedbackPercent / 100.0f);
-        if (echoes) {
-            VibeFXAdd(chain->echoes, chain->lane, frames);
-        }
-        else {
-            VibeFXCopy(chain->echoes, chain->lane, frames);
-            echoes = YES;
-        }
+        VibeFXPanInto(chain->lane, chain->echoes, frames, kDelayPingPongPan, kDelayFeedbackPercent / 100.0f, echoes);
+        echoes = YES;
         // The left lane, fed by the half-tap lane, summed with it and panned left.
         VibeFXRenderUnit(chain, left, timestamp, frames, chain->lane);
         VibeFXAdd(chain->lane, chain->halfTap, frames);
-        VibeFXPan(chain->lane, frames, -kDelayPingPongPan, 1.0f);
-        VibeFXAdd(chain->echoes, chain->lane, frames);
+        VibeFXPanInto(chain->lane, chain->echoes, frames, -kDelayPingPongPan, 1.0f, YES);
     }
     if (echoes) {
         VibeFXRenderUnit(chain, &chain->units[VibeFXUnitDelayLowCut], timestamp, frames, chain->lane);

@@ -1406,6 +1406,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"renderLeaveWork": @(self->_renderLeaveWork.count),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
+                   @"decodeTurns": @(self->_voiceBus.decodeTurns),
                    @"pollActive": @(self->_drainTimer != nil),
                    @"running": @([self renderingOnQueue]),
                    @"frames": @([(VibeManualRenderPump *)self->_manualPump renderedFrames]),
