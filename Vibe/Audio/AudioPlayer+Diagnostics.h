@@ -28,13 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Installs the process-lifetime stall watchers for the production player. Main thread.
 - (void)startStallWatchers;
 
-// The watcher's reads of queue-confined engine state, from its timer on the queue.
-- (BOOL)diagnosticEngineRunning;
+// The watcher's reads of queue-confined output state, from its timer on the queue.
+- (BOOL)diagnosticOutputRunning;
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.
 - (uint64_t)diagnosticPlayIdentifierOnQueue;
 
-// Runs operation, timing it as a named phase of a device or engine change.
+// Runs operation, timing it as a named phase of a device or pipeline change.
 - (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID operation:(BOOL (^)(void))operation;
 
 // Submission-side hooks. Main thread; they return a stamp for the queue side.
@@ -54,9 +54,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)noteDelivery:(NSString *)what forPlay:(uint64_t)submittedPlay accepted:(BOOL)accepted deliveredAt:(uint64_t)deliveredAt;
 - (uint64_t)deliveryStamp;
 
-// The `Signal:` probe on the level tap: armed at every start and resume,
+// The `Signal:` probe on the level meter: armed at every start and resume,
 // re-anchored at a gapless boundary, and released once its capture ends.
-// The tap is held for the capture on hardware even with no indicator demand.
+// The meter is held for the capture on hardware even with no indicator demand.
 @property (nonatomic, readonly) BOOL signalProbeWanted;
 - (void)armSignalProbeOnQueue:(NSString *)reason;
 - (void)noteRetiringAudioSilentOnQueue;

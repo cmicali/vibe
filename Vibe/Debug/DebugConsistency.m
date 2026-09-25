@@ -122,7 +122,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 #endif
 
-    NSDictionary<NSString *, NSNumber *> *engine = [player debugEngineCounts];
+    NSDictionary<NSString *, NSNumber *> *engine = [player debugRenderCounts];
     checked++;
     NSUInteger units = engine[@"hostedUnits"].unsignedIntegerValue;
     if (units > kVibeMaxReasonableHostedUnits) {
@@ -160,8 +160,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     NSUInteger activeLinks =
             (NSUInteger)[EqualizerIndicatorView vibeDebugActiveDisplayLinkCount];
     BOOL queueRequested = [equalizer[@"requested"] boolValue];
-    BOOL tapObject = [equalizer[@"tapObject"] boolValue];
-    BOOL tapInstalled = [equalizer[@"installed"] boolValue];
+    BOOL meterObject = [equalizer[@"meterObject"] boolValue];
+    BOOL meterInstalled = [equalizer[@"installed"] boolValue];
     BOOL signalProbe = [equalizer[@"signalProbe"] boolValue];
 
     checked++;
@@ -179,20 +179,20 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     checked++;
-    // Beta builds also hold the tap for each start's bounded signal capture.
-    // The tap object is kept across demand; its installation is what follows.
-    if (tapInstalled && !queueRequested && !signalProbe) {
-        VibeDebugViolation(v, @"equalizer.tap_follows_demand",
-                @"installed=%d, tap object=%d, requested=%d, signal probe=%d",
-                tapInstalled, tapObject, queueRequested, signalProbe);
+    // Beta builds also hold the meter for each start's bounded signal capture.
+    // The meter object is kept across demand; its installation is what follows.
+    if (meterInstalled && !queueRequested && !signalProbe) {
+        VibeDebugViolation(v, @"equalizer.meter_follows_demand",
+                @"installed=%d, meter object=%d, requested=%d, signal probe=%d",
+                meterInstalled, meterObject, queueRequested, signalProbe);
     }
 
     checked++;
     // A beta capture may finish after transport pauses; pixels never keep polling.
-    if ((activeLinks > 0 || (tapInstalled && !signalProbe)) && !player.outputAudioActive) {
+    if ((activeLinks > 0 || (meterInstalled && !signalProbe)) && !player.outputAudioActive) {
         VibeDebugViolation(v, @"equalizer.requires_audio_output",
                 @"links=%lu and installed=%d while output is inactive",
-                (unsigned long)activeLinks, tapInstalled);
+                (unsigned long)activeLinks, meterInstalled);
     }
 
     // ---- Track: the now-playing track's metadata actually arrives ----

@@ -1,6 +1,6 @@
 # Audio session and engine recovery (iOS only)
 
-The two files here are the iOS counterpart of `Audio/Mac/Devices/`: what answers when the system moves the audio out from under the engine, which on iOS is the carrier of Vibe's render pipeline (`Audio/CLAUDE.md`). The internal `(RecoveryInternal)` category owns the iOS carrier; `(Recovery)` receives the session controller’s recovery verdicts.
+The two files here are the iOS counterpart of `Audio/Mac/Devices/`: what answers when the system moves the audio out from under the engine, which on iOS is the carrier of Vibe's render pipeline (`Audio/CLAUDE.md`). The shared `(Carrier)` declaration in `AudioPlayerInternal.h` is implemented here for iOS; `(Recovery)` receives the session controller’s recovery verdicts.
 
 ## AudioSessionController
 

@@ -44,6 +44,23 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@interface AudioPlayer (Carrier)
+
+// Implemented by Devices on macOS and Recovery on iOS; player queue only.
+// iOS follows route changes before starting; macOS follows its rate listener.
+- (BOOL)followOutputRouteOnQueue;
+- (void)createCarrierOnQueue;
+- (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
+- (void)stopCarrierOnQueue;
+- (BOOL)carrierRunningOnQueue;
+- (void)releaseIdleCarrierOnQueue;
+- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
+// Report-only device queries; never polled by the stall watcher.
+- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
+
+@end
+
 typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
     VibePlayerStatePlaying,
@@ -173,7 +190,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioObjectPropertyListenerBlock _boundRateListener;
     AudioDeviceID           _boundRateDeviceID;
     // The launch preference awaiting a successful HAL snapshot and bind.
-    // Queue-confined. Until binding succeeds the engine honestly follows
+    // Queue-confined. Until binding succeeds the output honestly follows
     // System Output (-1).
     NSString                *_pendingSavedDeviceUID;
     NSString                *_pendingSavedDeviceModelUID;
@@ -290,7 +307,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 - (void)stopOnQueue;
 - (void)resetToStoppedStateOnQueue;
 // Pauses the current voice where it is and tells the delegate. Under a
-// stopped engine the pause is a cut, applied at the next render.
+// stopped output the pause is a cut, applied at the next render.
 - (void)pauseCurrentVoiceOnQueue;
 
 // The voice vocabulary the transport speaks. Every declick-length ramp is a
@@ -317,7 +334,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 - (VibeVoiceID)unpublishVoiceOnQueue;
 - (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state;
 
-// Recomputes and, on an edge, publishes the output-liveness fold: the engine
+// Recomputes and, on an edge, publishes the output-liveness fold: the output
 // running and either the current voice playing or a retiring voice alive.
 - (void)refreshOutputAudioActiveOnQueue;
 

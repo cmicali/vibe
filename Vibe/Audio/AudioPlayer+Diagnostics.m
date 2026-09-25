@@ -328,8 +328,8 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         BOOL playing = strongPlayer.isPlaying && !strongPlayer.isLoading;
         AVAudioTime *render = nil;
-        BOOL engineRunning = [strongPlayer diagnosticEngineRunning];
-        if (playing && engineRunning) {
+        BOOL outputRunning = [strongPlayer diagnosticOutputRunning];
+        if (playing && outputRunning) {
             @try {
                 render = [strongPlayer outputRenderTimeOnQueue];
             }
@@ -337,11 +337,11 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
                 render = nil; // instrumentation must never take playback down with it
             }
         }
-        // The other stall: the device keeps pulling, the engine cannot render.
+        // The other stall: the device keeps pulling, the pipeline cannot render.
         uint64_t dropouts = [[strongPlayer carrierCountersOnQueue][@"dropouts"] unsignedLongLongValue];
         if (dropouts != lastDropouts) {
             if (playing) {
-                LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the engine could not render (play %llu, %@)",
+                LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the pipeline could not render (play %llu, %@)",
                         dropouts - lastDropouts, [strongPlayer diagnosticPlayIdentifierOnQueue],
                         strongPlayer.currentTrack.url.lastPathComponent);
             }
@@ -362,9 +362,9 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
             if (!lastAdvance) lastAdvance = now;
             if (!stalledSince && now - lastAdvance > 200 * NSEC_PER_MSEC) {
                 stalledSince = lastAdvance;
-                LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@, engine %d, clock valid %d)",
+                LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@, output %d, clock valid %d)",
                         (now - stalledSince) / 1e6, [strongPlayer diagnosticPlayIdentifierOnQueue],
-                        strongPlayer.currentTrack.url.lastPathComponent, engineRunning,
+                        strongPlayer.currentTrack.url.lastPathComponent, outputRunning,
                         render.sampleTimeValid);
 #if TARGET_OS_OSX
                 // Stuck in our render, or waiting for a device that stopped
@@ -537,7 +537,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-- (BOOL)diagnosticEngineRunning {
+- (BOOL)diagnosticOutputRunning {
     return [self renderingOnQueue];
 }
 
@@ -729,7 +729,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         if (player) dispatch_async(player->_queue, ^{ [player releaseSignalProbeOnQueue:request]; });
     }];
     if (!request) {
-        LogInfo(@"Signal: play %llu voice %llu %@ %@ unavailable: no active level tap (post-mix observation, not audible output)",
+        LogInfo(@"Signal: play %llu voice %llu %@ %@ unavailable: no active level meter (post-mix observation, not audible output)",
                 play, voice, track, reason);
     }
     if (request) [self pollOutputSignalDiagnosticsOnQueue:meter request:request];

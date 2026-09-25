@@ -3,6 +3,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import <objc/runtime.h>
 
 #import "FLACDisposalRules.h"
 #import "AudioFileConverterInternal.h"
@@ -360,6 +361,35 @@ static int32_t VibeEncodeSample(uint32_t frame, uint32_t channel, int bits) {
     XCTAssertTrue([handle readIntoBuffer:buffer error:&error], @"%@", error);
     XCTAssertEqual(buffer.frameLength, (AVAudioFrameCount)frames, @"the final partial packet is kept");
     return buffer;
+}
+
+- (void)testPlayableValidationRequiresADecodedFrame {
+    NSURL *url = [self writeWAVNamed:@"verify.wav" frames:4800 channels:2 bits:16];
+    NSError *error = nil;
+    XCTAssertTrue([_converter playableFileAtURL:url error:&error]);
+    XCTAssertNil(error);
+    XCTAssertGreaterThan([[AudioFileHandle alloc] initForReading:url error:nil].length, 0);
+
+    Method method = class_getInstanceMethod(AudioFileHandle.class, @selector(readIntoBuffer:error:));
+    __block BOOL readSucceeds = NO;
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioFileHandle *file, AVAudioPCMBuffer *buffer, NSError **readError) {
+        buffer.frameLength = 0;
+        return readSucceeds;
+    });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        for (NSNumber *success in @[@NO, @YES]) {
+            readSucceeds = success.boolValue;
+            error = nil;
+            XCTAssertFalse([_converter playableFileAtURL:url error:&error],
+                           @"neither a read failure nor an empty successful read certifies playable audio");
+            XCTAssertEqual(error.code, VibeConvertErrorReplacementUnavailable);
+        }
+    }
+    @finally {
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
 }
 
 - (void)testSixteenBitSourceRoundTripsExactlyAsASixteenBitFLAC {

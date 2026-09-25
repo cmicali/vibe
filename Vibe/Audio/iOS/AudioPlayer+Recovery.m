@@ -10,7 +10,7 @@
 #import "AudioPlayerInternal.h"
 #import "PlaybackDeliveryRules.h"
 
-@implementation AudioPlayer (RecoveryInternal)
+@implementation AudioPlayer (Carrier)
 
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
     NSMutableDictionary *output = [NSMutableDictionary dictionary];

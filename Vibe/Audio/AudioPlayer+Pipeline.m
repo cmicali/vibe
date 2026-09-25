@@ -942,7 +942,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 #else
     BOOL wantVarispeed = NO;
 #endif
-    if (_voiceBus && VibeFormatsMatch(_voiceBus.format, busFormat) && [self varispeedPresentOnQueue] == wantVarispeed) {
+    if (_voiceBus && VibePCMFormatsMatch(_voiceBus.format, busFormat) && [self varispeedPresentOnQueue] == wantVarispeed) {
         return YES;
     }
     // Every voice dies with the old segment; the callers made sure none was
@@ -1010,7 +1010,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 }
 
 - (BOOL)followOutputFormatOnQueue:(AVAudioFormat *)format {
-    if (!format || (_masterFormat && VibeFormatsMatch(_masterFormat, format))) {
+    if (!format || (_masterFormat && VibePCMFormatsMatch(_masterFormat, format))) {
         return YES;
     }
     BOOL wasPlaying = _state == VibePlayerStatePlaying && _voice != 0;

@@ -51,22 +51,4 @@ typedef void (^VibeMediaServicesResetCompletion)(
 
 @end
 
-@interface AudioPlayer (RecoveryInternal)
-
-// Follow a route's new rate before starting; an interruption may have left
-// its configuration change unanswered. A no-op at the current rate or under the pump.
-- (BOOL)followOutputRouteOnQueue;
-// Carrier operations and observations, confined to the player queue.
-- (void)createCarrierOnQueue;
-- (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
-- (void)stopCarrierOnQueue;
-- (BOOL)carrierRunningOnQueue;
-- (void)releaseIdleCarrierOnQueue;
-- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
-// Report-only device queries; never polled by the stall watcher.
-- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
-
-@end
-
 NS_ASSUME_NONNULL_END

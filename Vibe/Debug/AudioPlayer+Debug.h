@@ -10,6 +10,7 @@
 #if DEBUG
 
 #import "AudioPlayer.h"
+#import "AudioVoiceBus.h"
 #import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
@@ -53,8 +54,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numChannels;
 
 // Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone
-// does not prove it: enableManualRenderingMode can fail, and the engine then
-// opens the output device exactly as usual. Written once during the async init;
+// does not prove it: the pump must attach before any voice exists.
+// Written once during the async init;
 // lock-free.
 - (BOOL)manualRenderingActive;
 
@@ -78,7 +79,7 @@ NS_ASSUME_NONNULL_BEGIN
 // from there, and it doubles as a liveness probe for that queue: the command
 // channel runs on the main thread and would otherwise never see the player
 // wedged.
-- (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts;
+- (NSDictionary<NSString *, NSNumber *> *)debugRenderCounts;
 
 // The installed meter, for the render suite's signal-probe reads; nil while
 // no indicator or probe wants levels.
@@ -87,7 +88,7 @@ NS_ASSUME_NONNULL_BEGIN
 // While set, a render blocks inside the pipeline after it has read the bus —
 // a render stuck past the wait's bound, on a thread of its own — so every
 // withdrawal defers what it could be inside (`renderLeaveWork` in
-// debugEngineCounts counts those deferrals) and every other render is
+// debugRenderCounts counts those deferrals) and every other render is
 // refused meanwhile (`renderRefusals`). debugRenderOnCallerThread: is the
 // render to hold: a carrier's callback on the calling thread, into buffers
 // of its own, which blocks there until the hold lifts; debugRendersHeld
@@ -97,14 +98,25 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)debugRendersHeld;
 
 // Mode selection is session-only. A valid change synchronously replaces an
-// active tap, so the next state snapshot describes the replacement analyzer.
+// active meter, so the next state snapshot describes the replacement analyzer.
 - (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode;
 
 // Demand, installation, actual output liveness, audio callback/window/
 // publication counts, newest lifetime sequence and delivered format. Counters
-// are atomics incremented by the tap; creating this dictionary happens only on
+// are atomics incremented by the meter; creating this dictionary happens only on
 // the command thread, never on the audio render thread.
 - (NSDictionary<NSString *, id> *)debugEqualizerState;
+
+@end
+
+@interface AudioVoiceBus (Debug)
+
+// A render stuck inside the bus: while set, a render blocks in
+// VibeVoiceBusRender after it has entered, so a decoder waiting for it to
+// leave waits in earnest; debugRendersHeld counts the renders blocked there.
+// Debug builds only. Any thread.
+- (void)debugHoldRender:(BOOL)hold;
+- (NSUInteger)debugRendersHeld;
 
 @end
 

@@ -2,17 +2,23 @@
 
 Validated 2026-09-25 against PR66 on `worktree-voice-bus`, including the consolidation and review fixes. The carrier split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup and explicit decoder-error handling are implemented. Their current contracts live in [Audio/CLAUDE.md](../../Vibe/Audio/CLAUDE.md), [Devices/CLAUDE.md](../../Vibe/Audio/Mac/Devices/CLAUDE.md) and [iOS/CLAUDE.md](../../Vibe/Audio/iOS/CLAUDE.md).
 
-## Investigate high-ratio resampler truncation
+## Unresolved: Apple mastering SRC tail length
 
-Clean playback of 11,025 source frames at 22.05 kHz into a 192 kHz bus ended at 95,085 output frames instead of 96,000. Investigate `AudioVoiceBus.produceChunkForSlot:final:` and the converter’s end-of-input/flush behavior before changing duration tolerances. Establish the complete expected output with an independent reference and check nearby rate ratios, ordinary EOF and gapless continuation.
+On macOS 27.0 (26A428), using Xcode 27.0 (27A266a), the standalone `AVAudioFile` + `AVAudioConverter` path reproduces the bus’s short output, without `AudioFileHandle`, Vibe’s stream states, or gapless flushing. At maximum mastering quality, half-second 22.05 kHz and 24 kHz sources converted to 192 kHz produce 95,085 and 95,496 frames respectively, instead of 96,000. Sources at 32, 44.1 and 48 kHz produce all 96,000 frames. One-second sources lose the same 915 and 504 frames.
 
-`testRefusedSuccessorSeekFlushesMoreThanOneChunk` compares a refused successor’s output against isolated predecessor playback. It proves the failure path adds no truncation; it does not prove the clean path’s duration is correct. The refused-seek fix is already implemented: a healthy shared converter flushes the predecessor’s tail through the existing chunked decode path, retaining error attribution to the unheard successor and suppressing its promotion. Do not replace this with one flush call: the measured tail exceeds one 4,096-frame chunk.
+Increasing input/output buffers from 4,096 to 16,384 frames does not repair it. Changing the priming method changes latency and duration without yielding the required aligned stream. Apple’s normal algorithm at maximum quality produces the expected duration, but choosing a different filter is a playback-quality policy change, not an established fix to mastering SRC. The production converter retains its mastering setting. Apple documents the [priming methods](https://developer.apple.com/documentation/avfaudio/avaudioconverterprimemethod) and the converter’s [trailing-frame synthesis](https://developer.apple.com/documentation/audiotoolbox/audioconverterprimeinfo); these measurements do not establish why its mastering implementation falls short.
+
+`AudioVoiceBusTests.testTheResamplerContinuesAtEveryRatePairAndPullSize` now checks clean playback and early/late gapless continuation against an independent Apple reader/converter across nine rate pairs and 63/256/1,024/4,096-frame pulls. Whole-file PCM permits only four float epsilons of independent-conversion rounding. The mathematical duration assertion keeps its two-frame tolerance: only the two exact independently reproduced shortfalls are scoped expected failures. The subsequent Vibe/reference duration and complete PCM comparisons remain required, and execute after those expected failures. A different shortfall fails normally; a corrected system converter needs no exemption.
+
+`testRefusedSuccessorSeekFlushesMoreThanOneChunk` still compares a refused successor’s output against isolated predecessor playback. It proves the failure path adds no truncation. The refused-seek fix flushes the healthy predecessor tail through the existing chunked path, retaining error attribution to the unheard successor and suppressing its promotion. Do not replace it with one flush call: the measured tail exceeds one 4,096-frame chunk.
+
+A mastering-quality workaround still needs complete duration, alignment, passband and alias evidence on both platforms. Do not pad the output or relax the duration oracle to conceal the missing tail.
 
 ## Remaining acceptance evidence
 
-The latest implementation checks passed: 1,478 unit tests, 87 rendered-audio tests, 48 bus tests and all 87 rendered-audio tests under ThreadSanitizer, both Debug platform builds, both Release analyses, and layout/vocabulary/string checks. These are the 2026-09-25 implementation results, not checks rerun by the documentation cleanup.
+The 2026-09-25 review-fix pass reran 1,479 unit tests (the two scoped SRC duration issues above are expected failures), 87 rendered-audio tests, all 49 bus tests and all 87 rendered-audio tests under ThreadSanitizer, both Debug platform builds, both Release static analyses, and layout/vocabulary/strings/translations checks. All passed.
 
-Live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. They do not establish:
+Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. They do not establish:
 
 - Physical iOS route changes, interruptions, media-services reset, or provider-backed file access.
 - Final-tree macOS unplug/rebind, exclusive ownership, integer-format DAC negotiation, or complete hardware loopback acceptance. Older engine-era captures are not acceptance of this renderer.

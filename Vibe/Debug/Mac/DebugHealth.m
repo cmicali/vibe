@@ -277,7 +277,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
 
     // Blocks on the player's serial queue, so a wedged queue times the command
     // out rather than letting it answer from stale state.
-    NSDictionary *engine = [player debugEngineCounts];
+    NSDictionary *engine = [player debugRenderCounts];
 
     return VibeJSONString(@{
         @"ok": @YES,
@@ -356,7 +356,7 @@ void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSStr
             poll = nil;
             return;
         }
-        NSDictionary *pending = VibePendingCounts(strong, [strong.audioPlayer debugEngineCounts]);
+        NSDictionary *pending = VibePendingCounts(strong, [strong.audioPlayer debugRenderCounts]);
         BOOL settled = VibeIsSettled(strong, pending);
         if (!settled && [deadline timeIntervalSinceNow] > 0) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kQuiescePollInterval * NSEC_PER_SEC)),

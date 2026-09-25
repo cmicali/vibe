@@ -4,6 +4,9 @@
 //
 
 #import "AudioVoiceBusInternal.h"
+#if DEBUG
+#import "AudioPlayer+Debug.h"
+#endif
 #import "AudioFileHandle.h"
 
 #import <Accelerate/Accelerate.h>
@@ -582,6 +585,7 @@ VIBE_REALTIME_END
 - (void)setIdentifier:(VibeVoiceID)identifier forSlot:(NSUInteger)slot {
     os_unfair_lock_lock(&_tableLock);
     _slotIdentifiers[slot] = identifier;
+    _records[slot]->identifier = identifier;
     os_unfair_lock_unlock(&_tableLock);
 }
 
@@ -666,7 +670,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->fedFrames = 0;
     [self setConversion:nil forRecord:record];
     BOOL integer = quantizeToInt16;
-    if (!integer && VibeFormatsMatch(source, _format)) {
+    if (!integer && VibePCMFormatsMatch(source, _format)) {
         return YES;
     }
     AVAudioFormat *fed = source; // what the converter takes
@@ -871,7 +875,6 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     // slot was reused under a seek or skip.
     atomic_thread_fence(memory_order_release);
     AudioVoiceRecord *bound = _records[slot];
-    bound->identifier = record->identifier;
     bound->startFrame = record->startFrame;
     bound->positioned = NO;
     // A successor queued while the start was pending rides into the slot.
@@ -1390,7 +1393,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // carries across as the mixer's once did; the next read is the successor's
 // from its start. NO when it needs a converter of its own.
 - (BOOL)continueRecord:(AudioVoiceRecord *)record intoSuccessor:(AudioFileHandle *)successor {
-    if (!VibeFormatsMatch(record->file.processingFormat, successor.processingFormat)
+    if (!VibePCMFormatsMatch(record->file.processingFormat, successor.processingFormat)
             || record->quantizeToInt16 != record->successorQuantizeToInt16) {
         return NO;
     }

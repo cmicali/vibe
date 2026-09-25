@@ -102,7 +102,7 @@ static inline BOOL VibeChannelsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 
 // The same delivery: rate, sample format, and channels. What the bus reads a
 // file direct by, what the transport splices by, what the graph keeps a bus by.
-static inline BOOL VibeFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
+static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
     return a.sampleRate == b.sampleRate && a.commonFormat == b.commonFormat && a.isInterleaved == b.isInterleaved
             && VibeChannelsMatch(a, b);
 }

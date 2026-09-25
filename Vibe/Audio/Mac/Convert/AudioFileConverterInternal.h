@@ -60,6 +60,7 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
 - (nullable NSURL *)encodeSource:(NSURL *)sourceURL
                         progress:(void (^_Nullable)(double fraction))progress
                            error:(NSError **)error;
+- (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error;
 - (NSError *)errorWithCode:(VibeConvertErrorCode)code description:(NSString *)description;
 - (void)trashItemAtURL:(NSURL *)url
     resultingURLFilter:(nullable VibeSourceTrashResultingURLFilter)resultingURLFilter

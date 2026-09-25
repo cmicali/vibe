@@ -429,7 +429,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"ok": @YES,
                     @"normalizationMode": audio[@"normalizationMode"],
                     @"requested": audio[@"requested"],
-                    @"tapObject": audio[@"tapObject"],
+                    @"meterObject": audio[@"meterObject"],
                     @"installed": audio[@"installed"],
                 });
             }),

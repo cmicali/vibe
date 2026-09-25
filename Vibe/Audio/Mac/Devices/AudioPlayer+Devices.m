@@ -16,7 +16,7 @@
 
 static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;
 
-// Format changes and restoration wait, with the engine stopped, for the
+// Format changes and restoration wait, with the output stopped, for the
 // device to confirm the write before the graph follows its rate.
 static const NSTimeInterval kFormatSwitchDeadlineSeconds = 1.5;
 static const useconds_t kFormatSwitchPollMicroseconds = 5000;
@@ -27,9 +27,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // tighter bound would warn about working correctly.
 static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
-#pragma mark - Output devices (internal surface + device-change observing)
-
-@implementation AudioPlayer (DevicesInternal)
+@implementation AudioPlayer (Carrier)
 
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
     NSMutableDictionary *output = [NSMutableDictionary dictionary];
@@ -68,68 +66,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         device[@"bitPerfect"] = [self bitPerfectReportDictionary];
     }
     return @[output, device];
-}
-
-- (BOOL)createOutputUnitOnQueue {
-    _outputUnit = [[AudioOutputUnit alloc] init];
-    if (!_outputUnit) {
-        LogError(@"AudioPlayer: no HAL output unit; nothing will play until one can be made");
-        return NO;
-    }
-    AudioDeviceID deviceID = kAudioObjectUnknown;
-    if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
-        [self setOutputUnitDevice:deviceID];
-    }
-    [self followOutputDeviceRateOnQueue];
-    [[AudioDeviceManager sharedInstance] addObserver:self];
-    // Do not put first-use HAL discovery on the player's sole queue. The
-    // output begins honestly on System Output; a successful async snapshot
-    // later applies the saved preference through the checked device-switch
-    // path.
-    [self resolvePendingSavedOutputDeviceOnQueue];
-    return YES;
-}
-
-- (BOOL)ensureOutputUnitOnQueue {
-    if (_outputUnit || ![self drivesOutputDeviceOnQueue]) {
-        return YES;
-    }
-    AVAudioFormat *before = _masterFormat;
-    if (![self createOutputUnitOnQueue]) {
-        return NO;
-    }
-    // TRAP: the unit followed its device's rate through applyOutputRateOnQueue:,
-    // which leaves the source segment to its caller: a segment built at the
-    // fallback format, and the voice parked in it, are reconciled here, or
-    // the voice played into the new rate at the old one.
-    if (before && _masterFormat && !VibeFormatsMatch(before, _masterFormat) && ![self reconcileSourceSegmentOnQueue]) {
-        return NO;
-    }
-    return YES;
-}
-
-- (BOOL)applyOutputRateOnQueue:(double)rate {
-    if (!_outputUnit) {
-        return NO;
-    }
-    if (_masterFormat.sampleRate == rate && _outputUnit.format.sampleRate == rate) {
-        return YES;
-    }
-    [self stopOutputOnQueue];
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
-    NSError *error = nil;
-    if (![_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus error:&error]) {
-        LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
-        return NO;
-    }
-    [self setMasterBusFormatOnQueue:format];
-    // A bus at the old rate stays until the caller reconciles the segment —
-    // every caller does, and re-voices when the rebuild killed the voice.
-    // TRAP: rebuilding it here instead left playback silent while Playing:
-    // the rebind's own reconcile then found the bus already at the rate,
-    // reported no rebuild, and never started the replacement voice.
-    LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
-    return YES;
 }
 
 - (void)createCarrierOnQueue {
@@ -175,6 +111,74 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
              @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+}
+
+@end
+
+#pragma mark - Output devices (internal surface + device-change observing)
+
+@implementation AudioPlayer (DevicesInternal)
+
+- (BOOL)createOutputUnitOnQueue {
+    _outputUnit = [[AudioOutputUnit alloc] init];
+    if (!_outputUnit) {
+        LogError(@"AudioPlayer: no HAL output unit; nothing will play until one can be made");
+        return NO;
+    }
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
+        [self setOutputUnitDevice:deviceID];
+    }
+    [self followOutputDeviceRateOnQueue];
+    [[AudioDeviceManager sharedInstance] addObserver:self];
+    // Do not put first-use HAL discovery on the player's sole queue. The
+    // output begins honestly on System Output; a successful async snapshot
+    // later applies the saved preference through the checked device-switch
+    // path.
+    [self resolvePendingSavedOutputDeviceOnQueue];
+    return YES;
+}
+
+- (BOOL)ensureOutputUnitOnQueue {
+    if (_outputUnit || ![self drivesOutputDeviceOnQueue]) {
+        return YES;
+    }
+    AVAudioFormat *before = _masterFormat;
+    if (![self createOutputUnitOnQueue]) {
+        return NO;
+    }
+    // TRAP: the unit followed its device's rate through applyOutputRateOnQueue:,
+    // which leaves the source segment to its caller: a segment built at the
+    // fallback format, and the voice parked in it, are reconciled here, or
+    // the voice played into the new rate at the old one.
+    if (before && _masterFormat && !VibePCMFormatsMatch(before, _masterFormat) && ![self reconcileSourceSegmentOnQueue]) {
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)applyOutputRateOnQueue:(double)rate {
+    if (!_outputUnit) {
+        return NO;
+    }
+    if (_masterFormat.sampleRate == rate && _outputUnit.format.sampleRate == rate) {
+        return YES;
+    }
+    [self stopOutputOnQueue];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
+    NSError *error = nil;
+    if (![_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus error:&error]) {
+        LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
+        return NO;
+    }
+    [self setMasterBusFormatOnQueue:format];
+    // A bus at the old rate stays until the caller reconciles the segment —
+    // every caller does, and re-voices when the rebuild killed the voice.
+    // TRAP: rebuilding it here instead left playback silent while Playing:
+    // the rebind's own reconcile then found the bus already at the rate,
+    // reported no rebuild, and never started the replacement voice.
+    LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
+    return YES;
 }
 
 // The device that just went away, moved from "bound" to "wanted again". The
@@ -409,7 +413,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // submitted during it waits (#53). A device slow to deliver its first IO
     // cycle can make that seconds. Warn level so it persists and a user can
     // retrieve it with `log show` rather than having to catch it live; the
-    // narrower attribution, the engine start's own timing, is AudioPlayer+Pipeline's.
+    // narrower attribution, the output start's own timing, is AudioPlayer+Pipeline's.
     uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
@@ -436,7 +440,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return rebound;
 }
 
-// Park a lost output at its retained intent: the engine stops, which kills
+// Park a lost output at its retained intent: the output stops, which kills
 // every retiring voice, and the current voice pauses where it is, to resume
 // on whatever device comes back.
 - (void)parkPlaybackForMissingOutputDeviceOnQueue {
@@ -542,7 +546,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // duration, and the phases fail for different reasons: the format restore
     // and the prepare each confirm a write by polling up to
     // kFormatSwitchDeadlineSeconds, so a device that will not confirm burns that
-    // deadline twice before the engine is even started, while a device that
+    // deadline twice before the output is even started, while a device that
     // confirms instantly but will not cycle IO spends it all in the start. A
     // single total cannot tell those apart, and the remedies are opposite.
     uint64_t phaseAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -567,15 +571,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             && [self getPlaybackIntent:&intent forTrack:trackToRestore];
     BOOL wasPlaying = shouldRestore && !intent.paused;
 
-    // Nothing is audible across a rebind: the engine stops, which kills every
+    // Nothing is audible across a rebind: the output stops, which kills every
     // retiring voice, and the current voice keeps its ring and gain for the
     // restart. Drop the display/FFT activity now, before a potentially slow
     // HAL rebind, rather than waiting for the final restored state.
     [self stopOutputOnQueue];
     VIBE_REBIND_PHASE(teardownS);
 
-    // Restore and release only after the engine stopped. Restoring a hogged
-    // device's format under a running engine can strand its next start in
+    // Restore and release only after the output stopped. Restoring a hogged
+    // device's format under a running output can strand its next start in
     // CoreAudio (error 35). A same-device recovery keeps the format and hog
     // while their settings still want them.
     if (!_bitPerfectWanted || (_preparedDeviceID != kAudioObjectUnknown && _preparedDeviceID != deviceID)) {
@@ -630,7 +634,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             NSError *startError = nil;
             if (![self startOutputOnQueue:&startError]) {
                 // No output to restart on. Park Paused at the same position,
-                // so the next resume restarts the engine, and say why.
+                // so the next resume restarts the output, and say why.
                 [self pauseCurrentVoiceOnQueue];
                 [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                         @"Could not restart playback on the new audio device", startError)];
@@ -649,7 +653,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     if (total > kSlowDeviceRebindLogThresholdSeconds) {
         LogWarn(@"AudioPlayer: slow rebind to %u, %.3fs total — teardown %.3f, "
                 @"leave/restore-format %.3f, bind+graph %.3f, reschedule %.3f, "
-                @"engine start %.3f", deviceID, total, teardownS, leaveS, bindS,
+                @"output start %.3f", deviceID, total, teardownS, leaveS, bindS,
                 restoreS, startS);
     }
     return YES;
@@ -936,7 +940,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     BOOL formatDiffers = !VibePhysicalFormatsEquivalent(chosen, current);
     if (VibeBitPerfectOutputNeedsSwitch(current, chosen, [self masterBusFormatOnQueue].sampleRate)) {
         // Bit-perfect edges are cuts or declicks, so a settlement mid-fade
-        // loses at most a declick; the device restore stopped the engine itself.
+        // loses at most a declick; the device restore stopped the output itself.
         [self stopOutputOnQueue];
     }
     if (formatDiffers) {
@@ -944,7 +948,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // first, and while it keeps failing this device keeps its format.
         BOOL owedElsewhere = _changedFormatDeviceID != kAudioObjectUnknown && _changedFormatDeviceID != deviceID;
         if (owedElsewhere) {
-            [self restoreOutputFormatOnQueue]; // the engine was stopped above
+            [self restoreOutputFormatOnQueue]; // the output was stopped above
             owedElsewhere = _changedFormatDeviceID != kAudioObjectUnknown;
         }
         if (owedElsewhere) {
@@ -978,7 +982,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
-// The engine is stopped at both ownership edges.
+// The output is stopped at both ownership edges.
 - (void)acquireExclusiveOutputOnQueue {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     AudioDeviceID deviceID = device ? (AudioDeviceID)device.deviceId : kAudioObjectUnknown;
@@ -1122,7 +1126,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES; // a registration failure is reported as unconfirmed, and retried at the next prepare
 }
 
-// The engine must be stopped. Retry once, then keep the obligation for the
+// The output must be stopped. Retry once, then keep the obligation for the
 // next leave or prepare (including quit). A second device cannot replace it.
 - (void)restoreOutputFormatOnQueue {
     if (_changedFormatDeviceID == kAudioObjectUnknown) {
@@ -1463,7 +1467,7 @@ static NSString *VibeFormatText(AVAudioFormat *format) {
 - (void)prepareForTermination {
     [self runSyncOnQueue:^{
         // Stop owns the open and prefetch cancellation; _terminating closes
-        // admission first so nothing queued behind can restart the engine.
+        // admission first so nothing queued behind can restart the output.
         self->_terminating = YES;
         [self stopOnQueue];
         [self stopOutputOnQueue];

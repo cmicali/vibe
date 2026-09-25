@@ -894,7 +894,7 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
 
 #pragma mark - Deferred saved-device bind races
 
-// Arguments: stopped, loading, paused, engineRunning, audioActive.
+// Arguments: stopped, loading, paused, outputRunning, audioActive.
 - (void)testSavedDeviceMayBindAtIdleOrSilentLaunchButNotUnderAnOutgoingFade {
     XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, NO, NO));
     XCTAssertTrue(VibeCanBindSavedOutputDevice(YES, NO, NO, YES, NO));

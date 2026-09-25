@@ -26,7 +26,7 @@ Saved-device discovery does not use that synchronous getter. `resolveOutputDevic
 
 ## AudioPlayer+Devices
 
-All device management on this platform: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its internal half owns the hosted output unit’s carrier operations; `AudioPlayer+Pipeline` orchestrates them through the shared carrier selectors. It is a category on `AudioPlayerInternal.h`'s shared private surface, exactly as the iOS `AudioPlayer+Recovery` is; its public half, `(Devices)`, is declared in its own header, which the macOS shell imports beside `AudioPlayer.h`.
+All device management on this platform: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its `(Carrier)` implementation owns the hosted output unit’s lifecycle; `AudioPlayer+Pipeline` calls the shared declaration in `AudioPlayerInternal.h`. `(DevicesInternal)` owns the device policy. It is a category on `AudioPlayerInternal.h`'s shared private surface, exactly as the iOS `AudioPlayer+Recovery` is; its public half, `(Devices)`, is declared in its own header, which the macOS shell imports beside `AudioPlayer.h`.
 
 The player's async init asks the manager to resolve the saved output device — **by device UID, then model UID, then name** — without blocking the player queue. The hosted output unit (`AudioOutputUnit`) is bound to the system default at creation, at that device's rate, and moves only when a rebind moves it: nothing follows the system default on its own.
 

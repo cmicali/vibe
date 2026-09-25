@@ -301,7 +301,7 @@ VIBE_REALTIME_END
     if (!_installed) {
         return;
     }
-    [self finishSignalDiagnostics:@"tap removed"];
+    [self finishSignalDiagnostics:@"meter removed"];
     [_publisher endSession:atomic_load_explicit(&_meter->session, memory_order_relaxed)];
     _installed = NO;
 }
@@ -394,7 +394,7 @@ VIBE_REALTIME_END
 #if VIBE_VERBOSE_LOGGING
     if (!_signalCompletion && _signalSnapshot) return _signalSnapshot;
     VibeLevelMeter *meter = _meter;
-    if (!_installed) return @{@"status": @"tap unavailable"};
+    if (!_installed) return @{@"status": @"meter unavailable"};
     uint64_t request = atomic_load(&meter->signalRequest);
     if (!request) return @{@"status": @"not armed"};
     for (int attempt = 0; attempt < 3; attempt++) {

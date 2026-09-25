@@ -27,8 +27,8 @@
 // as Paused. The rebuild already restores a paused track as Paused rather than
 // resuming it, so a settled pause is as safe to rebind as a stop.
 static inline BOOL VibeCanBindSavedOutputDevice(BOOL stopped, BOOL loading, BOOL paused,
-                                                BOOL engineRunning, BOOL audioActive) {
-    return stopped || (loading && !engineRunning) || (paused && !audioActive);
+                                                BOOL outputRunning, BOOL audioActive) {
+    return stopped || (loading && !outputRunning) || (paused && !audioActive);
 }
 
 // Whether a direct HAL read of kAudioDevicePropertyDeviceIsAlive proves the

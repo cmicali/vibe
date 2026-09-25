@@ -210,7 +210,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     _player = [[AudioPlayer alloc] initForManualRendering:format enableFX:fx automatic:automatic delegate:self];
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
-    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], rate, 0);
+    XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], rate, 0);
     [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx allowAnyDevice:NO];
     [_player runSyncOnQueue:^{}]; // Land setup before a test replaces the mode provider.
 }
@@ -262,7 +262,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             d[f*_channels+c]-=rf>=0 && (NSUInteger)rf<reference.length/sizeof(float)/_channels ? r[rf*_channels+c] : 0;
         }
         [self attach:difference name:@"difference"];
-        XCTAttachment *trace=[XCTAttachment attachmentWithString:[NSString stringWithFormat:@"%@\n%@\n%@",result,_events,_player.debugEngineCounts]];
+        XCTAttachment *trace=[XCTAttachment attachmentWithString:[NSString stringWithFormat:@"%@\n%@\n%@",result,_events,_player.debugRenderCounts]];
         trace.name=@"render-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
     }
     XCTAssertTrue([result[@"pass"] boolValue], @"%@",result);
@@ -304,7 +304,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             NSData *reference=[self sourcePCM:url bits:bits.unsignedIntegerValue]; [self play:url paused:NO position:0];
             NSData *capture=[self renderSeconds:2.1];
             [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:0];
-            XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+            XCTAssertFalse([_player.debugRenderCounts[@"varispeed"] boolValue]);
             XCTAssertEqual([self count:@"finish"],1u);
         }
     }
@@ -317,7 +317,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
         // Transparent because nothing renders: the varispeed is out of the
         // chain at zero pitch, and an idle segment's units are at rest.
-        NSDictionary *counts=_player.debugEngineCounts;
+        NSDictionary *counts=_player.debugRenderCounts;
         XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue],0ull);
         XCTAssertEqual([counts[@"unitRenders"] unsignedLongLongValue],0ull);
     }
@@ -510,13 +510,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [_player pause]; [self render:4800]; XCTAssertTrue(_player.isPaused);
     [_player resume]; [self render:9600];
     [self play:second paused:NO position:0]; [self render:14400];
-    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 0u, @"a cut voice is killed, not faded");
+    XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 0u, @"a cut voice is killed, not faded");
     [_player stop];
     NSUInteger stopped = _capture.length / sizeof(float) / 2;
     [self render:14400]; XCTAssertTrue(_player.isStopped);
     XCTAssertGreaterThanOrEqual([self assertExactExcerptsOf:references inCapture:_capture rampFrames:0 ramped:NULL], 3u);
     // The varispeed, bypassed but in the chain, delays the cut by its latency.
-    NSUInteger latency = (NSUInteger)llround([_player.debugEngineCounts[@"varispeedLatency"] doubleValue] * _rate) + _blockSize;
+    NSUInteger latency = (NSUInteger)llround([_player.debugRenderCounts[@"varispeedLatency"] doubleValue] * _rate) + _blockSize;
     const float *out = _capture.bytes;
     for (NSUInteger i = (stopped + latency) * 2; i < _capture.length / sizeof(float); i++) {
         XCTAssertEqual(out[i], 0.0f, @"sound %lu frames after stop", (unsigned long)(i / 2 - stopped));
@@ -528,7 +528,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSUInteger starts = [self count:@"start"];
     [_player play:[AudioTrack withURL:second]];
     [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
-    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
+    XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
 
 // A skip past the end reaches finishPlaybackOnQueue with the voice still at
@@ -560,7 +560,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     double position=_player.position; NSUInteger sourceFrame=(NSUInteger)llround(position*_rate);
     NSData *silence=[self renderSeconds:6.1];
     XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,silence.length/8)),0);
-    XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
     XCTAssertEqualWithAccuracy(_player.position,position,0);
     XCTAssertEqual([self count:@"finish"],0u);
     [_player resume];
@@ -976,7 +976,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
 }
 - (void)testSignalDiagnosticsKeepInterruptedCaptures {
-    for (NSString *action in @[@"tap removed", @"superseded"]) {
+    for (NSString *action in @[@"meter removed", @"superseded"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"silence.wav"] paused:NO position:0];
@@ -992,7 +992,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             NSDictionary *partial = [tap signalDiagnosticSnapshot];
             XCTAssertGreaterThan([partial[@"frames"] unsignedLongLongValue], 0u);
             XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
-            if ([action isEqual:@"tap removed"]) [tap remove];
+            if ([action isEqual:@"meter removed"]) [tap remove];
             else [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
             XCTAssertEqual(completed.count, 1u);
             NSDictionary *result = completed.firstObject;
@@ -1005,7 +1005,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                 XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"status"], @"no buffers observed");
                 [tap remove];
                 XCTAssertEqual(completed.count, 2u);
-                XCTAssertEqualObjects(completed.lastObject[@"completion"], @"tap removed");
+                XCTAssertEqualObjects(completed.lastObject[@"completion"], @"meter removed");
                 XCTAssertEqualObjects(completed.lastObject[@"status"], @"no buffers observed");
             } else {
                 XCTAssertEqualObjects([tap signalDiagnosticSnapshot], result);
@@ -1092,7 +1092,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self play:[self fixture:@"1000.wav"] paused:NO position:0]; [self render:144123];
     [self play:[self fixture:@"quiet-intro-300.wav"] paused:NO position:0]; [self render:24000];
     [_player stop]; [self render:48000 * 7];
-    XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
     [self play:[self fixture:@"quiet-intro-700.wav"] paused:NO position:0]; [self render:48000];
     NSDictionary *signal = [self settledSignalSnapshot];
     XCTAssertTrue([signal[@"aboveThreshold"] boolValue], @"%@", signal);
@@ -1175,9 +1175,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSData *restored=[self renderSeconds:0.5];
     XCTAssertEqualWithAccuracy(ToneAmplitude(restored,2,0,48000,1000,NSMakeRange(12000,12000)),0.25,0.002);
     // Back at zero the unit leaves the chain: it renders no more.
-    uint64_t renders=[_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    uint64_t renders=[_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue];
     [self render:24000];
-    XCTAssertEqual([_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue],renders);
+    XCTAssertEqual([_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue],renders);
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
@@ -1222,20 +1222,20 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAssertNotNil(tap);
         XCTAssertNotNil(bus);
     }
-    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 0u);
+    XCTAssertEqual([_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue], 0u);
     [_player debugHoldRenderInside:YES];
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
         [self->_player debugRenderOnCallerThread:256]; // a carrier's callback, blocked inside the old bus
     });
-    [self settleUntil:^BOOL { return [self->_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
+    [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
     XCTAssertTrue([_player debugSetOutputRate:96000]);
-    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+    XCTAssertGreaterThanOrEqual([_player.debugRenderCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
                                 @"the tap, the bus, the varispeed hosting and the FX chain wait for the render");
     XCTAssertNotNil(tap, @"the meter was freed under a render");
     XCTAssertNotNil(bus, @"the bus was freed under a render");
     XCTAssertTrue(_player.isPlaying);
-    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
     // The rebuilt output's renders find a render inside: silence, and the
     // parked teardowns stay parked, since the render they wait for is inside.
     [_capture setLength:0];
@@ -1244,25 +1244,25 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSUInteger i = 0; i < _capture.length / sizeof(float); i++) {
         XCTAssertEqual(refused[i], 0.0f, @"a refused render wrote sound at sample %lu", (unsigned long)i);
     }
-    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 2u);
-    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+    XCTAssertGreaterThanOrEqual([_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue], 2u);
+    XCTAssertGreaterThanOrEqual([_player.debugRenderCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
                                 @"a refused render ran the teardowns of the render still inside");
     XCTAssertNotNil(tap, @"the meter was freed under a render another render followed");
     XCTAssertNotNil(bus, @"the bus was freed under a render another render followed");
     [_player debugHoldRenderInside:NO];
     XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
                    @"the held render did not leave once the hold lifted");
-    XCTAssertEqual([_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue], 0u);
-    NSUInteger refusals = [_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue];
+    XCTAssertEqual([_player.debugRenderCounts[@"rendersHeld"] unsignedIntegerValue], 0u);
+    NSUInteger refusals = [_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue];
     @autoreleasepool { [self render:256]; } // the render left; the drain after this one runs the parked teardowns
-    XCTAssertEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
+    XCTAssertEqual([_player.debugRenderCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
     // The beta signal probe's poll holds the old tap until its next 100 ms
     // tick of the pump's clock finds it removed; nothing else may.
     @autoreleasepool { [self render:9600]; }
     XCTAssertNil(tap, @"the meter outlived the render it waited for");
     XCTAssertNil(bus, @"the bus outlived the render it waited for");
     [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
-    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], refusals,
+    XCTAssertEqual([_player.debugRenderCounts[@"renderRefusals"] unsignedIntegerValue], refusals,
                    @"a render was refused with none inside");
 }
 
@@ -1274,16 +1274,16 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:NO allowAnyDevice:NO];
     // A new play settles on the mode's chain even without a HAL destination.
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
-    XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
+    XCTAssertFalse([_player.debugRenderCounts[@"varispeed"] boolValue]);
     [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO allowAnyDevice:NO]; [self render:2048];
-    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+    XCTAssertTrue([_player.debugRenderCounts[@"varispeed"] boolValue]);
     XCTAssertFalse(_player.bitPerfectReport.enabled);
 }
 - (void)testLiveFXAndBitPerfectRouting {
     for (NSNumber *rate in @[@44100, @48000, @96000]) for (NSNumber *initialFX in @[@NO, @YES]) {
         [self startPlayerAt:rate.doubleValue channels:2 fx:initialFX.boolValue bitPerfect:NO automatic:NO];
         if (!initialFX.boolValue) {
-            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue], 1u);
+            XCTAssertLessThanOrEqual([_player.debugRenderCounts[@"hostedUnits"] unsignedIntegerValue], 1u);
         }
         NSURL *url = [self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav", rate]];
         AudioTrack *track = [self play:url paused:YES position:0.25];
@@ -1291,7 +1291,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         for (int i = 0; i < 8; i++) {
             BOOL bitPerfect = i % 2;
             [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
-            NSDictionary *counts = _player.debugEngineCounts;
+            NSDictionary *counts = _player.debugRenderCounts;
             XCTAssertEqual([counts[@"fxConnected"] boolValue], !bitPerfect);
             XCTAssertEqual([counts[@"varispeed"] boolValue], !bitPerfect);
             XCTAssertTrue(_player.isPaused);
@@ -1305,7 +1305,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         for (NSNumber *enabled in @[@YES, @NO, @YES]) {
             double position = _player.position;
             [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:enabled.boolValue allowAnyDevice:NO];
-            NSDictionary *counts = _player.debugEngineCounts;
+            NSDictionary *counts = _player.debugRenderCounts;
             XCTAssertEqual([counts[@"fxConnected"] boolValue], enabled.boolValue);
             XCTAssertTrue(_player.isPlaying);
             XCTAssertEqual(_player.currentTrack, track);
@@ -1360,9 +1360,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             XCTAssertEqual(_player.crossfadeMilliseconds, 10);
             [_capture setLength:0];
             [self render:4410];
-            XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 0u,
-                           @"Bit-perfect playback retained a two-second crossfade: %@", _player.debugEngineCounts);
-            XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"gain"] doubleValue], 1, 1e-6);
+            XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 0u,
+                           @"Bit-perfect playback retained a two-second crossfade: %@", _player.debugRenderCounts);
+            XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"gain"] doubleValue], 1, 1e-6);
             [self render:88200];
             [self assertReference:PCM([self read:[self fixture:@"noise-44100-16-2.wav"]])
                           capture:_capture skip:2205 tolerance:0];
@@ -1411,7 +1411,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                 [self play:url paused:[state isEqualToString:@"paused"] position:0];
                 [self render:4096];
             }
-            XCTAssertFalse([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+            XCTAssertFalse([_player.debugRenderCounts[@"fxConnected"] boolValue]);
             if (systemOutput) {
                 [_player runSyncOnQueue:^{ self->_player.currentlyRequestedAudioDeviceId = 2; }];
             }
@@ -1436,12 +1436,12 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             XCTAssertNotNil(_playError);
             XCTAssertEqual(_player.currentlyRequestedAudioDeviceId, committedSystemOutput ? -1 : requestedDevice);
             XCTAssertEqual(_player.bitPerfectReport.enabled, !committedSystemOutput);
-            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
+            XCTAssertEqual([_player.debugRenderCounts[@"fxConnected"] boolValue], committedSystemOutput);
             if (committedSystemOutput && ![state isEqualToString:@"stopped"]) {
                 XCTAssertEqual(_player.currentTrack, track);
                 XCTAssertEqualWithAccuracy(_player.position, position, 1.0 / _rate);
                 XCTAssertEqual(_player.isPaused, defaultReadSucceeds || [state isEqualToString:@"paused"]);
-                XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+                XCTAssertTrue([_player.debugRenderCounts[@"varispeed"] boolValue]);
             } else {
                 XCTAssertTrue(_player.isStopped);
             }
@@ -1449,8 +1449,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             [_player setBitPerfectOutput:!committedSystemOutput exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
             _playError = nil;
             [self play:url paused:NO position:0];
-            XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
-            XCTAssertEqual([_player.debugEngineCounts[@"varispeed"] boolValue], committedSystemOutput);
+            XCTAssertEqual([_player.debugRenderCounts[@"fxConnected"] boolValue], committedSystemOutput);
+            XCTAssertEqual([_player.debugRenderCounts[@"varispeed"] boolValue], committedSystemOutput);
             [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
                              skip:[self startupSkip] tolerance:(committedSystemOutput ? 1e-10 : 0)];
         }
@@ -1490,7 +1490,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         _player.fx.reverbSendEnabled = YES;
         _player.fx.delaySendEnabled = YES;
         _player.fx.shortDelaySendEnabled = YES;
-        (void)_player.debugEngineCounts;
+        (void)_player.debugRenderCounts;
         // Hold engine work until the later UI actions have published their intent.
         dispatch_queue_t queue = [_player valueForKey:@"queue"];
         dispatch_suspend(queue);
@@ -1511,7 +1511,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         @finally {
             dispatch_resume(queue);
         }
-        XCTAssertTrue([_player.debugEngineCounts[@"fxConnected"] boolValue]);
+        XCTAssertTrue([_player.debugRenderCounts[@"fxConnected"] boolValue]);
         XCTAssertTrue(_player.fx.lowKillEnabled);
         XCTAssertTrue(_player.fx.lowKillBoostActive);
         XCTAssertTrue(_player.fx.reverbSendEnabled);
@@ -1542,8 +1542,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self play:[self fixture:i%2?@"noise-48000-24-2.wav":@"noise-48000-24-1.wav"] paused:NO position:0];
         [self render:512]; [_player pause]; [_player resume]; [_player seekToPosition:0.25];
         [self render:2048]; [_player stop]; [self render:2048];
-        XCTAssertEqual([self count:@"finish"],0u); XCTAssertEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue],0u);
-        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
+        XCTAssertEqual([self count:@"finish"],0u); XCTAssertEqual([_player.debugRenderCounts[@"hostedUnits"] unsignedIntegerValue],0u);
+        XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
 // Ordinary playback converts a file at another rate inside the bus, on the
@@ -1556,7 +1556,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         NSString *tone=[NSString stringWithFormat:@"tone-%@.wav",rates[0]];
         [self startPlayerAt:rate.doubleValue channels:2 fx:NO bitPerfect:NO automatic:NO];
         [self play:[self fixture:tone] paused:NO position:0]; NSData *data=[self renderSeconds:1];
-        XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
+        XCTAssertTrue([_player.debugRenderCounts[@"varispeed"] boolValue]);
         NSRange window=NSMakeRange((NSUInteger)(_rate*0.25),(NSUInteger)(_rate*0.5));
         double amplitude=ToneAmplitude(data,2,0,_rate,1000,window);
         XCTAssertLessThan(fabs(20*log10(amplitude/0.25)),0.01);
@@ -1589,13 +1589,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self settleUntil:^BOOL { return [self count:@"start"]>starts || self->_playError; }];
         XCTAssertNil(_playError);
         [self render:160]; // 3.3 ms between skips
-        XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],8u);
-        XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"liveVoices"] unsignedIntegerValue],8u);
+        XCTAssertLessThanOrEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],8u);
+        XCTAssertLessThanOrEqual([_player.debugRenderCounts[@"liveVoices"] unsignedIntegerValue],8u);
     }
     NSData *tail=[self renderSeconds:2.2];
     [self assertFinite:tail peak:2.0];
-    XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
-    XCTAssertEqual([_player.debugEngineCounts[@"liveVoices"] unsignedIntegerValue],1u);
+    XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],0u);
+    XCTAssertEqual([_player.debugRenderCounts[@"liveVoices"] unsignedIntegerValue],1u);
     XCTAssertEqual([self count:@"start"],31u); XCTAssertEqual([self count:@"finish"],0u);
     XCTAssertTrue(_player.isPlaying); XCTAssertEqualObjects(_player.currentTrack.url,urls[0]); // the thirtieth skip landed on a
 }
@@ -1613,7 +1613,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     NSData *starved=[self renderSeconds:1.5];
     NSUInteger held=(NSUInteger)llround(_player.position*_rate);
     XCTAssertGreaterThan(held,24000u); XCTAssertLessThan(held,96000u, @"the ring is shorter than the file, so the render must have run dry");
-    XCTAssertEqual([_player.debugEngineCounts[@"underrunFrames"] unsignedIntegerValue],96000u-held);
+    XCTAssertEqual([_player.debugRenderCounts[@"underrunFrames"] unsignedIntegerValue],96000u-held);
     XCTAssertTrue(_player.isPlaying); XCTAssertEqual([self count:@"finish"],0u);
     [self assertReference:[reference subdataWithRange:NSMakeRange(24000*8,(held-24000)*8)]
                   capture:[starved subdataWithRange:NSMakeRange(0,(held-24000)*8)] skip:0 tolerance:0];
@@ -1685,7 +1685,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         NSUInteger middle=(NSUInteger)(duration*0.5*_rate);
         XCTAssertEqualWithAccuracy(p[middle*2],0.25/sqrt(2),0.025);
         XCTAssertEqualWithAccuracy(p[middle*2+1],0.25/sqrt(2),0.025);
-        XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
+        XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue],0u);
         [_player play:a]; [self settleUntil:^BOOL { return [self count:@"start"]==3; }]; [self render:4800];
         [_player play:b]; [self settleUntil:^BOOL { return [self count:@"start"]==4; }]; [self render:4800];
         [_player pause]; NSData *paused=[self renderSeconds:0.1];
@@ -1728,7 +1728,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 
 - (void)record:(NSString *)event track:(AudioTrack *)track {
-    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugEngineCounts?:@{}}];
+    [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugRenderCounts?:@{}}];
 }
 - (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
 - (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
@@ -1926,7 +1926,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [_player prepareForTermination];
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
         XCTAssertEqual([self count:@"finish"],0u,@"Termination must not deliver natural track-end and auto-advance during NSTerminateLater");
-        XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
+        XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
         AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];
@@ -2192,7 +2192,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
     [self play:noise paused:NO position:0];
     [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
-    NSDictionary *counts = _player.debugEngineCounts;
+    NSDictionary *counts = _player.debugRenderCounts;
     XCTAssertTrue([counts[@"varispeed"] boolValue], @"ordinary playback hosts the varispeed");
     XCTAssertFalse([counts[@"varispeedEngaged"] boolValue]);
     XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], 0ull, @"the varispeed rendered at zero pitch");
@@ -2213,7 +2213,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         double before = _player.position, rate = 1 + pitch.doubleValue / 100;
         _player.pitch = pitch.floatValue;
         [self render:9600];
-        NSDictionary *counts = _player.debugEngineCounts;
+        NSDictionary *counts = _player.debugRenderCounts;
         BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
         XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
         if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
@@ -2225,7 +2225,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
     XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
     XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
-    uint64_t historyWrites = [_player.debugEngineCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
+    uint64_t historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
     // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
     // repeated millisecond, or a cold unit's ramp from silence, moves ten
@@ -2248,11 +2248,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
     // Back at zero: the unit is idle, nothing is copied, and the output is
     // the file, exactly.
-    uint64_t renders = [_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    uint64_t renders = [_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue];
     XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
     [self play:noise paused:NO position:0];
     [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
-    counts = _player.debugEngineCounts;
+    counts = _player.debugRenderCounts;
     XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
     XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
 }
@@ -2273,8 +2273,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertTrue(_player.isPlaying);
     XCTAssertEqual(_player.currentTrack, track);
     XCTAssertEqualWithAccuracy(_player.position, before, 0.01);
-    XCTAssertEqual([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000.0);
-    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue], @"the varispeed was hosted again at the new rate");
+    XCTAssertEqual([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000.0);
+    XCTAssertTrue([_player.debugRenderCounts[@"varispeed"] boolValue], @"the varispeed was hosted again at the new rate");
     NSData *data = [self renderSeconds:0.5];
     XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 96000, 1000, NSMakeRange(9600, 24000)), 0.25, 0.005);
     XCTAssertEqualWithAccuracy(_player.position, before + 0.5, 0.01);
@@ -2427,21 +2427,21 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     _player.fx.reverbSendEnabled = NO;
     _player.fx.delaySendEnabled = NO;
     [self render:2400];
-    XCTAssertGreaterThan([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], 0ull, @"the sends rendered");
+    XCTAssertGreaterThan([_player.debugRenderCounts[@"unitRenders"] unsignedLongLongValue], 0ull, @"the sends rendered");
     [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO allowAnyDevice:NO];
     [_player runSyncOnQueue:^{}];
-    NSDictionary *counts = _player.debugEngineCounts;
+    NSDictionary *counts = _player.debugRenderCounts;
     XCTAssertFalse([counts[@"fxConnected"] boolValue]);
     XCTAssertTrue(_player.isPlaying);
     uint64_t rested = [counts[@"unitRenders"] unsignedLongLongValue];
     NSUInteger from = (NSUInteger)llround(_player.position * 48000);
     NSData *capture = [self renderSeconds:1.0];
-    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested, @"a disabled segment rendered a unit");
+    XCTAssertEqual([_player.debugRenderCounts[@"unitRenders"] unsignedLongLongValue], rested, @"a disabled segment rendered a unit");
     NSData *excerpt = [reference subdataWithRange:NSMakeRange(from * 2 * sizeof(float), 48000 * 2 * sizeof(float))];
     [self assertReference:excerpt capture:capture skip:0 tolerance:0];
     // The tails' pending rests fire without touching a unit.
     [self render:48000 * 12];
-    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested);
+    XCTAssertEqual([_player.debugRenderCounts[@"unitRenders"] unsignedLongLongValue], rested);
 }
 
 // A lossless codec's depth is the one it declares, not the container's 0,
@@ -2525,7 +2525,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
                        @"the rebuild joined a decoder waiting for the stuck render");
         XCTAssertEqual(bus.debugRendersHeld, 1u, @"the render was still stuck when the rebuild completed");
-        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+        XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
     } @finally {
         [bus debugHoldRender:NO];
         XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
@@ -2573,7 +2573,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         queueWait = dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
         XCTAssertEqual(rebuildWait, 0L, @"the rate change waited on the stalled read");
         XCTAssertEqual(queueWait, 0L, @"the player queue waited on the stalled read");
-        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+        XCTAssertEqualWithAccuracy([_player.debugRenderCounts[@"outputRate"] doubleValue], 96000, 0);
         XCTAssertTrue(_player.isPlaying);
         // The re-voiced track reads nothing while the retired decoder may be
         // inside its file: the pump runs, and the position holds.

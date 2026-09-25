@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The test seam: the host-less suite calls VibeVoiceBusRender directly over
-//  the bus's mix and buffers it owns, with no pipeline. Nothing in the app
-//  imports this.
+//  the bus's mix and buffers it owns, with no pipeline. Only the bus
+//  implementation and the tests import this.
 //
 
 #import "AudioVoiceBus.h"
@@ -26,13 +26,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)prepareRecord:(AudioVoiceRecord *)record file:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16;
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final;
 - (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation;
-
-// A render stuck inside the bus: while set, a render blocks in
-// VibeVoiceBusRender after it has entered, so a decoder waiting for it to
-// leave waits in earnest; debugRendersHeld counts the renders blocked there.
-// Debug builds only. Any thread.
-- (void)debugHoldRender:(BOOL)hold;
-- (NSUInteger)debugRendersHeld;
 
 @end
 

@@ -15,6 +15,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioVoiceBusInternal.h"
+#import "AudioPlayer+Debug.h"
 #import "AudioFixtures.h"
 #import <objc/runtime.h>
 #include <stdatomic.h>
@@ -947,6 +948,44 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 }
 
+- (void)testADeadVoiceQueuesOnlyOneRecycleWhileTheDecoderIsHeld {
+    self.continueAfterFailure = YES;
+    NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43]
+                         rate:kRate channels:2 name:@"held-recycle.wav"];
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    AudioVoiceBus *bus = _bus;
+    dispatch_queue_t decoder = bus.decodeQueue;
+    dispatch_semaphore_t release = dispatch_semaphore_create(0);
+    dispatch_async(decoder, ^{ dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER); });
+    Method method = class_getInstanceMethod(AudioVoiceBus.class, @selector(recycleSlot:generation:));
+    __block IMP original;
+    __block NSUInteger recycles = 0;
+    IMP replacement = imp_implementationWithBlock(^(AudioVoiceBus *receiver, NSUInteger slot, VibeVoiceID generation) {
+        if (receiver == bus) recycles++;
+        ((void (*)(id, SEL, NSUInteger, VibeVoiceID))original)(receiver, @selector(recycleSlot:generation:), slot, generation);
+    });
+    original = method_setImplementation(method, replacement);
+    __block NSUInteger ends = 0;
+    @try {
+        VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+        [bus killVoice:voice];
+        for (NSUInteger poll = 0; poll < 1000; poll++) {
+            [bus drainWithOutputRunning:NO handler:^(VibeVoiceID identifier, VibeVoiceEvent event) {
+                if (event == VibeVoiceEventEnded) ends++;
+            }];
+        }
+    }
+    @finally {
+        dispatch_semaphore_signal(release);
+        dispatch_sync(decoder, ^{});
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+    XCTAssertEqual(ends, 1u);
+    XCTAssertEqual(recycles, 1u, @"a stalled decoder must not accumulate redundant recycle blocks");
+    XCTAssertEqual(bus.occupiedSlotCount, 0u);
+}
+
 - (void)testAQueuedRecycleCannotEraseAReusedSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43] rate:kRate channels:2 name:@"recycle.wav"];
@@ -969,8 +1008,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         dispatch_semaphore_signal(betweenEntered);
         dispatch_semaphore_wait(between, DISPATCH_TIME_FOREVER);
     });
-    // A second poll while recycling is still waiting behind decoder work.
-    [_bus drainWithOutputRunning:YES handler:^(VibeVoiceID voice, VibeVoiceEvent event) {}];
+    // Inject a stale recycle behind reuse to exercise the generation guard independently.
+    dispatch_async(decoder, ^{ [self->_bus recycleSlot:0 generation:old]; });
     dispatch_semaphore_signal(initial);
     dispatch_semaphore_wait(betweenEntered, DISPATCH_TIME_FOREVER);
     XCTAssertEqual([_bus occupiedSlotCount], 0u);
@@ -1389,11 +1428,47 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 #pragma mark - Conversion
 
+// Independent Apple reader/converter: no bus, AudioFileHandle or Vibe flush policy.
+- (NSData *)referenceConversionOfURL:(NSURL *)url toRate:(double)rate {
+    NSError *error = nil;
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
+    AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:file.processingFormat toFormat:format];
+    XCTAssertNotNil(converter);
+    converter.sampleRateConverterQuality = AVAudioQualityMax;
+    converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering;
+    AVAudioPCMBuffer *input = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
+    AVAudioPCMBuffer *output = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:4096];
+    NSMutableData *reference = [NSMutableData data];
+    for (NSUInteger turn = 0; turn < 1000; turn++) {
+        AVAudioConverterOutputStatus status = [converter convertToBuffer:output error:&error
+                withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount requested, AVAudioConverterInputStatus *inputStatus) {
+            AVAudioFramePosition remaining = file.length - file.framePosition;
+            if (remaining <= 0) {
+                *inputStatus = AVAudioConverterInputStatus_EndOfStream;
+                return nil;
+            }
+            NSError *readError = nil;
+            AVAudioFrameCount count = (AVAudioFrameCount)MIN(remaining, MIN(requested, input.frameCapacity));
+            XCTAssertTrue([file readIntoBuffer:input frameCount:count error:&readError], @"%@", readError);
+            *inputStatus = input.frameLength ? AVAudioConverterInputStatus_HaveData : AVAudioConverterInputStatus_EndOfStream;
+            return input.frameLength ? input : nil;
+        }];
+        XCTAssertNotEqual(status, AVAudioConverterOutputStatus_Error, @"%@", error);
+        VibeAppendPCM(reference, output);
+        if (status == AVAudioConverterOutputStatus_EndOfStream) return reference;
+    }
+    XCTFail(@"the independent converter never reached EOF");
+    return reference;
+}
+
 // The resampler across a gapless boundary at every rate pair the player
 // meets, the successor named early or late, at every pull size: the split's
-// output is the unsplit file's, frame for frame, and ends where it ends.
+// output is an independent conversion of the unsplit file, frame for frame.
 - (void)testTheResamplerContinuesAtEveryRatePairAndPullSize {
-    NSArray<NSArray<NSNumber *> *> *pairs = @[@[@44100, @48000], @[@96000, @44100], @[@192000, @48000], @[@32000, @44100], @[@48000, @192000]];
+    NSArray<NSArray<NSNumber *> *> *pairs = @[@[@44100, @48000], @[@96000, @44100], @[@192000, @48000], @[@32000, @44100], @[@48000, @192000],
+        @[@22050, @192000], @[@24000, @192000], @[@32000, @192000], @[@44100, @192000]];
     for (NSArray<NSNumber *> *pair in pairs) {
         double sourceRate = pair[0].doubleValue, busRate = pair[1].doubleValue;
         NSUInteger count = (NSUInteger)sourceRate, split = count / 2 + 7;
@@ -1401,10 +1476,29 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         NSURL *full = [self writePCM:whole rate:sourceRate channels:2 name:@"full.wav"];
         NSURL *a = [self writePCM:[whole subdataWithRange:NSMakeRange(0, split * 8)] rate:sourceRate channels:2 name:@"a.wav"];
         NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, (count - split) * 8)] rate:sourceRate channels:2 name:@"b.wav"];
+        NSData *reference = [self referenceConversionOfURL:full toRate:busRate];
+        uint64_t end = reference.length / (2 * sizeof(float));
+        // Apple mastering SRC itself drops these tails on the current macOS.
+        // Keep the exact duration assertion visible, without excusing a Vibe mismatch.
+        XCTExpectedFailureOptions *knownTail = [[XCTExpectedFailureOptions alloc] init];
+        knownTail.enabled = busRate == 192000 && ((sourceRate == 22050 && end == 191085)
+                                              || (sourceRate == 24000 && end == 191496));
+        self.continueAfterFailure = YES; // an expected issue must not skip the PCM and gapless checks
+        XCTExpectFailureWithOptionsInBlock(@"Apple mastering SRC truncates high-ratio EOF; docs/future/render-pipeline-follow-ups.md",
+                knownTail, ^{ XCTAssertEqualWithAccuracy((double)end, busRate, 2); });
+        self.continueAfterFailure = NO;
         [self makeBusAtRate:busRate channels:2];
         VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
-        NSData *reference = [self renderUntilEnded:voice blockSize:256 limit:500000];
-        uint64_t end = [self endedSnapshot:voice].endOfStream;
+        NSData *clean = [self renderUntilEnded:voice blockSize:256 limit:500000];
+        XCTAssertEqual([self endedSnapshot:voice].endOfStream, end);
+        XCTAssertGreaterThanOrEqual(clean.length, reference.length);
+        double cleanPeak = 0;
+        const float *expected = reference.bytes, *actual = clean.bytes;
+        for (NSUInteger sample = 0; sample < end * 2; sample++) {
+            XCTAssertTrue(isfinite(actual[sample]));
+            cleanPeak = MAX(cleanPeak, fabs(actual[sample] - expected[sample]));
+        }
+        XCTAssertLessThanOrEqual(cleanPeak, 4 * FLT_EPSILON, @"%@ independent SRC peak error %g", pair, cleanPeak);
         for (NSNumber *late in @[@NO, @YES]) {
             for (NSNumber *block in @[@63, @1024, @4096]) {
                 [self makeBusAtRate:busRate channels:2];

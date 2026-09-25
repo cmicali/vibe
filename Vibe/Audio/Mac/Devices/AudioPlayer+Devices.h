@@ -62,18 +62,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Only the entry points used outside AudioPlayer+Devices.m.
 @interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
 
-// macOS follows the bound device's rate listener; this shared start hook is a no-op.
-- (BOOL)followOutputRouteOnQueue;
-// Carrier operations and observations, confined to the player queue.
-- (void)createCarrierOnQueue;
-- (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
-- (void)stopCarrierOnQueue;
-- (BOOL)carrierRunningOnQueue;
-- (void)releaseIdleCarrierOnQueue;
-- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
-// Report-only device queries; never polled by the stall watcher.
-- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
 // The carrier, made now if it could not be made at init. A unit brings its
 // device's rate, so a source segment built at the fallback format follows
 // it here — the current voice restarted at its intent — before anything is
@@ -81,6 +69,7 @@ NS_ASSUME_NONNULL_BEGIN
 // which needs none; NO with none, which the next start reports. Runs before
 // a settlement builds its segment and before a resume starts.
 - (BOOL)ensureOutputUnitOnQueue;
+- (BOOL)createOutputUnitOnQueue;
 // Brings the unit and the pipeline to `rate`: the output stopped, the unit
 // reconfigured, the FX chain re-hosted, the meter replaced. The bus is the
 // caller's to reconcile through ensureSourceSegmentOnQueueRebuilt:, which
@@ -107,7 +96,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Resolves the retained launch preference without blocking _queue. It only
 // applies a found device where VibeCanBindSavedOutputDevice allows — Stopped,
-// a settled Pause, or Loading while the engine is not running; the rule and its trap are on
+// a settled Pause, or Loading while the output is not running; the rule and its trap are on
 // that function — and playback winning the lookup race leaves the preference
 // pending for the next eligible transition or device/default refresh. Runs on
 // _queue. A completed missing-device lookup disables an armed bit-perfect
@@ -121,7 +110,7 @@ NS_ASSUME_NONNULL_BEGIN
 // resamples; an unreadable rate keeps the current one. After every bind.
 - (void)followOutputDeviceRateOnQueue;
 
-// Whether prepareOutputOnQueueForFile: would stop the engine for a switch —
+// Whether prepareOutputOnQueueForFile: would stop the output for a switch —
 // the gapless successor's gate, since a continuation on one voice cannot
 // switch the device. NO whenever the mode cannot apply; YES for a format the
 // device will not report, since unknown compatibility cannot splice.
@@ -129,7 +118,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
 // and when the device's format or the graph's rate differs, stops the
-// engine — the callers guarantee nothing is audible — writes one physical
+// output — the callers guarantee nothing is audible — writes one physical
 // format, waits (bounded) for the device to confirm it, and brings the graph
 // to the device's rate. Remembers the device's format before the first
 // change so it can be put back, and records the prepared device, stream and

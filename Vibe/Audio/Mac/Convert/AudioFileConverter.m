@@ -651,7 +651,10 @@ static NSString *VibeFileStat(NSURL *url) {
 // absence of a refusal. Called only off main; provider and network reads may
 // block.
 - (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error {
-    BOOL playable = [[AudioFileHandle alloc] initForReading:url error:NULL].length > 0;
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+    AVAudioPCMBuffer *buffer = file.length > 0
+            ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:1] : nil;
+    BOOL playable = buffer && [file readIntoBuffer:buffer error:NULL] && buffer.frameLength == 1;
     if (!playable && error) {
         NSString *path = url.path;
         *error = [self errorWithCode:VibeConvertErrorReplacementUnavailable

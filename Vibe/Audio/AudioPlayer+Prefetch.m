@@ -46,7 +46,7 @@
     // included — and the device's too, so under bit-perfect output the next
     // file must want both; a boundary that needs a switch or a rebuild takes
     // the ordinary track end instead.
-    if (_bitPerfectWanted && (!VibeFormatsMatch(_file.processingFormat, _prefetchedFile.processingFormat)
+    if (_bitPerfectWanted && (!VibePCMFormatsMatch(_file.processingFormat, _prefetchedFile.processingFormat)
             || [self outputNeedsSwitchOnQueueForFile:_prefetchedFile])) {
         return;
     }
