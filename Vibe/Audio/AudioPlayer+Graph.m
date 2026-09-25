@@ -1455,8 +1455,9 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
             device[@"physicalSampleRate"] = @(physical.mSampleRate);
             device[@"physicalBitsPerChannel"] = @(physical.mBitsPerChannel);
             device[@"physicalFloat"] = @((physical.mFormatFlags & kAudioFormatFlagIsFloat) != 0);
-            device[@"physicalChannels"] = @(physical.mChannelsPerFrame);
+            device[@"physicalChannels"] = @(physical.mChannelsPerFrame); // the stream's, of which the unit drives `channels`
         }
+        device[@"channels"] = @(_outputUnit.format.channelCount); // what reaches the device: the unit's stereo pair on its channel map
         device[@"latencySeconds"] = @(_outputUnit.presentationLatency); // the device's own: its latency, safety offset and stream latency
         device[@"preparedForBitPerfect"] = @(_preparedDeviceID == deviceID);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT

@@ -187,7 +187,9 @@ static NSString *VibeAudioPathSampleFormat(NSString *name) {
 // One row, the same shape for every stage: name · rate · depth · channels ·
 // status · latency, each column present only where the stage has one, so the
 // rows read across. The latency is the stage's own, and only a stage in the
-// render has one.
+// render has one. A stage the signal bypasses — the pitch at zero, the
+// effects disconnected, the meter not wanted — is a bare Off: nothing passes
+// through it, so it has no format or latency to show.
 static NSString *VibeAudioPathRow(NSString *name, NSString *rate, NSString *depth, NSString *channels, NSString *status,
                                   NSNumber *latencySeconds) {
     NSMutableArray<NSString *> *parts = [NSMutableArray array];
@@ -256,16 +258,13 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
                                  [formatters countString:[stage[@"liveVoices"] unsignedIntegerValue]]], @0);
     }
     if ([name isEqualToString:@"varispeed"]) {
-        BOOL engaged = present && [stage[@"engaged"] boolValue];
-        return VibeAudioPathRow(engaged ? [formatters signedPercentString:[stage[@"pitch"] doubleValue]] : nil,
-                                carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels,
-                                engaged ? STR_SETTINGS_AUDIO_PATH_ON : STR_SETTINGS_AUDIO_PATH_OFF,
-                                @(engaged ? [stage[@"latencySeconds"] doubleValue] : 0));
+        if (!present || ![stage[@"engaged"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
+        return VibeAudioPathRow([formatters signedPercentString:[stage[@"pitch"] doubleValue]],
+                                carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels, STR_SETTINGS_AUDIO_PATH_ON,
+                                @([stage[@"latencySeconds"] doubleValue]));
     }
     if ([name isEqualToString:@"fx"]) {
-        if (!present || ![stage[@"connected"] boolValue]) {
-            return VibeAudioPathRow(nil, carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels, STR_SETTINGS_AUDIO_PATH_OFF, @0);
-        }
+        if (!present || ![stage[@"connected"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
         NSDictionary *stages = stage[@"stages"];
         NSMutableArray<NSString *> *active = [NSMutableArray array];
         if ([stages[@"lowKill"][@"active"] boolValue]) [active addObject:STR_MENU_FX_LOW_KILL];
@@ -278,9 +277,8 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
                                 @([stage[@"latencySeconds"] doubleValue]));
     }
     if ([name isEqualToString:@"meter"]) {
-        BOOL on = present && [stage[@"inRender"] boolValue];
-        return VibeAudioPathRow(nil, present ? rate : carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels,
-                                on ? STR_SETTINGS_AUDIO_PATH_ON : STR_SETTINGS_AUDIO_PATH_OFF, @0);
+        if (!present || ![stage[@"inRender"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
+        return VibeAudioPathRow(nil, rate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels, STR_SETTINGS_AUDIO_PATH_ON, @0);
     }
     if ([name isEqualToString:@"output"]) {
         NSString *activity = ![stage[@"running"] boolValue] ? STR_SETTINGS_AUDIO_PATH_IDLE
@@ -291,7 +289,7 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
     if ([name isEqualToString:@"device"]) {
         if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;
         NSUInteger bits = [stage[@"physicalBitsPerChannel"] unsignedIntegerValue];
-        NSUInteger channels = [stage[@"physicalChannels"] unsignedIntegerValue];
+        NSUInteger channels = [stage[@"channels"] unsignedIntegerValue]; // the channels driven, not the stream's width
         NSDictionary *bitPerfect = stage[@"bitPerfect"];
         NSMutableArray<NSString *> *status = [NSMutableArray array];
         if ([bitPerfect[@"enabled"] boolValue] && [bitPerfect[@"status"] isEqualToString:@"active"]) [status addObject:STR_SETTINGS_BIT_PERFECT];
