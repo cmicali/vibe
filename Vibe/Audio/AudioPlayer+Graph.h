@@ -56,7 +56,10 @@
 //  the one door: a render not seen outside within its bound — stuck — parks
 //  the teardown until it is), and a hosting is one allocation the render is
 //  handed whole, so a re-host swaps it and a late render finishes inside the
-//  old one.
+//  old one. The pipeline itself admits one render at a time: a carrier's
+//  callback that finds another render inside — a stuck one, outliving its
+//  carrier's bounded stop while the next carrier began — renders silence and
+//  touches nothing, so a render seen outside is the only one there was.
 //
 //  The output is not held running for the life of the player, because a
 //  running output owns the device — on Bluetooth it keeps the link up, on any
@@ -169,6 +172,9 @@ typedef struct VibeMasterBus VibeMasterBus;
 // Writes into the history ring: only while an engage is being prepared or
 // the unit is in the chain, never at zero pitch settled.
 - (uint64_t)varispeedHistoryWritesOnQueue;
+// Renders the pipeline turned away because another was inside; cumulative,
+// zero through every soak.
+- (uint64_t)renderRefusalsOnQueue;
 
 // Brings the pipeline to the carrier's current rate where the carrier can
 // move on its own: the iOS route, whose configuration change a route loss

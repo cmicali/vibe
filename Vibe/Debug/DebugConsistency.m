@@ -122,11 +122,21 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 #endif
 
+    NSDictionary<NSString *, NSNumber *> *engine = [player debugEngineCounts];
     checked++;
-    NSUInteger units = [player debugEngineCounts][@"hostedUnits"].unsignedIntegerValue;
+    NSUInteger units = engine[@"hostedUnits"].unsignedIntegerValue;
     if (units > kVibeMaxReasonableHostedUnits) {
         VibeDebugViolation(v, @"graph.hosted_units_bounded",
                 @"%lu units hosted by the pipeline", (unsigned long)units);
+    }
+
+    // The pipeline admits one render at a time; a refusal means a carrier's
+    // callback found a stuck one inside, which nothing in a healthy run does.
+    checked++;
+    NSUInteger refusals = engine[@"renderRefusals"].unsignedIntegerValue;
+    if (refusals > 0) {
+        VibeDebugViolation(v, @"graph.no_render_refused",
+                @"%lu renders refused by the pipeline", (unsigned long)refusals);
     }
 
     // The barrier above drains the player queue, not callbacks waiting on main:

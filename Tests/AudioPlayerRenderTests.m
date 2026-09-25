@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 #import "AudioPlayer+Debug.h"
+#import "AudioLevelTap+Debug.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
@@ -114,6 +115,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAttachment *trace=[XCTAttachment attachmentWithString:_events.description];
         trace.name=@"transport-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
     }
+    [_player debugHoldRenderInside:NO]; // a failed hold test must not leave a render blocked
     [_player debugShutdown]; _player = nil;
     [NSFileManager.defaultManager removeItemAtURL:_temporary error:NULL];
     [super tearDown];
@@ -867,6 +869,41 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }
 }
 
+// A meter callback that began before a remove-and-reinstall — the demand
+// toggling under it — publishes into the session it began, which has ended,
+// so the new session opens on none of its audio.
+- (void)testAMeterCallbackStalledAcrossAReinstallPublishesNothingIntoTheNewSession {
+    AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
+    AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
+    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+                                         normalizationMode:kLevelDefaultNormalizationMode];
+    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    XCTAssertGreaterThanOrEqual(tone.frameLength, count);
+    AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
+    XCTAssertGreaterThanOrEqual(silence.frameLength, count);
+    AudioTimeStamp stamp = { .mFlags = kAudioTimeStampSampleTimeValid };
+    [tap install];
+    VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, count - 1024, &stamp); // one block short of publishing
+    [tap debugHoldRender:YES];
+    dispatch_group_t stalled = dispatch_group_create();
+    dispatch_group_async(stalled, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, 1024, &stamp);
+    });
+    [self settleUntil:^BOOL { return tap.debugRendersHeld == 1; }];
+    [tap remove];
+    [tap install];
+    [tap debugHoldRender:NO];
+    XCTAssertEqual(dispatch_group_wait(stalled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+                   @"the stalled callback did not finish once the hold lifted");
+    float levels[kLevelBandCount] = {0};
+    XCTAssertFalse([publisher copyLevels:levels count:kLevelBandCount sequence:NULL],
+                   @"the stalled callback published the tone into the new session, peak %g", PeakLevel(levels));
+    VibeLevelMeterRender(tap.meter, silence.floatChannelData, tone.format.channelCount, count, &stamp);
+    XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+    XCTAssertEqual(PeakLevel(levels), 0.0f, @"the new session opened on the previous session's audio");
+    [tap remove];
+}
+
 - (void)testMeterTapDoesNotChangeSamples {
     for (NSNumber *fx in @[@NO,@YES]) {
         [self startPlayerAt:48000 channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
@@ -1165,12 +1202,14 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
     }
 }
-// A render stuck inside the pipeline past the wait's bound — its exit
-// withheld, which is all the queue can see of one — must not let a
-// withdrawal free or reset what the render could be inside. A rate change
-// replaces the meter, the bus, the varispeed hosting and the FX chain, and
-// every one of them stays allocated until the first drain that sees the
-// render outside; playback itself carries on at the new rate meanwhile.
+// A render stuck inside the pipeline past the wait's bound — blocked after
+// it read the bus, on a thread of its own, which is what a stuck render is —
+// must not let a withdrawal free or reset what it is inside, and no later
+// render may clear the evidence that it is: the pipeline admits one render
+// at a time, so the rebuilt output's callbacks render silence while it is
+// inside. A rate change replaces the meter, the bus, the varispeed hosting
+// and the FX chain, and every one of them stays allocated until the first
+// drain that sees the render outside; playback carries on at the new rate.
 - (void)testAStuckRenderDefersEveryTeardownUntilItLeaves {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     _player.levelsEnabled = YES;
@@ -1184,8 +1223,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         XCTAssertNotNil(tap);
         XCTAssertNotNil(bus);
     }
+    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 0u);
     [_player debugHoldRenderInside:YES];
-    @autoreleasepool { [self render:256]; } // as far as the queue can tell, this render never leaves
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self->_player debugRenderOnCallerThread:256]; // a carrier's callback, blocked inside the old bus
+    });
+    [self settleUntil:^BOOL { return [self->_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
     XCTAssertTrue([_player debugSetOutputRate:96000]);
     XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
                                 @"the tap, the bus, the varispeed hosting and the FX chain wait for the render");
@@ -1193,8 +1237,25 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertNotNil(bus, @"the bus was freed under a render");
     XCTAssertTrue(_player.isPlaying);
     XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    // The rebuilt output's renders find a render inside: silence, and the
+    // parked teardowns stay parked, since the render they wait for is inside.
+    [_capture setLength:0];
+    @autoreleasepool { [self render:512]; }
+    const float *refused = _capture.bytes;
+    for (NSUInteger i = 0; i < _capture.length / sizeof(float); i++) {
+        XCTAssertEqual(refused[i], 0.0f, @"a refused render wrote sound at sample %lu", (unsigned long)i);
+    }
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 2u);
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+                                @"a refused render ran the teardowns of the render still inside");
+    XCTAssertNotNil(tap, @"the meter was freed under a render another render followed");
+    XCTAssertNotNil(bus, @"the bus was freed under a render another render followed");
     [_player debugHoldRenderInside:NO];
-    @autoreleasepool { [self render:256]; } // the render leaves; the drain after it runs the parked teardowns
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+                   @"the held render did not leave once the hold lifted");
+    XCTAssertEqual([_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue], 0u);
+    NSUInteger refusals = [_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue];
+    @autoreleasepool { [self render:256]; } // the render left; the drain after this one runs the parked teardowns
     XCTAssertEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
     // The beta signal probe's poll holds the old tap until its next 100 ms
     // tick of the pump's clock finds it removed; nothing else may.
@@ -1202,6 +1263,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertNil(tap, @"the meter outlived the render it waited for");
     XCTAssertNil(bus, @"the bus outlived the render it waited for");
     [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], refusals,
+                   @"a render was refused with none inside");
 }
 
 - (void)testFormatChangesAndModeToggles {

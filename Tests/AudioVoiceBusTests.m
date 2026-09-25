@@ -16,6 +16,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import "AudioVoiceBusInternal.h"
 #import <objc/runtime.h>
+#include <stdatomic.h>
 
 static const double kRate = 48000;
 
@@ -281,6 +282,41 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         XCTAssertTrue(snapshot.gain >= 0 && snapshot.gain <= 1);
     }
     dispatch_group_wait(renders, DISPATCH_TIME_FOREVER);
+}
+
+// Snapshots poll a voice while its slot is killed, recycled and bound to the
+// next: the origins a snapshot subtracts are the bind's to write, so they are
+// atomics, and the generation is the seqlock's version around the bind.
+// Under ThreadSanitizer this is the case that reports the plain fields.
+- (void)testSnapshotsWhileSlotsAreReused {
+    [self makeBusAtRate:kRate channels:2];
+    AVAudioFile *file = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:71]
+                                             rate:kRate channels:2 name:@"reuse-snapshot.wav"]];
+    _Atomic uint64_t *current = calloc(1, sizeof(_Atomic uint64_t));
+    _Atomic int *done = calloc(1, sizeof(_Atomic int));
+    dispatch_group_t readers = dispatch_group_create();
+    for (int reader = 0; reader < 2; reader++) {
+        dispatch_group_async(readers, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            while (!atomic_load_explicit(done, memory_order_relaxed)) {
+                VibeVoiceID voice = atomic_load_explicit(current, memory_order_acquire);
+                if (voice) {
+                    VibeVoiceSnapshot snapshot = [self->_bus snapshotOfVoice:voice];
+                    XCTAssertTrue(snapshot.state == VibeVoiceStateNone || snapshot.written <= 4096,
+                                  @"a snapshot mixed two voices: state %d, written %llu", (int)snapshot.state, snapshot.written);
+                }
+            }
+        });
+    }
+    for (NSUInteger iteration = 0; iteration < 3000; iteration++) {
+        VibeVoiceID voice = [self startFile:file gain:1 ramp:[self unity] paused:YES];
+        atomic_store_explicit(current, voice, memory_order_release);
+        [_bus killVoice:voice];
+        [_bus drainWithOutputRunning:NO handler:^(VibeVoiceID identifier, VibeVoiceEvent event) {}];
+    }
+    atomic_store_explicit(done, 1, memory_order_relaxed);
+    dispatch_group_wait(readers, DISPATCH_TIME_FOREVER);
+    free(current);
+    free(done);
 }
 
 - (void)testPassthroughIsExactAtEveryBlockSizeAndEndsOnce {

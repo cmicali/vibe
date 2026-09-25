@@ -9,6 +9,7 @@
 #import "AudioLevelPublisherInternal.h"
 
 #include <stdatomic.h>
+#include <unistd.h>
 
 _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots require lock-free 64-bit atomics");
 
@@ -18,9 +19,18 @@ enum { kMeterChannels = 2 };
 struct VibeLevelMeter {
     VibeAudioLevelAnalyzer *analyzer;
     VibeLevelPublisherState *publisherState;
-    _Atomic uint64_t session;            // the publisher session an install began
-    _Atomic uint32_t installGeneration;  // bumped per install; the render restarts its buffer on a change
-    uint32_t renderGeneration;
+    // The publisher session the install began: the render's one identity for
+    // a callback, read once at its entry — the session it restarts on when
+    // it differs from the last one seen, and the session it publishes into.
+    // TRAP: read again at publication, it labelled a callback that began
+    // before a remove-and-reinstall with the new session, and the bars opened
+    // on the previous session's audio.
+    _Atomic uint64_t session;
+    uint64_t renderSession;              // the session the render last saw; 0 before its first callback
+#if DEBUG
+    _Atomic int32_t holdRender;          // a test's stalled callback: the render blocks after its entry read while set
+    _Atomic int32_t rendersHeld;
+#endif
     // The publication cadence: a tap buffer's worth of frames at the tap's
     // rate, the analyzer's windows summarized once it is reached.
     uint32_t target;
@@ -44,11 +54,17 @@ struct VibeLevelMeter {
 
 #pragma mark - The audio thread
 
-// The one call the compiler cannot check: the probe's clock read.
+// The calls the compiler cannot check: the probe's clock read and, in debug
+// builds, the sleep of a test's callback held inside the render.
 VIBE_REALTIME_UNCHECKED_BEGIN
 #if VIBE_VERBOSE_LOGGING
 static inline uint64_t VibeLevelMeterNow(void) CA_REALTIME_API {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+#endif
+#if DEBUG
+static inline void VibeLevelMeterHoldWait(void) CA_REALTIME_API {
+    usleep(200);
 }
 #endif
 VIBE_REALTIME_END
@@ -142,12 +158,21 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
     // the analyzer's partial window and references in place — the tap is
     // kept across demand changes — and the first publication of a new
     // session carried the previous track's samples into the bars.
-    uint32_t generation = atomic_load_explicit(&meter->installGeneration, memory_order_acquire);
-    if (generation != meter->renderGeneration) {
-        meter->renderGeneration = generation;
+    uint64_t session = atomic_load_explicit(&meter->session, memory_order_acquire);
+    if (session != meter->renderSession) {
+        meter->renderSession = session;
         meter->fill = 0;
         VibeAudioLevelAnalyzerReset(meter->analyzer);
     }
+#if DEBUG
+    if (atomic_load_explicit(&meter->holdRender, memory_order_relaxed)) {
+        atomic_fetch_add_explicit(&meter->rendersHeld, 1, memory_order_seq_cst);
+        while (atomic_load_explicit(&meter->holdRender, memory_order_relaxed)) {
+            VibeLevelMeterHoldWait();
+        }
+        atomic_fetch_sub_explicit(&meter->rendersHeld, 1, memory_order_seq_cst);
+    }
+#endif
 #if VIBE_VERBOSE_LOGGING
     if (timestamp) {
         VibeLevelMeterCapture(meter, channels, channelCount, frames, meter->sampleRate, timestamp);
@@ -172,7 +197,7 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
         NSUInteger windows = VibeAudioLevelAnalyzerSummarize(meter->analyzer, levels);
         VibeLevelPublisherRecordAnalyzedWindows(meter->publisherState, windows);
         if (windows > 0) {
-            VibeLevelPublisherPublish(meter->publisherState, atomic_load_explicit(&meter->session, memory_order_relaxed), levels);
+            VibeLevelPublisherPublish(meter->publisherState, session, levels);
         }
         meter->fill = 0;
     }
@@ -269,8 +294,7 @@ VIBE_REALTIME_END
     if (_installed) {
         return;
     }
-    atomic_store_explicit(&_meter->session, [_publisher beginSession], memory_order_relaxed);
-    atomic_fetch_add_explicit(&_meter->installGeneration, 1, memory_order_release);
+    atomic_store_explicit(&_meter->session, [_publisher beginSession], memory_order_release);
     _installed = YES;
 }
 
@@ -282,6 +306,16 @@ VIBE_REALTIME_END
     [_publisher endSession:atomic_load_explicit(&_meter->session, memory_order_relaxed)];
     _installed = NO;
 }
+
+#if DEBUG
+- (void)debugHoldRender:(BOOL)hold {
+    atomic_store_explicit(&_meter->holdRender, hold ? 1 : 0, memory_order_seq_cst);
+}
+
+- (NSUInteger)debugRendersHeld {
+    return (NSUInteger)atomic_load_explicit(&_meter->rendersHeld, memory_order_seq_cst);
+}
+#endif
 
 #pragma mark - The signal probe
 

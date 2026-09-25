@@ -74,9 +74,12 @@ typedef struct {
 // The comments name each field's ONE writer; every other party only reads.
 typedef struct {
     // Queue, before the generation's release-store publishes the allocation.
+    // The generation is also the seqlock's version over every field a bind
+    // writes (bindRecord:toSlot:), and the two origins a snapshot subtracts
+    // are atomics: a snapshot polls them while a rebind writes them.
     _Atomic uint64_t generation;
-    uint64_t armedWritten;
-    uint64_t armedConsumed;
+    _Atomic uint64_t armedWritten;
+    _Atomic uint64_t armedConsumed;
     // A VibeVoiceState, None while the slot is free. Queue: free→armed,
     // armed→dead. Decoder: armed→live. Audio thread: live→dead.
     _Atomic int32_t state;
@@ -797,6 +800,14 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         [self addPendingRecord:record atFront:YES];
         return;
     }
+    // The slot's fields are a seqlock whose version is the generation: the
+    // recycle zeroed it, this fence orders that zero before every write
+    // below, and the identifier's release-store publishes them, so a
+    // snapshot that read the old identifier and then any field written here
+    // sees the zero or the new identifier at its recheck and retries. TRAP:
+    // a plain origin here was a data race with a snapshot polled while the
+    // slot was reused under a seek or skip.
+    atomic_thread_fence(memory_order_release);
     VibeVoiceRecord *bound = _records[slot];
     bound->identifier = record->identifier;
     bound->startFrame = record->startFrame;
@@ -811,8 +822,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     bound->reportedBoundary = kUnset;
     BOOL prepared = [self prepareRecord:bound file:record->file decodeFormat:record->decodeFormat];
     bound->convertedBase = atomic_load_explicit(&s->written, memory_order_relaxed);
-    s->armedWritten = atomic_load_explicit(&s->written, memory_order_relaxed);
-    s->armedConsumed = atomic_load_explicit(&s->consumed, memory_order_relaxed);
+    atomic_store_explicit(&s->armedWritten, atomic_load_explicit(&s->written, memory_order_relaxed), memory_order_relaxed);
+    atomic_store_explicit(&s->armedConsumed, atomic_load_explicit(&s->consumed, memory_order_relaxed), memory_order_relaxed);
     atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped, memory_order_relaxed);
     atomic_store_explicit(&s->successorState, record->successorFile ? VibeSuccessorQueued : VibeSuccessorNone,
                           memory_order_relaxed);
@@ -1007,8 +1018,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             return snapshot;
         }
         int32_t state = atomic_load_explicit(&s->state, memory_order_acquire);
-        uint64_t armedWritten = s->armedWritten;
-        uint64_t armedConsumed = s->armedConsumed;
+        uint64_t armedWritten = atomic_load_explicit(&s->armedWritten, memory_order_relaxed);
+        uint64_t armedConsumed = atomic_load_explicit(&s->armedConsumed, memory_order_relaxed);
         uint64_t consumed = atomic_load_explicit(&s->consumed, memory_order_acquire);
         uint64_t written = atomic_load_explicit(&s->written, memory_order_acquire);
         uint64_t boundary = atomic_load_explicit(&s->boundary, memory_order_acquire);
@@ -1502,7 +1513,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 
 - (void)markLiveIfReadyForSlot:(NSUInteger)slot {
     VibeVoiceSlot *s = &_mix->slots[slot];
-    uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed) - s->armedWritten;
+    uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
+            - atomic_load_explicit(&s->armedWritten, memory_order_relaxed);
     if (buffered < kLiveThresholdFrames && atomic_load_explicit(&s->endOfStream, memory_order_relaxed) == kUnset) {
         return;
     }

@@ -1368,6 +1368,9 @@ GROWTH_LIMITS = {
     # is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
     ("app", "hostedUnits"): (4, "hosted units"),
+    # Cumulative and zero in a healthy run: a refusal is a carrier's callback
+    # meeting a render stuck past its bounded stop.
+    ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
 }
 
@@ -1422,6 +1425,7 @@ RESTING_GROWTH_LIMITS = {
     # wide one. Until the resting sample pins both, this cannot be tight.
     ("ui", "layers"): (2400, "resting layers"),
     ("app", "hostedUnits"): (4, "resting hosted units"),
+    ("app", "renderRefusals"): (0, "resting render refusals"),
     **{("pending", key): (1, f"resting pending {key}") for key in PENDING_KEYS},
 }
 

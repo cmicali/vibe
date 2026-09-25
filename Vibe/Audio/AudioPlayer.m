@@ -1410,6 +1410,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"renderMaxMicros": @([self diagnosticRenderMaxMicroseconds]),
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"renderLeaveWork": @(self->_renderLeaveWork.count),
+                   @"renderRefusals": @([self renderRefusalsOnQueue]),
+                   @"rendersHeld": @([self debugRendersHeld]),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
                    @"decodeTurns": @(self->_voiceBus.decodeTurns),
                    @"pollActive": @(self->_drainTimer != nil),

@@ -84,11 +84,17 @@ NS_ASSUME_NONNULL_BEGIN
 // no indicator or probe wants levels.
 - (nullable AudioLevelTap *)debugLevelTap;
 
-// Withholds every render's exit while set, so the queue sees a render inside
-// the pipeline — what a render stuck past the wait's bound looks like to it —
-// and every withdrawal defers what the render could be inside; the count of
-// those deferrals is `renderLeaveWork` in debugEngineCounts. Any thread.
+// While set, a render blocks inside the pipeline after it has read the bus —
+// a render stuck past the wait's bound, on a thread of its own — so every
+// withdrawal defers what it could be inside (`renderLeaveWork` in
+// debugEngineCounts counts those deferrals) and every other render is
+// refused meanwhile (`renderRefusals`). debugRenderOnCallerThread: is the
+// render to hold: a carrier's callback on the calling thread, into buffers
+// of its own, which blocks there until the hold lifts; debugRendersHeld
+// counts the renders blocked inside (`rendersHeld`). Any thread.
 - (void)debugHoldRenderInside:(BOOL)hold;
+- (void)debugRenderOnCallerThread:(NSUInteger)frames;
+- (NSUInteger)debugRendersHeld;
 
 // Mode selection is session-only. A valid change synchronously replaces an
 // active tap, so the next state snapshot describes the replacement analyzer.

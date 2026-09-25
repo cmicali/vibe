@@ -37,7 +37,8 @@ static const int kRenderLeaveSpinLimit = 500; // 100 ms
 // render was seen outside them; the master bus points at the current one.
 typedef struct {
     AudioUnit unit;
-    VibeMasterBus *master;           // the bus, the stamp and the channels the input callback serves
+    VibeMasterBus *master;           // the stamp and the channels the input callback serves
+    VibeVoiceMix *mix;               // the bus the input callback serves: the render's, written before each pull, so a slice reads one bus
     uint32_t latency;                // the unit's declared latency, in frames at the bus rate
     uint32_t quality;                // kAudioUnitProperty_RenderQuality, read back at host
     _Atomic int32_t engaged;         // 1 while the unit is in the chain; the render's, set at a slice boundary
@@ -65,7 +66,16 @@ typedef struct {
 // inRender).
 struct VibeMasterBus {
     _Atomic int32_t gate;            // 1 while the output may render
-    _Atomic int32_t inRender;        // 1 while the render is inside the pipeline
+    // The pipeline's door: 1 while a render is inside, taken at the entry and
+    // released at the exit by that render alone. A second render finding it
+    // taken — a carrier's callback outlived its bounded stop and another
+    // carrier's began — renders silence and touches nothing, so no two
+    // renders are ever inside the same state, and the queue's evidence that
+    // one is inside is that render's own. TRAP: a flag any render could
+    // clear let the new carrier's first callback clear the stuck one's, and
+    // the drain then freed the bus that render was still mixing.
+    _Atomic int32_t inRender;
+    _Atomic uint64_t refusedRenders; // renders the door turned away; a soak holds it at zero
     _Atomic uint64_t frames;         // the output timeline: frames rendered
     _Atomic uint32_t pendingFrames;  // the slice in flight
     _Atomic int32_t silent;          // --silent: the meter sees the signal, the device zeros
@@ -85,7 +95,11 @@ struct VibeMasterBus {
     _Atomic uint64_t varispeedRenders;
     _Atomic uint64_t varispeedHistoryWrites; // ring writes: none at zero pitch outside a transition
 #if DEBUG
-    _Atomic int32_t holdRenderInside; // a test's stuck render: the render's exit is withheld while set
+    // A test's stuck render: while set, a render blocks inside the pipeline
+    // after it has read the bus — the schedule that freed a bus under a
+    // render — and rendersHeld counts the renders blocked there.
+    _Atomic int32_t holdRenderInside;
+    _Atomic int32_t rendersHeld;
 #endif
 };
 
@@ -95,9 +109,10 @@ typedef struct {
     AudioBuffer mBuffers[2];
 } VibeMasterBusStereoList;
 
-// The one call the compiler cannot check: the varispeed's render, which
+// The calls the compiler cannot check: the varispeed's render, which
 // AudioToolbox documents as the render thread's own entry point and
-// attributes with nothing.
+// attributes with nothing, and, in debug builds, the sleep of a test's
+// render held inside the pipeline.
 VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeMasterBusRenderVarispeed(VibeMasterBus *master, AudioUnit varispeed, const AudioTimeStamp *stamp,
                                                     UInt32 frames, AudioBufferList *data) CA_REALTIME_API {
@@ -105,6 +120,11 @@ static inline OSStatus VibeMasterBusRenderVarispeed(VibeMasterBus *master, Audio
     atomic_fetch_add_explicit(&master->varispeedRenders, 1, memory_order_relaxed);
     return AudioUnitRender(varispeed, &flags, stamp, 0, frames, data);
 }
+#if DEBUG
+static inline void VibeMasterBusHoldWait(void) CA_REALTIME_API {
+    usleep(kRenderLeaveSpinMicroseconds);
+}
+#endif
 VIBE_REALTIME_END
 
 // Everything the audio thread does. Plain memory and atomics, no call that
@@ -196,7 +216,7 @@ static OSStatus VibeMasterBusVarispeedInput(void *refCon, AudioUnitRenderActionF
                                             UInt32 bus, UInt32 frames, AudioBufferList *data) CA_REALTIME_API {
     VibeVarispeedHost *host = refCon;
     VibeMasterBus *master = host->master;
-    VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_relaxed);
+    VibeVoiceMix *mix = host->mix;
     if (!mix || !data || data->mNumberBuffers < VibeMasterBusChannels(master)) {
         if (data) {
             VibeMasterBusZero(data, 0, frames);
@@ -300,8 +320,12 @@ static void VibeMasterBusDisengageVarispeed(VibeVarispeedHost *host) CA_REALTIME
 static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *mix, const AudioTimeStamp *stamp, UInt32 frames,
                                           AudioBufferList *list) CA_REALTIME_API {
     // Read once: a re-host swaps the pointer, and this render finishes
-    // inside the hosting it read.
+    // inside the hosting it read — and the unit's pulls read the bus this
+    // slice read, never the atomic again.
     VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_relaxed);
+    if (host) {
+        host->mix = mix;
+    }
     BOOL wanted = host && atomic_load_explicit(&master->varispeedWanted, memory_order_seq_cst);
     BOOL engaged = host && atomic_load_explicit(&host->engaged, memory_order_relaxed) != 0;
     if (!wanted && engaged) {
@@ -375,6 +399,17 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     atomic_store_explicit(&master->pendingFrames, frames, memory_order_release);
     OSStatus status = noErr;
     VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_relaxed);
+#if DEBUG
+    // The held render has read the bus: whatever the queue withdraws now,
+    // this render is inside it until the hold lifts.
+    if (atomic_load_explicit(&master->holdRenderInside, memory_order_relaxed)) {
+        atomic_fetch_add_explicit(&master->rendersHeld, 1, memory_order_seq_cst);
+        while (atomic_load_explicit(&master->holdRenderInside, memory_order_relaxed)) {
+            VibeMasterBusHoldWait();
+        }
+        atomic_fetch_sub_explicit(&master->rendersHeld, 1, memory_order_seq_cst);
+    }
+#endif
     if (!mix) {
         VibeMasterBusZero(list, 0, frames);
         VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_relaxed);
@@ -408,7 +443,16 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
 // hands it; any further buffers stay silent.
 static OSStatus VibeMasterBusRender(VibeMasterBus *master, const AudioTimeStamp *hostStamp, UInt32 frames,
                                     AudioBufferList *data) CA_REALTIME_API {
-    atomic_store_explicit(&master->inRender, 1, memory_order_seq_cst);
+    int32_t outside = 0;
+    if (!atomic_compare_exchange_strong_explicit(&master->inRender, &outside, 1, memory_order_seq_cst, memory_order_seq_cst)) {
+        // A render is inside: this one is silence, and the door stays that
+        // render's to release.
+        atomic_fetch_add_explicit(&master->refusedRenders, 1, memory_order_relaxed);
+        if (data) {
+            VibeMasterBusZero(data, 0, frames);
+        }
+        return noErr;
+    }
     OSStatus status = noErr;
     uint32_t channels = VibeMasterBusChannels(master);
     BOOL usable = atomic_load_explicit(&master->gate, memory_order_seq_cst) && data && frames > 0
@@ -436,13 +480,6 @@ static OSStatus VibeMasterBusRender(VibeMasterBus *master, const AudioTimeStamp 
             }
         }
     }
-#if DEBUG
-    // A test's stuck render: the exit is withheld, so the queue sees a render
-    // inside the pipeline until the hold lifts (debugHoldRenderInside:).
-    if (atomic_load_explicit(&master->holdRenderInside, memory_order_relaxed)) {
-        return status;
-    }
-#endif
     atomic_store_explicit(&master->inRender, 0, memory_order_release);
     return status;
 }
@@ -559,6 +596,27 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 
 - (void)debugHoldRenderInside:(BOOL)hold {
     atomic_store_explicit(&_masterBus->holdRenderInside, hold ? 1 : 0, memory_order_seq_cst);
+}
+
+- (NSUInteger)debugRendersHeld {
+    return (NSUInteger)atomic_load_explicit(&_masterBus->rendersHeld, memory_order_seq_cst);
+}
+
+// A carrier's callback on the caller's thread: buffers of its own, the
+// pipeline's channels, nothing of the player's queue-owned state read.
+- (void)debugRenderOnCallerThread:(NSUInteger)frames {
+    VibeMasterBus *master = _masterBus;
+    UInt32 count = (UInt32)MIN(frames, (NSUInteger)kVibeMasterBusMaxFrames);
+    uint32_t channels = VibeMasterBusChannels(master);
+    float *storage = calloc((size_t)count * 2 + 1, sizeof(float));
+    VibeMasterBusStereoList list = { channels, {{0}} };
+    for (uint32_t c = 0; c < channels; c++) {
+        list.mBuffers[c].mNumberChannels = 1;
+        list.mBuffers[c].mDataByteSize = count * (UInt32)sizeof(float);
+        list.mBuffers[c].mData = storage + (size_t)c * count;
+    }
+    VibeMasterBusRender(master, NULL, count, (AudioBufferList *)&list);
+    free(storage);
 }
 #endif
 
@@ -796,6 +854,10 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 
 - (uint64_t)varispeedRendersOnQueue {
     return atomic_load_explicit(&_masterBus->varispeedRenders, memory_order_relaxed);
+}
+
+- (uint64_t)renderRefusalsOnQueue {
+    return atomic_load_explicit(&_masterBus->refusedRenders, memory_order_relaxed);
 }
 
 - (uint64_t)varispeedHistoryWritesOnQueue {

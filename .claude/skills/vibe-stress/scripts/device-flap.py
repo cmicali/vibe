@@ -72,6 +72,10 @@ HEALTH_KEYS = (
     # Cumulative silence cycles from the hosted output unit: a zero baseline,
     # so any dropout across the soak is reported.
     "app.outputDropouts",
+    # Renders the pipeline refused because a stuck one was still inside when
+    # the next carrier's callback came: a rebind is exactly where two
+    # carriers meet, and a zero baseline makes any refusal a finding.
+    "app.renderRefusals",
     "ui.views",
     "ui.layers",
 )

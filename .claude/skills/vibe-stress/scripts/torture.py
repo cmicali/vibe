@@ -217,6 +217,7 @@ def health_of(app):
         "threads": p["threads"],
         "views": u["views"],
         "units": a["hostedUnits"],
+        "refusals": a.get("renderRefusals", 0),
         "pending": h["pending"],
         "playlistCount": a["playlistCount"],
         "currentIndex": a["currentIndex"],
@@ -340,6 +341,8 @@ def main():
                 bad.append(f"fds {base['fds']}->{h['fds']}")
             if h["units"] > base["units"] + 64:
                 bad.append(f"hostedUnits {base['units']}->{h['units']}")
+            if h["refusals"] > base["refusals"]:
+                bad.append(f"renderRefusals {base['refusals']}->{h['refusals']}")
             if h["liveMB"] > base["liveMB"] + 128:
                 bad.append(f"liveHeap {base['liveMB']:.0f}->{h['liveMB']:.0f} MB")
             if h["views"] > base["views"] + 320:
