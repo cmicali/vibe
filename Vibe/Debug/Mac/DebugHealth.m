@@ -73,7 +73,7 @@ static NSUInteger VibeMachPortCount(void) {
     return nameCount;
 }
 
-// A leaked AVAudioFile or an unclosed cache handle shows here long before it
+// A leaked AudioFileHandle or an unclosed cache handle shows here long before it
 // shows in the footprint. Passing a null buffer asks only for the size.
 // TRAP: the sizing call is not a count. proc_pidinfo(PROC_PIDLISTFDS) with a
 // NULL buffer answers how big the process's descriptor TABLE is, and that table
@@ -203,7 +203,7 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // An AVAudioFile call the OS still owes an answer for. Unlike everything
+    // An AudioFileHandle call the OS still owes an answer for. Unlike everything
     // above it is not a container the app can drain — a never-returning open
     // cannot be cancelled — so nonzero here at rest is not "work still in
     // flight" but "work that will never finish", which is the only reading

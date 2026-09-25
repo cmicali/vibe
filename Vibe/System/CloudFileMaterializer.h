@@ -7,7 +7,7 @@
 //  to stop.
 //
 //  The reason it exists is that an ordinary read cannot be interrupted. Opening
-//  a dataless file — TagLib's read, AVAudioFile's open — blocks in the kernel
+//  a dataless file — TagLib's read, AudioFileHandle's open — blocks in the kernel
 //  until the provider finishes, however long that takes and whatever the app
 //  has decided to do meanwhile: a background metadata parse that has started
 //  downloading a 60MB track owns its lane for the whole transfer, and the only

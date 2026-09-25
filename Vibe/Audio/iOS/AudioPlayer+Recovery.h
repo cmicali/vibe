@@ -35,7 +35,7 @@ typedef void (^VibeMediaServicesResetCompletion)(
 - (void)recoverFromEngineConfigurationChange;
 
 // Media services crashed and were relaunched: the engine, its nodes and every
-// open AVAudioFile are invalid and must be recreated, per AVAudioSession's
+// open AudioFileHandle are invalid and must be recreated, per AVAudioSession's
 // contract for AVAudioSessionMediaServicesWereResetNotification. Call this on
 // the notification's receiving thread. It establishes a player-queue barrier
 // at that edge, ordered with play submissions, then drops the invalid objects,

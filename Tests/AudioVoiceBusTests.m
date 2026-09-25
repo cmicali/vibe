@@ -15,6 +15,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioVoiceBusInternal.h"
+#import "AudioFixtures.h"
 #import <objc/runtime.h>
 #include <stdatomic.h>
 
@@ -79,13 +80,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 }
 
 - (NSURL *)writeBuffer:(AVAudioPCMBuffer *)buffer name:(NSString *)name {
-    NSMutableDictionary *settings = [buffer.format.settings mutableCopy];
-    settings[AVLinearPCMIsNonInterleaved] = @NO;
     NSURL *url = [_temporary URLByAppendingPathComponent:name];
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"%@", error);
     return url;
 }
 
@@ -104,9 +101,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     return data;
 }
 
-- (AVAudioFile *)open:(NSURL *)url {
+- (AudioFileHandle *)open:(NSURL *)url {
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:&error];
     XCTAssertNotNil(file, @"%@", error);
     return file;
 }
@@ -155,7 +152,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     return VibeVoiceRampMake(1, 0, VibeFadeCurveLinear, VibeVoiceActionNone);
 }
 
-- (VibeVoiceID)startFile:(AVAudioFile *)file gain:(float)gain ramp:(VibeVoiceRamp)ramp paused:(BOOL)paused {
+- (VibeVoiceID)startFile:(AudioFileHandle *)file gain:(float)gain ramp:(VibeVoiceRamp)ramp paused:(BOOL)paused {
     return [_bus startVoiceWithFile:file atFrame:0 decodeFormat:file.processingFormat gain:gain ramp:ramp paused:paused];
 }
 
@@ -265,7 +262,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 // a plain read otherwise.
 - (void)testSnapshotsWhileARenderRuns {
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *file = [self open:[self writePCM:[self noiseFrames:64000 channels:2 seed:17]
+    AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:64000 channels:2 seed:17]
                                              rate:kRate channels:2 name:@"concurrent.wav"]];
     VibeVoiceID voice = [self startFile:file gain:0
                                    ramp:VibeVoiceRampMake(1, 48000, VibeFadeCurveLinear, VibeVoiceActionNone)
@@ -290,7 +287,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 // Under ThreadSanitizer this is the case that reports the plain fields.
 - (void)testSnapshotsWhileSlotsAreReused {
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *file = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:71]
+    AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:71]
                                              rate:kRate channels:2 name:@"reuse-snapshot.wav"]];
     _Atomic uint64_t *current = calloc(1, sizeof(_Atomic uint64_t));
     _Atomic int *done = calloc(1, sizeof(_Atomic int));
@@ -361,7 +358,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSData *source = [self noiseFrames:20000 channels:2 seed:13];
     NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"offset.wav"];
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *file = [self open:url];
+    AudioFileHandle *file = [self open:url];
     VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:12345 decodeFormat:file.processingFormat gain:1
                                             ramp:[self unity] paused:NO];
     NSData *capture = [self renderUntilEnded:voice blockSize:1024 limit:100000];
@@ -476,7 +473,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *second = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, whole.length - split * 8)] rate:kRate channels:2 name:@"second.wav"];
     for (NSNumber *block in @[@63, @256, @1024, @4096]) {
         [self makeBusAtRate:kRate channels:2];
-        AVAudioFile *successor = [self open:second];
+        AudioFileHandle *successor = [self open:second];
         VibeVoiceID voice = [self startFile:[self open:first] gain:1 ramp:[self unity] paused:NO];
         XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
         NSData *capture = [self renderUntilEnded:voice blockSize:block.unsignedIntValue limit:200000];
@@ -494,7 +491,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *first = [self writePCM:[whole subdataWithRange:NSMakeRange(0, 4999 * 8)] rate:kRate channels:2 name:@"long.wav"];
     NSURL *second = [self writePCM:[whole subdataWithRange:NSMakeRange(4999 * 8, 8)] rate:kRate channels:2 name:@"one.wav"];
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *successor = [self open:second];
+    AudioFileHandle *successor = [self open:second];
     VibeVoiceID voice = [self startFile:[self open:first] gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     NSData *capture = [self renderUntilEnded:voice blockSize:4096 limit:20000];
@@ -510,7 +507,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *second = [self writePCM:[whole subdataWithRange:NSMakeRange(30000 * 8, 30000 * 8)] rate:kRate channels:2 name:@"b.wav"];
     // Before: the decoder has not reached the end; the voice ends at its own file.
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *successor = [self open:second];
+    AudioFileHandle *successor = [self open:second];
     VibeVoiceID voice = [self startFile:[self open:first] gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     XCTAssertTrue([_bus unqueueSuccessorForVoice:voice]);
@@ -556,7 +553,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(2000 * 8, 3000 * 8)] rate:kRate channels:2 name:@"b.wav"];
     NSURL *c = [self writePCM:[whole subdataWithRange:NSMakeRange(5000 * 8, 4000 * 8)] rate:kRate channels:2 name:@"c.wav"];
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *second = [self open:b], *third = [self open:c];
+    AudioFileHandle *second = [self open:b], *third = [self open:c];
     VibeVoiceID voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:second decodeFormat:second.processingFormat forVoice:voice]);
     NSMutableData *capture = [NSMutableData data];
@@ -710,7 +707,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         [voices addObject:@([self startFile:[self open:fillerURL] gain:1 ramp:[self unity] paused:NO])];
     }
     [self render:64 into:nil];
-    AVAudioFile *successor = [self open:b];
+    AudioFileHandle *successor = [self open:b];
     VibeVoiceID pending = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
     XCTAssertEqual([_bus pendingVoiceCount], 1u);
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:pending]);
@@ -774,7 +771,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     dispatch_sync(decoder, ^{});
     XCTAssertEqual(_bus.decodeTurns, turns, @"a drain asked for a turn that could write nothing");
     NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:6] rate:kRate channels:2 name:@"next.wav"];
-    AVAudioFile *successor = [self open:next];
+    AudioFileHandle *successor = [self open:next];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].written >= 20000; }];
     XCTAssertEqual([_bus snapshotOfVoice:voice].written, 20000u);
@@ -810,7 +807,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     });
     XCTAssertTrue([self waitUntil:^BOOL { return self->_bus.debugRendersHeld == 1; }]);
     NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:82] rate:kRate channels:2 name:@"late.wav"];
-    AVAudioFile *successor = [self open:next];
+    AudioFileHandle *successor = [self open:next];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     // The reopen withdraws the end and waits for the stuck render.
     XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]);
@@ -846,7 +843,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     });
     XCTAssertTrue([self waitUntil:^BOOL { return self->_bus.debugRendersHeld == 1; }]);
     NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:84] rate:kRate channels:2 name:@"late-bound.wav"];
-    AVAudioFile *successor = [self open:next];
+    AudioFileHandle *successor = [self open:next];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     dispatch_group_t idle = dispatch_group_create();
     dispatch_group_async(idle, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -871,7 +868,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 - (void)testAWithheldFileIsReadOnlyOnceAllowed {
     [self makeBusAtRate:kRate channels:2];
     NSData *source = [self noiseFrames:20000 channels:2 seed:91];
-    AVAudioFile *file = [self open:[self writePCM:source rate:kRate channels:2 name:@"withheld.wav"]];
+    AudioFileHandle *file = [self open:[self writePCM:source rate:kRate channels:2 name:@"withheld.wav"]];
     [_bus withholdReadsOfFile:file];
     VibeVoiceID voice = [_bus startVoiceWithFile:file atFrame:4000 decodeFormat:file.processingFormat gain:1
                                             ramp:[self unity] paused:NO];
@@ -883,7 +880,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     // Its own file allowed, the voice reads; a successor on a withheld file
     // is still refused until that file is allowed too.
     [_bus allowReadsOfFile:file];
-    AVAudioFile *next = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:92] rate:kRate channels:2 name:@"withheld-next.wav"]];
+    AudioFileHandle *next = [self open:[self writePCM:[self noiseFrames:4096 channels:2 seed:92] rate:kRate channels:2 name:@"withheld-next.wav"]];
     [_bus withholdReadsOfFile:next];
     XCTAssertFalse([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice], @"a withheld successor was queued");
     [_bus allowReadsOfFile:next];
@@ -921,8 +918,8 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 - (void)testFilesInUseFollowsTheDecodersHandoff {
     self.continueAfterFailure = YES;
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
-    AVAudioFile *first = [self open:[self writePCM:[self noiseFrames:2000 channels:2 seed:103] rate:kRate channels:2 name:@"handoff-first.wav"]];
-    AVAudioFile *next = [self open:[self writePCM:[self noiseFrames:96000 channels:2 seed:104] rate:kRate channels:2 name:@"handoff-next.wav"]];
+    AudioFileHandle *first = [self open:[self writePCM:[self noiseFrames:2000 channels:2 seed:103] rate:kRate channels:2 name:@"handoff-first.wav"]];
+    AudioFileHandle *next = [self open:[self writePCM:[self noiseFrames:96000 channels:2 seed:104] rate:kRate channels:2 name:@"handoff-next.wav"]];
     VibeVoiceID voice = [self startFile:first gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
     AudioVoiceBus *bus = _bus;
@@ -930,7 +927,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     for (int i = 0; i < 2000; i++) {
         [self renderWithoutFilling:256 into:nil];
         [self drain];
-        __block NSSet<AVAudioFile *> *files;
+        __block NSSet<AudioFileHandle *> *files;
         dispatch_sync(_queue, ^{ files = bus.filesInUse; });
         polls++;
         if (![files containsObject:next]) missing++;
@@ -993,16 +990,16 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     VibeVoiceID voice = [self startFile:[self open:first] gain:1 ramp:[self unity] paused:NO];
     dispatch_sync(_bus.decodeQueue, ^{});
     XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 2000u);
-    AVAudioFile *successor = [self open:second];
+    AudioFileHandle *successor = [self open:second];
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
     Method method = class_getInstanceMethod(AudioVoiceBus.class, @selector(prepareRecord:file:decodeFormat:));
     __block IMP original = NULL;
-    IMP replacement = imp_implementationWithBlock(^BOOL(id bus, id record, AVAudioFile *file, AVAudioFormat *format) {
+    IMP replacement = imp_implementationWithBlock(^BOOL(id bus, id record, AudioFileHandle *file, AVAudioFormat *format) {
         if (file == successor) {
             dispatch_semaphore_signal(entered);
             dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
         }
-        return ((BOOL (*)(id, SEL, id, AVAudioFile *, AVAudioFormat *))original)(bus, @selector(prepareRecord:file:decodeFormat:),
+        return ((BOOL (*)(id, SEL, id, AudioFileHandle *, AVAudioFormat *))original)(bus, @selector(prepareRecord:file:decodeFormat:),
                                                                                   record, file, format);
     });
     original = method_setImplementation(method, replacement);
@@ -1067,7 +1064,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         XCTAssertLessThanOrEqual(written, 24000u + 64);
         XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
     }
-    AVAudioFile *next = [self open:b];
+    AudioFileHandle *next = [self open:b];
     XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
     NSData *capture = [self renderUntilEnded:voice blockSize:256 limit:200000];
     XCTAssertEqualWithAccuracy((double)[self endedSnapshot:voice].boundary, 24000, 64);
@@ -1120,7 +1117,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     NSURL *resampledURL = [self writePCM:[self constant:0.25 frames:11025 channels:2] rate:44100 channels:2 name:@"resampled.wav"];
     // Resampled, then direct: the direct frames begin exactly at the boundary.
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *successor = [self open:directURL];
+    AudioFileHandle *successor = [self open:directURL];
     VibeVoiceID voice = [self startFile:[self open:resampledURL] gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
     NSData *capture = [self renderUntilEnded:voice blockSize:1024 limit:200000];
@@ -1153,7 +1150,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 // position and the new voice ended early.
 - (void)testAReplacedBusStopsReadingBeforeItsFileIsReused {
     NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:83] rate:kRate channels:2 name:@"rebuild.wav"];
-    AVAudioFile *file = [self open:url];
+    AudioFileHandle *file = [self open:url];
     [self makeBusAtRate:kRate channels:2];
     AudioVoiceBus *old = [[AudioVoiceBus alloc] initWithFormat:_bus.format queue:_queue inlineDecoding:NO];
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
@@ -1259,7 +1256,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 - (void)testAStaleDecodeTurnCannotEnterARebindingSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:96000 channels:2 seed:1201] rate:kRate channels:2 name:@"rebind.wav"];
-    AVAudioFile *oldFile = [self open:url], *newFile = [self open:url];
+    AudioFileHandle *oldFile = [self open:url], *newFile = [self open:url];
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     AudioVoiceBus *bus = _bus;
     dispatch_queue_t decoder = bus.decodeQueue;
@@ -1290,12 +1287,12 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
             dispatch_semaphore_wait(letRecycle, DISPATCH_TIME_FOREVER);
         }
     });
-    IMP replacementPrepare = imp_implementationWithBlock(^BOOL(id receiver, id record, AVAudioFile *file, AVAudioFormat *format) {
+    IMP replacementPrepare = imp_implementationWithBlock(^BOOL(id receiver, id record, AudioFileHandle *file, AVAudioFormat *format) {
         if (receiver == bus && file == newFile) {
             dispatch_semaphore_signal(preparing);
             dispatch_semaphore_wait(letPrepare, DISPATCH_TIME_FOREVER);
         }
-        return ((BOOL (*)(id, SEL, id, AVAudioFile *, AVAudioFormat *))originalPrepare)(receiver, @selector(prepareRecord:file:decodeFormat:), record, file, format);
+        return ((BOOL (*)(id, SEL, id, AudioFileHandle *, AVAudioFormat *))originalPrepare)(receiver, @selector(prepareRecord:file:decodeFormat:), record, file, format);
     });
     originalProduce = method_setImplementation(produce, replacementProduce);
     originalRecycle = method_setImplementation(recycle, replacementRecycle);
@@ -1361,7 +1358,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
                 if (late.boolValue) {
                     [_bus fillInline];
                 }
-                AVAudioFile *next = [self open:b];
+                AudioFileHandle *next = [self open:b];
                 XCTAssertTrue([_bus queueSuccessor:next decodeFormat:next.processingFormat forVoice:voice]);
                 NSData *capture = [self renderUntilEnded:voice blockSize:block.unsignedIntValue limit:500000];
                 XCTAssertEqual([self endedSnapshot:voice].endOfStream, end, @"%@ late %@ block %@", pair, late, block);
@@ -1425,7 +1422,7 @@ static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUIn
     }
     NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"grid.wav"];
     [self makeBusAtRate:kRate channels:2];
-    AVAudioFile *file = [self open:url];
+    AudioFileHandle *file = [self open:url];
     AVAudioFormat *integer = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16 sampleRate:kRate channels:2 interleaved:YES];
     [_bus startVoiceWithFile:file atFrame:0 decodeFormat:integer gain:1 ramp:[self unity] paused:NO];
     NSMutableData *capture = [NSMutableData data];

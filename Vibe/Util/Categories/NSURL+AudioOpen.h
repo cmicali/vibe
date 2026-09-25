@@ -13,20 +13,6 @@ NS_ASSUME_NONNULL_BEGIN
 // or a directory. One stat, no opens — cheap enough for list filtering.
 @property (nonatomic, readonly) BOOL isEmptyOrDirectory;
 
-// YES when CoreAudio's header parse refuses this file. Subsumes
-// isEmptyOrDirectory, then probes with AudioFileOpenWithCallbacks over a
-// descriptor this process owns and closes, so the probe itself can never
-// strand one. Ask before every AVAudioFile open: a FAILED AVAudioFile init
-// leaks its descriptor unrecoverably, so refusal has to be established
-// beforehand or not at all — see the implementation.
-@property (nonatomic, readonly) BOOL failsAudioOpenPreflight;
-
-// The FLAC conversion's strict positive check before a destructive handoff:
-// YES only for a readable regular file whose CoreAudio container reports at
-// least one audio packet. Do not use this to gate regular audio-open paths;
-// those retain failsAudioOpenPreflight's deliberately inconclusive failures.
-- (BOOL)validateAudioFileIsReadableAndHasContent;
-
 @end
 
 NS_ASSUME_NONNULL_END

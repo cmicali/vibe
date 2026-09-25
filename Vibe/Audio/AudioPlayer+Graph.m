@@ -799,7 +799,7 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
         return;
     }
     atomic_store_explicit(&_masterBus->mix, NULL, memory_order_seq_cst);
-    // TRAP: the new voice takes the same AVAudioFile, and the old bus's
+    // TRAP: the new voice takes the same AudioFileHandle, and the old bus's
     // decoder may be inside a read of it — its queued turns retain the bus,
     // not this player. Its reads are stopped, and every file it may be
     // inside is withheld from the new bus's voices until it has left them
@@ -807,8 +807,8 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
     // cursor; without that the new voice ended early. Never joined here: a
     // read on a stalled mount held the player queue, and every transport
     // command behind it, for its whole stall.
-    NSSet<AVAudioFile *> *files = old.filesInUse;
-    for (AVAudioFile *file in files) {
+    NSSet<AudioFileHandle *> *files = old.filesInUse;
+    for (AudioFileHandle *file in files) {
         [_retiredDecoderFiles addObject:file];
     }
     os_unfair_lock_lock(&_stateLock);
@@ -825,8 +825,8 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 // A retired bus's decoder has left its files: the current bus may read the
 // ones no other retired decoder is still inside, and a successor refused
 // while its file was withheld may queue now.
-- (void)retiredDecoderLeftOnQueue:(NSSet<AVAudioFile *> *)files {
-    for (AVAudioFile *file in files) {
+- (void)retiredDecoderLeftOnQueue:(NSSet<AudioFileHandle *> *)files {
+    for (AudioFileHandle *file in files) {
         [_retiredDecoderFiles removeObject:file];
         if ([_retiredDecoderFiles countForObject:file] == 0) {
             [_voiceBus allowReadsOfFile:file];
@@ -955,7 +955,7 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
 
 #pragma mark - The source segment
 
-- (AVAudioFormat *)decodeFormatOnQueueForFile:(AVAudioFile *)file {
+- (AVAudioFormat *)decodeFormatOnQueueForFile:(AudioFileHandle *)file {
 #if TARGET_OS_OSX
     // The 16-bit form is at the bus's own rate and width, so the converter's
     // one rounding is its last step whatever the file's rate. TRAP: at the
@@ -1092,7 +1092,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     __weak AudioPlayer *weakSelf = self;
     bus.voiceWentLive = ^{ [weakSelf drainVoiceBusOnQueue]; };
-    for (AVAudioFile *file in _retiredDecoderFiles) {
+    for (AudioFileHandle *file in _retiredDecoderFiles) {
         [bus withholdReadsOfFile:file];
     }
     if (wantVarispeed && ![self hostVarispeedOnQueueWithFormat:busFormat]) {
@@ -1120,7 +1120,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 // track and is not resurrected.
 - (BOOL)reconcileSourceSegmentOnQueue {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(0, NO);
-    AVAudioFile *file = _file;
+    AudioFileHandle *file = _file;
     BOOL restore = _state != VibePlayerStateLoading && file && [self getPlaybackIntent:&intent forTrack:nil];
     BOOL rebuilt = NO;
     if (![self ensureSourceSegmentOnQueueRebuilt:&rebuilt]) {
@@ -1413,7 +1413,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue {
     VibeMasterBus *master = _masterBus;
-    AVAudioFile *file = _file;
+    AudioFileHandle *file = _file;
     NSMutableDictionary *source = [@{@"stage": @"source", @"present": @(file != nil)} mutableCopy];
     if (file) {
         const AudioStreamBasicDescription *asbd = file.fileFormat.streamDescription;

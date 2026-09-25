@@ -87,6 +87,8 @@
 #import "AudioVoiceBus.h"
 #import <AVFoundation/AVFoundation.h>
 
+@class AudioFileHandle;
+
 NS_ASSUME_NONNULL_BEGIN
 
 // The largest slice the pipeline renders at once — the bus's own span, so
@@ -214,7 +216,7 @@ typedef struct VibeMasterBus VibeMasterBus;
 // The format the bus reads `file` as: its own, or the 16-bit integer form
 // bit-perfect output prefers for a lossy source on a 16-bit device, at the
 // bus's own rate and width.
-- (AVAudioFormat *)decodeFormatOnQueueForFile:(AVAudioFile *)file;
+- (AVAudioFormat *)decodeFormatOnQueueForFile:(AudioFileHandle *)file;
 // Pitch in percent onto the varispeed's rate, and whether it is in the
 // chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;

@@ -80,7 +80,7 @@
 - (void)promoteSuccessorOnQueue {
     AudioTrack *finishedTrack = self.currentTrack;
     AudioTrack *startedTrack = _successorTrack;
-    AVAudioFile *startedFile = _successorFile;
+    AudioFileHandle *startedFile = _successorFile;
     if (!startedTrack || !startedFile) {
         return;
     }
@@ -230,7 +230,7 @@
             openURL:track.url
             purpose:VibeAudioFileOpenPurposePrefetch
             completionQueue:_queue
-            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval elapsed) {
+            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
         AudioPlayer *strongSelf = weakSelf;
         if (!strongSelf) {
             return;

@@ -649,7 +649,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // probe answers NO, sticky is the fault-injection mode.
             // The open side of the fake provider. set_fake_cloud shapes stage 1
             // (which download runs, how fast, whether it fails); this holds
-            // stage 2 — the uncancellable AVAudioFile call — which is the one
+            // stage 2 — the uncancellable AudioFileHandle call — which is the one
             // provider failure a locally-backed fake cannot stage on its own.
             VibeDebugCmd(@"hang_open <basename>|release", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

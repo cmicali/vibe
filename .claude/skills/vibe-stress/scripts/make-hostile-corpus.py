@@ -126,9 +126,8 @@ def main():
         p = broken / f"zero-length{suffix}"
         p.write_bytes(b"")
         made.append(p)
-    # An empty AVAudioFile open is the documented fd-strand hazard; 300 of them
-    # meet a 256 soft limit, so the corpus carries enough to reach it under a
-    # run that keeps retrying.
+    # Enough empty files that a retrying run which stranded a descriptor per
+    # attempt would meet a 256 soft limit.
     for i in range(24):
         p = broken / f"zero-length-{i:02d}.flac"
         p.write_bytes(b"")

@@ -51,8 +51,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Queue-side hooks.
 - (void)noteAdmittedPlay:(uint64_t)submittedPlay submittedAt:(uint64_t)submittedAt;
 - (void)noteAdmittedAction:(NSString *)action submittedAt:(uint64_t)submittedAt position:(NSTimeInterval)position;
-- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AVAudioFile *)file error:(nullable NSError *)error;
-- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AVAudioFile *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
+- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AudioFileHandle *)file error:(nullable NSError *)error;
+- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AudioFileHandle *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current;
 // Every drain: the first-render line for a voice whose live event preceded its render.
 - (void)noteDrainOnQueue;

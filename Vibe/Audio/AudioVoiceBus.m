@@ -4,6 +4,7 @@
 //
 
 #import "AudioVoiceBusInternal.h"
+#import "AudioFileHandle.h"
 
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -425,7 +426,7 @@ VIBE_REALTIME_END
 @interface VibeVoiceRecord : NSObject {
 @public
     VibeVoiceID identifier;
-    AVAudioFile *file;
+    AudioFileHandle *file;
     AVAudioFormat *decodeFormat;
     AVAudioConverter *converter;
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
@@ -443,7 +444,7 @@ VIBE_REALTIME_END
     AVAudioFramePosition startFrame;
     BOOL positioned;
     VibeStreamState stream;
-    AVAudioFile *successorFile;
+    AudioFileHandle *successorFile;
     AVAudioFormat *successorDecodeFormat;
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
@@ -467,7 +468,7 @@ VIBE_REALTIME_END
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueue;
     _Atomic uint64_t _decodeTurns;   // turns run so far, for the tests
-    NSMutableSet<AVAudioFile *> *_withheldFiles; // a retired decoder may be inside these; queue-owned
+    NSMutableSet<AudioFileHandle *> *_withheldFiles; // a retired decoder may be inside these; queue-owned
     VibeVoiceMixOwner *_mixOwner;
     VibeVoiceMix *_mix;
     VibeVoiceRecord *_records[kVoiceSlots];
@@ -673,7 +674,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // form it wants — at the bus's rate and width, so the rounding is the
 // converter's last step — which the decoder expands back to float exactly so
 // the bus stays float on the 16-bit grid.
-- (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat {
+- (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AudioFileHandle *)file decodeFormat:(AVAudioFormat *)decodeFormat {
     AVAudioFormat *source = file.processingFormat;
     os_unfair_lock_lock(&_tableLock);
     record->file = file; // filesInUse reads the file pair under the lock; the decoder writes it there
@@ -796,7 +797,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
 }
 
-- (VibeVoiceID)startVoiceWithFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                      decodeFormat:(AVAudioFormat *)decodeFormat gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp paused:(BOOL)paused {
     VibeVoiceID identifier = _nextIdentifier++;
@@ -948,8 +949,8 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // too (prepareRecord:, continueRecord:intoSuccessor:, the recycle), so the
 // set is coherent with a handoff in flight: the successor is listed in one
 // field or the other, never neither.
-- (NSSet<AVAudioFile *> *)filesInUse {
-    NSMutableSet<AVAudioFile *> *files = [NSMutableSet set];
+- (NSSet<AudioFileHandle *> *)filesInUse {
+    NSMutableSet<AudioFileHandle *> *files = [NSMutableSet set];
     os_unfair_lock_lock(&_tableLock);
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         if (atomic_load_explicit(&_mix->slots[s].state, memory_order_acquire) == VibeVoiceStateNone) {
@@ -966,13 +967,13 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     return files;
 }
 
-- (void)withholdReadsOfFile:(AVAudioFile *)file {
+- (void)withholdReadsOfFile:(AudioFileHandle *)file {
     [_withheldFiles addObject:file];
 }
 
 // The voices started on the file while it was withheld read from here: a
 // fill is asked for at once, as a start asks for its first.
-- (void)allowReadsOfFile:(AVAudioFile *)file {
+- (void)allowReadsOfFile:(AudioFileHandle *)file {
     [_withheldFiles removeObject:file];
     for (NSUInteger s = 0; s < kVoiceSlots; s++) {
         VibeVoiceRecord *record = _records[s];
@@ -1001,7 +1002,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 }
 #endif
 
-- (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice {
+- (BOOL)queueSuccessor:(AudioFileHandle *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice {
     if ([_withheldFiles containsObject:file]) {
         return NO; // a retired decoder may be inside it; the transport asks again once it has left
     }
@@ -1341,7 +1342,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // The decoder's claim on the queued successor, against the queue's unqueue:
 // won, the voice's stream is the successor's from here, whether or not a
 // frame of it has reached the ring. nil when none is queued.
-- (AVAudioFile *)claimSuccessorForSlot:(NSUInteger)slot {
+- (AudioFileHandle *)claimSuccessorForSlot:(NSUInteger)slot {
     int32_t queued = VibeSuccessorQueued;
     if (!atomic_compare_exchange_strong_explicit(&_mix->slots[slot].successorState, &queued, VibeSuccessorSwitching,
                                                  memory_order_acq_rel, memory_order_relaxed)) {
@@ -1355,7 +1356,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // voice's converter, which is told nothing of the boundary, so its filter
 // carries across as the mixer's once did; the next read is the successor's
 // from its start. NO when it needs a converter of its own.
-- (BOOL)continueRecord:(VibeVoiceRecord *)record intoSuccessor:(AVAudioFile *)successor {
+- (BOOL)continueRecord:(VibeVoiceRecord *)record intoSuccessor:(AudioFileHandle *)successor {
     if (!VibeFormatsMatch(record->file.processingFormat, successor.processingFormat)
             || !VibeFormatsMatch(record->decodeFormat, record->successorDecodeFormat)) {
         return NO;
@@ -1377,7 +1378,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // Takes the claimed successor out of the record, with a converter of its
 // own, to be read from its start; NO with none there.
 - (BOOL)prepareSuccessorForRecord:(VibeVoiceRecord *)record {
-    AVAudioFile *successor = record->successorFile;
+    AudioFileHandle *successor = record->successorFile;
     AVAudioFormat *decodeFormat = record->successorDecodeFormat;
     if (!successor) {
         return NO;
@@ -1500,7 +1501,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         // converter stays open while the render is far from the end, so a
         // successor named late still continues it; a bus-format file has
         // nothing to keep open and ends at once.
-        AVAudioFile *successor = [self claimSuccessorForSlot:slot];
+        AudioFileHandle *successor = [self claimSuccessorForSlot:slot];
         if (successor && [self continueRecord:record intoSuccessor:successor]) {
             record->stream = VibeStreamReading;
             atomic_store_explicit(&s->boundary, [self streamEndForRecord:record written:written], memory_order_release);

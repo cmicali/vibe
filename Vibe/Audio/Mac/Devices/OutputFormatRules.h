@@ -173,7 +173,7 @@ static inline BOOL VibePCMFormatCarries(AudioStreamBasicDescription pcm,
 }
 
 // YES when the path delivers `source` unchanged: the device at the source's
-// rate, and both the decode's processing format (AVAudioFile decodes to
+// rate, and both the decode's processing format (AudioFileHandle decodes to
 // float32, so a 32-bit integer source is never delivered in full, whatever
 // the device offers — measured: 24,641,537 came out 24,641,536) and the
 // device's physical format carry it. The report's depth check, not the

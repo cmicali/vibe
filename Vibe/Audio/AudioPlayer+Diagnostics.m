@@ -500,14 +500,14 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
-- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(AudioTrack *)track file:(AVAudioFile *)file error:(NSError *)error {
+- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(AudioTrack *)track file:(AudioFileHandle *)file error:(NSError *)error {
 #if VIBE_VERBOSE_LOGGING
     LogInfo(@"Timeline: play %llu open settled for %@, %.0f Hz, %lld frames, error %@",
             submittedPlay, track.url.lastPathComponent, file.processingFormat.sampleRate, file.length, error);
 #endif
 }
 
-- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AVAudioFile *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason {
+- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AudioFileHandle *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
     LogInfo(@"Timeline: play %llu voice %llu %@ %@ from %lld of %lld frames at %.0f Hz",
             [self diagnosticPlayIdentifierOnQueue], voice, reason, file.url.lastPathComponent, frame, file.length,

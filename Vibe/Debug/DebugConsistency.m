@@ -283,7 +283,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     // than in the one scenario that stages it: the comment above says a lost
     // release is invisible "until the sweep visibly never runs", and a stranded
     // handle open is a second, unrelated cause of exactly that. It holds
-    // admission capacity that is never given back — an AVAudioFile call cannot
+    // admission capacity that is never given back — an AudioFileHandle call cannot
     // be cancelled — so with the player stopped and nothing loading, a nonzero
     // count is not work in flight but work that will never finish.
     //
@@ -294,7 +294,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
             [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];
     if (strandedOpens > 0 && player.isStopped && !isLoading) {
         VibeDebugViolation(v, @"cloud.handle_open_stranded",
-                @"%llu AVAudioFile open(s) still outstanding with the player "
+                @"%llu AudioFileHandle open(s) still outstanding with the player "
                 @"stopped — that much admission capacity is gone for good",
                 strandedOpens);
     }
