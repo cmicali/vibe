@@ -351,4 +351,19 @@
     XCTAssertFalse(VibeSettingsAreAtDefaults(@{@"color": @"#FF8800"}, registered, nullable));
 }
 
+// The Advanced pane's Audio group, hidden in a Release build, is revealed by
+// seven quick clicks on the Version row: a click counts only within the gap of
+// the one before it, and a slower click starts the count over.
+- (void)testTheAudioGroupRevealCountsQuickSuccessiveClicksOnly {
+    XCTAssertEqual(kVibeAudioPathRevealClicks, 7u);
+    NSUInteger count = VibeAudioPathRevealClickCount(0, 1e9); // the first click, however long after launch
+    XCTAssertEqual(count, 1u);
+    for (int i = 0; i < 5; i++) {
+        count = VibeAudioPathRevealClickCount(count, 0.3);
+    }
+    XCTAssertEqual(count, 6u);
+    XCTAssertEqual(VibeAudioPathRevealClickCount(count, kVibeAudioPathRevealGapSeconds), 7u);
+    XCTAssertEqual(VibeAudioPathRevealClickCount(count, kVibeAudioPathRevealGapSeconds + 0.01), 1u);
+}
+
 @end

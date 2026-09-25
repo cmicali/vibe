@@ -15,6 +15,7 @@
 #import "MainPlayerController+Window.h"
 #import "NSBundle+BuildInfo.h"
 #import "OutputDevicesMenuController.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -37,14 +38,23 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSUInteger _usageRequestGeneration;
     // The Audio group: one readout per stage of the render chain, keyed by
     // the stage name the player reports, refreshed once a second while the
-    // pane is on screen. The readouts are single-line, so a refresh costs
-    // the label's own layout and never a pane solve (Mac/Settings/CLAUDE.md).
+    // pane is on screen and the group is shown. The readouts are single-line,
+    // so a refresh costs the label's own layout and never a pane solve
+    // (Mac/Settings/CLAUDE.md).
     NSDictionary<NSString *, NSTextField *> *_audioPathValues;
     dispatch_source_t _audioPathTimer;
     // The snapshot is a player-queue round trip taken off main; only the
     // newest request may write the readouts, and one is in flight at a time.
     NSUInteger _audioPathGeneration;
     BOOL _audioPathInFlight;
+    // The group is a debug readout: a Debug build shows it always, a Release
+    // build hides it until the Version row is clicked kVibeAudioPathRevealClicks
+    // times in quick succession (SettingsRules.h), for the session. Hidden, it
+    // takes no snapshot and runs no timer.
+    SettingsSectionView *_audioSection;
+    BOOL _audioPathShown;
+    NSUInteger _versionClicks;
+    NSTimeInterval _lastVersionClick;
 }
 
 - (void)loadView {
@@ -85,11 +95,21 @@ static const CGFloat kAdvancedPopUpWidth = 200;
         [audioRows addObject:[SettingsRowView rowWithTitle:stage[1] control:value]];
     }
     _audioPathValues = audioValues;
+#if DEBUG
+    _audioPathShown = YES;
+#else
+    _audioPathShown = NO;
+#endif
+    _audioSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_PATH_SECTION rows:audioRows];
+    _audioSection.hidden = !_audioPathShown;
+    SettingsRowView *versionRow = [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
+                                                        control:[self valueLabelWithString:NSBundle.mainBundle.vibeVersionString]];
+    [versionRow addGestureRecognizer:[[NSClickGestureRecognizer alloc] initWithTarget:self
+                                                                              action:@selector(versionRowClicked:)]];
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
-                                  control:[self valueLabelWithString:NSBundle.mainBundle.vibeVersionString]],
+            versionRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_GIT_LABEL
                                   control:[self valueLabelWithString:NSBundle.mainBundle.vibeGitString]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_LANGUAGE_LABEL
@@ -111,7 +131,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
                                  caption:STR_SETTINGS_FACTORY_RESET_CAPTION control:_factoryResetButton],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_PATH_SECTION rows:audioRows],
+        _audioSection,
     ]];
 }
 
@@ -145,8 +165,24 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     [self stopAudioPathTimer];
 }
 
+// Seven quick clicks on the Version row reveal the group in a Release build,
+// the count SettingsRules.h's; a Debug build shows it from the start.
+- (void)versionRowClicked:(NSClickGestureRecognizer *)recognizer {
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    _versionClicks = VibeAudioPathRevealClickCount(_versionClicks, now - _lastVersionClick);
+    _lastVersionClick = now;
+    if (_audioPathShown || _versionClicks < kVibeAudioPathRevealClicks) {
+        return;
+    }
+    _audioPathShown = YES;
+    _audioSection.hidden = NO;
+    [self refreshAudioPath];
+    [self startAudioPathTimer];
+    [self paneContentDidChange];
+}
+
 - (void)startAudioPathTimer {
-    if (_audioPathTimer) {
+    if (_audioPathTimer || !_audioPathShown) {
         return;
     }
     _audioPathTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
@@ -315,7 +351,7 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
 // dispatch_sync here beachballed the app for the length of the teardown.
 - (void)refreshAudioPath {
     AudioPlayer *player = self.playerController.audioPlayer;
-    if (!player || !self.view.window.isVisible || _audioPathInFlight) {
+    if (!player || !_audioPathShown || !self.view.window.isVisible || _audioPathInFlight) {
         return;
     }
     NSUInteger generation = ++_audioPathGeneration;
