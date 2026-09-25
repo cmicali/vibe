@@ -126,7 +126,7 @@ def main():
         p = broken / f"zero-length{suffix}"
         p.write_bytes(b"")
         made.append(p)
-    # An empty AVAudioFile open is the documented fd-strand hazard; 300 of them
+    # An empty file was the documented fd-strand hazard of the URL-based open; 300 of them
     # meet a 256 soft limit, so the corpus carries enough to reach it under a
     # run that keeps retrying.
     for i in range(24):

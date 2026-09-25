@@ -28,9 +28,9 @@ H policy numbers · I platform differences · J open items · K non-goals.
   no-op for a local file). At most **one materialization operation exists per
   standardized path** at any time; every interested party joins it rather than starting
   a second transfer. This is the single most load-bearing rule in the subsystem.
-- **A3. Open.** Producing a usable `AVAudioFile` handle for a purpose (playback,
+- **A3. Open.** Producing a usable `AudioFileHandle` for a purpose (playback,
   prefetch, gapless). Purposes hold **independent handles** for the same path —
-  `AVAudioFile` has one stateful read position, so handles are never shared.
+  a handle has one stateful read position, so handles are never shared.
 - **A4. Roles.** Work competing for transfers is one of: playback, prefetch, metadata
   for the current track ("priority"), metadata for the playlist sweep ("scan"),
   artwork extraction. Playback and prefetch are *foreground*; the rest are

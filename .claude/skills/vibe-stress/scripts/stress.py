@@ -1320,7 +1320,7 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 # counter carried it.
 #
 # handleOpensInFlight is the stranded-open signal, and it is a growth metric in
-# the strictest sense: an AVAudioFile call that never returns cannot be
+# the strictest sense: a file open that never returns cannot be
 # cancelled, so the count only ever goes up. At rest it must be zero, and a
 # single stuck open is a permanent loss of admission capacity that no other
 # counter here carries — the wedged-open starvation bug (file-loading spec J8)
@@ -1348,9 +1348,10 @@ GROWTH_LIMITS = {
     # than the descriptor TABLE, which only ever grew (see
     # VibeOpenFileDescriptorCount). True counts sit in single digits at rest and
     # a few dozen mid-burst, so this is now a real detector rather than a number
-    # that could not fire — and an fd leak IS a documented hazard here: a failed
-    # AVAudioFile open against an empty file strands its descriptor, and 300 of
-    # those meet a 256 soft limit.
+    # that could not fire — and an fd leak WAS a documented hazard here: the old
+    # URL-based open against an empty file stranded its descriptor, and 300 of
+    # those meet a 256 soft limit. The owned open closes its own; this keeps
+    # watching for the next one.
     ("process", "fileDescriptors"): (64, "open file descriptors"),
     ("process", "threads"): (48, "threads"),
     ("process", "machPorts"): (2000, "mach ports"),
