@@ -60,6 +60,9 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (nonatomic, readonly) uint64_t renderCycles;
 @property (nonatomic, readonly) double renderMeanMicroseconds;
 @property (nonatomic, readonly) double renderMaxMicroseconds;
+// Zeroes the four, so a phase reads on its own instead of as a delta. Any
+// thread; a cycle in flight lands in the new count.
+- (void)clearCounters;
 
 // Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice.
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID;

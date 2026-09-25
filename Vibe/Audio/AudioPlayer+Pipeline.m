@@ -811,6 +811,10 @@ VIBE_REALTIME_END
     return atomic_load_explicit(&_masterBus->refusedRenders, memory_order_relaxed);
 }
 
+- (void)clearRenderRefusalsOnQueue {
+    atomic_store_explicit(&_masterBus->refusedRenders, 0, memory_order_relaxed);
+}
+
 - (uint64_t)varispeedHistoryWritesOnQueue {
     return atomic_load_explicit(&_masterBus->varispeedHistoryWrites, memory_order_relaxed);
 }

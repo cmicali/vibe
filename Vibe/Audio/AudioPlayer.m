@@ -1434,6 +1434,13 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return meter;
 }
 
+- (void)debugClearRenderCounters {
+    [self runSyncOnQueue:^{
+        [self clearCarrierCountersOnQueue];
+        [self clearRenderRefusalsOnQueue];
+    }];
+}
+
 - (NSDictionary<NSString *, NSNumber *> *)debugRenderCounts {
     // Reading these off the queue would race every voice start and retire,
     // which is exactly the code these numbers are meant to audit.

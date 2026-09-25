@@ -37,4 +37,8 @@ BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels
 OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
                               UInt32 bus, UInt32 frameCount, AudioBufferList * _Nullable data);
 
+// Zeroes the dropout and callback-cost counters. Any thread; a cycle in
+// flight lands in the new count, which a measurement tolerates.
+void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state);
+
 NS_ASSUME_NONNULL_END

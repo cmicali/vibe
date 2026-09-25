@@ -104,6 +104,7 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // Renders the pipeline turned away because another was inside; cumulative,
 // zero through every soak.
 - (uint64_t)renderRefusalsOnQueue;
+- (void)clearRenderRefusalsOnQueue;
 
 // Hosted units alive: the varispeed and the FX chain's.
 - (NSUInteger)hostedUnitCountOnQueue;

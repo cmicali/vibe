@@ -66,6 +66,7 @@
 - (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
     return @{@"dropouts": @0, @"renderCycles": @0, @"renderMeanMicros": @0, @"renderMaxMicros": @0};
 }
+- (void)clearCarrierCountersOnQueue {}
 
 - (BOOL)followOutputRouteOnQueue {
     double rate = _engine ? [_engine.outputNode outputFormatForBus:0].sampleRate : 0;

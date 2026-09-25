@@ -112,6 +112,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
              @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
 }
+- (void)clearCarrierCountersOnQueue { [_outputUnit clearCounters]; }
 
 @end
 

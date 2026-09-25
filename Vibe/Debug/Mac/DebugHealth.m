@@ -277,7 +277,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
 
     // Blocks on the player's serial queue, so a wedged queue times the command
     // out rather than letting it answer from stale state.
-    NSDictionary *engine = [player debugRenderCounts];
+    NSDictionary *counts = [player debugRenderCounts];
 
     return VibeJSONString(@{
         @"ok": @YES,
@@ -297,25 +297,25 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"gaplessArmed": @(player.isGaplessArmed),
             // Hosted units, the varispeed and the FX chain's: created once
             // and kept, so a count that moves is a rebuild that leaked.
-            @"hostedUnits": engine[@"hostedUnits"],
+            @"hostedUnits": counts[@"hostedUnits"],
             // The bus's drain timer: on only while the output runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.
-            @"drainPolling": engine[@"pollActive"],
+            @"drainPolling": counts[@"pollActive"],
             // IO cycles the hosted output unit wrote as silence because the
             // pipeline failed to render; cumulative, and a soak holds it at 0.
-            @"outputDropouts": engine[@"outputDropouts"],
+            @"outputDropouts": counts[@"outputDropouts"],
             // Renders the pipeline turned away because a stuck one was still
             // inside when the next carrier's callback came; cumulative, 0.
-            @"renderRefusals": engine[@"renderRefusals"],
+            @"renderRefusals": counts[@"renderRefusals"],
             // The output unit's callback cost over the cycles it rendered:
             // cumulative, so diff across a run, and mean against max.
-            @"renderCycles": engine[@"renderCycles"],
-            @"renderMeanMicros": engine[@"renderMeanMicros"],
-            @"renderMaxMicros": engine[@"renderMaxMicros"],
+            @"renderCycles": counts[@"renderCycles"],
+            @"renderMeanMicros": counts[@"renderMeanMicros"],
+            @"renderMaxMicros": counts[@"renderMaxMicros"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },
-        @"pending": VibePendingCounts(controller, engine),
+        @"pending": VibePendingCounts(controller, counts),
         // Diagnosis, not scoring: the lane gauges and the cumulative outcome
         // counters that say whether work is still being *attempted*. The one
         // number here that belongs at zero at rest is already in `pending`.

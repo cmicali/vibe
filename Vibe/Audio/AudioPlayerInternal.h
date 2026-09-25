@@ -56,6 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)releaseIdleCarrierOnQueue;
 - (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
 - (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
+- (void)clearCarrierCountersOnQueue;
 // Report-only device queries; never polled by the stall watcher.
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
 

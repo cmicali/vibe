@@ -1090,6 +1090,38 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
 }
 
+// clear_render_counters' seam: the cumulative counters restart from zero and
+// keep counting, and nothing else in the state moves.
+- (void)testOutputUnitCountersClearAndRestart {
+    VibeTestEngine engine = { .maxFrames = 8192 };
+    VibeOutputUnitState state = {0};
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
+    atomic_store(&state.gate, 1);
+    for (UInt64 cycle = 1; cycle <= 3; cycle++) {
+        AudioBufferList *data = VibeTestIOBuffers(2, 256, 0.5f);
+        AudioUnitRenderActionFlags flags = 0;
+        XCTAssertEqual(VibeTestCycle(&state, data, 256, &flags, cycle), noErr);
+        VibeTestFreeIOBuffers(data);
+    }
+    XCTAssertEqual(atomic_load(&state.cycles), 3ull);
+    XCTAssertGreaterThan(atomic_load(&state.renderNanos), 0ull);
+    XCTAssertGreaterThan(atomic_load(&state.renderMaxNanos), 0ull);
+    atomic_store(&state.dropouts, 7);
+    VibeOutputUnitStateClearCounters(&state);
+    XCTAssertEqual(atomic_load(&state.cycles), 0ull);
+    XCTAssertEqual(atomic_load(&state.renderNanos), 0ull);
+    XCTAssertEqual(atomic_load(&state.renderMaxNanos), 0ull);
+    XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
+    XCTAssertEqual(atomic_load(&state.gate), 1);
+    XCTAssertEqual(state.channels, 2u);
+    AudioBufferList *data = VibeTestIOBuffers(2, 256, 0.5f);
+    AudioUnitRenderActionFlags flags = 0;
+    XCTAssertEqual(VibeTestCycle(&state, data, 256, &flags, 4), noErr);
+    VibeTestFreeIOBuffers(data);
+    XCTAssertEqual(atomic_load(&state.cycles), 1ull);
+    XCTAssertEqual(engine.calls, 4u);
+}
+
 - (void)testOutputUnitCallbackHandsTheProcEveryBuffer {
     // A four-output interface pulling the stereo pipeline: the proc sees all
     // four buffers, writes the first two and leaves the rest silent.

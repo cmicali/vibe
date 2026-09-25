@@ -165,6 +165,13 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugHealthJSON(controller);
             }),
+            // The render counters are cumulative; this zeroes them so a
+            // measurement phase is read on its own rather than as a delta
+            // against the previous sample. Same queue reach as dump_health.
+            VibeDebugCmd(@"clear_render_counters", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                [controller.audioPlayer debugClearRenderCounters];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
             // Async: it closes the file and then polls for the pending
             // counters to unwind, so the response arrives from the poll rather
             // than from here. Sample dump_health right after it for a reading

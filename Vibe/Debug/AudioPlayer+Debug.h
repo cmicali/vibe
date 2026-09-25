@@ -77,6 +77,11 @@ NS_ASSUME_NONNULL_BEGIN
 // wedged.
 - (NSDictionary<NSString *, NSNumber *> *)debugRenderCounts;
 
+// Zeroes the cumulative ones — the output unit's cycles, mean and max cost
+// and dropouts, and the pipeline's render refusals — on the queue, so a
+// measurement phase reads on its own instead of as a delta.
+- (void)debugClearRenderCounters;
+
 // The installed meter, for the render suite's signal-probe reads; nil while
 // no indicator or probe wants levels.
 - (nullable AudioLevelMeter *)debugLevelMeter;

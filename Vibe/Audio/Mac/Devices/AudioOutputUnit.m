@@ -85,6 +85,13 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
     return status;
 }
 
+void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
+    atomic_store_explicit(&state->dropouts, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->cycles, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->renderNanos, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->renderMaxNanos, 0, memory_order_relaxed);
+}
+
 #pragma mark - The unit
 
 @implementation AudioOutputUnit {
@@ -145,6 +152,10 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
 
 - (double)renderMaxMicroseconds {
     return atomic_load_explicit(&_state->renderMaxNanos, memory_order_relaxed) / 1000.0;
+}
+
+- (void)clearCounters {
+    VibeOutputUnitStateClearCounters(_state);
 }
 
 static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
