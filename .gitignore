@@ -67,7 +67,7 @@ __pycache__/
 # .release-env, above — but it is machine state either way.
 /.wrangler/
 
-
-
-
+# Claude
 .claude/worktrees/
+
+/debug/
