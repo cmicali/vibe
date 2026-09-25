@@ -2440,6 +2440,17 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested);
 }
 
+// A lossless codec's depth is the one it declares, not the container's 0.
+- (void)testAudioPathReportsALosslessCodecsDeclaredDepth {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"lossless.flac"] paused:NO position:0];
+    [self render:4800];
+    NSDictionary *source = _player.audioPathSnapshot[0];
+    XCTAssertEqualObjects(source[@"codec"], @"FLAC");
+    XCTAssertEqual([source[@"bitsPerChannel"] intValue], 24);
+    XCTAssertTrue([source[@"lossless"] boolValue]);
+}
+
 // The path, stage by stage, as the Settings window and dump_audio_path read it.
 - (void)testAudioPathReportsEveryStage {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
@@ -2471,6 +2482,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertTrue([fx[@"connected"] boolValue]);
     XCTAssertTrue([fx[@"inRender"] boolValue]);
     XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);
+    XCTAssertNotNil(fx[@"latencySeconds"], @"the dry path's latency");
+    XCTAssertGreaterThanOrEqual([fx[@"latencySeconds"] doubleValue], 0);
     XCTAssertFalse([meter[@"present"] boolValue]);
     XCTAssertEqualObjects(output[@"carrier"], @"pump");
     XCTAssertEqual([output[@"sampleRate"] doubleValue], 48000.0);

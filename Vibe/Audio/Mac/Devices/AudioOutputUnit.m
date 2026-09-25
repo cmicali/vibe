@@ -190,6 +190,17 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
     return noErr;
 }
 
+- (NSTimeInterval)bufferLatency {
+    if (_deviceID == kAudioObjectUnknown) {
+        return 0;
+    }
+    AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    Float64 rate = 0;
+    UInt32 size = sizeof(rate);
+    AudioObjectGetPropertyData(_deviceID, &rateAddress, 0, NULL, &size, &rate);
+    return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
+}
+
 static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
     return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
                            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ (OSStatus %d)", what, (int)status]}];

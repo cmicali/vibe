@@ -47,6 +47,9 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (nonatomic, readonly) BOOL running;
 // Device plus stream latency and the safety offset, read at bind, in seconds.
 @property (nonatomic, readonly) NSTimeInterval presentationLatency;
+// The device's IO buffer at its nominal rate, in seconds — the cycle the
+// unit renders ahead of the device — read live, since the HAL may resize it.
+@property (nonatomic, readonly) NSTimeInterval bufferLatency;
 // For the report's channel-map read only.
 @property (nonatomic, readonly) AudioUnit audioUnit;
 // IO cycles the proc could not render, so silence was written. Cumulative.

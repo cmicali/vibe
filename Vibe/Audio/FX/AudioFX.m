@@ -633,6 +633,10 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
         @"hostedUnits": @(self.hostedUnitCount),
         @"sampleRate": @(chain ? chain->sampleRate : 0),
         @"maximumFrames": @(chain ? chain->maxFrames : 0),
+        // The dry path's: the low kill's EQ is the one unit the signal passes
+        // through rather than beside, so its declared latency is the segment's.
+        @"latencySeconds": @(chain && chain->units[VibeFXUnitEQ].unit
+                             ? VibeAudioUnitSeconds(chain->units[VibeFXUnitEQ].unit, kAudioUnitProperty_Latency) : 0),
         @"unitRenders": @(self.unitRenders),
         @"lowKillBoost": @(boost),
         @"lowKillFrequency": @(_lowKillFrequency),

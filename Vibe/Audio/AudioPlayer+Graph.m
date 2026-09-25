@@ -10,6 +10,7 @@
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
+#import "OutputFormatRules.h"
 #endif
 #if DEBUG
 #import "VibeManualRenderPump.h"
@@ -1336,7 +1337,13 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
                                 || asbd->mFormatID == kAudioFormatAppleLossless);
         source[@"sampleRate"] = @(file.fileFormat.sampleRate);
         source[@"channels"] = @(file.fileFormat.channelCount);
-        source[@"bitsPerChannel"] = @(asbd->mBitsPerChannel); // 0 for a lossy codec
+        // The codec's declared depth: PCM's own, a lossless codec's
+        // source-depth flags (OutputFormatRules.h), 0 for a lossy codec.
+#if TARGET_OS_OSX
+        source[@"bitsPerChannel"] = @(VibeSourceBitDepth(*asbd));
+#else
+        source[@"bitsPerChannel"] = @(asbd->mBitsPerChannel);
+#endif
         source[@"float"] = @((asbd->mFormatFlags & kAudioFormatFlagIsFloat) != 0);
         source[@"frames"] = @(file.length);
         source[@"decodedSampleFormat"] = VibeSampleFormatName(file.processingFormat);
@@ -1421,11 +1428,13 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
             output[@"renderMeanMicros"] = @(_outputUnit.renderMeanMicroseconds);
             output[@"renderMaxMicros"] = @(_outputUnit.renderMaxMicroseconds);
             output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
+            output[@"bufferLatency"] = @(_outputUnit.bufferLatency); // the IO cycle the unit fills ahead of the device
         }
 #else
         output[@"carrier"] = @"engine";
         output[@"engineRunning"] = @(_engine.isRunning);
         output[@"outputNodeSampleRate"] = @([_engine.outputNode outputFormatForBus:0].sampleRate);
+        output[@"presentationLatency"] = @(_engine.outputNode.presentationLatency);
 #endif
     }
 
@@ -1448,6 +1457,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
             device[@"physicalFloat"] = @((physical.mFormatFlags & kAudioFormatFlagIsFloat) != 0);
             device[@"physicalChannels"] = @(physical.mChannelsPerFrame);
         }
+        device[@"latencySeconds"] = @(_outputUnit.presentationLatency); // the device's own: its latency, safety offset and stream latency
         device[@"preparedForBitPerfect"] = @(_preparedDeviceID == deviceID);
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
         device[@"exclusive"] = @(_hoggedDeviceID == deviceID);
