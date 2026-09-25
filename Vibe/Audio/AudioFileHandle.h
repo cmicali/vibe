@@ -12,9 +12,9 @@
 //  codec, closes the parser and closes the descriptor, in that order. A FAILED
 //  open leaks nothing, which is why no preflight precedes it.
 //
-//  Not thread-safe: the facts are immutable after init and may be read from
-//  any thread, but the cursor and the reads belong to one reader at a time
-//  (the bus's decoder after a voice starts, AudioVoiceBus.h).
+//  Reading facts are immutable after init; writing advances length. Cursor,
+//  read, write and close operations belong to one consumer at a time (the
+//  bus's decoder after a voice starts, AudioVoiceBus.h).
 //
 
 #import <AVFoundation/AVFoundation.h>
@@ -52,9 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) AVAudioFormat *processingFormat;
 // Logical decoded frames, encoder priming and padding excluded.
 @property (nonatomic, readonly) AVAudioFramePosition length;
-// The read cursor, in file frames. Setting it seeks; a position past the end
-// makes the next read empty.
-@property (nonatomic) AVAudioFramePosition framePosition;
+// Logical file frames. A refused seek leaves the cursor at the decoder's
+// reported position; callers must stop that operation rather than assume it moved.
+@property (nonatomic, readonly) AVAudioFramePosition framePosition;
+- (BOOL)seekToFrame:(AVAudioFramePosition)frame error:(NSError * _Nullable * _Nullable)error;
 
 // Reads up to `frameCount` frames (at most the buffer's capacity) at the
 // cursor into `buffer`, whose format must be processingFormat, and sets its

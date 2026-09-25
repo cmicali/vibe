@@ -56,3 +56,14 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     }
     return url;
 }
+
+// Append complete channel frames without sharing any production DSP/oracle logic.
+static inline void VibeAppendPCM(NSMutableData *capture, AVAudioPCMBuffer *buffer) {
+    NSUInteger channels = buffer.format.channelCount;
+    NSUInteger start = capture.length;
+    [capture increaseLengthBy:buffer.frameLength * channels * sizeof(float)];
+    float *out = (float *)((uint8_t *)capture.mutableBytes + start);
+    for (NSUInteger frame = 0; frame < buffer.frameLength; frame++)
+        for (NSUInteger channel = 0; channel < channels; channel++)
+            out[frame * channels + channel] = buffer.floatChannelData[channel][frame];
+}

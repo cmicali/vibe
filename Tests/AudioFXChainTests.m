@@ -12,6 +12,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioFX.h"
+#import "AudioFixtures.h"
 #import "AudioFX+Debug.h"
 #import "VibeManualRenderPump.h"
 
@@ -126,13 +127,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
         [self onQueue:^{ buffer = [self->_pump renderFrames:count error:&error]; }];
         XCTAssertNotNil(buffer, @"%@", error);
         if (capture && buffer) {
-            NSUInteger start = capture.length;
-            [capture increaseLengthBy:count * 2 * sizeof(float)];
-            float *out = (float *)((uint8_t *)capture.mutableBytes + start);
-            for (UInt32 f = 0; f < count; f++) {
-                out[f * 2] = buffer.floatChannelData[0][f];
-                out[f * 2 + 1] = buffer.floatChannelData[1][f];
-            }
+            VibeAppendPCM(capture, buffer);
         }
         frames -= count;
     }

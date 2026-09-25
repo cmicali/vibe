@@ -188,7 +188,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     }
 
     checked++;
-    if ((activeLinks > 0 || tapInstalled) && !player.outputAudioActive) {
+    // A beta capture may finish after transport pauses; pixels never keep polling.
+    if ((activeLinks > 0 || (tapInstalled && !signalProbe)) && !player.outputAudioActive) {
         VibeDebugViolation(v, @"equalizer.requires_audio_output",
                 @"links=%lu and installed=%d while output is inactive",
                 (unsigned long)activeLinks, tapInstalled);

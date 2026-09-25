@@ -4,9 +4,8 @@
 //
 //  The output-device half of the player, macOS only: which device the hosted
 //  output unit is bound to and at what rate, the bit-perfect and exclusive
-//  modes, no-device parking and the report. Policy over AudioOutputUnit,
-//  which AudioPlayer+Graph owns. (Devices) is the public API a shell imports beside
-//  AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
+//  modes, no-device parking and the report. It owns the AudioOutputUnit carrier.
+//  (Devices) is the public API a shell imports beside AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
 //  tests reach. AudioPlayer+Devices.m implements both. It lives under Mac/ so
 //  only the macOS target compiles it: a shared caller would compile on iOS
 //  and fail at link.
@@ -47,7 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 // queue; explicit flags supply submission-time FX cleanup and the fallback
 // without a provider. Bit-perfect outranks the saved FX choice. Exclusive
 // access applies only in bit-perfect mode; the build flag can remove it.
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX;
+// allowAnyDevice bypasses only transport eligibility for Advanced testing.
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput
+                  enableFX:(BOOL)enableFX allowAnyDevice:(BOOL)allowAnyDevice;
 
 // Permanently stops transport, restores any changed device format and releases the hog,
 // synchronously on the player queue, so it waits on the device. The app
@@ -60,6 +61,33 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Only the entry points used outside AudioPlayer+Devices.m.
 @interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
+
+// macOS follows the bound device's rate listener; this shared start hook is a no-op.
+- (BOOL)followOutputRouteOnQueue;
+// Carrier operations and observations, confined to the player queue.
+- (void)createCarrierOnQueue;
+- (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
+- (void)stopCarrierOnQueue;
+- (BOOL)carrierRunningOnQueue;
+- (void)releaseIdleCarrierOnQueue;
+- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
+// Report-only device queries; never polled by the stall watcher.
+- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
+// The carrier, made now if it could not be made at init. A unit brings its
+// device's rate, so a source segment built at the fallback format follows
+// it here — the current voice restarted at its intent — before anything is
+// built or started at the old one. YES with a unit, or under the pump,
+// which needs none; NO with none, which the next start reports. Runs before
+// a settlement builds its segment and before a resume starts.
+- (BOOL)ensureOutputUnitOnQueue;
+// Brings the unit and the pipeline to `rate`: the output stopped, the unit
+// reconfigured, the FX chain re-hosted, the meter replaced. The bus is the
+// caller's to reconcile through ensureSourceSegmentOnQueueRebuilt:, which
+// rebuilds one at the old rate and reports it, so the caller re-voices. A
+// no-op at the current rate. NO without a unit, or when the unit refuses.
+- (BOOL)applyOutputRateOnQueue:(double)rate;
+
 
 // The newest published report — a locked snapshot, no queue hop, like
 // outputAudioActive. Recomputed from its owners at every settlement, hog

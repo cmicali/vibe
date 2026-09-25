@@ -149,7 +149,7 @@
         if (updatingOutputModes) {
             [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput
                                  exclusiveOutput:settings.exclusiveOutput
-                                        enableFX:settings.audioFXEnabled];
+                                        enableFX:settings.audioFXEnabled allowAnyDevice:settings.allowBitPerfectOnAnyDevice];
         }
         [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];

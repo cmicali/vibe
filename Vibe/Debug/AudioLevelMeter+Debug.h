@@ -1,5 +1,5 @@
 //
-//  AudioLevelTap+Debug.h
+//  AudioLevelMeter+Debug.h
 //  Vibe
 //
 //  The render suite's seam for a meter callback stalled between its entry
@@ -10,9 +10,9 @@
 
 #if DEBUG
 
-#import "AudioLevelTap.h"
+#import "AudioLevelMeter.h"
 
-@interface AudioLevelTap (Debug)
+@interface AudioLevelMeter (Debug)
 
 // While set, a callback blocks inside VibeLevelMeterRender after it has read
 // the session it will publish into; debugRendersHeld counts the callbacks

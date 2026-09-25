@@ -240,8 +240,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // nothing a render is inside may be freed. Locals, not self: the open
     // tokens outlive the player otherwise, pulling a whole file down for a
     // play that can never land.
-    AudioLevelTap *levelTap = _levelTap;
-    _levelTap = nil;
+    AudioLevelMeter *levelMeter = _levelMeter;
+    _levelMeter = nil;
     AudioVoiceBus *voiceBus = _voiceBus;
     AudioFX *fx = _fx;
     NSArray<dispatch_block_t> *renderLeaveWork = [_renderLeaveWork copy];
@@ -264,7 +264,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [playOpenToken cancel];
         [prefetchOpenToken cancel];
         [pendingRequest invalidate];
-        [levelTap remove];
+        [levelMeter remove];
         if (drainTimer) dispatch_source_cancel(drainTimer);
 #if TARGET_OS_OSX
         [outputUnit stop]; // no cycle in flight before the pipeline it pulls is freed
@@ -278,7 +278,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
             static dispatch_once_t once;
             dispatch_once(&once, ^{ leaked = [NSMutableArray array]; });
             @synchronized (leaked) {
-                [leaked addObject:@[renderLeaveWork, fx ?: NSNull.null, voiceBus ?: NSNull.null, levelTap ?: NSNull.null]];
+                [leaked addObject:@[renderLeaveWork, fx ?: NSNull.null, voiceBus ?: NSNull.null, levelMeter ?: NSNull.null]];
             }
             return;
         }
@@ -831,7 +831,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self armSignalProbeOnQueue:@"seek"];
     }
     [self maybeArmSuccessorOnQueue];
-    [self notifySeekFinishedOnQueue:track reason:@"completed" submittedPlay:owningSubmittedPlayIdentifier];
+    [self notifySeekFinishedOnQueue:track reason:@"intent updated" submittedPlay:owningSubmittedPlayIdentifier];
 }
 
 // Every seek settles didFinishSeeking:, including a dropped one: the header
@@ -914,6 +914,56 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // notifies the delegate, whose handler drives auto-advance or the
 // end-of-playlist stop. The engine stop is deferred so that the auto-advance
 // play, which arrives within milliseconds, reuses the running engine.
+- (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice {
+    BOOL current = voice == self->_voice;
+    [self noteBusEvent:event voice:voice current:current];
+    switch (event) {
+        case VibeVoiceEventLive:
+            break;
+        case VibeVoiceEventBoundary:
+            if (current) {
+                [self promoteSuccessorOnQueue];
+            }
+            break;
+        case VibeVoiceEventEnded:
+            if (current) {
+                [self currentVoiceEndedOnQueue:voice];
+            }
+            else if ([self->_retiringVoices containsObject:@(voice)]) {
+                [self->_retiringVoices removeObject:@(voice)];
+                if (self->_retiringVoices.count == 0) {
+                    [self noteRetiringAudioSilentOnQueue];
+                }
+                [self refreshOutputAudioActiveOnQueue];
+            }
+            break;
+    }
+}
+
+- (void)currentVoiceEndedOnQueue:(VibeVoiceID)voice {
+    VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:voice];
+    if (snapshot.ended == VibeVoiceEndFailed) {
+        AudioFileHandle *failedFile = nil;
+        NSError *failure = [_voiceBus errorOfVoice:voice failedFile:&failedFile];
+        NSURL *failedURL = failure.userInfo[NSURLErrorKey];
+        if (failedFile && failedFile != _file) {
+            // The predecessor finished; a successor that never became current
+            // cannot reset its submission or report an error against its row.
+            [self clearSuccessorOnQueue];
+            [self finishPlaybackOnQueue];
+            return;
+        }
+        AudioTrack *track = self.currentTrack;
+        uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
+        [self resetToStoppedStateOnQueue];
+        [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
+                [NSString stringWithFormat:@"Could not decode %@", track.url.lastPathComponent], failure, failedURL ?: track.url)
+               forSubmittedPlay:submittedPlay];
+        return;
+    }
+    [self finishPlaybackOnQueue];
+}
+
 - (void)finishPlaybackOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
@@ -960,8 +1010,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
-    _decodeFormat = [self decodeFormatOnQueueForFile:file];
-    VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame decodeFormat:_decodeFormat
+    VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame quantizeToInt16:[self quantizesToInt16OnQueueForFile:file]
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -1108,7 +1157,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     // read of the main-thread property from the block.
     dispatch_async(_queue, ^{
         self->_levelsWanted = levelsEnabled;
-        [self applyLevelTapOnQueue];
+        [self applyLevelMeterOnQueue];
     });
 }
 
@@ -1381,14 +1430,14 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (AVAudioFormat *)debugCurrentDecodeFormat {
     __block AVAudioFormat *format;
-    [self runSyncOnQueue:^{ format = self->_decodeFormat; }];
+    [self runSyncOnQueue:^{ format = [self currentVoiceConversionFormatOnQueue]; }];
     return format;
 }
 
-- (AudioLevelTap *)debugLevelTap {
-    __block AudioLevelTap *tap;
-    [self runSyncOnQueue:^{ tap = self->_levelTap; }];
-    return tap;
+- (AudioLevelMeter *)debugLevelMeter {
+    __block AudioLevelMeter *meter;
+    [self runSyncOnQueue:^{ meter = self->_levelMeter; }];
+    return meter;
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts {
@@ -1397,12 +1446,13 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
+        NSDictionary *carrier = [self carrierCountersOnQueue];
         counts = @{@"hostedUnits": @([self hostedUnitCountOnQueue]),
                    @"unitRenders": @(self.fx.unitRenders),
-                   @"outputDropouts": @([self diagnosticOutputDropouts]),
-                   @"renderCycles": @([self diagnosticRenderCycles]),
-                   @"renderMeanMicros": @([self diagnosticRenderMeanMicroseconds]),
-                   @"renderMaxMicros": @([self diagnosticRenderMaxMicroseconds]),
+                   @"outputDropouts": carrier[@"dropouts"],
+                   @"renderCycles": carrier[@"renderCycles"],
+                   @"renderMeanMicros": carrier[@"renderMeanMicros"],
+                   @"renderMaxMicros": carrier[@"renderMaxMicros"],
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"renderLeaveWork": @(self->_renderLeaveWork.count),
                    @"renderRefusals": @([self renderRefusalsOnQueue]),
@@ -1464,9 +1514,9 @@ static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalization
         if (self->_levelNormalizationMode == normalizationMode) {
             return;
         }
-        [self dropLevelTapOnQueue];
+        [self dropLevelMeterOnQueue];
         self->_levelNormalizationMode = normalizationMode;
-        [self applyLevelTapOnQueue];
+        [self applyLevelMeterOnQueue];
     }];
 }
 
@@ -1476,7 +1526,7 @@ static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalization
         NSMutableDictionary<NSString *, id> *snapshot = [[self->_levelPublisher debugState] mutableCopy];
         snapshot[@"requested"] = @(self->_levelsWanted);
         snapshot[@"signalProbe"] = @(self.signalProbeWanted); // beta builds' hold for a start's capture
-        snapshot[@"tapObject"] = @(self->_levelTap != nil);
+        snapshot[@"tapObject"] = @(self->_levelMeter != nil);
         snapshot[@"retiredOutputCount"] = @(self->_retiringVoices.count);
         snapshot[@"outputAudioActive"] = @(self.outputAudioActive);
         snapshot[@"normalizationMode"] = VibeAudioLevelNormalizationModeName(self->_levelNormalizationMode);

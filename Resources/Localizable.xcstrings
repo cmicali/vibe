@@ -22507,6 +22507,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.advanced.allow_bit_perfect_any_device": {
+      "comment": "Settings, Advanced pane: testing switch that permits enabling the bit-perfect output mode on every output transport, including Bluetooth. Use the same term for bit-perfect as the Audio Output pane.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешаване на битово точен изход на всяко устройство"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolit bitově přesný výstup na libovolném zařízení"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillad bitperfekt output på alle enheder"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitgenaue Ausgabe auf jedem Gerät erlauben"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Να επιτρέπεται έξοδος bit-perfect σε κάθε συσκευή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow bit-perfect on any device"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir bit-perfect en cualquier dispositivo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salli bittitarkka lähtö kaikilla laitteilla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser le bit-perfect sur tous les appareils"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopusti bitovno točan izlaz na svakom uređaju"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitpontos kimenet engedélyezése bármely eszközön"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izinkan bit-perfect di perangkat apa pun"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti bit-perfect su qualsiasi dispositivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのデバイスでビットパーフェクトを許可"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 기기에서 비트 퍼펙트 허용"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillat bitperfekt utgang på alle enheter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitperfecte uitvoer op elk apparaat toestaan"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zezwalaj na bit-perfect na dowolnym urządzeniu"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir bit-perfect em qualquer dispositivo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir bit-perfect em qualquer dispositivo"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite bit-perfect pe orice dispozitiv"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить побитово точный вывод на любом устройстве"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povoliť bitovo presný výstup na ľubovoľnom zariadení"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillåt bitperfekt utmatning på alla enheter"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อนุญาตบิตเพอร์เฟกต์บนทุกอุปกรณ์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her aygıtta bit düzeyinde kusursuz çıkışa izin ver"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволити побітово точне виведення на будь-якому пристрої"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cho phép bit-perfect trên mọi thiết bị"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许在任何设备上使用比特完美输出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許在任何裝置上使用位元完美輸出"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.advanced.audio_path.bit_perfect": {
       "comment": "Settings, Advanced pane, Audio group: the output device row's tag while bit-perfect output is active — a debug readout, so the abbreviation of 'bit-perfect' is kept as is.",
       "localizations": {

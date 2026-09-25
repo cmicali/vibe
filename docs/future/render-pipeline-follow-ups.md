@@ -1,17 +1,28 @@
-# Future: render-pipeline follow-ups
+# Audio pipeline: remaining work
 
-Written 2026-09-24, after Stage 3 of the CoreAudio pipeline (#67, stacked on #66). Planned, not implemented. One tidy-up the review of Stage 3 proposed and the stage declined, judged right but not worth landing before the pipeline has settled: it changes nothing the user hears, and it touches the render path a beta has yet to run for a whole cycle. Two more from the same review — the meter accumulating once, and vDSP in the FX chain — landed in #67's performance round, with the bus mixing its rings in spans, so they are gone from here.
+Validated 2026-09-25 against PR66 on `worktree-voice-bus`, including the consolidation and review fixes. The carrier split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup and explicit decoder-error handling are implemented. Their current contracts live in [Audio/CLAUDE.md](../../Vibe/Audio/CLAUDE.md), [Devices/CLAUDE.md](../../Vibe/Audio/Mac/Devices/CLAUDE.md) and [iOS/CLAUDE.md](../../Vibe/Audio/iOS/CLAUDE.md).
 
-**When.** After #66 and #67 have merged to `main` and one beta has played through the pipeline for a release cycle with no `Stall:` report and `outputDropouts` at zero in the debug reports that come back. A small PR of its own against `main`.
+## Investigate high-ratio resampler truncation
 
-## 1. The carrier verbs move onto the platform categories
+Clean playback of 11,025 source frames at 22.05 kHz into a 192 kHz bus ended at 95,085 output frames instead of 96,000. Investigate `AudioVoiceBus.produceChunkForSlot:final:` and the converter’s end-of-input/flush behavior before changing duration tolerances. Establish the complete expected output with an independent reference and check nearby rate ratios, ordinary EOF and gapless continuation.
 
-**Today.** `Vibe/Audio/AudioPlayer+Graph.m` keeps twelve `TARGET_OS_OSX` branches for what the carrier is — create it, start it, stop it, is it running, its latency, dropout and cost readers — while `AudioPlayerInternal.h` already states the design that avoids them: one category per platform on the shared private surface (`Mac/Devices/AudioPlayer+Devices`, `iOS/AudioPlayer+Recovery`).
+`testRefusedSuccessorSeekFlushesMoreThanOneChunk` compares a refused successor’s output against isolated predecessor playback. It proves the failure path adds no truncation; it does not prove the clean path’s duration is correct. The refused-seek fix is already implemented: a healthy shared converter flushes the predecessor’s tail through the existing chunked decode path, retaining error attribution to the unheard successor and suppressing its promotion. Do not replace this with one flush call: the measured tail exceeds one 4,096-frame chunk.
 
-**Change.** Declare `createCarrierOnQueue`, `startCarrierOnQueueWithError:`, `stopCarrierOnQueue`, `carrierRunningOnQueue` and one carrier-counters reader in the two category headers and implement them in their `.m` files. `startOutputOnQueue:` becomes one body with no `#if`: bump the generation, open the gate, start the carrier, close the gate on refusal, install the meter, refresh, drain timer. `applyOutputRateOnQueue:` goes to `Mac/Devices/` with the carrier, which needs `setMasterBusFormatOnQueue:` in `AudioPlayer+Graph.h` and `VibeMasterBusRender` exported with a `void *` first parameter, so the proc trampoline in Graph.m goes. The four `diagnosticRender*` accessors in `AudioPlayer+Diagnostics.m` collapse into that one reader. The debug pump's attachment stays in Graph.m: it is the same on both platforms.
+## Remaining acceptance evidence
 
-**Gate.** `make check-layout` (the platform-boundary rule), both Debug builds, both suites; the hardware transport pass and the iOS simulator loop from the `vibe-debug` skill, since the carrier's start and stop are the edges that move. About 40 lines out of Graph.m and 30 into the categories; the win is a shared file with no platform branch.
+The latest implementation checks passed: 1,478 unit tests, 87 rendered-audio tests, 48 bus tests and all 87 rendered-audio tests under ThreadSanitizer, both Debug platform builds, both Release analyses, and layout/vocabulary/string checks. These are the 2026-09-25 implementation results, not checks rerun by the documentation cleanup.
 
-## Not in this list
+Live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. They do not establish:
 
-The reviews also proposed exporting `VibeHostAudioUnit`'s dispose and latency readers further, a `Tests/*.h` for the shared PCM helpers the two audio test files re-spell, and a debug-only pin of the pump's max frames to the pipeline's slice size. Each is a handful of lines and was either done in Stage 3 or is not worth a PR of its own.
+- Physical iOS route changes, interruptions, media-services reset, or provider-backed file access.
+- Final-tree macOS unplug/rebind, exclusive ownership, integer-format DAC negotiation, or complete hardware loopback acceptance. Older engine-era captures are not acceptance of this renderer.
+- Extended soak/resource and performance comparisons, ASan/UBSan, or the owned-file migration’s all-configuration binary audit.
+
+Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md) and [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and simulator. Prior run artifacts, while retained locally, are under `/private/tmp/vibe-consolidation-*` and `/private/tmp/vibe-any-device-*`.
+
+## Separate proposals
+
+- [Source-preserving PCM output](source-format-output.md): wider precision and native sample storage remain unimplemented.
+- [Hardware stress follow-ups](end-of-graph-silent.md): the silent renderer and launch controls exist; the remaining work is measurement and harness coverage.
+
+Use existing owners and test files for these fixes. Preserve the regression coverage for held renders/reads, successor identity, complete PCM, slot reuse and the pump’s 16,384-frame requests into 4,096-frame render slices.

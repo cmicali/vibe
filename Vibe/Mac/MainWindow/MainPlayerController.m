@@ -150,7 +150,7 @@
     // asynchronously and the report follows it.
     [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
                          exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput
-                              enableFX:AppSettings.sharedInstance.audioFXEnabled];
+                              enableFX:AppSettings.sharedInstance.audioFXEnabled allowAnyDevice:AppSettings.sharedInstance.allowBitPerfectOnAnyDevice];
     self.devicesMenuController.audioPlayer = self.audioPlayer;
 
     self.metadataCache = [[AudioTrackMetadataCache alloc] init];

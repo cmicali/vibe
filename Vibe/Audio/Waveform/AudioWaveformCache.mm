@@ -8,7 +8,7 @@
 #import "PINCache.h"
 #import "PINCache+VibeAudioCache.h"
 #import "AudioTrack.h"
-#import "AVFAudioWaveformLoader.h"
+#import "AudioWaveformLoader.h"
 #import "AudioFileOpenRules.h"
 #import "AudioWorkScheduler.h"
 
@@ -184,7 +184,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         }
         return;
     }
-    AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:self];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
     loader.analysisProvider = self.analysisProvider;
     loader.trackPath = path;
     VibeWaveformLoadClaim *claim = [[VibeWaveformLoadClaim alloc] init];
@@ -546,7 +546,7 @@ awaitPersist:(BOOL)awaitPersist
     // path reports through the completion instead. The typed nil delegate
     // local dodges -Wnonnull.
     id<AudioWaveformLoaderDelegate> noDelegate = nil;
-    AudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:noDelegate];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:noDelegate];
     loader.analysisProvider = self.analysisProvider;
     // The key is computed off the loader queue; see loadWaveformForTrack:.
     [_lookupScheduler submitWork:^{

@@ -4,7 +4,7 @@
 //
 //  The playback engine's one public surface, shared by both shells. The
 //  player is a transport — play, pause, seek, stop — over its own voice bus
-//  (AudioVoiceBus.h) inside an AVAudioEngine graph (AudioPlayer+Graph.h). It
+//  (AudioVoiceBus.h) and render pipeline (AudioPlayer+Pipeline.h). It
 //  publishes state the moment a verb lands and reports every outcome to its
 //  delegate on the main thread; the audio follows within a declick. Each
 //  platform's own half is declared beside its implementation:

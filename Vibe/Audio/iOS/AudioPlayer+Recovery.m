@@ -10,6 +10,73 @@
 #import "AudioPlayerInternal.h"
 #import "PlaybackDeliveryRules.h"
 
+@implementation AudioPlayer (RecoveryInternal)
+
+- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
+    NSMutableDictionary *output = [NSMutableDictionary dictionary];
+    output[@"carrier"] = @"engine";
+    output[@"engineRunning"] = @(_engine.isRunning);
+    output[@"outputNodeSampleRate"] = @([_engine.outputNode outputFormatForBus:0].sampleRate);
+    output[@"presentationLatency"] = @(_engine.outputNode.presentationLatency);
+    return @[output];
+}
+
+- (void)attachSourceNodeOnQueueWithFormat:(AVAudioFormat *)format {
+    if (_sourceNode) {
+        [_engine detachNode:_sourceNode];
+    }
+    VibeMasterBus *master = _masterBus; // the block captures the pointer, never self
+    _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:format
+            renderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
+        *isSilence = NO;
+        return VibeMasterBusRender(master, timestamp, frameCount, outputData);
+    }];
+    [_engine attachNode:_sourceNode];
+    [_engine connect:_sourceNode to:_engine.outputNode format:format];
+}
+
+- (void)createCarrierOnQueue {
+    _engine = [[AVAudioEngine alloc] init];
+    double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2];
+    [self setMasterBusFormatOnQueue:format];
+    [self attachSourceNodeOnQueueWithFormat:format];
+}
+
+- (BOOL)startCarrierOnQueueWithError:(NSError **)error {
+    if (!_engine) {
+        if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
+        return NO;
+    }
+    __block NSError *startError = nil;
+    BOOL started = [self performDiagnosticPhase:@"output start" device:-1 operation:^BOOL{
+        return [self->_engine startAndReturnError:&startError];
+    }];
+    if (error) *error = startError;
+    return started;
+}
+- (void)stopCarrierOnQueue { [_engine stop]; }
+- (BOOL)carrierRunningOnQueue { return _engine.isRunning; }
+- (void)releaseIdleCarrierOnQueue {}
+- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
+    [self attachSourceNodeOnQueueWithFormat:format];
+    [self setMasterBusFormatOnQueue:format];
+    return YES;
+}
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+    return @{@"dropouts": @0, @"renderCycles": @0, @"renderMeanMicros": @0, @"renderMaxMicros": @0};
+}
+
+- (BOOL)followOutputRouteOnQueue {
+    double rate = _engine ? [_engine.outputNode outputFormatForBus:0].sampleRate : 0;
+    if (rate <= 0 || !_masterFormat || rate == _masterFormat.sampleRate) {
+        return YES;
+    }
+    return [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2]];
+}
+
+@end
+
 @implementation AudioPlayer (Recovery)
 
 // A route at the pipeline's rate is a restart: the voice's ring and gain
@@ -53,8 +120,8 @@
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
 // dropEngineBoundStateOnQueue's contract — and createOutputOnQueue
-// rebuilds exactly what init built: fresh FX nodes with the recorded intent
-// re-applied (or the bare mixer -> output wire), and the debug argv modes. The
+// rebuilds exactly what init built: one source node wired to the engine
+// output, or the shared debug pump. The
 // source segment rebuilds itself at the next settlement.
 - (void)beginMediaServicesResetWithCompletion:
         (VibeMediaServicesResetCompletion)completion {

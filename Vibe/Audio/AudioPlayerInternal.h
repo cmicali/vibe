@@ -22,7 +22,7 @@
 #import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenTimeoutMath.h"
-#import "AudioLevelTap.h"
+#import "AudioLevelMeter.h"
 #import "AudioVoiceBus.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFoundation/AVFoundation.h>
@@ -35,9 +35,11 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioOutputUnit.h"
 #import <AudioToolbox/AudioToolbox.h>
+#else
+#import "AudioPlayer+Recovery.h"
 #endif
 #import "AudioPlayer+Diagnostics.h"
-#import "AudioPlayer+Graph.h"
+#import "AudioPlayer+Pipeline.h"
 #import "AudioPlayer+Prefetch.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -100,7 +102,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // what outputAudioActive folds over.
     NSMutableArray<NSNumber *> *_retiringVoices;
     // The current voice's decode format, for the report and dump_state.
-    AVAudioFormat           *_decodeFormat;
     // Files a retired bus's decoder may still be inside — a rebuild leaves
     // that decoder to finish its read on its own — counted per retired bus;
     // the current bus withholds reads of them until the count reaches zero.
@@ -127,7 +128,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
     AudioFileHandle             *_successorFile;    // the park's instance the bus was handed
 
-    // ---- The render pipeline (AudioPlayer+Graph.m).
+    // ---- The render pipeline (AudioPlayer+Pipeline.m).
     VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated in init, freed at dealloc
     AVAudioFormat           *_masterFormat;     // the pipeline's format: stereo at the output's rate
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
@@ -136,7 +137,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
     // Teardowns of what a render was still inside when their wait ran out —
-    // a tap, a bus, a varispeed or FX hosting — run at the first later moment
+    // a meter, a bus, a varispeed or FX hosting — run at the first later moment
     // the render is seen outside (afterRenderLeavesOnQueue:). The render the
     // last wait found stuck is bounded once: later withdrawals park behind
     // it without a spin of their own until a slice has finished since.
@@ -147,12 +148,12 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     AVAudioEngine           *_engine;           // the carrier: one source node into its output node
     AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves
 #endif
-    // The equalizer's tap: queue-confined intent and installation; the
+    // The equalizer's meter: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
     BOOL                    _levelsWanted;
     VibeAudioLevelNormalizationMode _levelNormalizationMode;
     AudioLevelPublisher     *_levelPublisher;
-    AudioLevelTap           *_levelTap;
+    AudioLevelMeter           *_levelMeter;
 
     // ---- Beta diagnostics (AudioPlayer+Diagnostics.m). Present in every
     // build so the header carries no conditional; unused otherwise.
@@ -163,7 +164,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 #if TARGET_OS_OSX
     // ---- The output device. The hosted HAL output unit that pulls the
-    // pipeline is AudioPlayer+Graph.m's: its bound device is the output, and
+    // pipeline is AudioPlayer+Pipeline.m's: its bound device is the output, and
     // it is nil under the debug pump, which has no device.
     // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
@@ -195,6 +196,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     BOOL                    _systemOutputBindRetryScheduled;
     // Bit-perfect output: the settings' queue-side intent.
     BOOL                    _bitPerfectWanted;
+    BOOL                    _allowBitPerfectOnAnyDevice;
     // The device configureOutputDeviceOnQueue: is rebinding to, for the
     // duration of that call, else kAudioObjectUnknown.
     AudioDeviceID           _rebindDeviceID;
@@ -327,6 +329,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // replaced. Every error carrying kVibeAudioErrorTrackURLKey must use it.
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier;
 
+- (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice;
 @end
 
 NS_ASSUME_NONNULL_END

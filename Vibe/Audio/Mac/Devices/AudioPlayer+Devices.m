@@ -31,6 +31,152 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 @implementation AudioPlayer (DevicesInternal)
 
+- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
+    NSMutableDictionary *output = [NSMutableDictionary dictionary];
+    output[@"carrier"] = @"outputUnit";
+    if (_outputUnit) {
+        output[@"deviceId"] = @(_outputUnit.deviceID == kAudioObjectUnknown ? -1 : (NSInteger)_outputUnit.deviceID);
+        output[@"unitSampleRate"] = @(_outputUnit.format.sampleRate);
+        output[@"unitRunning"] = @(_outputUnit.running);
+        [output addEntriesFromDictionary:[self carrierCountersOnQueue]];
+        output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
+        output[@"bufferLatency"] = @(_outputUnit.bufferLatency); // the IO cycle the unit fills ahead of the device
+    }
+    AudioDeviceID deviceID = _outputUnit ? _outputUnit.deviceID : kAudioObjectUnknown;
+    NSMutableDictionary *device = [@{@"stage": @"device", @"present": @(deviceID != kAudioObjectUnknown)} mutableCopy];
+    if (deviceID != kAudioObjectUnknown) {
+        NSString *text = nil;
+        Float64 rate = 0;
+        AudioStreamID stream = kAudioObjectUnknown;
+        AudioStreamBasicDescription physical = {0};
+        device[@"deviceId"] = @((NSInteger)deviceID);
+        if ([CoreAudioUtil readName:&text forDeviceID:deviceID] && text) device[@"name"] = text;
+        if ([CoreAudioUtil readUID:&text forDeviceID:deviceID] && text) device[@"uid"] = text;
+        if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID]) device[@"nominalSampleRate"] = @(rate);
+        if ([CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL count:NULL forDeviceID:deviceID]) {
+            device[@"physicalSampleRate"] = @(physical.mSampleRate);
+            device[@"physicalBitsPerChannel"] = @(physical.mBitsPerChannel);
+            device[@"physicalFloat"] = @((physical.mFormatFlags & kAudioFormatFlagIsFloat) != 0);
+            device[@"physicalChannels"] = @(physical.mChannelsPerFrame); // the stream's, of which the unit drives `channels`
+        }
+        device[@"channels"] = @(_outputUnit.format.channelCount); // what reaches the device: the unit's stereo pair on its channel map
+        device[@"latencySeconds"] = @(_outputUnit.presentationLatency); // the device's own: its latency, safety offset and stream latency
+        device[@"preparedForBitPerfect"] = @(_preparedDeviceID == deviceID);
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+        device[@"exclusive"] = @(_hoggedDeviceID == deviceID);
+#endif
+        device[@"bitPerfect"] = [self bitPerfectReportDictionary];
+    }
+    return @[output, device];
+}
+
+- (BOOL)createOutputUnitOnQueue {
+    _outputUnit = [[AudioOutputUnit alloc] init];
+    if (!_outputUnit) {
+        LogError(@"AudioPlayer: no HAL output unit; nothing will play until one can be made");
+        return NO;
+    }
+    AudioDeviceID deviceID = kAudioObjectUnknown;
+    if ([CoreAudioUtil readSystemDefaultOutputDeviceID:&deviceID] && deviceID != kAudioObjectUnknown) {
+        [self setOutputUnitDevice:deviceID];
+    }
+    [self followOutputDeviceRateOnQueue];
+    [[AudioDeviceManager sharedInstance] addObserver:self];
+    // Do not put first-use HAL discovery on the player's sole queue. The
+    // output begins honestly on System Output; a successful async snapshot
+    // later applies the saved preference through the checked device-switch
+    // path.
+    [self resolvePendingSavedOutputDeviceOnQueue];
+    return YES;
+}
+
+- (BOOL)ensureOutputUnitOnQueue {
+    if (_outputUnit || ![self drivesOutputDeviceOnQueue]) {
+        return YES;
+    }
+    AVAudioFormat *before = _masterFormat;
+    if (![self createOutputUnitOnQueue]) {
+        return NO;
+    }
+    // TRAP: the unit followed its device's rate through applyOutputRateOnQueue:,
+    // which leaves the source segment to its caller: a segment built at the
+    // fallback format, and the voice parked in it, are reconciled here, or
+    // the voice played into the new rate at the old one.
+    if (before && _masterFormat && !VibeFormatsMatch(before, _masterFormat) && ![self reconcileSourceSegmentOnQueue]) {
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)applyOutputRateOnQueue:(double)rate {
+    if (!_outputUnit) {
+        return NO;
+    }
+    if (_masterFormat.sampleRate == rate && _outputUnit.format.sampleRate == rate) {
+        return YES;
+    }
+    [self stopOutputOnQueue];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2];
+    NSError *error = nil;
+    if (![_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus error:&error]) {
+        LogError(@"AudioPlayer: output unit refused %.0f Hz (%@)", rate, error);
+        return NO;
+    }
+    [self setMasterBusFormatOnQueue:format];
+    // A bus at the old rate stays until the caller reconciles the segment —
+    // every caller does, and re-voices when the rebuild killed the voice.
+    // TRAP: rebuilding it here instead left playback silent while Playing:
+    // the rebind's own reconcile then found the bus already at the rate,
+    // reported no rebuild, and never started the replacement voice.
+    LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
+    return YES;
+}
+
+- (void)createCarrierOnQueue {
+    [self createOutputUnitOnQueue];
+    if (!_masterFormat) {
+        [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:2]];
+    }
+}
+
+- (BOOL)startCarrierOnQueueWithError:(NSError **)error {
+    if (!_outputUnit) {
+        if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
+        return NO;
+    }
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    [self performDiagnosticPhase:@"exclusive setup" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
+        [self acquireExclusiveOutputOnQueue];
+        return YES;
+    }];
+#endif
+    __block NSError *startError = nil;
+    NSInteger device = _outputUnit.deviceID == kAudioObjectUnknown ? -1 : (NSInteger)_outputUnit.deviceID;
+    BOOL started = [self performDiagnosticPhase:@"output start" device:device operation:^BOOL{
+        return self->_outputUnit.running || [self->_outputUnit startWithError:&startError];
+    }];
+    if (error) *error = startError;
+    return started;
+}
+
+- (void)stopCarrierOnQueue { [_outputUnit stop]; }
+- (BOOL)carrierRunningOnQueue { return _outputUnit.running; }
+- (void)releaseIdleCarrierOnQueue {
+#if VIBE_ENABLE_EXCLUSIVE_OUTPUT
+    [self releaseExclusiveOutputOnQueue];
+#endif
+}
+- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
+    return [self applyOutputRateOnQueue:format.sampleRate];
+}
+- (BOOL)followOutputRouteOnQueue { return YES; }
+
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+    return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
+             @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+}
+
 // The device that just went away, moved from "bound" to "wanted again". The
 // pending slot is the same one a launch preference waits in, so the existing
 // resolve path re-adopts the device when it returns — no new mechanism, and
@@ -263,7 +409,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // submitted during it waits (#53). A device slow to deliver its first IO
     // cycle can make that seconds. Warn level so it persists and a user can
     // retrieve it with `log show` rather than having to catch it live; the
-    // narrower attribution, the engine start's own timing, is AudioPlayer+Graph's.
+    // narrower attribution, the engine start's own timing, is AudioPlayer+Pipeline's.
     uint64_t reboundAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL rebound = [self rebindOutputOnQueueToDevice:deviceID];
     NSTimeInterval seconds =
@@ -648,7 +794,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return nil;
     }
     AudioDevice *device = [[AudioDeviceManager sharedInstance] outputDeviceForId:requested];
-    return (device && VibeBitPerfectDeviceEligible(device.transportType)) ? device : nil;
+    return (device && VibeBitPerfectDeviceEligible(device.transportType, _allowBitPerfectOnAnyDevice)) ? device : nil;
 }
 
 // The device the mode can apply to right now, else nil.
@@ -1136,7 +1282,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     });
 }
 
-
 #pragma mark - Diagnostics
 
 static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
@@ -1196,7 +1341,7 @@ static NSString *VibeFormatText(AVAudioFormat *format) {
     __block NSDictionary *snapshot;
     [self runSyncOnQueue:^{
         snapshot = @{
-            @"decodeFormat": VibeFormatText(self->_decodeFormat),
+            @"decodeFormat": VibeFormatText([self currentVoiceConversionFormatOnQueue]),
             @"boundOutputDeviceId": @([self activeOutputDeviceID]),
             @"requestedOutputDeviceId": @(self.currentlyRequestedAudioDeviceId),
             @"pendingDeviceUID": self->_pendingSavedDeviceUID ?: @"",
@@ -1273,7 +1418,7 @@ static NSString *VibeFormatText(AVAudioFormat *format) {
 
 #pragma mark - Bit-perfect output (public, declared in AudioPlayer.h)
 
-- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX {
+- (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput enableFX:(BOOL)enableFX allowAnyDevice:(BOOL)allowAnyDevice {
     if (bitPerfectOutput || !enableFX) {
         [self clearFXIntent];
     }
@@ -1289,6 +1434,8 @@ static NSString *VibeFormatText(AVAudioFormat *format) {
         [self readOutputModesForDeviceUID:uid bitPerfectOutput:&desiredBitPerfect exclusiveOutput:&desiredExclusive];
         BOOL changed = self->_bitPerfectWanted != desiredBitPerfect
                 || (self->_fxEnabled && !self->_bitPerfectWanted) != (enableFX && !desiredBitPerfect);
+        changed |= desiredBitPerfect && self->_allowBitPerfectOnAnyDevice != allowAnyDevice;
+        self->_allowBitPerfectOnAnyDevice = allowAnyDevice;
         self->_fxEnabled = enableFX;
         self->_bitPerfectWanted = desiredBitPerfect;
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT

@@ -11,7 +11,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class VibeVoiceRecord;
+@class AudioVoiceRecord;
 
 @interface AudioVoiceBus (Rendering)
 
@@ -23,7 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)pendingVoiceCount;
 
 // Decoder steps the race tests hold the decode queue inside.
-- (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AudioFileHandle *)file decodeFormat:(AVAudioFormat *)decodeFormat;
+- (BOOL)prepareRecord:(AudioVoiceRecord *)record file:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16;
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final;
 - (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation;
 

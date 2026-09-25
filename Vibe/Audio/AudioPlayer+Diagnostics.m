@@ -2,16 +2,17 @@
 //  AudioPlayer+Diagnostics.m
 //  Vibe
 //
-//  Beta instrumentation (#47): what the Mac can see of a reported delay.
-//  Nothing here changes playback; every method is empty unless
-//  VIBE_VERBOSE_LOGGING is on, except performDiagnosticPhase:device:operation:,
-//  which always runs its operation.
+//  Audio-path reports in every build, and beta instrumentation under
+//  VIBE_VERBOSE_LOGGING. performDiagnosticPhase: always runs its operation.
 //
 
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
 #import "AudioFX.h"
+#if DEBUG
+#import "VibeManualRenderPump.h"
+#endif
 
 #if VIBE_VERBOSE_LOGGING
 #if TARGET_OS_OSX
@@ -337,7 +338,7 @@ static void VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
             }
         }
         // The other stall: the device keeps pulling, the engine cannot render.
-        uint64_t dropouts = [strongPlayer diagnosticOutputDropouts];
+        uint64_t dropouts = [[strongPlayer carrierCountersOnQueue][@"dropouts"] unsignedLongLongValue];
         if (dropouts != lastDropouts) {
             if (playing) {
                 LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the engine could not render (play %llu, %@)",
@@ -393,6 +394,132 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 
 @implementation AudioPlayer (Diagnostics)
 
+#pragma mark - The path
+
+static NSString *VibeCodecName(AudioFormatID format) {
+    switch (format) {
+        case kAudioFormatLinearPCM:     return @"PCM";
+        case kAudioFormatFLAC:          return @"FLAC";
+        case kAudioFormatAppleLossless: return @"ALAC";
+        case kAudioFormatMPEG4AAC:      return @"AAC";
+        case kAudioFormatMPEG4AAC_HE:
+        case kAudioFormatMPEG4AAC_HE_V2: return @"HE-AAC";
+        case kAudioFormatMPEGLayer3:    return @"MP3";
+        case kAudioFormatMPEGLayer2:    return @"MP2";
+        case kAudioFormatMPEGLayer1:    return @"MP1";
+        default: {
+            char text[5] = { (char)(format >> 24), (char)(format >> 16), (char)(format >> 8), (char)format, 0 };
+            return [NSString stringWithFormat:@"%s", text];
+        }
+    }
+}
+
+static NSString *VibeSampleFormatName(AVAudioFormat *format) {
+    switch (format.commonFormat) {
+        case AVAudioPCMFormatInt16:   return @"int16";
+        case AVAudioPCMFormatInt32:   return @"int32";
+        case AVAudioPCMFormatFloat32: return @"float32";
+        case AVAudioPCMFormatFloat64: return @"float64";
+        default:                      return @"other";
+    }
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue {
+    NSArray *carrierPath = [self carrierAudioPathOnQueue];
+    NSDictionary *renderFacts = [self pipelineRenderSnapshotOnQueue];
+    AudioFileHandle *file = _file;
+    NSMutableDictionary *source = [@{@"stage": @"source", @"present": @(file != nil)} mutableCopy];
+    if (file) {
+        const AudioStreamBasicDescription *asbd = file.fileFormat.streamDescription;
+        source[@"file"] = file.url.lastPathComponent ?: @"";
+        source[@"codec"] = VibeCodecName(asbd->mFormatID);
+        source[@"lossless"] = @(asbd->mFormatID == kAudioFormatLinearPCM || asbd->mFormatID == kAudioFormatFLAC
+                                || asbd->mFormatID == kAudioFormatAppleLossless);
+        source[@"sampleRate"] = @(file.fileFormat.sampleRate);
+        source[@"channels"] = @(file.fileFormat.channelCount);
+        // The codec's declared depth: PCM's own, a lossless codec's
+        // source-depth flags (OutputFormatRules.h), 0 for a lossy codec. Only
+        // PCM's flags say float: a lossless codec's are its depth, and the
+        // 24-bit one carries the float bit.
+#if TARGET_OS_OSX
+        source[@"bitsPerChannel"] = @(VibeSourceBitDepth(*asbd));
+        source[@"float"] = @(VibeSourceIsFloat(*asbd));
+#else
+        source[@"bitsPerChannel"] = @(asbd->mBitsPerChannel);
+        source[@"float"] = @(asbd->mFormatID == kAudioFormatLinearPCM && (asbd->mFormatFlags & kAudioFormatFlagIsFloat) != 0);
+#endif
+        source[@"frames"] = @(file.length);
+        source[@"decodedSampleFormat"] = VibeSampleFormatName(file.processingFormat);
+    }
+
+    // What the voice reads the file as, and how it gets there: direct, or
+    // through the bus's converter (AudioVoiceBus.h).
+    NSDictionary *conversion = [_voiceBus conversionOfVoice:_voice];
+    AVAudioFormat *decodedFormat = _voice ? file.processingFormat : nil;
+    NSMutableDictionary *decode = [@{@"stage": @"decode", @"present": @(_voice != 0 && decodedFormat != nil)} mutableCopy];
+    if (decodedFormat) {
+        decode[@"sampleFormat"] = VibeSampleFormatName(decodedFormat);
+        decode[@"sampleRate"] = @(decodedFormat.sampleRate);
+        decode[@"channels"] = @(decodedFormat.channelCount);
+    }
+    decode[@"read"] = conversion ? @"converted" : @"direct";
+    [decode addEntriesFromDictionary:conversion ?: @{}];
+
+    AudioVoiceBus *bus = _voiceBus;
+    VibeVoiceSnapshot snapshot = [bus snapshotOfVoice:_voice];
+    NSDictionary *busStage = @{
+        @"stage": @"bus", @"present": @(bus != nil),
+        @"sampleRate": @((bus.format ?: _masterFormat).sampleRate),
+        @"channels": @((bus.format ?: _masterFormat).channelCount),
+        @"sampleFormat": @"float32",
+        @"liveVoices": @(bus.liveVoiceCount), @"occupiedSlots": @(bus.occupiedSlotCount),
+        @"currentVoice": @(_voice), @"gain": @(snapshot.gain), @"consumedFrames": @(snapshot.consumed),
+        @"underrunFrames": @(snapshot.underrunFrames), @"inlineDecoding": @(bus.inlineDecoding),
+    };
+
+    NSDictionary *varispeedStage = renderFacts[@"varispeed"];
+
+    NSMutableDictionary *fx = [@{
+        @"stage": @"fx", @"present": @(self.fx != nil), @"enabled": @(_fxEnabled), @"wanted": @([self fxWantedOnQueue]),
+        @"inRender": renderFacts[@"fxInRender"],
+    } mutableCopy];
+    [fx addEntriesFromDictionary:self.fx.diagnosticSnapshot ?: @{}];
+
+    NSDictionary *meter = @{
+        @"stage": @"meter", @"present": @(_levelMeter != nil), @"installed": @(_levelMeter.installed),
+        @"inRender": renderFacts[@"meterInRender"],
+        @"wanted": @(_levelsWanted), @"probe": @(self.signalProbeWanted),
+        @"sampleRate": @(_levelMeter.sampleRate), @"normalizationMode": @(_levelNormalizationMode),
+    };
+
+    NSMutableDictionary *output = [@{
+        @"stage": @"output", @"present": @YES,
+        @"sampleRate": @(_masterFormat.sampleRate), @"channels": @(_masterFormat.channelCount), @"sampleFormat": @"float32",
+        @"running": @([self renderingOnQueue]),
+        // Running with nothing to play: the deferred idle stop is pending.
+        @"idleStopPending": @([self renderingOnQueue] && (_state == VibePlayerStateStopped || _state == VibePlayerStatePaused)),
+        @"silent": renderFacts[@"silent"],
+        @"framesRendered": renderFacts[@"framesRendered"],
+    } mutableCopy];
+#if DEBUG
+    VibeManualRenderPump *pump = _manualPump;
+    if (pump) {
+        output[@"carrier"] = @"pump";
+        output[@"automatic"] = @(pump.automatic);
+    }
+    else
+#endif
+    {
+        [output addEntriesFromDictionary:carrierPath.firstObject];
+    }
+
+    NSMutableArray *stages = [NSMutableArray arrayWithObjects:source, decode, busStage, varispeedStage, fx, meter, output, nil];
+    if (carrierPath.count > 1) [stages addObjectsFromArray:[carrierPath subarrayWithRange:NSMakeRange(1, carrierPath.count - 1)]];
+
+    return stages;
+}
+
+
 - (void)startStallWatchers {
 #if VIBE_VERBOSE_LOGGING
 #if TARGET_OS_OSX
@@ -412,38 +539,6 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 
 - (BOOL)diagnosticEngineRunning {
     return [self renderingOnQueue];
-}
-
-- (uint64_t)diagnosticOutputDropouts {
-#if TARGET_OS_OSX
-    return _outputUnit.dropouts;
-#else
-    return 0;
-#endif
-}
-
-- (uint64_t)diagnosticRenderCycles {
-#if TARGET_OS_OSX
-    return _outputUnit.renderCycles;
-#else
-    return 0;
-#endif
-}
-
-- (double)diagnosticRenderMeanMicroseconds {
-#if TARGET_OS_OSX
-    return _outputUnit.renderMeanMicroseconds;
-#else
-    return 0;
-#endif
-}
-
-- (double)diagnosticRenderMaxMicroseconds {
-#if TARGET_OS_OSX
-    return _outputUnit.renderMaxMicroseconds;
-#else
-    return 0;
-#endif
 }
 
 - (uint64_t)diagnosticPlayIdentifierOnQueue {
@@ -590,20 +685,20 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 }
 
 #if VIBE_VERBOSE_LOGGING
-// Drops the probe's hold on the tap once the newest capture has completed; the
-// indicator's own demand, if any, keeps the tap installed.
+// Drops the probe's hold on the meter once the newest capture has completed; the
+// indicator's own demand, if any, keeps the meter installed.
 - (void)releaseSignalProbeOnQueue:(uint64_t)request {
     if (request != _signalProbeRequest || !_signalProbeWanted) {
         return;
     }
     _signalProbeWanted = NO;
-    [self applyLevelTapOnQueue];
+    [self applyLevelMeterOnQueue];
 }
 
-- (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelTap *)tap request:(uint64_t)request {
+- (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelMeter *)meter request:(uint64_t)request {
     [self scheduleAfterSeconds:0.1 block:^{
-        if ([tap pollSignalDiagnostics:request]) {
-            [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
+        if ([meter pollSignalDiagnostics:request]) {
+            [self pollOutputSignalDiagnosticsOnQueue:meter request:request];
         }
     }];
 }
@@ -612,24 +707,24 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 - (void)armSignalProbeOnQueue:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
     // The playlist's indicator may be hidden (its column is a theme choice),
-    // and a tap installed after the start misses its opening: on hardware the
-    // probe holds the tap itself for each capture.
+    // and a meter installed after the start misses its opening: on hardware the
+    // probe holds the meter itself for each capture.
     if ([self drivesOutputDeviceOnQueue] && !_signalProbeWanted) {
         _signalProbeWanted = YES;
-        [self applyLevelTapOnQueue];
+        [self applyLevelMeterOnQueue];
     }
-    AudioLevelTap *tap = _levelTap;
+    AudioLevelMeter *meter = _levelMeter;
     uint64_t play = [self diagnosticPlayIdentifierOnQueue], voice = _voice;
     NSString *track = self.currentTrack.url.lastPathComponent;
     __block uint64_t request = 0;
     __weak AudioPlayer *weakSelf = self;
-    request = [tap beginSignalDiagnosticsAtTime:[self outputRenderTimeOnQueue]
+    request = [meter beginSignalDiagnosticsAtTime:[self outputRenderTimeOnQueue]
                          waitingForRetiredAudio:_retiringVoices.count > 0
                                      completion:^(NSDictionary *snapshot) {
         if (!([snapshot[@"completion"] isEqual:@"superseded"] && [snapshot[@"status"] isEqual:@"no buffers observed"])) {
             LogInfo(@"Signal: play %llu voice %llu %@ %@ capture %@", play, voice, track, reason, snapshot);
         }
-        // Not from inside the tap's own call: releasing the demand may remove it.
+        // Not from inside the meter's own call: releasing the demand may remove it.
         AudioPlayer *player = weakSelf;
         if (player) dispatch_async(player->_queue, ^{ [player releaseSignalProbeOnQueue:request]; });
     }];
@@ -637,7 +732,7 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
         LogInfo(@"Signal: play %llu voice %llu %@ %@ unavailable: no active level tap (post-mix observation, not audible output)",
                 play, voice, track, reason);
     }
-    if (request) [self pollOutputSignalDiagnosticsOnQueue:tap request:request];
+    if (request) [self pollOutputSignalDiagnosticsOnQueue:meter request:request];
     _signalProbeRequest = request;
     if (!request) [self releaseSignalProbeOnQueue:0];
 #endif
@@ -661,10 +756,9 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
         if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:latency];
         time = [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
     }
-    [_levelTap endSignalOverlapAtTime:time];
+    [_levelMeter endSignalOverlapAtTime:time];
 #endif
 }
-
 
 #pragma mark - The first displayed position
 

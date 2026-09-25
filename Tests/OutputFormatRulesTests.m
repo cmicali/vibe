@@ -482,31 +482,40 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 // a deliberate test edit. The System Output policy is not a transport: it is
 // the absence of a chosen device, refused before this rule is asked.
 - (void)testTheAllowlist {
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBuiltIn));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypePCI));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeUSB));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeFireWire));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeThunderbolt));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeHDMI));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeDisplayPort));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAVB));
-    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeVirtual));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBuiltIn, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypePCI, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeUSB, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeFireWire, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeThunderbolt, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeHDMI, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeDisplayPort, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAVB, NO));
+    XCTAssertTrue(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeVirtual, NO));
 }
 
 - (void)testEverythingRemoteCompressedOrResampledIsOut {
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeUnknown));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBluetooth));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBluetoothLE));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAirPlay));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWired));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWireless));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeUnknown, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBluetooth, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeBluetoothLE, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAirPlay, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWired, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeContinuityCaptureWireless, NO));
     // kAudioDeviceTransportTypeRemoteScreen / RemoteStreaming, spelled as
     // their codes: CI's older SDK does not declare them, and the rule refuses
     // them through its default branch either way.
-    XCTAssertFalse(VibeBitPerfectDeviceEligible('rscr'));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible('rstr'));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAggregate));
-    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible('rscr', NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible('rstr', NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAggregate, NO));
+    XCTAssertFalse(VibeBitPerfectDeviceEligible(kAudioDeviceTransportTypeAutoAggregate, NO));
+}
+
+- (void)testTestingOverrideAdmitsEveryTransport {
+    const UInt32 transports[] = {kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE,
+        kAudioDeviceTransportTypeAirPlay, kAudioDeviceTransportTypeAggregate, kAudioDeviceTransportTypeUnknown,
+        kAudioDeviceTransportTypeUSB, 'new!'};
+    for (NSUInteger i = 0; i < sizeof(transports) / sizeof(transports[0]); i++) {
+        XCTAssertTrue(VibeBitPerfectDeviceEligible(transports[i], YES));
+    }
 }
 
 #pragma mark - The fold

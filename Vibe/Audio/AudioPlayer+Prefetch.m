@@ -51,7 +51,7 @@
         return;
     }
 #endif
-    if (![_voiceBus queueSuccessor:_prefetchedFile decodeFormat:[self decodeFormatOnQueueForFile:_prefetchedFile]
+    if (![_voiceBus queueSuccessor:_prefetchedFile quantizeToInt16:[self quantizesToInt16OnQueueForFile:_prefetchedFile]
                           forVoice:_voice]) {
         return;
     }

@@ -1,10 +1,10 @@
 //
-//  AudioLevelTap.h
+//  AudioLevelMeter.h
 //  Vibe
 //
 //  Demand-driven FFT analysis for the shared five-bar equalizer indicator,
 //  fed the final output samples by the render. AudioPlayer owns one publisher
-//  for its lifetime, and one tap — the meter — from the first demand on,
+//  for its lifetime, and one meter from the first demand on,
 //  replaced only when the output's rate or the normalization mode changes.
 //
 
@@ -16,26 +16,26 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The render's plain state: the analyzer, the publisher's session and the
-// accumulator the render fills. The tap owns it for its life; the master bus
+// accumulator the render fills. The meter owns it for its life; the master bus
 // points the render at it while the meter is installed and withdraws the
-// pointer before the tap is freed (AudioPlayer+Graph.h), so the render never
-// reads memory the tap has freed.
+// pointer before the meter is freed (AudioPlayer+Pipeline.h), so the render never
+// reads memory the meter has freed.
 typedef struct VibeLevelMeter VibeLevelMeter;
 
-@interface AudioLevelTap : NSObject
+@interface AudioLevelMeter : NSObject
 
 // Allocates the analyzer and the accumulator for `format`'s rate, which is
-// fixed for the tap's life: replace the tap at another rate. Nothing is
+// fixed for the meter's life: replace the meter at another rate. Nothing is
 // published until install. Returns nil for an unusable format or a failed
-// allocation. The normalization mode is fixed for the tap's lifetime too;
-// replace the tap to switch modes and reset its analysis history.
+// allocation. The normalization mode is fixed for the meter's lifetime too;
+// replace the meter to switch modes and reset its analysis history.
 - (nullable instancetype)initWithFormat:(AVAudioFormat *)format
                                publisher:(AudioLevelPublisher *)publisher
                        normalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode
         NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-// What the render feeds; valid for the tap's life.
+// What the render feeds; valid for the meter's life.
 - (VibeLevelMeter *)meter;
 @property (nonatomic, readonly) double sampleRate;
 
@@ -62,12 +62,10 @@ typedef struct VibeLevelMeter VibeLevelMeter;
 
 @end
 
-// The render's entry: `frames` of `channelCount` non-interleaved float32
-// channels of the final output at the tap's rate, the block stamped
-// `timestamp`. The meter accumulates a tap buffer's worth (about 100 ms, what
-// the engine's tap delivered) and analyzes and publishes once it holds it,
-// so the cadence and the averaging are the engine tap's. Audio thread: no
-// allocation, lock, logging or Objective-C send.
+// The render's entry: non-interleaved float32 at the meter's rate, stamped
+// with `timestamp`. Accumulates VibeLevelPublicationFrameCount frames before
+// analyzing and publishing. Audio thread: no allocation, lock, logging or
+// Objective-C send.
 void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnull channels, UInt32 channelCount, UInt32 frames,
                           const AudioTimeStamp *timestamp) CA_REALTIME_API;
 

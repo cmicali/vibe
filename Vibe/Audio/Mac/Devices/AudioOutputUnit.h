@@ -6,8 +6,8 @@
 //  device, whose render callback pulls the player's render proc into the
 //  device's buffers. AVAudioEngine's own output node is a default output unit
 //  that follows the system default wherever it moves; this one moves only
-//  when the player rebinds it (hogfollow.swift's `hal` measurement,
-//  docs/future/bit-perfect-output.md).
+//  when the player rebinds it (hogfollow.swift’s `hal` measurement;
+//  Audio/Mac/Devices/CLAUDE.md).
 //
 //  The callback is a C function under the same realtime discipline as the
 //  voice bus's render: plain memory and atomics, no lock, allocation,
@@ -74,7 +74,8 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 
 // Opens the gate, then starts the unit; a refused start closes it again.
 - (BOOL)startWithError:(NSError * _Nullable * _Nullable)error;
-// Closes the gate, stops the unit, and returns with no render inside the callback.
+// Closes the gate and stops the unit. Its explicit wait for a callback is
+// bounded; the pipeline retains render state until that callback actually leaves.
 - (void)stop;
 
 

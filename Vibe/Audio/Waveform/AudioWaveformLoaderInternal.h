@@ -1,5 +1,5 @@
 //
-//  AVFAudioWaveformLoaderInternal.h
+//  AudioWaveformLoaderInternal.h
 //  Vibe
 //
 //  The decode pass's phases, declared so the tests can reach them one at a
@@ -7,10 +7,10 @@
 //  and need no audio at all, which is the point: a file that decodes one chunk
 //  short looks identical on screen, so nothing but an assertion catches it.
 //
-//  Do not use this outside AVFAudioWaveformLoader.mm and its tests.
+//  Do not use this outside AudioWaveformLoader.mm and its tests.
 //
 
-#import "AVFAudioWaveformLoader.h"
+#import "AudioWaveformLoader.h"
 #import "AudioFileHandle.h"
 #import "AudioWaveform.h"
 #import <AVFoundation/AVFoundation.h>
@@ -32,7 +32,7 @@ struct VibeWaveformDecodePass {
     BOOL readError;
 };
 
-@interface AVFAudioWaveformLoader ()
+@interface AudioWaveformLoader ()
 
 - (nullable AudioFileHandle *)openFileAtPath:(NSString *)filename
                                     pass:(struct VibeWaveformDecodePass *)pass;

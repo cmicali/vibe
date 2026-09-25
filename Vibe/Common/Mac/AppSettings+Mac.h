@@ -282,6 +282,10 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (NSInteger)uiUpdateHzCap;
 - (void)setUiUpdateHzCap:(NSInteger)hz;
 
+// Advanced testing override, default NO. Changes request BitPerfectApply.
+- (BOOL)allowBitPerfectOnAnyDevice;
+- (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
+
 // The DJ performance FX — low kill, reverb and delay returns. Off routes the
 // mixer straight to output; nodes are created on first enable and retained.
 // Changes apply through the player's stopped-engine rebuild. iOS has no FX.

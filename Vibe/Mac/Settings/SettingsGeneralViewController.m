@@ -189,7 +189,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     AudioPlayer *audioPlayer = self.playerController.audioPlayer;
     NSInteger requestedId = audioPlayer ? audioPlayer.currentlyRequestedAudioDeviceId : -1;
     AudioDevice *device = [AudioDeviceManager.sharedInstance outputDeviceForId:requestedId];
-    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType);
+    BOOL eligible = device.uid.length > 0 && VibeBitPerfectDeviceEligible(device.transportType, AppSettings.sharedInstance.allowBitPerfectOnAnyDevice);
     BOOL on = AppSettings.sharedInstance.bitPerfectOutput;
     BOOL pending = self.playerController.devicesMenuController.outputDeviceSelectionPending;
     // TRAP: until the bind settles, mode writes still name the old saved UID.

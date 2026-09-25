@@ -1,7 +1,7 @@
 #import <XCTest/XCTest.h>
 #import "AudioPlayer+Debug.h"
 #import "AudioFX+Debug.h"
-#import "AudioLevelTap+Debug.h"
+#import "AudioLevelMeter+Debug.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
@@ -21,11 +21,8 @@ static const float kVibeAACDecodeTolerance = 4 * FLT_EPSILON;
 
 // Interleaved float PCM keeps the oracle independent of the render's buffers.
 static NSMutableData *PCM(AVAudioPCMBuffer *buffer) {
-    NSUInteger channels = buffer.format.channelCount;
-    NSMutableData *data = [NSMutableData dataWithLength:buffer.frameLength * channels * sizeof(float)];
-    float *out = data.mutableBytes;
-    for (NSUInteger f = 0; f < buffer.frameLength; f++)
-        for (NSUInteger c = 0; c < channels; c++) out[f * channels + c] = buffer.floatChannelData[c][f];
+    NSMutableData *data = [NSMutableData data];
+    VibeAppendPCM(data, buffer);
     return data;
 }
 
@@ -198,7 +195,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (NSDictionary *)settledSignalSnapshot {
     __block NSDictionary *signal;
     BOOL (^read)(void) = ^BOOL {
-        [self->_player runSyncOnQueue:^{ signal = [[self->_player debugLevelTap] signalDiagnosticSnapshot]; }];
+        [self->_player runSyncOnQueue:^{ signal = [[self->_player debugLevelMeter] signalDiagnosticSnapshot]; }];
         return [signal[@"aboveThreshold"] boolValue];
     };
     [self settleUntil:read];
@@ -214,7 +211,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
     XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], rate, 0);
-    [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx];
+    [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx allowAnyDevice:NO];
     [_player runSyncOnQueue:^{}]; // Land setup before a test replaces the mode provider.
 }
 - (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
@@ -849,9 +846,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (void)testMeterReinstallPublishesNoEarlierAudio {
     AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
     AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
-    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+    AudioLevelMeter *tap = [[AudioLevelMeter alloc] initWithFormat:tone.format publisher:publisher
                                          normalizationMode:kLevelDefaultNormalizationMode];
-    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    UInt32 count = VibeLevelPublicationFrameCount(tone.format.sampleRate);
     XCTAssertGreaterThanOrEqual(tone.frameLength, count);
     AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
     XCTAssertGreaterThanOrEqual(silence.frameLength, count);
@@ -877,9 +874,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (void)testAMeterCallbackStalledAcrossAReinstallPublishesNothingIntoTheNewSession {
     AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
     AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
-    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+    AudioLevelMeter *tap = [[AudioLevelMeter alloc] initWithFormat:tone.format publisher:publisher
                                          normalizationMode:kLevelDefaultNormalizationMode];
-    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    UInt32 count = VibeLevelPublicationFrameCount(tone.format.sampleRate);
     XCTAssertGreaterThanOrEqual(tone.frameLength, count);
     AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
     XCTAssertGreaterThanOrEqual(silence.frameLength, count);
@@ -912,9 +909,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
         [self play:url paused:NO position:0]; [self render:16000];
         _player.levelsEnabled=YES;
-        __block AudioLevelTap *tap;
+        __block AudioLevelMeter *tap;
         [_player runSyncOnQueue:^{
-            tap = [self->_player debugLevelTap];
+            tap = [self->_player debugLevelMeter];
             XCTAssertNotEqual([[tap signalDiagnosticSnapshot][@"request"] unsignedLongLongValue], 0u);
         }];
         [self render:16000];
@@ -937,12 +934,12 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"silence.wav"] paused:NO position:0];
     _player.levelsEnabled=YES;
-    __block AudioLevelTap *tap;
+    __block AudioLevelMeter *tap;
     __block uint64_t request;
     __block NSDictionary *signal;
     NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
-        tap = [self->_player debugLevelTap];
+        tap = [self->_player debugLevelMeter];
         request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
@@ -984,10 +981,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"silence.wav"] paused:NO position:0];
         NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
-        __block AudioLevelTap *tap;
+        __block AudioLevelMeter *tap;
         __block uint64_t request;
         [_player runSyncOnQueue:^{
-            tap = [self->_player debugLevelTap];
+            tap = [self->_player debugLevelMeter];
             request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         }];
         [self render:16000];
@@ -1033,7 +1030,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 250, 1000.0 / 48000);
     [self render:24000];
     [_player runSyncOnQueue:^{
-        AudioLevelTap *tap = [self->_player debugLevelTap];
+        AudioLevelMeter *tap = [self->_player debugLevelMeter];
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
     }];
 }
@@ -1217,10 +1214,10 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     _player.levelsEnabled = YES;
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
     [self render:4096];
-    __weak AudioLevelTap *tap = nil;
+    __weak AudioLevelMeter *tap = nil;
     __weak AudioVoiceBus *bus = nil;
     @autoreleasepool {
-        tap = _player.debugLevelTap;
+        tap = _player.debugLevelMeter;
         bus = [_player valueForKey:@"voiceBus"]; // the ivar, read between renders
         XCTAssertNotNil(tap);
         XCTAssertNotNil(bus);
@@ -1274,11 +1271,11 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSString *file in @[@"noise-44100-16-1.wav",@"noise-96000-24-2.wav",@"noise-48000-32-1.wav",@"noise-48000-24-2.wav"]) {
         [self play:[self fixture:file] paused:NO position:0]; [self assertFinite:[self renderSeconds:0.1] peak:0.6];
     }
-    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:NO];
+    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:NO allowAnyDevice:NO];
     // A new play settles on the mode's chain even without a HAL destination.
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
     XCTAssertFalse([_player.debugEngineCounts[@"varispeed"] boolValue]);
-    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO]; [self render:2048];
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO allowAnyDevice:NO]; [self render:2048];
     XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue]);
     XCTAssertFalse(_player.bitPerfectReport.enabled);
 }
@@ -1293,7 +1290,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         NSUInteger installedNodes = 0;
         for (int i = 0; i < 8; i++) {
             BOOL bitPerfect = i % 2;
-            [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:YES];
+            [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
             NSDictionary *counts = _player.debugEngineCounts;
             XCTAssertEqual([counts[@"fxConnected"] boolValue], !bitPerfect);
             XCTAssertEqual([counts[@"varispeed"] boolValue], !bitPerfect);
@@ -1307,7 +1304,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self render:4096];
         for (NSNumber *enabled in @[@YES, @NO, @YES]) {
             double position = _player.position;
-            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:enabled.boolValue];
+            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:enabled.boolValue allowAnyDevice:NO];
             NSDictionary *counts = _player.debugEngineCounts;
             XCTAssertEqual([counts[@"fxConnected"] boolValue], enabled.boolValue);
             XCTAssertTrue(_player.isPlaying);
@@ -1317,7 +1314,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         }
         XCTAssertEqual([self count:@"finish"], 0u);
         XCTAssertEqual([self count:@"start"], 1u);
-        [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+        [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
         [self play:url paused:NO position:0];
         [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1]
                          skip:[self startupSkip] tolerance:0];
@@ -1449,7 +1446,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                 XCTAssertTrue(_player.isStopped);
             }
             // Unchanged modes stay a no-op; replay must still render exact PCM.
-            [_player setBitPerfectOutput:!committedSystemOutput exclusiveOutput:NO enableFX:YES];
+            [_player setBitPerfectOutput:!committedSystemOutput exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
             _playError = nil;
             [self play:url paused:NO position:0];
             XCTAssertEqual([_player.debugEngineCounts[@"fxConnected"] boolValue], committedSystemOutput);
@@ -1474,9 +1471,9 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self play:[self fixture:@"impulse.wav"] paused:NO position:0];
     NSData *wet = [self renderSeconds:0.6];
     XCTAssertGreaterThan(RMS(wet, 2, 0, NSMakeRange(24000, 4800)), 0.000001);
-    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES];
+    [_player setBitPerfectOutput:YES exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
     [self render:2048];
-    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
     NSData *dry = [self renderSeconds:1];
     XCTAssertFalse(_player.fx.reverbSendEnabled);
     XCTAssertFalse(_player.fx.delaySendEnabled);
@@ -1498,13 +1495,13 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         dispatch_queue_t queue = [_player valueForKey:@"queue"];
         dispatch_suspend(queue);
         @try {
-            [_player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue];
+            [_player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue allowAnyDevice:NO];
             XCTAssertFalse(_player.fx.lowKillEnabled);
             XCTAssertFalse(_player.fx.lowKillBoostActive);
             XCTAssertFalse(_player.fx.reverbSendEnabled);
             XCTAssertFalse(_player.fx.delaySendEnabled);
             XCTAssertFalse(_player.fx.shortDelaySendEnabled);
-            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
             _player.fx.lowKillEnabled = YES;
             _player.fx.lowKillBoostActive = YES;
             _player.fx.reverbSendEnabled = YES;
@@ -1933,7 +1930,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];
-        [_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:NO];
+        [_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:NO allowAnyDevice:NO];
         [_player audioOutputDevicesDidChange];
         [_player systemDefaultOutputDeviceDidChange];
         [_player runSyncOnQueue:^{}];
@@ -2161,7 +2158,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             [self->_player setValue:@"model" forKey:@"pendingSavedDeviceModelUID"];
             [self->_player setValue:@"Saved DAC" forKey:@"pendingSavedDeviceName"];
             [self->_player resolvePendingSavedOutputDeviceOnQueue];
-            [self->_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:YES];
+            [self->_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:YES allowAnyDevice:NO];
         }];
         // Keep main occupied until the previously queued settings edit lands.
         [_player runSyncOnQueue:^{}];
@@ -2172,7 +2169,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertTrue([snapshot[@"bitPerfectWanted"] boolValue],@"A queued global edit must preserve adopted modes even before their main-thread persistence: %@",snapshot);
         XCTAssertTrue([snapshot[@"exclusiveOutputWanted"] boolValue]);
         @synchronized(savedModes) { savedModes[@"port-b"] = @NO; }
-        [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES];
+        [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
         [_player runSyncOnQueue:^{}];
         XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"bitPerfectWanted"] boolValue], @"Once persisted, the destination's later edits must win");
     } @finally {
@@ -2431,7 +2428,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     _player.fx.delaySendEnabled = NO;
     [self render:2400];
     XCTAssertGreaterThan([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], 0ull, @"the sends rendered");
-    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO];
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO allowAnyDevice:NO];
     [_player runSyncOnQueue:^{}];
     NSDictionary *counts = _player.debugEngineCounts;
     XCTAssertFalse([counts[@"fxConnected"] boolValue]);
@@ -2790,6 +2787,83 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     output = _player.audioPathSnapshot[6];
     XCTAssertFalse([output[@"running"] boolValue]);
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
+}
+
+
+- (void)checkDecodeFailureForSuccessor:(BOOL)successor afterFrames:(NSUInteger)after superseded:(BOOL)superseded repeatedURL:(BOOL)repeatedURL {
+    NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSURL *firstURL = [self write:[pcm subdataWithRange:NSMakeRange(0, (successor ? 2048 : 16000) * 8)]
+            rate:48000 channels:2 name:@"failure-current.wav"];
+    NSURL *failedURL = successor && !repeatedURL ? [self write:[pcm subdataWithRange:NSMakeRange(0, 16000 * 8)]
+            rate:48000 channels:2 name:@"failure-successor.wav"] : firstURL;
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.declick = NO;
+    __block BOOL refuse = YES;
+    __block AudioFileHandle *firstHandle = nil;
+    Method method = class_getInstanceMethod(AudioFileHandle.class, @selector(readIntoBuffer:frameCount:error:));
+    __block IMP original;
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioFileHandle *file, AVAudioPCMBuffer *buffer,
+                                                        AVAudioFrameCount frames, NSError **error) {
+        if (!firstHandle) firstHandle = file;
+        if (refuse && (!repeatedURL || file != firstHandle) && [file.url isEqual:failedURL]
+                && file.framePosition >= (AVAudioFramePosition)after) {
+            buffer.frameLength = 0;
+            if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:EIO userInfo:nil];
+            return NO;
+        }
+        return ((BOOL (*)(id, SEL, id, AVAudioFrameCount, NSError **))original)(file,
+                @selector(readIntoBuffer:frameCount:error:), buffer, frames, error);
+    });
+    original = method_setImplementation(method, replacement);
+    @try {
+        AudioTrack *track = [self play:firstURL paused:NO position:0];
+        if (successor) {
+            [_player prefetchTrack:[AudioTrack withURL:failedURL]];
+            [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+        }
+        if (superseded) {
+            // Hold main delivery until a new submission of the exact same row exists.
+            XCTAssertNotNil([_player debugRenderFrames:256 error:NULL]);
+            refuse = NO;
+            [_player play:track];
+            [self settleUntil:^BOOL { return [self count:@"start"] == 2; }];
+            XCTAssertNil(_playError);
+            [self render:1024];
+            XCTAssertTrue(_player.isPlaying);
+        }
+        else {
+            [self render:20000];
+            if (successor && after == 0) {
+                XCTAssertNil(_playError, @"an unheard successor failed against the current row");
+                XCTAssertEqual([self count:@"advance"], 0u);
+                XCTAssertEqual([self count:@"finish"], 1u);
+            }
+            else {
+                XCTAssertNotNil(_playError);
+                XCTAssertEqualObjects(_playError.userInfo[kVibeAudioErrorTrackURLKey], failedURL);
+                XCTAssertEqual([self count:@"finish"], 0u, @"a failed decode auto-advanced as clean EOF");
+                XCTAssertTrue(_player.isStopped);
+                if (successor) XCTAssertEqual([self count:@"advance"], 1u);
+            }
+        }
+    }
+    @finally { method_setImplementation(method, original); imp_removeBlock(replacement); }
+}
+
+- (void)testCurrentDecodeFailureReportsErrorInsteadOfTrackEnd {
+    [self checkDecodeFailureForSuccessor:NO afterFrames:4096 superseded:NO repeatedURL:NO];
+}
+- (void)testUnheardSuccessorFailureDoesNotResetTheCurrentRow {
+    [self checkDecodeFailureForSuccessor:YES afterFrames:0 superseded:NO repeatedURL:NO];
+}
+- (void)testUnheardSuccessorFailureWithTheSameURLDoesNotResetTheCurrentRow {
+    [self checkDecodeFailureForSuccessor:YES afterFrames:0 superseded:NO repeatedURL:YES];
+}
+- (void)testPromotedSuccessorFailureNamesTheSuccessor {
+    [self checkDecodeFailureForSuccessor:YES afterFrames:4096 superseded:NO repeatedURL:NO];
+}
+- (void)testDecodeFailureDeliveryIsDroppedAfterReplayOfTheSameRow {
+    [self checkDecodeFailureForSuccessor:NO afterFrames:0 superseded:YES repeatedURL:NO];
 }
 
 @end

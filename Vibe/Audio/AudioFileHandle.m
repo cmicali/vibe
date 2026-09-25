@@ -17,8 +17,8 @@
     // parser reads through its own descriptor.
     int _descriptor;
     SInt64 _size;
-    AudioFileID _file;
-    ExtAudioFileRef _reader;
+    AudioFileID _parser;
+    ExtAudioFileRef _codec;
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
 }
@@ -162,12 +162,12 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // named for the wrong type is still judged by what it holds.
     AudioFileTypeID hint = VibeFileTypeForExtension(url.pathExtension);
     void *context = (__bridge void *)self;
-    OSStatus hinted = hint ? AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, hint, &_file)
+    OSStatus hinted = hint ? AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, hint, &_parser)
                            : kAudioFileUnsupportedFileTypeError;
     OSStatus status = hinted;
     if (status != noErr) {
         [self closeParser];
-        status = AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, 0, &_file);
+        status = AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, 0, &_parser);
     }
     if (status != noErr && (status == kAudio_UnimplementedError || hinted == kAudio_UnimplementedError)) {
         // TRAP: CoreAudio's QuickTime reader (file type MooV, the container
@@ -181,7 +181,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         [self closeParser];
         close(_descriptor);
         _descriptor = -1;
-        status = AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, hint, &_file);
+        status = AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, hint, &_parser);
     }
     if (status != noErr) {
 #if VIBE_VERBOSE_LOGGING
@@ -192,14 +192,14 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"CoreAudio refused %@ (%d)", name, (int)status]];
     }
-    status = ExtAudioFileWrapAudioFileID(_file, false, &_reader);
+    status = ExtAudioFileWrapAudioFileID(_parser, false, &_codec);
     if (status != noErr) {
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"No decoder for %@ (%d)", name, (int)status]];
     }
     AudioStreamBasicDescription fileDescription = {0};
     UInt32 size = sizeof(fileDescription);
-    status = ExtAudioFileGetProperty(_reader, kExtAudioFileProperty_FileDataFormat, &size, &fileDescription);
+    status = ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileDataFormat, &size, &fileDescription);
     if (status != noErr || fileDescription.mChannelsPerFrame == 0 || fileDescription.mSampleRate <= 0) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
@@ -207,7 +207,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // The processing format carries the file's layout when it states one, and
     // a discrete layout for a wider file that does not: a converter between
     // more than two channels is refused without one.
-    AVAudioChannelLayout *layout = VibeFileChannelLayout(_reader);
+    AVAudioChannelLayout *layout = VibeFileChannelLayout(_codec);
     if (!layout && fileDescription.mChannelsPerFrame > 2) {
         layout = [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_DiscreteInOrder | fileDescription.mChannelsPerFrame];
     }
@@ -221,9 +221,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
     const AudioStreamBasicDescription *client = _processingFormat.streamDescription;
-    status = ExtAudioFileSetProperty(_reader, kExtAudioFileProperty_ClientDataFormat, sizeof(*client), client);
+    status = ExtAudioFileSetProperty(_codec, kExtAudioFileProperty_ClientDataFormat, sizeof(*client), client);
     if (status == noErr && layout) {
-        status = ExtAudioFileSetProperty(_reader, kExtAudioFileProperty_ClientChannelLayout, VibeLayoutSize(layout.layout), layout.layout);
+        status = ExtAudioFileSetProperty(_codec, kExtAudioFileProperty_ClientChannelLayout, VibeLayoutSize(layout.layout), layout.layout);
     }
     if (status != noErr) {
         // What AVAudioFile reported for a file its decoder cannot produce:
@@ -234,7 +234,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _bytesPerFrame = client->mBytesPerFrame;
     SInt64 length = 0;
     size = sizeof(length);
-    if (ExtAudioFileGetProperty(_reader, kExtAudioFileProperty_FileLengthFrames, &size, &length) != noErr) {
+    if (ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &size, &length) != noErr) {
         length = 0;
     }
     // For a fixed frame size the length is the audio bytes the file holds —
@@ -247,8 +247,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     size = sizeof(bytes);
     UInt32 offsetSize = sizeof(offset);
     if (fileDescription.mBytesPerFrame > 0
-            && AudioFileGetProperty(_file, kAudioFilePropertyAudioDataByteCount, &size, &bytes) == noErr
-            && AudioFileGetProperty(_file, kAudioFilePropertyDataOffset, &offsetSize, &offset) == noErr
+            && AudioFileGetProperty(_parser, kAudioFilePropertyAudioDataByteCount, &size, &bytes) == noErr
+            && AudioFileGetProperty(_parser, kAudioFilePropertyDataOffset, &offsetSize, &offset) == noErr
             && offset >= 0 && offset <= _size) {
         length = (SInt64)(MIN(bytes, (UInt64)(_size - offset)) / fileDescription.mBytesPerFrame);
     }
@@ -269,16 +269,16 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _processingFormat = processingFormat;
     NSString *name = url.lastPathComponent;
     OSStatus status = ExtAudioFileCreateWithURL((__bridge CFURLRef)url, fileType, fileFormat.streamDescription,
-                                                fileFormat.channelLayout.layout, kAudioFileFlags_EraseFile, &_reader);
+                                                fileFormat.channelLayout.layout, kAudioFileFlags_EraseFile, &_codec);
     if (status != noErr) {
         return [self failWithError:error status:status
                        description:[NSString stringWithFormat:@"Could not create %@ (%d)", name, (int)status]];
     }
     const AudioStreamBasicDescription *client = processingFormat.streamDescription;
-    status = ExtAudioFileSetProperty(_reader, kExtAudioFileProperty_ClientDataFormat, sizeof(*client), client);
+    status = ExtAudioFileSetProperty(_codec, kExtAudioFileProperty_ClientDataFormat, sizeof(*client), client);
     if (status == noErr && processingFormat.channelLayout) {
         const AudioChannelLayout *layout = processingFormat.channelLayout.layout;
-        status = ExtAudioFileSetProperty(_reader, kExtAudioFileProperty_ClientChannelLayout, VibeLayoutSize(layout), layout);
+        status = ExtAudioFileSetProperty(_codec, kExtAudioFileProperty_ClientChannelLayout, VibeLayoutSize(layout), layout);
     }
     if (status != noErr) {
         // A create that fails after the container exists leaves it; the
@@ -300,18 +300,18 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 - (void)closeParser {
-    if (_file) {
-        AudioFileClose(_file);
-        _file = NULL;
+    if (_parser) {
+        AudioFileClose(_parser);
+        _parser = NULL;
     }
 }
 
 // The decoder before the parser, the parser before the descriptor its
 // callbacks read.
 - (void)dealloc {
-    if (_reader) {
-        ExtAudioFileDispose(_reader);
-        _reader = NULL;
+    if (_codec) {
+        ExtAudioFileDispose(_codec);
+        _codec = NULL;
     }
     [self closeParser];
     if (_descriptor >= 0) {
@@ -324,11 +324,15 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 - (AVAudioFramePosition)framePosition {
     SInt64 position = 0;
-    return ExtAudioFileTell(_reader, &position) == noErr ? position : 0;
+    return ExtAudioFileTell(_codec, &position) == noErr ? position : 0;
 }
 
-- (void)setFramePosition:(AVAudioFramePosition)framePosition {
-    ExtAudioFileSeek(_reader, MAX(0, framePosition));
+- (BOOL)seekToFrame:(AVAudioFramePosition)frame error:(NSError **)error {
+    OSStatus status = !_codec || _writing ? kAudio_ParamError : ExtAudioFileSeek(_codec, MAX(0, frame));
+    if (status != noErr && error) {
+        *error = VibeHandleError(status, [NSString stringWithFormat:@"Seeking %@ failed (%d)", _url.lastPathComponent, (int)status]);
+    }
+    return status == noErr;
 }
 
 #pragma mark - Writing
@@ -337,7 +341,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (![self accepts:buffer writing:YES error:error]) {
         return NO;
     }
-    OSStatus status = ExtAudioFileWrite(_reader, buffer.frameLength, buffer.audioBufferList);
+    OSStatus status = ExtAudioFileWrite(_codec, buffer.frameLength, buffer.audioBufferList);
     if (status != noErr) {
         if (error) {
             *error = VibeHandleError(status, [NSString stringWithFormat:@"Writing %@ failed (%d)", _url.lastPathComponent, (int)status]);
@@ -349,11 +353,11 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 - (BOOL)closeWithError:(NSError **)error {
-    if (!_reader) {
+    if (!_codec) {
         return YES;
     }
-    OSStatus status = ExtAudioFileDispose(_reader);
-    _reader = NULL;
+    OSStatus status = ExtAudioFileDispose(_codec);
+    _codec = NULL;
     if (status != noErr && error) {
         *error = VibeHandleError(status, [NSString stringWithFormat:@"Finishing %@ failed (%d)", _url.lastPathComponent, (int)status]);
     }
@@ -406,7 +410,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
             list->mBuffers[b].mData = (uint8_t *)whole->mBuffers[b].mData + (size_t)total * _bytesPerFrame;
             list->mBuffers[b].mDataByteSize = frames * _bytesPerFrame;
         }
-        OSStatus status = ExtAudioFileRead(_reader, &frames, list);
+        OSStatus status = ExtAudioFileRead(_codec, &frames, list);
         if (status != noErr) {
             buffer.frameLength = total;
             if (error) {

@@ -7,7 +7,7 @@
 //  ring buffer, a gain with at most one pending ramp, an optional queued
 //  successor file that continues gaplessly at the boundary. The bus mixes
 //  every live voice into the buffers the master bus's render hands it
-//  (AudioPlayer+Graph.h).
+//  (AudioPlayer+Pipeline.h).
 //
 //  The transport (AudioPlayer) never waits on the bus. It starts a voice,
 //  ramps it, retires it, and learns three things back through the drain it
@@ -39,8 +39,8 @@
 //  Slot memory is allocated once and owned by the bus for its life; the
 //  master bus retires a bus only once no render is inside it.
 //
-//  Bit-perfect output never applies gain: the transport submits every ramp
-//  with zero frames there, and every edge is a cut.
+//  Bit-perfect output permits the transport's chosen declick ramps; with
+//  declick disabled those edges are cuts.
 //
 
 #import <AVFoundation/AVFoundation.h>
@@ -71,6 +71,7 @@ typedef NS_ENUM(int32_t, VibeVoiceEnd) {
     VibeVoiceEndNone = 0,
     VibeVoiceEndOfStream,     // every frame of the file (and successor) was rendered
     VibeVoiceEndRetired,      // a retire ramp landed
+    VibeVoiceEndFailed,       // seek, read or conversion failed; errorOfVoice:failedFile: before recycling
 };
 
 typedef NS_ENUM(NSInteger, VibeVoiceEvent) {
@@ -151,14 +152,15 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
-// resume. decodeFormat is what the file is read as: its own processing
-// format, or the 16-bit integer form bit-perfect output uses for a lossy
-// source, whose rounding is the one this bus preserves. Never fails: a full
-// pool cuts its oldest retiring voice, and a start that still finds no slot
-// is pending until the drain frees one. Returns the voice's id.
+// resume. quantizeToInt16 asks for one final rounding after conversion to the bus
+// format. The file is read in its processing format. A decode failure ends
+// the voice through VibeVoiceEndFailed; read errorOfVoice:failedFile: inside
+// the ended handler. Allocation always returns an id: a full pool cuts its
+// oldest retiring voice, and a start that still finds no slot is pending
+// until the drain frees one. Returns the voice's id.
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
-                     decodeFormat:(AVAudioFormat *)decodeFormat
+                     quantizeToInt16:(BOOL)quantizeToInt16
                              gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp
                            paused:(BOOL)paused;
@@ -202,7 +204,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // first, in which case the voice ends as it would have and the successor
 // never begins. NO for a dead voice, one retired at declick length, or one
 // already continuing.
-- (BOOL)queueSuccessor:(AudioFileHandle *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice;
+- (BOOL)queueSuccessor:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16 forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
 // successor frames sit in the ring or are on their way, and the caller must
@@ -218,6 +220,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // voice is readable until the drain has reported it ended — read what its
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;
+// Detailed failure and exact handle identity, including for repeated URLs.
+// Read before the ended handler returns.
+- (nullable NSError *)errorOfVoice:(VibeVoiceID)voice
+                       failedFile:(AudioFileHandle * _Nullable * _Nullable)file;
 
 // How the voice's file reaches the bus, for the audio-path report: nil when
 // it is read direct, else the rates and widths either side (`fromSampleRate`,

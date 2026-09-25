@@ -117,6 +117,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"outputDeviceUID": AppSettings.sharedInstance.audioOutputDeviceUID ?: @"",
             // The saved device's remembered modes, not the player's report.
             @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
+            @"allowBitPerfectOnAnyDevice": @(AppSettings.sharedInstance.allowBitPerfectOnAnyDevice),
             @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
             @"declick": @(AppSettings.sharedInstance.declick),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),

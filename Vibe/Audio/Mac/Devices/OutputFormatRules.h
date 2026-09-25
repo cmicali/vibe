@@ -193,8 +193,10 @@ static inline BOOL VibePhysicalFormatSatisfies(AudioStreamBasicDescription physi
 // points at) is never eligible, but that is the absence of a chosen device,
 // not a property of one: the device that happens to be the current default
 // is judged by its transport like any other. Read by the switch, the Output
-// menu and the report, so the three cannot disagree.
-static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType) {
+// menu and the report, so the three cannot disagree. The Advanced testing
+// override bypasses this transport allowlist; format/signal checks still apply.
+static inline BOOL VibeBitPerfectDeviceEligible(UInt32 transportType, BOOL allowAnyDevice) {
+    if (allowAnyDevice) return YES;
     switch (transportType) {
         case kAudioDeviceTransportTypeBuiltIn:
         case kAudioDeviceTransportTypePCI:

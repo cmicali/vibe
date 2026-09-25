@@ -267,23 +267,23 @@ static int VibeOpenDescriptorCount(void) {
 - (void)testTheCursorSeeksInFileFrames {
     AudioFileHandle *handle = [self open:[self writePCMNamed:@"seek.wav" frames:4000 channels:1 rate:44100]];
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:16];
-    handle.framePosition = 1234;
+    XCTAssertTrue([handle seekToFrame:1234 error:NULL]);
     XCTAssertEqual(handle.framePosition, (AVAudioFramePosition)1234);
     XCTAssertTrue([handle readIntoBuffer:buffer error:NULL]);
     XCTAssertEqual(buffer.frameLength, 16u);
     XCTAssertEqual(buffer.floatChannelData[0][0], VibeFixtureSample(1234, 0) / 32768.0f);
     XCTAssertEqual(handle.framePosition, (AVAudioFramePosition)1250);
 
-    handle.framePosition = 3995;
+    XCTAssertTrue([handle seekToFrame:3995 error:NULL]);
     XCTAssertTrue([handle readIntoBuffer:buffer error:NULL]);
     XCTAssertEqual(buffer.frameLength, 5u, @"a read across the end stops at it");
     XCTAssertEqual(buffer.floatChannelData[0][4], VibeFixtureSample(3999, 0) / 32768.0f);
 
-    handle.framePosition = 9000;
+    XCTAssertTrue([handle seekToFrame:9000 error:NULL]);
     XCTAssertTrue([handle readIntoBuffer:buffer error:NULL]);
     XCTAssertEqual(buffer.frameLength, 0u, @"past the end reads nothing");
 
-    handle.framePosition = -5;
+    XCTAssertTrue([handle seekToFrame:-5 error:NULL]);
     XCTAssertEqual(handle.framePosition, (AVAudioFramePosition)0);
 }
 

@@ -32,6 +32,7 @@
 #define SETTING_SKIP_BASE_BARS                      @"Transport.skipBaseBars"
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
+#define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
@@ -88,6 +89,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(30),
             SETTING_AUDIO_FX_ENABLED:               @(YES),
+            SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
             SETTING_DECLICK:                        @(YES),
             SETTING_ANALYZE_BPM:                    @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
@@ -791,6 +793,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setUiUpdateHzCap:(NSInteger)hz {
     [[NSUserDefaults standardUserDefaults] setInteger:hz forKey:SETTING_UI_UPDATE_HZ_CAP];
+}
+
+- (BOOL)allowBitPerfectOnAnyDevice {
+    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
+}
+
+- (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed {
+    [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
 }
 
 - (BOOL)audioFXEnabled {

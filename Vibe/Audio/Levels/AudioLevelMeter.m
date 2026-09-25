@@ -1,9 +1,9 @@
 //
-//  AudioLevelTap.m
+//  AudioLevelMeter.m
 //  Vibe
 //
 
-#import "AudioLevelTap.h"
+#import "AudioLevelMeter.h"
 
 #import "AudioLevelAnalyzer.h"
 #import "AudioLevelPublisherInternal.h"
@@ -31,8 +31,7 @@ struct VibeLevelMeter {
     _Atomic int32_t holdRender;          // a test's stalled callback: the render blocks after its entry read while set
     _Atomic int32_t rendersHeld;
 #endif
-    // The publication cadence: a tap buffer's worth of frames at the tap's
-    // rate, the analyzer's windows summarized once it is reached.
+    // Frames per publication; the analyzer's windows are summarized at this count.
     uint32_t target;
     uint32_t fill;
     double sampleRate;
@@ -155,7 +154,7 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
     }
     // A fresh install restarts the cadence and the analyzer, so no earlier
     // audio is published. TRAP: restarting the meter's own count alone left
-    // the analyzer's partial window and references in place — the tap is
+    // the analyzer's partial window and references in place — the meter is
     // kept across demand changes — and the first publication of a new
     // session carried the previous track's samples into the bars.
     uint64_t session = atomic_load_explicit(&meter->session, memory_order_acquire);
@@ -178,7 +177,7 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
         VibeLevelMeterCapture(meter, channels, channelCount, frames, meter->sampleRate, timestamp);
     }
 #endif
-    // Each window is analyzed in the callback that fills it; every tap
+    // Each window is analyzed in the callback that fills it; every meter
     // buffer's worth, the windows so far are summarized and published once.
     UInt32 analyzed = channelCount < kMeterChannels ? channelCount : kMeterChannels;
     UInt32 consumed = 0;
@@ -204,9 +203,9 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
 }
 VIBE_REALTIME_END
 
-#pragma mark - The tap
+#pragma mark - The meter
 
-@implementation AudioLevelTap {
+@implementation AudioLevelMeter {
     VibeLevelMeter *_meter;
     AudioLevelPublisher *_publisher;
     BOOL _installed;
@@ -226,20 +225,20 @@ VIBE_REALTIME_END
         return nil;
     }
     if (!publisher || format.sampleRate <= 0 || format.channelCount == 0) {
-        LogWarn(@"AudioLevelTap: no usable format, no levels");
+        LogWarn(@"AudioLevelMeter: no usable format, no levels");
         return nil;
     }
     VibeLevelMeter *meter = calloc(1, sizeof(VibeLevelMeter));
     if (!meter) {
-        LogError(@"AudioLevelTap: meter allocation failed, no levels");
+        LogError(@"AudioLevelMeter: meter allocation failed, no levels");
         return nil;
     }
     _meter = meter;
     meter->sampleRate = format.sampleRate;
-    meter->target = VibeLevelTapBufferFrameCount(format.sampleRate);
+    meter->target = VibeLevelPublicationFrameCount(format.sampleRate);
     meter->analyzer = VibeAudioLevelAnalyzerCreate(format.sampleRate, normalizationMode);
     if (!meter->analyzer) {
-        LogError(@"AudioLevelTap: analyzer allocation failed, no levels");
+        LogError(@"AudioLevelMeter: analyzer allocation failed, no levels");
         return nil;
     }
 #if VIBE_VERBOSE_LOGGING
@@ -265,7 +264,7 @@ VIBE_REALTIME_END
 #endif
     _publisher = publisher;
     meter->publisherState = [publisher publisherState];
-    LogDebug(@"AudioLevelTap: meter at %.0f Hz, %lu-frame FFT, a publication every %u frames",
+    LogDebug(@"AudioLevelMeter: meter at %.0f Hz, %lu-frame FFT, a publication every %u frames",
              format.sampleRate, (unsigned long)VibeAudioLevelAnalyzerFFTSize(meter->analyzer), meter->target);
     return self;
 }

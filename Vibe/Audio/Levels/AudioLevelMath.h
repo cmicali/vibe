@@ -4,9 +4,8 @@
 //
 //  The tunable half of the audio-reactive equalizer indicator: where the five
 //  bands sit, how a band's energy becomes a 0..1 level, and how much audio one
-//  analysis decision covers. AudioLevelTap owns an AVAudioEngine tap and so is
-//  unreachable from the host-less suite; its arithmetic lives here where it
-//  can be tested.
+//  analysis decision covers. AudioLevelMeter and AudioLevelAnalyzer share
+//  this arithmetic with the host-less tests.
 //
 //  A BAND is a frequency range. Its ENERGY is magnitude-squared power,
 //  normalized for FFT size and averaged across channels. Relative-activity
@@ -116,7 +115,7 @@ static inline NSUInteger VibeLevelFFTSizeForSampleRate(double sampleRate) {
     return target - (double)lower <= (double)upper - target ? lower : upper;
 }
 
-static inline uint32_t VibeLevelTapBufferFrameCount(double sampleRate) {
+static inline uint32_t VibeLevelPublicationFrameCount(double sampleRate) {
     if (!isfinite(sampleRate) || sampleRate <= 0) {
         sampleRate = 48000.0;
     }

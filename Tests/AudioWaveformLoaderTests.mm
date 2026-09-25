@@ -1,5 +1,5 @@
 //
-//  AVFAudioWaveformLoaderTests.mm
+//  AudioWaveformLoaderTests.mm
 //  VibeTests
 //
 //  The decode pass's phases, one at a time. Three of them read the pass struct
@@ -17,7 +17,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 
-#import "AVFAudioWaveformLoaderInternal.h"
+#import "AudioWaveformLoaderInternal.h"
 #import "AudioFixtures.h"
 #import "AudioWaveform.h"
 
@@ -33,17 +33,17 @@
 }
 @end
 
-@interface AVFAudioWaveformLoaderTests : XCTestCase
+@interface AudioWaveformLoaderTests : XCTestCase
 @end
 
-@implementation AVFAudioWaveformLoaderTests {
-    AVFAudioWaveformLoader *_loader;
+@implementation AudioWaveformLoaderTests {
+    AudioWaveformLoader *_loader;
     NSURL *_tempDirectory;
 }
 
 - (void)setUp {
     [super setUp];
-    _loader = [[AVFAudioWaveformLoader alloc] init];
+    _loader = [[AudioWaveformLoader alloc] init];
     _tempDirectory = [NSURL fileURLWithPath:
             [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtURL:_tempDirectory
@@ -305,7 +305,7 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     progress.inverted = YES;
     RecordingWaveformLoaderDelegate *delegate = [RecordingWaveformLoaderDelegate new];
     delegate.progressExpectation = progress;
-    AVFAudioWaveformLoader *loader = [[AVFAudioWaveformLoader alloc] initWithDelegate:delegate];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:delegate];
     [loader detach];
 
     XCTAssertNotNil([loader load:path]);

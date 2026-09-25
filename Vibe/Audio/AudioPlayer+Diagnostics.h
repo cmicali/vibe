@@ -2,16 +2,10 @@
 //  AudioPlayer+Diagnostics.h
 //  Vibe
 //
-//  Every beta observation the player makes, behind named hooks so the
-//  transport stays readable: the `Timeline:` join of a play's submission,
-//  admission, settlement, first render and delivery; the `Callback:` line per
-//  bus event; the `Signal:` probe on the level tap; the `Stall:` watchers over
-//  the main thread, the player queue and the output render clock. Under
-//  VIBE_VERBOSE_LOGGING every hook logs; otherwise each is an empty method.
-//
-//  performDiagnosticPhase:device:operation: is the one hook with a job in
-//  every build — it runs the operation — and brackets it with `Phase:` lines
-//  in betas. All run on the player queue unless noted.
+//  Audio-path reports for Settings and Debug in every build; Timeline, Phase,
+//  Callback, Signal and Stall instrumentation under VIBE_VERBOSE_LOGGING.
+//  Hooks leave transport readable. performDiagnosticPhase: always runs its
+//  operation. All methods run on the player queue unless noted.
 //
 
 #import "AudioPlayer.h"
@@ -22,21 +16,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioPlayer (Diagnostics)
 
+// The render chain, stage by stage, from the source file to the output
+// device: `stage` names each (source, decode, bus, varispeed, fx, meter,
+// output, and on macOS device), `present` whether it is there now, and the
+// rest is that stage's facts — rates, sample formats, channels, whether it
+// is in the render. For the Settings window, the debug report and the
+// dump_audio_path verb.
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue;
+
+
 // Installs the process-lifetime stall watchers for the production player. Main thread.
 - (void)startStallWatchers;
 
 // The watcher's reads of queue-confined engine state, from its timer on the queue.
 - (BOOL)diagnosticEngineRunning;
-// IO cycles the hosted output unit wrote as silence because the engine could
-// not render; cumulative, any thread. 0 without a unit.
-- (uint64_t)diagnosticOutputDropouts;
-// The unit's callback cost over the cycles it rendered: their count, and the
-// mean and longest time inside the callback in microseconds. Cumulative, any
-// thread; 0 without a unit.
-- (uint64_t)diagnosticRenderCycles;
-- (double)diagnosticRenderMeanMicroseconds;
-- (double)diagnosticRenderMaxMicroseconds;
-
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.
 - (uint64_t)diagnosticPlayIdentifierOnQueue;

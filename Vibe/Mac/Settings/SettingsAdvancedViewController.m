@@ -25,6 +25,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
+    NSSwitch *_allowBitPerfectAnyDeviceSwitch;
     NSButton *_resetButton;
     NSButton *_factoryResetButton;
     NSTextField *_cacheSizeValue;
@@ -59,6 +60,8 @@ static const CGFloat kAdvancedPopUpWidth = 200;
         _refreshRatePopUp.lastItem.tag = kVibeUIUpdateHzCapPresets[i];
     }
 
+    _allowBitPerfectAnyDeviceSwitch = [self switchWithAction:@selector(allowBitPerfectAnyDeviceChanged:)];
+
     _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
                                       target:self action:@selector(resetSettings:)];
     _factoryResetButton = [NSButton buttonWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
@@ -84,17 +87,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     _audioPathValues = audioValues;
 
     [self loadPaneWithSections:@[
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
-        ]],
-        [SettingsSectionView sectionWithRows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
-                                 controls:@[_cacheSizeValue, _clearCacheButton]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL
-                                 caption:STR_SETTINGS_RESET_CAPTION control:_resetButton],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
-                                 caption:STR_SETTINGS_FACTORY_RESET_CAPTION control:_factoryResetButton],
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_VERSION_LABEL
                                   control:[self valueLabelWithString:NSBundle.mainBundle.vibeVersionString]],
@@ -106,6 +98,18 @@ static const CGFloat kAdvancedPopUpWidth = 200;
                                   control:[self availableLanguagesLabel]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEBUG_INFO_LABEL
                                   caption:STR_SETTINGS_DEBUG_INFO_CAPTION control:_debugInfoButton],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE control:_allowBitPerfectAnyDeviceSwitch],
+        ]],
+        [SettingsSectionView sectionWithRows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL
+                                 controls:@[_cacheSizeValue, _clearCacheButton]],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL
+                                 caption:STR_SETTINGS_RESET_CAPTION control:_resetButton],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
+                                 caption:STR_SETTINGS_FACTORY_RESET_CAPTION control:_factoryResetButton],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_PATH_SECTION rows:audioRows],
     ]];
@@ -416,6 +420,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 - (void)refreshFromSettings {
     // The getter snaps to a preset, so this always matches an item.
     [_refreshRatePopUp selectItemWithTag:AppSettings.sharedInstance.uiUpdateHzCap];
+    _allowBitPerfectAnyDeviceSwitch.state = AppSettings.sharedInstance.allowBitPerfectOnAnyDevice
+            ? NSControlStateValueOn : NSControlStateValueOff;
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
@@ -495,6 +501,11 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 - (void)refreshRateChanged:(id)sender {
     AppSettings.sharedInstance.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
+}
+
+- (void)allowBitPerfectAnyDeviceChanged:(id)sender {
+    AppSettings.sharedInstance.allowBitPerfectOnAnyDevice = _allowBitPerfectAnyDeviceSwitch.state == NSControlStateValueOn;
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
 }
 
 #pragma mark - Cache

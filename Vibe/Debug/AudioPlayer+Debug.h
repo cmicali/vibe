@@ -13,7 +13,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import "AudioLevelMath.h"
 
-@class AudioLevelTap;
+@class AudioLevelMeter;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,8 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 // until decoding is allowed again.
 - (void)debugStarveDecoder:(BOOL)starve;
 
-// The current voice's decode format: the file's own, or the 16-bit integer
-// form bit-perfect output reads a lossy source in. nil with no voice.
+// The current voice's conversion output: the bus format, or Int16 at the
+// bus rate and width when rounding a lossy source. nil with no current voice.
 - (nullable AVAudioFormat *)debugCurrentDecodeFormat;
 
 // How the current voice's file reaches the bus (AudioVoiceBus's
@@ -82,7 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The installed meter, for the render suite's signal-probe reads; nil while
 // no indicator or probe wants levels.
-- (nullable AudioLevelTap *)debugLevelTap;
+- (nullable AudioLevelMeter *)debugLevelMeter;
 
 // While set, a render blocks inside the pipeline after it has read the bus —
 // a render stuck past the wait's bound, on a thread of its own — so every

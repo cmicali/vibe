@@ -5,8 +5,8 @@
 //  The public surface is the (State) category in AudioPlayer.h; the state it
 //  reads, and the lock that guards it, are AudioPlayerInternal.h's. Every
 //  getter takes the lock, copies scalars, and computes off it; the position
-//  reads the current voice's consumed frames from the bus, which is lock-free
-//  and messages no object, so nothing here can wait on the player queue.
+//  reads the current voice's consumed frames through the bus's short table
+//  lock and atomic snapshot, without waiting on the player queue.
 //
 
 #import "AudioPlayerInternal.h"

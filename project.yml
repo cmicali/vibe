@@ -689,7 +689,6 @@ targets:
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
-      - path: Vibe/Audio/Waveform/AVFAudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Debug/AudioLoadTiming.m
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
@@ -704,7 +703,7 @@ targets:
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
-      - path: Vibe/Audio/Loading/AudioFileHandle.m
+      - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
@@ -817,7 +816,7 @@ targets:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
-      - sdk: AVFoundation.framework          # AVFAudioWaveformLoader reads (and its tests write) files
+      - sdk: AVFoundation.framework          # AudioWaveformLoader reads (and its tests write) files
 
   # Real AVAudioEngine rendering, with no test host or output device.
   VibeAudioTests:
@@ -828,7 +827,7 @@ targets:
       - path: Tests/TestFilesystemGuard.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
-      - path: Vibe/Audio/AudioPlayer+Graph.m
+      - path: Vibe/Audio/AudioPlayer+Pipeline.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m
@@ -837,7 +836,7 @@ targets:
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
-      - path: Vibe/Audio/Loading/AudioFileHandle.m
+      - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Loading/CloudTransferRegistry.m
@@ -847,7 +846,7 @@ targets:
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Audio/Mac/Devices/AudioOutputUnit.m
-      - path: Vibe/Audio/Levels/AudioLevelTap.m
+      - path: Vibe/Audio/Levels/AudioLevelMeter.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Debug/VibeManualRenderPump.m
