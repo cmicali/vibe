@@ -243,12 +243,9 @@ static NSString *VibeSampleStack(thread_t thread, NSString *name, double millise
 // A queue that takes more than 200 ms to run an empty block was blocked by
 // something, and the log says for how long, so a reported freeze can be told
 // apart from late audio. For the main thread the watcher also captures, once
-// per stall, where it is stuck, 250 ms in. The timers live as long as the
-// process.
-static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach_port_t sampledThread) {
-    static NSMutableArray *timers;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
+// per stall, where it is stuck, 250 ms in. Returned suspended: the player
+// resumes it while it has work that can stall (refreshStallWatchersOnQueue).
+static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach_port_t sampledThread) {
     dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
     __block BOOL waiting = NO; // confined to watcher, like the rest below
     __block uint64_t pingedAt = 0;
@@ -301,91 +298,6 @@ static void VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach
             }
         });
     });
-    dispatch_resume(timer);
-    @synchronized (timers) {
-        [timers addObject:timer];
-    }
-}
-
-// The output's own render clock, checked every 50 ms while playing. A clock
-// that stops means the device's IO stopped pulling audio — the one source of
-// a frozen time counter that is neither the main thread nor a late first
-// frame. Reports both onset and recovery, including a missing render clock.
-// Returned suspended: the player resumes it while the output runs and
-// suspends it at the stop, so an idle player wakes nothing.
-static dispatch_source_t VibeWatchOutputRender(AudioPlayer *player, dispatch_queue_t queue) {
-    static NSMutableArray *timers;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ timers = [NSMutableArray array]; });
-    __weak AudioPlayer *weakPlayer = player;
-    __block AVAudioFramePosition lastSample = -1;
-    __block uint64_t lastAdvance = 0, stalledSince = 0, lastDropouts = 0;
-    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC, 10 * NSEC_PER_MSEC);
-    dispatch_source_set_event_handler(timer, ^{
-        AudioPlayer *strongPlayer = weakPlayer;
-        if (!strongPlayer) {
-            return;
-        }
-        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        BOOL playing = strongPlayer.isPlaying && !strongPlayer.isLoading;
-        AVAudioTime *render = nil;
-        BOOL outputRunning = [strongPlayer diagnosticOutputRunning];
-        if (playing && outputRunning) {
-            @try {
-                render = [strongPlayer outputRenderTimeOnQueue];
-            }
-            @catch (NSException *exception) {
-                render = nil; // instrumentation must never take playback down with it
-            }
-        }
-        // The other stall: the device keeps pulling, the pipeline cannot render.
-        uint64_t dropouts = [[strongPlayer carrierCountersOnQueue][@"dropouts"] unsignedLongLongValue];
-        if (dropouts != lastDropouts) {
-            if (playing) {
-                LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the pipeline could not render (play %llu, %@)",
-                        dropouts - lastDropouts, [strongPlayer diagnosticPlayIdentifierOnQueue],
-                        strongPlayer.currentTrack.url.lastPathComponent);
-            }
-            lastDropouts = dropouts;
-        }
-        BOOL advancing = render.sampleTimeValid && render.sampleTime != lastSample;
-        if (!playing || advancing) {
-            if (stalledSince) {
-                LogWarn(@"Stall: output render clock resumed/stopped after %.0f ms (play %llu, %@)",
-                        (now - stalledSince) / 1e6, [strongPlayer diagnosticPlayIdentifierOnQueue],
-                        strongPlayer.currentTrack.url.lastPathComponent);
-            }
-            lastSample = render.sampleTimeValid ? render.sampleTime : -1;
-            lastAdvance = playing ? now : 0;
-            stalledSince = 0;
-        }
-        else {
-            if (!lastAdvance) lastAdvance = now;
-            if (!stalledSince && now - lastAdvance > 200 * NSEC_PER_MSEC) {
-                stalledSince = lastAdvance;
-                LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@, output %d, clock valid %d)",
-                        (now - stalledSince) / 1e6, [strongPlayer diagnosticPlayIdentifierOnQueue],
-                        strongPlayer.currentTrack.url.lastPathComponent, outputRunning,
-                        render.sampleTimeValid);
-#if TARGET_OS_OSX
-                // Stuck in our render, or waiting for a device that stopped
-                // asking: the IO thread's stack tells the two apart.
-                thread_t io = VibeFindThread(nil, "com.apple.audio.IOThread.client");
-                if (io == MACH_PORT_NULL) {
-                    LogWarn(@"Stall stack: no audio IO thread exists");
-                }
-                else {
-                    VibeSampleStack(io, @"audio IO thread", (now - stalledSince) / 1e6, nil);
-                    mach_port_deallocate(mach_task_self(), io);
-                }
-#endif
-            }
-        }
-    });
-    @synchronized (timers) {
-        [timers addObject:timer];
-    }
     return timer;
 }
 
@@ -527,39 +439,54 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #if TARGET_OS_OSX
     // Read on the main thread itself, where the production player is made;
     // there is no public way to name the main thread from another.
-    VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread",
-                            NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
+    dispatch_source_t main = VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread",
+                                                     NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
 #else
-    VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread", MACH_PORT_NULL);
+    dispatch_source_t main = VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread", MACH_PORT_NULL);
 #endif
     // The player queue runs on whichever pool thread is free; the watcher
     // finds the one draining it at each sample.
-    VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL);
-    _renderClockWatcher = VibeWatchOutputRender(self, _queue);
+    _stallWatchers = @[main, VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL)];
 #endif
 }
 
-// The render-clock watcher has nothing to watch while the output is stopped,
-// so it ticks only between an output start and its stop; the two queue
-// watchers keep ticking, since a stalled main thread or player queue is a
-// bug whenever it happens. Balanced: one resume per suspend.
-- (void)setRenderClockWatcherRunningOnQueue:(BOOL)running {
+// The watchers tick while the player has work that can stall — the output
+// running, or a device phase in flight on a stopped output (a bind, a format
+// write, the idle stop's hog release) — and are suspended otherwise, so an
+// idle player wakes nothing. The trade: a main thread stalled while the
+// player idles goes unsampled. Balanced: one resume per suspend.
+- (void)refreshStallWatchersOnQueue {
 #if VIBE_VERBOSE_LOGGING
-    if (!_renderClockWatcher || running == _renderClockWatcherRunning) {
+    BOOL wanted = [self renderingOnQueue] || _diagnosticPhaseDepth > 0;
+    if (!_stallWatchers.count || wanted == _stallWatchersRunning) {
         return;
     }
-    _renderClockWatcherRunning = running;
-    if (running) {
-        dispatch_resume(_renderClockWatcher);
-    }
-    else {
-        dispatch_suspend(_renderClockWatcher);
+    _stallWatchersRunning = wanted;
+    for (dispatch_source_t watcher in _stallWatchers) {
+        if (wanted) {
+            dispatch_resume(watcher);
+        }
+        else {
+            dispatch_suspend(watcher);
+        }
     }
 #endif
 }
 
-- (BOOL)diagnosticOutputRunning {
-    return [self renderingOnQueue];
+- (void)noteOutputEdgeOnQueue {
+#if VIBE_VERBOSE_LOGGING
+    if (![self renderingOnQueue]) {
+        // No drain follows a stop to close a stall the last one opened.
+        if (_renderClockStalledSince) {
+            LogWarn(@"Stall: output render clock stalled %.0f ms, then the output stopped (play %llu, %@)",
+                    (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - _renderClockStalledSince) / 1e6,
+                    [self diagnosticPlayIdentifierOnQueue], self.currentTrack.url.lastPathComponent);
+        }
+        _renderClockStalledSince = 0;
+        _renderClockAdvancedAt = 0;
+    }
+    [self refreshStallWatchersOnQueue];
+#endif
 }
 
 - (uint64_t)diagnosticPlayIdentifierOnQueue {
@@ -571,9 +498,13 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     uint64_t play = [self diagnosticPlayIdentifierOnQueue];
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     LogInfo(@"Phase: play %llu voice %llu %@ begin, target %ld, state %ld", play, _voice, phase, (long)deviceID, (long)_state);
+    _diagnosticPhaseDepth++; // HAL work on a stopped output: the watchers run for it
+    [self refreshStallWatchersOnQueue];
 #endif
     BOOL success = operation();
 #if VIBE_VERBOSE_LOGGING
+    _diagnosticPhaseDepth--;
+    [self refreshStallWatchersOnQueue];
     LogInfo(@"Phase: play %llu voice %llu %@ end, target %ld, success %d, %.1f ms",
             play, _voice, phase, (long)deviceID, success, VibeMillisecondsSince(began));
 #endif
@@ -632,6 +563,65 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
+// The output's own render clock, read at every drain: the drain is the check's
+// clock, so it costs no wakeup of its own and an idle player has none. A clock
+// that stops means the device's IO stopped pulling audio — the one source of
+// a frozen time counter that is neither the main thread nor a late first
+// frame. Reports onset and recovery; noteOutputEdgeOnQueue closes a stall a
+// stop cuts short. Under the pump there is no device clock to watch.
+- (void)noteRenderClockOnQueue {
+#if VIBE_VERBOSE_LOGGING
+    if (![self drivesOutputDeviceOnQueue]) {
+        return;
+    }
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    BOOL playing = _state == VibePlayerStatePlaying;
+#if TARGET_OS_OSX
+    // The other stall: the device keeps pulling, the pipeline cannot render.
+    // A count below the last one was cleared by a measurement, not a stall.
+    uint64_t dropouts = _outputUnit.dropouts;
+    if (playing && dropouts > _renderClockDropouts) {
+        LogWarn(@"Stall: output unit wrote silence for %llu IO cycles the pipeline could not render (play %llu, %@)",
+                dropouts - _renderClockDropouts, [self diagnosticPlayIdentifierOnQueue],
+                self.currentTrack.url.lastPathComponent);
+    }
+    _renderClockDropouts = dropouts;
+#endif
+    uint64_t frames = [self renderedFramesOnQueue];
+    if (!playing || frames != _renderClockFrames) {
+        if (_renderClockStalledSince) {
+            LogWarn(@"Stall: output render clock resumed/stopped after %.0f ms (play %llu, %@)",
+                    (now - _renderClockStalledSince) / 1e6, [self diagnosticPlayIdentifierOnQueue],
+                    self.currentTrack.url.lastPathComponent);
+        }
+        _renderClockFrames = frames;
+        _renderClockAdvancedAt = playing ? now : 0;
+        _renderClockStalledSince = 0;
+        return;
+    }
+    if (!_renderClockAdvancedAt) {
+        _renderClockAdvancedAt = now;
+    }
+    if (!_renderClockStalledSince && now - _renderClockAdvancedAt > 200 * NSEC_PER_MSEC) {
+        _renderClockStalledSince = _renderClockAdvancedAt;
+        LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@)", (now - _renderClockStalledSince) / 1e6,
+                [self diagnosticPlayIdentifierOnQueue], self.currentTrack.url.lastPathComponent);
+#if TARGET_OS_OSX
+        // Stuck in our render, or waiting for a device that stopped asking:
+        // the IO thread's stack tells the two apart.
+        thread_t io = VibeFindThread(nil, "com.apple.audio.IOThread.client");
+        if (io == MACH_PORT_NULL) {
+            LogWarn(@"Stall stack: no audio IO thread exists");
+        }
+        else {
+            VibeSampleStack(io, @"audio IO thread", (now - _renderClockStalledSince) / 1e6, nil);
+            mach_port_deallocate(mach_task_self(), io);
+        }
+#endif
+    }
+#endif
+}
+
 // The voice's own stamp names when its first frame rendered, and the live
 // event precedes that render as often as not — the decoder's first fill hops
 // to the drain before the audio thread has consumed — so the line waits for
@@ -639,6 +629,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 // sound.
 - (void)noteDrainOnQueue {
 #if VIBE_VERBOSE_LOGGING
+    [self noteRenderClockOnQueue];
     VibeVoiceID voice = _firstRenderVoice;
     if (!voice || voice != _voice) {
         return;

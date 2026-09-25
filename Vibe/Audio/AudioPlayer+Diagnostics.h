@@ -25,14 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue;
 
 
-// Installs the process-lifetime stall watchers for the production player. Main thread.
+// Installs the production player's stall watchers, suspended: they tick only
+// while the player has work that can stall. Main thread.
 - (void)startStallWatchers;
-// Whether the render-clock watcher ticks: YES from an output start, NO at its
-// stop, so an idle player wakes nothing. A no-op without the watchers.
-- (void)setRenderClockWatcherRunningOnQueue:(BOOL)running;
+// An output start or stop: the watchers follow the output, and a render-clock
+// stall a stop cuts short is closed. A no-op without the watchers.
+- (void)noteOutputEdgeOnQueue;
 
-// The watcher's reads of queue-confined output state, from its timer on the queue.
-- (BOOL)diagnosticOutputRunning;
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.
 - (uint64_t)diagnosticPlayIdentifierOnQueue;
@@ -50,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AudioFileHandle *)file error:(nullable NSError *)error;
 - (void)noteVoiceStarted:(VibeVoiceID)voice file:(AudioFileHandle *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current;
-// Every drain: the first-render line for a voice whose live event preceded its render.
+// Every drain: the render-clock check, and the first-render line for a voice whose live event preceded its render.
 - (void)noteDrainOnQueue;
 - (void)noteSettled:(NSString *)what reason:(NSString *)reason;
 // Wraps a main-thread delivery: logs its latency and whether it was accepted.

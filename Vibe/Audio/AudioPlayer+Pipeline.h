@@ -89,7 +89,9 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // The shared gate and carrier state; under the pump, the gate alone.
 - (BOOL)renderingOnQueue;
 // The output-timeline frame the next render begins at, plus the block in
-// flight: the signal probe's clock on every carrier.
+// flight: the signal probe's clock on every carrier, and as a bare count the
+// render-clock check's.
+- (uint64_t)renderedFramesOnQueue;
 - (nullable AVAudioTime *)outputRenderTimeOnQueue;
 // The hosted varispeed, in ordinary playback on macOS: whether it exists,
 // whether the render has it in the chain (the pitch off zero), its declared

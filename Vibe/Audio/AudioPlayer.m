@@ -229,6 +229,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     }
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
+#if VIBE_VERBOSE_LOGGING
+    // A suspended source cannot be released: cancel each watcher, then lift
+    // the suspension its creation or the gate left on it.
+    for (dispatch_source_t watcher in _stallWatchers) {
+        dispatch_source_cancel(watcher);
+        if (!_stallWatchersRunning) {
+            dispatch_resume(watcher);
+        }
+    }
+#endif
     // Pipeline mutation belongs on _queue, as everywhere else. dispatch_sync
     // from here cannot deadlock against in-flight queue work: a queued block
     // either holds a strongSelf, in which case dealloc is not running, or

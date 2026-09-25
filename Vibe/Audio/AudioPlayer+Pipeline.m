@@ -785,13 +785,16 @@ VIBE_REALTIME_END
             && (![self drivesOutputDeviceOnQueue] || [self carrierRunningOnQueue]);
 }
 
+- (uint64_t)renderedFramesOnQueue {
+    return atomic_load_explicit(&_masterBus->frames, memory_order_acquire)
+            + atomic_load_explicit(&_masterBus->pendingFrames, memory_order_acquire);
+}
+
 - (AVAudioTime *)outputRenderTimeOnQueue {
     if (!_masterFormat) {
         return nil;
     }
-    uint64_t frames = atomic_load_explicit(&_masterBus->frames, memory_order_acquire)
-            + atomic_load_explicit(&_masterBus->pendingFrames, memory_order_acquire);
-    return [AVAudioTime timeWithSampleTime:(AVAudioFramePosition)frames atRate:_masterFormat.sampleRate];
+    return [AVAudioTime timeWithSampleTime:(AVAudioFramePosition)[self renderedFramesOnQueue] atRate:_masterFormat.sampleRate];
 }
 
 - (BOOL)varispeedPresentOnQueue {
@@ -1095,7 +1098,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     [self applyLevelMeterOnQueue];
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
-    [self setRenderClockWatcherRunningOnQueue:YES];
+    [self noteOutputEdgeOnQueue];
     return YES;
 }
 
@@ -1108,7 +1111,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     [self refreshOutputAudioActiveOnQueue];
     [self updateDrainTimerOnQueue];
-    [self setRenderClockWatcherRunningOnQueue:NO];
+    [self noteOutputEdgeOnQueue];
 }
 
 - (void)scheduleOutputIdleStopOnQueue {
