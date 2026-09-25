@@ -58,9 +58,6 @@ static const CGFloat kGeneralPopUpWidth = 280;
     self = [super initWithPlayerController:playerController];
     if (self) {
         _audioPane = audioPane;
-        if (audioPane) {
-            [AudioDeviceManager.sharedInstance addObserver:self];
-        }
     }
     return self;
 }
@@ -367,6 +364,25 @@ static const CGFloat kGeneralPopUpWidth = 280;
     NSInteger deviceId = row == 0 ? -1 : [self outputDeviceAtRow:row].deviceId;
     if (deviceId != self.playerController.audioPlayer.currentlyRequestedAudioDeviceId) {
         [self.playerController.devicesMenuController selectOutputDevice:deviceId];
+    }
+}
+
+// The device manager is observed only while the Audio pane is on screen, like
+// the Files pane's grants: every pane outlives the window, so an observer
+// registered at init reloaded the device list for a pane nobody could see on
+// every device change. viewWillAppear's refresh covers whatever changed
+// while hidden.
+- (void)viewDidAppear {
+    [super viewDidAppear];
+    if (_audioPane) {
+        [AudioDeviceManager.sharedInstance addObserver:self];
+    }
+}
+
+- (void)viewWillDisappear {
+    [super viewWillDisappear];
+    if (_audioPane) {
+        [AudioDeviceManager.sharedInstance removeObserver:self];
     }
 }
 

@@ -636,16 +636,28 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsAppearanceViewController *)[self appearanceTabItem].viewController;
 }
 
+// The Audio pane for the player's and the Output menu's refreshes, and only
+// while someone can see it: the controller and every pane outlive the window,
+// so a report or device change with Settings closed, or another pane selected,
+// would otherwise reload the device list and re-measure captions for nobody
+// (#47's rule: a closed Settings window is not a cheap one). A pane that was
+// hidden catches up in viewWillAppear.
 - (SettingsGeneralViewController *)audioPane {
-    return (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
+    SettingsGeneralViewController *pane =
+            (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
+    return pane.isViewLoaded && pane.view.window.isVisible ? pane : nil;
 }
 
 // Panes measure nothing while the window is hidden, so a content change that
 // landed with Settings closed has no measurement behind it. Settle every pane
-// on the way in rather than leaving the first shown pane to discover it.
+// on the way in rather than leaving the first shown pane to discover it; a
+// show while already visible (⌘, again, Edit Themes…) has nothing to settle.
 - (void)showWindow:(id)sender {
+    BOOL wasVisible = self.window.isVisible;
     [super showWindow:sender];
-    [SettingsPaneViewController settleSharedSizeForPanes:_tabs.childViewControllers];
+    if (!wasVisible) {
+        [SettingsPaneViewController settleSharedSizeForPanes:_tabs.childViewControllers];
+    }
 }
 
 - (void)refreshSelectedPane {
@@ -670,6 +682,12 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
                         change:(NSDictionary *)change context:(void *)context {
+    // The toggle exists only while the Appearance pane is on screen, and a
+    // selection or an open re-reads it on the way in; the observer outlives
+    // the window, so an OS flip with Settings closed has nothing to do.
+    if (!self.window.isVisible || ![self appearancePaneIsSelected]) {
+        return;
+    }
     [self updateThemeNavigation];
 }
 

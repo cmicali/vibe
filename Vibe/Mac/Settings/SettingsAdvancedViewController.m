@@ -351,7 +351,11 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
 // dispatch_sync here beachballed the app for the length of the teardown.
 - (void)refreshAudioPath {
     AudioPlayer *player = self.playerController.audioPlayer;
-    if (!player || !_audioPathShown || !self.view.window.isVisible || _audioPathInFlight) {
+    NSWindow *window = self.view.window;
+    // A window behind others or on another Space is visible but occluded: the
+    // timer ticks, the snapshot waits.
+    if (!player || !_audioPathShown || !window.isVisible || _audioPathInFlight
+            || !(window.occlusionState & NSWindowOcclusionStateVisible)) {
         return;
     }
     NSUInteger generation = ++_audioPathGeneration;
@@ -461,8 +465,16 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
-    [self refreshCacheSize];
     [self refreshAudioPath];
+}
+
+// The cache size is measured once per appearance, and again after Clear
+// Cache, never on the key and menu refreshes: each measurement walks both
+// stores stat by stat and holds the waveform cache's queue, which the next
+// track's waveform waits on.
+- (void)viewWillAppear {
+    [super viewWillAppear];
+    [self refreshCacheSize];
 }
 
 #pragma mark - Debug info

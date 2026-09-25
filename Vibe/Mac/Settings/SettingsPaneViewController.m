@@ -96,6 +96,9 @@ static const CGFloat kInlineTitleInset = 10;
 }
 
 - (void)selectItem:(NSMenuItem *)item {
+    if (item == self.selectedItem) {
+        return; // a refresh re-selecting the shown value moves no width
+    }
     [super selectItem:item];
     [self invalidateIntrinsicContentSize];
 }
@@ -311,19 +314,24 @@ static const CGFloat kInlineTitleInset = 10;
             [(SettingsPaneViewController *)pane resolveLayoutStateFromSettings];
         }
     }
-    [self applySharedSizeToPanes:panes];
+    [self applySharedSizeToPanes:panes measure:YES];
 }
 
 // One size for every pane — the largest's — so switching panes resizes
 // nothing. Recomputed rather than kept as a high-water mark, so a revealed row
-// grows every pane and hiding it again gives the height back.
-+ (void)applySharedSizeToPanes:(NSArray<__kindof NSViewController *> *)panes {
+// grows every pane and hiding it again gives the height back. The settle
+// measures every loaded pane afresh; a visible pane's own change (measure NO)
+// takes its siblings' last measurements, which a hidden pane cannot have
+// moved, so it costs that pane's solve alone instead of one per pane.
++ (void)applySharedSizeToPanes:(NSArray<__kindof NSViewController *> *)panes measure:(BOOL)measure {
     NSSize shared = NSMakeSize(kSettingsPaneWidth, kSettingsPaneMinHeight);
     for (NSViewController *pane in panes) {
         if (![pane isKindOfClass:SettingsPaneViewController.class] || !pane.isViewLoaded) {
             continue;
         }
-        NSSize natural = [(SettingsPaneViewController *)pane naturalPaneSize];
+        SettingsPaneViewController *settingsPane = (SettingsPaneViewController *)pane;
+        NSSize natural = !measure && !NSEqualSizes(settingsPane->_lastNaturalSize, NSZeroSize)
+                ? settingsPane->_lastNaturalSize : [settingsPane naturalPaneSize];
         shared.width = MAX(shared.width, natural.width);
         shared.height = MAX(shared.height, natural.height);
     }
@@ -348,7 +356,7 @@ static const CGFloat kInlineTitleInset = 10;
         return;
     }
     NSArray<__kindof NSViewController *> *panes = self.parentViewController.childViewControllers;
-    [SettingsPaneViewController applySharedSizeToPanes:panes.count > 0 ? panes : @[self]];
+    [SettingsPaneViewController applySharedSizeToPanes:panes.count > 0 ? panes : @[self] measure:NO];
 }
 
 // TRAP: loadView runs before resolveLayoutStateFromSettings, so the size first
@@ -375,8 +383,9 @@ static const CGFloat kInlineTitleInset = 10;
     // Measure self before the siblings. A caption that kept its height never
     // gets here (SettingsRowView.setCaption: measures that on the label), but a
     // row reveal may still leave our size where it was; when ours has not
-    // moved the maximum cannot have either, so the sibling solves and the
-    // resize animation are pure waste. Costs one solve instead of six.
+    // moved the maximum cannot have either, so the resize animation is pure
+    // waste. When it has, the siblings' last measurements stand in for them
+    // (applySharedSizeToPanes:measure:), so a change costs this pane's solve.
     NSSize previous = _lastNaturalSize;
     if (NSEqualSizes([self naturalPaneSize], previous)) {
         return;
@@ -414,7 +423,10 @@ static const CGFloat kInlineTitleInset = 10;
 }
 
 - (void)selectValue:(id)value in:(NSPopUpButton *)popUp {
-    [popUp selectItemAtIndex:[popUp indexOfItemWithRepresentedObject:value]];
+    NSInteger index = [popUp indexOfItemWithRepresentedObject:value];
+    if (index != popUp.indexOfSelectedItem) {
+        [popUp selectItemAtIndex:index];
+    }
 }
 
 - (NSSwitch *)switchWithAction:(SEL)action {
@@ -462,9 +474,12 @@ static const CGFloat kInlineTitleInset = 10;
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *note) {
                         // After the menu item's action has run, not between
-                        // tracking end and dispatch.
+                        // tracking end and dispatch — and that action may have
+                        // been File > Close, so the queued refresh re-checks.
                         run_on_main_thread({
-                            [weakSelf refreshSettingsAndPaneSize];
+                            if (weakSelf.view.window.isVisible) {
+                                [weakSelf refreshSettingsAndPaneSize];
+                            }
                         });
                     }];
 }

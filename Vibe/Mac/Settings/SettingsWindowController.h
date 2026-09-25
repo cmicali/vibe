@@ -18,7 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The two panes other code addresses by name: Appearance is the theme
 // editor's host and the debug channel's preview and navigation target;
 // Audio shows the bit-perfect report, which the player controller
-// refreshes as it changes.
+// refreshes as it changes. audioPane answers nil unless the pane is on
+// screen, so those refreshes cost nothing for a closed window or another
+// pane; the pane catches up when it appears.
 - (nullable SettingsAppearanceViewController *)appearancePane;
 - (nullable SettingsGeneralViewController *)audioPane;
 

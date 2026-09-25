@@ -159,6 +159,9 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
 }
 
 + (void)setControl:(NSControl *)control enabled:(BOOL)enabled {
+    if (control.enabled == enabled) {
+        return; // every refresh re-states enablement; an unchanged one redraws nothing
+    }
     control.enabled = enabled;
     SettingsRowView *row = [self rowContaining:control];
     if (row) [row refreshControlAppearance];
@@ -231,9 +234,10 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
                                                                 constant:-kRowPaddingV],
         ];
     }
-    BOOL changed = _captionLabel.hidden
-            || (![_captionLabel.stringValue isEqualToString:text]
-                && [self captionHeightChangesFrom:_captionLabel.stringValue to:text]);
+    if (!_captionLabel.hidden && [_captionLabel.stringValue isEqualToString:text]) {
+        return NO; // the same caption, shown: nothing moved and nothing to redraw
+    }
+    BOOL changed = _captionLabel.hidden || [self captionHeightChangesFrom:_captionLabel.stringValue to:text];
     _captionLabel.stringValue = text;
     if (_captionLabel.hidden) {
         _captionLabel.hidden = NO;
@@ -263,7 +267,10 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
 }
 
 - (void)setRowTitle:(NSString *)title {
-    _titleLabel.stringValue = title.vibeFormLabel;
+    NSString *label = title.vibeFormLabel;
+    if (![_titleLabel.stringValue isEqualToString:label]) {
+        _titleLabel.stringValue = label;
+    }
 }
 
 + (instancetype)rowWithTitle:(NSString *)title caption:(NSString *)caption control:(NSView *)control {
