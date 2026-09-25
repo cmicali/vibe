@@ -11,6 +11,7 @@
 //
 
 #import "AVFAudioWaveformLoader.h"
+#import "AudioFileHandle.h"
 #import "AudioWaveform.h"
 #import <AVFoundation/AVFoundation.h>
 
@@ -33,7 +34,7 @@ struct VibeWaveformDecodePass {
 
 @interface AVFAudioWaveformLoader ()
 
-- (nullable AVAudioFile *)openFileAtPath:(NSString *)filename
+- (nullable AudioFileHandle *)openFileAtPath:(NSString *)filename
                                     pass:(struct VibeWaveformDecodePass *)pass;
 
 // Both out-parameters are written only on success.

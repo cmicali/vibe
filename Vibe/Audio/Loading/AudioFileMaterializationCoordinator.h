@@ -4,7 +4,7 @@
 //
 //  Path-wide, role-aware ownership of an audio file's whole journey from
 //  dataless placeholder to usable handle: stage 1 is the one operation that
-//  makes the contents local, stage 2 the purpose-keyed AVAudioFile opens
+//  makes the contents local, stage 2 the purpose-keyed AudioFileHandle opens
 //  riding it. A token owns delivery, not the underlying claim: detaching or
 //  cancelling a waiter never erases a path whose stat/open may still be
 //  blocked in the OS.
@@ -14,7 +14,7 @@
 
 #import "AudioLoadingConfiguration.h"
 
-@class AVAudioFile;
+#import "AudioFileHandle.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -73,12 +73,8 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenErrorCode) {
     // prefetch do not normally yield, but the outer completion remains total
     // if a role policy changes.
     VibeAudioFileOpenErrorMaterializationYielded,
-    // The central path-wide request failed before AVAudioFile was attempted.
+    // The central path-wide request failed before the handle open was attempted.
     VibeAudioFileOpenErrorMaterializationFailed,
-    // CoreAudio's header parse refused the file before AVAudioFile was
-    // attempted (NSURL.failsAudioOpenPreflight, the fd-safe probe). Unlike
-    // Abandoned it is a verdict on the file, so a retry is pointless.
-    VibeAudioFileOpenErrorRefusedByPreflight,
 };
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
@@ -86,7 +82,7 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
     VibeAudioFileOpenPurposePrefetch,
 };
 
-typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
+typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
                                              NSError * _Nullable error,
                                              NSTimeInterval elapsed);
 
@@ -96,7 +92,7 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
 + (instancetype)new NS_UNAVAILABLE;
 
 // Stops this request from receiving a result whose completion-queue block has
-// not begun and detaches its path-wide materialization waiter. An AVAudioFile
+// not begun and detaches its path-wide materialization waiter. An AudioFileHandle
 // open which has already begun is not cancellable: its purpose-keyed claim
 // stays registered until the call returns, so a same-purpose/path retry binds
 // to it rather than multiplying an uncancellable handle open.
@@ -132,7 +128,7 @@ typedef void (^VibeAudioFileOpenCompletion)(AVAudioFile * _Nullable file,
                                          completionQueue:(dispatch_queue_t)completionQueue
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
 
-// Stage 2 of the same claim: one current AVAudioFile waiter per purpose and
+// Stage 2 of the same claim: one current AudioFileHandle waiter per purpose and
 // standardized path. A later request for that key replaces the delivery
 // binding without starting another handle open. Both purposes first ride
 // the path-wide transfer (joining any claim already moving those bytes).

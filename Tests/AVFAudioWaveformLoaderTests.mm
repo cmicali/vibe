@@ -243,20 +243,22 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 
 #pragma mark - openFileAtPath: and the whole pass, over a written file
 
-// Writes a WAV of the given duration. AVAudioFile only, so no engine and no
-// audio hardware is involved — the same class the loader reads it back with.
+// Writes a float32 WAV of the given duration through the handle's writing
+// side — the same class the loader reads it back with, no engine, no
+// audio hardware.
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds {
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                                              sampleRate:44100
                                                                channels:2
                                                             interleaved:NO];
+    AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
+                                                                 sampleRate:44100
+                                                                   channels:2
+                                                                interleaved:YES];
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url
-                                                   settings:format.settings
-                                               commonFormat:AVAudioPCMFormatFloat32
-                                                interleaved:NO
-                                                      error:&error];
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForWriting:url fileType:kAudioFileWAVEType
+                                                         fileFormat:fileFormat processingFormat:format error:&error];
     XCTAssertNotNil(file, @"could not write fixture: %@", error);
 
     const AVAudioFrameCount total = (AVAudioFrameCount)(44100.0 * seconds);
@@ -272,13 +274,14 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
         buffer.floatChannelData[1][i] = v;
     }
     XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"write failed: %@", error);
+    XCTAssertTrue([file closeWithError:&error], @"close failed: %@", error);
     return url.path;
 }
 
 - (void)testOpenReportsTheFileShape {
     NSString *path = [self writeWAVNamed:@"shape.wav" seconds:1.0];
     struct VibeWaveformDecodePass pass = {};
-    AVAudioFile *file = [_loader openFileAtPath:path pass:&pass];
+    AudioFileHandle *file = [_loader openFileAtPath:path pass:&pass];
     XCTAssertNotNil(file);
     XCTAssertEqual(pass.totalFrames, (AVAudioFramePosition)44100);
     XCTAssertEqual(pass.numChannels, (NSUInteger)2);

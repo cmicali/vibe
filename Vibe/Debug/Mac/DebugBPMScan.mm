@@ -9,6 +9,7 @@
 
 #import <AVFAudio/AVFAudio.h>
 #import "AudioBPMAnalyzer.h"
+#import "AudioFileHandle.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioWaveform.h"
 #import "AudioLoadTiming.h"
@@ -47,7 +48,7 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
                                 void (^consume)(const float *mono, NSUInteger frameCount)) {
     NSString *path = rawPath.stringByExpandingTildeInPath;
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:[NSURL fileURLWithPath:path]
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:[NSURL fileURLWithPath:path]
                                                commonFormat:AVAudioPCMFormatFloat32
                                                 interleaved:YES
                                                       error:&error];
@@ -71,9 +72,6 @@ static NSString *VibeScanDecode(NSString *rawPath, double *outSampleRate,
     if (numChannels > 1) {
         monoScratch.resize(kBlockFrames);
     }
-    // Bounded by framePosition rather than reading until empty. A read
-    // issued exactly at EOF does not report a clean zero-length success:
-    // it fails with a nil error, an AVAudioFile quirk. So never issue it.
     while (file.framePosition < file.length) {
         uint64_t phaseStart = VibeLoadClockNow();
         if (![file readIntoBuffer:buffer error:&error]) {

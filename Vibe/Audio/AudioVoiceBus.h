@@ -24,7 +24,7 @@
 //    allocates slots, submits ramps, queues successors, drains events.
 //  - The DECODE QUEUE (a serial queue the bus owns; inline on the player queue
 //    under the frame-driven test pump) reads the files and writes the rings.
-//    It is the only thing that touches an AVAudioFile after startVoice.
+//    It is the only thing that touches an AudioFileHandle after startVoice.
 //  - The AUDIO THREAD runs VibeVoiceBusRender: plain memory and atomics, no
 //    lock, allocation, Objective-C or dispatch call — the compiler enforces
 //    that (-Wfunction-effects on the CA_REALTIME_API function). It never
@@ -44,6 +44,7 @@
 //
 
 #import <AVFoundation/AVFoundation.h>
+#import "AudioFileHandle.h"
 #import "FadeMath.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -154,7 +155,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // source, whose rounding is the one this bus preserves. Never fails: a full
 // pool cuts its oldest retiring voice, and a start that still finds no slot
 // is pending until the drain frees one. Returns the voice's id.
-- (VibeVoiceID)startVoiceWithFile:(AVAudioFile *)file
+- (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
                      decodeFormat:(AVAudioFormat *)decodeFormat
                              gain:(float)gain
@@ -181,14 +182,14 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Every file a decoder of this bus may still be inside: each voice's, each
 // queued successor's, a pending start's. Player queue.
-- (NSSet<AVAudioFile *> *)filesInUse;
+- (NSSet<AudioFileHandle *> *)filesInUse;
 
 // A file a retired bus's decoder may still be inside: a voice started on it
 // reads nothing until allowReadsOfFile: says that decoder has left it, and a
 // successor queued on it is refused until then, so two decoders never move
 // one file's cursor. Player queue.
-- (void)withholdReadsOfFile:(AVAudioFile *)file;
-- (void)allowReadsOfFile:(AVAudioFile *)file;
+- (void)withholdReadsOfFile:(AudioFileHandle *)file;
+- (void)allowReadsOfFile:(AudioFileHandle *)file;
 
 // Queues `file` to continue at the voice's end without a gap. A successor
 // read the same way as the file before it continues through the same
@@ -200,7 +201,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // first, in which case the voice ends as it would have and the successor
 // never begins. NO for a dead voice, one retired at declick length, or one
 // already continuing.
-- (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice;
+- (BOOL)queueSuccessor:(AudioFileHandle *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
 // successor frames sit in the ring or are on their way, and the caller must

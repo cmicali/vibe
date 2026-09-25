@@ -71,7 +71,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // ---- The published tuple, under _stateLock, written whole by publishState:….
     VibePlayerState         _state;
     VibeVoiceID             _voice;             // the current voice, 0 while none
-    AVAudioFile             *_file;             // its file; after a promote, the successor
+    AudioFileHandle             *_file;             // its file; after a promote, the successor
     double                  _fileSampleRate;    // scalars, so a getter never messages an object
     AVAudioFramePosition    _fileLength;
     double                  _busSampleRate;
@@ -103,7 +103,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // Files a retired bus's decoder may still be inside — a rebuild leaves
     // that decoder to finish its read on its own — counted per retired bus;
     // the current bus withholds reads of them until the count reaches zero.
-    NSCountedSet<AVAudioFile *> *_retiredDecoderFiles;
+    NSCountedSet<AudioFileHandle *> *_retiredDecoderFiles;
 
     // ---- The pending open: its token, and the abandon deadline in monotonic
     // uptime. A new underlying open snapshots its configuration; a same-row
@@ -116,7 +116,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
     // ---- The park and the successor (AudioPlayer+Prefetch.m).
     NSString                *_prefetchedPath;
-    AVAudioFile             *_prefetchedFile;
+    AudioFileHandle             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchGeneration;
     AudioTrack              *_requestedPrefetchTrack;
@@ -124,7 +124,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     VibeAudioPrefetchRequestState _prefetchRequestState;
     AudioFileOpenToken      *_prefetchOpenToken;
     AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
-    AVAudioFile             *_successorFile;    // the park's instance the bus was handed
+    AudioFileHandle             *_successorFile;    // the park's instance the bus was handed
 
     // ---- The render pipeline (AudioPlayer+Graph.m).
     VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated in init, freed at dealloc
@@ -277,7 +277,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 // The terminus every file open lands in, whether the play opened it or the
 // prefetch did.
-- (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
+- (void)finishPlayOnQueueWithFile:(nullable AudioFileHandle *)file
                             error:(nullable NSError *)error
                      openRequestId:(uint64_t)openId;
 // Drops the pending open, token and identifier both.
@@ -295,7 +295,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-- (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
@@ -308,7 +308,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // moves the position must come through here.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
-                file:(nullable AVAudioFile *)file
+                file:(nullable AudioFileHandle *)file
         startSeconds:(NSTimeInterval)startSeconds
           baseFrames:(uint64_t)baseFrames;
 - (VibeVoiceID)unpublishVoiceOnQueue;

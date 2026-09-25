@@ -14,6 +14,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioDeviceManager.h"
+#import "AudioFileHandle.h"
 #import "OutputFormatRules.h"
 #import <AVFoundation/AVFoundation.h>
 #import <CoreAudio/CoreAudio.h>
@@ -95,7 +96,7 @@ NS_ASSUME_NONNULL_BEGIN
 // the gapless successor's gate, since a continuation on one voice cannot
 // switch the device. NO whenever the mode cannot apply; YES for a format the
 // device will not report, since unknown compatibility cannot splice.
-- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file;
+- (BOOL)outputNeedsSwitchOnQueueForFile:(AudioFileHandle *)file;
 
 // Reads the bound device's capabilities, applies the rate and depth rules,
 // and when the device's format or the graph's rate differs, stops the
@@ -104,11 +105,11 @@ NS_ASSUME_NONNULL_BEGIN
 // to the device's rate. Remembers the device's format before the first
 // change so it can be put back, and records the prepared device, stream and
 // format the report reads live against.
-- (void)prepareOutputOnQueueForFile:(AVAudioFile *)file;
+- (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file;
 
 // VibeBitPerfectDecodesAsInteger16 against the device prepared for file: the
 // voice's decode format. Read after preparing, which every caller does.
-- (BOOL)decodesAsInteger16OnQueueForFile:(AVAudioFile *)file;
+- (BOOL)decodesAsInteger16OnQueueForFile:(AudioFileHandle *)file;
 
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // Hog for the bound device, when the setting, an eligible device and writable

@@ -376,7 +376,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // loading-indicator timers ever exist. Loading is published above either
     // way, so the fast path lands in the same state the slow one does.
     if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
-        AVAudioFile *prefetchedFile = _prefetchedFile;
+        AudioFileHandle *prefetchedFile = _prefetchedFile;
         [self clearPrefetchOnQueue];
         [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
         return;
@@ -438,7 +438,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
-            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval openSeconds) {
+            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval openSeconds) {
         // How long the provider took is the one number that explains a slow
         // start. Warn level so it persists for `log show`; always logged, so
         // "nothing appeared" can only mean the open did not happen.
@@ -473,7 +473,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // The settlement: the file is open, the play still current. The source
 // segment is made to fit the file, a voice starts fading in from silence,
 // and the engine runs unless the play was parked.
-- (void)finishPlayOnQueueWithFile:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+- (void)finishPlayOnQueueWithFile:(AudioFileHandle *)file error:(NSError *)error openRequestId:(uint64_t)openId {
     VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
@@ -591,7 +591,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     [self cancelPlayOpenForRequest:openId];
     // If materialization was still running it is cancelled. If the worker had
-    // entered AVAudioFile, its path claim stays registered until that call
+    // entered AudioFileHandle, its path claim stays registered until that call
     // returns, and a same-path retry rebinds to it.
     AudioTrack *track = request.track;
     BOOL madeProgress = _openLastPositiveMovementUptime > _openSubmittedUptime;
@@ -953,7 +953,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     _decodeFormat = [self decodeFormatOnQueueForFile:file];
@@ -971,11 +971,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // won, where only a new voice discards the successor frames already in the
 // ring. Playing or paused alike; the published tuple moves with the voice.
 // TRAP: the old voice retires before the new one starts. Both read the same
-// AVAudioFile, whose cursor the new voice's first decode turn positions; a
+// AudioFileHandle, whose cursor the new voice's first decode turn positions; a
 // turn of the old voice queued between the two calls reads after that and
 // the new voice's next chunk starts 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
-    AVAudioFile *file = _file;
+    AudioFileHandle *file = _file;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
@@ -1197,7 +1197,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // one acquisition, so a getter never observes a torn combination. The two
 // unpublish variants below are the only partial writers, and they are safe
 // because they never move the position's origin.
-- (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AVAudioFile *)file
+- (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
         startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
     double fileSampleRate = file.processingFormat.sampleRate;

@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary<NSString *, NSNumber *> *)debugState;
 
 // Wedge injection for stage 2. Opens of basename block inside the
-// uncancellable AVAudioFile call until released — the one provider failure the
+// uncancellable AudioFileHandle call until released — the one provider failure the
 // fake cloud cannot stage, because under it the bytes are genuinely local and
 // a real open never blocks. nil basename stops matching new opens without
 // releasing the ones already held.

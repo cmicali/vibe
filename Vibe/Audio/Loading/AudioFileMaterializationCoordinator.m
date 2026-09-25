@@ -9,7 +9,6 @@
 #import "AudioWorkScheduler.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
-#import "NSURL+AudioOpen.h"
 #import "NSURLUtil.h"
 
 #import <AVFoundation/AVFoundation.h>
@@ -71,7 +70,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationDeliveryState) {
 - (BOOL)deliveryStillWaiting;
 @end
 
-// Stage 2: one purpose's AVAudioFile open for one standardized path, riding
+// Stage 2: one purpose's AudioFileHandle open for one standardized path, riding
 // the path's transfer claim. Lean on purpose: the run IS the old open
 // coordinator's claim, on the same state queue as the transfer it follows.
 @interface VibeAudioHandleRun : NSObject
@@ -382,7 +381,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
     // Stage 2, keyed "purpose:path". Membership is also the fixed admission:
-    // a run stays registered until its uncancellable AVAudioFile call returns.
+    // a run stays registered until its uncancellable AudioFileHandle call returns.
     NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
@@ -416,17 +415,8 @@ static const NSUInteger kMaximumHandleRunCount = 6;
 }
 
 static VibeAudioFileOpener const kProductionFileOpener =
-        ^AVAudioFile *(NSURL *url, NSError **error) {
-    if (url.failsAudioOpenPreflight) {
-        if (error) {
-            *error = [NSError errorWithDomain:VibeAudioFileOpenErrorDomain
-                    code:VibeAudioFileOpenErrorRefusedByPreflight
-                    userInfo:@{NSLocalizedDescriptionKey:
-                            @"CoreAudio refused the file's header before the open"}];
-        }
-        return nil;
-    }
-    return [[AVAudioFile alloc] initForReading:url error:error];
+        ^AudioFileHandle *(NSURL *url, NSError **error) {
+    return [[AudioFileHandle alloc] initForReading:url error:error];
 };
 
 - (instancetype)init {
@@ -1306,7 +1296,7 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
             DISPATCH_TIME_FOREVER, NSEC_PER_MSEC);
 }
 
-#pragma mark - Stage 2: purpose-keyed AVAudioFile opens
+#pragma mark - Stage 2: purpose-keyed AudioFileHandle opens
 
 static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *path) {
     return [NSString stringWithFormat:@"%ld:%@", (long)purpose, path];
@@ -1386,7 +1376,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             run.materializationToken = nil;
             [self->_handleRuns removeObjectForKey:run.key];
         }
-        // Stage 2 already dispatched: the AVAudioFile call is uncancellable
+        // Stage 2 already dispatched: the AudioFileHandle call is uncancellable
         // and keeps the run's fixed admission until it returns.
     });
 }
@@ -1468,7 +1458,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
     // Paired with the increment below rather than with finishHandleRun:, which
     // also runs for runs that never dispatched an open. The difference is the
-    // count of AVAudioFile calls the OS still owes an answer for.
+    // count of AudioFileHandle calls the OS still owes an answer for.
     atomic_fetch_add(&_handleOpensStarted, 1);
     // Snapshotted here rather than read from the ivar on the worker: the opener
     // is swappable (the debug channel's wedge injection), and a block read from
@@ -1482,7 +1472,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             return;
         }
         NSError *error = nil;
-        AVAudioFile *file = opener(run.url, &error);
+        AudioFileHandle *file = opener(run.url, &error);
         dispatch_async(strongSelf->_stateQueue, ^{
             atomic_fetch_add(&strongSelf->_handleOpensCompleted, 1);
             [strongSelf finishHandleRun:run runGeneration:runGeneration
@@ -1493,7 +1483,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 
 - (void)finishHandleRun:(VibeAudioHandleRun *)run
            runGeneration:(uint64_t)runGeneration
-                    file:(AVAudioFile *)file
+                    file:(AudioFileHandle *)file
                    error:(NSError *)error {
     VibeAudioHandleRun *current = _handleRuns[run.key];
     if (current != run || run.runGeneration != runGeneration) {

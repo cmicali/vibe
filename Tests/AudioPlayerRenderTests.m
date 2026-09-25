@@ -129,7 +129,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 - (AVAudioPCMBuffer *)read:(NSURL *)url {
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:&error];
     XCTAssertNotNil(file, @"%@: %@", url, error);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:(AVAudioFrameCount)file.length];
     AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
@@ -152,18 +152,32 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     for (NSUInteger f=0;f<buffer.frameLength;f++) for (NSUInteger c=0;c<channels;c++) buffer.floatChannelData[c][f]=p[f*channels+c];
     return [self writeBuffer:buffer name:name];
 }
+// Writes `buffer` as the container its name says — WAV, or AIFC for .aif —
+// in the buffer's own sample format, interleaved, with its channel layout.
+static NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
+    AVAudioFormat *format = buffer.format;
+    BOOL aiff = [url.pathExtension.lowercaseString hasPrefix:@"aif"];
+    AudioStreamBasicDescription file = *format.streamDescription;
+    file.mFormatFlags = (file.mFormatFlags & ~(UInt32)kAudioFormatFlagIsNonInterleaved) | (aiff ? kAudioFormatFlagIsBigEndian : 0);
+    file.mBytesPerFrame = file.mBitsPerChannel / 8 * file.mChannelsPerFrame;
+    file.mBytesPerPacket = file.mBytesPerFrame;
+    AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&file channelLayout:format.channelLayout];
+    AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:aiff ? kAudioFileAIFCType : kAudioFileWAVEType
+                                                           fileFormat:fileFormat processingFormat:format error:error];
+    if (![handle writeFromBuffer:buffer error:error] || ![handle closeWithError:error]) {
+        return nil;
+    }
+    return url;
+}
+
 - (NSURL *)writeBuffer:(AVAudioPCMBuffer *)buffer name:(NSString *)name {
     NSURL *url = [_temporary URLByAppendingPathComponent:name];
     NSError *error = nil;
-    NSMutableDictionary *settings=[buffer.format.settings mutableCopy];
-    settings[AVLinearPCMIsNonInterleaved]=@NO;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"%@", error);
     return url;
 }
 // The generator emits a fixed 44-byte RIFF header. Read those bytes directly
-// for the lossless matrix so AVAudioFile is not its own decode oracle.
+// for the lossless matrix so the handle is not its own decode oracle.
 - (NSData *)sourcePCM:(NSURL *)url bits:(NSUInteger)bits {
     NSData *wav=[NSData dataWithContentsOfURL:url];
     XCTAssertGreaterThan(wav.length,44u);
@@ -361,7 +375,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
     Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
-    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AVAudioFile *file) {
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AudioFileHandle *file) {
         AudioStreamBasicDescription sixteen = {0};
         sixteen.mSampleRate = file.processingFormat.sampleRate;
         sixteen.mFormatID = kAudioFormatLinearPCM;
@@ -407,7 +421,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         [self assertFinite:capture peak:1];
     }
     // Float32's precision is an explicit limit; decoded equality above does
-    // not claim the integer source's low bits survive the AVAudioFile boundary.
+    // not claim the integer source's low bits survive the AudioFileHandle boundary.
     volatile int32_t sample=16777217; float converted=(float)sample;
     XCTAssertNotEqual((int32_t)converted,(int32_t)sample);
 }
@@ -651,7 +665,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         buffer.frameLength = 48000;
         for (NSUInteger f = 0; f < 48000; f++) buffer.floatChannelData[center[i]][f] = 0.25f;
         NSURL *url = [self writeBuffer:buffer name:[NSString stringWithFormat:@"layout-%lu.aif", (unsigned long)i]];
-        XCTAssertEqual([[AVAudioFile alloc] initForReading:url error:NULL].processingFormat.channelLayout.layoutTag, tags[i].unsignedIntValue);
+        XCTAssertEqual([[AudioFileHandle alloc] initForReading:url error:NULL].processingFormat.channelLayout.layoutTag, tags[i].unsignedIntValue);
         [files addObject:url];
     }
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
@@ -763,7 +777,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
                      @"Cancelled successor must not be audible");
 }
 
-// The seek's replacement voice reads the same AVAudioFile as the voice it
+// The seek's replacement voice reads the same AudioFileHandle as the voice it
 // retires, on the production decode queue: the old voice's reads must stop
 // before the new voice positions the shared cursor, or a turn of the old
 // voice queued between the two advances it and the new voice skips a chunk.
@@ -2315,7 +2329,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
     NSURL *mono = [self writeMonoAAC];
     Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
-    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AVAudioFile *file) {
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AudioFileHandle *file) {
         AudioStreamBasicDescription sixteen = {0};
         sixteen.mSampleRate = file.processingFormat.sampleRate;
         sixteen.mFormatID = kAudioFormatLinearPCM;
@@ -2366,12 +2380,17 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     for (NSUInteger f = 0; f < 44100; f++) buffer.floatChannelData[0][f] = 0.25f * sinf((float)(2 * M_PI * 440 * f / 44100));
     NSURL *url = [_temporary URLByAppendingPathComponent:@"mono.m4a"];
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url
-            settings:@{AVFormatIDKey: @(kAudioFormatMPEG4AAC), AVSampleRateKey: @44100, AVNumberOfChannelsKey: @1, AVEncoderBitRateKey: @128000}
-            error:&error];
+    AudioStreamBasicDescription aac = {0};
+    aac.mFormatID = kAudioFormatMPEG4AAC;
+    aac.mSampleRate = 44100;
+    aac.mChannelsPerFrame = 1;
+    aac.mFramesPerPacket = 1024;
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForWriting:url fileType:kAudioFileM4AType
+                                                         fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&aac]
+                                                   processingFormat:format error:&error];
     XCTAssertNotNil(file, @"%@", error);
     XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
-    file = nil;
+    XCTAssertTrue([file closeWithError:&error], @"%@", error);
     return url;
 }
 
@@ -2546,10 +2565,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), releaseRead = dispatch_semaphore_create(0);
     dispatch_semaphore_t rebuilt = dispatch_semaphore_create(0), responsive = dispatch_semaphore_create(0);
-    Method read = class_getInstanceMethod(AVAudioFile.class, @selector(readIntoBuffer:frameCount:error:));
+    Method read = class_getInstanceMethod(AudioFileHandle.class, @selector(readIntoBuffer:frameCount:error:));
     __block IMP original;
     __block _Atomic(BOOL) held = NO;
-    IMP blocked = imp_implementationWithBlock(^BOOL(AVAudioFile *file, AVAudioPCMBuffer *buffer, AVAudioFrameCount frames, NSError **error) {
+    IMP blocked = imp_implementationWithBlock(^BOOL(AudioFileHandle *file, AVAudioPCMBuffer *buffer, AVAudioFrameCount frames, NSError **error) {
         if ([file.url isEqual:url] && !atomic_exchange(&held, YES)) {
             dispatch_semaphore_signal(reading);
             dispatch_semaphore_wait(releaseRead, DISPATCH_TIME_FOREVER);

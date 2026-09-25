@@ -14,7 +14,6 @@
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
-#import "NSURL+AudioOpen.h"
 #import <AVFoundation/AVFoundation.h>
 
 #include <vector>
@@ -34,7 +33,7 @@
     }
 
     struct VibeWaveformDecodePass pass = {};
-    AVAudioFile *file = [self openFileAtPath:filename pass:&pass];
+    AudioFileHandle *file = [self openFileAtPath:filename pass:&pass];
     if (!file) {
         return nil;
     }
@@ -115,24 +114,18 @@
 // Opens the file for reading and fills in the shape half of the pass. nil for
 // a file that cannot be opened, holds no audio, or whose open blocked long
 // enough for a cancel to arrive.
-- (AVAudioFile *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
+- (AudioFileHandle *)openFileAtPath:(NSString *)filename pass:(struct VibeWaveformDecodePass *)pass {
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath:filename];
-    if (url.failsAudioOpenPreflight) {
-        // A failed AVAudioFile open leaks its descriptor, and the decode path
-        // retries a failing file forever — a partial download used to cost one
-        // fd per attempt, unbounded; see NSURL+AudioOpen.
-        LogError(@"AVAudioFile open skipped, preflight refused %@", filename);
-        return nil;
-    }
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
-    // layout L0 R0 L1 R1 and so on.
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url
-                                               commonFormat:AVAudioPCMFormatFloat32
-                                                interleaved:YES
-                                                      error:&error];
+    // layout L0 R0 L1 R1 and so on. A refused open costs nothing that a retry
+    // of the same file accumulates: the handle owns and closes its descriptor.
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url
+                                                       commonFormat:AVAudioPCMFormatFloat32
+                                                        interleaved:YES
+                                                              error:&error];
     if (!file) {
-        LogError(@"AVAudioFile open failed for %@: %@", filename, error);
+        LogError(@"Audio open failed for %@: %@", filename, error);
         return nil;
     }
     if (self.isCancelled) {
@@ -144,7 +137,7 @@
     pass->totalFrames = file.length;
     pass->numChannels = file.processingFormat.channelCount;
     if (pass->totalFrames <= 0 || pass->numChannels == 0) {
-        LogError(@"AVAudioFile reports no audio in %@ (frames=%lld channels=%lu)",
+        LogError(@"No audio in %@ (frames=%lld channels=%lu)",
                  filename, pass->totalFrames, (unsigned long)pass->numChannels);
         return nil;
     }
@@ -197,7 +190,7 @@
 // delivered or persisted — only the progressive snapshots already shown
 // survive, and they survive a NO the same way.
 - (BOOL)runDecodePass:(struct VibeWaveformDecodePass *)pass
-                 file:(AVAudioFile *)file
+                 file:(AudioFileHandle *)file
              filename:(NSString *)filename
              waveform:(AudioWaveform *)waveform
                result:(CodableAudioWaveform *)result
@@ -279,12 +272,12 @@
 
         AVAudioFrameCount toRead = (AVAudioFrameCount)MIN(
                 (AVAudioFramePosition)kReadBlockFrames, totalFrames - framesRead);
-        // A sequential read: AVAudioFile advances its framePosition.
+        // A sequential read: the handle advances its framePosition.
         uint64_t phaseStart = VibeLoadClockNow();
         BOOL readOK = [file readIntoBuffer:buffer frameCount:toRead error:&error];
         nanos->read += VibeLoadClockNow() - phaseStart;
         if (!readOK) {
-            LogError(@"AVAudioFile read failed at frame %lld of %lld in %@: %@",
+            LogError(@"Read failed at frame %lld of %lld in %@: %@",
                      framesRead, totalFrames, filename, error);
             readError = YES;
             dispatch_semaphore_signal(slotFree[slot]);

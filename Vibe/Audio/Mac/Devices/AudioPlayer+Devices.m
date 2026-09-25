@@ -459,7 +459,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         // placeholder, or sat on a hung mount, between the play and the device
         // switch. processingFormat is fixed at open, so a new voice on the
         // existing file is safe.
-        AVAudioFile *file = _file; // safe: _file is only written on _queue, and we are on it
+        AudioFileHandle *file = _file; // safe: _file is only written on _queue, and we are on it
         if (!file) {
             [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorFileOpenFailed,
@@ -663,7 +663,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // stream, what it has now and what it should have. chosen == current when the
 // device offers neither the file's rate nor a multiple, or nothing at the
 // target rate.
-- (BOOL)resolveOutputFormatOnQueueForFile:(AVAudioFile *)file
+- (BOOL)resolveOutputFormatOnQueueForFile:(AudioFileHandle *)file
                                    device:(AudioDevice *)device
                                    stream:(AudioStreamID *)stream
                                   current:(AudioStreamBasicDescription *)current
@@ -684,7 +684,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES;
 }
 
-- (BOOL)outputNeedsSwitchOnQueueForFile:(AVAudioFile *)file {
+- (BOOL)outputNeedsSwitchOnQueueForFile:(AudioFileHandle *)file {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     if (!device) {
         return NO;
@@ -708,7 +708,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return needsSwitch;
 }
 
-- (BOOL)decodesAsInteger16OnQueueForFile:(AVAudioFile *)file {
+- (BOOL)decodesAsInteger16OnQueueForFile:(AudioFileHandle *)file {
     return _bitPerfectWanted && file && _preparedDeviceID != kAudioObjectUnknown
             && VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, _preparedFormat);
 }
@@ -760,14 +760,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return NO;
 }
 
-- (void)prepareOutputOnQueueForFile:(AVAudioFile *)file {
+- (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file {
     [self performDiagnosticPhase:@"output preparation" device:self.currentlyRequestedAudioDeviceId operation:^BOOL{
         [self prepareOutputFormatOnQueueForFile:file];
         return YES; // confirmation failures are reported by the nested format phase
     }];
 }
 
-- (void)prepareOutputFormatOnQueueForFile:(AVAudioFile *)file {
+- (void)prepareOutputFormatOnQueueForFile:(AudioFileHandle *)file {
     AudioDevice *device = [self bitPerfectDeviceOnQueue];
     if (!device) {
         return; // the state publication that follows every caller publishes the report
@@ -1068,7 +1068,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         report.exclusive = _hoggedDeviceID == _preparedDeviceID
                 && [CoreAudioUtil readHogOwner:&owner forDeviceID:_preparedDeviceID] && owner == getpid();
 #endif
-        AVAudioFile *file = _file; // queue-confined writer; the promoted splice file included
+        AudioFileHandle *file = _file; // queue-confined writer; the promoted splice file included
         UInt32 controlChannels = file.fileFormat.channelCount;
         // No file (Loading) asks for no channels; the last track's reading covers it.
         controlsCached = _outputLevelListener && _outputControlsDeviceID == _preparedDeviceID

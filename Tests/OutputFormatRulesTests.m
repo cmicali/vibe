@@ -31,7 +31,7 @@ static AudioStreamBasicDescription Compressed(UInt32 formatID, UInt32 flags, dou
     return d;
 }
 
-// AVAudioFile's processing format: float32 at the file's rate.
+// AudioFileHandle's processing format: float32 at the file's rate.
 static AudioStreamBasicDescription Decode(double rate) {
     return PCM(rate, 32, YES);
 }

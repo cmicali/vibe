@@ -17,6 +17,7 @@
 #import "AppSettings+Mac.h"
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
+#import "AudioFileHandle.h"
 #import "NSURL+AudioOpen.h"
 #import "VibeStrings.h"
 
@@ -662,10 +663,7 @@ static NSString *VibeFileStat(NSURL *url) {
 
 #pragma mark - Encode
 
-// The one refusal for a source with no frames. The pre-open
-// failsAudioOpenPreflight guard is the load-bearing check (descriptor leak,
-// see NSURL+AudioOpen); the per-open length checks back it up with this same
-// answer.
+// The one refusal for a source with no frames.
 - (NSError *)emptySourceError {
     return [self errorWithCode:VibeConvertErrorNotConvertible
                    description:@"That file contains no audio."];
@@ -681,17 +679,7 @@ static NSString *VibeFileStat(NSURL *url) {
             [NSTemporaryDirectory() stringByAppendingPathComponent:
                     [NSString stringWithFormat:@"%@%@.flac", kConvertTempPrefix, NSUUID.UUID.UUIDString]]];
 
-    // Ahead of the open, because the length check below only runs once the open
-    // has already leaked its descriptor; see NSURL+AudioOpen. Both opens below
-    // take this same URL, so one guard covers them.
-    if (sourceURL.failsAudioOpenPreflight) {
-        if (error) {
-            *error = [self emptySourceError];
-        }
-        return nil;
-    }
-
-    AVAudioFile *probe = [[AVAudioFile alloc] initForReading:sourceURL error:error];
+    AudioFileHandle *probe = [[AudioFileHandle alloc] initForReading:sourceURL error:error];
     if (!probe) {
         return nil;
     }
@@ -704,19 +692,18 @@ static NSString *VibeFileStat(NSURL *url) {
         return nil;
     }
 
-    // TRAP: the buffer format is the ONLY thing that sets the FLAC's declared
-    // source bit depth — AVEncoderBitDepthHintKey and AVLinearPCMBitDepthKey
-    // are both silently ignored by this encoder. Int16 buffers give a 16-bit
-    // FLAC; anything wider gives 24-bit, the format's ceiling. Float is the
-    // one lossy case: FLAC stores integers, and every FLAC encoder quantizes
-    // float to 24 bits.
+    // The FLAC's declared source depth: 16 bits for an integer source of at
+    // most 16, else 24, the format's ceiling, read from Int32 buffers. Float
+    // is the one lossy case: FLAC stores integers, and every FLAC encoder
+    // quantizes float to 24 bits. The depth is the file format's flag
+    // (kAppleLosslessFormatFlag_16BitSourceData or 24), which the encoder
+    // takes as the buffers' width; the two must agree.
     const AudioStreamBasicDescription *asbd = probe.fileFormat.streamDescription;
     BOOL isFloat = (asbd->mFormatFlags & kAudioFormatFlagIsFloat) != 0;
-    AVAudioCommonFormat bufferFormat = (!isFloat && asbd->mBitsPerChannel <= 16)
-            ? AVAudioPCMFormatInt16
-            : AVAudioPCMFormatInt32;
+    BOOL sixteen = !isFloat && asbd->mBitsPerChannel <= 16;
+    AVAudioCommonFormat bufferFormat = sixteen ? AVAudioPCMFormatInt16 : AVAudioPCMFormatInt32;
 
-    AVAudioFile *source = [[AVAudioFile alloc] initForReading:sourceURL
+    AudioFileHandle *source = [[AudioFileHandle alloc] initForReading:sourceURL
                                                  commonFormat:bufferFormat
                                                   interleaved:NO
                                                         error:error];
@@ -730,19 +717,17 @@ static NSString *VibeFileStat(NSURL *url) {
         return nil;
     }
 
-    NSDictionary *settings = @{
-        AVFormatIDKey:         @(kAudioFormatFLAC),
-        AVSampleRateKey:       @(source.fileFormat.sampleRate),
-        AVNumberOfChannelsKey: @(source.fileFormat.channelCount),
-    };
-
-    AVAudioFile *destination = [[AVAudioFile alloc] initForWriting:tempURL
-                                                          settings:settings
-                                                      commonFormat:bufferFormat
-                                                       interleaved:NO
-                                                             error:error];
+    AudioStreamBasicDescription flac = {0};
+    flac.mFormatID = kAudioFormatFLAC;
+    flac.mSampleRate = source.fileFormat.sampleRate;
+    flac.mChannelsPerFrame = source.fileFormat.channelCount;
+    flac.mFormatFlags = sixteen ? kAppleLosslessFormatFlag_16BitSourceData : kAppleLosslessFormatFlag_24BitSourceData;
+    AudioFileHandle *destination = [[AudioFileHandle alloc]
+            initForWriting:tempURL fileType:kAudioFileFLACType
+                fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&flac]
+          processingFormat:source.processingFormat error:error];
     if (!destination) {
-        // initForWriting: can fail after creating the file at tempURL.
+        // The create can fail after making the file at tempURL.
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
         return nil;
     }
@@ -812,23 +797,23 @@ static NSString *VibeFileStat(NSURL *url) {
         *error = streamError;
     }
 
-    // Flushes the final partial FLAC packet; must precede TagLib's open. On
-    // macOS 14, which predates -close, releasing the last reference closes
-    // the file in dealloc — the only flush path that existed before the API.
-    if (@available(macOS 15.0, *)) {
-        [destination close];
+    // Flushes the final partial FLAC packet; must precede the validation and
+    // TagLib's open, and its own failure fails the conversion.
+    NSError *closeError = nil;
+    if (![destination closeWithError:&closeError] && ok) {
+        streamError = closeError;
+        ok = NO;
     }
-    else {
-        destination = nil;
-    }
-
     if (!ok) {
+        if (error) {
+            *error = streamError;
+        }
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
         return nil;
     }
 
     NSError *validationError = nil;
-    AVAudioFile *encoded = [[AVAudioFile alloc] initForReading:tempURL error:&validationError];
+    AudioFileHandle *encoded = [[AudioFileHandle alloc] initForReading:tempURL error:&validationError];
     if (!encoded || encoded.length != expectedFrameCount) {
         [NSFileManager.defaultManager removeItemAtURL:tempURL error:nil];
         if (error) {
