@@ -173,7 +173,6 @@ typedef enum {
 } VibeFXStageIndex;
 
 struct VibeFXChain {
-    _Atomic int32_t connected;
     _Atomic uint64_t unitRenders;
     double sampleRate;
     float slewPerFrame;
@@ -253,8 +252,7 @@ static inline void VibeFXGate(VibeFXStage *stage, float *const in[2], float *con
 }
 
 OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API {
-    if (!chain || frames == 0 || frames > chain->maxFrames || io->mNumberBuffers < 2
-            || !atomic_load_explicit(&chain->connected, memory_order_seq_cst)) {
+    if (!chain || frames == 0 || frames > chain->maxFrames || io->mNumberBuffers < 2) {
         return noErr;
     }
     float *out[2] = { io->mBuffers[0].mData, io->mBuffers[1].mData };
@@ -549,6 +547,42 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
     return count;
 }
 
+- (NSDictionary<NSString *, id> *)diagnosticSnapshot {
+    VibeFXChain *chain = _chain;
+    os_unfair_lock_lock(&_stateLock);
+    BOOL lowKill = _lowKillEnabled, boost = _lowKillBoostActive;
+    float bpm = _delayTapBPM;
+    BOOL enabled[VibeFXStageCount];
+    for (int i = 0; i < VibeFXStageCount; i++) {
+        enabled[i] = chain->stages[i].enabled;
+    }
+    os_unfair_lock_unlock(&_stateLock);
+    NSString *names[VibeFXStageCount] = { @"lowKill", @"reverb", @"delay", @"shortDelay" };
+    NSMutableDictionary *stages = [NSMutableDictionary dictionary];
+    for (int i = 0; i < VibeFXStageCount; i++) {
+        VibeFXStage *stage = &chain->stages[i];
+        stages[names[i]] = @{
+            @"enabled": @(i == VibeFXStageLowKill ? lowKill : enabled[i]),
+            @"active": @(atomic_load_explicit(&stage->active, memory_order_relaxed) != 0),
+            @"gateTarget": @(atomic_load_explicit(&stage->target, memory_order_relaxed)),
+            @"tailSeconds": @(stage->tailSeconds),
+        };
+    }
+    return @{
+        @"connected": @(_connected),
+        @"hosted": @(self.hosted),
+        @"hostedUnits": @(self.hostedUnitCount),
+        @"sampleRate": @(chain->sampleRate),
+        @"maximumFrames": @(chain->maxFrames),
+        @"unitRenders": @(self.unitRenders),
+        @"lowKillBoost": @(boost),
+        @"lowKillFrequency": @(_lowKillFrequency),
+        @"lowKillFlat": @(_lowKillFlat),
+        @"delayTapBPM": @(bpm),
+        @"stages": stages,
+    };
+}
+
 #pragma mark - Connecting
 
 - (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount {
@@ -572,7 +606,6 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
         return;
     }
     _connected = YES;
-    atomic_store_explicit(&_chain->connected, 1, memory_order_seq_cst);
     // Apply any intent recorded before the chain existed: a key or menu
     // action racing the async init, or the controller's first BPM feed.
     [self applyLowKillTargetOnQueue];
@@ -588,14 +621,15 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
     }
 }
 
-// The bypass: the chain leaves the render, and every tail and unfinished
-// sweep is reset so the next connect starts clean.
+// The bypass: the player withdrew the chain from the render before this, and
+// the quiesce lets a render already inside finish; then every tail and
+// unfinished sweep is reset so the next connect starts clean, and nothing —
+// no parameter, no ramp step — is written to the units until then.
 - (void)disconnectOnQueue {
     if (!_connected) {
         return;
     }
     _connected = NO;
-    atomic_store_explicit(&_chain->connected, 0, memory_order_seq_cst);
     _quiesce();
     _lowKillRampGeneration++;
     for (int i = 0; i < VibeFXStageCount; i++) {
@@ -1012,8 +1046,8 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
 // matches the effective, pitch-scaled tempo the controller provides. Each
 // lane's time is twice the tap, as the topology comment explains.
 - (void)applyDelayTapOnQueue {
-    if (!self.hosted) {
-        return; // Not hosted yet. The first connect re-applies it.
+    if (!self.hosted || !_connected) {
+        return; // Not in the chain. The next connect re-applies it.
     }
     os_unfair_lock_lock(&_stateLock);
     float bpm = _delayTapBPM;

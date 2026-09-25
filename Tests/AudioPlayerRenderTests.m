@@ -314,6 +314,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
         NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        // Transparent because nothing renders: the varispeed is out of the
+        // chain at zero pitch, and an idle segment's units are at rest.
+        NSDictionary *counts=_player.debugEngineCounts;
+        XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue],0ull);
+        XCTAssertEqual([counts[@"unitRenders"] unsignedLongLongValue],0ull);
     }
 }
 - (void)testLosslessContainersAndExtensionAliases {
@@ -1080,6 +1085,10 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player.pitch=0;
     NSData *restored=[self renderSeconds:0.5];
     XCTAssertEqualWithAccuracy(ToneAmplitude(restored,2,0,48000,1000,NSMakeRange(12000,12000)),0.25,0.002);
+    // Back at zero the unit leaves the chain: it renders no more.
+    uint64_t renders=[_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    [self render:24000];
+    XCTAssertEqual([_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue],renders);
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
@@ -2013,6 +2022,298 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [_player debugShutdown]; _player=nil;
         for(NSUInteger i=0;i<3;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
     }
+}
+
+#pragma mark - The varispeed at zero, the output's rate, the 16-bit decode, disabled FX, the path
+
+// At zero pitch the varispeed is hosted but not in the chain: the bus renders
+// straight into the output, sample-exact, and the unit renders nothing. The
+// fader leaving and returning to zero engages and disengages it without a
+// click or a skip: on a 100 Hz tone every transition keeps the waveform
+// continuous and its envelope full, the file advances exactly as far as the
+// rates played, and back at zero the output is the file again, exactly, with
+// the unit idle.
+- (void)testZeroPitchRendersTheBusDirectlyAndTogglesAreClickFree {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
+    [self play:noise paused:NO position:0];
+    [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    NSDictionary *counts = _player.debugEngineCounts;
+    XCTAssertTrue([counts[@"varispeed"] boolValue], @"ordinary playback hosts the varispeed");
+    XCTAssertFalse([counts[@"varispeedEngaged"] boolValue]);
+    XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], 0ull, @"the varispeed rendered at zero pitch");
+    XCTAssertEqual([counts[@"varispeedLatency"] doubleValue], 0.0);
+
+    NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [_capture setLength:0];
+    // Each segment advances the file by its own rate, within a few frames:
+    // an engage pulls the unit's latency ahead of its output, which the
+    // disengage plays from the ring without consuming, so those two
+    // segments carry the latency each way.
+    double expected = 0, latency = 0;
+    BOOL wasEngaged = NO;
+    for (NSNumber *pitch in pitches) {
+        double before = _player.position;
+        _player.pitch = pitch.floatValue;
+        [self render:9600];
+        NSDictionary *counts = _player.debugEngineCounts;
+        BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
+        XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
+        if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
+        XCTAssertEqualWithAccuracy(_player.position - before,
+                                   0.2 * (1 + pitch.doubleValue / 100) + (engaged && !wasEngaged ? latency : 0) - (!engaged && wasEngaged ? latency : 0),
+                                   0.0002, @"the file advanced at pitch %@", pitch);
+        expected += 0.2 * (1 + pitch.doubleValue / 100);
+        wasEngaged = engaged;
+    }
+    XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
+    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
+    // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
+    // repeated millisecond, or a cold unit's ramp from silence, moves ten
+    // times that or empties a window.
+    const float *out = _capture.bytes;
+    NSUInteger frames = _capture.length / sizeof(float) / 2, skip = [self startupSkip];
+    float step = 0.25f * 2 * (float)M_PI * 108 / 48000;
+    for (NSUInteger f = skip + 1; f < frames; f++) {
+        for (NSUInteger c = 0; c < 2; c++) {
+            float jump = fabsf(out[f * 2 + c] - out[(f - 1) * 2 + c]);
+            XCTAssertLessThan(jump, 6 * step, @"a jump at frame %lu channel %lu", (unsigned long)f, (unsigned long)c);
+            if (jump >= 6 * step) return;
+        }
+    }
+    double nominal = 0.25 / sqrt(2);
+    for (NSUInteger f = skip; f + 480 <= frames; f += 240) {
+        double rms = RMS(_capture, 2, 0, NSMakeRange(f, 480));
+        XCTAssertGreaterThan(rms, nominal * 0.93, @"a dip in the window at frame %lu", (unsigned long)f);
+        if (rms <= nominal * 0.93) return;
+    }
+    // Back at zero: the unit is idle and the output is the file, exactly.
+    uint64_t renders = [_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
+    [self play:noise paused:NO position:0];
+    [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    XCTAssertEqual([_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
+}
+
+// The output's rate moves under the pipeline — a device's would under the
+// unit, the route's under the iOS engine; here the pump's — and the pipeline
+// follows it, keeping the track: playing, the tone continues at the new rate
+// from the same position; paused, the position holds through the change and
+// the resume continues there.
+- (void)testOutputRateChangeKeepsThePlayingAndPausedTrack {
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *url = [self fixture:@"1000.wav"];
+    AudioTrack *track = [self play:url paused:NO position:0];
+    [self render:22050];
+    double before = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    _rate = 96000;
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqual(_player.currentTrack, track);
+    XCTAssertEqualWithAccuracy(_player.position, before, 0.01);
+    XCTAssertEqual([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000.0);
+    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue], @"the varispeed was hosted again at the new rate");
+    NSData *data = [self renderSeconds:0.5];
+    XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 96000, 1000, NSMakeRange(9600, 24000)), 0.25, 0.005);
+    XCTAssertEqualWithAccuracy(_player.position, before + 0.5, 0.01);
+    XCTAssertEqual([self count:@"finish"], 0u);
+    XCTAssertEqual([self count:@"start"], 1u, @"a restore is not a new play");
+
+    [_player pause]; [self render:4800];
+    XCTAssertTrue(_player.isPaused);
+    double paused = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:48000]);
+    _rate = 48000;
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertEqualWithAccuracy(_player.position, paused, 0.01);
+    XCTAssertEqual(RMS([self renderSeconds:0.2], 2, 0, NSMakeRange(0, 9600)), 0.0, @"paused stays silent across the change");
+    XCTAssertEqualWithAccuracy(_player.position, paused, 0.01);
+    [_player resume];
+    data = [self renderSeconds:0.5];
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 48000, 1000, NSMakeRange(4800, 12000)), 0.25, 0.005);
+    XCTAssertEqualWithAccuracy(_player.position, paused + 0.5, 0.01);
+    XCTAssertTrue([_player debugSetOutputRate:48000], @"the current rate is a no-op");
+    XCTAssertTrue(_player.isPlaying);
+}
+
+// A lossy source read as 16-bit integers for a 16-bit device is read at the
+// bus's rate and width, not the file's: a 48 kHz file on a 96 kHz bus plays
+// at its own speed, a mono one lands in both channels, and every sample sits
+// on the 16-bit grid after the one rounding, the converter's last step. The
+// reference is the decode resampled the same way and rounded.
+- (void)testSixteenBitLossyDecodeFollowsTheBusRateAndChannels {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    NSURL *mono = [self writeMonoAAC];
+    Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AVAudioFile *file) {
+        AudioStreamBasicDescription sixteen = {0};
+        sixteen.mSampleRate = file.processingFormat.sampleRate;
+        sixteen.mFormatID = kAudioFormatLinearPCM;
+        sixteen.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+        sixteen.mBitsPerChannel = 16;
+        return VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, sixteen);
+    });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        for (NSURL *url in @[[self fixture:@"cbr.mp3"], mono]) {
+            AVAudioPCMBuffer *decoded = [self read:url];
+            [self startPlayerAt:96000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+            [self play:url paused:NO position:0];
+            AVAudioFormat *decodeFormat = _player.debugCurrentDecodeFormat;
+            XCTAssertEqual(decodeFormat.commonFormat, AVAudioPCMFormatInt16, @"%@", url.lastPathComponent);
+            XCTAssertEqual(decodeFormat.sampleRate, 96000.0, @"%@", url.lastPathComponent);
+            XCTAssertEqual(decodeFormat.channelCount, 2u, @"%@", url.lastPathComponent);
+            NSDictionary *conversion = _player.debugCurrentConversion;
+            XCTAssertEqualObjects(conversion[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering, @"%@", url.lastPathComponent);
+            XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+            XCTAssertEqualObjects(conversion[@"toSampleFormat"], @"int16");
+            XCTAssertEqual([conversion[@"mixed"] boolValue], decoded.format.channelCount == 1);
+            NSData *capture = [self renderSeconds:decoded.frameLength / decoded.format.sampleRate + 0.1];
+            XCTAssertEqual([self count:@"finish"], 1u, @"%@ played at its own speed", url.lastPathComponent);
+            // Past the startup declick, which ramps the first 10 ms, every
+            // sample sits on the grid.
+            const float *p = capture.bytes;
+            NSUInteger offGrid = 0;
+            for (NSUInteger i = [self startupSkip] * 2; i < capture.length / sizeof(float); i++) {
+                if (fabs(p[i] * 32768 - round(p[i] * 32768)) > 1e-3) offGrid++;
+            }
+            XCTAssertEqual(offGrid, 0u, @"%@: samples off the 16-bit grid", url.lastPathComponent);
+            NSData *reference = [self int16Grid:[self resample:[self stereo:decoded] to:96000]];
+            [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:2.0f / 32768];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+}
+
+// A one-second mono 440 Hz tone, AAC at 44.1 kHz, in the temporary directory.
+- (NSURL *)writeMonoAAC {
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:1];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:44100];
+    buffer.frameLength = 44100;
+    for (NSUInteger f = 0; f < 44100; f++) buffer.floatChannelData[0][f] = 0.25f * sinf((float)(2 * M_PI * 440 * f / 44100));
+    NSURL *url = [_temporary URLByAppendingPathComponent:@"mono.m4a"];
+    NSError *error = nil;
+    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url
+            settings:@{AVFormatIDKey: @(kAudioFormatMPEG4AAC), AVSampleRateKey: @44100, AVNumberOfChannelsKey: @1, AVEncoderBitRateKey: @128000}
+            error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    file = nil;
+    return url;
+}
+
+// The bus's own fold: mono into both channels, wider unchanged.
+- (AVAudioPCMBuffer *)stereo:(AVAudioPCMBuffer *)buffer {
+    if (buffer.format.channelCount != 1) return buffer;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:buffer.format.sampleRate channels:2];
+    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:buffer.frameLength];
+    out.frameLength = buffer.frameLength;
+    memcpy(out.floatChannelData[0], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
+    memcpy(out.floatChannelData[1], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
+    return out;
+}
+
+// The same conversion the bus makes: mastering quality, the whole buffer.
+- (AVAudioPCMBuffer *)resample:(AVAudioPCMBuffer *)buffer to:(double)rate {
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:buffer.format.channelCount];
+    AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:buffer.format toFormat:format];
+    converter.sampleRateConverterQuality = AVAudioQualityMax;
+    converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering;
+    AVAudioFrameCount capacity = (AVAudioFrameCount)(buffer.frameLength * rate / buffer.format.sampleRate) + 4096;
+    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:capacity];
+    __block BOOL supplied = NO;
+    NSError *error = nil;
+    AVAudioConverterOutputStatus status = [converter convertToBuffer:out error:&error withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount packets, AVAudioConverterInputStatus *inputStatus) {
+        if (supplied) { *inputStatus = AVAudioConverterInputStatus_EndOfStream; return nil; }
+        supplied = YES;
+        *inputStatus = AVAudioConverterInputStatus_HaveData;
+        return buffer;
+    }];
+    XCTAssertNotEqual(status, AVAudioConverterOutputStatus_Error, @"%@", error);
+    return out;
+}
+
+- (NSData *)int16Grid:(AVAudioPCMBuffer *)buffer {
+    NSMutableData *pcm = PCM(buffer);
+    float *p = pcm.mutableBytes;
+    for (NSUInteger i = 0; i < pcm.length / sizeof(float); i++) p[i] = fminf(32767, fmaxf(-32768, roundf(p[i] * 32768))) / 32768;
+    return pcm;
+}
+
+// FX disabled with the reverb and a delay still ringing out: the segment
+// leaves the render at once — its units render nothing more, and the output
+// is the file, sample for sample, from where playback stood.
+- (void)testDisabledFXProcessNothingWhileTailsRing {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    _player.fx.delayTapBPM = 120;
+    _player.fx.reverbSendEnabled = YES;
+    _player.fx.delaySendEnabled = YES;
+    [self play:url paused:NO position:0];
+    [self render:9600];
+    _player.fx.reverbSendEnabled = NO;
+    _player.fx.delaySendEnabled = NO;
+    [self render:2400];
+    XCTAssertGreaterThan([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], 0ull, @"the sends rendered");
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO];
+    [_player runSyncOnQueue:^{}];
+    NSDictionary *counts = _player.debugEngineCounts;
+    XCTAssertFalse([counts[@"fxConnected"] boolValue]);
+    XCTAssertTrue(_player.isPlaying);
+    uint64_t rested = [counts[@"unitRenders"] unsignedLongLongValue];
+    NSUInteger from = (NSUInteger)llround(_player.position * 48000);
+    NSData *capture = [self renderSeconds:1.0];
+    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested, @"a disabled segment rendered a unit");
+    NSData *excerpt = [reference subdataWithRange:NSMakeRange(from * 2 * sizeof(float), 48000 * 2 * sizeof(float))];
+    [self assertReference:excerpt capture:capture skip:0 tolerance:0];
+    // The tails' pending rests fire without touching a unit.
+    [self render:48000 * 12];
+    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested);
+}
+
+// The path, stage by stage, as the Settings window and dump_audio_path read it.
+- (void)testAudioPathReportsEveryStage {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
+    [self render:4800];
+    NSArray<NSDictionary *> *path = _player.audioPathSnapshot;
+    XCTAssertEqualObjects([path valueForKey:@"stage"],
+                          (@[@"source", @"decode", @"bus", @"varispeed", @"fx", @"meter", @"output", @"device"]));
+    NSDictionary *source = path[0], *decode = path[1], *bus = path[2], *varispeed = path[3], *fx = path[4], *meter = path[5], *output = path[6], *device = path[7];
+    XCTAssertEqualObjects(source[@"file"], @"noise-44100-16-2.wav");
+    XCTAssertEqualObjects(source[@"codec"], @"PCM");
+    XCTAssertEqual([source[@"sampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([source[@"bitsPerChannel"] intValue], 16);
+    XCTAssertEqual([source[@"channels"] intValue], 2);
+    XCTAssertTrue([source[@"lossless"] boolValue]);
+    XCTAssertEqualObjects(decode[@"read"], @"converted");
+    XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
+    XCTAssertEqualObjects(decode[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering);
+    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+    XCTAssertEqualObjects(decode[@"toSampleFormat"], @"float32");
+    XCTAssertFalse([decode[@"mixed"] boolValue]);
+    XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);
+    XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
+    XCTAssertTrue([varispeed[@"present"] boolValue]);
+    XCTAssertFalse([varispeed[@"engaged"] boolValue]);
+    XCTAssertEqual([varispeed[@"quality"] intValue], 127, @"the varispeed at its highest render quality");
+    XCTAssertGreaterThan([varispeed[@"latencyFrames"] intValue], 0);
+    XCTAssertTrue([fx[@"connected"] boolValue]);
+    XCTAssertTrue([fx[@"inRender"] boolValue]);
+    XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);
+    XCTAssertFalse([meter[@"present"] boolValue]);
+    XCTAssertEqualObjects(output[@"carrier"], @"pump");
+    XCTAssertEqual([output[@"sampleRate"] doubleValue], 48000.0);
+    XCTAssertTrue([output[@"running"] boolValue]);
+    XCTAssertFalse([device[@"present"] boolValue], @"no device under the pump");
 }
 
 @end

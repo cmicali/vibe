@@ -169,6 +169,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     return self;
 }
 
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathSnapshot {
+    __block NSArray *path;
+    [self runSyncOnQueue:^{ path = [self audioPathOnQueue]; }];
+    return path;
+}
+
 - (BOOL)bitPerfectOnQueue {
 #if TARGET_OS_OSX
     return _bitPerfectWanted;
@@ -257,7 +263,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #else
         [engine stop];
 #endif
-        free(masterBus);
+        VibeMasterBusFree(masterBus);
     };
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         teardown();
@@ -1371,9 +1377,28 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"gain": @(snapshot.gain),
                    @"underrunFrames": @(snapshot.underrunFrames),
                    @"varispeedLatency": @([self varispeedLatencyOnQueue]),
+                   @"varispeedEngaged": @([self varispeedEngagedOnQueue]),
+                   @"varispeedRenders": @([self varispeedRendersOnQueue]),
                    @"outputRate": @([self masterBusFormatOnQueue].sampleRate)};
     }];
     return counts;
+}
+
+- (BOOL)debugSetOutputRate:(double)rate {
+    __block BOOL followed = NO;
+    [self runSyncOnQueue:^{
+        AVAudioFormat *current = [self masterBusFormatOnQueue];
+        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
+                                                                             channels:current ? current.channelCount : 2];
+        followed = [self followOutputFormatOnQueue:format];
+    }];
+    return followed;
+}
+
+- (NSDictionary<NSString *, id> *)debugCurrentConversion {
+    __block NSDictionary *conversion;
+    [self runSyncOnQueue:^{ conversion = [self->_voiceBus conversionOfVoice:self->_voice]; }];
+    return conversion;
 }
 
 static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalizationMode normalizationMode) {

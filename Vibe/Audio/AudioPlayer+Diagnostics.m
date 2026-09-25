@@ -643,13 +643,14 @@ static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
 #endif
 }
 
-// TRAP: the varispeed emits the bus's frames its declared latency late — a
-// constant 47 frames bypassed, declared as 1 ms (measured) — so the last
-// frames of a faded voice reach the meter that long after the render saw the
-// voice die, and the cutoff pads for it whenever the varispeed is in the
-// chain; without the pad the probe reads the outgoing track's tail as the
-// incoming one's first signal. The FX chain adds nothing: an idle chain is
-// skipped, and the meter reads the render's final samples.
+// TRAP: the varispeed emits the bus's frames its declared latency late —
+// about 1 ms (measured) — so the last frames of a faded voice reach the
+// meter that long after the render saw the voice die, and the cutoff pads
+// for it whenever the varispeed is in the chain, which is while the pitch is
+// off zero (varispeedLatencyOnQueue reads 0 otherwise: at zero the render
+// skips the unit); without the pad the probe reads the outgoing track's tail
+// as the incoming one's first signal. The FX chain adds nothing: an idle
+// chain is skipped, and the meter reads the render's final samples.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
     AVAudioTime *time = [self outputRenderTimeOnQueue];

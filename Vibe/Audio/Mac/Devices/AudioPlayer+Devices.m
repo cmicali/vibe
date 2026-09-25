@@ -419,7 +419,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     VibePendingPlaybackIntent intent;
     BOOL shouldRestore = priorState != VibePlayerStateLoading && trackToRestore
             && [self getPlaybackIntent:&intent forTrack:trackToRestore];
-    NSTimeInterval positionToRestore = shouldRestore ? intent.position : 0;
     BOOL wasPlaying = shouldRestore && !intent.paused;
 
     // Nothing is audible across a rebind: the engine stops, which kills every
@@ -470,23 +469,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         if (_bitPerfectWanted) {
             [self prepareOutputOnQueueForFile:file];
         }
-        // The source segment follows the mode and the file's format. When it
-        // is rebuilt the current voice died with it, so a new one starts at
-        // the retained intent; otherwise the voice survived, ring and all.
-        BOOL rebuilt = NO;
-        if (![self ensureSourceSegmentOnQueueRebuilt:&rebuilt]) {
+        // The source segment follows the mode and the file's format; a
+        // rebuild kills the current voice and the reconcile starts it again
+        // at the retained intent, so the voice either survived, ring and all,
+        // or stands replaced where it was.
+        if (![self reconcileSourceSegmentOnQueue]) {
             [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed,
                     @"Could not restore track on the new audio device", nil)];
             return NO;
-        }
-        if (rebuilt) {
-            double sampleRate = file.processingFormat.sampleRate;
-            AVAudioFramePosition startFrame = VibeClampedStartFrame(positionToRestore, sampleRate, file.length);
-            VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
-                                              fadeMilliseconds:kFadeDurationMilliseconds paused:!wasPlaying];
-            [self publishState:(wasPlaying ? VibePlayerStatePlaying : VibePlayerStatePaused) voice:voice file:file
-                  startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
         }
         VIBE_REBIND_PHASE(restoreS);
         if (wasPlaying) {

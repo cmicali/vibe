@@ -22,6 +22,16 @@
     }
     return self;
 }
+- (BOOL)adoptFormat:(AVAudioFormat *)format {
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:kVibeManualPumpMaxFrames];
+    AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:kVibeManualPumpMaxFrames];
+    if (!buffer || !chunk) return NO;
+    _format = format;
+    _buffer = buffer;
+    _chunk = chunk;
+    _frameDebt = 0;
+    return YES;
+}
 - (void)attachRender:(VibeManualRenderBlock)render running:(BOOL (^)(void))running queue:(dispatch_queue_t)queue {
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     _frameDebt = 0;

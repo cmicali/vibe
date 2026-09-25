@@ -800,9 +800,13 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self makeBusAtRate:48000 channels:2];
     voice = [self startFile:[self open:a] gain:1 ramp:[self unity] paused:NO];
     if (late) {
-        // The whole file is decoded, and the stream is still open for a successor.
+        // The whole file is decoded, and the stream is still open for a
+        // successor: the mastering resampler holds its filter's length of
+        // the tail back until one arrives or the stream flushes.
         [_bus fillInline];
-        XCTAssertEqualWithAccuracy((double)[_bus snapshotOfVoice:voice].written, 24000, 64);
+        uint64_t written = [_bus snapshotOfVoice:voice].written;
+        XCTAssertGreaterThan(written, 24000u - 2048);
+        XCTAssertLessThanOrEqual(written, 24000u + 64);
         XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX);
     }
     AVAudioFile *next = [self open:b];

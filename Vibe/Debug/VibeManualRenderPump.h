@@ -25,6 +25,9 @@ typedef OSStatus (^VibeManualRenderBlock)(AVAudioPCMBuffer *chunk, AVAudioFrameC
 // frame-driven bus underruns and zero-fills until it is cleared.
 @property (nonatomic) BOOL starveDecoder;
 - (instancetype)initWithFormat:(AVAudioFormat *)format automatic:(BOOL)automatic;
+// The output's format moved under the pump — a test's device rate change:
+// the buffers follow, the clock and the pending steps stay. Queue-confined.
+- (BOOL)adoptFormat:(AVAudioFormat *)format;
 // `running` says whether the output is started; stopped, a slice is silence.
 - (void)attachRender:(VibeManualRenderBlock)render running:(BOOL (^)(void))running queue:(dispatch_queue_t)queue;
 // Queue-confined. The returned buffer belongs to the pump until the next call.

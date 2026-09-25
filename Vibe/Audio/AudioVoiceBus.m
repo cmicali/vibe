@@ -335,6 +335,13 @@ VIBE_REALTIME_END
     AVAudioPCMBuffer *convertBuffer; // the converter's output
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life
     NSData *mixMap;                  // Float32[source channels][bus channels], when the widths differ
+    NSDictionary *conversion;        // how the file reaches the bus, for conversionOfVoice:; _tableLock; nil = direct
+    // The converter's frames: what it has been fed since it was made, and the
+    // ring position it began at, so a stream's end in the ring is computed
+    // rather than read off `written`, which the converter's filter holds
+    // back from by its length.
+    uint64_t fedFrames;
+    uint64_t convertedBase;
     AVAudioFramePosition startFrame;
     BOOL positioned;
     VibeStreamState stream;
@@ -555,11 +562,11 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 // and width. Nothing to do when they agree. A channel difference — the width,
 // or the order a wider layout names — is mixed first, on the file's own rate,
 // as the mixer would, so a converter carries the bus's channels only and none
-// is needed at the bus rate. A rate
-// difference is converted at maximum quality; a lossy source under
-// bit-perfect output is converted to the 16-bit form it wants, which the
-// decoder expands back to float exactly so the bus stays float on the 16-bit
-// grid.
+// is needed at the bus rate. A rate difference is converted at mastering
+// quality; a lossy source under bit-perfect output is converted to the 16-bit
+// form it wants — at the bus's rate and width, so the rounding is the
+// converter's last step — which the decoder expands back to float exactly so
+// the bus stays float on the 16-bit grid.
 - (BOOL)prepareRecord:(VibeVoiceRecord *)record file:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat {
     AVAudioFormat *source = file.processingFormat;
     record->file = file;
@@ -570,15 +577,18 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     record->convertBuffer = nil;
     record->mixMap = nil;
     record->stream = VibeStreamReading;
+    record->fedFrames = 0;
+    [self setConversion:nil forRecord:record];
     BOOL integer = decodeFormat.commonFormat == AVAudioPCMFormatInt16;
     if (!integer && VibeFormatsMatch(source, _format)) {
         return YES;
     }
     AVAudioFormat *fed = source; // what the converter takes
-    if (!integer && !VibeChannelsMatch(source, _format)) {
+    if (!VibeChannelsMatch(source, _format)) {
         record->mixMap = VibeMixMap(source, _format);
         record->readBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-        if (source.sampleRate == _format.sampleRate) {
+        if (!integer && source.sampleRate == _format.sampleRate) {
+            [self setConversion:[self conversionFrom:source to:_format mixed:YES converter:nil] forRecord:record];
             return record->readBuffer != nil; // the mix lands in the stage
         }
         fed = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:source.sampleRate
@@ -591,10 +601,59 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         return NO;
     }
     converter.sampleRateConverterQuality = AVAudioQualityMax;
+    if (fed.sampleRate != target.sampleRate) {
+        // The read-back is the check: macOS reports the algorithm it took,
+        // iOS reports none (its resampler has no selectable algorithm) and
+        // runs at the quality alone.
+        converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering;
+        NSString *algorithm = converter.sampleRateConverterAlgorithm;
+        if ((algorithm && ![algorithm isEqualToString:AVSampleRateConverterAlgorithm_Mastering])
+                || converter.sampleRateConverterQuality != AVAudioQualityMax) {
+            LogWarn(@"AudioVoiceBus: the converter for %@ runs %@ at quality %ld, not mastering at maximum",
+                    file.url.lastPathComponent, algorithm, (long)converter.sampleRateConverterQuality);
+        }
+    }
     record->converter = converter;
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
     record->convertBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:target frameCapacity:kDecodeChunkFrames];
+    [self setConversion:[self conversionFrom:source to:target mixed:record->mixMap != nil converter:converter] forRecord:record];
     return record->readBuffer && record->convertBuffer && (!record->mixMap || record->mixBuffer);
+}
+
+- (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source to:(AVAudioFormat *)target mixed:(BOOL)mixed
+                                       converter:(AVAudioConverter *)converter {
+    NSMutableDictionary *conversion = [@{
+        @"fromSampleRate": @(source.sampleRate), @"toSampleRate": @(target.sampleRate),
+        @"fromChannels": @(source.channelCount), @"toChannels": @(target.channelCount),
+        @"toSampleFormat": target.commonFormat == AVAudioPCMFormatInt16 ? @"int16" : @"float32",
+        @"mixed": @(mixed), @"resampled": @(source.sampleRate != target.sampleRate),
+    } mutableCopy];
+    if (converter && source.sampleRate != target.sampleRate) {
+        if (converter.sampleRateConverterAlgorithm) {
+            conversion[@"algorithm"] = converter.sampleRateConverterAlgorithm;
+        }
+        conversion[@"quality"] = @(converter.sampleRateConverterQuality);
+    }
+    return conversion;
+}
+
+// The one field of a record read off the queue: conversionOfVoice: takes the
+// table lock, so the prepare writes it under the lock too.
+- (void)setConversion:(NSDictionary *)conversion forRecord:(VibeVoiceRecord *)record {
+    os_unfair_lock_lock(&_tableLock);
+    record->conversion = conversion;
+    os_unfair_lock_unlock(&_tableLock);
+}
+
+- (NSDictionary<NSString *, id> *)conversionOfVoice:(VibeVoiceID)voice {
+    if (!voice) {
+        return nil;
+    }
+    os_unfair_lock_lock(&_tableLock);
+    NSUInteger slot = [self slotForIdentifier:voice];
+    NSDictionary *conversion = slot == NSNotFound ? nil : _records[slot]->conversion;
+    os_unfair_lock_unlock(&_tableLock);
+    return conversion;
 }
 
 - (NSUInteger)freeSlot {
@@ -676,6 +735,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     bound->liveReported = bound->endedReported = NO;
     bound->reportedBoundary = kUnset;
     BOOL prepared = [self prepareRecord:bound file:record->file decodeFormat:record->decodeFormat];
+    bound->convertedBase = atomic_load_explicit(&s->written, memory_order_relaxed);
     s->armedWritten = atomic_load_explicit(&s->written, memory_order_relaxed);
     s->armedConsumed = atomic_load_explicit(&s->consumed, memory_order_relaxed);
     atomic_store_explicit(&s->readsAllowed, prepared && !record->readsStopped, memory_order_relaxed);
@@ -1171,6 +1231,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         AVAudioFrameCount wanted = packets < kDecodeChunkFrames ? packets : kDecodeChunkFrames;
         if (!flushing && [record->file readIntoBuffer:readBuffer frameCount:wanted error:&readError] && readBuffer.frameLength > 0) {
             *inputStatus = AVAudioConverterInputStatus_HaveData;
+            record->fedFrames += readBuffer.frameLength;
             if (!record->mixMap) {
                 return readBuffer;
             }
@@ -1247,7 +1308,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         AVAudioFile *successor = [self claimSuccessorForSlot:slot];
         if (successor && [self continueRecord:record intoSuccessor:successor]) {
             record->stream = VibeStreamReading;
-            atomic_store_explicit(&s->boundary, written, memory_order_release);
+            atomic_store_explicit(&s->boundary, [self streamEndForRecord:record written:written], memory_order_release);
             atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
             return YES;
         }
@@ -1281,11 +1342,26 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
     [self writeFrames:frames fromRecord:record toSlot:slot written:written final:ended];
     if (!ended) {
+        record->convertedBase = written + frames;
         atomic_store_explicit(&s->boundary, written + frames, memory_order_release);
     }
     atomic_store_explicit(&s->successorState, VibeSuccessorNone, memory_order_release);
     [self markLiveIfReadyForSlot:slot];
     return !ended;
+}
+
+// Where a stream that continues through its converter ends in the ring: the
+// frames the converter was fed, at the bus rate, from where it began. Read
+// off `written` instead, the boundary landed a filter's length early — the
+// mastering resampler holds hundreds of frames back until the successor's
+// first frames push them out — and the transport promoted the next track
+// before its first frame sounded.
+- (uint64_t)streamEndForRecord:(VibeVoiceRecord *)record written:(uint64_t)written {
+    if (!record->converter) {
+        return written;
+    }
+    double ratio = _format.sampleRate / record->file.processingFormat.sampleRate;
+    return record->convertedBase + (uint64_t)llround((double)record->fedFrames * ratio);
 }
 
 // The stream's end was declared before a successor was named — the render
@@ -1300,6 +1376,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     uint64_t end = atomic_load_explicit(&s->endOfStream, memory_order_relaxed);
     BOOL continues = [self prepareSuccessorForRecord:record];
     if (continues) {
+        record->convertedBase = end;
         // TRAP: only the audio thread decides that the voice reached its end,
         // and it may be inside that render now. Withdraw the end, then let
         // every render that could have loaded it finish — the sequence is

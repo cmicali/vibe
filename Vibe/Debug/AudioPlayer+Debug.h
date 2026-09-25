@@ -33,6 +33,15 @@ NS_ASSUME_NONNULL_BEGIN
 // form bit-perfect output reads a lossy source in. nil with no voice.
 - (nullable AVAudioFormat *)debugCurrentDecodeFormat;
 
+// How the current voice's file reaches the bus (AudioVoiceBus's
+// conversionOfVoice:): nil when it is read direct.
+- (nullable NSDictionary<NSString *, id> *)debugCurrentConversion;
+
+// The output's rate moved under the pump, as a device's would under the
+// unit: the pipeline follows through followOutputFormatOnQueue:, keeping
+// the current track at its position and state. NO when it could not.
+- (BOOL)debugSetOutputRate:(double)rate;
+
 // The player's own copy of the loading configuration, for dump_audio_loading's
 // three-way comparison against the materialization coordinator's and the
 // metadata cache's. Nothing in the app reads it back — the player is told its
@@ -55,8 +64,10 @@ NS_ASSUME_NONNULL_BEGIN
 // effect is engaged), retiring voices (`retiredFades`, the name the stress
 // tooling reads), live voices, whether the hardware drain is polling, whether
 // the output is running, rendered frames, varispeed presence and latency, the
-// current voice's gain and underrun count, the output rate (`outputRate`), and
-// the hosted output unit's dropouts and callback cost (`renderCycles`,
+// current voice's gain and underrun count, the output rate (`outputRate`),
+// whether the varispeed is in the chain and how often it has rendered
+// (`varispeedEngaged`, `varispeedRenders`, flat at zero pitch), and the
+// hosted output unit's dropouts and callback cost (`renderCycles`,
 // `renderMeanMicros`, `renderMaxMicros`, cumulative). A retiring voice that
 // never ends is the leak this exists to catch, and since a soak run is
 // thousands of track changes, unbounded growth is the signal.

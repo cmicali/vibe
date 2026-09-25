@@ -85,6 +85,14 @@ NS_ASSUME_NONNULL_BEGIN
 // The iOS player has no FX object.
 @property (nonatomic, readonly, nullable) AudioFX *fx;
 
+// The render chain as it stands, stage by stage from the source file to the
+// output device — each a dictionary with `stage` (source, decode, bus,
+// varispeed, fx, meter, output, and on macOS device), `present`, and that
+// stage's facts: rates, sample formats, channels, whether it is in the
+// render. One queue round trip; any thread but the player queue. What
+// Settings > Advanced lists and the debug report saves.
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathSnapshot;
+
 // deviceUID and deviceName name the persisted output device. Empty means follow
 // the system default; an unmatched saved device remains pending. Discovery is
 // asynchronous and never blocks the player's queue. A match is applied only

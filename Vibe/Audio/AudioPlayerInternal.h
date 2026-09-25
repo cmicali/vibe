@@ -41,9 +41,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The pipeline's audio-thread state, AudioPlayer+Graph.m's.
-typedef struct VibeMasterBus VibeMasterBus;
-
 typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateStopped = 0,
     VibePlayerStatePlaying,
@@ -135,6 +132,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
 #if !TARGET_OS_OSX
     AVAudioEngine           *_engine;           // the carrier: one source node into its output node
+    AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves
 #endif
     // The equalizer's tap: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.

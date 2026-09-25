@@ -233,6 +233,74 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertGreaterThan(VibeTestRMS(captures[0], 0, 12000 - 64, 256), 0.005, @"the 1/8-note send's first echo");
 }
 
+// Disconnected with the reverb and a delay still ringing out, the chain does
+// nothing: every stage is at rest, so even a render still pointed at it
+// renders no unit and changes no sample, and the tails' pending rests fire
+// without touching a unit. (The player withdraws the pointer as well.)
+- (void)testADisconnectedChainWithRingingTailsRendersNothing {
+    [self connectAt:kRate];
+    _fx.delayTapBPM = 120;
+    _fx.reverbSendEnabled = YES;
+    _fx.delaySendEnabled = YES;
+    [self onQueue:^{}];
+    [self render:4800 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:nil];
+    _fx.reverbSendEnabled = NO;
+    _fx.delaySendEnabled = NO;
+    [self onQueue:^{}];
+    [self render:2400 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:nil];
+    XCTAssertGreaterThan(_fx.unitRenders, 0ull);
+    [self onQueue:^{ [self->_fx setConnected:NO format:nil maximumFrameCount:kMaxFrames]; }];
+    XCTAssertFalse(_fx.connected);
+    uint64_t rested = _fx.unitRenders;
+    NSMutableData *capture = [NSMutableData data];
+    uint64_t first = _pump.renderedFrames;
+    [self render:48000 source:^float(uint64_t frame, int channel) { return VibeTestNoise(frame, channel); } into:capture];
+    [self assertCapture:capture isNoiseFrom:first];
+    XCTAssertEqual(_fx.unitRenders, rested, @"a disconnected chain rendered a unit");
+    [self render:(NSUInteger)(kRate * 12) source:nil into:nil];
+    XCTAssertEqual(_fx.unitRenders, rested, @"a pending rest rendered a unit");
+    _fx.delayTapBPM = 128;
+    [self onQueue:^{}];
+    XCTAssertEqual(_fx.unitRenders, rested);
+}
+
+// The returns sum: with the reverb and the 1/8-note delay held together, the
+// response to an impulse is the dry impulse plus each return on its own, and
+// that holds after both sends are released, while their tails overlap. The
+// reverb's two hostings can differ by float rounding, so the tolerance is
+// well above that and well below an echo.
+- (void)testCombinedReturnsSumWithOverlappingTails {
+    NSMutableData *captures[3];
+    for (int phase = 0; phase < 3; phase++) {
+        [self connectAt:kRate];
+        _fx.delayTapBPM = 120;
+        if (phase != 1) _fx.reverbSendEnabled = YES;
+        if (phase != 0) _fx.delaySendEnabled = YES;
+        [self onQueue:^{}];
+        [self render:4800 source:nil into:nil];
+        uint64_t impulse = _pump.renderedFrames;
+        captures[phase] = [NSMutableData data];
+        [self render:14400 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:captures[phase]];
+        _fx.reverbSendEnabled = NO;
+        _fx.delaySendEnabled = NO;
+        [self onQueue:^{}];
+        [self render:96000 - 14400 source:nil into:captures[phase]];
+        [self onQueue:^{ [self->_fx setConnected:NO format:nil maximumFrameCount:kMaxFrames]; }];
+    }
+    const float *reverb = captures[0].bytes, *delay = captures[1].bytes, *both = captures[2].bytes;
+    NSUInteger samples = captures[2].length / sizeof(float);
+    XCTAssertEqual(captures[0].length, captures[2].length);
+    XCTAssertEqual(captures[1].length, captures[2].length);
+    float worst = 0;
+    for (NSUInteger i = 0; i < samples; i++) {
+        float dry = i < 2 ? 0.5f : 0.0f;
+        worst = MAX(worst, fabsf(both[i] - (reverb[i] + delay[i] - dry)));
+    }
+    XCTAssertLessThan(worst, 1e-3f, @"the returns did not sum");
+    XCTAssertGreaterThan(VibeTestRMS(captures[0], 0, 24000, 24000), 1e-5, @"the reverb's tail after the release");
+    XCTAssertGreaterThan(VibeTestRMS(captures[1], 0, 24000 - 64, 256), 1e-3, @"the delay's echo after the release");
+}
+
 - (void)testTheLowKillCutsAndRestsExactly {
     [self connectAt:kRate];
     _fx.lowKillEnabled = YES;

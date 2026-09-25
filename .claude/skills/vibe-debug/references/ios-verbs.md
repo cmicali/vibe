@@ -10,6 +10,7 @@ Same file protocol and one-JSON-object contract as the mac's, with **no CLI clie
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformOverscroll (points past an end: + past the start, - past the end; the only way to assert the scrubber's rubber band), waveformScrollGeom ([offset, min, max, contentWidth] — tells "resting at an end" from "pinned and refusing to give"), waveformBaked, isScrubbing, parked, foreground, routePickerUp, and the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
 "$S" dump_equalizer      # references/equalizer-counters.md; set_equalizer_mode likewise
+"$S" dump_audio_path     # a common verb: the render chain stage by stage, as on the mac minus the device stage (references/mac-verbs.md)
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
 "$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window. The ONLY way to tell "not decoded yet" from "no art": both draw the vinyl placeholder. held past the budget, or a page landing with art:false, is the prefetch failing to keep up

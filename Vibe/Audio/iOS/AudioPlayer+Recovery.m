@@ -12,10 +12,11 @@
 
 @implementation AudioPlayer (Recovery)
 
-// The output node converts if the new route runs at a different sample rate
-// from the wired format, so nothing is reconnected (see AudioFX's wiring
-// note); the voice's ring and gain survived the stop, so nothing is
-// rescheduled either.
+// A route at the pipeline's rate is a restart: the voice's ring and gain
+// survived the stop, so nothing is rescheduled. A route at another rate is
+// followed — the source node and the bus rebuilt at it, the track kept —
+// so the bus converts once, at the route's rate, and the output node
+// converts nothing; the follow restarts a playing output itself.
 - (void)recoverFromEngineConfigurationChange {
     dispatch_async(_queue, ^{
         BOOL engineRunning = self->_engine.isRunning;
@@ -25,6 +26,11 @@
             // or wait; a quick successful restart coalesces active on main.
             [self refreshOutputAudioActiveOnQueue];
             [self updateDrainTimerOnQueue];
+        }
+        double routeRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
+        if (!engineRunning && routeRate > 0 && routeRate != [self masterBusFormatOnQueue].sampleRate) {
+            [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:routeRate channels:2]];
+            return;
         }
         if (self->_state != VibePlayerStatePlaying || !self->_voice || engineRunning) {
             return; // idle, Loading, or the engine survived the change

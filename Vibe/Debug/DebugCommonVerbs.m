@@ -393,6 +393,14 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"manualRendering": @([player manualRenderingActive]),
                 });
             }),
+            // The render chain as it stands, from the source file to the
+            // output device, one entry per stage — what Settings > Advanced's
+            // Audio group lists, raw.
+            VibeDebugCmd(@"dump_audio_path", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString(@{@"stages": surface.debugPlayer.audioPathSnapshot});
+            }),
             VibeDebugCmd(@"set_equalizer_mode <balanced|activity|spectrum>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

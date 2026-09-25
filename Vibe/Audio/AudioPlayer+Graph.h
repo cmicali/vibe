@@ -13,11 +13,29 @@
 //  the bus always runs at the output's format, so the file's own rate is
 //  read direct when the output follows it (bit-perfect) and converted inside
 //  the bus otherwise. A rebuild kills every voice, so its callers guarantee
-//  nothing audible.
+//  nothing audible, or go through reconcileSourceSegmentOnQueue, which
+//  starts the current one again at its retained intent. The varispeed is in
+//  the chain only while the pitch is off zero: at zero the render plays the
+//  bus straight, no unit rendered and no delay, and the render engages and
+//  disengages it at a slice boundary without a click — priming its filter
+//  with the last frames heard on the way in, replaying the frames it pulled
+//  ahead on the way out.
 //
-//  The FX segment (AudioFX.h) renders in place when it is connected; the
-//  meter (AudioLevelTap.h) reads the final samples while the equalizer wants
-//  them. Both are stages the render skips when they have nothing to do.
+//  The FX segment (AudioFX.h) renders in place while it is connected — its
+//  pointer is in the master bus only then — and the meter (AudioLevelTap.h)
+//  reads the final samples while the equalizer wants them. Both are stages
+//  the render skips when they have nothing to do.
+//
+//  Every conversion the path can make, and why: the bus's converter, when a
+//  file's rate, sample format or channels are not the output's (the
+//  mastering algorithm at maximum quality on macOS, read back; iOS's
+//  resampler offers no algorithm and runs at the quality alone); the
+//  varispeed's resampling, while the pitch is off zero (its highest render
+//  quality); the 16-bit integer form a lossy file takes on a 16-bit device
+//  under bit-perfect output, one rounding in that same converter. The carriers convert nothing: the macOS unit runs at its
+//  device's nominal rate (the bound device's rate is watched), and the iOS
+//  engine's output node is fed the route's own rate, the pipeline following
+//  a route change (followOutputFormatOnQueue:).
 //
 //  Two CARRIERS pull the render. On macOS it is Vibe's own HAL output unit
 //  bound to the chosen device (AudioOutputUnit.h), through a C proc, so
@@ -63,6 +81,9 @@ NS_ASSUME_NONNULL_BEGIN
 // frames per slice; a carrier's larger cycle is rendered in slices.
 static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 
+// The pipeline's audio-thread state, AudioPlayer+Graph.m's.
+typedef struct VibeMasterBus VibeMasterBus;
+
 @interface AudioPlayer (Graph)
 
 // Creates the carrier — the hosted unit on the system default at that
@@ -102,17 +123,39 @@ static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 - (BOOL)applyOutputRateOnQueue:(double)rate;
 #endif
 
+// The output's format moved under the pipeline — the iOS route's rate, the
+// debug pump's — and the pipeline follows it: the output stops, the carrier
+// takes the format (the unit on macOS, a new source node on iOS, the pump's
+// buffers), the bus is rebuilt at it and the current track kept
+// (reconcileSourceSegmentOnQueue), and a playing output restarts. NO when
+// the carrier or the segment refuses; the player is then Stopped, or parked
+// Paused, with an error sent. A no-op at the current format. The macOS
+// device paths rebind through AudioPlayer+Devices instead, which does the
+// device's own work between the same steps.
+- (BOOL)followOutputFormatOnQueue:(AVAudioFormat *)format;
+
 // The pipeline's format: stereo float32 at the output's rate.
 - (AVAudioFormat *)masterBusFormatOnQueue;
+// The render chain, stage by stage, from the source file to the output
+// device: `stage` names each (source, decode, bus, varispeed, fx, meter,
+// output, and on macOS device), `present` whether it is there now, and the
+// rest is that stage's facts — rates, sample formats, channels, whether it
+// is in the render. For the Settings window, the debug report and the
+// dump_audio_path verb.
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue;
 // Whether the carrier is rendering: the gate the start opens and the stop
 // closes, or on iOS the engine's own state, since it can stop itself.
 - (BOOL)renderingOnQueue;
 // The output-timeline frame the next render begins at, plus the block in
 // flight: the signal probe's clock on every carrier.
 - (nullable AVAudioTime *)outputRenderTimeOnQueue;
-// The hosted varispeed, in ordinary playback on macOS.
+// The hosted varispeed, in ordinary playback on macOS: whether it exists,
+// whether the render has it in the chain (the pitch off zero), its declared
+// latency while it does and 0 otherwise, and how often it has rendered.
 - (BOOL)varispeedPresentOnQueue;
+- (BOOL)varispeedEngagedOnQueue;
 - (NSTimeInterval)varispeedLatencyOnQueue;
+- (uint64_t)varispeedRendersOnQueue;
 // Hosted units alive: the varispeed and the FX chain's.
 - (NSUInteger)hostedUnitCountOnQueue;
 
@@ -122,10 +165,18 @@ static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 // voice died with the old segment, so the caller re-voices. NO when it
 // cannot be built.
 - (BOOL)ensureSourceSegmentOnQueueRebuilt:(nullable BOOL *)rebuilt;
+// ensureSourceSegmentOnQueueRebuilt: plus the restore: the current track's
+// intent — position, playing or paused — is read first, and a current voice
+// the rebuild killed is started again at it and published. The caller
+// restarts the output for a playing one. The one owner of "rebuild and keep
+// the track", for the device rebind, the route follow and the debug seam.
+- (BOOL)reconcileSourceSegmentOnQueue;
 // The format the bus reads `file` as: its own, or the 16-bit integer form
-// bit-perfect output prefers for a lossy source on a 16-bit device.
+// bit-perfect output prefers for a lossy source on a 16-bit device, at the
+// bus's own rate and width.
 - (AVAudioFormat *)decodeFormatOnQueueForFile:(AVAudioFile *)file;
-// Pitch in percent onto the varispeed's rate and bypass; a no-op without one.
+// Pitch in percent onto the varispeed's rate, and whether it is in the
+// chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;
 
 // Opens the gate and starts the carrier, then the meter, so the pipeline
@@ -146,5 +197,9 @@ static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 - (void)updateDrainTimerOnQueue;
 
 @end
+
+// Disposes the hosted varispeed and frees the master bus; the carrier is
+// stopped and no render is inside. The player's dealloc.
+void VibeMasterBusFree(VibeMasterBus * _Nullable master);
 
 NS_ASSUME_NONNULL_END

@@ -204,6 +204,14 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;
 
+// How the voice's file reaches the bus, for the audio-path report: nil when
+// it is read direct, else the rates and widths either side (`fromSampleRate`,
+// `toSampleRate`, `fromChannels`, `toChannels`), the sample format it lands
+// in (`toSampleFormat`), whether it was mixed by layout (`mixed`) and
+// resampled (`resampled`), and for a resample the converter's `algorithm`
+// and `quality` as read back. Any thread; a pending or unknown voice is nil.
+- (nullable NSDictionary<NSString *, id> *)conversionOfVoice:(VibeVoiceID)voice;
+
 // Slots that are not free, pending voices included. The drain-timer gate.
 - (NSUInteger)occupiedSlotCount;
 - (NSUInteger)liveVoiceCount;

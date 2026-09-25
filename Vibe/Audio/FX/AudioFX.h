@@ -77,6 +77,9 @@ typedef struct VibeFXChain VibeFXChain;
 // nothing, which the tests and the stress oracle read. Any thread.
 - (NSUInteger)hostedUnitCount;
 - (uint64_t)unitRenders;
+// The segment as it stands — connection, hosting, rate, each stage's intent
+// and activity — for the audio-path report. Player queue.
+- (NSDictionary<NSString *, id> *)diagnosticSnapshot;
 
 // DJ-style low kill on the Q key: a resonant high-pass filter on the master
 // bus that cuts the bass. It is a deck control, so it persists across tracks
@@ -119,8 +122,10 @@ typedef struct VibeFXChain VibeFXChain;
 @end
 
 // The segment, in place over `io`: stereo float32, non-interleaved, at most
-// the hosted maximumFrameCount frames. Audio thread; a disconnected chain
-// returns at once, and an idle stage costs nothing.
+// the hosted maximumFrameCount frames. Audio thread; an idle stage costs
+// nothing. The player calls it only while the segment is connected — a
+// disconnected chain is not in the render at all — and a disconnected
+// chain's stages are all at rest anyway, so the call changes nothing.
 OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
 
 // Hosting one of Apple's units through the C API, the one sequence the FX
