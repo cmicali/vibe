@@ -793,7 +793,8 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
     Method retire = class_getInstanceMethod(AudioPlayer.class, @selector(retireVoiceOnQueue:milliseconds:));
     __block IMP originalProduce, originalRetire;
-    __block BOOL heldRead = NO, heldRetire = NO;
+    __block _Atomic(BOOL) heldRead = NO; // the decoder writes it, the render loop below polls it
+    __block BOOL heldRetire = NO;
     IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
         if (receiver == bus && !heldRead) {
             heldRead = YES;

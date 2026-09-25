@@ -27,6 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final;
 - (void)recycleSlot:(NSUInteger)slot generation:(VibeVoiceID)generation;
 
+// A render stuck inside the bus: while set, a render blocks in
+// VibeVoiceBusRender after it has entered, so a decoder waiting for it to
+// leave waits in earnest; debugRendersHeld counts the renders blocked there.
+// Debug builds only. Any thread.
+- (void)debugHoldRender:(BOOL)hold;
+- (NSUInteger)debugRendersHeld;
+
 @end
 
 NS_ASSUME_NONNULL_END

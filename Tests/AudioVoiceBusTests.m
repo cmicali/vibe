@@ -781,6 +781,93 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertGreaterThan(_bus.decodeTurns, turns);
 }
 
+// Waits for `condition` on the main thread, a run-loop turn at a time, up
+// to five seconds; the bus's threads keep running meanwhile.
+- (BOOL)waitUntil:(BOOL (^)(void))condition {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+    while (!condition() && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
+    }
+    return condition();
+}
+
+// A voice whose end was published takes a late successor by withdrawing the
+// end and waiting for the render that could have seen it. With that render
+// stuck inside the bus, stopping the voice's reads must release the decoder
+// at once: a rebuild joins the decoder right after its own bounded render
+// wait gave up, and held the player queue on the stuck render otherwise.
+- (void)testAStoppedDecoderLeavesTheReopenWaitUnderAStuckRender {
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    NSURL *url = [self writePCM:[self noiseFrames:2000 channels:2 seed:81] rate:kRate channels:2 name:@"ended.wav"];
+    VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    dispatch_queue_t decoder = _bus.decodeQueue;
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX; }];
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, 2000u);
+    [_bus debugHoldRender:YES];
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self renderWithoutFilling:256 into:nil];
+    });
+    XCTAssertTrue([self waitUntil:^BOOL { return self->_bus.debugRendersHeld == 1; }]);
+    NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:82] rate:kRate channels:2 name:@"late.wav"];
+    AVAudioFile *successor = [self open:next];
+    XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
+    // The reopen withdraws the end and waits for the stuck render.
+    XCTAssertTrue([self waitUntil:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]);
+    dispatch_group_t stop = dispatch_group_create();
+    dispatch_group_async(stop, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        [self->_bus stopReading];
+    });
+    XCTAssertEqual(dispatch_group_wait(stop, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+                   @"stopReading joined a decoder waiting for the stuck render");
+    XCTAssertEqual(_bus.debugRendersHeld, 1u, @"the render was still stuck when the decoder left its wait");
+    VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
+    XCTAssertEqual(snapshot.endOfStream, 2000u, @"the withdrawn end goes back");
+    XCTAssertEqual(snapshot.boundary, UINT64_MAX, @"no boundary over a stream whose verdict was never read");
+    [_bus debugHoldRender:NO];
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    XCTAssertEqual(dispatch_group_wait(stop, DISPATCH_TIME_FOREVER), 0L);
+    // The voice ends at its end, the successor never begun.
+    [self renderWithoutFilling:4096 into:nil];
+    [self drain];
+    XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateNone);
+}
+
+// With its reads still allowed, the decoder gives the stuck render a bound
+// and then does without its verdict: the end goes back, the successor is
+// dropped, and the decode queue is free for every other voice.
+- (void)testTheReopenWaitIsBoundedUnderAStuckRender {
+    [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    NSURL *url = [self writePCM:[self noiseFrames:2000 channels:2 seed:83] rate:kRate channels:2 name:@"ended-bound.wav"];
+    VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
+    dispatch_queue_t decoder = _bus.decodeQueue;
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].endOfStream != UINT64_MAX; }];
+    [_bus debugHoldRender:YES];
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self renderWithoutFilling:256 into:nil];
+    });
+    XCTAssertTrue([self waitUntil:^BOOL { return self->_bus.debugRendersHeld == 1; }]);
+    NSURL *next = [self writePCM:[self noiseFrames:8000 channels:2 seed:84] rate:kRate channels:2 name:@"late-bound.wav"];
+    AVAudioFile *successor = [self open:next];
+    XCTAssertTrue([_bus queueSuccessor:successor decodeFormat:successor.processingFormat forVoice:voice]);
+    dispatch_group_t idle = dispatch_group_create();
+    dispatch_group_async(idle, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        dispatch_sync(decoder, ^{});
+    });
+    XCTAssertEqual(dispatch_group_wait(idle, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+                   @"the decoder waited past its bound for the stuck render");
+    XCTAssertEqual(_bus.debugRendersHeld, 1u);
+    VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
+    XCTAssertEqual(snapshot.endOfStream, 2000u, @"the withdrawn end goes back");
+    XCTAssertEqual(snapshot.boundary, UINT64_MAX);
+    [_bus debugHoldRender:NO];
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    [self renderWithoutFilling:4096 into:nil];
+    [self drain];
+    XCTAssertEqual([_bus snapshotOfVoice:voice].state, VibeVoiceStateNone, @"the voice ends at its restored end");
+}
+
 - (void)testAQueuedRecycleCannotEraseAReusedSlot {
     self.continueAfterFailure = YES;
     NSURL *url = [self writePCM:[self noiseFrames:20000 channels:2 seed:43] rate:kRate channels:2 name:@"recycle.wav"];

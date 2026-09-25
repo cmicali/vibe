@@ -127,7 +127,18 @@ struct VibeVoiceMix {
     // is stopped", which on iOS the render thread can lag.
     _Atomic uint64_t renderSequence;
     _Atomic int32_t inRender;
+#if DEBUG
+    // A test's stuck render: while set, a render blocks inside the bus after
+    // it has entered — inRender up, the sequence unmoved — and rendersHeld
+    // counts the renders blocked there.
+    _Atomic int32_t holdRender;
+    _Atomic int32_t rendersHeld;
+#endif
 };
+
+// A decoder's wait for a render to leave the bus is bounded: a render stuck
+// past this is not waited for, and the wait's caller does without its verdict.
+static const uint64_t kRenderLeaveWaitNanos = 100 * NSEC_PER_MSEC;
 
 // Whether the decoder could write for the slot: its reads allowed, and no
 // end published — or a successor queued past one, which a turn reopens the
@@ -228,8 +239,14 @@ static void VibeVoiceDie(VibeVoiceSlot *slot, int32_t reason, uint64_t renderSeq
 
 // The calls the compiler cannot check: vDSP's vector arithmetic, which
 // allocates nothing and blocks on nothing, and which Accelerate attributes
-// with nothing. Everything around them is under the error pragma below.
+// with nothing, and, in debug builds, the sleep of a test's render held
+// inside the bus. Everything around them is under the error pragma below.
 VIBE_REALTIME_UNCHECKED_BEGIN
+#if DEBUG
+static inline void VibeVoiceBusHoldWait(void) CA_REALTIME_API {
+    usleep(200);
+}
+#endif
 static inline void VibeVoiceMixAdd(const float *ring, float *out, uint32_t frames) CA_REALTIME_API {
     vDSP_vadd(ring, 1, out, 1, out, 1, frames);
 }
@@ -249,6 +266,15 @@ VIBE_REALTIME_CHECKED_BEGIN
 OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeStamp *timestamp,
                             AVAudioFrameCount frameCount, AudioBufferList *output) CA_REALTIME_API {
     atomic_store_explicit(&mix->inRender, 1, memory_order_seq_cst);
+#if DEBUG
+    if (atomic_load_explicit(&mix->holdRender, memory_order_relaxed)) {
+        atomic_fetch_add_explicit(&mix->rendersHeld, 1, memory_order_seq_cst);
+        while (atomic_load_explicit(&mix->holdRender, memory_order_relaxed)) {
+            VibeVoiceBusHoldWait();
+        }
+        atomic_fetch_sub_explicit(&mix->rendersHeld, 1, memory_order_seq_cst);
+    }
+#endif
     uint64_t renderSequence = atomic_load_explicit(&mix->renderSequence, memory_order_relaxed);
     uint32_t channels = output->mNumberBuffers < mix->channels ? output->mNumberBuffers : mix->channels;
     for (uint32_t c = 0; c < output->mNumberBuffers; c++) {
@@ -907,6 +933,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     }
 }
 
+#if DEBUG
+- (void)debugHoldRender:(BOOL)hold {
+    atomic_store_explicit(&_mix->holdRender, hold ? 1 : 0, memory_order_seq_cst);
+}
+
+- (NSUInteger)debugRendersHeld {
+    return (NSUInteger)atomic_load_explicit(&_mix->rendersHeld, memory_order_seq_cst);
+}
+#endif
+
 - (BOOL)queueSuccessor:(AVAudioFile *)file decodeFormat:(AVAudioFormat *)decodeFormat forVoice:(VibeVoiceID)voice {
     VibeVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
@@ -1466,14 +1502,27 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
         // is waited for too — and read the verdict; the render's own load is
         // sequentially consistent for this. Publishing the boundary over a
         // voice that had died at the end made the transport promote, and at
-        // once finish, a track that never played.
+        // once finish, a track that never played. The wait ends early, with
+        // no verdict, when the voice's reads are stopped or the render is
+        // stuck past the bound: the end goes back and the stream ends, and
+        // the transport re-voices the successor as after any end. TRAP: an
+        // unconditional wait here held the decode queue for as long as a
+        // render was stuck, and the player queue behind it, since a rebuild
+        // joins the decoder (stopReading) after its own bounded wait gave up.
         atomic_store_explicit(&s->endOfStream, kUnset, memory_order_seq_cst);
         uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
+        uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + kRenderLeaveWaitNanos;
+        BOOL verdict = YES;
         while (atomic_load_explicit(&_mix->inRender, memory_order_seq_cst)
                 && atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst) == renderSequence) {
+            if (!atomic_load_explicit(&s->readsAllowed, memory_order_acquire)
+                    || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) >= deadline) {
+                verdict = NO;
+                break;
+            }
             sched_yield();
         }
-        continues = atomic_load_explicit(&s->state, memory_order_acquire) != VibeVoiceStateDead;
+        continues = verdict && atomic_load_explicit(&s->state, memory_order_acquire) != VibeVoiceStateDead;
         if (!continues) {
             atomic_store_explicit(&s->endOfStream, end, memory_order_release);
         }
