@@ -230,12 +230,12 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
 #if VIBE_VERBOSE_LOGGING
-    // A suspended source cannot be released: cancel each watcher, then lift
-    // the suspension its creation or the gate left on it.
-    for (dispatch_source_t watcher in _stallWatchers) {
-        dispatch_source_cancel(watcher);
-        if (!_stallWatchersRunning) {
-            dispatch_resume(watcher);
+    // A suspended source cannot be released: cancel the queue watcher, then
+    // lift the suspension its creation or the gate left on it.
+    if (_queueStallWatcher) {
+        dispatch_source_cancel(_queueStallWatcher);
+        if (!_queueStallWatcherRunning) {
+            dispatch_resume(_queueStallWatcher);
         }
     }
 #endif

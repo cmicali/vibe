@@ -10,6 +10,7 @@
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
 #import "AudioFX.h"
+#import <stdatomic.h>
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #endif
@@ -240,12 +241,28 @@ static NSString *VibeSampleStack(thread_t thread, NSString *name, double millise
 }
 #endif
 
+// One stall's samples: 250 ms in, then every 500 ms — a long freeze can move
+// between causes, and a single sample would show only the first — six at
+// most, the onset logged at the first. `samples` and `nextSampleAt` are the
+// caller's, zeroed for each new stall.
+static BOOL VibeStallSampleDue(NSString *name, uint64_t stuck, int *samples, uint64_t *nextSampleAt) {
+    if (stuck <= 250 * NSEC_PER_MSEC || stuck < *nextSampleAt || *samples >= 6) {
+        return NO;
+    }
+    if (!*samples) {
+        LogWarn(@"Stall: the %@ is still blocked after %.0f ms", name, stuck / 1e6);
+    }
+    (*samples)++;
+    *nextSampleAt = stuck + 500 * NSEC_PER_MSEC;
+    return YES;
+}
+
 // A queue that takes more than 200 ms to run an empty block was blocked by
 // something, and the log says for how long, so a reported freeze can be told
-// apart from late audio. For the main thread the watcher also captures, once
-// per stall, where it is stuck, 250 ms in. Returned suspended: the player
-// resumes it while it has work that can stall (refreshStallWatchersOnQueue).
-static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name, mach_port_t sampledThread) {
+// apart from late audio; a stuck queue is sampled through whichever pool
+// thread is draining it. Returned suspended: the player resumes it while it
+// has work that can stall (refreshQueueStallWatcherOnQueue).
+static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSString *name) {
     dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
     __block BOOL waiting = NO; // confined to watcher, like the rest below
     __block uint64_t pingedAt = 0;
@@ -257,26 +274,17 @@ static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSStrin
     dispatch_source_set_event_handler(timer, ^{
         if (waiting) {
             uint64_t stuck = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - pingedAt;
-            // 250 ms in, then every 500 ms: a long freeze can move between
-            // causes, and a single sample would show only the first.
-            if (stuck > 250 * NSEC_PER_MSEC && stuck >= nextSampleAt && samples < 6) {
-                if (!samples) {
-                    LogWarn(@"Stall: the %@ is still blocked after %.0f ms", name, stuck / 1e6);
-                }
-                samples++;
-                nextSampleAt = stuck + 500 * NSEC_PER_MSEC;
+            if (VibeStallSampleDue(name, stuck, &samples, &nextSampleAt)) {
 #if TARGET_OS_OSX
-                // The player queue has no fixed thread: find whichever pool
-                // thread is draining it. None means it is queued but starved.
-                thread_t thread = sampledThread != MACH_PORT_NULL ? sampledThread : VibeFindThread(queue, NULL);
+                // The queue has no fixed thread: find the one draining it.
+                // None means it is queued but starved.
+                thread_t thread = VibeFindThread(queue, NULL);
                 if (thread == MACH_PORT_NULL) {
                     LogWarn(@"Stall stack: the %@, %.0f ms in: no thread is running it", name, stuck / 1e6);
                 }
                 else {
                     lastStack = VibeSampleStack(thread, name, stuck / 1e6, lastStack);
-                    if (thread != sampledThread) {
-                        mach_port_deallocate(mach_task_self(), thread);
-                    }
+                    mach_port_deallocate(mach_task_self(), thread);
                 }
 #endif
             }
@@ -299,6 +307,88 @@ static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSStrin
         });
     });
     return timer;
+}
+
+// The main thread is watched by its run loop, not by pings. Each pass stamps
+// its start — at BeforeSources, and at AfterWaiting for the wakeup's own
+// work: the main queue's blocks, a timer, an event — and the loop's wait
+// clears it, so a stall is a pass older than 250 ms, and a pass that ran
+// long logs its own length as it ends. The watchdog that samples a stall
+// runs only while passes happen: a pass arms it, a quiet period parks it, so
+// an idle app wakes nothing and a stall is sampled whether or not the player
+// is busy. A nested loop (a modal panel, event tracking) stamps and clears
+// like the outer one, and a poll (a zero timeout) skips the wait's
+// observers but not the pass's, so a loop pumped from a computation reads as
+// responsive. One per process, like the thread it watches; `thread` is its
+// port, read on it, or MACH_PORT_NULL to find it at each sample.
+static void VibeWatchMainThreadForStalls(mach_port_t thread) {
+    static _Atomic uint64_t passStart; // uptime nanos; 0 while the loop waits
+    static _Atomic uint64_t passes;
+    static _Atomic bool armed;
+    const uint64_t period = 250 * NSEC_PER_MSEC;
+    dispatch_queue_t watcher = dispatch_queue_create("com.vibe.stallwatch", DISPATCH_QUEUE_SERIAL);
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, watcher);
+    dispatch_block_t arm = ^{
+        if (!atomic_exchange_explicit(&armed, true, memory_order_seq_cst)) {
+            dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)period), period, 50 * NSEC_PER_MSEC);
+        }
+    };
+    __block uint64_t lastPasses = 0, stalledPass = 0, nextSampleAt = 0; // confined to watcher
+    __block int samples = 0;
+    __block NSString *lastStack = nil;
+    dispatch_source_set_event_handler(timer, ^{
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        uint64_t seen = atomic_load_explicit(&passes, memory_order_seq_cst);
+        uint64_t since = atomic_load_explicit(&passStart, memory_order_seq_cst);
+        if (since != stalledPass) {
+            stalledPass = since;
+            samples = 0;
+            nextSampleAt = 0;
+            lastStack = nil;
+        }
+        if (since && VibeStallSampleDue(@"main thread", now - since, &samples, &nextSampleAt)) {
+#if TARGET_OS_OSX
+            thread_t target = thread != MACH_PORT_NULL ? thread : VibeFindThread(dispatch_get_main_queue(), NULL);
+            if (target != MACH_PORT_NULL) {
+                lastStack = VibeSampleStack(target, @"main thread", (now - since) / 1e6, lastStack);
+                if (target != thread) {
+                    mach_port_deallocate(mach_task_self(), target);
+                }
+            }
+#endif
+        }
+        if (!since && seen == lastPasses) {
+            // Nothing ran since the last tick: park. The timer parks before
+            // the flag clears, so a pass arming in between sets it after the
+            // park; and the flag clears before the recheck, so a pass that
+            // began between the read and the clear is armed for here.
+            dispatch_source_set_timer(timer, DISPATCH_TIME_FOREVER, DISPATCH_TIME_FOREVER, 0);
+            atomic_store_explicit(&armed, false, memory_order_seq_cst);
+            if (atomic_load_explicit(&passes, memory_order_seq_cst) != seen) {
+                arm();
+            }
+        }
+        lastPasses = seen;
+    });
+    dispatch_source_set_timer(timer, DISPATCH_TIME_FOREVER, DISPATCH_TIME_FOREVER, 0);
+    dispatch_resume(timer);
+    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault,
+            kCFRunLoopAfterWaiting | kCFRunLoopBeforeSources | kCFRunLoopBeforeWaiting, true, 0,
+            ^(CFRunLoopObserverRef ref, CFRunLoopActivity activity) {
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        uint64_t previous = atomic_load_explicit(&passStart, memory_order_relaxed);
+        if (previous && now - previous > 200 * NSEC_PER_MSEC) {
+            LogWarn(@"Stall: the main thread could not run anything for %.0f ms", (now - previous) / 1e6);
+        }
+        if (activity == kCFRunLoopBeforeWaiting) {
+            atomic_store_explicit(&passStart, 0, memory_order_seq_cst);
+            return;
+        }
+        atomic_store_explicit(&passStart, now, memory_order_seq_cst);
+        atomic_fetch_add_explicit(&passes, 1, memory_order_seq_cst);
+        arm();
+    });
+    CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
 }
 
 static NSTimeInterval VibeMillisecondsSince(uint64_t nanos) {
@@ -436,39 +526,39 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 
 - (void)startStallWatchers {
 #if VIBE_VERBOSE_LOGGING
+    // The main thread is one per process, so its watcher is too; its port is
+    // read on the main thread itself, where the production player is made,
+    // since there is no public way to name the main thread from another.
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
 #if TARGET_OS_OSX
-    // Read on the main thread itself, where the production player is made;
-    // there is no public way to name the main thread from another.
-    dispatch_source_t main = VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread",
-                                                     NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
+        VibeWatchMainThreadForStalls(NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
 #else
-    dispatch_source_t main = VibeWatchQueueForStalls(dispatch_get_main_queue(), @"main thread", MACH_PORT_NULL);
+        VibeWatchMainThreadForStalls(MACH_PORT_NULL);
 #endif
+    });
     // The player queue runs on whichever pool thread is free; the watcher
     // finds the one draining it at each sample.
-    _stallWatchers = @[main, VibeWatchQueueForStalls(_queue, @"player queue", MACH_PORT_NULL)];
+    _queueStallWatcher = VibeWatchQueueForStalls(_queue, @"player queue");
 #endif
 }
 
-// The watchers tick while the player has work that can stall — the output
-// running, or a device phase in flight on a stopped output (a bind, a format
-// write, the idle stop's hog release) — and are suspended otherwise, so an
-// idle player wakes nothing. The trade: a main thread stalled while the
-// player idles goes unsampled. Balanced: one resume per suspend.
-- (void)refreshStallWatchersOnQueue {
+// The queue watcher ticks while the player has work that can stall — the
+// output running, or a device phase in flight on a stopped output (a bind, a
+// format write, the idle stop's hog release) — and is suspended otherwise,
+// so an idle player wakes nothing. Balanced: one resume per suspend.
+- (void)refreshQueueStallWatcherOnQueue {
 #if VIBE_VERBOSE_LOGGING
     BOOL wanted = [self renderingOnQueue] || _diagnosticPhaseDepth > 0;
-    if (!_stallWatchers.count || wanted == _stallWatchersRunning) {
+    if (!_queueStallWatcher || wanted == _queueStallWatcherRunning) {
         return;
     }
-    _stallWatchersRunning = wanted;
-    for (dispatch_source_t watcher in _stallWatchers) {
-        if (wanted) {
-            dispatch_resume(watcher);
-        }
-        else {
-            dispatch_suspend(watcher);
-        }
+    _queueStallWatcherRunning = wanted;
+    if (wanted) {
+        dispatch_resume(_queueStallWatcher);
+    }
+    else {
+        dispatch_suspend(_queueStallWatcher);
     }
 #endif
 }
@@ -485,7 +575,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         _renderClockStalledSince = 0;
         _renderClockAdvancedAt = 0;
     }
-    [self refreshStallWatchersOnQueue];
+    [self refreshQueueStallWatcherOnQueue];
 #endif
 }
 
@@ -498,13 +588,13 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     uint64_t play = [self diagnosticPlayIdentifierOnQueue];
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     LogInfo(@"Phase: play %llu voice %llu %@ begin, target %ld, state %ld", play, _voice, phase, (long)deviceID, (long)_state);
-    _diagnosticPhaseDepth++; // HAL work on a stopped output: the watchers run for it
-    [self refreshStallWatchersOnQueue];
+    _diagnosticPhaseDepth++; // HAL work on a stopped output: the queue watcher runs for it
+    [self refreshQueueStallWatcherOnQueue];
 #endif
     BOOL success = operation();
 #if VIBE_VERBOSE_LOGGING
     _diagnosticPhaseDepth--;
-    [self refreshStallWatchersOnQueue];
+    [self refreshQueueStallWatcherOnQueue];
     LogInfo(@"Phase: play %llu voice %llu %@ end, target %ld, success %d, %.1f ms",
             play, _voice, phase, (long)deviceID, success, VibeMillisecondsSince(began));
 #endif

@@ -25,11 +25,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue;
 
 
-// Installs the production player's stall watchers, suspended: they tick only
-// while the player has work that can stall. Main thread.
+// Installs the production player's stall watchers: the main thread's run loop
+// observer, one per process, and the player queue's ping, suspended until the
+// player has work that can stall. Main thread.
 - (void)startStallWatchers;
-// An output start or stop: the watchers follow the output, and a render-clock
-// stall a stop cuts short is closed. A no-op without the watchers.
+// An output start or stop: the queue watcher follows the output, and a
+// render-clock stall a stop cuts short is closed. A no-op without the watchers.
 - (void)noteOutputEdgeOnQueue;
 
 // The play the current transport state belongs to: the loading submission
