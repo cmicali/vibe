@@ -1,36 +1,24 @@
-This beta records more about what happens when a track starts, to track down
-a delay some USB speakers show with Exclusive output on.
+This beta replaces Vibe's playback engine. Vibe now reads, mixes and plays
+every track itself, straight to your audio device, instead of going through
+macOS's general-purpose audio engine. Please report anything that sounds or
+behaves differently from 1.13.
 
-* Changed: with Bit-perfect output on, Vibe no longer fades or crossfades
-  anything. Tracks start, stop, pause and seek instantly, so every sample
-  reaches your device unchanged; a cut in the middle of a song may click.
-* Changed: with Bit-perfect output on and a 16-bit audio device, MP3 and AAC
-  files are now decoded straight to 16-bit, so no conversion step remains
-  between the decoder and the device.
-* Changed: the time counter now changes the moment the first second has
-  played, instead of up to a third of a second later.
-* Improved: switching tracks with Bit-perfect output on no longer re-reads
-  your device's volume settings each time, which some USB speakers answer
-  slowly.
-* New: when the app or the audio stalls, the debug info now records exactly
-  where, and how long a track's opening silence lasts is recorded even when
-  the playlist's equalizer is hidden.
-* New: Vibe now records how long after your click each track's audio really
-  started, each step of taking over your audio device, when the time counter
-  starts moving, and how long a track opens with silence, along with every
-  change and notification your audio devices send and any moment the app or
-  the audio output stopped responding. Settings > Advanced > Debug info >
-  Save… includes it, and saving now works even while playback is stuck.
-* New: press M while Vibe is in front to mark a moment in that record, for
-  example the moment you hear a problem. It now works with any keyboard
-  layout.
-* Fixed: some MP3 files with extra data after their tags would not play.
-* Fixed: an audio device that is off when Vibe opens is now used as soon as
-  you turn it on, and a device plugged into a different USB port keeps the
-  bit-perfect and exclusive settings you chose for that port.
-* Fixed: losing the last audio output mid-track could skip to the next track
-  instead of pausing, and quitting mid-track could move the playlist on.
-* Quitting no longer waits on your audio device: the window closes at once and
-  Vibe puts the device back the way it found it in the background.
-* Fixed: opening Vibe with Exclusive output on could show "Failed to get
-  device's audio settings" for bit-perfect output for the whole session.
+* New: a Declick switch in Settings > Audio. On, the default, every start,
+  stop, pause, seek and track change ramps the volume over a few milliseconds
+  so it cannot click, with Bit-perfect output on too. Off, playback cuts
+  instantly and leaves every sample untouched.
+* Changed: with Bit-perfect output on, MP3 and AAC files reach your device at
+  their full decoded precision, rounded only to your device's own bit depth,
+  instead of being rounded to 16 bits first.
+* Improved: a file that is slow to read, such as one still downloading, no
+  longer holds up play, pause or skip.
+* Improved: a reverb or delay still ringing when you pause now rings out in
+  full instead of being cut off after 6 seconds.
+* Improved: when nothing is playing, Vibe does no background work, and the
+  Settings window does none while it is closed.
+* Changed: Control Center and the lock screen show your theme's no-artwork
+  image for a track without cover art, instead of a blank tile.
+* New: Settings > Advanced > Allow bit-perfect on any device, for testing
+  Bit-perfect output on Bluetooth and other devices it is normally off for.
+* New: Settings > Advanced can list every stage your audio passes through,
+  from the file to the device. Click the Version row seven times to show it.
