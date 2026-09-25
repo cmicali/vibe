@@ -222,6 +222,35 @@ static inline void VibeVoiceMixAtGain(const float *ring, float gain, float *out,
 static inline void VibeVoiceMixAtGains(const float *ring, const float *gains, float *out, uint32_t frames) CA_REALTIME_API {
     vDSP_vma(ring, 1, gains, 1, out, 1, out, 1, frames);
 }
+
+// VibeFadeGainAtFrame for `count` consecutive frames from `firstFrame`, in
+// ramp form: one vDSP ramp over the linear term (the gain, or the power under
+// an equal-power root), the root through vForce, and `to` for every frame at
+// or past the end. The same values to a rounding; the bus tests compare a
+// rendered fade against the per-frame function at 1e-6.
+static inline void VibeVoiceGainRamp(VibeFadeCurve curve, float from, float to, uint32_t firstFrame, uint32_t frames,
+                                     uint32_t count, float *gains) CA_REALTIME_API {
+    uint32_t ramped = frames > firstFrame ? frames - firstFrame : 0;
+    if (ramped > count) {
+        ramped = count;
+    }
+    if (ramped) {
+        BOOL equalPower = curve == VibeFadeCurveEqualPower;
+        float start = equalPower ? from * from : from;
+        float step = ((equalPower ? to * to : to) - start) / (float)frames;
+        float first = start + step * (float)firstFrame;
+        vDSP_vramp(&first, &step, gains, 1, ramped);
+        if (equalPower) {
+            float zero = 0;
+            vDSP_vthr(gains, 1, &zero, gains, 1, ramped);
+            int n = (int)ramped;
+            vvsqrtf(gains, gains, &n);
+        }
+    }
+    if (count > ramped) {
+        vDSP_vfill(&to, gains + ramped, 1, count - ramped);
+    }
+}
 VIBE_REALTIME_END
 
 // Everything the audio thread does. Plain memory and atomics, no call that
@@ -301,8 +330,8 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
             uint32_t readIndex = (uint32_t)(consumed & mix->mask);
             float gain = atomic_load_explicit(&slot->gain, memory_order_relaxed);
             // The ring read is at most two contiguous spans, each one vector
-            // operation per channel; a fading voice's gains are computed once
-            // per frame and shared by its channels.
+            // operation per channel; a fading voice's gains are one ramp per
+            // span, shared by its channels.
             for (uint32_t done = 0; done < frames; ) {
                 uint32_t index = (readIndex + done) & mix->mask;
                 uint32_t span = frames - done;
@@ -313,10 +342,8 @@ OSStatus VibeVoiceBusRender(VibeVoiceMix *mix, BOOL *isSilence, const AudioTimeS
                     span = kVibeVoiceBusMaxRenderFrames;
                 }
                 if (ramping) {
-                    for (uint32_t i = 0; i < span; i++) {
-                        mix->gains[i] = VibeFadeGainAtFrame((VibeFadeCurve)slot->rampCurve, slot->rampFrom, slot->rampTo,
-                                                            slot->rampElapsed + done + i, slot->rampFrames);
-                    }
+                    VibeVoiceGainRamp((VibeFadeCurve)slot->rampCurve, slot->rampFrom, slot->rampTo,
+                                      slot->rampElapsed + done, slot->rampFrames, span, mix->gains);
                 }
                 for (uint32_t c = 0; c < channels; c++) {
                     const float *ring = mix->rings[s][c] + index;
@@ -1580,14 +1607,15 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     converted.frameLength = frames;
     *final = flushing && frames < kDecodeChunkFrames;
     if (converted != record->stageBuffer) {
-        // Back to float on the 16-bit grid: v / 32768 is exact.
+        // Back to float on the 16-bit grid: v × 2⁻¹⁵ is exact. One strided
+        // conversion deinterleaves each channel.
         const int16_t *in = converted.int16ChannelData[0];
         uint32_t channels = converted.format.channelCount;
+        const float scale = 1.0f / 32768.0f;
         for (uint32_t c = 0; c < channels; c++) {
             float *out = record->stageBuffer.floatChannelData[c];
-            for (uint32_t i = 0; i < frames; i++) {
-                out[i] = (float)in[i * channels + c] / 32768.0f;
-            }
+            vDSP_vflt16(in + c, channels, out, 1, frames);
+            vDSP_vsmul(out, 1, &scale, out, 1, frames);
         }
         record->stageBuffer.frameLength = frames;
     }

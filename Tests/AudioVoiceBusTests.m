@@ -386,7 +386,9 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     const float *out = capture.bytes, *in = source.bytes;
     for (uint32_t f = 0; f < 1024; f++) {
         float gain = VibeFadeGainAtFrame(VibeFadeCurveLinear, 0, 1, f, frames);
-        XCTAssertEqual(out[f * 2], gain * in[f * 2], @"frame %u", f);
+        // The render's ramp is the per-frame curve in ramp form, equal to a
+        // rounding; the landing below is exact.
+        XCTAssertEqualWithAccuracy(out[f * 2], gain * in[f * 2], 1e-6, @"frame %u", f);
         if (f >= frames) {
             XCTAssertEqual(out[f * 2 + 1], in[f * 2 + 1], @"frame %u should be unity", f);
         }
@@ -449,7 +451,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     const float *out = capture.bytes, *in = source.bytes;
     for (uint32_t f = 0; f < 1024; f++) {
         float gain = VibeFadeGainAtFrame(VibeFadeCurveLinear, 0, 1, f, 480);
-        XCTAssertEqual(out[f * 2], gain * in[(1480 + f) * 2], @"frame %u after resume", f);
+        XCTAssertEqualWithAccuracy(out[f * 2], gain * in[(1480 + f) * 2], 1e-6, @"frame %u after resume", f);
     }
     XCTAssertFalse([_bus snapshotOfVoice:voice].paused);
 }
