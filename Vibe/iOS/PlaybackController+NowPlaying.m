@@ -36,7 +36,9 @@
     // track's metadata duration keeps the card's timeline real there.
     NSTimeInterval playerDuration = _player.duration;
     NSTimeInterval duration = playerDuration > 0 ? playerDuration : track.duration;
+    // The pager's no-artwork image, so the card and the page agree.
     [_nowPlaying updateWithTrack:track
+                  placeholderArt:[UIImage imageNamed:@"record-bg"]
                         position:position
                         duration:duration
                            state:state

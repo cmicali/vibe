@@ -22,6 +22,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "PlatformTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -79,7 +80,12 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
 // artwork delivery: a dirty check skips the republish when nothing has
 // changed, and artwork is read non-blocking, using already-decoded art only,
 // so it is safe on the main thread.
+//
+// placeholderArt is the shell's own no-artwork image, published while the
+// track has no decoded art, so the card shows what the app shows. Pass the
+// same object while it is unchanged: the dirty check compares identity.
 - (void)updateWithTrack:(nullable AudioTrack *)track
+         placeholderArt:(nullable VibeImage *)placeholderArt
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
                   state:(NowPlayingPlaybackState)state

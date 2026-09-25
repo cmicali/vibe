@@ -5,6 +5,7 @@
 
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerControllerInternal.h"
+#import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
@@ -66,6 +67,7 @@
     // position is a placeholder, so freeze the readout there until
     // didStartPlaying:'s republish flips it live.
     [self.nowPlayingController updateWithTrack:track
+                                placeholderArt:AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage
                                       position:position
                                       duration:duration
                                          state:state

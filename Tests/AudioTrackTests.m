@@ -416,8 +416,10 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     NowPlayingController *publisher = [[NowPlayingController alloc] initWithClock:^{ return 1000.0; }
             publish:^(NSDictionary *info, NowPlayingPlaybackState state) { [publications addObject:info ?: @{}]; }
             commandAvailability:^(BOOL next, BOOL previous) {}];
+    __block NSImage *placeholder = nil;
     void (^publish)(void) = ^{
-        [publisher updateWithTrack:track position:0 duration:30 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
+        [publisher updateWithTrack:track placeholderArt:placeholder position:0 duration:30
+                             state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
     };
     publish();
     metadata.title = @"New title";
@@ -445,6 +447,20 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
     metadata.cachedThumbnail = nil;
     publish();
     XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtwork]);
+
+    // The shell's placeholder stands in for missing art, and only for it.
+    placeholder = [NSImage imageWithSize:NSMakeSize(64, 64) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    publish();
+    MPMediaItemArtwork *standIn = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
+    XCTAssertNotNil(standIn);
+    NSUInteger count = publications.count;
+    publish();
+    XCTAssertEqual(publications.count, count);
+    metadata.cachedThumbnail = [NSImage imageWithSize:NSMakeSize(20, 20) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    publish();
+    MPMediaItemArtwork *thumb = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
+    XCTAssertNotNil(thumb);
+    XCTAssertNotEqual(thumb, standIn);
 }
 
 

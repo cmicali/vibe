@@ -271,6 +271,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 #pragma mark - Now Playing info
 
 - (void)updateWithTrack:(AudioTrack *)track
+         placeholderArt:(VibeImage *)placeholderArt
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
                   state:(NowPlayingPlaybackState)state
@@ -319,11 +320,15 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // The 128px thumbnail stands in for that gap. A fresh parse decodes it on
     // its metadata worker; after shared-cache eviction this read returns nil
     // and queues a bounded off-main decode instead. Without the thumbnail the
-    // card shows the app icon while the window shows a cover, which reads as
-    // Now Playing lagging the app when both are in fact published in the same
-    // pass. The identity check below promotes either recovered thumbnail or
-    // full art when the next publish sees it.
-    VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail;
+    // card shows the placeholder while the window shows a cover, which reads
+    // as Now Playing lagging the app when both are in fact published in the
+    // same pass. The identity check below promotes either recovered thumbnail
+    // or full art when the next publish sees it.
+    //
+    // The placeholder is rasterized like any art. A two-sided theme's
+    // placeholder draws for the current drawing appearance, which on main is
+    // the app's and so the system's, since Vibe never sets NSApp.appearance.
+    VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholderArt;
 
     // The elapsed time is never republished at 3 Hz, because the system
     // extrapolates it from the last publish at the published rate. Natural
