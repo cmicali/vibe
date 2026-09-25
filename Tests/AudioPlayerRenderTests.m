@@ -2042,33 +2042,37 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertTrue([counts[@"varispeed"] boolValue], @"ordinary playback hosts the varispeed");
     XCTAssertFalse([counts[@"varispeedEngaged"] boolValue]);
     XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], 0ull, @"the varispeed rendered at zero pitch");
+    XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], 0ull, @"the history ring was written at zero pitch");
     XCTAssertEqual([counts[@"varispeedLatency"] doubleValue], 0.0);
 
     NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
     [_capture setLength:0];
-    // Each segment advances the file by its own rate, within a few frames:
-    // an engage pulls the unit's latency ahead of its output, which the
-    // disengage plays from the ring without consuming, so those two
-    // segments carry the latency each way.
+    // Each segment advances the file by its own rate, within a few frames.
+    // An engage first plays the slice in which the unit's history is
+    // recorded directly, at rate 1, then pulls the unit's latency ahead of
+    // its output; a disengage plays that pulled-ahead latency from the ring
+    // without consuming. So the two segments carry those frames each way.
     double expected = 0, latency = 0;
     BOOL wasEngaged = NO;
     for (NSNumber *pitch in pitches) {
-        double before = _player.position;
+        double before = _player.position, rate = 1 + pitch.doubleValue / 100;
         _player.pitch = pitch.floatValue;
         [self render:9600];
         NSDictionary *counts = _player.debugEngineCounts;
         BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
         XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
         if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
-        XCTAssertEqualWithAccuracy(_player.position - before,
-                                   0.2 * (1 + pitch.doubleValue / 100) + (engaged && !wasEngaged ? latency : 0) - (!engaged && wasEngaged ? latency : 0),
-                                   0.0002, @"the file advanced at pitch %@", pitch);
-        expected += 0.2 * (1 + pitch.doubleValue / 100);
+        double direct = ceil(2 * latency * 48000 / _blockSize) * _blockSize / 48000;
+        double advance = 0.2 * rate + (engaged && !wasEngaged ? latency + direct * (1 - rate) : 0) - (!engaged && wasEngaged ? latency : 0);
+        XCTAssertEqualWithAccuracy(_player.position - before, advance, 0.0002, @"the file advanced at pitch %@", pitch);
+        expected += advance;
         wasEngaged = engaged;
     }
     XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
     XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
+    uint64_t historyWrites = [_player.debugEngineCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
+    XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
     // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
     // repeated millisecond, or a cold unit's ramp from silence, moves ten
     // times that or empties a window.
@@ -2088,12 +2092,15 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertGreaterThan(rms, nominal * 0.93, @"a dip in the window at frame %lu", (unsigned long)f);
         if (rms <= nominal * 0.93) return;
     }
-    // Back at zero: the unit is idle and the output is the file, exactly.
+    // Back at zero: the unit is idle, nothing is copied, and the output is
+    // the file, exactly.
     uint64_t renders = [_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
     XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
     [self play:noise paused:NO position:0];
     [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
-    XCTAssertEqual([_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
+    counts = _player.debugEngineCounts;
+    XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
+    XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
 }
 
 // The output's rate moves under the pipeline — a device's would under the

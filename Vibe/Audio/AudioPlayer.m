@@ -478,6 +478,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
 #endif
+    // The iOS route's rate may have moved while nothing played; the
+    // segment below is built at the route's rate, not a stale one.
+    [self followOutputRouteOnQueue];
     if (![self ensureSourceSegmentOnQueueRebuilt:NULL]) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -686,6 +689,12 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
+    // The carrier's rate may have moved while it was stopped (the iOS
+    // route); the pipeline follows it first, re-voicing paused in place, so
+    // the start below runs at the route's rate and the output converts nothing.
+    if (![self followOutputRouteOnQueue]) {
+        return; // the follow reset the player and said why
+    }
     NSError *startError = nil;
     if (![self startOutputOnQueue:&startError]) {
         // startEngineOnQueue cancelled the pending idle stop at entry; the
@@ -1379,6 +1388,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"varispeedLatency": @([self varispeedLatencyOnQueue]),
                    @"varispeedEngaged": @([self varispeedEngagedOnQueue]),
                    @"varispeedRenders": @([self varispeedRendersOnQueue]),
+                   @"varispeedHistoryWrites": @([self varispeedHistoryWritesOnQueue]),
                    @"outputRate": @([self masterBusFormatOnQueue].sampleRate)};
     }];
     return counts;

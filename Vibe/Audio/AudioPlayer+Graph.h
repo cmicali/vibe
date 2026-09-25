@@ -16,10 +16,11 @@
 //  nothing audible, or go through reconcileSourceSegmentOnQueue, which
 //  starts the current one again at its retained intent. The varispeed is in
 //  the chain only while the pitch is off zero: at zero the render plays the
-//  bus straight, no unit rendered and no delay, and the render engages and
-//  disengages it at a slice boundary without a click — priming its filter
-//  with the last frames heard on the way in, replaying the frames it pulled
-//  ahead on the way out.
+//  bus straight, no unit rendered, no delay, no copy, and the render engages
+//  and disengages it at slice boundaries without a click — recording the
+//  frames it plays directly for one more slice and priming the unit's filter
+//  with them on the way in, replaying the frames the unit pulled ahead on
+//  the way out.
 //
 //  The FX segment (AudioFX.h) renders in place while it is connected — its
 //  pointer is in the master bus only then — and the meter (AudioLevelTap.h)
@@ -156,6 +157,17 @@ typedef struct VibeMasterBus VibeMasterBus;
 - (BOOL)varispeedEngagedOnQueue;
 - (NSTimeInterval)varispeedLatencyOnQueue;
 - (uint64_t)varispeedRendersOnQueue;
+// Writes into the history ring: only while an engage is being prepared or
+// the unit is in the chain, never at zero pitch settled.
+- (uint64_t)varispeedHistoryWritesOnQueue;
+
+// Brings the pipeline to the carrier's current rate where the carrier can
+// move on its own: the iOS route, whose configuration change a route loss
+// or an interruption can leave unanswered, so every path that will start
+// the engine calls this first (followOutputFormatOnQueue: when the rate
+// differs, the track kept). A no-op at the current rate, under the pump,
+// and on macOS, where the bound device's rate listener rebinds the unit.
+- (BOOL)followOutputRouteOnQueue;
 // Hosted units alive: the varispeed and the FX chain's.
 - (NSUInteger)hostedUnitCountOnQueue;
 

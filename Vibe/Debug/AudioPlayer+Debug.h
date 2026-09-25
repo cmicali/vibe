@@ -65,8 +65,9 @@ NS_ASSUME_NONNULL_BEGIN
 // tooling reads), live voices, whether the hardware drain is polling, whether
 // the output is running, rendered frames, varispeed presence and latency, the
 // current voice's gain and underrun count, the output rate (`outputRate`),
-// whether the varispeed is in the chain and how often it has rendered
-// (`varispeedEngaged`, `varispeedRenders`, flat at zero pitch), and the
+// whether the varispeed is in the chain, how often it has rendered and how
+// often its history ring was written (`varispeedEngaged`, `varispeedRenders`,
+// `varispeedHistoryWrites`, the last two flat at zero pitch settled), and the
 // hosted output unit's dropouts and callback cost (`renderCycles`,
 // `renderMeanMicros`, `renderMaxMicros`, cumulative). A retiring voice that
 // never ends is the leak this exists to catch, and since a soak run is
