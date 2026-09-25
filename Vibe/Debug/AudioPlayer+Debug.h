@@ -53,8 +53,8 @@ NS_ASSUME_NONNULL_BEGIN
 // the player for one.
 - (NSUInteger)numChannels;
 
-// Whether --no-audio-hw's manual rendering actually engaged. The argv flag alone
-// does not prove it: the pump must attach before any voice exists.
+// Whether --no-audio-hw's render pump is attached. The argv flag alone does
+// not prove it: the pump attaches during the async init, before any voice.
 // Written once during the async init;
 // lock-free.
 - (BOOL)manualRenderingActive;

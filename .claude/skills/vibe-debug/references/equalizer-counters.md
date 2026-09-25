@@ -2,7 +2,7 @@
 
 `dump_equalizer`'s schema, the bounds each counter must hold, and `set_equalizer_mode`. Read when judging the equalizer bars on either platform; the launch flags (`--silent` zeroes after the meter, so the bars are live) are in `SKILL.md`. The producer contract is `Vibe/Audio/Levels/CLAUDE.md`'s, the renderer's `Vibe/Controls/CLAUDE.md`'s.
 
-`dump_equalizer` has the same schema on both apps: `{levelsEnabled, outputAudioActive, published, sequence, bands, audio: {requested, meterObject, installed, callbacks, analyzedWindows, publications, sequence, lastFrameLength, sampleRate, retiredOutputCount, outputAudioActive, normalizationMode}, renderer: {activeDisplayLinks, displayTicks, geometryLayouts, transformWrites}, silent, noAudioHw, manualRendering}`. `audio.normalizationMode` is the canonical `balanced`, `activity` or `spectrum` string. Counters are cumulative and never reset.
+`dump_equalizer` has the same schema on both apps: `{levelsEnabled, outputAudioActive, published, sequence, bands, audio: {requested, meterObject, installed, callbacks, analyzedWindows, publications, sequence, lastFrameLength, sampleRate, retiredOutputCount, outputAudioActive, normalizationMode, signalProbe}, renderer: {activeDisplayLinks, displayTicks, geometryLayouts, transformWrites}, silent, noAudioHw, manualRendering}`. `audio.normalizationMode` is the canonical `balanced`, `activity` or `spectrum` string. Counters are cumulative and never reset.
 
 Bounds:
 

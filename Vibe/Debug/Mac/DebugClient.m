@@ -15,8 +15,8 @@
 
 // The CLI half of the debug command channel: VibeDebugCommandClientMain, which
 // main.m runs for `Vibe --debug-cmd ...` before NSApplicationMain. The local
-// verbs (sleep, scan_bpm, clear_disk_caches, set_appearance) run in this
-// process; everything else rides the file-and-notification transport to the
+// verbs (sleep, script, scan_bpm, scan_key, clear_disk_caches, set_analysis)
+// run in this process; everything else rides the file-and-notification transport to the
 // running app. See DebugUtil.h for the transport contract and DebugUtil.m for
 // the app side.
 

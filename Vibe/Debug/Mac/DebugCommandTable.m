@@ -160,7 +160,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
         table = @[
             // The stress driver's two oracles; see DebugHealth.h. dump_health
             // and check_consistency (shared table) both reach the player's
-            // serial queue for the engine node count, so a wedged queue times
+            // serial queue for the hosted-unit and render counts, so a wedged queue times
             // them out rather than letting them answer from stale state.
             VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugHealthJSON(controller);
@@ -528,7 +528,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"set_declick <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // The pane's switch without its gate: the choice is stored and
-                // pushed whatever the mode, and applies only under it.
+                // pushed whatever the mode, and applies in every mode.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_declick <on|off>");

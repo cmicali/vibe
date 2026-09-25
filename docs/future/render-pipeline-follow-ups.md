@@ -32,7 +32,7 @@ Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptanc
 
 Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each described — the engine graph, its bind-driven rebuild and the player's device bookkeeping around it — no longer exists. Their *symptoms* are what a device-lifecycle pass on the new carrier must show absent. These are live tests through the debug channel and the `vibe-stress` drivers, never unit tests. Read the `vibe-stress` skill's device-flap section first: every driver below moves audio for every app on the machine, and an `AudioDeviceID` changes on every re-enumeration, so read it fresh.
 
-**Silent stop after a device vanishes and returns (#50).** Two layers. Software volume first, with Vibe on System Output — `dump_state.player.outputDevice` null, or the vanish never reaches it:
+**Silent stop after a device vanishes and returns (#50).** Two layers. Software volume first, with Vibe on System Output — `dump_state.player.requestedOutputDeviceId` at -1, or the vanish never reaches it:
 
 ```bash
 .claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device <id> --flaps 300
@@ -42,7 +42,7 @@ The driver's oracles are the ones wanted: state and position per flap, `check_co
 
 **A slow bind blocking the player queue (#53).** The renderer logs the number directly: every play submission logs how long it waited for admission on the player queue (`Timeline: play N admitted after X ms on player queue`, `AudioPlayer+Diagnostics`), and a slow output start logs how long the queue was blocked (`AudioPlayer+Pipeline`). Rotate the system default across real devices with the slowest one owned in the list (the helper's `rotate` mode; the skill's table puts an RME bind at half a second), submit plays during the binds, and read those lines. An admission wait that tracks the bind time is the symptom back on the new carrier; one under a few milliseconds whatever the destination is the fix holding.
 
-**A bind rebuilding when the device has not changed (#56).** The stimulus is a default-device change that does not concern the bound device: bind Vibe explicitly to BlackHole (`set_output_device "BlackHole 2ch"`, then poll `dump_state.player.outputDevice` until it names it), run a sample-exact loopback capture, and rotate the system default between two *other* real devices while it runs:
+**A bind rebuilding when the device has not changed (#56).** The stimulus is a default-device change that does not concern the bound device: bind Vibe explicitly to BlackHole (`set_output_device "BlackHole 2ch"`, then poll `dump_state.player.outputDeviceUID` until it names it), run a sample-exact loopback capture, and rotate the system default between two *other* real devices while it runs:
 
 ```bash
 build/verify-bit-perfect "$PWD/build/audio-fixtures/noise-48000-24-2.wav" 3 "BlackHole 2ch" --play-app "$V" --force-volume --ordinary
@@ -50,7 +50,7 @@ build/verify-bit-perfect "$PWD/build/audio-fixtures/noise-48000-24-2.wav" 3 "Bla
 
 Any rebuild that interrupts the render is a PCM mismatch, and `dump_health`'s render cycles must be continuous with the dropout count unchanged. Clear BlackHole's device mute first; a muted loopback reads as silence. The bound device's *nominal rate* moving under another process is a legitimate rebind (`Mac/Devices/CLAUDE.md`), not this case.
 
-**The player's device notion going stale (#57).** After every flap or rotation compare the app's answer to the HAL's, never the app to itself: the app's side is `dump_state.player.outputDevice` and the device stage of `dump_audio_path`; the HAL's side is what the flap helper reports. Three cases: on System Output the app reports null and the path names the current default; explicitly bound to a device that vanishes, the app reports the parked state rather than the old id; when that device returns under a new `AudioDeviceID`, the app has rebound by UID and the path names the new id.
+**The player's device notion going stale (#57).** After every flap or rotation compare the app's answer to the HAL's, never the app to itself: the app's side is `dump_state.player.outputDeviceId`, `outputDeviceUID` and `requestedOutputDeviceId`, and the device stage of `dump_audio_path`; the HAL's side is what the flap helper reports. Three cases: on System Output `requestedOutputDeviceId` is -1 and the bound id is the current default's; explicitly bound to a device that vanishes, `outputDeviceUID` stops naming it and `bitPerfect.pendingDeviceUID` carries the UID the player is waiting to rebind, never the stale id; when that device returns under a new `AudioDeviceID`, `outputDeviceUID` names it again and the bound id is the new one.
 
 Record selected device, actual carrier, silent state and media-publication mode with each result, and keep hardware results distinct from the pump and the simulator. The AirPods are usually the default output and a real-HAL launch can take them; select the speakers first. The installed Vibe is often running; direct-exec the Debug build beside it.
 

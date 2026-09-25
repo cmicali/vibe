@@ -354,7 +354,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 AudioPlayer *player = surface.debugPlayer;
-                // Drain any queued tap install/removal before reading the
+                // Drain any queued meter install/removal before reading the
                 // lock-free publication, so one reply never combines opposite
                 // sides of an activity edge.
                 NSDictionary *audio = [player debugEqualizerState];
@@ -624,7 +624,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"cleared": @[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName],
                 });
             }),
-            // 10s: it reaches the player's serial queue for the engine node count, so a
+            // 10s: it reaches the player's serial queue for the hosted-unit count, so a
             // wedged queue must time the verb out rather than let it answer from
             // stale state.
             VibeDebugCmd(@"check_consistency", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

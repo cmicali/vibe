@@ -55,9 +55,9 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         @"outputDeviceUID": outputDeviceUID ?: @"",
         @"requestedOutputDeviceId": @(player.currentlyRequestedAudioDeviceId),
         @"bitPerfect": bitPerfect,
-        // The flag asked; this is what actually happened. They differ when
-        // enableManualRenderingMode fails and the output device opens
-        // anyway — which no other signal would reveal.
+        // The flag asked; this is what actually happened: a pump the player
+        // holds. They differ when no pump could be attached and the output
+        // unit opened anyway — which no other signal would reveal.
         @"manualRendering": @(player.manualRenderingActive),
     }];
     // The keyboard selection, which is not the playing row: only this platform

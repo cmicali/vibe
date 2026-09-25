@@ -33,7 +33,7 @@ iOS has no client: `debug-ios.sh` writes the command file straight into the simu
 What is left per platform is what genuinely differs:
 
 - **`Mac/`** — the command table plus the AppKit-only verbs: `DebugInput.m` (direct playlist selection, synthetic drop/reorder delegates, named gesture probes and raw input), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker — its verbs are documented in the `vibe-debug` skill's settings section, and the pane classes it keys off in `Mac/Settings/CLAUDE.md`), `DebugStateDump.m`, `DebugHealth.m`, `DebugBPMScan.mm`. `Mac/Introspection/` holds the declaration-only `+Debug` categories over the mac shell's own classes.
-- **`iOS/`** — the command table plus the three verbs the channel cannot synthesize a touch for (`expand_player`, `minimize_player`, `select_tab`), and the `+Debug` categories over the iOS shell. **All of them live here, not beside the classes they extend**, which is what rule 4 enforces.
+- **`iOS/`** — the command table plus the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell. **All of them live here, not beside the classes they extend**, which is what rule 4 enforces.
 
 **Gestures are not the channel's job on iOS.** No public API synthesizes a `UITouch` in-process, so taps and drags go through `drive-ios.sh` and the resident `VibeiOSDriver` XCUITest in `Tests/iOSDriver/` — which is not part of `VibeTests` (`Tests/CLAUDE.md`).
 

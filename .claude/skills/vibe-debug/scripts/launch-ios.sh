@@ -38,7 +38,7 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a "Device Hub" 2>/dev/null || true
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-# install-ios.sh installs only when the built binary is newer, which is what
+# install-ios.sh installs only when the built bundle's content differs, which is what
 # makes it safe to call unconditionally — a drive-ios.sh session included.
 # This script used to SKIP the install outright while a driver was live and
 # merely warn, on the reasoning that a competing install can bounce the running

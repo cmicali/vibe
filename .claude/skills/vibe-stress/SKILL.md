@@ -76,7 +76,7 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **Bind cost does not track device quality** — the RME is 4x slower than the cheap FiiO, consistently. Do not assume a better interface binds faster.
 
-**TRAP: Vibe must be on System Output for a rotation to test anything.** An explicitly bound device does not follow the default, so rotating it produces zero rebinds while looking like a successful run. Verify `dump_state.player.outputDevice` is null before believing a result; a first attempt at the table above was invalid for exactly this.
+**TRAP: Vibe must be on System Output for a rotation to test anything.** An explicitly bound device does not follow the default, so rotating it produces zero rebinds while looking like a successful run. Verify `dump_state.player.requestedOutputDeviceId` is -1 before believing a result; a first attempt at the table above was invalid for exactly this.
 
 **TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
 
