@@ -1671,21 +1671,11 @@ static double ToneAmplitude(const float *interleaved, NSUInteger channels, NSUIn
     AudioFileHandle *file = [self open:[self writePCM:[self noiseFrames:1000 channels:2 seed:9]
             rate:44100 channels:2 name:@"converter-refused.wav"]];
     [self makeBusAtRate:kRate channels:2];
-    Method method = class_getInstanceMethod(AVAudioConverter.class, @selector(convertToBuffer:error:withInputFromBlock:));
-    IMP replacement = imp_implementationWithBlock(^AVAudioConverterOutputStatus(id receiver, AVAudioPCMBuffer *buffer,
-                        NSError **error, AVAudioConverterInputBlock input) {
-        buffer.frameLength = 0;
-        if (error) *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:kAudio_ParamError userInfo:nil];
-        return AVAudioConverterOutputStatus_Error;
-    });
-    IMP original = method_setImplementation(method, replacement);
-    @try {
-        VibeVoiceID voice = [self startFile:file gain:1 ramp:[self unity] paused:NO];
-        [self render:256 into:nil];
-        XCTAssertTrue([self hasEnded:voice]);
-        XCTAssertEqual(_endedErrors[@(voice)].code, kAudio_ParamError);
-    }
-    @finally { method_setImplementation(method, original); imp_removeBlock(replacement); }
+    [_bus debugRefuseConversion:YES];
+    VibeVoiceID voice = [self startFile:file gain:1 ramp:[self unity] paused:NO];
+    [self render:256 into:nil];
+    XCTAssertTrue([self hasEnded:voice]);
+    XCTAssertEqual(_endedErrors[@(voice)].code, kAudio_ParamError);
 }
 
 @end

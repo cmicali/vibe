@@ -2328,8 +2328,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             XCTAssertEqual(decodeFormat.sampleRate, 96000.0, @"%@", url.lastPathComponent);
             XCTAssertEqual(decodeFormat.channelCount, 2u, @"%@", url.lastPathComponent);
             NSDictionary *conversion = _player.debugCurrentConversion;
-            XCTAssertEqualObjects(conversion[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering, @"%@", url.lastPathComponent);
-            XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+            XCTAssertEqualObjects(conversion[@"algorithm"], @"Mastering", @"%@", url.lastPathComponent);
+            XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
             XCTAssertEqualObjects(conversion[@"toSampleFormat"], @"int16");
             XCTAssertEqual([conversion[@"mixed"] boolValue], decoded.format.channelCount == 1);
             NSData *capture = [self renderSeconds:decoded.frameLength / decoded.format.sampleRate + 0.1];
@@ -2765,8 +2765,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertEqualObjects(decode[@"read"], @"converted");
     XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
     XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
-    XCTAssertEqualObjects(decode[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering);
-    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+    XCTAssertEqualObjects(decode[@"algorithm"], @"Mastering");
+    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
     XCTAssertEqualObjects(decode[@"toSampleFormat"], @"float32");
     XCTAssertFalse([decode[@"mixed"] boolValue]);
     XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);

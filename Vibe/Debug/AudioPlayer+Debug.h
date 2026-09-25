@@ -117,6 +117,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Debug builds only. Any thread.
 - (void)debugHoldRender:(BOOL)hold;
 - (NSUInteger)debugRendersHeld;
+// A converter that fails: while set, every fill of a converting voice
+// reports kAudio_ParamError in place of its frames. Debug builds only.
+- (void)debugRefuseConversion:(BOOL)refuse;
 
 @end
 
