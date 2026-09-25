@@ -2591,7 +2591,17 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     [self settleUntil:^BOOL { return self->_player.position > resumedFrom + 0.1; }];
     XCTAssertGreaterThan(_player.position, resumedFrom + 0.1, @"the track never played after the decoder left");
     XCTAssertNil(_playError);
+    // TRAP: the re-voiced track's decoder keeps reading through the swizzle
+    // until the player stops, and a read in flight returns into the block's
+    // trampoline — removed here under a slow read, the block was freed under
+    // that decoder (a segfault inside the block on CI). The original goes
+    // back first, then the player stops and its bus's decode queue drains,
+    // so no read can be inside the block when it goes.
+    __block AudioVoiceBus *bus;
+    [_player runSyncOnQueue:^{ bus = [self->_player valueForKey:@"voiceBus"]; }];
     method_setImplementation(read, original);
+    [_player debugShutdown]; _player = nil;
+    if (bus.decodeQueue) dispatch_sync(bus.decodeQueue, ^{});
     imp_removeBlock(blocked);
 }
 
