@@ -197,7 +197,7 @@ static NSString *VibeAudioPathRow(NSString *name, NSString *rate, NSString *dept
         if (column.length) [parts addObject:column];
     }
     if (latencySeconds != nil) {
-        [parts addObject:[NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_LATENCY,
+        [parts addObject:[NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_MILLISECONDS,
                           [Formatters.sharedInstance decimalString:latencySeconds.doubleValue * 1000 fractionDigits:1]]];
     }
     return VibeAudioPathJoin(parts);
