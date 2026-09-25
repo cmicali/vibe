@@ -530,6 +530,27 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
 
+// A skip past the end reaches finishPlaybackOnQueue with the voice still at
+// full amplitude, and it fades like every other edge: the transport
+// publishes Stopped before it retires the voice, so the retire must read the
+// voice's own state, not the player's. Every adjacent sample of the tail is
+// inspected, the command boundary included.
+- (void)testFinishCurrentTrackFadesTheOutgoingVoice {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [self render:48120]; // mid-waveform, well past the startup declick
+    const float *before = _capture.bytes;
+    float last = before[(_capture.length / 8 - 1) * 2];
+    [_player finishCurrentTrack];
+    NSData *tail = [self renderSeconds:0.03];
+    const float *after = tail.bytes;
+    float step = fabsf(after[0] - last);
+    for (NSUInteger i = 1; i < tail.length / 8; i++) step = MAX(step, fabsf(after[i * 2] - after[(i - 1) * 2]));
+    XCTAssertLessThan(step, 0.02f, @"finishCurrentTrack cut the voice: a %g step", step);
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    XCTAssertTrue(_player.isStopped);
+}
+
 - (void)testPauseResumeAndIdleRestart {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
@@ -811,6 +832,40 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         method_setImplementation(retire, originalRetire);
         imp_removeBlock(heldProduce);
         imp_removeBlock(heldRetirement);
+    }
+}
+
+// The meter is kept across demand toggles, so an install must forget the
+// audio before it: the accumulator, and the analyzer's partial window and
+// references with it. Tone, remove, install, silence — the new session's
+// first publication is silence, however often the demand toggles.
+- (void)testMeterReinstallPublishesNoEarlierAudio {
+    AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
+    AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
+    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+                                         normalizationMode:kLevelDefaultNormalizationMode];
+    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    XCTAssertGreaterThanOrEqual(tone.frameLength, count);
+    AVAudioPCMBuffer *silence = [[AVAudioPCMBuffer alloc] initWithPCMFormat:tone.format frameCapacity:count];
+    silence.frameLength = count;
+    for (NSUInteger c = 0; c < tone.format.channelCount; c++) memset(silence.floatChannelData[c], 0, count * sizeof(float));
+    AudioTimeStamp stamp = { .mFlags = kAudioTimeStampSampleTimeValid };
+    float levels[kLevelBandCount];
+    for (int toggle = 0; toggle < 3; toggle++) {
+        [tap install];
+        VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, count, &stamp);
+        XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+        float peak = 0;
+        for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]);
+        XCTAssertGreaterThan(peak, 0.0f, @"toggle %d: the tone was not published", toggle);
+        [tap remove];
+        [tap install];
+        VibeLevelMeterRender(tap.meter, silence.floatChannelData, tone.format.channelCount, count, &stamp);
+        XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+        peak = 0;
+        for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]);
+        XCTAssertEqual(peak, 0.0f, @"toggle %d: the new session published the tone before it", toggle);
+        [tap remove];
     }
 }
 
@@ -1112,6 +1167,45 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
     }
 }
+// A render stuck inside the pipeline past the wait's bound — its exit
+// withheld, which is all the queue can see of one — must not let a
+// withdrawal free or reset what the render could be inside. A rate change
+// replaces the meter, the bus, the varispeed hosting and the FX chain, and
+// every one of them stays allocated until the first drain that sees the
+// render outside; playback itself carries on at the new rate meanwhile.
+- (void)testAStuckRenderDefersEveryTeardownUntilItLeaves {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    _player.levelsEnabled = YES;
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [self render:4096];
+    __weak AudioLevelTap *tap = nil;
+    __weak AudioVoiceBus *bus = nil;
+    @autoreleasepool {
+        tap = _player.debugLevelTap;
+        bus = [_player valueForKey:@"voiceBus"]; // the ivar, read between renders
+        XCTAssertNotNil(tap);
+        XCTAssertNotNil(bus);
+    }
+    [_player debugHoldRenderInside:YES];
+    @autoreleasepool { [self render:256]; } // as far as the queue can tell, this render never leaves
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+                                @"the tap, the bus, the varispeed hosting and the FX chain wait for the render");
+    XCTAssertNotNil(tap, @"the meter was freed under a render");
+    XCTAssertNotNil(bus, @"the bus was freed under a render");
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    [_player debugHoldRenderInside:NO];
+    @autoreleasepool { [self render:256]; } // the render leaves; the drain after it runs the parked teardowns
+    XCTAssertEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
+    // The beta signal probe's poll holds the old tap until its next 100 ms
+    // tick of the pump's clock finds it removed; nothing else may.
+    @autoreleasepool { [self render:9600]; }
+    XCTAssertNil(tap, @"the meter outlived the render it waited for");
+    XCTAssertNil(bus, @"the bus outlived the render it waited for");
+    [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+}
+
 - (void)testFormatChangesAndModeToggles {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     for (NSString *file in @[@"noise-44100-16-1.wav",@"noise-96000-24-2.wav",@"noise-48000-32-1.wav",@"noise-48000-24-2.wav"]) {

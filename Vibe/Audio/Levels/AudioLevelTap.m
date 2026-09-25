@@ -51,6 +51,10 @@ static inline NSUInteger VibeLevelMeterAnalyze(VibeLevelMeter *meter, UInt32 cha
     return VibeAudioLevelAnalyzerConsume(meter->analyzer, meter->accumulator, channels, meter->fill, levels);
 }
 
+static inline void VibeLevelMeterResetAnalyzer(VibeLevelMeter *meter) CA_REALTIME_API {
+    VibeAudioLevelAnalyzerReset(meter->analyzer);
+}
+
 #if VIBE_VERBOSE_LOGGING
 static inline uint64_t VibeLevelMeterNow(void) CA_REALTIME_API {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -142,11 +146,16 @@ void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnu
     if (!meter || channelCount == 0 || frames == 0 || !channels[0]) {
         return;
     }
-    // A fresh install restarts the buffer, so no earlier audio is published.
+    // A fresh install restarts the buffer and the analyzer, so no earlier
+    // audio is published. TRAP: restarting the buffer alone left the
+    // analyzer's partial window and references in place — the tap is kept
+    // across demand changes — and the first publication of a new session
+    // carried the previous track's samples into the bars.
     uint32_t generation = atomic_load_explicit(&meter->installGeneration, memory_order_acquire);
     if (generation != meter->renderGeneration) {
         meter->renderGeneration = generation;
         meter->fill = 0;
+        VibeLevelMeterResetAnalyzer(meter);
     }
 #if VIBE_VERBOSE_LOGGING
     if (timestamp) {

@@ -113,6 +113,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _declick = YES;
         _loadingConfiguration = [loadingConfiguration copy];
         _retiringVoices = [NSMutableArray array];
+        _renderLeaveWork = [NSMutableArray array];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
@@ -134,8 +135,14 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         __weak AudioPlayer *weakPlayer = self;
         _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
-        } quiesce:^{
-            [weakPlayer waitForRenderToLeaveOnQueue];
+        } afterRenderLeaves:^(dispatch_block_t work) {
+            AudioPlayer *player = weakPlayer;
+            if (player) {
+                [player afterRenderLeavesOnQueue:work];
+            }
+            else {
+                work(); // no player, no pipeline, no render
+            }
         }] : nil;
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
@@ -233,11 +240,16 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // dealloc itself running on _queue, when a queued block releases the last
     // reference, so that case tears down inline. The carrier stops before the
     // pipeline is freed and the bus released with the rest of the ivars, so
-    // no render is in flight. Locals, not self: the open tokens outlive the
-    // player otherwise, pulling a whole file down for a play that can never
-    // land.
+    // no render is in flight — and one still inside leaks all of it, since
+    // nothing a render is inside may be freed. Locals, not self: the open
+    // tokens outlive the player otherwise, pulling a whole file down for a
+    // play that can never land.
     AudioLevelTap *levelTap = _levelTap;
     _levelTap = nil;
+    AudioVoiceBus *voiceBus = _voiceBus;
+    AudioFX *fx = _fx;
+    NSArray<dispatch_block_t> *renderLeaveWork = [_renderLeaveWork copy];
+    _renderLeaveWork = nil;
 #if TARGET_OS_OSX
     AudioOutputUnit *outputUnit = _outputUnit;
 #else
@@ -263,6 +275,20 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 #else
         [engine stop];
 #endif
+        if (VibeMasterBusRenderInside(masterBus)) {
+            // Kept for the process's life: nothing a render is inside may be freed.
+            LogError(@"AudioPlayer: a render is still inside the pipeline at teardown; the pipeline is leaked");
+            static NSMutableArray *leaked;
+            static dispatch_once_t once;
+            dispatch_once(&once, ^{ leaked = [NSMutableArray array]; });
+            @synchronized (leaked) {
+                [leaked addObject:@[renderLeaveWork, fx ?: NSNull.null, voiceBus ?: NSNull.null, levelTap ?: NSNull.null]];
+            }
+            return;
+        }
+        for (dispatch_block_t work in renderLeaveWork) {
+            work();
+        }
         VibeMasterBusFree(masterBus);
     };
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
@@ -967,10 +993,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // An audible voice fades out for `milliseconds` and dies; one that cannot be
 // heard — not yet live, paused, cut with Declick off, or under a stopped
 // engine — is killed outright, since silence cannot click, and is silent at
-// once, so only fading voices join _retiringVoices. A declick-length retire,
-// fading or cut, reads no more of its file, so the file may be handed to the
-// next voice; a crossfade-length one keeps reading its own, never its
-// successor.
+// once, so only fading voices join _retiringVoices. The voice's own state
+// decides, never the player's: finishPlaybackOnQueue has published Stopped
+// by the time it retires the voice a skip past the end found at full volume,
+// and a pause still fading is audible too. A declick-length retire, fading
+// or cut, reads no more of its file, so the file may be handed to the next
+// voice; a crossfade-length one keeps reading its own, never its successor.
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds {
     if (!voice) {
         return;
@@ -984,8 +1012,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [_voiceBus stopReadingForVoice:voice];
     }
     VibeVoiceRamp ramp = [self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionRetire];
-    BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused
-            && [self renderingOnQueue] && _state == VibePlayerStatePlaying && ramp.frames > 0;
+    BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused && [self renderingOnQueue] && ramp.frames > 0;
     if (!audible) {
         [_voiceBus killVoice:voice];
         return;
@@ -1377,6 +1404,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"renderMeanMicros": @([self diagnosticRenderMeanMicroseconds]),
                    @"renderMaxMicros": @([self diagnosticRenderMaxMicroseconds]),
                    @"retiredFades": @(self->_retiringVoices.count),
+                   @"renderLeaveWork": @(self->_renderLeaveWork.count),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
                    @"pollActive": @(self->_drainTimer != nil),
                    @"running": @([self renderingOnQueue]),

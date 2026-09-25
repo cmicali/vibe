@@ -83,6 +83,12 @@ NS_ASSUME_NONNULL_BEGIN
 // no indicator or probe wants levels.
 - (nullable AudioLevelTap *)debugLevelTap;
 
+// Withholds every render's exit while set, so the queue sees a render inside
+// the pipeline — what a render stuck past the wait's bound looks like to it —
+// and every withdrawal defers what the render could be inside; the count of
+// those deferrals is `renderLeaveWork` in debugEngineCounts. Any thread.
+- (void)debugHoldRenderInside:(BOOL)hold;
+
 // Mode selection is session-only. A valid change synchronously replaces an
 // active tap, so the next state snapshot describes the replacement analyzer.
 - (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode;

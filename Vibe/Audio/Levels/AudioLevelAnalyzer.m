@@ -114,16 +114,14 @@ BOOL VibeAudioLevelAnalyzerSetSampleRate(VibeAudioLevelAnalyzer *analyzer,
         analyzer->log2FFTSize++;
     }
     analyzer->channelCount = 0;
-    analyzer->fill = 0;
     vDSP_hann_window(analyzer->window, fftSize, vDSP_HANN_NORM);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         VibeLevelBandBinRange(band, fftSize, sampleRate,
                               &analyzer->bandLow[band], &analyzer->bandHigh[band]);
         analyzer->sharedEnergyPerOctaveScale[band] =
                 VibeLevelEnergyPerOctaveScale(band, sampleRate);
-        analyzer->relativeReference[band] = kLevelReferenceFloor;
     }
-    analyzer->sharedReference = kLevelReferenceFloor;
+    VibeAudioLevelAnalyzerReset(analyzer);
     return YES;
 }
 
@@ -189,6 +187,17 @@ static void VibeAudioLevelAnalyzerMeasureFrame(
                     channelActivityEnergy[band], analyzer->channelCount);
         }
     }
+}
+
+void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer) {
+    if (!analyzer) {
+        return;
+    }
+    analyzer->fill = 0;
+    for (NSUInteger band = 0; band < kLevelBandCount; band++) {
+        analyzer->relativeReference[band] = kLevelReferenceFloor;
+    }
+    analyzer->sharedReference = kLevelReferenceFloor;
 }
 
 NSUInteger VibeAudioLevelAnalyzerConsume(VibeAudioLevelAnalyzer *analyzer,

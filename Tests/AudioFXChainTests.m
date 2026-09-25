@@ -61,7 +61,7 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     _fx = [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
         AudioFXChainTests *strongSelf = weakSelf;
         [strongSelf->_pump scheduleAfter:seconds block:block];
-    } quiesce:^{}];
+    } afterRenderLeaves:^(dispatch_block_t work) { work(); }];
     [self attachPumpAt:kRate];
 }
 

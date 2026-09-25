@@ -28,6 +28,12 @@ BOOL VibeAudioLevelAnalyzerSetSampleRate(VibeAudioLevelAnalyzer *analyzer,
 
 NSUInteger VibeAudioLevelAnalyzerFFTSize(const VibeAudioLevelAnalyzer *analyzer);
 
+// Forgets the partial window and every running reference, so the next
+// window is analyzed as the first: what a fresh install of the meter needs,
+// or its next publication carries the audio before the install. Allocation-
+// free and render-thread safe.
+void VibeAudioLevelAnalyzerReset(VibeAudioLevelAnalyzer *analyzer);
+
 // Consumes non-interleaved float channels, preserving at most the stereo pair
 // the app's master bus supplies. Returns the number of complete fixed-time
 // windows analyzed. A nonzero return overwrites all five `callbackLevels` with

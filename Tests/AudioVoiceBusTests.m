@@ -258,6 +258,31 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 #pragma mark - Passthrough and ends
 
+// The transport reads snapshots while the audio thread renders: the gain and
+// the stamps are the render's to write, so the snapshot reads them through
+// atomics and a seqlock. Under ThreadSanitizer this is the case that reports
+// a plain read otherwise.
+- (void)testSnapshotsWhileARenderRuns {
+    [self makeBusAtRate:kRate channels:2];
+    AVAudioFile *file = [self open:[self writePCM:[self noiseFrames:64000 channels:2 seed:17]
+                                             rate:kRate channels:2 name:@"concurrent.wav"]];
+    VibeVoiceID voice = [self startFile:file gain:0
+                                   ramp:VibeVoiceRampMake(1, 48000, VibeFadeCurveLinear, VibeVoiceActionNone)
+                                 paused:NO];
+    [_bus fillInline];
+    dispatch_group_t renders = dispatch_group_create();
+    dispatch_group_async(renders, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        for (NSUInteger i = 0; i < 1000; i++) {
+            [self renderWithoutFilling:32 into:nil];
+        }
+    });
+    for (NSUInteger i = 0; i < 10000; i++) {
+        VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
+        XCTAssertTrue(snapshot.gain >= 0 && snapshot.gain <= 1);
+    }
+    dispatch_group_wait(renders, DISPATCH_TIME_FOREVER);
+}
+
 - (void)testPassthroughIsExactAtEveryBlockSizeAndEndsOnce {
     NSData *source = [self noiseFrames:20000 channels:2 seed:1];
     NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"noise.wav"];

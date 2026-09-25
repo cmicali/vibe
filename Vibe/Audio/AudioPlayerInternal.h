@@ -130,6 +130,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _outputIdleStopGeneration;
     dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
+    // Teardowns of what a render was still inside when their wait ran out —
+    // a tap, a bus, a varispeed or FX hosting — run at the first later moment
+    // the render is seen outside (afterRenderLeavesOnQueue:).
+    NSMutableArray<dispatch_block_t> *_renderLeaveWork;
 #if !TARGET_OS_OSX
     AVAudioEngine           *_engine;           // the carrier: one source node into its output node
     AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves

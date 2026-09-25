@@ -38,24 +38,28 @@ NS_ASSUME_NONNULL_BEGIN
 // and dispatch the parameter work onto the player's serial queue, where the
 // sweeps and gate ramps stay queue-confined; the gate targets and the
 // activity flags are atomics the audio thread reads. Hosting, connecting,
-// disconnecting and a format change run on the queue with the output stopped,
-// and a stage is reset only after the render has been seen outside the
-// pipeline (the player's `quiesce`), so no render is ever inside a unit being
-// created, reset or torn down. The object is created before the pipeline
-// exists, in AudioPlayer's synchronous init, so intent set early — a menu
-// action or the BPM feed racing the async init — is never lost, and the
-// first connect applies whatever was recorded.
+// disconnecting and a format change run on the queue with the output stopped.
+// A hosting is one allocation the render is handed whole — the units and the
+// scratch at one format — so a re-host swaps it and a render still inside
+// the old one finishes there; a stage is reset, and a hosting freed, only
+// once the render has been seen outside it (the player's `afterRenderLeaves`),
+// so no render is ever inside a unit being reset or torn down. The object is
+// created before the pipeline exists, in AudioPlayer's synchronous init, so
+// intent set early — a menu action or the BPM feed racing the async init — is
+// never lost, and the first connect applies whatever was recorded.
 @interface AudioFX : NSObject
 
 // queue is the player's serial queue. Every mutation this class makes runs
 // there. scheduler runs a block on that queue after a delay — the player's
 // own scheduleAfterSeconds:block:, so the sweeps, gate ramps and tail windows
 // ride whatever clock the player does (the debug pump's, under manual
-// rendering). quiesce returns once no render is inside the pipeline — the
-// player's own wait — so a stage that just left the render can be reset.
+// rendering). afterRenderLeaves runs `work` once no render is inside the
+// pipeline — now, when the player sees the render outside, else when it next
+// does — so a stage that left the render is reset, and a hosting the render
+// left is freed, never under a render; `work` captures plain pointers only.
 - (instancetype)initWithQueue:(dispatch_queue_t)queue
                     scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler
-                      quiesce:(dispatch_block_t)quiesce;
+            afterRenderLeaves:(void (^)(dispatch_block_t work))afterRenderLeaves;
 
 // Connects or disconnects the segment, on the queue with the output stopped.
 // The units are hosted at the first connect, at `format` (stereo float32,
@@ -69,7 +73,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether the segment is in the chain. Player-queue only.
 @property (nonatomic, readonly) BOOL connected;
 
-// The audio thread's view of the segment, valid for the object's life.
+// The audio thread's view of the segment: the current hosting, NULL while
+// unhosted. A chain the player published into the render stays valid for
+// every render that read it, whatever replaced it since. Player queue.
 typedef struct VibeFXChain VibeFXChain;
 - (VibeFXChain *)chain;
 
