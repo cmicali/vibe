@@ -95,9 +95,10 @@ static const AVAudioFrameCount kVibeMasterBusMaxFrames = 4096;
 #endif
 #if TARGET_OS_OSX
 // Brings the unit and the pipeline to `rate`: the output stopped, the unit
-// reconfigured, the FX chain re-hosted, the meter replaced, the bus rebuilt
-// if it exists. A no-op at the current rate. NO without a unit, or when the
-// unit refuses.
+// reconfigured, the FX chain re-hosted, the meter replaced. The bus is the
+// caller's to reconcile through ensureSourceSegmentOnQueueRebuilt:, which
+// rebuilds one at the old rate and reports it, so the caller re-voices. A
+// no-op at the current rate. NO without a unit, or when the unit refuses.
 - (BOOL)applyOutputRateOnQueue:(double)rate;
 #endif
 

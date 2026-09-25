@@ -181,12 +181,55 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 // keeps its menu and persistence behaviour.
 - (BOOL)setOutputUnitDevice:(AudioDeviceID)deviceID {
     return [self performDiagnosticPhase:@"device bind" device:deviceID operation:^BOOL{
+        [self stopWatchingBoundDeviceRateOnQueue];
         OSStatus status = self->_outputUnit ? [self->_outputUnit bindToDevice:deviceID] : noErr;
         if (status != noErr) {
             LogError(@"AudioPlayer: could not bind the output unit to device %u (OSStatus %d)", deviceID, (int)status);
+            return NO;
         }
-        return status == noErr;
+        if (self->_outputUnit) {
+            [self watchBoundDeviceRateOnQueue:deviceID];
+        }
+        return YES;
     }];
+}
+
+// TRAP: another process moving the bound device's rate — Audio MIDI Setup,
+// a DAW, the loopback verifier — leaves the unit configured at the old one,
+// and a hosted unit renders nothing at a rate the device no longer runs at
+// (measured: silence on BlackHole moved 96 → 48 kHz under a playing unit).
+// So the bound device's rate is watched in every mode, and a rate other
+// than the pipeline's rebinds in place, which follows the rate and
+// re-voices. A prepared bit-perfect device has its own listener, which
+// puts the mode's format back instead; Vibe's own rate writes arrive with
+// the pipeline already at the rate, a no-op.
+- (void)watchBoundDeviceRateOnQueue:(AudioDeviceID)deviceID {
+    __weak AudioPlayer *weakSelf = self;
+    AudioObjectPropertyListenerBlock listener = [^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
+        AudioPlayer *strongSelf = weakSelf;
+        if (!strongSelf || strongSelf->_terminating || strongSelf->_boundRateDeviceID != deviceID
+                || strongSelf->_preparedDeviceID == deviceID) {
+            return;
+        }
+        Float64 rate = 0;
+        if ([CoreAudioUtil readNominalSampleRate:&rate forDeviceID:deviceID] && rate > 0
+                && rate != [strongSelf masterBusFormatOnQueue].sampleRate && ![CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
+            LogInfo(@"AudioPlayer: device %u moved to %.0f Hz under the pipeline; rebinding", deviceID, rate);
+            [strongSelf configureOutputDeviceOnQueue:kAudioObjectUnknown];
+        }
+    } copy];
+    if ([CoreAudioUtil addNominalRateListener:listener queue:_queue forDeviceID:deviceID]) {
+        _boundRateListener = listener;
+        _boundRateDeviceID = deviceID;
+    }
+}
+
+- (void)stopWatchingBoundDeviceRateOnQueue {
+    if (_boundRateListener) {
+        [CoreAudioUtil removeNominalRateListener:_boundRateListener queue:_queue forDeviceID:_boundRateDeviceID];
+        _boundRateListener = nil;
+        _boundRateDeviceID = kAudioObjectUnknown;
+    }
 }
 
 // Whether the standing master-bus route disagrees with the flags: the FX

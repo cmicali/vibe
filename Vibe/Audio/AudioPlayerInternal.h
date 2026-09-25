@@ -156,6 +156,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // it is nil under the debug pump, which has no device.
     // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
+    // The bound device's nominal rate, watched in every mode: another process
+    // moving it rebinds the unit at the new rate. Delivered on the queue.
+    AudioObjectPropertyListenerBlock _boundRateListener;
+    AudioDeviceID           _boundRateDeviceID;
     // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).

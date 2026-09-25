@@ -447,11 +447,11 @@ static OSStatus VibeMasterBusRenderProc(void *refCon, const AudioTimeStamp *time
         return NO;
     }
     [self setMasterBusFormatOnQueue:format];
-    // A bus at the old rate would play at the wrong speed with nothing left
-    // to resample it; the callers guarantee nothing audible.
-    if (_voiceBus) {
-        [self ensureSourceSegmentOnQueueRebuilt:NULL];
-    }
+    // A bus at the old rate stays until the caller reconciles the segment —
+    // every caller does, and re-voices when the rebuild killed the voice.
+    // TRAP: rebuilding it here instead left playback silent while Playing:
+    // the rebind's own reconcile then found the bus already at the rate,
+    // reported no rebuild, and never started the replacement voice.
     LogInfo(@"AudioPlayer: output unit pulls at %.0f Hz from device %u", rate, _outputUnit.deviceID);
     return YES;
 }

@@ -457,6 +457,26 @@ static const AudioObjectPropertyAddress kVibeNominalRateAddress = {
             && (rate == noErr || rate == kAudioHardwareBadObjectError);
 }
 
++ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID {
+    if (deviceID == kAudioObjectUnknown) {
+        return NO;
+    }
+    OSStatus status = AudioObjectAddPropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    if (status != noErr) {
+        LogWarn(@"CoreAudioUtil: nominal rate listener on %u failed (OSStatus %d)", deviceID, (int)status);
+    }
+    return status == noErr;
+}
+
++ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID {
+    OSStatus status = AudioObjectRemovePropertyListenerBlock(deviceID, &kVibeNominalRateAddress, queue, listener);
+    return status == noErr || status == kAudioHardwareBadObjectError;
+}
+
 #pragma mark - Diagnostics
 
 static NSString *VibeFourCCText(UInt32 code) {

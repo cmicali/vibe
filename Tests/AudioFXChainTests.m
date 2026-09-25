@@ -194,6 +194,45 @@ static double VibeTestRMS(NSData *capture, int channel, NSUInteger from, NSUInte
     XCTAssertEqual(VibeTestRMS(silence, 1, 0, 48000), 0.0);
 }
 
+// The sends tap the dry signal independently: with both delay sends held,
+// the response to an impulse is the dry impulse plus what each send returns
+// on its own. A return mixed in before the next send's gate would be echoed
+// by that send — the reverb's was, by the delays — and the deferral is one
+// path for every return. The delays are deterministic, so the captures
+// compare to float rounding.
+- (void)testSendsTapTheDrySignalIndependently {
+    NSMutableData *captures[3];
+    for (int phase = 0; phase < 3; phase++) {
+        [self connectAt:kRate];
+        _fx.delayTapBPM = 120;
+        if (phase != 1) _fx.delaySendEnabled = YES;
+        if (phase != 0) _fx.shortDelaySendEnabled = YES;
+        [self onQueue:^{}];
+        [self render:4800 source:nil into:nil];
+        uint64_t impulse = _pump.renderedFrames;
+        captures[phase] = [NSMutableData data];
+        [self render:48000 source:^float(uint64_t frame, int channel) { return frame == impulse ? 0.5f : 0.0f; } into:captures[phase]];
+        // Back to silence and a reset chain, so each phase starts from the same state.
+        _fx.delaySendEnabled = NO;
+        _fx.shortDelaySendEnabled = NO;
+        [self onQueue:^{ [self->_fx setConnected:NO format:nil maximumFrameCount:kMaxFrames]; }];
+    }
+    const float *eighth = captures[0].bytes, *sixteenth = captures[1].bytes, *both = captures[2].bytes;
+    NSUInteger samples = captures[2].length / sizeof(float);
+    XCTAssertEqual(captures[0].length, captures[2].length);
+    XCTAssertEqual(captures[1].length, captures[2].length);
+    float worst = 0;
+    for (NSUInteger i = 0; i < samples; i++) {
+        float dry = i < 2 ? 0.5f : 0.0f; // the impulse, in both channels of frame 0
+        worst = MAX(worst, fabsf(both[i] - (eighth[i] + sixteenth[i] - dry)));
+    }
+    XCTAssertLessThan(worst, 1e-4f, @"a send echoed another's return, or a return was counted twice");
+    // The 1/8-note echo (one sample of about 0.13, so 0.008 RMS over the
+    // window) is loud enough that its re-echo a sixteenth later would show
+    // fifty times over the tolerance above.
+    XCTAssertGreaterThan(VibeTestRMS(captures[0], 0, 12000 - 64, 256), 0.005, @"the 1/8-note send's first echo");
+}
+
 - (void)testTheLowKillCutsAndRestsExactly {
     [self connectAt:kRate];
     _fx.lowKillEnabled = YES;

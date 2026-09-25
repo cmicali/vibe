@@ -215,6 +215,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (_outputLevelListener) {
         [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue forDeviceID:_preparedDeviceID];
     }
+    if (_boundRateListener) {
+        [CoreAudioUtil removeNominalRateListener:_boundRateListener queue:_queue forDeviceID:_boundRateDeviceID];
+    }
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync

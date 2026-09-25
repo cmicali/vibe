@@ -182,13 +182,15 @@ struct VibeFXChain {
     VibeFXStage stages[VibeFXStageCount];
     VibeFXUnit units[VibeFXUnitCount];
     // Scratch, stereo, maxFrames each: a gated send, a unit's output on its
-    // way to the next, the half-tap lane, a lane in flight, and the delay
-    // returns summed before their one low-cut.
+    // way to the next, the half-tap lane, a lane in flight, the delay returns
+    // summed before their one low-cut, and every return summed before it
+    // rejoins the dry path.
     float *send[2];
     float *wet[2];
     float *halfTap[2];
     float *lane[2];
     float *echoes[2];
+    float *returns[2];
     float *storage;
 };
 
@@ -267,14 +269,17 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
         eq->source[1] = out[1];
         status = VibeFXRenderUnit(chain, eq, timestamp, frames, out);
     }
-    // The sends tap the post-low-kill signal. A stage renders while its gate
-    // is open or its tail rings; the returns re-enter beside the dry path.
+    // Every send taps the same post-low-kill signal, so the returns are
+    // summed apart and rejoin the dry path only once every send has read it
+    // — a return mixed in early would feed the sends after it. A stage
+    // renders while its gate is open or its tail rings.
+    BOOL returns = NO;
     VibeFXStage *reverb = &chain->stages[VibeFXStageReverb];
     if (atomic_load_explicit(&reverb->active, memory_order_seq_cst)) {
         VibeFXGate(reverb, out, chain->send, frames, chain->slewPerFrame);
         VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverb], timestamp, frames, chain->wet);
-        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverbLowCut], timestamp, frames, chain->lane);
-        VibeFXAdd(out, chain->lane, frames);
+        VibeFXRenderUnit(chain, &chain->units[VibeFXUnitReverbLowCut], timestamp, frames, chain->returns);
+        returns = YES;
     }
     BOOL echoes = NO;
     for (VibeFXStageIndex i = VibeFXStageDelay; i <= VibeFXStageShortDelay; i++) {
@@ -306,7 +311,16 @@ OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, 
     }
     if (echoes) {
         VibeFXRenderUnit(chain, &chain->units[VibeFXUnitDelayLowCut], timestamp, frames, chain->lane);
-        VibeFXAdd(out, chain->lane, frames);
+        if (returns) {
+            VibeFXAdd(chain->returns, chain->lane, frames);
+        }
+        else {
+            VibeFXCopy(chain->returns, chain->lane, frames);
+            returns = YES;
+        }
+    }
+    if (returns) {
+        VibeFXAdd(out, chain->returns, frames);
     }
     return status;
 }
@@ -615,12 +629,12 @@ static void VibeFXStageSet(VibeFXStage *stage, VibeFXUnitIndex firstUnit, int un
 - (BOOL)hostUnitsWithFormat:(AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount {
     VibeFXChain *chain = _chain;
     free(chain->storage);
-    chain->storage = calloc((size_t)maximumFrameCount * 10, sizeof(float));
+    chain->storage = calloc((size_t)maximumFrameCount * 12, sizeof(float));
     if (!chain->storage) {
         return NO;
     }
-    float **pairs[] = { chain->send, chain->wet, chain->halfTap, chain->lane, chain->echoes };
-    for (size_t p = 0; p < 5; p++) {
+    float **pairs[] = { chain->send, chain->wet, chain->halfTap, chain->lane, chain->echoes, chain->returns };
+    for (size_t p = 0; p < 6; p++) {
         pairs[p][0] = chain->storage + (p * 2) * maximumFrameCount;
         pairs[p][1] = chain->storage + (p * 2 + 1) * maximumFrameCount;
     }

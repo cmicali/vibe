@@ -102,6 +102,14 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)removeOutputLevelListener:(AudioObjectPropertyListenerBlock)listener
                            queue:(dispatch_queue_t)queue
                      forDeviceID:(AudioDeviceID)deviceID;
+// The device's nominal rate alone, delivered on queue; the block is the
+// handle, as above.
++ (BOOL)addNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                        queue:(dispatch_queue_t)queue
+                  forDeviceID:(AudioDeviceID)deviceID;
++ (BOOL)removeNominalRateListener:(AudioObjectPropertyListenerBlock)listener
+                           queue:(dispatch_queue_t)queue
+                     forDeviceID:(AudioDeviceID)deviceID;
 
 // Everything the HAL will say about one device, for Save Debug Info: identity,
 // liveness and exclusive ownership, rates and buffer, the latency it declares,
