@@ -4,6 +4,7 @@
 //
 
 #import "AudioVoiceBusInternal.h"
+#import "AudioFileHandle.h"
 
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>

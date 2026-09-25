@@ -118,8 +118,7 @@
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath:filename];
     // Interleaved float32, because AudioWaveformMonoMix expects the sample
-    // layout L0 R0 L1 R1 and so on. A refused open costs nothing that a retry
-    // of the same file accumulates: the handle owns and closes its descriptor.
+    // layout L0 R0 L1 R1 and so on.
     AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url
                                                        commonFormat:AVAudioPCMFormatFloat32
                                                         interleaved:YES

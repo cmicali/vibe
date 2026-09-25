@@ -65,7 +65,7 @@ static BOOL VibeHangInstalled;
     VibeHangInstalled = YES;
     AudioFileMaterializationCoordinator *coordinator = self.sharedCoordinator;
     // Chained, never restated: a wrapper that reimplemented the production open
-    // would drift from it, and the preflight it performs is load-bearing.
+    // would drift from it.
     VibeAudioFileOpener real = coordinator.fileOpener;
     coordinator.fileOpener = ^AudioFileHandle *(NSURL *url, NSError **error) {
         NSCondition *inner = VibeHungOpenGate();

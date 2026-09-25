@@ -4,6 +4,7 @@
 //
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
+#import "AudioFileHandle.h"
 
 #import "AudioFileOpenRules.h"
 #import "AudioWorkScheduler.h"

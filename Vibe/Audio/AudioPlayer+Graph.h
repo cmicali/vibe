@@ -82,9 +82,10 @@
 //
 
 #import "AudioPlayer.h"
-#import "AudioFileHandle.h"
 #import "AudioVoiceBus.h"
 #import <AVFoundation/AVFoundation.h>
+
+@class AudioFileHandle;
 
 NS_ASSUME_NONNULL_BEGIN
 

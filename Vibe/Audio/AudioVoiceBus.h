@@ -44,8 +44,9 @@
 //
 
 #import <AVFoundation/AVFoundation.h>
-#import "AudioFileHandle.h"
 #import "FadeMath.h"
+
+@class AudioFileHandle;
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -52,7 +52,7 @@ static AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
     NSString *lowered = extension.lowercaseString;
     CFStringRef key = (__bridge CFStringRef)lowered;
     UInt32 size = 0;
-    if (!key || lowered.length == 0
+    if (lowered.length == 0
             || AudioFileGetGlobalInfoSize(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size) != noErr
             || size < sizeof(AudioFileTypeID)) {
         return 0;
@@ -237,15 +237,16 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (ExtAudioFileGetProperty(_reader, kExtAudioFileProperty_FileLengthFrames, &size, &length) != noErr) {
         length = 0;
     }
-    // For PCM the length is the audio bytes the file holds — the header's
-    // count, clamped to what lies past the data offset, since a truncated
-    // download declares more than it has — over the frame size. The packet
-    // count CoreAudio derives answers 0 for a WAV of one or two frames.
+    // For a fixed frame size the length is the audio bytes the file holds —
+    // the header's count, clamped to what lies past the data offset, since a
+    // truncated download declares more than it has — over the frame size.
+    // The packet count CoreAudio derives answers 0 for a WAV of one or two
+    // frames.
     UInt64 bytes = 0;
     SInt64 offset = 0;
     size = sizeof(bytes);
     UInt32 offsetSize = sizeof(offset);
-    if (fileDescription.mFormatID == kAudioFormatLinearPCM && fileDescription.mBytesPerFrame > 0
+    if (fileDescription.mBytesPerFrame > 0
             && AudioFileGetProperty(_file, kAudioFilePropertyAudioDataByteCount, &size, &bytes) == noErr
             && AudioFileGetProperty(_file, kAudioFilePropertyDataOffset, &offsetSize, &offset) == noErr
             && offset >= 0 && offset <= _size) {
@@ -333,10 +334,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 #pragma mark - Writing
 
 - (BOOL)writeFromBuffer:(AVAudioPCMBuffer *)buffer error:(NSError **)error {
-    if (!_writing || ![self buffer:buffer matchesProcessingFormatWithError:error]) {
-        if (error && !*error) {
-            *error = VibeHandleError(kAudio_ParamError, @"The handle is open for reading");
-        }
+    if (![self accepts:buffer writing:YES error:error]) {
         return NO;
     }
     OSStatus status = ExtAudioFileWrite(_reader, buffer.frameLength, buffer.audioBufferList);
@@ -364,16 +362,25 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 #pragma mark - Reading
 
-- (BOOL)buffer:(AVAudioPCMBuffer *)buffer matchesProcessingFormatWithError:(NSError **)error {
+// The mode, then the buffer's format against the processing format: every
+// consumer sizes its buffer from processingFormat, so the identity test is
+// the usual answer and the field comparison serves a successor read through
+// an equal format of its own.
+- (BOOL)accepts:(AVAudioPCMBuffer *)buffer writing:(BOOL)writing error:(NSError **)error {
+    NSString *refusal = nil;
     AVAudioFormat *format = buffer.format;
-    if (format.commonFormat != _processingFormat.commonFormat || format.isInterleaved != _processingFormat.isInterleaved
-            || format.channelCount != _processingFormat.channelCount || format.sampleRate != _processingFormat.sampleRate) {
-        if (error) {
-            *error = VibeHandleError(kAudio_ParamError, @"The buffer's format is not the file's processing format");
-        }
-        return NO;
+    if (_writing != writing) {
+        refusal = writing ? @"The handle is open for reading" : @"The handle is open for writing";
     }
-    return YES;
+    else if (format != _processingFormat
+            && (format.commonFormat != _processingFormat.commonFormat || format.isInterleaved != _processingFormat.isInterleaved
+                || format.channelCount != _processingFormat.channelCount || format.sampleRate != _processingFormat.sampleRate)) {
+        refusal = @"The buffer's format is not the file's processing format";
+    }
+    if (refusal && error) {
+        *error = VibeHandleError(kAudio_ParamError, refusal);
+    }
+    return refusal == nil;
 }
 
 - (BOOL)readIntoBuffer:(AVAudioPCMBuffer *)buffer error:(NSError **)error {
@@ -381,17 +388,13 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 - (BOOL)readIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)frameCount error:(NSError **)error {
-    if (_writing || ![self buffer:buffer matchesProcessingFormatWithError:error]) {
+    if (![self accepts:buffer writing:NO error:error]) {
         buffer.frameLength = 0;
-        if (error && !*error) {
-            *error = VibeHandleError(kAudio_ParamError, @"The handle is open for writing");
-        }
         return NO;
     }
     AVAudioFrameCount wanted = MIN(frameCount, buffer.frameCapacity);
-    // frameLength at capacity sizes the buffer list to the whole allocation;
-    // the copy below then walks it by the frames already produced.
-    buffer.frameLength = buffer.frameCapacity;
+    // The list's data pointers span the whole allocation whatever frameLength
+    // says; the copy below walks them by the frames already produced.
     const AudioBufferList *whole = buffer.audioBufferList;
     size_t listSize = offsetof(AudioBufferList, mBuffers) + whole->mNumberBuffers * sizeof(AudioBuffer);
     AudioBufferList *list = alloca(listSize);

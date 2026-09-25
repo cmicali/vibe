@@ -19,6 +19,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelTap.h"

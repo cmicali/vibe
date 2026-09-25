@@ -14,10 +14,11 @@
 
 #import "AudioPlayer.h"
 #import "AudioDeviceManager.h"
-#import "AudioFileHandle.h"
 #import "OutputFormatRules.h"
 #import <AVFoundation/AVFoundation.h>
 #import <CoreAudio/CoreAudio.h>
+
+@class AudioFileHandle;
 
 NS_ASSUME_NONNULL_BEGIN
 

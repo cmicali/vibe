@@ -14,7 +14,8 @@
 
 #import "AudioLoadingConfiguration.h"
 
-#import "AudioFileHandle.h"
+
+@class AudioFileHandle;
 
 NS_ASSUME_NONNULL_BEGIN
 

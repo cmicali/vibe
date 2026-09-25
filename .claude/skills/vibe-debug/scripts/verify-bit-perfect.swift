@@ -127,8 +127,6 @@ func referenceFitsFloat32(_ format: AudioStreamBasicDescription) -> Bool {
              && format.mFormatFlags == kAppleLosslessFormatFlag_32BitSourceData)
 }
 func readPCM(_ url: URL) -> (Double, [[Float]]) {
-    // ExtAudioFile directly: the tool exits after one comparison, so the
-    // URL open's failed-open descriptor leak the app avoids costs nothing here.
     var file: ExtAudioFileRef?
     guard ExtAudioFileOpenURL(url as CFURL, &file) == noErr, let file else { fail("could not open \(url.path)") }
     defer { ExtAudioFileDispose(file) }

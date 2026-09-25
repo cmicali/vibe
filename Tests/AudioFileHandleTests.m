@@ -1,6 +1,6 @@
 //
 // The audio-open contract: AudioFileHandle's verdicts, facts, reads, cursor and
-// descriptor ownership, and the NSURL checks built on it.
+// descriptor ownership, and the stat-only NSURL check beside it.
 //
 
 #import <XCTest/XCTest.h>
@@ -10,13 +10,14 @@
 #include <unistd.h>
 
 #import "AudioFileHandle.h"
+#import "AudioFixtures.h"
 #import "NSURL+AudioOpen.h"
 
-@interface NSURLAudioOpenTests : XCTestCase
+@interface AudioFileHandleTests : XCTestCase
 @property (strong) NSURL *fixtureDirectory;
 @end
 
-@implementation NSURLAudioOpenTests
+@implementation AudioFileHandleTests
 
 - (void)setUp {
     [super setUp];
@@ -44,30 +45,16 @@ static int16_t VibeFixtureSample(uint32_t frame, uint32_t channel) {
 }
 
 - (NSURL *)writePCMNamed:(NSString *)name frames:(uint32_t)frames channels:(uint16_t)channels rate:(uint32_t)rate {
-    uint32_t dataBytes = frames * channels * 2;
-    NSMutableData *wav = [NSMutableData data];
-    void (^append32)(uint32_t) = ^(uint32_t v) { [wav appendBytes:&v length:4]; };
-    void (^append16)(uint16_t) = ^(uint16_t v) { [wav appendBytes:&v length:2]; };
-    [wav appendBytes:"RIFF" length:4];
-    append32(36 + dataBytes);
-    [wav appendBytes:"WAVEfmt " length:8];
-    append32(16);
-    append16(1);
-    append16(channels);
-    append32(rate);
-    append32(rate * channels * 2);
-    append16(channels * 2);
-    append16(16);
-    [wav appendBytes:"data" length:4];
-    append32(dataBytes);
+    NSMutableData *samples = [NSMutableData data];
     for (uint32_t frame = 0; frame < frames; frame++) {
         for (uint16_t channel = 0; channel < channels; channel++) {
             int16_t sample = VibeFixtureSample(frame, channel);
-            [wav appendBytes:&sample length:2];
+            [samples appendBytes:&sample length:2];
         }
     }
-    NSURL *url = [self.fixtureDirectory URLByAppendingPathComponent:name];
-    XCTAssertTrue([wav writeToURL:url atomically:YES]);
+    NSURL *url = VibeWriteWAV([self.fixtureDirectory URLByAppendingPathComponent:name], samples, rate, channels, 16,
+                              (uint32_t)samples.length);
+    XCTAssertNotNil(url);
     return url;
 }
 
@@ -111,7 +98,6 @@ static int VibeOpenDescriptorCount(void) {
     NSError *error = nil;
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertEqualObjects(error.domain, NSPOSIXErrorDomain);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent]);
     XCTAssertFalse(url.isEmptyOrDirectory, @"unstattable is not empty: the open reports why");
 }
 
@@ -122,7 +108,6 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
     XCTAssertTrue(url.isEmptyOrDirectory);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent]);
 }
 
 - (void)testDirectoryIsRefused {
@@ -134,7 +119,6 @@ static int VibeOpenDescriptorCount(void) {
                                                                 error:&error], @"%@", error);
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertTrue(url.isEmptyOrDirectory);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent]);
 }
 
 // A FIFO with no writer blocks a plain open forever; the handle must refuse
@@ -152,7 +136,6 @@ static int VibeOpenDescriptorCount(void) {
     [self waitForExpectations:@[returned] timeout:2];
     XCTAssertNil(handle);
     XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent]);
 }
 
 - (void)testInvalidAudioIsRefused {
@@ -161,7 +144,6 @@ static int VibeOpenDescriptorCount(void) {
     NSError *error = nil;
     XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
     XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent]);
 }
 
 - (void)testNonAudioNamedAsMP3IsRefused {
@@ -197,24 +179,16 @@ static int VibeOpenDescriptorCount(void) {
     NSURL *url = [self writePCMNamed:@"zero-frames.wav" frames:0 channels:1 rate:44100];
     AudioFileHandle *handle = [self open:url];
     XCTAssertEqual(handle.length, (AVAudioFramePosition)0);
-    XCTAssertFalse([url validateAudioFileIsReadableAndHasContent], @"no frames is not content");
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:64];
     XCTAssertTrue([handle readIntoBuffer:buffer error:NULL]);
     XCTAssertEqual(buffer.frameLength, 0u);
 }
 
-// The packet count CoreAudio derives answers 0 for a WAV of one or two
-// frames; the byte count is the length.
 // A header that promises more than the file holds — the shape of a partial
 // download — reports the frames that are there, as CoreAudio's own reader does.
 - (void)testAnOverdeclaredWAVReportsTheFramesItHolds {
-    NSURL *url = [self writePCMNamed:@"overdeclared.wav" frames:3000 channels:2 rate:48000];
-    NSMutableData *wav = [NSMutableData dataWithContentsOfURL:url];
-    uint32_t declared = 20000 * 4;
-    [wav replaceBytesInRange:NSMakeRange(40, 4) withBytes:&declared];
-    uint32_t riff = 36 + declared;
-    [wav replaceBytesInRange:NSMakeRange(4, 4) withBytes:&riff];
-    XCTAssertTrue([wav writeToURL:url atomically:YES]);
+    NSMutableData *samples = [NSMutableData dataWithLength:3000 * 4];
+    NSURL *url = VibeWriteWAV([self.fixtureDirectory URLByAppendingPathComponent:@"overdeclared.wav"], samples, 48000, 2, 16, 20000 * 4);
     AudioFileHandle *handle = [self open:url];
     XCTAssertEqual(handle.length, (AVAudioFramePosition)3000);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:8192];
@@ -222,6 +196,8 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(buffer.frameLength, 3000u);
 }
 
+// The packet count CoreAudio derives answers 0 for a WAV of one or two
+// frames; the byte count is the length.
 - (void)testATwoFrameWAVHasLengthTwo {
     AudioFileHandle *handle = [self open:[self writePCMNamed:@"two.wav" frames:2 channels:2 rate:44100]];
     XCTAssertEqual(handle.length, (AVAudioFramePosition)2);
@@ -241,7 +217,6 @@ static int VibeOpenDescriptorCount(void) {
     XCTAssertEqual(handle.processingFormat.sampleRate, 44100.0);
     XCTAssertEqual(handle.length, (AVAudioFramePosition)5000);
     XCTAssertEqual(handle.framePosition, (AVAudioFramePosition)0);
-    XCTAssertTrue([url validateAudioFileIsReadableAndHasContent]);
 
     // A read larger than the file comes up short, exactly at the end, and the
     // next read at the end is empty and not an error.
@@ -352,7 +327,6 @@ static int VibeOpenDescriptorCount(void) {
             AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:valid error:NULL];
             AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:2048];
             (void)[handle readIntoBuffer:buffer error:NULL];
-            (void)[valid validateAudioFileIsReadableAndHasContent];
         }
     }
     XCTAssertEqual(VibeOpenDescriptorCount(), baseline);
@@ -425,7 +399,6 @@ static int VibeOpenDescriptorCount(void) {
                                                              frameCapacity:(AVAudioFrameCount)handle.length + 1024];
     XCTAssertTrue([handle readIntoBuffer:buffer error:&error], @"%@", error);
     XCTAssertEqual(buffer.frameLength, (AVAudioFrameCount)handle.length);
-    XCTAssertTrue([url validateAudioFileIsReadableAndHasContent]);
     handle = nil;
     // The QuickTime reader keeps two descriptors of its own from its first
     // load in a process; what must not grow is the count per open.

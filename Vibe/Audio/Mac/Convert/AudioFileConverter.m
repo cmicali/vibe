@@ -18,7 +18,6 @@
 #import "FLACConvertRules.h"
 #import "FLACTagCopier.h"
 #import "AudioFileHandle.h"
-#import "NSURL+AudioOpen.h"
 #import "VibeStrings.h"
 
 NSString *const kVibeConvertErrorDomain = @"com.commonwealthrecordings.Vibe.convert";
@@ -648,9 +647,11 @@ static NSString *VibeFileStat(NSURL *url) {
     });
 }
 
-// A positive check. Called only off main; provider and network reads may block.
+// A positive check — the file opens and decodes at least one frame — not the
+// absence of a refusal. Called only off main; provider and network reads may
+// block.
 - (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error {
-    BOOL playable = [url validateAudioFileIsReadableAndHasContent];
+    BOOL playable = [[AudioFileHandle alloc] initForReading:url error:NULL].length > 0;
     if (!playable && error) {
         NSString *path = url.path;
         *error = [self errorWithCode:VibeConvertErrorReplacementUnavailable
@@ -662,12 +663,6 @@ static NSString *VibeFileStat(NSURL *url) {
 }
 
 #pragma mark - Encode
-
-// The one refusal for a source with no frames.
-- (NSError *)emptySourceError {
-    return [self errorWithCode:VibeConvertErrorNotConvertible
-                   description:@"That file contains no audio."];
-}
 
 // Encodes into the app's own tmp, always writable, so nothing partial ever
 // appears beside the user's music. progress runs on the converter queue at
@@ -687,7 +682,7 @@ static NSString *VibeFileStat(NSURL *url) {
         // Zero frames would skip the loop and "succeed", swapping a playable
         // row for a FLAC nothing can play.
         if (error) {
-            *error = [self emptySourceError];
+            *error = [self errorWithCode:VibeConvertErrorNotConvertible description:@"That file contains no audio."];
         }
         return nil;
     }
@@ -708,12 +703,6 @@ static NSString *VibeFileStat(NSURL *url) {
                                                   interleaved:NO
                                                         error:error];
     if (!source) {
-        return nil;
-    }
-    if (source.length <= 0) {
-        if (error) {
-            *error = [self emptySourceError];
-        }
         return nil;
     }
 
@@ -793,15 +782,9 @@ static NSString *VibeFileStat(NSURL *url) {
             }
         }
     }
-    if (streamError && error) {
-        *error = streamError;
-    }
-
     // Flushes the final partial FLAC packet; must precede the validation and
     // TagLib's open, and its own failure fails the conversion.
-    NSError *closeError = nil;
-    if (![destination closeWithError:&closeError] && ok) {
-        streamError = closeError;
+    if (ok && ![destination closeWithError:&streamError]) {
         ok = NO;
     }
     if (!ok) {

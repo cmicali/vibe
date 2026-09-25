@@ -15,6 +15,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioVoiceBusInternal.h"
+#import "AudioFixtures.h"
 #import <objc/runtime.h>
 #include <stdatomic.h>
 
@@ -76,24 +77,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         }
     }
     return [self writeBuffer:buffer name:name];
-}
-
-// Writes `buffer` as the container its name says — WAV, or AIFC for .aif —
-// in the buffer's own sample format, interleaved, with its channel layout.
-static NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
-    AVAudioFormat *format = buffer.format;
-    BOOL aiff = [url.pathExtension.lowercaseString hasPrefix:@"aif"];
-    AudioStreamBasicDescription file = *format.streamDescription;
-    file.mFormatFlags = (file.mFormatFlags & ~(UInt32)kAudioFormatFlagIsNonInterleaved) | (aiff ? kAudioFormatFlagIsBigEndian : 0);
-    file.mBytesPerFrame = file.mBitsPerChannel / 8 * file.mChannelsPerFrame;
-    file.mBytesPerPacket = file.mBytesPerFrame;
-    AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&file channelLayout:format.channelLayout];
-    AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:aiff ? kAudioFileAIFCType : kAudioFileWAVEType
-                                                           fileFormat:fileFormat processingFormat:format error:error];
-    if (![handle writeFromBuffer:buffer error:error] || ![handle closeWithError:error]) {
-        return nil;
-    }
-    return url;
 }
 
 - (NSURL *)writeBuffer:(AVAudioPCMBuffer *)buffer name:(NSString *)name {

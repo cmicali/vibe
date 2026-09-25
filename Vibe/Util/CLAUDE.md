@@ -18,7 +18,7 @@ The playable extension set is `Common/PlayableExtensions`, not this file: the wa
 
 ## Traps
 
-**Every audio file is opened through `AudioFileHandle` (`Audio/Loading/`), and `NSURL+AudioOpen` keeps only the two URL verdicts built beside it.** `isEmptyOrDirectory` is the stat-only test, for list filtering; `validateAudioFileIsReadableAndHasContent` is FLAC conversion's positive proof before a destructive handoff — one handle open, closed again, with at least one decoded frame — and never a guard on a playback open, which opens the handle it will read. There is no preflight: a handle that fails to open leaks nothing, because the descriptor is this process's own (`Audio/Loading/CLAUDE.md`).
+**Every audio file is opened through `AudioFileHandle` (`Audio/Loading/`); `NSURL+AudioOpen` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. There is no preflight: a handle that fails to open leaks nothing, because the descriptor is this process's own (`Audio/Loading/CLAUDE.md`).
 
 **TRAP: the emptiness test under both is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** An evicted iCloud or Dropbox file is dataless — true logical size, zero allocated blocks — so an allocation-based test would reject every cloud-hosted track. `stat()` reads that metadata locally and never materializes the file.
 

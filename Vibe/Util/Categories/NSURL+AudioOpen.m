@@ -5,8 +5,6 @@
 
 #import "NSURL+AudioOpen.h"
 
-#import "AudioFileHandle.h"
-
 #include <sys/stat.h>
 
 @implementation NSURL (AudioOpen)
@@ -24,13 +22,6 @@
         return NO; // unstattable: let the real open report why
     }
     return S_ISDIR(info.st_mode) || info.st_size == 0;
-}
-
-// The open is the proof: the handle refuses anything but a nonempty regular
-// file CoreAudio parses, and its length is the decoded frames it reports.
-- (BOOL)validateAudioFileIsReadableAndHasContent {
-    AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:self error:NULL];
-    return handle.length > 0;
 }
 
 @end
