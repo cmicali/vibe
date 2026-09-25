@@ -42,7 +42,7 @@ The driver's oracles are the ones wanted: state and position per flap, `check_co
 
 **A slow bind blocking the player queue (#53).** The renderer logs the number directly: every play submission logs how long it waited for admission on the player queue (`Timeline: play N admitted after X ms on player queue`, `AudioPlayer+Diagnostics`), and a slow output start logs how long the queue was blocked (`AudioPlayer+Pipeline`). Rotate the system default across real devices with the slowest one owned in the list (the helper's `rotate` mode; the skill's table puts an RME bind at half a second), submit plays during the binds, and read those lines. An admission wait that tracks the bind time is the symptom back on the new carrier; one under a few milliseconds whatever the destination is the fix holding.
 
-**A bind rebuilding when the device has not changed (#56).** The stimulus is a default-device change that does not concern the bound device: bind Vibe explicitly to BlackHole in Settings, run a sample-exact loopback capture, and rotate the system default between two *other* real devices while it runs:
+**A bind rebuilding when the device has not changed (#56).** The stimulus is a default-device change that does not concern the bound device: bind Vibe explicitly to BlackHole (`set_output_device "BlackHole 2ch"`, then poll `dump_state.player.outputDevice` until it names it), run a sample-exact loopback capture, and rotate the system default between two *other* real devices while it runs:
 
 ```bash
 build/verify-bit-perfect "$PWD/build/audio-fixtures/noise-48000-24-2.wav" 3 "BlackHole 2ch" --play-app "$V" --force-volume --ordinary

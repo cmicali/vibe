@@ -181,6 +181,10 @@ EOS
 .claude/skills/vibe-debug/scripts/run-script.sh [--assert '<jq predicate>'] <output-dir> [file]   # saves replies.jsonl and numbered PNGs; predicate checks the complete reply array after commands succeed (SKILL.md)
 ```
 
+## Output device
+
+`set_output_device <uid|name|system> [<bit-perfect on|off> [<exclusive on|off>]]` selects the output now, through the same path as the Output menu. Address it by UID: a HAL device id is transient (the same hardware came back as 108, 126, 111 across three replugs), and UID is what the per-device modes are keyed by. A name is accepted as a fallback in the same order the app's own restore uses, so a human can type `"Audient iD4"`; `system` is System Output. An unknown device answers an error listing the known names; UIDs are in `dump_debug_info`'s hardware section. The reply is `{ok, deviceId, uid, name, selectionPending, modesRequested}`, and the selection settles asynchronously — poll `dump_state.player.outputDevice` (null on System Output) and `dump_audio_path`'s device stage. The optional modes are *requested*, applied on main once the selection clears, because their setters write the saved device's mode and would name the device being left; confirm with `dump_state.player.bitPerfect`.
+
 ## Bit-perfect output
 
 `set_saved_output_device <uid> <name>` writes only the next-launch preference, without changing the current binding. Use a missing UID/name followed by relaunch to verify that confirmed absence disables bit-perfect, persists System Output and restores pitch; restore the original preference afterward.
