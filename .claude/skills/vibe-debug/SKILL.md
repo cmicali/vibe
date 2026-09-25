@@ -29,15 +29,15 @@ Every verb with its arguments and reply schema, including bit-perfect reports an
 
 **Audio flags, and what each run proves.** `launch.sh` passes both debug-only argv flags by default:
 
-- `--no-audio-hw`: manual rendering with a real-time-paced pump. No CoreAudio device is opened, so a run cannot trigger AirPods auto-switching; playback, position, waveform, and FX behave normally. `dump_state.player.manualRendering` is what actually happened (`enableManualRenderingMode` can fail, and Vibe's own output unit then opens the device as usual) — **trust `manualRendering`, not `noAudioHw`**.
-- `--silent`: zeroes the main mixer but opens and drives the real output device — real-HAL behavior without noise (device switching, rate changes, output-latency timing).
+- `--no-audio-hw`: the debug pump calls the production render at real-time pace instead of the output unit. No CoreAudio device is opened, so a run cannot trigger AirPods auto-switching; playback, position, waveform, FX and the equalizer behave normally. `dump_state.player.manualRendering` is what actually happened — **trust `manualRendering`, not `noAudioHw`**.
+- `--silent`: zeroes the output's buffers after the meter, but opens and drives the real output device — real-HAL behavior without noise (device switching, rate changes, output-latency timing).
 - `VIBE_AUDIBLE=1` uses real hardware audibly; `VIBE_AUDIBLE=silent` is `--silent` alone.
 - Test launches also pass `--no-now-playing` by default, suppressing media focus and remote commands without changing the audio graph. Set `VIBE_NOW_PLAYING=1` only to verify media integration; loopback captures must keep suppression so they do not pull AirPods off another device.
 
 Which run proves what:
 
-- **Equalizer bars.** `--silent` zeroes the signal above the tap, so a healthy default run draws dots. Functional EQ checks off hardware need a manual launch with only `--no-audio-hw`. `dump_equalizer` reports the launch flags — check them before calling flat bars a defect. Counters and bounds: `references/equalizer-counters.md`.
-- **Start latency.** TRAP: never measure it under `--no-audio-hw`. The pump is not a clock: a file whose sample rate differs from the render format can sit at position 0 for seconds. Use `VIBE_AUDIBLE=silent`; the answer is then exact without instrumentation, since `position` is rendered audio and at poll time `T` with position `P` playback began at `T - P`. `player.state` is the pending *intent* (`playing` during a cloud open that has not landed), so time an open by position movement, never the state string.
+- **Equalizer bars.** The meter reads the final samples before `--silent` zeroes them, so the bars are live under the default launch and under `--silent` alone. `dump_equalizer` reports the launch flags. Counters and bounds: `references/equalizer-counters.md`.
+- **Start latency.** TRAP: never measure it under `--no-audio-hw`. The pump is a timer, not the device's clock. Use `VIBE_AUDIBLE=silent`; the answer is then exact without instrumentation, since `position` is rendered audio and at poll time `T` with position `P` playback began at `T - P`. `player.state` is the pending *intent* (`playing` during a cloud open that has not landed), so time an open by position movement, never the state string.
 - **Now Playing, media keys, Control Center, Bluetooth transport.** `--no-audio-hw` and `--no-now-playing` suppress the publish outright, since registering as the active media app alone pulls AirPods over; `dump_now_playing` then reports `hasInfo: 0` — correct, not a bug. Launch with `VIBE_NOW_PLAYING=1 VIBE_AUDIBLE=1`, and expect it to take the AirPods.
 
 **Launching by hand.**
@@ -49,7 +49,7 @@ Which run proves what:
 
 ## The channel's contract
 
-**Every command replies with exactly one JSON object**; errors are `{"error": "…"}`. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage. Action replies are read synchronously and lag async engine work — confirm with `dump_state`. Arguments reach the app as an array, never re-tokenized, so a quoted path with spaces is safe.
+**Every command replies with exactly one JSON object**; errors are `{"error": "…"}`. Exit codes: 0 ok, 1 no response (no debug build running), 2 command error, 64 usage. The wait is 5 s unless the verb declares its own window; `VIBE_DEBUG_TIMEOUT=<seconds>` raises the default for a script that drives the failure fixtures, whose dead device holds the app's main thread for 14 s and more (the bit-perfect verifier sets 45). Action replies are read synchronously and lag async pipeline work — confirm with `dump_state`. Arguments reach the app as an array, never re-tokenized, so a quoted path with spaces is safe.
 
 Never scrape text. Filter with `jq` — `-r` for shell substitution, `-e` to assert (nonzero on `false` or `null`, so it doubles as the test) — and pipe through `printf '%s' "$out"`, not `echo`, which in zsh rewrites `\t` inside the JSON into illegal control characters. **Use the script runner and `jq`, not generated Python**, for command execution, saved snapshots, comparisons and assertions. Settings opacity and row-label checks belong on `dump_settings_ui`; it exposes them directly without matching addresses in `dump_view_tree`.
 

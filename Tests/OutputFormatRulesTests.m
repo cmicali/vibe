@@ -31,7 +31,7 @@ static AudioStreamBasicDescription Compressed(UInt32 formatID, UInt32 flags, dou
     return d;
 }
 
-// AVAudioFile's processing format: float32 at the file's rate.
+// AudioFileHandle's processing format: float32 at the file's rate.
 static AudioStreamBasicDescription Decode(double rate) {
     return PCM(rate, 32, YES);
 }
@@ -1015,38 +1015,37 @@ static NSUInteger VibeTestMismatches(AudioBufferList *data, UInt32 channels, UIn
 }
 
 typedef struct {
-    uint64_t rendered;   // frames the block has produced
+    uint64_t rendered;   // frames the proc has produced
     NSUInteger calls;
-    NSUInteger refusals; // leading calls answered CannotDoInCurrentContext
-    UInt32 maxFrames;    // a larger pull is the callback's slicing bug
+    NSUInteger failures; // leading calls that fail
+    UInt32 maxFrames;    // the largest cycle this proc accepts, as the pipeline's slicing bounds it
     OSStatus complaint;
 } VibeTestEngine;
 
-static AVAudioEngineManualRenderingBlock VibeTestEngineBlock(VibeTestEngine *engine) {
-    return ^AVAudioEngineManualRenderingStatus(AVAudioFrameCount frameCount, AudioBufferList *buffer, OSStatus *status) {
-        engine->calls++;
-        if (engine->calls <= engine->refusals) {
-            return AVAudioEngineManualRenderingStatusCannotDoInCurrentContext;
+static OSStatus VibeTestRenderProc(void *refCon, const AudioTimeStamp *timestamp, UInt32 frameCount, AudioBufferList *buffer) {
+    VibeTestEngine *engine = refCon;
+    engine->calls++;
+    if (engine->calls <= engine->failures) {
+        return -3;
+    }
+    if (frameCount == 0 || frameCount > engine->maxFrames || buffer->mNumberBuffers < 2) {
+        engine->complaint = -1;
+        return -1;
+    }
+    // As the pipeline does: the first two buffers carry the signal, and a
+    // wider device's further buffers are left silent.
+    for (UInt32 c = 0; c < buffer->mNumberBuffers; c++) {
+        if (buffer->mBuffers[c].mDataByteSize != frameCount * sizeof(float)) {
+            engine->complaint = -2;
+            return -2;
         }
-        if (frameCount == 0 || frameCount > engine->maxFrames || buffer->mNumberBuffers != 2) {
-            engine->complaint = -1;
-            *status = -1;
-            return AVAudioEngineManualRenderingStatusError;
+        float *out = buffer->mBuffers[c].mData;
+        for (UInt32 f = 0; f < frameCount; f++) {
+            out[f] = c < 2 ? VibeTestPattern(engine->rendered + f, c) : 0;
         }
-        for (UInt32 c = 0; c < buffer->mNumberBuffers; c++) {
-            if (buffer->mBuffers[c].mDataByteSize != frameCount * sizeof(float)) {
-                engine->complaint = -2;
-                *status = -2;
-                return AVAudioEngineManualRenderingStatusError;
-            }
-            float *out = buffer->mBuffers[c].mData;
-            for (UInt32 f = 0; f < frameCount; f++) {
-                out[f] = VibeTestPattern(engine->rendered + f, c);
-            }
-        }
-        engine->rendered += frameCount;
-        return AVAudioEngineManualRenderingStatusSuccess;
-    };
+    }
+    engine->rendered += frameCount;
+    return noErr;
 }
 
 static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data, UInt32 frames,
@@ -1059,32 +1058,24 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
 }
 
 - (void)testOutputUnitCallbackWritesSilenceWhileTheGateIsClosed {
-    VibeTestEngine engine = { .maxFrames = 4096 };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+    VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
     AudioBufferList *data = VibeTestIOBuffers(2, 512, 0.5f);
     AudioUnitRenderActionFlags flags = 0;
     XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 42), noErr);
     XCTAssertTrue(flags & kAudioUnitRenderAction_OutputIsSilence);
     XCTAssertEqual(engine.calls, 0u);
     XCTAssertEqual(VibeTestMismatches(data, 2, 512, 0, YES), 0u);
-    XCTAssertEqual(atomic_load(&state.frames), 0ull);
     XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
     XCTAssertEqual(atomic_load(&state.inRender), 0);
-    // The device's stamp is recorded whether or not the engine rendered, and
-    // the version is even again once it is.
-    XCTAssertEqual(state.stamp.mHostTime, 42ull);
-    XCTAssertEqual(atomic_load(&state.stampVersion), 2u);
     VibeTestFreeIOBuffers(data);
-    VibeOutputUnitStateFree(&state);
 }
 
-- (void)testOutputUnitCallbackCopiesTheEnginesPatternExactlyAcrossSlices {
-    VibeTestEngine engine = { .maxFrames = 4096 };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+- (void)testOutputUnitCallbackHandsTheProcTheWholeCycle {
+    VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
     atomic_store(&state.gate, 1);
     uint64_t total = 0;
     UInt64 cycle = 0;
@@ -1096,26 +1087,20 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
         XCTAssertFalse(flags & kAudioUnitRenderAction_OutputIsSilence);
         XCTAssertEqual(VibeTestMismatches(data, 2, frames, total, NO), 0u, @"%u-frame pull", frames);
         total += frames;
-        XCTAssertEqual(atomic_load(&state.frames), total);
-        XCTAssertEqual(atomic_load(&state.pendingFrames), 0u);
-        XCTAssertEqual(state.stamp.mHostTime, cycle);
         VibeTestFreeIOBuffers(data);
     }
     XCTAssertEqual(engine.complaint, noErr);
     XCTAssertEqual(engine.rendered, total);
-    XCTAssertEqual(engine.calls, 6u); // the 8192-frame pull is two slices
+    XCTAssertEqual(engine.calls, 5u); // one call per cycle, the 8192-frame one included
     XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
-    XCTAssertEqual(atomic_load(&state.stampVersion), (uint32_t)(2 * cycle));
-    VibeOutputUnitStateFree(&state);
 }
 
-- (void)testOutputUnitCallbackLeavesADevicesExtraChannelsSilent {
-    // A four-output interface pulling a stereo engine: the pattern in the first
-    // two buffers, zeros in the rest.
-    VibeTestEngine engine = { .maxFrames = 4096 };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+- (void)testOutputUnitCallbackHandsTheProcEveryBuffer {
+    // A four-output interface pulling the stereo pipeline: the proc sees all
+    // four buffers, writes the first two and leaves the rest silent.
+    VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
     atomic_store(&state.gate, 1);
     AudioBufferList *data = VibeTestIOBuffers(4, 256, 0.5f);
     AudioUnitRenderActionFlags flags = 0;
@@ -1123,14 +1108,12 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertEqual(VibeTestMismatches(data, 2, 256, 0, NO), 0u);
     XCTAssertEqual(engine.calls, 1u);
     VibeTestFreeIOBuffers(data);
-    VibeOutputUnitStateFree(&state);
 }
 
 - (void)testOutputUnitCallbackWritesSilenceWhenTheHalOffersFewerBuffersThanTheFormat {
-    VibeTestEngine engine = { .maxFrames = 4096 };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+    VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
     atomic_store(&state.gate, 1);
     AudioBufferList *data = VibeTestIOBuffers(1, 256, 0.5f);
     AudioUnitRenderActionFlags flags = 0;
@@ -1140,66 +1123,61 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertEqual(engine.calls, 0u);
     XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
     VibeTestFreeIOBuffers(data);
-    VibeOutputUnitStateFree(&state);
 }
 
-- (void)testOutputUnitCallbackRetriesARefusedRenderInsideTheCycle {
-    // A queue-side graph mutation holding the engine's lock refuses the block;
-    // the cycle asks again before writing silence.
-    VibeTestEngine engine = { .maxFrames = 4096, .refusals = kVibeOutputUnitRenderRetries };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
+- (void)testOutputUnitCallbackWritesSilenceAndCountsADropoutWhenTheProcFails {
+    VibeTestEngine engine = { .maxFrames = 8192, .failures = 2 };
     VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
-    atomic_store(&state.gate, 1);
-    AudioBufferList *data = VibeTestIOBuffers(2, 1024, 0.5f);
-    AudioUnitRenderActionFlags flags = 0;
-    XCTAssertEqual(VibeTestCycle(&state, data, 1024, &flags, 1), noErr);
-    XCTAssertFalse(flags & kAudioUnitRenderAction_OutputIsSilence);
-    XCTAssertEqual(VibeTestMismatches(data, 2, 1024, 0, NO), 0u);
-    XCTAssertEqual(engine.calls, (NSUInteger)kVibeOutputUnitRenderRetries + 1);
-    XCTAssertEqual(atomic_load(&state.frames), 1024ull);
-    XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
-    VibeTestFreeIOBuffers(data);
-    VibeOutputUnitStateFree(&state);
-}
-
-- (void)testOutputUnitCallbackWritesSilenceAndCountsADropoutWhenTheEngineKeepsRefusing {
-    VibeTestEngine engine = { .maxFrames = 4096, .refusals = 8 };
-    AVAudioEngineManualRenderingBlock block = VibeTestEngineBlock(&engine);
-    VibeOutputUnitState state = {0};
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, 4096, (__bridge void *)block));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
     atomic_store(&state.gate, 1);
     AudioBufferList *data = VibeTestIOBuffers(2, 1024, 0.5f);
     AudioUnitRenderActionFlags flags = 0;
     XCTAssertEqual(VibeTestCycle(&state, data, 1024, &flags, 1), noErr);
     XCTAssertTrue(flags & kAudioUnitRenderAction_OutputIsSilence);
     XCTAssertEqual(VibeTestMismatches(data, 2, 1024, 0, YES), 0u);
-    XCTAssertEqual(engine.calls, (NSUInteger)kVibeOutputUnitRenderRetries + 1);
-    XCTAssertEqual(atomic_load(&state.frames), 0ull);
+    XCTAssertEqual(engine.calls, 1u); // asked once: the proc never refuses, it renders or it fails
     XCTAssertEqual(atomic_load(&state.dropouts), 1ull);
     // The next cycle drops again, one dropout per cycle; the one after, with
-    // the engine answering, is exact and continues the count from zero frames.
+    // the proc rendering, is exact and continues the count from zero frames.
     flags = 0;
     XCTAssertEqual(VibeTestCycle(&state, data, 1024, &flags, 2), noErr);
     XCTAssertEqual(atomic_load(&state.dropouts), 2ull);
-    engine.refusals = 0;
+    engine.failures = 0;
     flags = 0;
     XCTAssertEqual(VibeTestCycle(&state, data, 1024, &flags, 3), noErr);
     XCTAssertFalse(flags & kAudioUnitRenderAction_OutputIsSilence);
     XCTAssertEqual(VibeTestMismatches(data, 2, 1024, 0, NO), 0u);
-    XCTAssertEqual(atomic_load(&state.frames), 1024ull);
     XCTAssertEqual(atomic_load(&state.dropouts), 2ull);
     VibeTestFreeIOBuffers(data);
-    VibeOutputUnitStateFree(&state);
 }
 
-- (void)testOutputUnitRefusesAFormatItCannotSlice {
+- (void)testOutputUnitCallbackCountsItsCostOnlyWhileTheGateIsOpen {
+    VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
-    XCTAssertFalse(VibeOutputUnitStateInitialize(&state, 0, 4096, NULL));
-    XCTAssertFalse(VibeOutputUnitStateInitialize(&state, kVibeOutputUnitMaxChannels + 1, 4096, NULL));
-    XCTAssertFalse(VibeOutputUnitStateInitialize(&state, 2, 0, NULL));
-    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, kVibeOutputUnitMaxChannels, 1, NULL));
-    VibeOutputUnitStateFree(&state);
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
+    AudioBufferList *data = VibeTestIOBuffers(2, 512, 0.5f);
+    AudioUnitRenderActionFlags flags = 0;
+    // A closed gate writes silence and is not a rendered cycle.
+    XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 1), noErr);
+    XCTAssertEqual(atomic_load(&state.cycles), 0ull);
+    XCTAssertEqual(atomic_load(&state.renderNanos), 0ull);
+    atomic_store(&state.gate, 1);
+    for (UInt64 cycle = 2; cycle <= 3; cycle++) {
+        flags = 0;
+        XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, cycle), noErr);
+    }
+    uint64_t nanos = atomic_load(&state.renderNanos), longest = atomic_load(&state.renderMaxNanos);
+    XCTAssertEqual(atomic_load(&state.cycles), 2ull);
+    XCTAssertGreaterThan(nanos, 0ull);
+    XCTAssertGreaterThanOrEqual(longest * 2, nanos);
+    XCTAssertLessThanOrEqual(longest, nanos);
+    VibeTestFreeIOBuffers(data);
+}
+
+- (void)testOutputUnitRefusesAFormatWithoutChannels {
+    VibeOutputUnitState state = {0};
+    XCTAssertFalse(VibeOutputUnitStateInitialize(&state, 0, NULL, NULL));
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, NULL, NULL));
 }
 
 - (void)testOutputUnitIsUnboundAtInitAndStopsSafelyBeforeAnyStart {
@@ -1209,8 +1187,9 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertNil(unit.format);
     XCTAssertFalse(unit.running);
     XCTAssertEqual(unit.dropouts, 0ull);
-    XCTAssertEqual([unit renderTime].sampleTime, 0ll);
-    XCTAssertEqual([unit lastIOTimeStamp].mFlags, 0u);
+    XCTAssertEqual(unit.renderCycles, 0ull);
+    XCTAssertEqual(unit.renderMeanMicroseconds, 0.0);
+    XCTAssertEqual(unit.renderMaxMicroseconds, 0.0);
     [unit stop];
     XCTAssertFalse(unit.running);
 }

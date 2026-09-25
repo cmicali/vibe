@@ -39,7 +39,7 @@ static BOOL VibeHangInstalled;
         @"foregroundTransferActive": @(snapshot.foregroundTransferActive),
         @"handleRuns": @(snapshot.handleRunCount),
         @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
-        // The stranded-open signal: an AVAudioFile call the OS still owes an
+        // The stranded-open signal: an AudioFileHandle call the OS still owes an
         // answer for. Nonzero at rest means a run will never finish, which no
         // gauge above can say — see docs/testing/materialization-coverage-plan.md.
         @"handleOpensInFlight": @(snapshot.handleOpensStarted
@@ -65,9 +65,9 @@ static BOOL VibeHangInstalled;
     VibeHangInstalled = YES;
     AudioFileMaterializationCoordinator *coordinator = self.sharedCoordinator;
     // Chained, never restated: a wrapper that reimplemented the production open
-    // would drift from it, and the preflight it performs is load-bearing.
+    // would drift from it.
     VibeAudioFileOpener real = coordinator.fileOpener;
-    coordinator.fileOpener = ^AVAudioFile *(NSURL *url, NSError **error) {
+    coordinator.fileOpener = ^AudioFileHandle *(NSURL *url, NSError **error) {
         NSCondition *inner = VibeHungOpenGate();
         [inner lock];
         if (VibeHangBasename && [url.lastPathComponent isEqualToString:VibeHangBasename]) {

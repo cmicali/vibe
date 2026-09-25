@@ -180,8 +180,14 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         NSFileManager *fileManager = NSFileManager.defaultManager;
         // Per-verb wait from the same table the app dispatches with — slow
         // verbs (file_cache's full decode, clear_caches' blocking clear)
-        // declare their own window there; everything else gets 5s.
+        // declare their own window there; everything else gets 5s, or
+        // VIBE_DEBUG_TIMEOUT seconds when the caller sets it: a script that
+        // drives the failure fixtures (the bit-perfect verifier) knows the
+        // app's main thread waits out a dead device for longer than that.
         NSTimeInterval timeout = [VibeCommandSpecForVerb(args.firstObject)[@"clientTimeout"] doubleValue];
+        if (timeout <= 0) {
+            timeout = [NSProcessInfo.processInfo.environment[@"VIBE_DEBUG_TIMEOUT"] doubleValue];
+        }
         if (timeout <= 0) {
             timeout = 5;
         }

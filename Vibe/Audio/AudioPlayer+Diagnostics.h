@@ -30,6 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
 // IO cycles the hosted output unit wrote as silence because the engine could
 // not render; cumulative, any thread. 0 without a unit.
 - (uint64_t)diagnosticOutputDropouts;
+// The unit's callback cost over the cycles it rendered: their count, and the
+// mean and longest time inside the callback in microseconds. Cumulative, any
+// thread; 0 without a unit.
+- (uint64_t)diagnosticRenderCycles;
+- (double)diagnosticRenderMeanMicroseconds;
+- (double)diagnosticRenderMaxMicroseconds;
 
 // The play the current transport state belongs to: the loading submission
 // while Loading, else the active one.
@@ -45,9 +51,11 @@ NS_ASSUME_NONNULL_BEGIN
 // Queue-side hooks.
 - (void)noteAdmittedPlay:(uint64_t)submittedPlay submittedAt:(uint64_t)submittedAt;
 - (void)noteAdmittedAction:(NSString *)action submittedAt:(uint64_t)submittedAt position:(NSTimeInterval)position;
-- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AVAudioFile *)file error:(nullable NSError *)error;
-- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AVAudioFile *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
+- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AudioFileHandle *)file error:(nullable NSError *)error;
+- (void)noteVoiceStarted:(VibeVoiceID)voice file:(AudioFileHandle *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current;
+// Every drain: the first-render line for a voice whose live event preceded its render.
+- (void)noteDrainOnQueue;
 - (void)noteSettled:(NSString *)what reason:(NSString *)reason;
 // Wraps a main-thread delivery: logs its latency and whether it was accepted.
 - (void)noteDelivery:(NSString *)what forPlay:(uint64_t)submittedPlay accepted:(BOOL)accepted deliveredAt:(uint64_t)deliveredAt;
@@ -59,9 +67,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL signalProbeWanted;
 - (void)armSignalProbeOnQueue:(NSString *)reason;
 - (void)noteRetiringAudioSilentOnQueue;
-// The output's render clock — the hosted unit's on macOS, the output node's
-// on iOS — one block ahead; nil while it has none.
-- (nullable AVAudioTime *)outputSignalRenderTimeOnQueue;
 
 // Beta builds record the first UI position beyond each published playing
 // position, so a late display can be told from late audio. Main thread.

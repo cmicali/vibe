@@ -73,7 +73,7 @@ static NSUInteger VibeMachPortCount(void) {
     return nameCount;
 }
 
-// A leaked AVAudioFile or an unclosed cache handle shows here long before it
+// A leaked AudioFileHandle or an unclosed cache handle shows here long before it
 // shows in the footprint. Passing a null buffer asks only for the size.
 // TRAP: the sizing call is not a count. proc_pidinfo(PROC_PIDLISTFDS) with a
 // NULL buffer answers how big the process's descriptor TABLE is, and that table
@@ -203,7 +203,7 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // An AVAudioFile call the OS still owes an answer for. Unlike everything
+    // An AudioFileHandle call the OS still owes an answer for. Unlike everything
     // above it is not a container the app can drain — a never-returning open
     // cannot be cancelled — so nonzero here at rest is not "work still in
     // flight" but "work that will never finish", which is the only reading
@@ -295,13 +295,23 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"tableRows": @(controller.playlistTableView.numberOfRows),
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
-            @"engineNodes": engine[@"attachedNodes"],
-            // The bus's drain timer: on only while the engine runs voices, so
+            // Hosted units, the varispeed and the FX chain's: created once
+            // and kept, so a count that moves is a rebuild that leaked.
+            @"hostedUnits": engine[@"hostedUnits"],
+            // The bus's drain timer: on only while the output runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.
             @"drainPolling": engine[@"pollActive"],
             // IO cycles the hosted output unit wrote as silence because the
-            // engine could not render; cumulative, and a soak holds it at 0.
+            // pipeline failed to render; cumulative, and a soak holds it at 0.
             @"outputDropouts": engine[@"outputDropouts"],
+            // Renders the pipeline turned away because a stuck one was still
+            // inside when the next carrier's callback came; cumulative, 0.
+            @"renderRefusals": engine[@"renderRefusals"],
+            // The output unit's callback cost over the cycles it rendered:
+            // cumulative, so diff across a run, and mean against max.
+            @"renderCycles": engine[@"renderCycles"],
+            @"renderMeanMicros": engine[@"renderMeanMicros"],
+            @"renderMaxMicros": engine[@"renderMaxMicros"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },

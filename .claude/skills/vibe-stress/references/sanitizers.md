@@ -35,7 +35,7 @@ Build to a **separate** derived-data path so the plain Debug build stays usable,
 
 - **plain Debug**: fastest, most iterations; logic, assertions and hangs.
 - **`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES`**: ~3x slower; aim it at malformed files, where input reaches TagLib's C++.
-- **`-enableThreadSanitizer YES`**: a separate build, incompatible with ASan. Matters most: the threading contract — every engine mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is exactly what it validates, and a race there is invisible to every other oracle.
+- **`-enableThreadSanitizer YES`**: a separate build, incompatible with ASan. Matters most: the threading contract — every pipeline mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is exactly what it validates, and a race there is invisible to every other oracle.
 
 ## Cheap variants on the plain build
 

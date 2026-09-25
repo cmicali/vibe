@@ -699,9 +699,12 @@ targets:
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioVoiceBus.m
+      - path: Vibe/Audio/FX/AudioFX.m
+      - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Audio/Loading/AudioFileHandle.m
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
@@ -834,6 +837,7 @@ targets:
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Audio/Loading/AudioFileHandle.m
       - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Audio/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Loading/CloudTransferRegistry.m

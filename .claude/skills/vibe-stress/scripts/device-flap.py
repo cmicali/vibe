@@ -68,15 +68,19 @@ HEALTH_KEYS = (
     "process.fileDescriptors",
     "process.threads",
     "process.machPorts",
-    "app.engineNodes",
+    "app.hostedUnits",
     # Cumulative silence cycles from the hosted output unit: a zero baseline,
     # so any dropout across the soak is reported.
     "app.outputDropouts",
+    # Renders the pipeline refused because a stuck one was still inside when
+    # the next carrier's callback came: a rebind is exactly where two
+    # carriers meet, and a zero baseline makes any refusal a finding.
+    "app.renderRefusals",
     "ui.views",
     "ui.layers",
 )
 # A single sample over the limit means nothing: the opening decode peaks far
-# above resting and engine nodes swing widely as crossfade pairs drain. Baseline
+# above resting and retiring voices swing widely as crossfade pairs drain. Baseline
 # is the element-wise minimum of the first three samples, and a metric is only
 # reported after this many consecutive breaches.
 BASELINE_SAMPLES = 3

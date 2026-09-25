@@ -127,20 +127,38 @@ func referenceFitsFloat32(_ format: AudioStreamBasicDescription) -> Bool {
              && format.mFormatFlags == kAppleLosslessFormatFlag_32BitSourceData)
 }
 func readPCM(_ url: URL) -> (Double, [[Float]]) {
-    do {
-        let file = try AVAudioFile(forReading: url)
-        guard referenceFitsFloat32(file.fileFormat.streamDescription.pointee) else {
-            fail("reference precision exceeds float32; decoding would hide source bits: \(url.path)")
+    var file: ExtAudioFileRef?
+    guard ExtAudioFileOpenURL(url as CFURL, &file) == noErr, let file else { fail("could not open \(url.path)") }
+    defer { ExtAudioFileDispose(file) }
+    var fileFormat = AudioStreamBasicDescription()
+    var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+    guard ExtAudioFileGetProperty(file, kExtAudioFileProperty_FileDataFormat, &size, &fileFormat) == noErr else { fail("no file format: \(url.path)") }
+    guard referenceFitsFloat32(fileFormat) else {
+        fail("reference precision exceeds float32; decoding would hide source bits: \(url.path)")
+    }
+    let channels = Int(fileFormat.mChannelsPerFrame)
+    guard let layout = AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | UInt32(channels)) else { fail("channel count: \(url.path)") }
+    let client = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: fileFormat.mSampleRate, interleaved: false, channelLayout: layout)
+    var clientDescription = client.streamDescription.pointee
+    guard ExtAudioFileSetProperty(file, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &clientDescription) == noErr else { fail("no decoder for \(url.path)") }
+    var length: Int64 = 0
+    size = UInt32(MemoryLayout<Int64>.size)
+    guard ExtAudioFileGetProperty(file, kExtAudioFileProperty_FileLengthFrames, &size, &length) == noErr else { fail("no length: \(url.path)") }
+    let buffer = AVAudioPCMBuffer(pcmFormat: client, frameCapacity: 4096)!
+    var samples = [[Float]](repeating: [], count: channels)
+    var position: Int64 = 0
+    while position < length {
+        buffer.frameLength = 4096
+        var frames = UInt32(min(4096, length - position))
+        let list = buffer.mutableAudioBufferList
+        for b in 0..<Int(list.pointee.mNumberBuffers) {
+            UnsafeMutableAudioBufferListPointer(list)[b].mDataByteSize = frames * 4
         }
-        let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 4096)!
-        var samples = [[Float]](repeating: [], count: Int(file.processingFormat.channelCount))
-        while file.framePosition < file.length {
-            try file.read(into: buffer, frameCount: AVAudioFrameCount(min(4096, file.length-file.framePosition)))
-            guard buffer.frameLength > 0, let data = buffer.floatChannelData else { fail("premature EOF: \(url.path)") }
-            for c in samples.indices { samples[c].append(contentsOf: UnsafeBufferPointer(start: data[c], count: Int(buffer.frameLength))) }
-        }
-        return (file.processingFormat.sampleRate, samples)
-    } catch { fail("could not decode \(url.path): \(error)") }
+        guard ExtAudioFileRead(file, &frames, list) == noErr, frames > 0, let data = buffer.floatChannelData else { fail("premature EOF: \(url.path)") }
+        for c in samples.indices { samples[c].append(contentsOf: UnsafeBufferPointer(start: data[c], count: Int(frames))) }
+        position += Int64(frames)
+    }
+    return (fileFormat.mSampleRate, samples)
 }
 func savePCM(_ url: URL, rate: Double, samples: [[Float]]) {
     guard (1...64).contains(samples.count), let frames = samples.first?.count, frames > 0,
@@ -157,12 +175,20 @@ func savePCM(_ url: URL, rate: Double, samples: [[Float]]) {
     for c in samples.indices {
         samples[c].withUnsafeBufferPointer { buffer.floatChannelData![c].update(from: $0.baseAddress!, count: frames) }
     }
-    do {
-        var settings = format.settings
-        settings[AVLinearPCMIsNonInterleaved] = false
-        let file = try AVAudioFile(forWriting: url, settings: settings)
-        try file.write(from: buffer)
-    } catch { fail("cannot save capture: \(error)") }
+    // A float32 WAV, interleaved, carrying the discrete layout.
+    var fileDescription = AudioStreamBasicDescription(mSampleRate: rate, mFormatID: kAudioFormatLinearPCM,
+        mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked, mBytesPerPacket: UInt32(4 * samples.count),
+        mFramesPerPacket: 1, mBytesPerFrame: UInt32(4 * samples.count), mChannelsPerFrame: UInt32(samples.count), mBitsPerChannel: 32, mReserved: 0)
+    var file: ExtAudioFileRef?
+    guard ExtAudioFileCreateWithURL(url as CFURL, kAudioFileWAVEType, &fileDescription, layout.layout, AudioFileFlags.eraseFile.rawValue, &file) == noErr, let file else {
+        fail("cannot create saved capture: \(url.path)")
+    }
+    var clientDescription = format.streamDescription.pointee
+    guard ExtAudioFileSetProperty(file, kExtAudioFileProperty_ClientDataFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &clientDescription) == noErr,
+          ExtAudioFileWrite(file, buffer.frameLength, buffer.audioBufferList) == noErr,
+          ExtAudioFileDispose(file) == noErr else {
+        fail("cannot save capture: \(url.path)")
+    }
 }
 func report(_ result: [String: Any]) {
     let data = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
@@ -173,6 +199,12 @@ func debug(_ binary: String, _ arguments: [String], required: Bool = true) -> [S
     let task = Process(), pipe = Pipe()
     task.executableURL = URL(fileURLWithPath: binary)
     task.arguments = ["--debug-cmd"] + arguments
+    // The failure fixtures hold the app's main thread for as long as CoreAudio
+    // waits out a dead device — measured 14 s, 29 s for the hung open — and a
+    // command that lands inside that window is answered late, not never; the
+    // client's 5 s default read it as an absent app and failed a matrix that
+    // had passed every case.
+    task.environment = ProcessInfo.processInfo.environment.merging(["VIBE_DEBUG_TIMEOUT": "45"]) { $1 }
     task.standardOutput = pipe
     if !required { task.standardError = FileHandle.nullDevice }
     do { try task.run() } catch {

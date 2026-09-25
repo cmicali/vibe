@@ -112,6 +112,13 @@ follow they existed for; the graph runs at the bound device's rate in every mode
 and a rate another process moves under a prepared device reaches that device's
 own listener.
 
+Stage 3 (2026-09-24) removed the engine from macOS. `VibeMasterBusRender`
+(`Vibe/Audio/AudioPlayer+Graph.m`) renders the voice bus, a directly hosted
+varispeed, the FX chain and the meter straight into the unit's buffers; the bus
+runs at the output's format in every mode, so bit-perfect playback is the bus
+rendering into the HAL's buffers and nothing else, and a device that refuses a
+file's rate is served by the bus's own converter at the device's rate.
+
 ### Ownership failures
 
 HAL hog writes toggle ownership regardless of the PID value supplied. The helper

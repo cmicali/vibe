@@ -20,7 +20,7 @@
 // The loader pipelines the read against everything downstream, so the phases
 // can sum past total: each is that phase's own CPU, total is the wall.
 typedef struct {
-    uint64_t read;       // AVAudioFile readIntoBuffer — the decode itself
+    uint64_t read;       // AudioFileHandle readIntoBuffer — the decode itself
     uint64_t chunk;      // the shared mono downmix plus min/max chunk merging
     uint64_t bpmAppend;  // streaming samples into AudioBPMAnalyzer
     uint64_t bpmFinish;  // its end-of-file tempo estimation

@@ -35,7 +35,7 @@ Profiles (`--profile`): `base`, `loading`, `hammer`, `ui`, `cloud`, `theme`, `pl
 
 By default, validated batches travel through one `script -` invocation. `--no-batch` uses one client per operation when individual timing matters. Raw script commands from journals are refused; only the runner constructs the batch after validating every command and checking that arguments can be represented without changing token boundaries.
 
-**Torture.** One playlist, no settle anywhere, ops batched through `script -` so a burst is one client invocation (~15 real track changes/s). Phases per `--phases` (default `skip,seek,mixed,jump,blocked,boundary`; `references/profiles.md`). Between bursts: alive, `check_consistency`, fds / engine nodes / live heap / views against baseline; at the end a `quiesce` that requires every `pending` counter at zero.
+**Torture.** One playlist, no settle anywhere, ops batched through `script -` so a burst is one client invocation (~15 real track changes/s). Phases per `--phases` (default `skip,seek,mixed,jump,blocked,boundary`; `references/profiles.md`). Between bursts: alive, `check_consistency`, fds / hosted units / live heap / views against baseline; at the end a `quiesce` that requires every `pending` counter at zero.
 
 ```bash
 make torture PLAYLIST=~/Music/big                      # APP= defaults to the Debug build
@@ -80,7 +80,7 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
 
-**Bit-perfect and exclusive output.** `bitperfect-soak.py` is the only suite that exercises them. Per track, at settle pace, it asserts: status Active, the device running at **that file's** rate (read from `afinfo`, never from the app — asserting the app against itself proves nothing), the mixer and the hosted output unit at that rate, no varispeed in the chain, `outputDropouts` unchanged, `rateExact`/`formatConfirmed`/`channelsMatch`/`depthOK` all true, and the hog held on the chosen device. Then a mode toggle must return to Active and release the hog, and the device's nominal rate must be back where it started — read from the HAL, since the app's own report of what it restored is the thing under test.
+**Bit-perfect and exclusive output.** `bitperfect-soak.py` is the only suite that exercises them. Per track, at settle pace, it asserts: status Active, the device running at **that file's** rate (read from `afinfo`, never from the app — asserting the app against itself proves nothing), the bus and the hosted output unit at that rate, no varispeed in the chain, `outputDropouts` unchanged, `rateExact`/`formatConfirmed`/`channelsMatch`/`depthOK` all true, and the hog held on the chosen device. Then a mode toggle must return to Active and release the hog, and the device's nominal rate must be back where it started — read from the HAL, since the app's own report of what it restored is the thing under test.
 
 ```bash
 .claude/skills/vibe-stress/scripts/bitperfect-soak.py --corpus Assets/test_audio_files/rates \
@@ -93,7 +93,7 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **A rate the hardware lacks is not a failure.** The driver reads `kAudioDevicePropertyAvailableNominalSampleRates` and requires `rateUnsupported` for those tracks instead of Active. Measured: the FiiO USB DAC-E10 offers 32/44.1/48/96 kHz and no 88.2, so an 88.2 kHz file must report `rateUnsupported` on it and Active on an RME Fireface, which has it. Without that check a device limitation reads as a bug.
 
-**Sanitizer matrix.** Three builds catch disjoint classes; **TSan matters most** because the threading contract (engine mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
+**Sanitizer matrix.** Three builds catch disjoint classes; **TSan matters most** because the threading contract (pipeline mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
 
 ```bash
 # TSan: separate derived data so the plain Debug build stays usable
@@ -128,7 +128,7 @@ Checked between batches (`--batch`, default 25):
 | --- | --- | --- |
 | liveness | main-thread stalls | the channel is delivered on the **main queue**, so a timeout whose recovery probe is *also* slow is a stall. The app is sampled first, then re-probed; a stall it recovers from counts against `--max-stalls` (default 3). A timeout that probes clean was a slow verb — journaled `slow`, uncounted. `VERB_TIMEOUTS` keeps each client deadline above the verb's in-app wait, or work in progress reads as an unresponsive app |
 | `check_consistency` | inconsistent state | violations surviving a settle and a second sample. Its `cloud.*` checks skip that filter: their counters are cumulative for the fake's install, and neither a background download inside a foreground one nor a duplicate download is ever *transiently* true |
-| `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, engine nodes, `pending` counters, each against a post-warmup baseline; a tighter at-rest series every `--quiesce-every` batches |
+| `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, `pending` counters, each against a post-warmup baseline; a tighter at-rest series every `--quiesce-every` batches |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
 
 Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `client`. **`exit` is the app quitting on request, not dying** — gone *with* a fresh `.ips` is `crash`, gone *without* is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
@@ -137,7 +137,7 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 
 - **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+256 MB).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. It now counts only when `mallocLiveBytes` agrees. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
 - **`pending` counters must all be zero at rest** — a stranded claim or undelivered result is a few hundred bytes, invisible to any megabyte metric, yet work that will never finish. `quiesce` refuses to settle until they unwind and names the holdout.
-- Baseline is the element-wise **minimum of the first three samples**, and a metric fails only after **three consecutive** over-limit samples: the opening decode peaks far above resting; engine nodes are flat now that the voice bus is built once, and `retiredFades` counts voices still fading, which drain within the crossfade length.
+- Baseline is the element-wise **minimum of the first three samples**, and a metric fails only after **three consecutive** over-limit samples: the opening decode peaks far above resting; hosted units are flat, the varispeed and the FX units being hosted once, and `retiredFades` counts voices still fading, which drain within the crossfade length.
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` actually returned — mostly 0 after a heavy run.
 - `--ignore-metric NAME` stands down a finding that is *already diagnosed*, so it stops masking what op 5,000 would have found.
 

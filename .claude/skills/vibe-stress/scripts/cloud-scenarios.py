@@ -142,7 +142,7 @@ class Ctx:
         This has been in dump_cloud_health's reply since the coordinator landed
         and no scenario read it, which is most of why a wedged handle open could
         starve every background transfer with the whole suite green. The two
-        that matter here: handleOpensInFlight is an AVAudioFile call the OS
+        that matter here: handleOpensInFlight is a file open the OS
         still owes an answer for, and foregroundTransferActive is the gate — it
         is what tells "the foreground rule is holding metadata back" (correct)
         apart from "nothing can start at all" (the bug).
@@ -1022,7 +1022,7 @@ def s4b_replay_stays_out_of_error_while_its_transfer_is_live(ctx):
     the submission occurs in that same turn.
 
     The provider trace can prove the first transfer completed while main was
-    held, but not that the subsequent AVAudioFile failure had already been
+    held, but not that the subsequent open failure had already been
     dispatched. This scenario therefore owns only the observable live-app
     smoke: throughout the replay's exact provider span, stale UI error must
     never replace Loading; after that span, its own valid error must appear.
@@ -2024,7 +2024,7 @@ def s19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
 
     S18 wedges stage ONE — the download — so it never reaches a handle open.
     This wedges stage TWO: the transfer completes, and the uncancellable
-    AVAudioFile call it fed is what never comes back. That is the shape that
+    file open it fed is what never comes back. That is the shape that
     reproduced the original starvation, and the fake provider could not stage
     it until hang_open existed.
 

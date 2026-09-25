@@ -297,8 +297,7 @@
                           (@[@"c.mp3", @"a.mp3", @"b.mp3"]));
 }
 
-// A zero-length file has an extension but nothing to decode, and handing one to
-// AVAudioFile leaks a descriptor per attempt (NSURL+AudioOpen), so the funnel
+// A zero-length file has an extension but nothing to decode, so the funnel
 // drops it here rather than seating an unplayable row.
 - (void)testAnEmptyFileIsDropped {
     NSURL *empty = [_root URLByAppendingPathComponent:@"folder/empty.mp3" isDirectory:NO];

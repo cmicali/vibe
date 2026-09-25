@@ -65,11 +65,11 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 @implementation AudioWaveformCache {
     dispatch_queue_t                _loaderQueue;
     // Two lanes, because the two stages block on different things and must not
-    // be able to starve each other. stat and AVAudioFile open have no
+    // be able to starve each other. stat and AudioFileHandle open have no
     // cancellation point on a wedged mount, so fixed admission slots are the
     // resource bound in both; playback has its own scheduler again.
     AudioWorkScheduler              *_lookupScheduler;   // cache-key stat + cache lookup
-    AudioWorkScheduler              *_decodeScheduler;   // AVAudioFile open + decode
+    AudioWorkScheduler              *_decodeScheduler;   // AudioFileHandle open + decode
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
     // The file _currentLoader is decoding, so the progressive deliveries can
@@ -201,7 +201,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     // The cache key is a file stat, computed off the serial loader queue. A
     // hung network mount could block for minutes and wedge every later track's
     // waveform behind it, which is the same reasoning as the off-queue
-    // AVAudioFile open in load:. Out-of-order arrival is safe because each
+    // AudioFileHandle open in load:. Out-of-order arrival is safe because each
     // standardized path keeps its claim until the worker settles, while the
     // loader's detached/current state fences UI delivery.
     claim.workToken = [_lookupScheduler submitWork:^{
@@ -426,7 +426,7 @@ awaitPersist:(BOOL)awaitPersist
         }
         return;
     }
-    // Decode off this serial queue. AVAudioFile's open and the cache-key stat
+    // Decode off this serial queue. AudioFileHandle's open and the cache-key stat
     // have no cancellation point on a wedged mount, so both use the work
     // scheduler's fixed slots. A blocked file keeps its slot and its same-path
     // loader claim; detached-loader reattachment above therefore never

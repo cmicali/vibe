@@ -4,19 +4,20 @@ Every `debug-ios.sh` verb with its reply schema, the `drive-ios.sh` gesture verb
 
 ## The channel
 
-Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**: the simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply, and the app's tmp watcher answers. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Replies to action verbs are read synchronously and can lag engine work — follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugCommands.m` over `Vibe/Debug/DebugChannel.m`; the cross-platform verbs live once in `Vibe/Debug/DebugCommonVerbs.m`.
+Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**: the simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply, and the app's tmp watcher answers. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Replies to action verbs are read synchronously and can lag pipeline work — follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugCommands.m` over `Vibe/Debug/DebugChannel.m`; the cross-platform verbs live once in `Vibe/Debug/DebugCommonVerbs.m`.
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_state          # {player, currentTrack, playlist, ui, settings} — ui includes waveformProgress, waveformOverscroll (points past an end: + past the start, - past the end; the only way to assert the scrubber's rubber band), waveformScrollGeom ([offset, min, max, contentWidth] — tells "resting at an end" from "pinned and refusing to give"), waveformBaked, isScrubbing, parked, foreground, routePickerUp, and the shell: playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty
 "$S" dump_equalizer      # references/equalizer-counters.md; set_equalizer_mode likewise
+"$S" dump_audio_path     # a common verb: the render chain stage by stage, as on the mac minus the device stage (references/mac-verbs.md)
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork} — the mac verb minus playbackState
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]} — UILabel text and button labels included
 "$S" dump_art            # {currentIndex, window, held, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp}]} — the pager's art window. The ONLY way to tell "not decoded yet" from "no art": both draw the vinyl placeholder. held past the budget, or a page landing with art:false, is the prefetch failing to keep up
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale} — in-process render into the container; the HOST reads the path directly, no TCC. UIVisualEffectView blurs only approximate; `simctl io screenshot` is the ground truth
 "$S" play_pause          # compact {ok, state, index, count, position, parked}; also next, previous
 "$S" seek 90             # seconds, through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real release
-"$S" set_pause_at_track_end on  # a common verb: {ok, pauseAtTrackEnd} — writes Settings > Playback > On track end and applies it at once (re-parks or drops the prefetched successor). Read back in dump_state.settings, beside crossfadeMilliseconds (the stored choice; player.crossfadeMilliseconds is what the engine holds)
+"$S" set_pause_at_track_end on  # a common verb: {ok, pauseAtTrackEnd} — writes Settings > Playback > On track end and applies it at once (re-parks or drops the prefetched successor). Read back in dump_state.settings, beside crossfadeMilliseconds (the stored choice; player.crossfadeMilliseconds is what the player holds)
 "$S" open <path>         # a file INSIDE the container (seed via launch-ios.sh); the FolderSession open-in-place path. Replaces the playlist, plays, AND expands the card
 "$S" append <path>       # a common verb: the same file or directory ADDED to the end of the playlist instead of replacing it, through FolderSession.addURLs:. Nothing plays, the tab and the card stay put, and files already in the playlist are skipped. An Add onto an empty playlist is promoted to an open
 # TRAP: BOTH of these take a path INSIDE the container, which is not security-scoped — the scope round trip goes unexercised — and the data container's UUID ROTATES on every install, so a path cached from an earlier run fails their existence check. Re-resolve it (simctl get_app_container … data) before each call

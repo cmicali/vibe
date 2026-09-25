@@ -9,7 +9,7 @@
 //  AudioPlayer.h.
 //
 //  Ownership, in one place. The PLAYER QUEUE runs every transport verb and
-//  every graph mutation. _stateLock guards only the snapshot the main-thread
+//  every output mutation. _stateLock guards only the snapshot the main-thread
 //  getters read — the published tuple that publishState:… writes whole. The
 //  audio itself is the bus's (AudioVoiceBus.h): the transport starts voices,
 //  ramps them, retires them, and drains the three events it needs back.
@@ -19,6 +19,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelTap.h"
@@ -71,7 +72,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // ---- The published tuple, under _stateLock, written whole by publishState:….
     VibePlayerState         _state;
     VibeVoiceID             _voice;             // the current voice, 0 while none
-    AVAudioFile             *_file;             // its file; after a promote, the successor
+    AudioFileHandle             *_file;             // its file; after a promote, the successor
     double                  _fileSampleRate;    // scalars, so a getter never messages an object
     AVAudioFramePosition    _fileLength;
     double                  _busSampleRate;
@@ -100,6 +101,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     NSMutableArray<NSNumber *> *_retiringVoices;
     // The current voice's decode format, for the report and dump_state.
     AVAudioFormat           *_decodeFormat;
+    // Files a retired bus's decoder may still be inside — a rebuild leaves
+    // that decoder to finish its read on its own — counted per retired bus;
+    // the current bus withholds reads of them until the count reaches zero.
+    NSCountedSet<AudioFileHandle *> *_retiredDecoderFiles;
 
     // ---- The pending open: its token, and the abandon deadline in monotonic
     // uptime. A new underlying open snapshots its configuration; a same-row
@@ -112,7 +117,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
     // ---- The park and the successor (AudioPlayer+Prefetch.m).
     NSString                *_prefetchedPath;
-    AVAudioFile             *_prefetchedFile;
+    AudioFileHandle             *_prefetchedFile;
     AudioTrack              *_prefetchedTrack;
     uint64_t                _prefetchGeneration;
     AudioTrack              *_requestedPrefetchTrack;
@@ -120,16 +125,28 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     VibeAudioPrefetchRequestState _prefetchRequestState;
     AudioFileOpenToken      *_prefetchOpenToken;
     AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
-    AVAudioFile             *_successorFile;    // the park's instance the bus was handed
+    AudioFileHandle             *_successorFile;    // the park's instance the bus was handed
 
-    // ---- The engine graph (AudioPlayer+Graph.m).
-    AVAudioEngine           *_engine;
+    // ---- The render pipeline (AudioPlayer+Graph.m).
+    VibeMasterBus           *_masterBus;        // what the audio thread reads; allocated in init, freed at dealloc
+    AVAudioFormat           *_masterFormat;     // the pipeline's format: stereo at the output's rate
     AudioVoiceBus           *_voiceBus;         // the source segment; nil until the first settlement
-    AVAudioUnitVarispeed    *_varispeed;        // one, for the bus; none under bit-perfect output
     BOOL                    _fxEnabled;         // the saved preference; bit-perfect outranks it
-    uint64_t                _engineIdleStopGeneration;
-    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the engine runs voices
+    uint64_t                _outputIdleStopGeneration;
+    dispatch_source_t       _drainTimer;        // hardware only: 10 ms while the output runs voices
     id                      _manualPump;        // VibeManualRenderPump, debug builds only
+    // Teardowns of what a render was still inside when their wait ran out —
+    // a tap, a bus, a varispeed or FX hosting — run at the first later moment
+    // the render is seen outside (afterRenderLeavesOnQueue:). The render the
+    // last wait found stuck is bounded once: later withdrawals park behind
+    // it without a spin of their own until a slice has finished since.
+    NSMutableArray<dispatch_block_t> *_renderLeaveWork;
+    BOOL                    _renderStuck;
+    uint64_t                _renderStuckFrames;
+#if !TARGET_OS_OSX
+    AVAudioEngine           *_engine;           // the carrier: one source node into its output node
+    AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves
+#endif
     // The equalizer's tap: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
     BOOL                    _levelsWanted;
@@ -146,10 +163,14 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 #if TARGET_OS_OSX
     // ---- The output device. The hosted HAL output unit that pulls the
-    // engine is AudioPlayer+Graph.m's: its bound device is the output, and it
-    // is nil under the debug pump, whose offline engine has no device.
+    // pipeline is AudioPlayer+Graph.m's: its bound device is the output, and
+    // it is nil under the debug pump, which has no device.
     // AudioPlayer+Devices.m owns every field below it.
     AudioOutputUnit         *_outputUnit;
+    // The bound device's nominal rate, watched in every mode: another process
+    // moving it rebinds the unit at the new rate. Delivered on the queue.
+    AudioObjectPropertyListenerBlock _boundRateListener;
+    AudioDeviceID           _boundRateDeviceID;
     // The launch preference awaiting a successful HAL snapshot and bind.
     // Queue-confined. Until binding succeeds the engine honestly follows
     // System Output (-1).
@@ -257,7 +278,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 // The terminus every file open lands in, whether the play opened it or the
 // prefetch did.
-- (void)finishPlayOnQueueWithFile:(nullable AVAudioFile *)file
+- (void)finishPlayOnQueueWithFile:(nullable AudioFileHandle *)file
                             error:(nullable NSError *)error
                      openRequestId:(uint64_t)openId;
 // Drops the pending open, token and identifier both.
@@ -275,7 +296,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // the declick; a retire at the declick length stops the voice's reads, so
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
-- (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds;
 - (void)cutRetiringVoicesToDeclickOnQueue;
@@ -288,7 +309,7 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 // moves the position must come through here.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
-                file:(nullable AVAudioFile *)file
+                file:(nullable AudioFileHandle *)file
         startSeconds:(NSTimeInterval)startSeconds
           baseFrames:(uint64_t)baseFrames;
 - (VibeVoiceID)unpublishVoiceOnQueue;

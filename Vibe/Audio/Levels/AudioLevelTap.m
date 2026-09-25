@@ -9,130 +9,206 @@
 #import "AudioLevelPublisherInternal.h"
 
 #include <stdatomic.h>
+#include <unistd.h>
 
 _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots require lock-free 64-bit atomics");
 
-// The installed block owns this object, and the object owns every raw pointer
-// it uses. That ownership is the reset guarantee: abandon may drop AudioPlayer's
-// reference without freeing state underneath a late defunct-engine callback.
-@interface AudioLevelTapSession : NSObject {
-@public
-    VibeAudioLevelAnalyzer *_analyzer;
-    AudioLevelPublisher *_publisher;
-    VibeLevelPublisherState *_publisherState;
-    uint64_t _session;
-    // The happens-before edge between this queue's setup writes — the analyzer
-    // allocation, every session field, and the block copy installTapOnBus:
-    // performs — and the tap thread's reads of the same memory. AVFAudio hands
-    // the block to its tap thread through machinery that publishes no ordering
-    // a checker can see (TSan reported the whole family as races), so the
-    // callback acquire-loads this and stays out of the session until the
-    // installer's release-store after installTapOnBus: returns. The armed=1
-    // store is the LAST setup write, which is what makes the acquire cover all
-    // of the earlier ones.
-    _Atomic uint32_t _armed;
-#if VIBE_VERBOSE_LOGGING
-    _Atomic uint64_t _signalRequest, _signalVersion, _signalResultRequest;
-    _Atomic uint64_t _signalFramesResult, _signalHostResult, _signalOffsetResult, _signalNonfiniteResult, _signalLeadingFramesResult;
-    _Atomic int64_t _signalSampleResult;
-    _Atomic double _signalPeakResult, _signalRMSResult, _signalRateResult;
-    _Atomic double _signalHostOrigin, _signalSampleOrigin, _signalHostCutoff, _signalSampleCutoff;
-    _Atomic double _signalObservationStartResult, _signalFirstAfterStartResult;
-    uint64_t _signalObservedRequest, _signalFrames, _signalSamples, _signalNonfinite;
-    uint64_t _signalFirstHost, _signalFirstOffset, _signalLeadingFrames;
-    int64_t _signalFirstSample;
-    double _signalPeak, _signalSum, _signalRate;
-    double _signalObservationStart, _signalFirstAfterStart, _hostSecondsPerTick;
-    BOOL _signalFound;
-#endif
-}
-@end
+// The analyzer keeps at most the stereo pair.
+enum { kMeterChannels = 2 };
 
-@implementation AudioLevelTapSession
-- (void)dealloc {
-    VibeAudioLevelAnalyzerDestroy(_analyzer);
-}
+struct VibeLevelMeter {
+    VibeAudioLevelAnalyzer *analyzer;
+    VibeLevelPublisherState *publisherState;
+    // The publisher session the install began: the render's one identity for
+    // a callback, read once at its entry — the session it restarts on when
+    // it differs from the last one seen, and the session it publishes into.
+    // TRAP: read again at publication, it labelled a callback that began
+    // before a remove-and-reinstall with the new session, and the bars opened
+    // on the previous session's audio.
+    _Atomic uint64_t session;
+    uint64_t renderSession;              // the session the render last saw; 0 before its first callback
+#if DEBUG
+    _Atomic int32_t holdRender;          // a test's stalled callback: the render blocks after its entry read while set
+    _Atomic int32_t rendersHeld;
+#endif
+    // The publication cadence: a tap buffer's worth of frames at the tap's
+    // rate, the analyzer's windows summarized once it is reached.
+    uint32_t target;
+    uint32_t fill;
+    double sampleRate;
 #if VIBE_VERBOSE_LOGGING
-// Only the tap thread writes accumulators. Atomic result words plus the version
-// let the queue read without allocating, locking or logging on this thread.
-- (void)captureSignal:(AVAudioPCMBuffer *)buffer when:(AVAudioTime *)when {
-    uint64_t request = atomic_load(&_signalRequest);
-    if (!request || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC
-            || (_signalObservedRequest == request && _signalFound)) return;
-    double rate = buffer.format.sampleRate;
-    // A delivered buffer can still contain the previous track's audio.
-    double origin = atomic_load(&_signalHostOrigin), cutoff = atomic_load(&_signalHostCutoff);
-    double bufferTime = when.hostTimeValid ? when.hostTime * _hostSecondsPerTick : NAN;
+    _Atomic uint64_t signalRequest, signalVersion, signalResultRequest;
+    _Atomic uint64_t signalFramesResult, signalHostResult, signalOffsetResult, signalNonfiniteResult, signalLeadingFramesResult;
+    _Atomic int64_t signalSampleResult;
+    _Atomic double signalPeakResult, signalRMSResult, signalRateResult;
+    _Atomic double signalHostOrigin, signalSampleOrigin, signalHostCutoff, signalSampleCutoff;
+    _Atomic double signalObservationStartResult, signalFirstAfterStartResult;
+    uint64_t signalObservedRequest, signalFrames, signalSamples, signalNonfinite;
+    uint64_t signalFirstHost, signalFirstOffset, signalLeadingFrames;
+    int64_t signalFirstSample;
+    double signalPeak, signalSum, signalRate;
+    double signalObservationStart, signalFirstAfterStart, hostSecondsPerTick;
+    BOOL signalFound;
+#endif
+};
+
+#pragma mark - The audio thread
+
+// The calls the compiler cannot check: the probe's clock read and, in debug
+// builds, the sleep of a test's callback held inside the render.
+VIBE_REALTIME_UNCHECKED_BEGIN
+#if VIBE_VERBOSE_LOGGING
+static inline uint64_t VibeLevelMeterNow(void) CA_REALTIME_API {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+#endif
+#if DEBUG
+static inline void VibeLevelMeterHoldWait(void) CA_REALTIME_API {
+    usleep(200);
+}
+#endif
+VIBE_REALTIME_END
+
+VIBE_REALTIME_CHECKED_BEGIN
+#if VIBE_VERBOSE_LOGGING
+// Only the audio thread writes the accumulators. Atomic result words plus the
+// version let the queue read without allocating, locking or logging here.
+static void VibeLevelMeterCapture(VibeLevelMeter *meter, float *const *channels, UInt32 channelCount, UInt32 frames,
+                                  double rate, const AudioTimeStamp *when) CA_REALTIME_API {
+    uint64_t request = atomic_load(&meter->signalRequest);
+    if (!request || VibeLevelMeterNow() - request >= 3 * NSEC_PER_SEC
+            || (meter->signalObservedRequest == request && meter->signalFound)) return;
+    BOOL hostValid = (when->mFlags & kAudioTimeStampHostTimeValid) != 0;
+    BOOL sampleValid = (when->mFlags & kAudioTimeStampSampleTimeValid) != 0;
+    // A block can still carry the previous track's audio: everything before
+    // the cutoff is excluded.
+    double origin = atomic_load(&meter->signalHostOrigin), cutoff = atomic_load(&meter->signalHostCutoff);
+    double bufferTime = hostValid ? when->mHostTime * meter->hostSecondsPerTick : NAN;
     // On the sample clock the origin is a whole frame, so offsets from it are
     // computed in frames: two times converted to seconds and subtracted can
     // land a hair under a boundary they meet exactly.
     int64_t originFrame = -1;
     if (!isfinite(origin) || !isfinite(bufferTime)) {
-        origin = atomic_load(&_signalSampleOrigin);
-        cutoff = atomic_load(&_signalSampleCutoff);
-        bufferTime = when.sampleTimeValid && when.sampleRate > 0 ? when.sampleTime / when.sampleRate : NAN;
-        if (isfinite(origin) && when.sampleRate == rate) originFrame = llround(origin * rate);
+        origin = atomic_load(&meter->signalSampleOrigin);
+        cutoff = atomic_load(&meter->signalSampleCutoff);
+        bufferTime = sampleValid && rate > 0 ? when->mSampleTime / rate : NAN;
+        if (isfinite(origin)) originFrame = llround(origin * rate);
     }
-    if (request != atomic_load(&_signalRequest) || !isfinite(origin) || !isfinite(bufferTime)
-            || !isfinite(cutoff) || bufferTime + buffer.frameLength / rate <= cutoff) return;
-    AVAudioFrameCount skip = (AVAudioFrameCount)MIN(buffer.frameLength, MAX(0, ceil((cutoff - bufferTime) * rate - 1e-6)));
-    if (_signalObservedRequest != request || _signalRate != rate) {
-        _signalRate = rate;
-        _signalObservedRequest = request;
-        _signalFrames = _signalSamples = _signalNonfinite = 0;
-        _signalPeak = _signalSum = 0;
-        _signalFirstSample = -1;
-        _signalFirstHost = _signalFirstOffset = 0;
-        _signalFound = NO;
-        _signalObservationStart = MAX(0, originFrame >= 0 ? (double)(when.sampleTime + skip - originFrame) / rate
-                                                          : bufferTime + skip / rate - origin);
-        _signalFirstAfterStart = -1;
+    if (request != atomic_load(&meter->signalRequest) || !isfinite(origin) || !isfinite(bufferTime)
+            || !isfinite(cutoff) || bufferTime + frames / rate <= cutoff) return;
+    UInt32 skip = (UInt32)MIN((double)frames, MAX(0, ceil((cutoff - bufferTime) * rate - 1e-6)));
+    if (meter->signalObservedRequest != request || meter->signalRate != rate) {
+        meter->signalRate = rate;
+        meter->signalObservedRequest = request;
+        meter->signalFrames = meter->signalSamples = meter->signalNonfinite = 0;
+        meter->signalPeak = meter->signalSum = 0;
+        meter->signalFirstSample = -1;
+        meter->signalFirstHost = meter->signalFirstOffset = 0;
+        meter->signalFound = NO;
+        meter->signalObservationStart = MAX(0, originFrame >= 0 ? (double)((int64_t)when->mSampleTime + skip - originFrame) / rate
+                                                                : bufferTime + skip / rate - origin);
+        meter->signalFirstAfterStart = -1;
     }
     uint64_t limit = (uint64_t)(rate * 3);
-    if (_signalFrames >= limit) return;
-    AVAudioFrameCount frames = (AVAudioFrameCount)MIN(buffer.frameLength - skip, limit - _signalFrames);
-    AVAudioChannelCount channels = buffer.format.channelCount;
-    float *const *samples = buffer.floatChannelData;
-    for (AVAudioFrameCount f = skip; f < skip + frames; f++) {
-        for (AVAudioChannelCount c = 0; c < channels; c++) {
-            double value = samples[c][f];
-            if (!isfinite(value)) { _signalNonfinite++; continue; }
-            _signalSamples++;
-            _signalSum += value * value;
-            _signalPeak = MAX(_signalPeak, fabs(value));
-            if (!_signalFound && fabs(value) >= 0.001) {
-                _signalFound = YES;
-                _signalLeadingFrames = _signalFrames + f - skip;
-                _signalFirstAfterStart = MAX(0, originFrame >= 0 ? (double)(when.sampleTime + f - originFrame) / rate
-                                                                 : bufferTime + f / rate - origin);
-                _signalFirstHost = when.hostTimeValid ? when.hostTime : 0;
-                _signalFirstOffset = f;
-                _signalFirstSample = when.sampleTimeValid ? when.sampleTime + f : -1;
+    if (meter->signalFrames >= limit) return;
+    UInt32 count = (UInt32)MIN((uint64_t)(frames - skip), limit - meter->signalFrames);
+    for (UInt32 f = skip; f < skip + count; f++) {
+        for (UInt32 c = 0; c < channelCount; c++) {
+            double value = channels[c][f];
+            if (!isfinite(value)) { meter->signalNonfinite++; continue; }
+            meter->signalSamples++;
+            meter->signalSum += value * value;
+            meter->signalPeak = MAX(meter->signalPeak, fabs(value));
+            if (!meter->signalFound && fabs(value) >= 0.001) {
+                meter->signalFound = YES;
+                meter->signalLeadingFrames = meter->signalFrames + f - skip;
+                meter->signalFirstAfterStart = MAX(0, originFrame >= 0 ? (double)((int64_t)when->mSampleTime + f - originFrame) / rate
+                                                                       : bufferTime + f / rate - origin);
+                meter->signalFirstHost = hostValid ? when->mHostTime : 0;
+                meter->signalFirstOffset = f;
+                meter->signalFirstSample = sampleValid ? (int64_t)when->mSampleTime + f : -1;
             }
         }
     }
-    _signalFrames += frames;
-    atomic_fetch_add(&_signalVersion, 1);
-    atomic_store(&_signalResultRequest, request);
-    atomic_store(&_signalFramesResult, _signalFrames);
-    atomic_store(&_signalHostResult, _signalFirstHost);
-    atomic_store(&_signalOffsetResult, _signalFirstOffset);
-    atomic_store(&_signalSampleResult, _signalFirstSample);
-    atomic_store(&_signalNonfiniteResult, _signalNonfinite);
-    atomic_store(&_signalLeadingFramesResult, _signalFound ? _signalLeadingFrames : _signalFrames);
-    atomic_store(&_signalPeakResult, _signalPeak);
-    atomic_store(&_signalRMSResult, _signalSamples ? sqrt(_signalSum / _signalSamples) : 0);
-    atomic_store(&_signalRateResult, rate);
-    atomic_store(&_signalObservationStartResult, _signalObservationStart);
-    atomic_store(&_signalFirstAfterStartResult, _signalFirstAfterStart);
-    atomic_fetch_add(&_signalVersion, 1);
+    meter->signalFrames += count;
+    atomic_fetch_add(&meter->signalVersion, 1);
+    atomic_store(&meter->signalResultRequest, request);
+    atomic_store(&meter->signalFramesResult, meter->signalFrames);
+    atomic_store(&meter->signalHostResult, meter->signalFirstHost);
+    atomic_store(&meter->signalOffsetResult, meter->signalFirstOffset);
+    atomic_store(&meter->signalSampleResult, meter->signalFirstSample);
+    atomic_store(&meter->signalNonfiniteResult, meter->signalNonfinite);
+    atomic_store(&meter->signalLeadingFramesResult, meter->signalFound ? meter->signalLeadingFrames : meter->signalFrames);
+    atomic_store(&meter->signalPeakResult, meter->signalPeak);
+    atomic_store(&meter->signalRMSResult, meter->signalSamples ? sqrt(meter->signalSum / meter->signalSamples) : 0);
+    atomic_store(&meter->signalRateResult, rate);
+    atomic_store(&meter->signalObservationStartResult, meter->signalObservationStart);
+    atomic_store(&meter->signalFirstAfterStartResult, meter->signalFirstAfterStart);
+    atomic_fetch_add(&meter->signalVersion, 1);
 }
 #endif
-@end
+
+void VibeLevelMeterRender(VibeLevelMeter *meter, float * _Nonnull const * _Nonnull channels, UInt32 channelCount, UInt32 frames,
+                          const AudioTimeStamp *timestamp) CA_REALTIME_API {
+    if (!meter || channelCount == 0 || frames == 0 || !channels[0]) {
+        return;
+    }
+    // A fresh install restarts the cadence and the analyzer, so no earlier
+    // audio is published. TRAP: restarting the meter's own count alone left
+    // the analyzer's partial window and references in place — the tap is
+    // kept across demand changes — and the first publication of a new
+    // session carried the previous track's samples into the bars.
+    uint64_t session = atomic_load_explicit(&meter->session, memory_order_acquire);
+    if (session != meter->renderSession) {
+        meter->renderSession = session;
+        meter->fill = 0;
+        VibeAudioLevelAnalyzerReset(meter->analyzer);
+    }
+#if DEBUG
+    if (atomic_load_explicit(&meter->holdRender, memory_order_relaxed)) {
+        atomic_fetch_add_explicit(&meter->rendersHeld, 1, memory_order_seq_cst);
+        while (atomic_load_explicit(&meter->holdRender, memory_order_relaxed)) {
+            VibeLevelMeterHoldWait();
+        }
+        atomic_fetch_sub_explicit(&meter->rendersHeld, 1, memory_order_seq_cst);
+    }
+#endif
+#if VIBE_VERBOSE_LOGGING
+    if (timestamp) {
+        VibeLevelMeterCapture(meter, channels, channelCount, frames, meter->sampleRate, timestamp);
+    }
+#endif
+    // Each window is analyzed in the callback that fills it; every tap
+    // buffer's worth, the windows so far are summarized and published once.
+    UInt32 analyzed = channelCount < kMeterChannels ? channelCount : kMeterChannels;
+    UInt32 consumed = 0;
+    while (consumed < frames) {
+        uint32_t room = meter->target - meter->fill;
+        uint32_t take = frames - consumed < room ? frames - consumed : room;
+        float *slice[kMeterChannels] = { channels[0] + consumed, channels[analyzed - 1] + consumed };
+        VibeAudioLevelAnalyzerConsume(meter->analyzer, slice, analyzed, take);
+        meter->fill += take;
+        consumed += take;
+        if (meter->fill < meter->target) {
+            continue;
+        }
+        VibeLevelPublisherRecordCallback(meter->publisherState, meter->fill, meter->sampleRate);
+        float levels[kLevelBandCount];
+        NSUInteger windows = VibeAudioLevelAnalyzerSummarize(meter->analyzer, levels);
+        VibeLevelPublisherRecordAnalyzedWindows(meter->publisherState, windows);
+        if (windows > 0) {
+            VibeLevelPublisherPublish(meter->publisherState, session, levels);
+        }
+        meter->fill = 0;
+    }
+}
+VIBE_REALTIME_END
+
+#pragma mark - The tap
 
 @implementation AudioLevelTap {
-    AudioLevelTapSession *_tapSession;
-    AVAudioNode *_node;
+    VibeLevelMeter *_meter;
+    AudioLevelPublisher *_publisher;
     BOOL _installed;
 #if VIBE_VERBOSE_LOGGING
     void (^_signalCompletion)(NSDictionary<NSString *, id> *);
@@ -142,121 +218,106 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 #endif
 }
 
-- (instancetype)initWithNode:(AVAudioNode *)node
+- (instancetype)initWithFormat:(AVAudioFormat *)format
                      publisher:(AudioLevelPublisher *)publisher
              normalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode {
     self = [super init];
     if (!self) {
         return nil;
     }
-    AVAudioFormat *format = [node outputFormatForBus:0];
     if (!publisher || format.sampleRate <= 0 || format.channelCount == 0) {
-        LogWarn(@"AudioLevelTap: bus 0 has no usable format, no levels");
+        LogWarn(@"AudioLevelTap: no usable format, no levels");
         return nil;
     }
-
-    AudioLevelTapSession *tapSession = [[AudioLevelTapSession alloc] init];
-    if (!tapSession) {
-        LogError(@"AudioLevelTap: session allocation failed, no levels");
+    VibeLevelMeter *meter = calloc(1, sizeof(VibeLevelMeter));
+    if (!meter) {
+        LogError(@"AudioLevelTap: meter allocation failed, no levels");
         return nil;
     }
-    tapSession->_analyzer = VibeAudioLevelAnalyzerCreate(format.sampleRate,
-                                                         normalizationMode);
-    if (!tapSession->_analyzer) {
+    _meter = meter;
+    meter->sampleRate = format.sampleRate;
+    meter->target = VibeLevelTapBufferFrameCount(format.sampleRate);
+    meter->analyzer = VibeAudioLevelAnalyzerCreate(format.sampleRate, normalizationMode);
+    if (!meter->analyzer) {
         LogError(@"AudioLevelTap: analyzer allocation failed, no levels");
         return nil;
     }
 #if VIBE_VERBOSE_LOGGING
-    atomic_init(&tapSession->_signalRequest, 0);
-    atomic_init(&tapSession->_signalVersion, 0);
-    atomic_init(&tapSession->_signalResultRequest, 0);
-    atomic_init(&tapSession->_signalFramesResult, 0);
-    atomic_init(&tapSession->_signalHostResult, 0);
-    atomic_init(&tapSession->_signalOffsetResult, 0);
-    atomic_init(&tapSession->_signalSampleResult, -1);
-    atomic_init(&tapSession->_signalNonfiniteResult, 0);
-    atomic_init(&tapSession->_signalLeadingFramesResult, 0);
-    atomic_init(&tapSession->_signalPeakResult, 0);
-    atomic_init(&tapSession->_signalRMSResult, 0);
-    atomic_init(&tapSession->_signalRateResult, 0);
-    atomic_init(&tapSession->_signalHostOrigin, NAN);
-    atomic_init(&tapSession->_signalSampleOrigin, NAN);
-    atomic_init(&tapSession->_signalHostCutoff, INFINITY);
-    atomic_init(&tapSession->_signalSampleCutoff, INFINITY);
-    atomic_init(&tapSession->_signalObservationStartResult, 0);
-    atomic_init(&tapSession->_signalFirstAfterStartResult, -1);
-    tapSession->_hostSecondsPerTick = [AVAudioTime secondsForHostTime:NSEC_PER_SEC] / NSEC_PER_SEC;
+    atomic_init(&meter->signalRequest, 0);
+    atomic_init(&meter->signalVersion, 0);
+    atomic_init(&meter->signalResultRequest, 0);
+    atomic_init(&meter->signalFramesResult, 0);
+    atomic_init(&meter->signalHostResult, 0);
+    atomic_init(&meter->signalOffsetResult, 0);
+    atomic_init(&meter->signalSampleResult, -1);
+    atomic_init(&meter->signalNonfiniteResult, 0);
+    atomic_init(&meter->signalLeadingFramesResult, 0);
+    atomic_init(&meter->signalPeakResult, 0);
+    atomic_init(&meter->signalRMSResult, 0);
+    atomic_init(&meter->signalRateResult, 0);
+    atomic_init(&meter->signalHostOrigin, NAN);
+    atomic_init(&meter->signalSampleOrigin, NAN);
+    atomic_init(&meter->signalHostCutoff, INFINITY);
+    atomic_init(&meter->signalSampleCutoff, INFINITY);
+    atomic_init(&meter->signalObservationStartResult, 0);
+    atomic_init(&meter->signalFirstAfterStartResult, -1);
+    meter->hostSecondsPerTick = [AVAudioTime secondsForHostTime:NSEC_PER_SEC] / NSEC_PER_SEC;
 #endif
-    tapSession->_publisher = publisher;
-    tapSession->_publisherState = [publisher publisherState];
-    tapSession->_session = [publisher beginSession];
-
-    @try {
-        [node installTapOnBus:0
-                   bufferSize:(AVAudioFrameCount)VibeLevelTapBufferFrameCount(format.sampleRate)
-                       format:nil
-                        block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
-            // Before anything in the session: see _armed. A callback delivered
-            // before the installer's release-store simply drops its buffer —
-            // at ~24 decisions a second that is at most a few silent
-            // milliseconds, against reading the analyzer mid-construction.
-            if (atomic_load_explicit(&tapSession->_armed, memory_order_acquire) == 0) {
-                return;
-            }
-#if DEBUG
-            VibeLevelPublisherRecordCallback(tapSession->_publisherState,
-                                              buffer.frameLength,
-                                              buffer.format.sampleRate);
-#endif
-            // Mixer/output taps normally deliver non-interleaved float32. Fail
-            // closed if a graph ever violates that shape, and rebind the pure
-            // analyzer from the format actually delivered rather than the
-            // pre-install query used for its initial configuration and the
-            // requested callback size.
-            if (buffer.format.interleaved || !buffer.floatChannelData
-                    || !VibeAudioLevelAnalyzerSetSampleRate(
-                            tapSession->_analyzer, buffer.format.sampleRate)) {
-                return;
-            }
-#if VIBE_VERBOSE_LOGGING
-            [tapSession captureSignal:buffer when:when];
-#endif
-            float callbackLevels[kLevelBandCount];
-            NSUInteger windows = VibeAudioLevelAnalyzerConsume(
-                    tapSession->_analyzer,
-                    buffer.floatChannelData,
-                    buffer.format.channelCount,
-                    buffer.frameLength,
-                    callbackLevels);
-#if DEBUG
-            VibeLevelPublisherRecordAnalyzedWindows(tapSession->_publisherState,
-                                                     windows);
-#endif
-            if (windows > 0) {
-                VibeLevelPublisherPublish(tapSession->_publisherState,
-                                          tapSession->_session,
-                                          callbackLevels);
-            }
-        }];
-    }
-    @catch (NSException *exception) {
-        [publisher endSession:tapSession->_session];
-        LogWarn(@"AudioLevelTap: install failed (%@)", exception.reason);
-        return nil;
-    }
-
-    // Publishes every setup write above to the tap thread; see _armed.
-    atomic_store_explicit(&tapSession->_armed, 1, memory_order_release);
-
-    _tapSession = tapSession;
-    _node = node;
-    _installed = YES;
-    LogDebug(@"AudioLevelTap: installed at %.0f Hz, %lu-frame FFT, %u-frame request",
-             format.sampleRate,
-             (unsigned long)VibeAudioLevelAnalyzerFFTSize(tapSession->_analyzer),
-             VibeLevelTapBufferFrameCount(format.sampleRate));
+    _publisher = publisher;
+    meter->publisherState = [publisher publisherState];
+    LogDebug(@"AudioLevelTap: meter at %.0f Hz, %lu-frame FFT, a publication every %u frames",
+             format.sampleRate, (unsigned long)VibeAudioLevelAnalyzerFFTSize(meter->analyzer), meter->target);
     return self;
 }
+
+- (void)dealloc {
+    [self remove];
+    if (_meter) {
+        VibeAudioLevelAnalyzerDestroy(_meter->analyzer);
+        free(_meter);
+    }
+}
+
+- (VibeLevelMeter *)meter {
+    return _meter;
+}
+
+- (double)sampleRate {
+    return _meter->sampleRate;
+}
+
+- (BOOL)installed {
+    return _installed;
+}
+
+- (void)install {
+    if (_installed) {
+        return;
+    }
+    atomic_store_explicit(&_meter->session, [_publisher beginSession], memory_order_release);
+    _installed = YES;
+}
+
+- (void)remove {
+    if (!_installed) {
+        return;
+    }
+    [self finishSignalDiagnostics:@"tap removed"];
+    [_publisher endSession:atomic_load_explicit(&_meter->session, memory_order_relaxed)];
+    _installed = NO;
+}
+
+#if DEBUG
+- (void)debugHoldRender:(BOOL)hold {
+    atomic_store_explicit(&_meter->holdRender, hold ? 1 : 0, memory_order_seq_cst);
+}
+
+- (NSUInteger)debugRendersHeld {
+    return (NSUInteger)atomic_load_explicit(&_meter->rendersHeld, memory_order_seq_cst);
+}
+#endif
+
+#pragma mark - The signal probe
 
 - (void)finishSignalDiagnostics:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
@@ -264,7 +325,7 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     NSMutableDictionary *snapshot = [[self signalDiagnosticSnapshot] mutableCopy];
     snapshot[@"completion"] = reason;
     _signalSnapshot = [snapshot copy];
-    atomic_store(&_tapSession->_signalRequest, 0);
+    atomic_store(&_meter->signalRequest, 0);
     void (^completion)(NSDictionary *) = _signalCompletion;
     _signalCompletion = nil;
     completion(_signalSnapshot);
@@ -274,26 +335,26 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 - (uint64_t)beginSignalDiagnosticsAtTime:(AVAudioTime *)startTime waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *))completion {
 #if VIBE_VERBOSE_LOGGING
-    if (!_installed || !_tapSession) return 0;
+    if (!_installed) return 0;
     [self finishSignalDiagnostics:@"superseded"];
     _signalSnapshot = nil;
     _signalCompletion = [completion copy];
     _signalWaitingForRetiredAudio = waiting;
-    // Clear the request before replacing its clock pair; the callback checks
+    // Clear the request before replacing its clock pair; the render checks
     // the request again after reading it, so clocks cannot cross requests.
-    atomic_store(&_tapSession->_signalRequest, 0);
+    atomic_store(&_meter->signalRequest, 0);
     double host = startTime.hostTimeValid ? [AVAudioTime secondsForHostTime:startTime.hostTime] : NAN;
     double sample = startTime.sampleTimeValid && startTime.sampleRate > 0 ? startTime.sampleTime / startTime.sampleRate : NAN;
-    atomic_store(&_tapSession->_signalHostOrigin, host);
-    atomic_store(&_tapSession->_signalSampleOrigin, sample);
-    atomic_store(&_tapSession->_signalHostCutoff, waiting ? INFINITY : host);
-    atomic_store(&_tapSession->_signalSampleCutoff, waiting ? INFINITY : sample);
+    atomic_store(&_meter->signalHostOrigin, host);
+    atomic_store(&_meter->signalSampleOrigin, sample);
+    atomic_store(&_meter->signalHostCutoff, waiting ? INFINITY : host);
+    atomic_store(&_meter->signalSampleCutoff, waiting ? INFINITY : sample);
     if (!waiting && _signalOverlapEndTime) {
         _signalWaitingForRetiredAudio = YES;
         [self endSignalOverlapAtTime:_signalOverlapEndTime];
     }
     uint64_t request = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    atomic_store(&_tapSession->_signalRequest, request);
+    atomic_store(&_meter->signalRequest, request);
     return request;
 #else
     return 0;
@@ -306,16 +367,16 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
     _signalOverlapEndTime = time;
     if (!_signalCompletion || !_signalWaitingForRetiredAudio) return;
     _signalWaitingForRetiredAudio = NO;
-    if (time.hostTimeValid) atomic_store(&_tapSession->_signalHostCutoff,
-            MAX(atomic_load(&_tapSession->_signalHostOrigin), [AVAudioTime secondsForHostTime:time.hostTime]));
-    if (time.sampleTimeValid && time.sampleRate > 0) atomic_store(&_tapSession->_signalSampleCutoff,
-            MAX(atomic_load(&_tapSession->_signalSampleOrigin), time.sampleTime / time.sampleRate));
+    if (time.hostTimeValid) atomic_store(&_meter->signalHostCutoff,
+            MAX(atomic_load(&_meter->signalHostOrigin), [AVAudioTime secondsForHostTime:time.hostTime]));
+    if (time.sampleTimeValid && time.sampleRate > 0) atomic_store(&_meter->signalSampleCutoff,
+            MAX(atomic_load(&_meter->signalSampleOrigin), time.sampleTime / time.sampleRate));
 #endif
 }
 
 - (BOOL)pollSignalDiagnostics:(uint64_t)request {
 #if VIBE_VERBOSE_LOGGING
-    if (!_signalCompletion || request != atomic_load(&_tapSession->_signalRequest)) return NO;
+    if (!_signalCompletion || request != atomic_load(&_meter->signalRequest)) return NO;
     NSDictionary *snapshot = [self signalDiagnosticSnapshot];
     if ([snapshot[@"aboveThreshold"] boolValue]) {
         [self finishSignalDiagnostics:@"first signal"];
@@ -333,29 +394,29 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot {
 #if VIBE_VERBOSE_LOGGING
     if (!_signalCompletion && _signalSnapshot) return _signalSnapshot;
-    AudioLevelTapSession *session = _tapSession;
-    if (!_installed || !session) return @{@"status": @"tap unavailable"};
-    uint64_t request = atomic_load(&session->_signalRequest);
+    VibeLevelMeter *meter = _meter;
+    if (!_installed) return @{@"status": @"tap unavailable"};
+    uint64_t request = atomic_load(&meter->signalRequest);
     if (!request) return @{@"status": @"not armed"};
     for (int attempt = 0; attempt < 3; attempt++) {
-        uint64_t before = atomic_load(&session->_signalVersion);
+        uint64_t before = atomic_load(&meter->signalVersion);
         if (before & 1) continue;
-        uint64_t observed = atomic_load(&session->_signalResultRequest);
-        uint64_t frames = atomic_load(&session->_signalFramesResult);
-        uint64_t host = atomic_load(&session->_signalHostResult);
-        uint64_t offset = atomic_load(&session->_signalOffsetResult);
-        int64_t sample = atomic_load(&session->_signalSampleResult);
-        uint64_t nonfinite = atomic_load(&session->_signalNonfiniteResult);
-        uint64_t leadingFrames = atomic_load(&session->_signalLeadingFramesResult);
-        double peak = atomic_load(&session->_signalPeakResult);
-        double rms = atomic_load(&session->_signalRMSResult);
-        double rate = atomic_load(&session->_signalRateResult);
-        double observationStart = atomic_load(&session->_signalObservationStartResult);
-        double firstAfterStart = atomic_load(&session->_signalFirstAfterStartResult);
-        if (before != atomic_load(&session->_signalVersion)) continue;
+        uint64_t observed = atomic_load(&meter->signalResultRequest);
+        uint64_t frames = atomic_load(&meter->signalFramesResult);
+        uint64_t host = atomic_load(&meter->signalHostResult);
+        uint64_t offset = atomic_load(&meter->signalOffsetResult);
+        int64_t sample = atomic_load(&meter->signalSampleResult);
+        uint64_t nonfinite = atomic_load(&meter->signalNonfiniteResult);
+        uint64_t leadingFrames = atomic_load(&meter->signalLeadingFramesResult);
+        double peak = atomic_load(&meter->signalPeakResult);
+        double rms = atomic_load(&meter->signalRMSResult);
+        double rate = atomic_load(&meter->signalRateResult);
+        double observationStart = atomic_load(&meter->signalObservationStartResult);
+        double firstAfterStart = atomic_load(&meter->signalFirstAfterStartResult);
+        if (before != atomic_load(&meter->signalVersion)) continue;
         if (observed != request) {
-            NSString *status = !isfinite(atomic_load(&session->_signalHostOrigin))
-                    && !isfinite(atomic_load(&session->_signalSampleOrigin)) ? @"start clock unavailable" : @"no buffers observed";
+            NSString *status = !isfinite(atomic_load(&meter->signalHostOrigin))
+                    && !isfinite(atomic_load(&meter->signalSampleOrigin)) ? @"start clock unavailable" : @"no buffers observed";
             return @{@"status": status, @"request": @(request)};
         }
         _signalSnapshot = @{@"status": @"captured", @"request": @(request), @"frames": @(frames),
@@ -377,32 +438,6 @@ _Static_assert(__atomic_always_lock_free(sizeof(double), 0), "Signal snapshots r
 #else
     return @{@"status": @"beta instrumentation disabled"};
 #endif
-}
-
-- (void)remove {
-    if (!_installed) {
-        return;
-    }
-    [self finishSignalDiagnostics:@"tap removed"];
-    [_tapSession->_publisher endSession:_tapSession->_session];
-    [_node removeTapOnBus:0];
-    _installed = NO;
-    _node = nil;
-    _tapSession = nil;
-}
-
-- (void)abandon {
-    [self finishSignalDiagnostics:@"tap abandoned"];
-    if (_installed) {
-        [_tapSession->_publisher endSession:_tapSession->_session];
-    }
-    _installed = NO;
-    _node = nil;
-    _tapSession = nil;
-}
-
-- (void)dealloc {
-    [self remove];
 }
 
 @end

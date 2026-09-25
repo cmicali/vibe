@@ -27,8 +27,8 @@ typedef NSTimeInterval (^VibeAudioFileMaterializationClock)(void);
 // lane is reserved; NO suppresses transfer publication, but that run returns
 // the lane only when its operation settles.
 typedef BOOL (^VibeAudioFileMaterializationDatalessProbe)(NSURL *url);
-// Stage 2's injected seam: the one AVAudioFile call, host-lessly replaceable.
-typedef AVAudioFile * _Nullable (^VibeAudioFileOpener)(
+// Stage 2's injected seam: the one AudioFileHandle call, host-lessly replaceable.
+typedef AudioFileHandle * _Nullable (^VibeAudioFileOpener)(
         NSURL *url, NSError * _Nullable __autoreleasing * _Nullable error);
 
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
     // Cumulative for the life of the coordinator. The gauges above cannot tell
     // "nothing is happening" from "a great deal is happening quickly", which is
     // exactly what a silent stall looks like; these can. handleOpensStarted
-    // minus handleOpensCompleted is the number of uncancellable AVAudioFile
+    // minus handleOpensCompleted is the number of uncancellable AudioFileHandle
     // calls outstanding, and must be zero at rest.
     uint64_t handleOpensStarted;
     uint64_t handleOpensCompleted;
@@ -76,7 +76,7 @@ typedef struct {
 // restating what a production open is.
 @property (nonatomic, copy) VibeAudioFileOpener fileOpener;
 
-// Stranded AVAudioFile calls, readable from any thread without taking the
+// Stranded AudioFileHandle calls, readable from any thread without taking the
 // state queue. The health probe polls this; nothing else should need it.
 - (uint64_t)handleOpensInFlight;
 

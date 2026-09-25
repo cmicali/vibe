@@ -344,7 +344,12 @@ NSString *VibeDebugInfoText(NSDictionary<NSString *, id> *snapshot, AudioPlayer 
     NSDictionary *playback = VibeFreshDiagnosticSection(@"player", ^NSDictionary *{
         return player.outputDeviceDiagnosticSnapshot;
     });
-    report[@"freshDiagnostics"] = @{@"hardware": hardware, @"player": playback};
+    // The render chain stage by stage, the Settings window's Audio group raw.
+    NSDictionary *audioPath = VibeFreshDiagnosticSection(@"audioPath", ^NSDictionary *{
+        return @{@"stages": player.audioPathSnapshot};
+    });
+    report[@"freshDiagnostics"] = @{@"hardware": hardware, @"player": playback, @"audioPath": audioPath};
+    report[@"audioPath"] = audioPath[@"value"][@"stages"] ?: @[];
     report[@"outputDevices"] = hardware[@"value"][@"devices"] ?: @[];
     NSMutableDictionary *playerInfo = [report[@"player"] mutableCopy];
     if (playback[@"value"]) [playerInfo addEntriesFromDictionary:playback[@"value"]];

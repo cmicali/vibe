@@ -1,5 +1,7 @@
 #import <XCTest/XCTest.h>
 #import "AudioPlayer+Debug.h"
+#import "AudioFX+Debug.h"
+#import "AudioLevelTap+Debug.h"
 #import "AudioTrack.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
@@ -8,14 +10,16 @@
 #import "AudioDevice.h"
 #import "VibeManualRenderPump.h"
 #import "AudioVoiceBusInternal.h"
+#import "AudioFixtures.h"
 #import <objc/runtime.h>
 #include <float.h>
+#include <stdatomic.h>
 
 // Independent Apple AAC decodes can differ by a few float rounding bits.
 // Lossless paths still require exact samples; AAC stays below -126 dBFS.
 static const float kVibeAACDecodeTolerance = 4 * FLT_EPSILON;
 
-// Interleaved float PCM keeps the oracle independent of AVAudioEngine's buffers.
+// Interleaved float PCM keeps the oracle independent of the render's buffers.
 static NSMutableData *PCM(AVAudioPCMBuffer *buffer) {
     NSUInteger channels = buffer.format.channelCount;
     NSMutableData *data = [NSMutableData dataWithLength:buffer.frameLength * channels * sizeof(float)];
@@ -83,6 +87,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     }
     return 2 * hypot(real, imaginary) / frames.length;
 }
+static float PeakLevel(const float levels[kLevelBandCount]) {
+    float peak = 0; for (NSUInteger i = 0; i < kLevelBandCount; i++) peak = MAX(peak, levels[i]); return peak;
+}
 
 @interface AudioPlayerRenderTests : XCTestCase <AudioPlayerDelegate>
 @end
@@ -111,6 +118,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAttachment *trace=[XCTAttachment attachmentWithString:_events.description];
         trace.name=@"transport-events"; trace.lifetime=XCTAttachmentLifetimeKeepAlways; [self addAttachment:trace];
     }
+    [_player debugHoldRenderInside:NO]; // a failed hold test must not leave a render blocked
     [_player debugShutdown]; _player = nil;
     [NSFileManager.defaultManager removeItemAtURL:_temporary error:NULL];
     [super tearDown];
@@ -122,7 +130,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 - (AVAudioPCMBuffer *)read:(NSURL *)url {
     NSError *error = nil;
-    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:&error];
     XCTAssertNotNil(file, @"%@: %@", url, error);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:(AVAudioFrameCount)file.length];
     AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
@@ -148,15 +156,11 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (NSURL *)writeBuffer:(AVAudioPCMBuffer *)buffer name:(NSString *)name {
     NSURL *url = [_temporary URLByAppendingPathComponent:name];
     NSError *error = nil;
-    NSMutableDictionary *settings=[buffer.format.settings mutableCopy];
-    settings[AVLinearPCMIsNonInterleaved]=@NO;
-    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"%@", error);
     return url;
 }
 // The generator emits a fixed 44-byte RIFF header. Read those bytes directly
-// for the lossless matrix so AVAudioFile is not its own decode oracle.
+// for the lossless matrix so the handle is not its own decode oracle.
 - (NSData *)sourcePCM:(NSURL *)url bits:(NSUInteger)bits {
     NSData *wav=[NSData dataWithContentsOfURL:url];
     XCTAssertGreaterThan(wav.length,44u);
@@ -194,7 +198,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 - (NSDictionary *)settledSignalSnapshot {
     __block NSDictionary *signal;
     BOOL (^read)(void) = ^BOOL {
-        [self->_player runSyncOnQueue:^{ signal = [[self->_player valueForKey:@"levelTap"] signalDiagnosticSnapshot]; }];
+        [self->_player runSyncOnQueue:^{ signal = [[self->_player debugLevelTap] signalDiagnosticSnapshot]; }];
         return [signal[@"aboveThreshold"] boolValue];
     };
     [self settleUntil:read];
@@ -209,7 +213,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player = [[AudioPlayer alloc] initForManualRendering:format enableFX:fx automatic:automatic delegate:self];
     [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
     XCTAssertTrue(_player.manualRenderingActive);
-    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"mixerRate"] doubleValue], rate, 0);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], rate, 0);
     [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx];
     [_player runSyncOnQueue:^{}]; // Land setup before a test replaces the mode provider.
 }
@@ -313,7 +317,12 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:NO automatic:NO];
         NSURL *url=[self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav",rate]];
         NSData *reference=PCM([self read:url]); [self play:url paused:NO position:0];
-        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:fx.boolValue ? 1e-10f : 0];
+        [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        // Transparent because nothing renders: the varispeed is out of the
+        // chain at zero pitch, and an idle segment's units are at rest.
+        NSDictionary *counts=_player.debugEngineCounts;
+        XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue],0ull);
+        XCTAssertEqual([counts[@"unitRenders"] unsignedLongLongValue],0ull);
     }
 }
 - (void)testLosslessContainersAndExtensionAliases {
@@ -349,7 +358,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
                   @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
     Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
-    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AVAudioFile *file) {
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AudioFileHandle *file) {
         AudioStreamBasicDescription sixteen = {0};
         sixteen.mSampleRate = file.processingFormat.sampleRate;
         sixteen.mFormatID = kAudioFormatLinearPCM;
@@ -395,7 +404,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self assertFinite:capture peak:1];
     }
     // Float32's precision is an explicit limit; decoded equality above does
-    // not claim the integer source's low bits survive the AVAudioFile boundary.
+    // not claim the integer source's low bits survive the AudioFileHandle boundary.
     volatile int32_t sample=16777217; float converted=(float)sample;
     XCTAssertNotEqual((int32_t)converted,(int32_t)sample);
 }
@@ -525,6 +534,27 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
 
+// A skip past the end reaches finishPlaybackOnQueue with the voice still at
+// full amplitude, and it fades like every other edge: the transport
+// publishes Stopped before it retires the voice, so the retire must read the
+// voice's own state, not the player's. Every adjacent sample of the tail is
+// inspected, the command boundary included.
+- (void)testFinishCurrentTrackFadesTheOutgoingVoice {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [self render:48120]; // mid-waveform, well past the startup declick
+    const float *before = _capture.bytes;
+    float last = before[(_capture.length / 8 - 1) * 2];
+    [_player finishCurrentTrack];
+    NSData *tail = [self renderSeconds:0.03];
+    const float *after = tail.bytes;
+    float step = fabsf(after[0] - last);
+    for (NSUInteger i = 1; i < tail.length / 8; i++) step = MAX(step, fabsf(after[i * 2] - after[(i - 1) * 2]));
+    XCTAssertLessThan(step, 0.02f, @"finishCurrentTrack cut the voice: a %g step", step);
+    [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
+    XCTAssertTrue(_player.isStopped);
+}
+
 - (void)testPauseResumeAndIdleRestart {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=PCM([self read:url]);
@@ -606,8 +636,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 
 // Two 5.1 files in different channel orders under bit-perfect output: the bus
-// is rebuilt for the second, so its center still reaches both sides.
-- (void)testBitPerfectRebuildsTheBusForAChangedChannelLayout {
+// folds each by its own layout, so its center still reaches both sides.
+- (void)testBitPerfectFoldsEachChannelLayoutInsideTheStereoBus {
     NSMutableArray<NSURL *> *files = [NSMutableArray array];
     NSArray<NSNumber *> *tags = @[@(kAudioChannelLayoutTag_MPEG_5_1_A), @(kAudioChannelLayoutTag_MPEG_5_1_B)];
     NSUInteger center[2] = { 2, 4 };
@@ -618,7 +648,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         buffer.frameLength = 48000;
         for (NSUInteger f = 0; f < 48000; f++) buffer.floatChannelData[center[i]][f] = 0.25f;
         NSURL *url = [self writeBuffer:buffer name:[NSString stringWithFormat:@"layout-%lu.aif", (unsigned long)i]];
-        XCTAssertEqual([[AVAudioFile alloc] initForReading:url error:NULL].processingFormat.channelLayout.layoutTag, tags[i].unsignedIntValue);
+        XCTAssertEqual([[AudioFileHandle alloc] initForReading:url error:NULL].processingFormat.channelLayout.layoutTag, tags[i].unsignedIntValue);
         [files addObject:url];
     }
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
@@ -631,8 +661,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 }
 
 // A 5.1 file with sound in the center only, which a first-channels map
-// silences: ordinary playback folds it by layout on the bus, bit-perfect on
-// the mixer, the bus being the file's own width with its layout.
+// silences: both modes fold it by layout inside the stereo bus.
 - (void)testASurroundFileIsAudibleInStereo {
     AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:48000 interleaved:NO
             channelLayout:[AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A]];
@@ -651,7 +680,9 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
 
 - (void)testGaplessSplitSignalAcrossRenderBlocks {
     NSData *reference=PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
-    for (NSNumber *block in @[@63,@256,@1024,@4096]) for (NSNumber *mode in @[@NO,@YES]) {
+    // 9000 frames is more than a slice: the render slices it as it would a
+    // device's larger IO cycle.
+    for (NSNumber *block in @[@63,@256,@1024,@4096,@9000]) for (NSNumber *mode in @[@NO,@YES]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO]; _blockSize=block.unsignedIntegerValue;
         NSMutableArray *tracks=[NSMutableArray array]; NSUInteger start=0;
         for (NSNumber *end in @[@20003,@48001,@72007,@96000]) {
@@ -729,7 +760,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
                      @"Cancelled successor must not be audible");
 }
 
-// The seek's replacement voice reads the same AVAudioFile as the voice it
+// The seek's replacement voice reads the same AudioFileHandle as the voice it
 // retires, on the production decode queue: the old voice's reads must stop
 // before the new voice positions the shared cursor, or a turn of the old
 // voice queued between the two advances it and the new voice skips a chunk.
@@ -761,7 +792,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
     Method retire = class_getInstanceMethod(AudioPlayer.class, @selector(retireVoiceOnQueue:milliseconds:));
     __block IMP originalProduce, originalRetire;
-    __block BOOL heldRead = NO, heldRetire = NO;
+    __block _Atomic(BOOL) heldRead = NO; // the decoder writes it, the render loop below polls it
+    __block BOOL heldRetire = NO;
     IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
         if (receiver == bus && !heldRead) {
             heldRead = YES;
@@ -800,12 +832,78 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertTrue([comparison[@"pass"] boolValue], @"seek output differs: %@", comparison);
     } @finally {
         dispatch_semaphore_signal(letRead);
-        [bus stopReading];
+        dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
+        [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+        dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)); // the swizzled read must be over before its IMP goes
         method_setImplementation(produce, originalProduce);
         method_setImplementation(retire, originalRetire);
         imp_removeBlock(heldProduce);
         imp_removeBlock(heldRetirement);
     }
+}
+
+// The meter is kept across demand toggles, so an install must forget the
+// audio before it: the accumulator, and the analyzer's partial window and
+// references with it. Tone, remove, install, silence — the new session's
+// first publication is silence, however often the demand toggles.
+- (void)testMeterReinstallPublishesNoEarlierAudio {
+    AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
+    AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
+    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+                                         normalizationMode:kLevelDefaultNormalizationMode];
+    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    XCTAssertGreaterThanOrEqual(tone.frameLength, count);
+    AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
+    XCTAssertGreaterThanOrEqual(silence.frameLength, count);
+    AudioTimeStamp stamp = { .mFlags = kAudioTimeStampSampleTimeValid };
+    float levels[kLevelBandCount];
+    for (int toggle = 0; toggle < 3; toggle++) {
+        [tap install];
+        VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, count, &stamp);
+        XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+        XCTAssertGreaterThan(PeakLevel(levels), 0.0f, @"toggle %d: the tone was not published", toggle);
+        [tap remove];
+        [tap install];
+        VibeLevelMeterRender(tap.meter, silence.floatChannelData, tone.format.channelCount, count, &stamp);
+        XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+        XCTAssertEqual(PeakLevel(levels), 0.0f, @"toggle %d: the new session published the tone before it", toggle);
+        [tap remove];
+    }
+}
+
+// A meter callback that began before a remove-and-reinstall — the demand
+// toggling under it — publishes into the session it began, which has ended,
+// so the new session opens on none of its audio.
+- (void)testAMeterCallbackStalledAcrossAReinstallPublishesNothingIntoTheNewSession {
+    AVAudioPCMBuffer *tone = [self read:[self fixture:@"1000.wav"]];
+    AudioLevelPublisher *publisher = [[AudioLevelPublisher alloc] init];
+    AudioLevelTap *tap = [[AudioLevelTap alloc] initWithFormat:tone.format publisher:publisher
+                                         normalizationMode:kLevelDefaultNormalizationMode];
+    UInt32 count = VibeLevelTapBufferFrameCount(tone.format.sampleRate);
+    XCTAssertGreaterThanOrEqual(tone.frameLength, count);
+    AVAudioPCMBuffer *silence = [self read:[self fixture:@"silence.wav"]];
+    XCTAssertGreaterThanOrEqual(silence.frameLength, count);
+    AudioTimeStamp stamp = { .mFlags = kAudioTimeStampSampleTimeValid };
+    [tap install];
+    VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, count - 1024, &stamp); // one block short of publishing
+    [tap debugHoldRender:YES];
+    dispatch_group_t stalled = dispatch_group_create();
+    dispatch_group_async(stalled, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        VibeLevelMeterRender(tap.meter, tone.floatChannelData, tone.format.channelCount, 1024, &stamp);
+    });
+    [self settleUntil:^BOOL { return tap.debugRendersHeld == 1; }];
+    [tap remove];
+    [tap install];
+    [tap debugHoldRender:NO];
+    XCTAssertEqual(dispatch_group_wait(stalled, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+                   @"the stalled callback did not finish once the hold lifted");
+    float levels[kLevelBandCount] = {0};
+    XCTAssertFalse([publisher copyLevels:levels count:kLevelBandCount sequence:NULL],
+                   @"the stalled callback published the tone into the new session, peak %g", PeakLevel(levels));
+    VibeLevelMeterRender(tap.meter, silence.floatChannelData, tone.format.channelCount, count, &stamp);
+    XCTAssertTrue([publisher copyLevels:levels count:kLevelBandCount sequence:NULL]);
+    XCTAssertEqual(PeakLevel(levels), 0.0f, @"the new session opened on the previous session's audio");
+    [tap remove];
 }
 
 - (void)testMeterTapDoesNotChangeSamples {
@@ -816,7 +914,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         _player.levelsEnabled=YES;
         __block AudioLevelTap *tap;
         [_player runSyncOnQueue:^{
-            tap = [self->_player valueForKey:@"levelTap"];
+            tap = [self->_player debugLevelTap];
             XCTAssertNotEqual([[tap signalDiagnosticSnapshot][@"request"] unsignedLongLongValue], 0u);
         }];
         [self render:16000];
@@ -844,8 +942,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     __block NSDictionary *signal;
     NSMutableArray<NSDictionary *> *completed = [NSMutableArray array];
     [_player runSyncOnQueue:^{
-        tap = [self->_player valueForKey:@"levelTap"];
-        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        tap = [self->_player debugLevelTap];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, 0u);
     }];
     [self render:192000];
@@ -870,7 +968,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
         XCTAssertFalse([tap pollSignalDiagnostics:request]);
         XCTAssertEqual(completed.count, 1u);
-        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+        request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, [signal[@"request"] unsignedLongLongValue]);
     }];
     [self render:16000];
@@ -881,7 +979,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertLessThan([signal[@"frames"] unsignedLongLongValue], 24000u);
 }
 - (void)testSignalDiagnosticsKeepInterruptedCaptures {
-    for (NSString *action in @[@"tap removed", @"tap abandoned", @"superseded"]) {
+    for (NSString *action in @[@"tap removed", @"superseded"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"silence.wav"] paused:NO position:0];
@@ -889,8 +987,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         __block AudioLevelTap *tap;
         __block uint64_t request;
         [_player runSyncOnQueue:^{
-            tap = [self->_player valueForKey:@"levelTap"];
-            request = [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            tap = [self->_player debugLevelTap];
+            request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         }];
         [self render:16000];
         [_player runSyncOnQueue:^{
@@ -898,8 +996,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertGreaterThan([partial[@"frames"] unsignedLongLongValue], 0u);
             XCTAssertFalse([partial[@"aboveThreshold"] boolValue]);
             if ([action isEqual:@"tap removed"]) [tap remove];
-            else if ([action isEqual:@"tap abandoned"]) [tap abandon];
-            else [tap beginSignalDiagnosticsAtTime:[self->_player outputSignalRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
+            else [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
             XCTAssertEqual(completed.count, 1u);
             NSDictionary *result = completed.firstObject;
             XCTAssertEqualObjects(result[@"completion"], action);
@@ -915,7 +1012,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
                 XCTAssertEqualObjects(completed.lastObject[@"status"], @"no buffers observed");
             } else {
                 XCTAssertEqualObjects([tap signalDiagnosticSnapshot], result);
-                [tap remove]; [tap abandon];
+                [tap remove]; [tap remove];
                 XCTAssertEqual(completed.count, 1u);
             }
         }];
@@ -936,17 +1033,18 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     XCTAssertEqualWithAccuracy([signal[@"observedLeadingSilenceMS"] doubleValue], 250, 1000.0 / 48000);
     [self render:24000];
     [_player runSyncOnQueue:^{
-        AudioLevelTap *tap = [self->_player valueForKey:@"levelTap"];
+        AudioLevelTap *tap = [self->_player debugLevelTap];
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
     }];
 }
 - (void)testSignalDiagnosticsExcludePreviousTrack {
     for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
     for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
-        // Bit-perfect output cuts the old track rather than fading it, and a
-        // mixer resampling the 48 kHz fixtures carries a few milliseconds of it
-        // past the cut in its history. Real bit-perfect output sets the device
-        // to the file's rate, so the mixer does not resample; test that case.
+        // Bit-perfect output cuts the old track rather than fading it, and
+        // under the pump the output cannot follow the file's rate, so the bus's
+        // converter resampling the 48 kHz fixtures carries a few milliseconds
+        // of it past the cut in its history. Real bit-perfect output sets the
+        // device to the file's rate, so nothing resamples; test that case.
         if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;
@@ -1079,9 +1177,15 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     _player.pitch=0;
     NSData *restored=[self renderSeconds:0.5];
     XCTAssertEqualWithAccuracy(ToneAmplitude(restored,2,0,48000,1000,NSMakeRange(12000,12000)),0.25,0.002);
+    // Back at zero the unit leaves the chain: it renders no more.
+    uint64_t renders=[_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    [self render:24000];
+    XCTAssertEqual([_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue],renders);
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
+// Under the pump the output cannot follow the file's rate, so this measures
+// the bus's converter: the fallback a device that refuses a rate takes.
 - (void)testSampleRateConversionQuality {
     for (NSArray<NSNumber *> *rates in @[@[@48000,@44100],@[@48000,@96000],@[@48000,@32000],@[@44100,@48000],@[@96000,@44100]]) {
         NSNumber *rate=rates[1];
@@ -1100,6 +1204,71 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         if (_rate<48000) XCTAssertLessThan(RMS(data,2,0,window),0.000032); // -90 dBFS alias ceiling
     }
 }
+// A render stuck inside the pipeline past the wait's bound — blocked after
+// it read the bus, on a thread of its own, which is what a stuck render is —
+// must not let a withdrawal free or reset what it is inside, and no later
+// render may clear the evidence that it is: the pipeline admits one render
+// at a time, so the rebuilt output's callbacks render silence while it is
+// inside. A rate change replaces the meter, the bus, the varispeed hosting
+// and the FX chain, and every one of them stays allocated until the first
+// drain that sees the render outside; playback carries on at the new rate.
+- (void)testAStuckRenderDefersEveryTeardownUntilItLeaves {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    _player.levelsEnabled = YES;
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [self render:4096];
+    __weak AudioLevelTap *tap = nil;
+    __weak AudioVoiceBus *bus = nil;
+    @autoreleasepool {
+        tap = _player.debugLevelTap;
+        bus = [_player valueForKey:@"voiceBus"]; // the ivar, read between renders
+        XCTAssertNotNil(tap);
+        XCTAssertNotNil(bus);
+    }
+    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 0u);
+    [_player debugHoldRenderInside:YES];
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self->_player debugRenderOnCallerThread:256]; // a carrier's callback, blocked inside the old bus
+    });
+    [self settleUntil:^BOOL { return [self->_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+                                @"the tap, the bus, the varispeed hosting and the FX chain wait for the render");
+    XCTAssertNotNil(tap, @"the meter was freed under a render");
+    XCTAssertNotNil(bus, @"the bus was freed under a render");
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    // The rebuilt output's renders find a render inside: silence, and the
+    // parked teardowns stay parked, since the render they wait for is inside.
+    [_capture setLength:0];
+    @autoreleasepool { [self render:512]; }
+    const float *refused = _capture.bytes;
+    for (NSUInteger i = 0; i < _capture.length / sizeof(float); i++) {
+        XCTAssertEqual(refused[i], 0.0f, @"a refused render wrote sound at sample %lu", (unsigned long)i);
+    }
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], 2u);
+    XCTAssertGreaterThanOrEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 4u,
+                                @"a refused render ran the teardowns of the render still inside");
+    XCTAssertNotNil(tap, @"the meter was freed under a render another render followed");
+    XCTAssertNotNil(bus, @"the bus was freed under a render another render followed");
+    [_player debugHoldRenderInside:NO];
+    XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L,
+                   @"the held render did not leave once the hold lifted");
+    XCTAssertEqual([_player.debugEngineCounts[@"rendersHeld"] unsignedIntegerValue], 0u);
+    NSUInteger refusals = [_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue];
+    @autoreleasepool { [self render:256]; } // the render left; the drain after this one runs the parked teardowns
+    XCTAssertEqual([_player.debugEngineCounts[@"renderLeaveWork"] unsignedIntegerValue], 0u);
+    // The beta signal probe's poll holds the old tap until its next 100 ms
+    // tick of the pump's clock finds it removed; nothing else may.
+    @autoreleasepool { [self render:9600]; }
+    XCTAssertNil(tap, @"the meter outlived the render it waited for");
+    XCTAssertNil(bus, @"the bus outlived the render it waited for");
+    [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+    XCTAssertEqual([_player.debugEngineCounts[@"renderRefusals"] unsignedIntegerValue], refusals,
+                   @"a render was refused with none inside");
+}
+
 - (void)testFormatChangesAndModeToggles {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     for (NSString *file in @[@"noise-44100-16-1.wav",@"noise-96000-24-2.wav",@"noise-48000-32-1.wav",@"noise-48000-24-2.wav"]) {
@@ -1117,7 +1286,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
     for (NSNumber *rate in @[@44100, @48000, @96000]) for (NSNumber *initialFX in @[@NO, @YES]) {
         [self startPlayerAt:rate.doubleValue channels:2 fx:initialFX.boolValue bitPerfect:NO automatic:NO];
         if (!initialFX.boolValue) {
-            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue], 2u);
+            XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue], 1u);
         }
         NSURL *url = [self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav", rate]];
         AudioTrack *track = [self play:url paused:YES position:0.25];
@@ -1131,8 +1300,8 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
             XCTAssertTrue(_player.isPaused);
             XCTAssertEqual(_player.currentTrack, track);
             XCTAssertEqualWithAccuracy(_player.position, 0.25, 1.0 / _rate);
-            if (i == 0) installedNodes = [counts[@"attachedNodes"] unsignedIntegerValue];
-            XCTAssertLessThanOrEqual([counts[@"attachedNodes"] unsignedIntegerValue], installedNodes);
+            if (i == 0) installedNodes = [counts[@"hostedUnits"] unsignedIntegerValue];
+            XCTAssertLessThanOrEqual([counts[@"hostedUnits"] unsignedIntegerValue], installedNodes);
         }
         [_player resume];
         [self render:4096];
@@ -1376,7 +1545,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [self play:[self fixture:i%2?@"noise-48000-24-2.wav":@"noise-48000-24-1.wav"] paused:NO position:0];
         [self render:512]; [_player pause]; [_player resume]; [_player seekToPosition:0.25];
         [self render:2048]; [_player stop]; [self render:2048];
-        XCTAssertEqual([self count:@"finish"],0u); XCTAssertLessThanOrEqual([_player.debugEngineCounts[@"attachedNodes"] unsignedIntegerValue],4u);
+        XCTAssertEqual([self count:@"finish"],0u); XCTAssertEqual([_player.debugEngineCounts[@"hostedUnits"] unsignedIntegerValue],0u);
         XCTAssertEqual([_player.debugEngineCounts[@"retiredFades"] unsignedIntegerValue],0u);
     }
 }
@@ -1497,39 +1666,6 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         // The node is retired only after its ramp; no full-amplitude discontinuity.
         float worst=0; for(NSUInteger i=1;i<end;i++) worst=MAX(worst,fabsf(e[i*2]-e[(i-1)*2]));
         XCTAssertLessThan(worst,0.02f,@"%@ Hz",rate);
-    }
-}
-// An ordinary-mode device switch across rates rewires the connected FX chain
-// at the device's new rate. An effect left with its input at one rate and its
-// output at another fails to initialize at the next start (-10868), which is
-// what a connect over a standing fan-out produced on a 44.1 -> 96 kHz switch.
-- (void)testFXChainRewiresAtANewRate {
-    AVAudioEngine *engine = [[AVAudioEngine alloc] init];
-    dispatch_queue_t queue = dispatch_queue_create("com.vibe.test.fx-rewire", DISPATCH_QUEUE_SERIAL);
-    AudioFX *fx = [[AudioFX alloc] initWithQueue:queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), queue, block);
-    }];
-    AVAudioSourceNode *source = [[AVAudioSourceNode alloc] initWithRenderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
-        for (UInt32 b = 0; b < outputData->mNumberBuffers; b++) {
-            memset(outputData->mBuffers[b].mData, 0, outputData->mBuffers[b].mDataByteSize);
-        }
-        *isSilence = YES;
-        return noErr;
-    }];
-    [engine attachNode:source];
-    for (NSNumber *rate in @[@44100, @96000, @48000, @96000]) {
-        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate.doubleValue channels:2];
-        NSError *error = nil;
-        XCTAssertTrue([engine enableManualRenderingMode:AVAudioEngineManualRenderingModeOffline format:format
-                                      maximumFrameCount:4096 error:&error], @"%@", error);
-        [engine connect:source to:engine.mainMixerNode format:format];
-        dispatch_sync(queue, ^{ [fx setConnected:YES inEngine:engine format:format]; });
-        XCTAssertNotNil(fx.masterBusOutputNode, @"%@ Hz", rate);
-        XCTAssertTrue([engine startAndReturnError:&error], @"%@ Hz: %@", rate, error);
-        AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:1024];
-        XCTAssertEqual([engine renderOffline:1024 toBuffer:buffer error:&error], AVAudioEngineManualRenderingStatusSuccess, @"%@ Hz: %@", rate, error);
-        XCTAssertEqualWithAccuracy([engine.mainMixerNode outputFormatForBus:0].sampleRate, rate.doubleValue, 0);
-        [engine stop];
     }
 }
 - (void)testCrossfadePowerAndInterruption {
@@ -1793,9 +1929,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player prepareForTermination];
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
         XCTAssertEqual([self count:@"finish"],0u,@"Termination must not deliver natural track-end and auto-advance during NSTerminateLater");
-        __block BOOL running;
-        [_player runSyncOnQueue:^{ running=((AVAudioEngine *)[self->_player valueForKey:@"engine"]).isRunning; }];
-        XCTAssertFalse(running);
+        XCTAssertFalse([_player.debugEngineCounts[@"running"] boolValue]);
         AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];
@@ -1804,7 +1938,7 @@ static double ToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channe
         [_player systemDefaultOutputDeviceDidChange];
         [_player runSyncOnQueue:^{}];
         XCTAssertTrue(_player.isStopped);
-        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"engineRunning"] boolValue]);
+        XCTAssertFalse([_player.outputDeviceDiagnosticSnapshot[@"outputRunning"] boolValue]);
         XCTAssertNil([_player valueForKey:@"playOpenToken"]);
         XCTAssertNil([_player valueForKey:@"prefetchOpenToken"]);
     } @finally {
@@ -2045,6 +2179,617 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         [_player debugShutdown]; _player=nil;
         for(NSUInteger i=0;i<3;i++) { method_setImplementation(methods[i],originals[i]); imp_removeBlock(replacements[i]); }
     }
+}
+
+#pragma mark - The varispeed at zero, the output's rate, the 16-bit decode, disabled FX, the path
+
+// At zero pitch the varispeed is hosted but not in the chain: the bus renders
+// straight into the output, sample-exact, and the unit renders nothing. The
+// fader leaving and returning to zero engages and disengages it without a
+// click or a skip: on a 100 Hz tone every transition keeps the waveform
+// continuous and its envelope full, the file advances exactly as far as the
+// rates played, and back at zero the output is the file again, exactly, with
+// the unit idle.
+- (void)testZeroPitchRendersTheBusDirectlyAndTogglesAreClickFree {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
+    [self play:noise paused:NO position:0];
+    [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    NSDictionary *counts = _player.debugEngineCounts;
+    XCTAssertTrue([counts[@"varispeed"] boolValue], @"ordinary playback hosts the varispeed");
+    XCTAssertFalse([counts[@"varispeedEngaged"] boolValue]);
+    XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], 0ull, @"the varispeed rendered at zero pitch");
+    XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], 0ull, @"the history ring was written at zero pitch");
+    XCTAssertEqual([counts[@"varispeedLatency"] doubleValue], 0.0);
+
+    NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
+    [self play:[self fixture:@"100.wav"] paused:NO position:0];
+    [_capture setLength:0];
+    // Each segment advances the file by its own rate, within a few frames.
+    // An engage first plays the slice in which the unit's history is
+    // recorded directly, at rate 1, then pulls the unit's latency ahead of
+    // its output; a disengage plays that pulled-ahead latency from the ring
+    // without consuming. So the two segments carry those frames each way.
+    double expected = 0, latency = 0;
+    BOOL wasEngaged = NO;
+    for (NSNumber *pitch in pitches) {
+        double before = _player.position, rate = 1 + pitch.doubleValue / 100;
+        _player.pitch = pitch.floatValue;
+        [self render:9600];
+        NSDictionary *counts = _player.debugEngineCounts;
+        BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
+        XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
+        if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
+        double direct = ceil(2 * latency * 48000 / _blockSize) * _blockSize / 48000;
+        double advance = 0.2 * rate + (engaged && !wasEngaged ? latency + direct * (1 - rate) : 0) - (!engaged && wasEngaged ? latency : 0);
+        XCTAssertEqualWithAccuracy(_player.position - before, advance, 0.0002, @"the file advanced at pitch %@", pitch);
+        expected += advance;
+        wasEngaged = engaged;
+    }
+    XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
+    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
+    uint64_t historyWrites = [_player.debugEngineCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
+    XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
+    // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
+    // repeated millisecond, or a cold unit's ramp from silence, moves ten
+    // times that or empties a window.
+    const float *out = _capture.bytes;
+    NSUInteger frames = _capture.length / sizeof(float) / 2, skip = [self startupSkip];
+    float step = 0.25f * 2 * (float)M_PI * 108 / 48000;
+    for (NSUInteger f = skip + 1; f < frames; f++) {
+        for (NSUInteger c = 0; c < 2; c++) {
+            float jump = fabsf(out[f * 2 + c] - out[(f - 1) * 2 + c]);
+            XCTAssertLessThan(jump, 6 * step, @"a jump at frame %lu channel %lu", (unsigned long)f, (unsigned long)c);
+            if (jump >= 6 * step) return;
+        }
+    }
+    double nominal = 0.25 / sqrt(2);
+    for (NSUInteger f = skip; f + 480 <= frames; f += 240) {
+        double rms = RMS(_capture, 2, 0, NSMakeRange(f, 480));
+        XCTAssertGreaterThan(rms, nominal * 0.93, @"a dip in the window at frame %lu", (unsigned long)f);
+        if (rms <= nominal * 0.93) return;
+    }
+    // Back at zero: the unit is idle, nothing is copied, and the output is
+    // the file, exactly.
+    uint64_t renders = [_player.debugEngineCounts[@"varispeedRenders"] unsignedLongLongValue];
+    XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
+    [self play:noise paused:NO position:0];
+    [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    counts = _player.debugEngineCounts;
+    XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
+    XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
+}
+
+// The output's rate moves under the pipeline — a device's would under the
+// unit, the route's under the iOS engine; here the pump's — and the pipeline
+// follows it, keeping the track: playing, the tone continues at the new rate
+// from the same position; paused, the position holds through the change and
+// the resume continues there.
+- (void)testOutputRateChangeKeepsThePlayingAndPausedTrack {
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    NSURL *url = [self fixture:@"1000.wav"];
+    AudioTrack *track = [self play:url paused:NO position:0];
+    [self render:22050];
+    double before = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    _rate = 96000;
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqual(_player.currentTrack, track);
+    XCTAssertEqualWithAccuracy(_player.position, before, 0.01);
+    XCTAssertEqual([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000.0);
+    XCTAssertTrue([_player.debugEngineCounts[@"varispeed"] boolValue], @"the varispeed was hosted again at the new rate");
+    NSData *data = [self renderSeconds:0.5];
+    XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 96000, 1000, NSMakeRange(9600, 24000)), 0.25, 0.005);
+    XCTAssertEqualWithAccuracy(_player.position, before + 0.5, 0.01);
+    XCTAssertEqual([self count:@"finish"], 0u);
+    XCTAssertEqual([self count:@"start"], 1u, @"a restore is not a new play");
+
+    [_player pause]; [self render:4800];
+    XCTAssertTrue(_player.isPaused);
+    double paused = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:48000]);
+    _rate = 48000;
+    XCTAssertTrue(_player.isPaused);
+    XCTAssertEqualWithAccuracy(_player.position, paused, 0.01);
+    XCTAssertEqual(RMS([self renderSeconds:0.2], 2, 0, NSMakeRange(0, 9600)), 0.0, @"paused stays silent across the change");
+    XCTAssertEqualWithAccuracy(_player.position, paused, 0.01);
+    [_player resume];
+    data = [self renderSeconds:0.5];
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertEqualWithAccuracy(ToneAmplitude(data, 2, 0, 48000, 1000, NSMakeRange(4800, 12000)), 0.25, 0.005);
+    XCTAssertEqualWithAccuracy(_player.position, paused + 0.5, 0.01);
+    XCTAssertTrue([_player debugSetOutputRate:48000], @"the current rate is a no-op");
+    XCTAssertTrue(_player.isPlaying);
+}
+
+// A lossy source read as 16-bit integers for a 16-bit device is read at the
+// bus's rate and width, not the file's: a 48 kHz file on a 96 kHz bus plays
+// at its own speed, a mono one lands in both channels, and every sample sits
+// on the 16-bit grid after the one rounding, the converter's last step. The
+// reference is the decode resampled the same way and rounded.
+- (void)testSixteenBitLossyDecodeFollowsTheBusRateAndChannels {
+    XCTSkipUnless([NSFileManager.defaultManager fileExistsAtPath:[self fixture:@"cbr.mp3"].path],
+                  @"Optional encoder fixtures unavailable; install ffmpeg and regenerate");
+    NSURL *mono = [self writeMonoAAC];
+    Method method = class_getInstanceMethod(AudioPlayer.class, @selector(decodesAsInteger16OnQueueForFile:));
+    IMP replacement = imp_implementationWithBlock(^BOOL(AudioPlayer *player, AudioFileHandle *file) {
+        AudioStreamBasicDescription sixteen = {0};
+        sixteen.mSampleRate = file.processingFormat.sampleRate;
+        sixteen.mFormatID = kAudioFormatLinearPCM;
+        sixteen.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+        sixteen.mBitsPerChannel = 16;
+        return VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, sixteen);
+    });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        for (NSURL *url in @[[self fixture:@"cbr.mp3"], mono]) {
+            AVAudioPCMBuffer *decoded = [self read:url];
+            [self startPlayerAt:96000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+            [self play:url paused:NO position:0];
+            AVAudioFormat *decodeFormat = _player.debugCurrentDecodeFormat;
+            XCTAssertEqual(decodeFormat.commonFormat, AVAudioPCMFormatInt16, @"%@", url.lastPathComponent);
+            XCTAssertEqual(decodeFormat.sampleRate, 96000.0, @"%@", url.lastPathComponent);
+            XCTAssertEqual(decodeFormat.channelCount, 2u, @"%@", url.lastPathComponent);
+            NSDictionary *conversion = _player.debugCurrentConversion;
+            XCTAssertEqualObjects(conversion[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering, @"%@", url.lastPathComponent);
+            XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+            XCTAssertEqualObjects(conversion[@"toSampleFormat"], @"int16");
+            XCTAssertEqual([conversion[@"mixed"] boolValue], decoded.format.channelCount == 1);
+            NSData *capture = [self renderSeconds:decoded.frameLength / decoded.format.sampleRate + 0.1];
+            XCTAssertEqual([self count:@"finish"], 1u, @"%@ played at its own speed", url.lastPathComponent);
+            // Past the startup declick, which ramps the first 10 ms, every
+            // sample sits on the grid.
+            const float *p = capture.bytes;
+            NSUInteger offGrid = 0;
+            for (NSUInteger i = [self startupSkip] * 2; i < capture.length / sizeof(float); i++) {
+                if (fabs(p[i] * 32768 - round(p[i] * 32768)) > 1e-3) offGrid++;
+            }
+            XCTAssertEqual(offGrid, 0u, @"%@: samples off the 16-bit grid", url.lastPathComponent);
+            NSData *reference = [self int16Grid:[self resample:[self stereo:decoded] to:96000]];
+            [self assertReference:reference capture:capture skip:[self startupSkip] tolerance:2.0f / 32768];
+        }
+    } @finally {
+        [_player debugShutdown]; _player = nil;
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+}
+
+// A one-second mono 440 Hz tone, AAC at 44.1 kHz, in the temporary directory.
+- (NSURL *)writeMonoAAC {
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:1];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:44100];
+    buffer.frameLength = 44100;
+    for (NSUInteger f = 0; f < 44100; f++) buffer.floatChannelData[0][f] = 0.25f * sinf((float)(2 * M_PI * 440 * f / 44100));
+    NSURL *url = [_temporary URLByAppendingPathComponent:@"mono.m4a"];
+    NSError *error = nil;
+    AudioStreamBasicDescription aac = {0};
+    aac.mFormatID = kAudioFormatMPEG4AAC;
+    aac.mSampleRate = 44100;
+    aac.mChannelsPerFrame = 1;
+    aac.mFramesPerPacket = 1024;
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForWriting:url fileType:kAudioFileM4AType
+                                                         fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&aac]
+                                                   processingFormat:format error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    XCTAssertTrue([file writeFromBuffer:buffer error:&error], @"%@", error);
+    XCTAssertTrue([file closeWithError:&error], @"%@", error);
+    return url;
+}
+
+// The bus's own fold: mono into both channels, wider unchanged.
+- (AVAudioPCMBuffer *)stereo:(AVAudioPCMBuffer *)buffer {
+    if (buffer.format.channelCount != 1) return buffer;
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:buffer.format.sampleRate channels:2];
+    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:buffer.frameLength];
+    out.frameLength = buffer.frameLength;
+    memcpy(out.floatChannelData[0], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
+    memcpy(out.floatChannelData[1], buffer.floatChannelData[0], buffer.frameLength * sizeof(float));
+    return out;
+}
+
+// The same conversion the bus makes: mastering quality, the whole buffer.
+- (AVAudioPCMBuffer *)resample:(AVAudioPCMBuffer *)buffer to:(double)rate {
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:buffer.format.channelCount];
+    AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:buffer.format toFormat:format];
+    converter.sampleRateConverterQuality = AVAudioQualityMax;
+    converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering;
+    AVAudioFrameCount capacity = (AVAudioFrameCount)(buffer.frameLength * rate / buffer.format.sampleRate) + 4096;
+    AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:capacity];
+    __block BOOL supplied = NO;
+    NSError *error = nil;
+    AVAudioConverterOutputStatus status = [converter convertToBuffer:out error:&error withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount packets, AVAudioConverterInputStatus *inputStatus) {
+        if (supplied) { *inputStatus = AVAudioConverterInputStatus_EndOfStream; return nil; }
+        supplied = YES;
+        *inputStatus = AVAudioConverterInputStatus_HaveData;
+        return buffer;
+    }];
+    XCTAssertNotEqual(status, AVAudioConverterOutputStatus_Error, @"%@", error);
+    return out;
+}
+
+- (NSData *)int16Grid:(AVAudioPCMBuffer *)buffer {
+    NSMutableData *pcm = PCM(buffer);
+    float *p = pcm.mutableBytes;
+    for (NSUInteger i = 0; i < pcm.length / sizeof(float); i++) p[i] = fminf(32767, fmaxf(-32768, roundf(p[i] * 32768))) / 32768;
+    return pcm;
+}
+
+// FX disabled with the reverb and a delay still ringing out: the segment
+// leaves the render at once — its units render nothing more, and the output
+// is the file, sample for sample, from where playback stood.
+- (void)testDisabledFXProcessNothingWhileTailsRing {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:url]);
+    _player.fx.delayTapBPM = 120;
+    _player.fx.reverbSendEnabled = YES;
+    _player.fx.delaySendEnabled = YES;
+    [self play:url paused:NO position:0];
+    [self render:9600];
+    _player.fx.reverbSendEnabled = NO;
+    _player.fx.delaySendEnabled = NO;
+    [self render:2400];
+    XCTAssertGreaterThan([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], 0ull, @"the sends rendered");
+    [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:NO];
+    [_player runSyncOnQueue:^{}];
+    NSDictionary *counts = _player.debugEngineCounts;
+    XCTAssertFalse([counts[@"fxConnected"] boolValue]);
+    XCTAssertTrue(_player.isPlaying);
+    uint64_t rested = [counts[@"unitRenders"] unsignedLongLongValue];
+    NSUInteger from = (NSUInteger)llround(_player.position * 48000);
+    NSData *capture = [self renderSeconds:1.0];
+    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested, @"a disabled segment rendered a unit");
+    NSData *excerpt = [reference subdataWithRange:NSMakeRange(from * 2 * sizeof(float), 48000 * 2 * sizeof(float))];
+    [self assertReference:excerpt capture:capture skip:0 tolerance:0];
+    // The tails' pending rests fire without touching a unit.
+    [self render:48000 * 12];
+    XCTAssertEqual([_player.debugEngineCounts[@"unitRenders"] unsignedLongLongValue], rested);
+}
+
+// A lossless codec's depth is the one it declares, not the container's 0,
+// and its flags are never read as PCM's: FLAC's and ALAC's 24-bit flag
+// carries the float bit, and the row once read them as 32-bit float.
+- (void)testAudioPathReportsALosslessCodecsDeclaredDepth {
+    NSDictionary<NSString *, NSArray *> *expected = @{
+        @"lossless.flac": @[@"FLAC", @24, @NO], @"lossless.m4a": @[@"ALAC", @24, @NO],
+        @"noise-48000-24-2.wav": @[@"PCM", @24, @NO], @"noise-48000-32-2.wav": @[@"PCM", @32, @YES],
+    };
+    for (NSString *name in expected) {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        [self play:[self fixture:name] paused:NO position:0];
+        [self render:4800];
+        NSDictionary *source = _player.audioPathSnapshot[0];
+        XCTAssertEqualObjects(source[@"codec"], expected[name][0], @"%@", name);
+        XCTAssertEqual([source[@"bitsPerChannel"] intValue], [expected[name][1] intValue], @"%@", name);
+        XCTAssertEqual([source[@"float"] boolValue], [expected[name][2] boolValue], @"%@: %@", name, source);
+        XCTAssertTrue([source[@"lossless"] boolValue], @"%@", name);
+    }
+}
+
+// The decoder's stage carries both sides of a conversion: the file's decoded
+// format and the bus's, which the Settings row shows as the decoder's output.
+- (void)testAudioPathDecoderReportsBothSidesOfTheConversion {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-44100-24-1.wav"] paused:NO position:0];
+    [self render:4800];
+    NSDictionary *decode = _player.audioPathSnapshot[1];
+    XCTAssertEqualObjects(decode[@"read"], @"converted");
+    XCTAssertEqual([decode[@"sampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([decode[@"channels"] intValue], 1);
+    XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
+    XCTAssertEqual([decode[@"toChannels"] intValue], 2);
+    XCTAssertTrue([decode[@"resampled"] boolValue]);
+    XCTAssertTrue([decode[@"mixed"] boolValue]);
+}
+
+// The player's half of the reopen wait's bound: a rebuild's stopReading
+// joins the decoder while a late successor's reopen waits for a render held
+// inside the bus, and completes at the new rate with the render still held.
+- (void)testARebuildCompletesWhileAVoiceRenderIsStuck {
+    self.continueAfterFailure = YES;
+    // The real decode queue under the frame-driven pump, as the seek test does.
+    Method initializer = class_getInstanceMethod(AudioVoiceBus.class, @selector(initWithFormat:queue:inlineDecoding:));
+    __block IMP originalInit;
+    IMP asyncInit = imp_implementationWithBlock(^id(id receiver, AVAudioFormat *format, dispatch_queue_t queue, BOOL inlineDecoding) {
+        return ((id (*)(id, SEL, AVAudioFormat *, dispatch_queue_t, BOOL))originalInit)(receiver, @selector(initWithFormat:queue:inlineDecoding:), format, queue, NO);
+    });
+    originalInit = method_setImplementation(initializer, asyncInit);
+    @try {
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+        [_player debugStarveDecoder:YES];
+        NSData *pcm = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+        [self play:[self write:[pcm subdataWithRange:NSMakeRange(0, 2000 * 8)] rate:48000 channels:2 name:@"ended-short.wav"] paused:NO position:0];
+    } @finally {
+        method_setImplementation(initializer, originalInit);
+        imp_removeBlock(asyncInit);
+    }
+    __block AudioVoiceBus *bus;
+    __block VibeVoiceID voice;
+    [_player runSyncOnQueue:^{
+        bus = [self->_player valueForKey:@"voiceBus"];
+        voice = [[self->_player valueForKey:@"voice"] unsignedLongLongValue];
+    }];
+    dispatch_sync(bus.decodeQueue, ^{});
+    XCTAssertEqual([bus snapshotOfVoice:voice].endOfStream, 2000u);
+    dispatch_group_t stuck = dispatch_group_create();
+    dispatch_group_t rebuild = dispatch_group_create();
+    [bus debugHoldRender:YES];
+    dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        [self->_player debugRenderOnCallerThread:256];
+    });
+    @try {
+        [self settleUntil:^BOOL { return bus.debugRendersHeld == 1; }];
+        [_player prefetchTrack:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]; // the reopen waits
+        dispatch_group_async(rebuild, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            XCTAssertTrue([self->_player debugSetOutputRate:96000]);
+        });
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0L,
+                       @"the rebuild joined a decoder waiting for the stuck render");
+        XCTAssertEqual(bus.debugRendersHeld, 1u, @"the render was still stuck when the rebuild completed");
+        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+    } @finally {
+        [bus debugHoldRender:NO];
+        XCTAssertEqual(dispatch_group_wait(stuck, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        XCTAssertEqual(dispatch_group_wait(rebuild, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+    }
+    [_player runSyncOnQueue:^{ [self->_player drainVoiceBusOnQueue]; }];
+    [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+}
+
+// A rebuild leaves the old bus's decoder to finish its read on its own:
+// the player queue answers at once, the rate change completes with the read
+// still stalled, and the re-voiced track reads the file only after that
+// decoder has left it, then plays.
+- (void)testAStalledFileReadHoldsNeitherTheQueueNorTheRebuild {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:YES];
+    NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
+    dispatch_semaphore_t reading = dispatch_semaphore_create(0), releaseRead = dispatch_semaphore_create(0);
+    dispatch_semaphore_t rebuilt = dispatch_semaphore_create(0), responsive = dispatch_semaphore_create(0);
+    Method read = class_getInstanceMethod(AudioFileHandle.class, @selector(readIntoBuffer:frameCount:error:));
+    __block IMP original;
+    __block _Atomic(BOOL) held = NO;
+    IMP blocked = imp_implementationWithBlock(^BOOL(AudioFileHandle *file, AVAudioPCMBuffer *buffer, AVAudioFrameCount frames, NSError **error) {
+        if ([file.url isEqual:url] && !atomic_exchange(&held, YES)) {
+            dispatch_semaphore_signal(reading);
+            dispatch_semaphore_wait(releaseRead, DISPATCH_TIME_FOREVER);
+        }
+        return ((BOOL (*)(id, SEL, AVAudioPCMBuffer *, AVAudioFrameCount, NSError **))original)
+                (file, @selector(readIntoBuffer:frameCount:error:), buffer, frames, error);
+    });
+    original = method_setImplementation(read, blocked);
+    long rebuildWait = 0, queueWait = 0;
+    @try {
+        [self play:url paused:NO position:0];
+        XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)), 0L);
+        AudioPlayer *player = _player;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            XCTAssertTrue([player debugSetOutputRate:96000]);
+            dispatch_semaphore_signal(rebuilt);
+        });
+        rebuildWait = dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            [player runSyncOnQueue:^{ dispatch_semaphore_signal(responsive); }];
+        });
+        queueWait = dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+        XCTAssertEqual(rebuildWait, 0L, @"the rate change waited on the stalled read");
+        XCTAssertEqual(queueWait, 0L, @"the player queue waited on the stalled read");
+        XCTAssertEqualWithAccuracy([_player.debugEngineCounts[@"outputRate"] doubleValue], 96000, 0);
+        XCTAssertTrue(_player.isPlaying);
+        // The re-voiced track reads nothing while the retired decoder may be
+        // inside its file: the pump runs, and the position holds.
+        NSTimeInterval before = _player.position;
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+        XCTAssertEqualWithAccuracy(_player.position, before, 0.0001, @"the file was read under the stalled decoder");
+    } @finally {
+        dispatch_semaphore_signal(releaseRead);
+        if (rebuildWait) dispatch_semaphore_wait(rebuilt, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        if (queueWait) dispatch_semaphore_wait(responsive, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        [_player runSyncOnQueue:^{}];
+    }
+    // The read released, the retired decoder leaves and the track plays on.
+    NSTimeInterval resumedFrom = _player.position;
+    [self settleUntil:^BOOL { return self->_player.position > resumedFrom + 0.1; }];
+    XCTAssertGreaterThan(_player.position, resumedFrom + 0.1, @"the track never played after the decoder left");
+    XCTAssertNil(_playError);
+    method_setImplementation(read, original);
+    imp_removeBlock(blocked);
+}
+
+// A failed effect render is silence, not audio, and the status reaches the
+// carrier; a rebuild hosts the units again and the chain renders.
+- (void)testAFailedEffectSilencesTheSliceAndReachesTheCarrier {
+    for (NSNumber *unit in @[@0, @1]) {
+        [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+        _player.fx.lowKillEnabled = unit.intValue == 0;
+        _player.fx.reverbSendEnabled = unit.intValue == 1;
+        [self play:[self fixture:@"1000.wav"] paused:NO position:0];
+        [self render:4800];
+        __block BOOL uninitialized = NO;
+        [_player runSyncOnQueue:^{ uninitialized = [self->_player.fx debugUninitializeUnitAtIndex:unit.unsignedIntegerValue]; }];
+        XCTAssertTrue(uninitialized, @"unit %@", unit);
+        NSError *error = nil;
+        AVAudioPCMBuffer *output = [_player debugRenderFrames:256 error:&error];
+        XCTAssertNil(output, @"unit %@: the carrier received a failed slice as audio", unit);
+        XCTAssertNotNil(error, @"unit %@", unit);
+        XCTAssertTrue([_player debugSetOutputRate:96000], @"unit %@", unit);
+        [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
+    }
+}
+
+// A production player with no carrier — the output unit could not be made —
+// fails the start with an error instead of publishing Playing over nothing.
+- (void)testAMissingOutputUnitFailsTheStart {
+    self.continueAfterFailure = YES;
+    Method initializer = class_getInstanceMethod(AudioOutputUnit.class, @selector(init));
+    IMP failure = imp_implementationWithBlock(^id(id receiver) { return nil; });
+    IMP original = method_setImplementation(initializer, failure);
+    @try {
+        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self
+                                  loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+        [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
+        XCTAssertFalse(_player.manualRenderingActive);
+        [_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
+        XCTAssertNotNil(_playError, @"a missing carrier must fail the start");
+        XCTAssertEqual(_playError.code, VibeAudioErrorEngineStartFailed);
+        XCTAssertTrue(_player.isStopped);
+        XCTAssertFalse(_player.outputAudioActive);
+        XCTAssertEqual([self count:@"start"], 0u);
+    } @finally {
+        method_setImplementation(initializer, original);
+        imp_removeBlock(failure);
+    }
+}
+
+// The carrier made late — its unit could not be made at init — brings its
+// device's rate before the play's segment is built, so the voice is built at
+// that rate, not the fallback's; the carrier itself stays device-free here,
+// so the start then fails as one without a unit does.
+- (void)testACarrierMadeLateBringsItsRateBeforeTheVoice {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    AudioPlayer *target = _player;
+    __block NSUInteger created = 0;
+    Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
+    Method create = class_getInstanceMethod(AudioPlayer.class, NSSelectorFromString(@"createOutputUnitOnQueue"));
+    __block IMP originalDrives, originalCreate;
+    IMP driveReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        return receiver == target ? YES : ((BOOL (*)(id, SEL))originalDrives)(receiver, @selector(drivesOutputDeviceOnQueue));
+    });
+    IMP createReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        if (receiver != target) return ((BOOL (*)(id, SEL))originalCreate)(receiver, NSSelectorFromString(@"createOutputUnitOnQueue"));
+        created++;
+        // A unit follows its device's rate through applyOutputRateOnQueue:,
+        // whose pipeline effect is this setter; no device is opened.
+        SEL setter = NSSelectorFromString(@"setMasterBusFormatOnQueue:");
+        ((void (*)(id, SEL, id))[receiver methodForSelector:setter])(receiver, setter,
+                [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2]);
+        return YES;
+    });
+    originalDrives = method_setImplementation(drives, driveReplacement);
+    originalCreate = method_setImplementation(create, createReplacement);
+    @try {
+        [_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
+        XCTAssertEqual(created, 1u);
+        XCTAssertNotNil(_playError, @"no unit came of the creation, so the start fails");
+        XCTAssertEqual([self count:@"start"], 0u);
+        [_player runSyncOnQueue:^{
+            AudioVoiceBus *bus = [target valueForKey:@"voiceBus"];
+            XCTAssertNotNil(bus);
+            XCTAssertEqual([target masterBusFormatOnQueue].sampleRate, 48000.0);
+            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the segment was built at the fallback rate, not the carrier's");
+        }];
+    } @finally {
+        method_setImplementation(drives, originalDrives);
+        method_setImplementation(create, originalCreate);
+        imp_removeBlock(driveReplacement);
+        imp_removeBlock(createReplacement);
+    }
+}
+
+// A voice parked at the fallback rate — a paused start with no unit — is
+// re-voiced at the carrier's rate when a resume makes the unit, before the
+// start; the device-free carrier then fails the start, and the voice stays
+// parked at its position.
+- (void)testACarrierMadeLateReconcilesAParkedVoice {
+    self.continueAfterFailure = YES;
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-44100-24-2.wav"] paused:YES position:1.5];
+    AudioPlayer *target = _player;
+    __block NSUInteger created = 0;
+    Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
+    Method create = class_getInstanceMethod(AudioPlayer.class, NSSelectorFromString(@"createOutputUnitOnQueue"));
+    __block IMP originalDrives, originalCreate;
+    IMP driveReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        return receiver == target ? YES : ((BOOL (*)(id, SEL))originalDrives)(receiver, @selector(drivesOutputDeviceOnQueue));
+    });
+    IMP createReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        if (receiver != target) return ((BOOL (*)(id, SEL))originalCreate)(receiver, NSSelectorFromString(@"createOutputUnitOnQueue"));
+        created++;
+        SEL setter = NSSelectorFromString(@"setMasterBusFormatOnQueue:");
+        ((void (*)(id, SEL, id))[receiver methodForSelector:setter])(receiver, setter,
+                [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000 channels:2]);
+        return YES;
+    });
+    originalDrives = method_setImplementation(drives, driveReplacement);
+    originalCreate = method_setImplementation(create, createReplacement);
+    @try {
+        NSUInteger events = _events.count;
+        [_player resume];
+        [self settleUntil:^BOOL { return self->_playError != nil || self->_events.count > events; }];
+        [_player runSyncOnQueue:^{}];
+        XCTAssertEqual(created, 1u);
+        XCTAssertNotNil(_playError, @"no unit came of the creation, so the resume's start fails");
+        XCTAssertTrue(_player.isPaused, @"the failed start keeps the voice parked");
+        XCTAssertEqualWithAccuracy(_player.position, 1.5, 0.01);
+        [_player runSyncOnQueue:^{
+            AudioVoiceBus *bus = [target valueForKey:@"voiceBus"];
+            XCTAssertEqual([target masterBusFormatOnQueue].sampleRate, 48000.0);
+            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the parked voice stayed at the fallback rate");
+            XCTAssertEqual(bus.occupiedSlotCount, 1u, @"the voice was not re-voiced at the new rate");
+        }];
+    } @finally {
+        method_setImplementation(drives, originalDrives);
+        method_setImplementation(create, originalCreate);
+        imp_removeBlock(driveReplacement);
+        imp_removeBlock(createReplacement);
+    }
+}
+
+// The path, stage by stage, as the Settings window and dump_audio_path read it.
+- (void)testAudioPathReportsEveryStage {
+    [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
+    [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
+    [self render:4800];
+    NSArray<NSDictionary *> *path = _player.audioPathSnapshot;
+    XCTAssertEqualObjects([path valueForKey:@"stage"],
+                          (@[@"source", @"decode", @"bus", @"varispeed", @"fx", @"meter", @"output", @"device"]));
+    NSDictionary *source = path[0], *decode = path[1], *bus = path[2], *varispeed = path[3], *fx = path[4], *meter = path[5], *output = path[6], *device = path[7];
+    XCTAssertEqualObjects(source[@"file"], @"noise-44100-16-2.wav");
+    XCTAssertEqualObjects(source[@"codec"], @"PCM");
+    XCTAssertEqual([source[@"sampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([source[@"bitsPerChannel"] intValue], 16);
+    XCTAssertEqual([source[@"channels"] intValue], 2);
+    XCTAssertTrue([source[@"lossless"] boolValue]);
+    XCTAssertEqualObjects(decode[@"read"], @"converted");
+    XCTAssertEqual([decode[@"fromSampleRate"] doubleValue], 44100.0);
+    XCTAssertEqual([decode[@"toSampleRate"] doubleValue], 48000.0);
+    XCTAssertEqualObjects(decode[@"algorithm"], AVSampleRateConverterAlgorithm_Mastering);
+    XCTAssertEqual([decode[@"quality"] integerValue], (NSInteger)AVAudioQualityMax);
+    XCTAssertEqualObjects(decode[@"toSampleFormat"], @"float32");
+    XCTAssertFalse([decode[@"mixed"] boolValue]);
+    XCTAssertEqual([bus[@"sampleRate"] doubleValue], 48000.0);
+    XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
+    XCTAssertTrue([varispeed[@"present"] boolValue]);
+    XCTAssertFalse([varispeed[@"engaged"] boolValue]);
+    XCTAssertEqual([varispeed[@"quality"] intValue], 127, @"the varispeed at its highest render quality");
+    XCTAssertGreaterThan([varispeed[@"latencyFrames"] intValue], 0);
+    XCTAssertTrue([fx[@"connected"] boolValue]);
+    XCTAssertTrue([fx[@"inRender"] boolValue]);
+    XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);
+    XCTAssertNotNil(fx[@"latencySeconds"], @"the dry path's latency");
+    XCTAssertGreaterThanOrEqual([fx[@"latencySeconds"] doubleValue], 0);
+    XCTAssertFalse([meter[@"present"] boolValue]);
+    XCTAssertEqualObjects(output[@"carrier"], @"pump");
+    XCTAssertEqual([output[@"sampleRate"] doubleValue], 48000.0);
+    XCTAssertTrue([output[@"running"] boolValue]);
+    XCTAssertFalse([output[@"idleStopPending"] boolValue]);
+    XCTAssertFalse([device[@"present"] boolValue], @"no device under the pump");
+    // Stopped, the output keeps running until the deferred idle stop, and
+    // says so; after it, the output is idle.
+    [_player stop];
+    [self render:4800];
+    output = _player.audioPathSnapshot[6];
+    XCTAssertTrue([output[@"running"] boolValue]);
+    XCTAssertTrue([output[@"idleStopPending"] boolValue]);
+    [self render:48000 * 7];
+    output = _player.audioPathSnapshot[6];
+    XCTAssertFalse([output[@"running"] boolValue]);
+    XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
 @end

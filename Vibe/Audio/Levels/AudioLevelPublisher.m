@@ -142,7 +142,7 @@ struct VibeLevelPublisherState {
 @end
 
 BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state, uint64_t session,
-                               const float levels[kLevelBandCount]) {
+                               const float levels[kLevelBandCount]) CA_REALTIME_API {
     if (atomic_load_explicit(&state->activeSession, memory_order_acquire) != session) {
         return NO;
     }
@@ -183,7 +183,7 @@ BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state, uint64_t session,
 }
 
 void VibeLevelPublisherRecordCallback(VibeLevelPublisherState *state,
-                                      uint64_t frameLength, double sampleRate) {
+                                      uint64_t frameLength, double sampleRate) CA_REALTIME_API {
 #if DEBUG
     atomic_fetch_add_explicit(&state->callbackCount, 1, memory_order_relaxed);
     atomic_store_explicit(&state->lastCallbackFrameLength, frameLength,
@@ -196,7 +196,7 @@ void VibeLevelPublisherRecordCallback(VibeLevelPublisherState *state,
 }
 
 void VibeLevelPublisherRecordAnalyzedWindows(VibeLevelPublisherState *state,
-                                             uint64_t count) {
+                                             uint64_t count) CA_REALTIME_API {
 #if DEBUG
     atomic_fetch_add_explicit(&state->analyzedWindowCount, count,
                               memory_order_relaxed);

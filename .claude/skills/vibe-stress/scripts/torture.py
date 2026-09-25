@@ -12,7 +12,7 @@ rather than one per op. That is what makes it a torture test — it drives skips
 faster than any human or the ~12 ops/s fuzzer can.
 
 Oracles between bursts: the app is alive, check_consistency has no violations,
-and dump_health's fds / engine nodes / pending counters / live heap have not
+and dump_health's fds / hosted units / pending counters / live heap have not
 run away. Seeded: --seed N replays an identical op sequence.
 """
 
@@ -216,7 +216,8 @@ def health_of(app):
         "fds": p["fileDescriptors"],
         "threads": p["threads"],
         "views": u["views"],
-        "nodes": a["engineNodes"],
+        "units": a["hostedUnits"],
+        "refusals": a.get("renderRefusals", 0),
         "pending": h["pending"],
         "playlistCount": a["playlistCount"],
         "currentIndex": a["currentIndex"],
@@ -297,7 +298,7 @@ def main():
         return 2
 
     base = health_of(app)
-    print(f"baseline: fds {base['fds']}  nodes {base['nodes']}  "
+    print(f"baseline: fds {base['fds']}  units {base['units']}  "
           f"live {base['liveMB']:.1f} MB  views {base['views']}")
 
     total_ops = 0
@@ -338,8 +339,10 @@ def main():
             bad = []
             if h["fds"] > base["fds"] + 64:
                 bad.append(f"fds {base['fds']}->{h['fds']}")
-            if h["nodes"] > base["nodes"] + 64:
-                bad.append(f"engineNodes {base['nodes']}->{h['nodes']}")
+            if h["units"] > base["units"] + 64:
+                bad.append(f"hostedUnits {base['units']}->{h['units']}")
+            if h["refusals"] > base["refusals"]:
+                bad.append(f"renderRefusals {base['refusals']}->{h['refusals']}")
             if h["liveMB"] > base["liveMB"] + 128:
                 bad.append(f"liveHeap {base['liveMB']:.0f}->{h['liveMB']:.0f} MB")
             if h["views"] > base["views"] + 320:
@@ -353,14 +356,14 @@ def main():
                 pend = ",".join(f"{k}={v}" for k, v in h["pending"].items() if v)
                 print(f"  burst {r:3d}  {total_ops:6d} ops  {rate:5.1f} ops/s  "
                       f"idx {h['currentIndex']:4d}/{h['playlistCount']}  "
-                      f"fds {h['fds']}  nodes {h['nodes']}  live {h['liveMB']:5.1f} MB"
+                      f"fds {h['fds']}  units {h['units']}  live {h['liveMB']:5.1f} MB"
                       f"{'  PENDING ' + pend if pend else ''}")
 
     # Everything must unwind once it settles.
     app.cmd("quiesce", timeout=120)
     rest = health_of(app)
     stuck = {k: v for k, v in rest["pending"].items() if v}
-    print(f"\nat rest: fds {rest['fds']}  nodes {rest['nodes']}  "
+    print(f"\nat rest: fds {rest['fds']}  units {rest['units']}  "
           f"live {rest['liveMB']:.1f} MB  pending {rest['pending']}")
     if stuck:
         print(f"FAILED: pending counters did not unwind at rest: {stuck}")

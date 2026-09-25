@@ -113,6 +113,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _declick = YES;
         _loadingConfiguration = [loadingConfiguration copy];
         _retiringVoices = [NSMutableArray array];
+        _renderLeaveWork = [NSMutableArray array];
+        _retiredDecoderFiles = [NSCountedSet set];
         _prefetchRequestState = VibeAudioPrefetchRequestStateMake();
         _levelNormalizationMode = kLevelDefaultNormalizationMode;
         _levelPublisher = [[AudioLevelPublisher alloc] init];
@@ -128,12 +130,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, (__bridge void *)self, NULL);
         _manualPump = pump;
+        // The bus exists for the player's life; every queue-side reader
+        // dereferences it. TRAP: allocated in the async init below instead,
+        // the render stall watcher's first tick, due at once on the queue,
+        // ran first on a loaded machine and read the gate through NULL.
+        _masterBus = VibeMasterBusCreate();
         // Keep the macOS controls and BPM feed stable across live toggles;
         // the FX nodes themselves are created only when first connected.
         _fxEnabled = enableFX;
         __weak AudioPlayer *weakPlayer = self;
         _fx = (enableFX || TARGET_OS_OSX) ? [[AudioFX alloc] initWithQueue:_queue scheduler:^(NSTimeInterval seconds, dispatch_block_t block) {
             [weakPlayer scheduleAfterSeconds:seconds block:block];
+        } afterRenderLeaves:^(dispatch_block_t work) {
+            AudioPlayer *player = weakPlayer;
+            if (player) {
+                [player afterRenderLeavesOnQueue:work];
+            }
+            else {
+                work(); // no player, no pipeline, no render
+            }
         }] : nil;
 #if TARGET_OS_OSX
         _pendingSavedDeviceUID = [deviceUID copy] ?: @"";
@@ -148,23 +163,19 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
         dispatch_async(_queue, ^{
             LogDebug(@"AudioPlayer init");
-            [self createEngineAndMasterBusOnQueue];
-#if TARGET_OS_OSX
-            if (self->_outputUnit) {
-                [[AudioDeviceManager sharedInstance] addObserver:self];
-                // Do not put first-use HAL discovery on the player's sole queue.
-                // The engine begins honestly on System Output; a successful
-                // async snapshot later applies the saved preference through
-                // the checked device-switch path.
-                [self resolvePendingSavedOutputDeviceOnQueue];
-            }
-#endif
+            [self createOutputOnQueue];
             run_on_main_thread({
                 [self.delegate audioPlayerDidInitialize:self];
             });
         });
     }
     return self;
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)audioPathSnapshot {
+    __block NSArray *path;
+    [self runSyncOnQueue:^{ path = [self audioPathOnQueue]; }];
+    return path;
 }
 
 - (BOOL)bitPerfectOnQueue {
@@ -176,11 +187,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (BOOL)drivesOutputDeviceOnQueue {
-#if TARGET_OS_OSX
-    return _outputUnit != nil;
-#else
-    return !_engine.isInManualRenderingMode;
-#endif
+    return _manualPump == nil; // under the pump there is no carrier on either platform
 }
 
 // The one home for the same-queue guard every synchronous accessor needs.
@@ -217,6 +224,9 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     if (_outputLevelListener) {
         [CoreAudioUtil removeOutputLevelListener:_outputLevelListener queue:_queue forDeviceID:_preparedDeviceID];
     }
+    if (_boundRateListener) {
+        [CoreAudioUtil removeNominalRateListener:_boundRateListener queue:_queue forDeviceID:_boundRateDeviceID];
+    }
     [[AudioDeviceManager sharedInstance] removeObserver:self];
 #endif
     // Engine mutation belongs on _queue, as everywhere else. dispatch_sync
@@ -224,16 +234,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // either holds a strongSelf, in which case dealloc is not running, or
     // resolves its weakSelf to nil and returns. The one remaining hazard is
     // dealloc itself running on _queue, when a queued block releases the last
-    // reference, so that case tears down inline. The engine stops before the
-    // bus is released with the rest of the ivars, so no render is in flight.
-    // Locals, not self: the open tokens outlive the player otherwise, pulling
-    // a whole file down for a play that can never land.
+    // reference, so that case tears down inline. The carrier stops before the
+    // pipeline is freed and the bus released with the rest of the ivars, so
+    // no render is in flight — and one still inside leaks all of it, since
+    // nothing a render is inside may be freed. Locals, not self: the open
+    // tokens outlive the player otherwise, pulling a whole file down for a
+    // play that can never land.
     AudioLevelTap *levelTap = _levelTap;
     _levelTap = nil;
+    AudioVoiceBus *voiceBus = _voiceBus;
+    AudioFX *fx = _fx;
+    NSArray<dispatch_block_t> *renderLeaveWork = [_renderLeaveWork copy];
+    _renderLeaveWork = nil;
 #if TARGET_OS_OSX
     AudioOutputUnit *outputUnit = _outputUnit;
-#endif
+#else
     AVAudioEngine *engine = _engine;
+#endif
+    VibeMasterBus *masterBus = _masterBus;
+    _masterBus = NULL;
     dispatch_source_t drainTimer = _drainTimer;
     _drainTimer = nil;
     AudioFileOpenToken *playOpenToken = _playOpenToken;
@@ -248,9 +267,25 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [levelTap remove];
         if (drainTimer) dispatch_source_cancel(drainTimer);
 #if TARGET_OS_OSX
-        [outputUnit stop]; // no cycle in flight before the engine it pulls stops
-#endif
+        [outputUnit stop]; // no cycle in flight before the pipeline it pulls is freed
+#else
         [engine stop];
+#endif
+        if (VibeMasterBusRenderInside(masterBus)) {
+            // Kept for the process's life: nothing a render is inside may be freed.
+            LogError(@"AudioPlayer: a render is still inside the pipeline at teardown; the pipeline is leaked");
+            static NSMutableArray *leaked;
+            static dispatch_once_t once;
+            dispatch_once(&once, ^{ leaked = [NSMutableArray array]; });
+            @synchronized (leaked) {
+                [leaked addObject:@[renderLeaveWork, fx ?: NSNull.null, voiceBus ?: NSNull.null, levelTap ?: NSNull.null]];
+            }
+            return;
+        }
+        for (dispatch_block_t work in renderLeaveWork) {
+            work();
+        }
+        VibeMasterBusFree(masterBus);
     };
     if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
         teardown();
@@ -341,7 +376,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // loading-indicator timers ever exist. Loading is published above either
     // way, so the fast path lands in the same state the slow one does.
     if (_prefetchedFile && [path isEqualToString:_prefetchedPath]) {
-        AVAudioFile *prefetchedFile = _prefetchedFile;
+        AudioFileHandle *prefetchedFile = _prefetchedFile;
         [self clearPrefetchOnQueue];
         [self finishPlayOnQueueWithFile:prefetchedFile error:nil openRequestId:openId];
         return;
@@ -382,7 +417,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // replaces an audibly playing track is the only case the user's crossfade
 // length applies to; everything else fades at the declick minimum.
 - (void)retireCurrentVoiceOnQueueWithDeclick:(BOOL)declick {
-    BOOL replacingAudibleTrack = _voice != 0 && _engine.isRunning && _state == VibePlayerStatePlaying;
+    BOOL replacingAudibleTrack = _voice != 0 && [self renderingOnQueue] && _state == VibePlayerStatePlaying;
     // A device's mode lands before main applies its dependent settings.
     declick |= [self bitPerfectOnQueue];
     _incomingFadeMilliseconds = VibeIncomingFadeMilliseconds(self.crossfadeMilliseconds, replacingAudibleTrack, declick);
@@ -403,7 +438,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
-            completion:^(AVAudioFile *file, NSError *error, NSTimeInterval openSeconds) {
+            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval openSeconds) {
         // How long the provider took is the one number that explains a slow
         // start. Warn level so it persists for `log show`; always logged, so
         // "nothing appeared" can only mean the open did not happen.
@@ -438,7 +473,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // The settlement: the file is open, the play still current. The source
 // segment is made to fit the file, a voice starts fading in from silence,
 // and the engine runs unless the play was parked.
-- (void)finishPlayOnQueueWithFile:(AVAudioFile *)file error:(NSError *)error openRequestId:(uint64_t)openId {
+- (void)finishPlayOnQueueWithFile:(AudioFileHandle *)file error:(NSError *)error openRequestId:(uint64_t)openId {
     VibePlaybackRequest *request = [_pendingRequest consumeRequest:openId];
     if (!request) {
         return; // Superseded by a newer play, or already timed out.
@@ -461,11 +496,15 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
 #if TARGET_OS_OSX
+    [self ensureOutputUnitOnQueue]; // a unit made late brings its device's rate, before the segment is built at it
     // Gates itself on the mode. A format switch stops the engine, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
 #endif
-    if (![self ensureSourceSegmentOnQueueForFile:file rebuilt:NULL]) {
+    // The iOS route's rate may have moved while nothing played; the
+    // segment below is built at the route's rate, not a stale one.
+    [self followOutputRouteOnQueue];
+    if (![self ensureSourceSegmentOnQueueRebuilt:NULL]) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
                 [NSString stringWithFormat:@"Could not play %@ (unsupported format)", track.url.lastPathComponent], nil, track.url)
@@ -483,11 +522,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         // else will stop it.
         [self publishState:VibePlayerStatePaused voice:voice file:file
               startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
-        [self scheduleEngineIdleStopOnQueue];
+        [self scheduleOutputIdleStopOnQueue];
     }
     else {
         NSError *startError = nil;
-        if (![self startEngineOnQueue:&startError]) {
+        if (![self startOutputOnQueue:&startError]) {
             [_voiceBus killVoice:voice];
             [self resetToStoppedStateOnQueue];
             [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -553,7 +592,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     [self cancelPlayOpenForRequest:openId];
     // If materialization was still running it is cancelled. If the worker had
-    // entered AVAudioFile, its path claim stays registered until that call
+    // entered AudioFileHandle, its path claim stays registered until that call
     // returns, and a same-path retry rebinds to it.
     AudioTrack *track = request.track;
     BOOL madeProgress = _openLastPositiveMovementUptime > _openSubmittedUptime;
@@ -647,17 +686,17 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 }
 
 // The voice fades to silence and stops consuming on the exact landing frame;
-// the state is Paused now. Under a stopped engine nothing renders, so the
+// the state is Paused now. Under a stopped output nothing renders, so the
 // pause is a cut, which lands at the first render after any restart, before
 // audio. A pause silences a crossfade's outgoing tail too.
 - (void)pauseCurrentVoiceOnQueue {
-    uint64_t milliseconds = _engine.isRunning ? kFadeDurationMilliseconds : 0;
+    uint64_t milliseconds = [self renderingOnQueue] ? kFadeDurationMilliseconds : 0;
     [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionPause] forVoice:_voice];
     [self cutRetiringVoicesToDeclickOnQueue];
     [self publishState:VibePlayerStatePaused voice:_voice file:_file startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     // Paused is idle: without this the engine renders silence and holds the
     // output device for as long as the user stays paused.
-    [self scheduleEngineIdleStopOnQueue];
+    [self scheduleOutputIdleStopOnQueue];
     AudioTrack *track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];
@@ -673,12 +712,21 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
+    // The carrier's rate may have moved while it was stopped (the iOS
+    // route); the pipeline follows it first, re-voicing paused in place, so
+    // the start below runs at the route's rate and the output converts nothing.
+    if (![self followOutputRouteOnQueue]) {
+        return; // the follow reset the player and said why
+    }
+#if TARGET_OS_OSX
+    [self ensureOutputUnitOnQueue]; // a unit made late re-voices the parked voice at its device's rate first
+#endif
     NSError *startError = nil;
-    if (![self startEngineOnQueue:&startError]) {
+    if (![self startOutputOnQueue:&startError]) {
         // startEngineOnQueue cancelled the pending idle stop at entry; the
         // state stays Paused, so re-arm it or a running engine holds the
         // output device forever.
-        [self scheduleEngineIdleStopOnQueue];
+        [self scheduleOutputIdleStopOnQueue];
         [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed, @"Could not resume playback", startError)
                forSubmittedPlay:owningSubmittedPlayIdentifier];
         return;
@@ -773,7 +821,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         // Playing can carry a stopped engine for the moment between a
         // configuration change and its recovery.
         NSError *startError = nil;
-        if (![self startEngineOnQueue:&startError]) {
+        if (![self startOutputOnQueue:&startError]) {
             [self pauseCurrentVoiceOnQueue];
             [self sendDelegateError:VibeAudioError(VibeAudioErrorEngineStartFailed, @"Could not resume playback after seek", startError)
                    forSubmittedPlay:owningSubmittedPlayIdentifier];
@@ -840,7 +888,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 #endif
     // Release the output device once genuinely idle. A quick follow-up play,
     // such as auto-advance past a bad file, reuses the running engine.
-    [self scheduleEngineIdleStopOnQueue];
+    [self scheduleOutputIdleStopOnQueue];
 }
 
 // Ends the current track as if it had played to its end. A gapless boundary
@@ -875,7 +923,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 #if TARGET_OS_OSX
     [self resolvePendingSavedOutputDeviceOnQueue];
 #endif
-    [self scheduleEngineIdleStopOnQueue];
+    [self scheduleOutputIdleStopOnQueue];
     // Snapshot before dispatching: if the track has changed by the time the
     // block runs on main, this end event is stale and must be dropped.
     _activeSubmittedPlayIdentifier = 0;
@@ -909,7 +957,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibeVoiceRampMake(gain, frames, VibeFadeCurveForMilliseconds(milliseconds), action);
 }
 
-- (VibeVoiceID)startVoiceOnQueueForFile:(AVAudioFile *)file atFrame:(AVAudioFramePosition)frame
+- (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
     _decodeFormat = [self decodeFormatOnQueueForFile:file];
@@ -927,11 +975,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // won, where only a new voice discards the successor frames already in the
 // ring. Playing or paused alike; the published tuple moves with the voice.
 // TRAP: the old voice retires before the new one starts. Both read the same
-// AVAudioFile, whose cursor the new voice's first decode turn positions; a
+// AudioFileHandle, whose cursor the new voice's first decode turn positions; a
 // turn of the old voice queued between the two calls reads after that and
 // the new voice's next chunk starts 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
-    AVAudioFile *file = _file;
+    AudioFileHandle *file = _file;
     double sampleRate = file.processingFormat.sampleRate;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(position, sampleRate, file.length);
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
@@ -945,10 +993,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // An audible voice fades out for `milliseconds` and dies; one that cannot be
 // heard — not yet live, paused, cut with Declick off, or under a stopped
 // engine — is killed outright, since silence cannot click, and is silent at
-// once, so only fading voices join _retiringVoices. A declick-length retire,
-// fading or cut, reads no more of its file, so the file may be handed to the
-// next voice; a crossfade-length one keeps reading its own, never its
-// successor.
+// once, so only fading voices join _retiringVoices. The voice's own state
+// decides, never the player's: finishPlaybackOnQueue has published Stopped
+// by the time it retires the voice a skip past the end found at full volume,
+// and a pause still fading is audible too. A declick-length retire, fading
+// or cut, reads no more of its file, so the file may be handed to the next
+// voice; a crossfade-length one keeps reading its own, never its successor.
 - (void)retireVoiceOnQueue:(VibeVoiceID)voice milliseconds:(uint64_t)milliseconds {
     if (!voice) {
         return;
@@ -962,8 +1012,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [_voiceBus stopReadingForVoice:voice];
     }
     VibeVoiceRamp ramp = [self rampOnQueueToGain:0 milliseconds:milliseconds action:VibeVoiceActionRetire];
-    BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused
-            && _engine.isRunning && _state == VibePlayerStatePlaying && ramp.frames > 0;
+    BOOL audible = snapshot.state == VibeVoiceStateLive && !snapshot.paused && [self renderingOnQueue] && ramp.frames > 0;
     if (!audible) {
         [_voiceBus killVoice:voice];
         return;
@@ -1152,7 +1201,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // one acquisition, so a getter never observes a torn combination. The two
 // unpublish variants below are the only partial writers, and they are safe
 // because they never move the position's origin.
-- (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AVAudioFile *)file
+- (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
         startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
     double fileSampleRate = file.processingFormat.sampleRate;
@@ -1211,7 +1260,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // inactive the moment the pause is published. AudioFX does not expose wet-tail
 // lifetime, so claiming one here would be a timer-shaped guess.
 - (void)refreshOutputAudioActiveOnQueue {
-    BOOL active = _engine.isRunning
+    BOOL active = [self renderingOnQueue]
             && ((_state == VibePlayerStatePlaying && _voice != 0) || _retiringVoices.count > 0);
     os_unfair_lock_lock(&_stateLock);
     BOOL changed = _outputAudioActive != active;
@@ -1314,7 +1363,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         self->_terminating = YES;
         [self stopOnQueue];
         [(VibeManualRenderPump *)self->_manualPump cancel];
-        [self stopEngineOnQueue];
+        [self stopOutputOnQueue];
     }];
 }
 
@@ -1336,27 +1385,61 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return format;
 }
 
+- (AudioLevelTap *)debugLevelTap {
+    __block AudioLevelTap *tap;
+    [self runSyncOnQueue:^{ tap = self->_levelTap; }];
+    return tap;
+}
+
 - (NSDictionary<NSString *, NSNumber *> *)debugEngineCounts {
     // Reading these off the queue would race every voice start and retire,
     // which is exactly the code these numbers are meant to audit.
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
-        counts = @{@"attachedNodes": @(self->_engine.attachedNodes.count),
+        counts = @{@"hostedUnits": @([self hostedUnitCountOnQueue]),
+                   @"unitRenders": @(self.fx.unitRenders),
                    @"outputDropouts": @([self diagnosticOutputDropouts]),
+                   @"renderCycles": @([self diagnosticRenderCycles]),
+                   @"renderMeanMicros": @([self diagnosticRenderMeanMicroseconds]),
+                   @"renderMaxMicros": @([self diagnosticRenderMaxMicroseconds]),
                    @"retiredFades": @(self->_retiringVoices.count),
+                   @"renderLeaveWork": @(self->_renderLeaveWork.count),
+                   @"renderRefusals": @([self renderRefusalsOnQueue]),
+                   @"rendersHeld": @([self debugRendersHeld]),
                    @"liveVoices": @(self->_voiceBus.liveVoiceCount),
+                   @"decodeTurns": @(self->_voiceBus.decodeTurns),
                    @"pollActive": @(self->_drainTimer != nil),
-                   @"running": @(self->_engine.isRunning),
+                   @"running": @([self renderingOnQueue]),
                    @"frames": @([(VibeManualRenderPump *)self->_manualPump renderedFrames]),
-                   @"varispeed": @(self->_varispeed != nil),
-                   @"fxConnected": @(self.fx.masterBusOutputNode != nil),
+                   @"varispeed": @([self varispeedPresentOnQueue]),
+                   @"fxConnected": @(self.fx.connected),
                    @"gain": @(snapshot.gain),
                    @"underrunFrames": @(snapshot.underrunFrames),
-                   @"varispeedLatency": @(self->_varispeed.latency),
-                   @"mixerRate": @([self->_engine.mainMixerNode outputFormatForBus:0].sampleRate)};
+                   @"varispeedLatency": @([self varispeedLatencyOnQueue]),
+                   @"varispeedEngaged": @([self varispeedEngagedOnQueue]),
+                   @"varispeedRenders": @([self varispeedRendersOnQueue]),
+                   @"varispeedHistoryWrites": @([self varispeedHistoryWritesOnQueue]),
+                   @"outputRate": @([self masterBusFormatOnQueue].sampleRate)};
     }];
     return counts;
+}
+
+- (BOOL)debugSetOutputRate:(double)rate {
+    __block BOOL followed = NO;
+    [self runSyncOnQueue:^{
+        AVAudioFormat *current = [self masterBusFormatOnQueue];
+        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
+                                                                             channels:current ? current.channelCount : 2];
+        followed = [self followOutputFormatOnQueue:format];
+    }];
+    return followed;
+}
+
+- (NSDictionary<NSString *, id> *)debugCurrentConversion {
+    __block NSDictionary *conversion;
+    [self runSyncOnQueue:^{ conversion = [self->_voiceBus conversionOfVoice:self->_voice]; }];
+    return conversion;
 }
 
 static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalizationMode normalizationMode) {
@@ -1381,14 +1464,9 @@ static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalization
         if (self->_levelNormalizationMode == normalizationMode) {
             return;
         }
-        if (self->_levelTap) {
-            [self->_levelTap remove];
-            self->_levelTap = nil;
-        }
+        [self dropLevelTapOnQueue];
         self->_levelNormalizationMode = normalizationMode;
-        if (self->_levelsWanted) {
-            [self applyLevelTapOnQueue];
-        }
+        [self applyLevelTapOnQueue];
     }];
 }
 

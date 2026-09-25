@@ -12,10 +12,14 @@
 
 @implementation AudioPlayer (Recovery)
 
-// The output node converts if the new route runs at a different sample rate
-// from the wired format, so nothing is reconnected (see AudioFX's wiring
-// note); the voice's ring and gain survived the stop, so nothing is
-// rescheduled either.
+// A route at the pipeline's rate is a restart: the voice's ring and gain
+// survived the stop, so nothing is rescheduled. A route at another rate is
+// followed — the source node and the bus rebuilt at it, the track kept —
+// so the bus converts once, at the route's rate, and the output node
+// converts nothing; the follow restarts a playing output itself. The same
+// follow runs before every engine start (a resume, a play's settlement),
+// because a route loss or an interruption can leave this recovery
+// unanswered and the next start would otherwise run on the stale rate.
 - (void)recoverFromEngineConfigurationChange {
     dispatch_async(_queue, ^{
         BOOL engineRunning = self->_engine.isRunning;
@@ -26,11 +30,16 @@
             [self refreshOutputAudioActiveOnQueue];
             [self updateDrainTimerOnQueue];
         }
+        double routeRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
+        if (routeRate > 0 && routeRate != [self masterBusFormatOnQueue].sampleRate) {
+            [self followOutputRouteOnQueue];
+            return;
+        }
         if (self->_state != VibePlayerStatePlaying || !self->_voice || engineRunning) {
             return; // idle, Loading, or the engine survived the change
         }
         NSError *startError = nil;
-        if (![self startEngineOnQueue:&startError]) {
+        if (![self startOutputOnQueue:&startError]) {
             // No output to restart on. Park Paused at the same position, so
             // the next resume restarts the engine, and say why.
             LogError(@"AudioPlayer: config-change restart failed (%@)", startError);
@@ -43,7 +52,7 @@
 
 // Dead objects are dropped, never stopped or detached — messaging the defunct
 // engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and createEngineAndMasterBusOnQueue
+// dropEngineBoundStateOnQueue's contract — and createOutputOnQueue
 // rebuilds exactly what init built: fresh FX nodes with the recorded intent
 // re-applied (or the bare mixer -> output wire), and the debug argv modes. The
 // source segment rebuilds itself at the next settlement.
@@ -72,7 +81,7 @@
         self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
         [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];
-        [self createEngineAndMasterBusOnQueue];
+        [self createOutputOnQueue];
         if (!completion) {
             return;
         }

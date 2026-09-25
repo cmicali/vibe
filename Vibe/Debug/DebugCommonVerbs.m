@@ -347,10 +347,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // callbacks, FFT windows or display ticks. Geometry and layer-write
             // counters additionally require stable bounds and cell population.
             //
-            // `--silent` zeroes the mixer before this downstream tap and must
-            // therefore never be used to judge reactive motion. In contrast,
-            // `--no-audio-hw` can engage the manual renderer without zeroing
-            // the signal; the three launch facts make that distinction visible.
+            // `--silent` zeroes the output after the meter, so the bars are
+            // live under it and under `--no-audio-hw` alike; the three launch
+            // facts say which carrier produced the counters.
             VibeDebugCmd(@"dump_equalizer", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -393,6 +392,14 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
                     @"manualRendering": @([player manualRenderingActive]),
                 });
+            }),
+            // The render chain as it stands, from the source file to the
+            // output device, one entry per stage — what Settings > Advanced's
+            // Audio group lists, raw.
+            VibeDebugCmd(@"dump_audio_path", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString(@{@"stages": surface.debugPlayer.audioPathSnapshot});
             }),
             VibeDebugCmd(@"set_equalizer_mode <balanced|activity|spectrum>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
@@ -642,7 +649,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // probe answers NO, sticky is the fault-injection mode.
             // The open side of the fake provider. set_fake_cloud shapes stage 1
             // (which download runs, how fast, whether it fails); this holds
-            // stage 2 — the uncancellable AVAudioFile call — which is the one
+            // stage 2 — the uncancellable AudioFileHandle call — which is the one
             // provider failure a locally-backed fake cannot stage on its own.
             VibeDebugCmd(@"hang_open <basename>|release", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

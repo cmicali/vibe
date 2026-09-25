@@ -6,6 +6,7 @@
 #import "SettingsAdvancedViewController.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "DebugInfo.h"
@@ -33,6 +34,16 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     // request may write the label — a clear right after a refresh would
     // otherwise race the older, larger answer over the fresh zero.
     NSUInteger _usageRequestGeneration;
+    // The Audio group: one readout per stage of the render chain, keyed by
+    // the stage name the player reports, refreshed once a second while the
+    // pane is on screen. The readouts are single-line, so a refresh costs
+    // the label's own layout and never a pane solve (Mac/Settings/CLAUDE.md).
+    NSDictionary<NSString *, NSTextField *> *_audioPathValues;
+    dispatch_source_t _audioPathTimer;
+    // The snapshot is a player-queue round trip taken off main; only the
+    // newest request may write the readouts, and one is in flight at a time.
+    NSUInteger _audioPathGeneration;
+    BOOL _audioPathInFlight;
 }
 
 - (void)loadView {
@@ -57,6 +68,20 @@ static const CGFloat kAdvancedPopUpWidth = 200;
                                            target:self action:@selector(clearCache:)];
     _debugInfoButton = [NSButton buttonWithTitle:STR_SETTINGS_DEBUG_INFO_SAVE
                                           target:self action:@selector(saveDebugInfo:)];
+    NSArray<NSArray<NSString *> *> *audioStages = @[
+        @[@"source", STR_SETTINGS_AUDIO_PATH_SOURCE], @[@"decode", STR_SETTINGS_AUDIO_PATH_DECODE],
+        @[@"bus", STR_SETTINGS_AUDIO_PATH_BUS], @[@"varispeed", STR_SETTINGS_AUDIO_PATH_PITCH],
+        @[@"fx", STR_SETTINGS_AUDIO_PATH_FX], @[@"meter", STR_SETTINGS_AUDIO_PATH_METER],
+        @[@"output", STR_SETTINGS_AUDIO_PATH_OUTPUT], @[@"device", STR_SETTINGS_AUDIO_PATH_DEVICE],
+    ];
+    NSMutableDictionary<NSString *, NSTextField *> *audioValues = [NSMutableDictionary dictionary];
+    NSMutableArray<SettingsRowView *> *audioRows = [NSMutableArray array];
+    for (NSArray<NSString *> *stage in audioStages) {
+        NSTextField *value = [self audioPathValueLabel];
+        audioValues[stage[0]] = value;
+        [audioRows addObject:[SettingsRowView rowWithTitle:stage[1] control:value]];
+    }
+    _audioPathValues = audioValues;
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithRows:@[
@@ -82,7 +107,240 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEBUG_INFO_LABEL
                                   caption:STR_SETTINGS_DEBUG_INFO_CAPTION control:_debugInfoButton],
         ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_AUDIO_PATH_SECTION rows:audioRows],
     ]];
+}
+
+- (void)dealloc {
+    [self stopAudioPathTimer];
+}
+
+#pragma mark - The audio path
+
+// A readout that stays one line whatever the stage reports, so a change
+// costs the label's own layout and never the pane's: the title wins the
+// width and the value truncates at its tail.
+- (NSTextField *)audioPathValueLabel {
+    NSTextField *label = [self valueLabel];
+    label.alignment = NSTextAlignmentRight;
+    label.lineBreakMode = NSLineBreakByTruncatingTail;
+    label.maximumNumberOfLines = 1;
+    [label setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [label.widthAnchor constraintLessThanOrEqualToConstant:640].active = YES; // the device row's six columns at their longest
+    return label;
+}
+
+- (void)viewDidAppear {
+    [super viewDidAppear];
+    [self refreshAudioPath];
+    [self startAudioPathTimer];
+}
+
+- (void)viewDidDisappear {
+    [super viewDidDisappear];
+    [self stopAudioPathTimer];
+}
+
+- (void)startAudioPathTimer {
+    if (_audioPathTimer) {
+        return;
+    }
+    _audioPathTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(_audioPathTimer, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), NSEC_PER_SEC, NSEC_PER_SEC / 4);
+    __weak __typeof(self) weakSelf = self;
+    dispatch_source_set_event_handler(_audioPathTimer, ^{ [weakSelf refreshAudioPath]; });
+    dispatch_resume(_audioPathTimer);
+}
+
+- (void)stopAudioPathTimer {
+    if (_audioPathTimer) {
+        dispatch_source_cancel(_audioPathTimer);
+        _audioPathTimer = nil;
+    }
+}
+
+static NSString *VibeAudioPathJoin(NSArray<NSString *> *parts) {
+    return [parts componentsJoinedByString:VibeNotLocalized(@" · ")];
+}
+
+// A channel description, for the decoder's mixing readout.
+static NSString *VibeAudioPathChannels(NSUInteger channels) {
+    if (channels == 1) return STR_SETTINGS_AUDIO_PATH_MONO;
+    if (channels == 2) return STR_SETTINGS_AUDIO_PATH_STEREO;
+    return [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_CHANNELS, [Formatters.sharedInstance countString:channels]];
+}
+
+// A row's channel column.
+static NSString *VibeAudioPathChannelCount(NSUInteger channels) {
+    return [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_CHANNEL_COUNT, [Formatters.sharedInstance countString:channels]];
+}
+
+static NSString *VibeAudioPathDepth(NSUInteger bits, BOOL isFloat) {
+    if (isFloat) return STR_SETTINGS_AUDIO_PATH_FLOAT;
+    return [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_BITS, [Formatters.sharedInstance countString:bits]];
+}
+
+static NSString *VibeAudioPathSampleFormat(NSString *name) {
+    return [name isEqualToString:@"int16"] ? STR_SETTINGS_AUDIO_PATH_INT16 : STR_SETTINGS_AUDIO_PATH_FLOAT;
+}
+
+// One row, the same shape for every stage: name · rate · depth · channels ·
+// status · latency, each column present only where the stage has one, so the
+// rows read across. The latency is the stage's own, and only a stage in the
+// render has one. A stage the signal bypasses — the pitch at zero, the
+// effects disconnected, the meter not wanted — is a bare Off: nothing passes
+// through it, so it has no format or latency to show.
+static NSString *VibeAudioPathRow(NSString *name, NSString *rate, NSString *depth, NSString *channels, NSString *status,
+                                  NSNumber *latencySeconds) {
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    for (NSString *column in @[name ?: @"", rate ?: @"", depth ?: @"", channels ?: @"", status ?: @""]) {
+        if (column.length) [parts addObject:column];
+    }
+    if (latencySeconds != nil) {
+        [parts addObject:[NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_MILLISECONDS,
+                          [Formatters.sharedInstance decimalString:latencySeconds.doubleValue * 1000 fractionDigits:1]]];
+    }
+    return VibeAudioPathJoin(parts);
+}
+
+// The format the stages that carry the signal unchanged — the pitch, the
+// effects, the meter — read and write: the bus's while one exists, else the
+// output's, which the bus is built at.
+static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictionary<NSString *, id> *> *path) {
+    NSDictionary *output = nil;
+    for (NSDictionary *stage in path) {
+        if ([stage[@"stage"] isEqualToString:@"bus"] && [stage[@"present"] boolValue]) return stage;
+        if ([stage[@"stage"] isEqualToString:@"output"]) output = stage;
+    }
+    return output;
+}
+
+// One line per stage from the facts the player reports (AudioPlayer.h's
+// audioPathSnapshot); the keys are the model's.
+- (NSString *)audioPathTextForStage:(NSDictionary<NSString *, id> *)stage inPath:(NSArray<NSDictionary<NSString *, id> *> *)path {
+    Formatters *formatters = Formatters.sharedInstance;
+    NSString *name = stage[@"stage"];
+    BOOL present = [stage[@"present"] boolValue];
+    NSString *rate = [formatters sampleRateString:[stage[@"sampleRate"] doubleValue]];
+    NSDictionary *carrier = VibeAudioPathCarrierFormat(path);
+    NSString *carrierRate = [formatters sampleRateString:[carrier[@"sampleRate"] doubleValue]];
+    NSString *carrierChannels = VibeAudioPathChannelCount([carrier[@"channels"] unsignedIntegerValue]);
+    if ([name isEqualToString:@"source"]) {
+        if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;
+        NSUInteger bits = [stage[@"bitsPerChannel"] unsignedIntegerValue];
+        BOOL isFloat = [stage[@"float"] boolValue];
+        return VibeAudioPathRow(stage[@"codec"], rate, bits || isFloat ? VibeAudioPathDepth(bits, isFloat) : nil,
+                                VibeAudioPathChannelCount([stage[@"channels"] unsignedIntegerValue]), nil, nil);
+    }
+    if ([name isEqualToString:@"decode"]) {
+        if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;
+        NSMutableArray<NSString *> *status = [NSMutableArray array];
+        if ([stage[@"read"] isEqualToString:@"direct"]) {
+            [status addObject:STR_SETTINGS_AUDIO_PATH_DIRECT];
+        }
+        if ([stage[@"resampled"] boolValue]) {
+            [status addObject:[NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_RESAMPLED,
+                               [formatters sampleRateString:[stage[@"fromSampleRate"] doubleValue]],
+                               [formatters sampleRateString:[stage[@"toSampleRate"] doubleValue]]]];
+        }
+        if ([stage[@"mixed"] boolValue]) {
+            [status addObject:[NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_MIXED,
+                               VibeAudioPathChannels([stage[@"fromChannels"] unsignedIntegerValue]),
+                               VibeAudioPathChannels([stage[@"toChannels"] unsignedIntegerValue])]];
+        }
+        // The decoder's output: the conversion's side when there is one,
+        // the file's decoded format when it is read direct.
+        return VibeAudioPathRow(nil, [formatters sampleRateString:[stage[@"toSampleRate"] ?: stage[@"sampleRate"] doubleValue]],
+                                VibeAudioPathSampleFormat(stage[@"toSampleFormat"] ?: stage[@"sampleFormat"]),
+                                VibeAudioPathChannelCount([stage[@"toChannels"] ?: stage[@"channels"] unsignedIntegerValue]),
+                                VibeAudioPathJoin(status), nil);
+    }
+    if ([name isEqualToString:@"bus"]) {
+        if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;
+        return VibeAudioPathRow(nil, rate, STR_SETTINGS_AUDIO_PATH_FLOAT, VibeAudioPathChannelCount([stage[@"channels"] unsignedIntegerValue]),
+                                [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_VOICES,
+                                 [formatters countString:[stage[@"liveVoices"] unsignedIntegerValue]]], @0);
+    }
+    if ([name isEqualToString:@"varispeed"]) {
+        if (!present || ![stage[@"engaged"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
+        return VibeAudioPathRow([formatters signedPercentString:[stage[@"pitch"] doubleValue]],
+                                carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels, STR_SETTINGS_AUDIO_PATH_ON,
+                                @([stage[@"latencySeconds"] doubleValue]));
+    }
+    if ([name isEqualToString:@"fx"]) {
+        if (!present || ![stage[@"connected"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
+        NSDictionary *stages = stage[@"stages"];
+        NSMutableArray<NSString *> *active = [NSMutableArray array];
+        if ([stages[@"lowKill"][@"active"] boolValue]) [active addObject:STR_MENU_FX_LOW_KILL];
+        if ([stages[@"reverb"][@"active"] boolValue]) [active addObject:STR_MENU_FX_REVERB];
+        if ([stages[@"delay"][@"active"] boolValue]) [active addObject:STR_MENU_FX_DELAY_8];
+        if ([stages[@"shortDelay"][@"active"] boolValue]) [active addObject:STR_MENU_FX_DELAY_16];
+        return VibeAudioPathRow(active.count ? [NSListFormatter localizedStringByJoiningStrings:active] : nil,
+                                carrierRate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels,
+                                active.count ? STR_SETTINGS_AUDIO_PATH_ON : STR_SETTINGS_AUDIO_PATH_NOTHING_ACTIVE,
+                                @([stage[@"latencySeconds"] doubleValue]));
+    }
+    if ([name isEqualToString:@"meter"]) {
+        if (!present || ![stage[@"inRender"] boolValue]) return STR_SETTINGS_AUDIO_PATH_OFF;
+        return VibeAudioPathRow(nil, rate, STR_SETTINGS_AUDIO_PATH_FLOAT, carrierChannels, STR_SETTINGS_AUDIO_PATH_ON, @0);
+    }
+    if ([name isEqualToString:@"output"]) {
+        NSString *activity = ![stage[@"running"] boolValue] ? STR_SETTINGS_AUDIO_PATH_IDLE
+                : [stage[@"idleStopPending"] boolValue] ? STR_SETTINGS_AUDIO_PATH_WAITING_TO_IDLE : STR_SETTINGS_AUDIO_PATH_RUNNING;
+        return VibeAudioPathRow(nil, rate, STR_SETTINGS_AUDIO_PATH_FLOAT, VibeAudioPathChannelCount([stage[@"channels"] unsignedIntegerValue]),
+                                activity, stage[@"bufferLatency"]);
+    }
+    if ([name isEqualToString:@"device"]) {
+        if (!present) return STR_SETTINGS_AUDIO_PATH_NONE;
+        NSUInteger bits = [stage[@"physicalBitsPerChannel"] unsignedIntegerValue];
+        NSUInteger channels = [stage[@"channels"] unsignedIntegerValue]; // the channels driven, not the stream's width
+        NSDictionary *bitPerfect = stage[@"bitPerfect"];
+        NSMutableArray<NSString *> *status = [NSMutableArray array];
+        if ([bitPerfect[@"enabled"] boolValue] && [bitPerfect[@"status"] isEqualToString:@"active"]) [status addObject:STR_SETTINGS_AUDIO_PATH_BIT_PERFECT];
+        if ([stage[@"exclusive"] boolValue]) [status addObject:STR_SETTINGS_AUDIO_PATH_HOG];
+        return VibeAudioPathRow(stage[@"name"], [formatters sampleRateString:[stage[@"nominalSampleRate"] doubleValue]],
+                                bits ? VibeAudioPathDepth(bits, [stage[@"physicalFloat"] boolValue]) : nil,
+                                channels ? VibeAudioPathChannelCount(channels) : nil, VibeAudioPathJoin(status), stage[@"latencySeconds"]);
+    }
+    return @"";
+}
+
+// TRAP: the snapshot waits on the player queue, which a device rebind or a
+// device that stopped answering holds for seconds — the acceptance matrix's
+// dead-device cases hold it 14 s — so it is never taken on main: a
+// dispatch_sync here beachballed the app for the length of the teardown.
+- (void)refreshAudioPath {
+    AudioPlayer *player = self.playerController.audioPlayer;
+    if (!player || !self.view.window.isVisible || _audioPathInFlight) {
+        return;
+    }
+    NSUInteger generation = ++_audioPathGeneration;
+    _audioPathInFlight = YES;
+    __weak __typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSDictionary<NSString *, id> *> *path = player.audioPathSnapshot;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __typeof(self) strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            strongSelf->_audioPathInFlight = NO;
+            if (generation == strongSelf->_audioPathGeneration) {
+                [strongSelf applyAudioPath:path];
+            }
+        });
+    });
+}
+
+- (void)applyAudioPath:(NSArray<NSDictionary<NSString *, id> *> *)path {
+    for (NSDictionary *stage in path) {
+        NSTextField *label = _audioPathValues[stage[@"stage"]];
+        NSString *text = [self audioPathTextForStage:stage inPath:path];
+        if (label && ![label.stringValue isEqualToString:text]) {
+            label.stringValue = text;
+            label.toolTip = text;
+        }
+    }
 }
 
 #pragma mark - Build
@@ -162,6 +420,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
     [self refreshCacheSize];
+    [self refreshAudioPath];
 }
 
 #pragma mark - Debug info
