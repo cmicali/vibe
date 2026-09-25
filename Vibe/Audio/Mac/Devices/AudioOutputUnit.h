@@ -19,7 +19,7 @@
 //  reads.
 //
 
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <CoreAudio/CoreAudio.h>
 

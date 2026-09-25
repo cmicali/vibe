@@ -3,9 +3,9 @@
 //  Vibe
 //
 //  The numbers AudioFX's toggles resolve to, as static inlines so the unit
-//  tests reach them without an AVAudioEngine. The graph they are applied to —
+//  tests reach them without a render pipeline. The graph they are applied to —
 //  the low-kill EQ, the gated send-returns, the ping-pong delay lanes — lives
-//  in AudioFX.m, which is where every AVFAudio trap is recorded.
+//  in AudioFX.m, which is where every unit-hosting trap is recorded.
 //
 //  Only the arithmetic is here. The on/off intent, its lock, the ramp
 //  generations and the sweep loops stay with the class: they are about

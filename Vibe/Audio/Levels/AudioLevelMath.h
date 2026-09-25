@@ -61,11 +61,11 @@ static const VibeAudioLevelNormalizationMode kLevelDefaultNormalizationMode =
 // FFT nearest this interval is selected for the delivered sample rate.
 static const double kLevelAnalysisDecisionsPerSecond = 24.0;
 
-// AVAudioNode's documented tap-buffer range starts at roughly 100 ms. One
-// callback may therefore contain several analysis windows. Relative activity
-// retains their per-band peaks; shared spectrum averages their energy per
-// octave into one callback-time spectrum before normalization.
-static const double kLevelTapBufferSeconds = 0.1;
+// How much rendered audio one publication summarizes: several analysis
+// windows. Relative activity retains their per-band peaks; shared spectrum
+// averages their energy per octave into one spectrum before normalization.
+// 100 ms is the tap-buffer length the levels were tuned on.
+static const double kLevelPublicationSeconds = 0.1;
 
 // How far below the running reference reads as silence. Wider raises weaker
 // bands and reduces inter-band contrast; narrower lowers them and separates
@@ -119,7 +119,7 @@ static inline uint32_t VibeLevelPublicationFrameCount(double sampleRate) {
     if (!isfinite(sampleRate) || sampleRate <= 0) {
         sampleRate = 48000.0;
     }
-    double frames = ceil(sampleRate * kLevelTapBufferSeconds);
+    double frames = ceil(sampleRate * kLevelPublicationSeconds);
     return (uint32_t)clampRange(frames, 1.0, (double)UINT32_MAX);
 }
 

@@ -7,7 +7,7 @@
 #import "AudioFileConverter+Sandbox.h"
 
 #import <AppKit/AppKit.h>
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdatomic.h>
 

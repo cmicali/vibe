@@ -14,7 +14,7 @@
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 #include <vector>
 

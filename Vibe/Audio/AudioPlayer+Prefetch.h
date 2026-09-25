@@ -32,7 +32,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioPrefetchRules.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 @class AudioTrack;
 

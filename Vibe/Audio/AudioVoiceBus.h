@@ -43,7 +43,7 @@
 //  declick disabled those edges are cuts.
 //
 
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import "FadeMath.h"
 
 @class AudioFileHandle;

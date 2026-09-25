@@ -8,7 +8,7 @@
 //  request's state and the decision of what the delegate must be told, which
 //  is the half that used to sit inline in AudioPlayer and could not be tested.
 //  Foundation-only, so stale-completion and rebind ordering are covered
-//  without an AVAudioEngine.
+//  without an output.
 //
 //  Queue-confined: every method runs on AudioPlayer's serial player queue.
 //

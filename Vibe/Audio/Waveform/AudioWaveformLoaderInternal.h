@@ -13,7 +13,7 @@
 #import "AudioWaveformLoader.h"
 #import "AudioFileHandle.h"
 #import "AudioWaveform.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

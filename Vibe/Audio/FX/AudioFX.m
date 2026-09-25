@@ -6,7 +6,7 @@
 #import "AudioFX.h"
 #import "AudioFXMath.h" // the cutoff, tap and swell arithmetic, tested separately
 #import "FadeMath.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <os/lock.h>

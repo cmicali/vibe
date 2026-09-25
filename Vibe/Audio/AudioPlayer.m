@@ -24,7 +24,7 @@
 #import "AudioFileOpenTimeoutMath.h"
 #import "PlaybackDeliveryRules.h"
 #import "FadeMath.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
 #if DEBUG

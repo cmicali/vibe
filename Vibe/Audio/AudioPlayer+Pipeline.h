@@ -19,7 +19,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioVoiceBus.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 @class AudioFileHandle;
 

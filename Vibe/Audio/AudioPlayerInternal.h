@@ -25,7 +25,7 @@
 #import "AudioLevelMeter.h"
 #import "AudioVoiceBus.h"
 #import "PlaybackRequestCoordinator.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
 // The category family, declared once here because every implementation file in

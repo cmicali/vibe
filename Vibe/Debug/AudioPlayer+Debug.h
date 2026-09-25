@@ -11,7 +11,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioVoiceBus.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import "AudioLevelMath.h"
 
 @class AudioLevelMeter;

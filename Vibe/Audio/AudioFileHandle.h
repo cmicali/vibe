@@ -17,7 +17,7 @@
 //  bus's decoder after a voice starts, AudioVoiceBus.h).
 //
 
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
 
 NS_ASSUME_NONNULL_BEGIN

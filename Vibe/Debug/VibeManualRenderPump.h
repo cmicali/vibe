@@ -1,7 +1,7 @@
 // Shared manual output driver: paced app debugging or frame-driven audio tests.
 #if DEBUG
 #import <Foundation/Foundation.h>
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 NS_ASSUME_NONNULL_BEGIN
 // Larger than the pipeline's slice, so a test can hand the render a cycle it
 // must slice, as a device with a big IO buffer would.

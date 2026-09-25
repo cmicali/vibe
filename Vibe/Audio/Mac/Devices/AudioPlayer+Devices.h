@@ -14,7 +14,7 @@
 #import "AudioPlayer.h"
 #import "AudioDeviceManager.h"
 #import "OutputFormatRules.h"
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 #import <CoreAudio/CoreAudio.h>
 
 @class AudioFileHandle;

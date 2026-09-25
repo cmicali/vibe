@@ -2,7 +2,7 @@
 //  AudioLevelAnalyzer.h
 //  Vibe
 //
-//  Pure, preallocated FFT analysis. It knows nothing about AVAudioEngine,
+//  Pure, preallocated FFT analysis. It knows nothing about the render pipeline,
 //  publication, or views and is therefore usable by the host-less test suite.
 //
 

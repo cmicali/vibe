@@ -8,7 +8,7 @@
 //  replaced only when the output's rate or the normalization mode changes.
 //
 
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 #import "AudioLevelMath.h"
 #import "AudioLevelPublisher.h"

@@ -12,7 +12,7 @@
 #import "CloudTransferRegistryInternal.h"
 #import "NSURLUtil.h"
 
-#import <AVFoundation/AVFoundation.h>
+#import <AVFAudio/AVFAudio.h>
 
 #import <os/lock.h>
 

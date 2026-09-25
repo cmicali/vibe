@@ -230,8 +230,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Actual modeled output liveness, unlike isPlaying's transport intent:
 // Loading is false unless an outgoing crossfade is still audible, while a
-// playing voice and every voice still fading out are true. FX wet-tail
-// liveness is not exposed by AVAudioEngine and is therefore not guessed here.
+// playing voice and every voice still fading out are true. An FX tail
+// ringing after the last voice is not modeled here, and never with a timer.
 @property (readonly) BOOL outputAudioActive;
 
 // Published transport state: exactly one of these three is true. During
