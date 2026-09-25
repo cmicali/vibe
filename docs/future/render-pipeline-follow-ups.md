@@ -35,7 +35,7 @@ Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each de
 **Silent stop after a device vanishes and returns (#50).** Two layers. Software volume first, with Vibe on System Output — `dump_state.player.requestedOutputDeviceId` at -1, or the vanish never reaches it:
 
 ```bash
-.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device <id> --flaps 300
+.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device <id> --flaps 250
 ```
 
 The driver's oracles are the ones wanted: state and position per flap, `check_consistency`, the app alive, `dump_health` against its baseline, and a closing `quiesce` with every pending counter at zero. A clean run proves Vibe's rebind path and nothing about hardware wake latency, so the second layer is a real USB DAC power-cycled ten to fifteen times while playing, once on System Output and once explicitly bound to that DAC. The original was one silent stop in fifteen cycles with nothing logged; the oracle is the streamed log carrying the renderer's Timeline lines for every cycle and no `stopped` at position 0 without an error beside it.
@@ -54,12 +54,24 @@ Any rebuild that interrupts the render is a PCM mismatch, and `dump_health`'s re
 
 Record selected device, actual carrier, silent state and media-publication mode with each result, and keep hardware results distinct from the pump and the simulator. The AirPods are usually the default output and a real-HAL launch can take them; select the speakers first. The installed Vibe is often running; direct-exec the Debug build beside it.
 
+**Silent HAL playback and output auto-switching.** Run with the pass above: launch with `VIBE_AUDIBLE=silent` (Now Playing stays suppressed unless `VIBE_NOW_PLAYING=1`) and see whether playback still pulls auto-switching AirPods or moves the system output, once on System Output and once explicitly bound. Zero output samples and suppressed Now Playing do not by themselves establish isolation. Hardware stays opt-in until this has evidence; use the existing device selection before proposing another launch flag.
+
+## Hardware stress campaigns
+
+The stress harness defaults to the manual pump (`--no-audio-hw --silent`). Before any change to that default:
+
+- **Long HAL campaigns.** Cloud/artwork and transport campaigns on real HAL, long enough to be a soak; the 240-operation torture run above is bounded evidence. Keep deliberate pump coverage if the default ever changes.
+- **Seeded campaigns across carriers.** Repeat seeded campaigns and shrinking under the pump and under HAL, recording journals, endings, failures and settled resource counters. A seed reproduces the generated operations, not callback timing, on either carrier; retune waits only where the measurements show a need.
+
+Independent of the default, the consistency oracle checks meter demand and output liveness but not that equalizer publications advance with nonzero signal. If that coverage is wanted, drive a known non-silent fixture and read the [equalizer counters](../../.claude/skills/vibe-debug/references/equalizer-counters.md); an occluded view, no demand or genuine silence must not fail it, and the beta probe's independent meter hold must be respected.
+
+On iOS any nonempty `VIBE_AUDIBLE` is an audible launch; the macOS `silent` value does not carry over.
+
 ## Separate proposals
 
 Each validated 2026-09-25 against this tree.
 
 - [Source-preserving PCM output](source-format-output.md): accurate. The production opener still takes the float32 default (`AudioFileMaterializationCoordinator.m`, `initForReading:error:`), the bus still refuses anything but planar float32, and the 24,641,537 → 24,641,536 narrowing it cites is recorded in `OutputFormatRules.h`. Unimplemented; nothing in it is overtaken by PR66's consolidation, which it already credits.
-- [Hardware stress follow-ups](end-of-graph-silent.md): accurate about the controls (`--silent`, `--no-audio-hw`, `VIBE_AUDIBLE`, the Now Playing suppression). Its outstanding item about silent HAL playback and AirPods auto-switching is a device-lifecycle question and is run as part of the section above; its longer HAL campaign item is the soak counterpart of the acceptance evidence here, not a duplicate of it. The other two items (seed reproducibility across carriers, demand-aware signal coverage) are harness work with no overlap.
 - [Stress harness in a VM](vm-stress-harness.md): isolation work, not a prerequisite for any of the above, and listed so the relationship is stated once.
 - [RemoteIO carrier on iOS, #69](https://github.com/cmicali/vibe/issues/69): the last `AVAudioEngine` use, with the `AVAudioTime` fold and the physical-iPhone acceptance the first bullet of the evidence list already requires.
 

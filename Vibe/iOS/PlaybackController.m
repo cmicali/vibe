@@ -194,7 +194,7 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Equalizer levels
 
-// The tap exists to feed indicators, so it runs only while an indicator is
+// The meter exists to feed indicators, so it runs only while an indicator is
 // actually reading it, the scene is active, and the graph is producing audio.
 //
 // _levelConsumers is the final demand declared by indicators after their shell

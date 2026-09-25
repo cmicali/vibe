@@ -42,8 +42,8 @@ The 10.10-era workaround is also gone. `kAudioHardwarePropertyTranslateUIDToDevi
 macOS instantiates an AirPlay HAL device **only when the system itself routes to a target**, from Control Center ▸ Sound or Sound settings. Nothing an app can call brings one into existence:
 
 - `kAudioHardwarePropertyDevices` is the entire enumeration surface. There is no "discovered but not instantiated" concept, no browse, no connect.
-- `AudioObjectSetPropertyData` on `kAudioHardwarePropertyDefaultOutputDevice`, and `AudioUnitSetProperty` with `kAudioOutputUnitProperty_CurrentDevice` — the one Vibe already uses in `setOutputUnitDevice:` (`Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m:132`) — both take an existing `AudioDeviceID`. Neither can conjure one.
-- `AVRoutePickerView` is public on macOS 10.15+, but its `player` property is `AVPlayer *` and **macOS-only** — the whole class is built around routing an `AVPlayer`, and there is no bridge from it to an `AVAudioEngine` graph. Apple's own forum threads report it not affecting playback when a route is chosen (744128) and `volume` ceasing to function over AirPlay (698988, where the only reply was an Apple media engineer asking whether an enhancement request had been filed).
+- `AudioObjectSetPropertyData` on `kAudioHardwarePropertyDefaultOutputDevice`, and `AudioUnitSetProperty` with `kAudioOutputUnitProperty_CurrentDevice` — the one Vibe already uses in `setOutputUnitDevice:` (`Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m`, `setOutputUnitDevice:` → `AudioOutputUnit.bindToDevice:`) — both take an existing `AudioDeviceID`. Neither can conjure one.
+- `AVRoutePickerView` is public on macOS 10.15+, but its `player` property is `AVPlayer *` and **macOS-only** — the whole class is built around routing an `AVPlayer`, and there is no bridge from it to a hosted HAL output unit (nor was there to the engine graph it was written against). Apple's own forum threads report it not affecting playback when a route is chosen (744128) and `volume` ceasing to function over AirPlay (698988, where the only reply was an Apple media engineer asking whether an enhancement request had been filed).
 - `AVRouting` / `AVCustomRoutingController` exists for **third-party, non-AirPlay** routes. Wrong tool.
 - WWDC23's "Tune up your AirPlay audio experience" is `AVAudioSession`-shaped and says nothing about macOS.
 
@@ -112,7 +112,7 @@ And the payoff is a row that cannot be acted on. The best available flow is: cli
 Things a future implementer must verify rather than assume:
 
 1. **Does a Control Center AirPlay route actually produce a pinnable HAL device?** Not verified — the probe above ran with nothing routed. Whether the device carries `kAudioDeviceTransportTypeAirPlay`, whether Vibe can pin it explicitly rather than only follow it as the default, and whether it survives being deselected, all decide whether even piece 1 has anything to show. **Test this first; it is cheap and it may close the whole file.**
-2. **Does an AirPlay bind block?** `configureOutputDeviceOnQueue:` (`AudioPlayer+Devices.m:158`) calls `setOutputUnitDevice:` synchronously on the **sole player queue**, with the engine stopped and the node detached, and there is no timeout on that HAL round trip. A network device is the first plausible way it stalls, and a stall there wedges playback.
+2. **Does an AirPlay bind block?** `configureOutputDeviceOnQueue:` (`AudioPlayer+Devices.m`) rebinds through `setOutputUnitDevice:` synchronously on the **sole player queue**, with the output stopped, and there is no timeout on that HAL round trip. A network device is the first plausible way it stalls, and a stall there wedges playback.
 3. **Multi-room AirPlay 2.** Does macOS expose several simultaneous targets as one aggregate device, and does that change what a "section" even means?
 
 ## Sources

@@ -21,8 +21,8 @@ VibeAudioLevelAnalyzer * _Nullable VibeAudioLevelAnalyzerCreate(
         double sampleRate, VibeAudioLevelNormalizationMode normalizationMode);
 void VibeAudioLevelAnalyzerDestroy(VibeAudioLevelAnalyzer * _Nullable analyzer);
 
-// Rebinds window length, fixed-Hz bins and AGC state when the tap's delivered
-// rate changes. Scratch and FFT weights are already sized for the maximum, so
+// Rebinds window length, fixed-Hz bins and AGC state to a sample rate; the
+// create path and the tests are its callers, since a meter's rate is fixed. Scratch and FFT weights are already sized for the maximum, so
 // this is allocation-free and render-thread safe. A same-rate call is a no-op.
 BOOL VibeAudioLevelAnalyzerSetSampleRate(VibeAudioLevelAnalyzer *analyzer,
                                          double sampleRate);

@@ -17,7 +17,7 @@ that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 A snapshot-restored guest kills all four by construction, and gives cold caches and a cold
 container every run without trusting `clear_caches` to have covered everything.
 
-**This is isolation work, not a prerequisite for hardware testing.** Validated against the PR66 working copy on 2026-09-25: the macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering remains the default. The remaining audio measurements are in [end-of-graph-silent.md](end-of-graph-silent.md); suppression alone does not establish AirPods isolation.
+**This is isolation work, not a prerequisite for hardware testing.** Validated against the PR66 working copy on 2026-09-25: the macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering remains the default. The remaining hardware measurements are in [render-pipeline-follow-ups.md](render-pipeline-follow-ups.md#hardware-stress-campaigns); suppression alone does not establish AirPods isolation.
 
 A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected carrier explicit; do not make VM provisioning depend on an assumed future harness-default change.
 
@@ -109,8 +109,8 @@ green VM campaign will eventually be read as coverage it never had.
 
 ## Open questions
 
-- Does the pinned Tart version attach a virtio sound device that `AVAudioEngine` accepts as
-  default output, or is BlackHole required? One in-guest command; the plan works either way.
+- Does the pinned Tart version attach a virtio sound device that CoreAudio lists as an output
+  device, or is BlackHole required? One in-guest command; the plan works either way.
 - Is one guest enough, or do stress and torture campaigns want the second EULA slot as a
   standing pair?
 - Does the maintenance cost of the golden image (Xcode upgrades, corpus refreshes, TCC

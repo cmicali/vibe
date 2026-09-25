@@ -9,7 +9,7 @@ description: Stress, soak, fuzz, and torture the running Vibe app against a fold
 
 Needs a **Debug** build; the channel compiles out of Release. Flags: each script's `--help` is authoritative and is not restated here.
 
-Three drivers, three questions:
+Five drivers, five questions:
 
 - **`stress.py`** randomizes controller actions for hours and notices when something breaks. Every profile is command-only: no raw mouse events, keyboard events or per-operation activation.
 - **`torture.py`** loads one large playlist and hammers transport so track changes outrun everything async.
@@ -57,7 +57,7 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 **Device flap.** One question: does playback survive the output device going away and coming back? `--mode vanish` builds a *public* aggregate over a real device, makes it the system default and destroys it, so the default device genuinely ceases to exist — what a USB DAC does when it sleeps. `--mode move` only reassigns the default between two devices that both persist, a strictly weaker stimulus kept to separate "the default moved" from "the device vanished". Oracles per flap: playback state and position, `check_consistency`, the app alive; `dump_health` against a min-of-first-three baseline every `--health-every`; a closing `quiesce` requiring every `pending` counter at zero.
 
 ```bash
-.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device 87 --flaps 300
+.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device 87 --flaps 250
 .claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device 87 --device-b 111 --mode move
 ```
 
@@ -128,14 +128,14 @@ Checked between batches (`--batch`, default 25):
 | --- | --- | --- |
 | liveness | main-thread stalls | the channel is delivered on the **main queue**, so a timeout whose recovery probe is *also* slow is a stall. The app is sampled first, then re-probed; a stall it recovers from counts against `--max-stalls` (default 3). A timeout that probes clean was a slow verb — journaled `slow`, uncounted. `VERB_TIMEOUTS` keeps each client deadline above the verb's in-app wait, or work in progress reads as an unresponsive app |
 | `check_consistency` | inconsistent state | violations surviving a settle and a second sample. Its `cloud.*` checks skip that filter: their counters are cumulative for the fake's install, and neither a background download inside a foreground one nor a duplicate download is ever *transiently* true |
-| `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, `pending` counters, each against a post-warmup baseline; a tighter at-rest series every `--quiesce-every` batches |
+| `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, render refusals, `pending` counters, each against a post-warmup baseline; a tighter at-rest series every `--quiesce-every` batches |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
 
 Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `client`. **`exit` is the app quitting on request, not dying** — gone *with* a fresh `.ips` is `crash`, gone *without* is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
 
 **Reading a `resource` failure.** Rules, each earned by watching the oracle cry wolf:
 
-- **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+256 MB).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. It now counts only when `mallocLiveBytes` agrees. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
+- **`mallocLiveBytes` is the sensitive megabyte metric; `phys_footprint` is a gross backstop (+400 MB in flight, +256 MB at rest).** The footprint is the allocator's and VM's high-water mark, wanders hundreds of MB in *both* directions at rest with the live heap flat, and a sanitizer build's shadow memory alone clears it. Check the live heap before believing a footprint number, and shrink on live heap, never footprint.
 - **`pending` counters must all be zero at rest** — a stranded claim or undelivered result is a few hundred bytes, invisible to any megabyte metric, yet work that will never finish. `quiesce` refuses to settle until they unwind and names the holdout.
 - Baseline is the element-wise **minimum of the first three samples**, and a metric fails only after **three consecutive** over-limit samples: the opening decode peaks far above resting; hosted units are flat, the varispeed and the FX units being hosted once, and `retiredFades` counts voices still fading, which drain within the crossfade length.
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` actually returned — mostly 0 after a heavy run.
@@ -167,7 +167,7 @@ Every metric in the table was audited against an external tool (`references/heal
 - **TRAP: the sandbox kills clients under launch pressure.** Hundreds of quick client launches make libsecinit fail, SIGTRAPping in dyld initializers before `main()` — a real `Vibe` `.ips` with `parentProc: Python`, sub-millisecond lifetime, stack topped by `_libsecinit_appsandbox`. The driver retries a signal-killed client that produced no output and reports `client` only when retries are exhausted; do the same in any hand loop over `--debug-cmd`.
 - **TRAP: the corpus grant is what makes direct-exec and sanitizer runs possible.** The driver launches through `launch.sh` with the corpus dir because `open -a` is what grants sandbox access, and the grant persists. Sanitizer options are environment variables, which `open -a` cannot pass, and a direct-exec `"$V" <file>` cannot read argv paths under the sandbox — but once the folder is granted a direct-exec launch reaches every file in it through the channel. `launchctl setenv` is the only way an `open -a` launch sees a variable.
 - **TRAP: never add a TSan `suppressions=` file.** It deadlocks the launch before `main()` — `__tsan::Initialize` opens it inside dyld's initializers and that `open()` never returns under the sandbox. No log, no channel, indistinguishable from the `log_path` trap in `references/sanitizers.md`. Filter framework noise afterwards instead.
-- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. All raw input is excluded. The menu allowlist covers transport, playlist selection/removal, undo/redo, FX, pitch range and selected View actions; it excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. Menu actions run live validation, so disabled items are expected. Discovery warns by identifier about every missing allowed item (including FX omitted when its graph is off), and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
+- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original — the corpus is real music. All raw input is excluded. The menu allowlist covers transport, playlist selection/removal, undo/redo, FX, pitch range and selected View actions; it excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. Menu actions run live validation, so disabled items are expected. Discovery warns by identifier about every missing allowed item (including FX omitted when the chain is disabled), and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
 
 ## Supporting files
 

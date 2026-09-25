@@ -22,7 +22,7 @@ The runner snapshots `pauseAtTrackEnd` once before the loop. Each scenario norma
 
 XCTest runs the real `AudioTrackMetadataLoader` control plane and materialization coordinator behind injected cache-read, file-parse and provider-operation boundaries, plus `DownloadProgressMonitor`, the materializer (its real local `NSFileCoordinator` wrapper, allocated-size polling, injected iCloud query and File Provider publication/KVO lifecycles), loading-policy arithmetic, the transfer registry and `VibeFakeCloud`'s option/trace accounting. `make check-cloud-scenarios` (`tests/test_cloud_scenarios.py`, run by `make test`) pins the runner's role-family matching, request/transfer span assembly, exact ordering, corpus bounds and `--only` validation, so a broken oracle cannot make the live run green.
 
-The live scenarios own what host-less tests cannot honestly reproduce: the shell's deferral and routing, AppDelegate append, playback settlement through AVFoundation, row-loading projection, and the real queues composed with the provider seam. Provider-mediated coordination and cancellation, `SF_DATALESS`, OS discovery, cross-process progress publication and named-provider behavior still require a real-provider run; the fake cannot certify them.
+The live scenarios own what host-less tests cannot honestly reproduce: the shell's deferral and routing, AppDelegate append, playback settlement through the real player and its file handle, row-loading projection, and the real queues composed with the provider seam. Provider-mediated coordination and cancellation, `SF_DATALESS`, OS discovery, cross-process progress publication and named-provider behavior still require a real-provider run; the fake cannot certify them.
 
 ## The registry and the XFAIL contract
 

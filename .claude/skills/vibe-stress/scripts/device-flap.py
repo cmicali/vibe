@@ -58,8 +58,8 @@ HELPER_SRC = HERE / "device-flap.swift"
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
 # Metrics worth watching across a flap soak, as dotted paths into dump_health.
-# Each rebind builds and tears down a CoreAudio aggregate and rewires the master
-# bus, so a leak here would be a leak per device event — invisible in a run that
+# Each rebind rebinds the hosted output unit and rebuilds the source segment,
+# so a leak here would be a leak per device event — invisible in a run that
 # never flaps. footprintBytes is deliberately absent: it is the allocator's
 # high-water mark, wanders hundreds of MB in both directions at rest, and
 # mallocLiveBytes is the sensitive metric that actually means something.

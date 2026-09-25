@@ -47,7 +47,7 @@ static const float kReverbSendLevel = 0.3f;
 // tail is low-cut.
 static const float kReverbTailLowCutHz = 550.0f;
 #if TARGET_OS_OSX
-// MatrixReverb tuning, applied on top of the Cathedral preset. CAUTION: the
+// MatrixReverb tuning, applied on top of the Cathedral preset. TRAP: the
 // ranges documented in AudioUnitParameters.h are stale. The AU's real
 // LargeSize range, queried through kAudioUnitProperty_ParameterInfo, is
 // 0.005-0.15, not the header's "0.4->10.0 Secs", and an out-of-range value

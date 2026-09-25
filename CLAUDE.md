@@ -30,7 +30,7 @@ All of these run in CI (`.github/workflows/build.yml`).
 | Command | Gate |
 | --- | --- |
 | `make test` | Host-less unit and orchestration tests (`Tests/`, always Debug) plus the cloud-runner oracle tests. **Read `Tests/CLAUDE.md` before adding to it.** |
-| `make test-audio` | Real player/FX graphs in offline manual rendering, full PCM comparisons and signal-quality checks; no app or audio device. See `Tests/CLAUDE.md`. |
+| `make test-audio` | The real player and FX pipeline driven by the debug render pump, full PCM comparisons and signal-quality checks; no app or audio device. See `Tests/CLAUDE.md`. |
 | `make test-summary` | Markdown pass/fail table from the last `make test`. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets; fails on any finding outside `ThirdParty/`. Findings are config-dependent — Release is what CI checks. |
 | `make check-layout` | The layout rule below. |
@@ -76,7 +76,7 @@ Consequences: **a new file in a shared directory joins the iOS target automatica
 Nested `CLAUDE.md` files hold the detail and load only when you work under that directory. **Read the relevant one before changing anything it covers.** Documentation follows the platform boundary: a shared subsystem's doc covers what both platforms have, and anything platform-specific lives in a doc under that subsystem's `Mac/` or `iOS/` directory. `.md` files are excluded from every source entry, so a doc can be added anywhere without touching the build.
 
 - **`Vibe/Common/`** — what everything else is written in terms of: `AppSettings` (its macOS half, the theme store included, is `Mac/`; `Mac/Theme/` is the `AppTheme` record, its one sanitization gate, the archive form and the dice), `VibeStrings.h`, the prefix header, `DocumentTypes`, the `VibeImage`/`VibeColor` aliases and the bounded image decode. No feature lives here.
-- **`Vibe/Audio/`** — playback engine, FX, waveform data, BPM/key analysis, conversion. `FX/` (the DJ master-bus segment, optional per player via `enableFX:`), `Loading/` (the file-open path: the materialization claim, admission and the handle-run ceiling, `CloudTransferRegistry`), `Metadata/` (tags, cache, scan, embedded art; `FolderArt/` is the sidecar-cover fallback), `Waveform/` (data), `Analysis/` (tempo and key), `Levels/` (live FFT levels from the output graph), `Mac/Devices/` (CoreAudio HAL output devices), `Mac/Convert/` (FLAC encoder), `iOS/` (audio session and engine recovery) each have a doc.
+- **`Vibe/Audio/`** — playback engine, FX, waveform data, BPM/key analysis, conversion. `FX/` (the DJ master-bus segment, optional per player via `enableFX:`), `Loading/` (the file-open path: the materialization claim, admission and the handle-run ceiling, `CloudTransferRegistry`), `Metadata/` (tags, cache, scan, embedded art; `FolderArt/` is the sidecar-cover fallback), `Waveform/` (data), `Analysis/` (tempo and key), `Levels/` (live FFT levels from the render's final samples), `Mac/Devices/` (CoreAudio HAL output devices), `Mac/Convert/` (FLAC encoder), `iOS/` (audio session and engine recovery) each have a doc.
 - **`Vibe/System/`** — bridges to OS services: Now Playing and remote commands, cloud download progress, cloud file materialization. Both platforms drive them.
 - **`Vibe/Controls/`** — controls both platforms draw the *same* way: the equalizer bars, the playing-row marker, the loading indicator.
 - **`Vibe/Playlist/`** — the model and the CUE/M3U readers; `Mac/` is the table.
@@ -129,11 +129,11 @@ One word per pattern; a new synonym is a bug.
 | `embedded` | art carried in the audio file's own tag | the folder's cover |
 | `cover` | the sidecar image beside the audio file | embedded art |
 
-**Suffixes.** `Vibe` prefixes C-linkage symbols; ObjC classes never carry it. Header-only files of `static inline` logic — the testable seams — are `*Rules.h` when they return a decision and `*Math.h` when they return a number in the problem's units; nothing else.
+**Suffixes.** `Vibe` prefixes C-linkage symbols, and the few classes that would otherwise read as generic or collide with a system name (`VibeManualRenderPump`, `VibeFakeCloud`, `VibeWeakProxy`); an ordinary feature class carries no prefix. Header-only files of `static inline` logic — the testable seams — are `*Rules.h` when they return a decision and `*Math.h` when they return a number in the problem's units; nothing else.
 
 Behavior added to a foreign class is a category (`NSURL+Hash`), never a free function taking that class first. The two exceptions are in `Common/` because the class differs per target: `PlatformImage.h`'s bounded decode and `PlatformColor.h`'s hex and blend functions.
 
-**`Coordinator` is deliberately generic** and names three contracts: `PlaybackRequestCoordinator` is request identity, `MetadataParseCoordinator` single-flight ownership, `OpenRequestCoordinator` ordered delivery. A fourth must say which it is.
+**`Coordinator` is deliberately generic** and names three contracts: request identity (`PlaybackRequestCoordinator`), single-flight ownership (`MetadataParseCoordinator`, `AudioFileMaterializationCoordinator`), and ordered, target-matched delivery (`OpenRequestCoordinator`, `PageWaveformCoordinator`). A new one must say which it is.
 
 `make check-vocabulary` enforces six mechanical rules and is the authority on what is checkable:
 
@@ -141,12 +141,12 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 2. No `DefaultAppClaim` — OS role registration is `registration`.
 3. Every header-only `static inline` file with no `.m`/`.mm` beside it must be `*Rules.h` or `*Math.h`, unless it is on the script's allowlist of non-seam headers.
 4. **No `#if DEBUG` in a shipping header.** Debug surface is a declaration-only category under `Vibe/Debug/`; there is no allowlist. A debug-only property ships as a pointer; debug-only *state* belongs to a debug-only object the shipping class holds (`VibeManualRenderPump`).
-5. The trap marker is spelled `TRAP:` and nothing else, so `grep -rn 'TRAP:' Vibe` is the complete list of things that bite.
+5. The trap marker is spelled `TRAP:` and nothing else, so `grep -rn 'TRAP:' Vibe Tests` is the complete list of things that bite.
 6. No `invariant`, in code or in a doc — a condition the code must keep true is a `guarantee`, so one grep finds them all.
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) controls persisted beta logging and instrumentation**: at 1 every level is written at Default and Settings > Advanced > Save Debug Info retrieves it; at 0 info/debug must be streamed live. Playback diagnostics belong in `Audio/CLAUDE.md`, hardware observation in `Audio/Mac/Devices/CLAUDE.md`, and report export in `Mac/App/CLAUDE.md`. Use `vibe-debug` for collection and keep each beta's matching dSYMs for stall-stack symbolication.
+`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) controls persisted beta logging and instrumentation**: at 1 info, debug and warn are written at Default (errors stay errors) and Settings > Advanced > Save Debug Info retrieves it; at 0 info/debug must be streamed live. Playback diagnostics belong in `Audio/CLAUDE.md`, hardware observation in `Audio/Mac/Devices/CLAUDE.md`, and report export in `Mac/App/CLAUDE.md`. Use `vibe-debug` for collection and keep each beta's matching dSYMs for stall-stack symbolication.
 
 ## Localization
 
@@ -155,8 +155,8 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 ## Key patterns
 
 - **No private APIs, ever.** This app ships in the Mac App Store. Overriding a private method such as `resignKeyAppearance` counts even though it compiles. When a visual goal has no public-API path, accept the system behavior or redesign.
-- **Deployment targets are macOS 13.0 and iOS 26.0.** `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so anything newer needs an `@available` guard — never `#if` or an OS-version check — so `grep -rn '@available(macOS' Vibe` is the complete inventory of version-specific code.
-- **Singletons**: `AppSettings`, `AppStats`, `AudioDeviceManager` (macOS), `FolderAccessManager` (macOS), `FolderArtResolver`, `Formatters`.
+- **Deployment targets are macOS 13.0 and iOS 26.0.** `CLANG_WARN_UNGUARDED_AVAILABILITY: YES_AGGRESSIVE` is on, so anything newer needs an `@available` guard — never `#if` or an OS-version check — so `grep -rn '@available(macOS\|API_AVAILABLE(macos' Vibe` is the complete inventory of version-specific code.
+- **Singletons**: `AppSettings`, `AppStats`, `AudioFileMaterializationCoordinator`, `CloudTransferRegistry`, `FolderArtResolver`, `Formatters`; `AudioDeviceManager`, `FolderAccessManager` and `OpenRequestCoordinator` on macOS; `FavoritesStore` and `SearchFolderStore` on iOS.
 - **File hashing**: `NSURL+Hash.cacheKey` is the cache key for metadata and waveform data — `<size>-<mtime_us>-<sha1(resolved path)>`, from attributes alone. It resolves symlinks first and returns nil rather than a degenerate key when the stat fails. Hashing no content keeps it cheap but misses a rewrite or a move.
 - **ObjC++ (.mm) only where C++ is genuinely needed**: the TagLib integration, the waveform data structures and the renderers. Keep C++ types out of headers that plain ObjC files import.
 - **Comments only when required, and terse.** A comment states what the code cannot show: a trap, an ordering or threading constraint, a contract, a non-obvious why. Never narrate the next line, and never log a change — "renamed from", "added in" and how something was verified belong in commits. **Naming the bug a design prevents is welcome**: it is the most concrete form a why takes. Mark hard-won traps with `TRAP:`.

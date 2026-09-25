@@ -896,13 +896,12 @@ class OpGenerator:
         return [("audio_loading", argv, [])]
 
     def op_equalizer_mode(self):
-        """Replace the live FFT tap, synchronously, whenever.
+        """Replace the live level meter, synchronously, whenever.
 
-        A mode change tears the tap off the node feeding the output and
-        installs another, invalidating the current publication and the
-        analyzer's partial window — and which node that is depends on whether
-        the FX segment is present, which the fx ops are flipping underneath.
-        Landing one on a track change or an engine reconfigure is the point.
+        A mode change retires the render's meter stage and applies another,
+        invalidating the current publication and the analyzer's partial
+        window, while the fx ops flip the FX segment underneath it. Landing
+        one on a track change or an output rebuild is the point.
         """
         return [("equalizer_mode",
                  ["set_equalizer_mode", self.rng.choice(EQUALIZER_MODES)], [])]
@@ -1698,7 +1697,7 @@ def collect_menu_ids(channel):
     walk(payload.get("menu", []))
     missing = MENU_IDS - set(ids)
     if missing:
-        # FX can be absent by design when launched without its graph. Still
+        # FX can be absent by design when the chain is disabled. Still
         # name every missing item so a rename never silently erases coverage.
         print("WARNING: missing allowed menu IDs (not exercised): "
               + ", ".join(sorted(missing)), file=sys.stderr)

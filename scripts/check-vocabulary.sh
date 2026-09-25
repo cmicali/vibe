@@ -64,7 +64,7 @@ if [ -n "$stray_debug" ]; then
 fi
 
 # One spelling for the trap marker, so grep finds every one of them.
-bad_trap=$(grep -rn 'TRAP' Vibe --include='*.h' --include='*.m' --include='*.mm' 2>/dev/null \
+bad_trap=$(grep -rn 'TRAP' Vibe Tests --include='*.h' --include='*.m' --include='*.mm' 2>/dev/null \
         | grep -v ThirdParty | grep -v 'TRAP:' || true)
 if [ -n "$bad_trap" ]; then
     fail "trap marker must be spelled 'TRAP:':"

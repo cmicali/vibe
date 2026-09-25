@@ -10,11 +10,11 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 **TRAP: a shifted key equivalent rides in the capital letter** (`"Z"`, `"C"`) per the `NSMenuItem` contract — a lowercase key with Shift in the mask draws right but never matches a real press.
 
-Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/`) handles the actual presses, because only it can tell a tap from a hold.
+Bare-key items are **display and fallback only**: `TransportKeyMonitor` (`Mac/MainWindow/Transport/`) handles the actual presses, because only it can tell a tap from a hold.
 
 ## Edit
 
-**Every Edit item explicitly targets the player controller** — there is no text editing, so no responder-chain ambiguity to serve — **except Select All, which is nil-targeted** so ⌘A reaches whichever list has keyboard focus (the granted-folder list in Settings > Permissions). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself. A table reachable by the chain must answer honestly, since `NSTableView` responds to the selector whether or not it can act: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
+**Every Edit item explicitly targets the player controller** — there is no text editing, so no responder-chain ambiguity to serve — **except Select All, which is nil-targeted** so ⌘A reaches whichever list has keyboard focus (the granted-folder list in Settings > Files). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself. A table reachable by the chain must answer honestly, since `NSTableView` responds to the selector whether or not it can act: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
 
 **TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to any menu it takes for an Edit menu**, all inert in an app with no text input. `VibeEditMenuCleaner` (in `MainMenuBuilder.m`), the Edit menu's delegate, strips them in `menuNeedsUpdate:` by dropping every item without a `menu_edit_*` identifier — the one uniform public-API path, since AppKit's suppression defaults cover only Dictation and the character palette. **So every Edit separator carries the prefix too** (`menu_edit_separator_remove`, `menu_edit_separator_select`). **The cleaner deliberately does not implement `menuHasKeyEquivalent:…`** as the other delegates do: Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items.
 

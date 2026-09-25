@@ -66,7 +66,7 @@ The substrate was executable before the fix. A2–A4 landed with J8; A5 was supe
 | E5-field, C1 | `resolvedRows`, `hang-open` fake-cloud mode | yes — prerequisites for every D item |
 | D1, D3, D4, E2 | S19 (expected-fail before J8), S21, S18 retrofit | yes |
 | E3, E4, F1, F2 | Saturation, admission rate, coverage reporting | yes |
-| **A2–A4** | Handle-run ceiling, lifecycle and gapless path | **no** — these landed with J8 |
+| **A2–A4** | Handle-run ceiling and lifecycle (the gapless open purpose is gone) | **no** — these landed with J8 |
 | **A5** | Proposed configuration surface | deliberately omitted — the ceiling is private and not tunable |
 
 **Expected-fail was the proof pattern, not a workaround.** The A1 tests and S19 first ran marked so the unfixed behavior was captured rather than skipped. J8 removes those marks; an XPASS would now mean the harness was not updated with the implementation. The original gapless-purpose S20 was deliberately omitted for the basename ambiguity described above. S9 is now the suite's one XFAIL for the separate unflagged-placeholder gap.
@@ -85,7 +85,7 @@ With those, the violation is one line: *demand > 0, progress flat across the win
 
 Two cheaper derivations of the same idea are worth having on their own, because they need no new concepts:
 
-- **In-flight opens must reach zero at rest.** `handleOpensStarted - handleOpensCompleted` is the count of live handle runs; if it is non-zero after a `quiesce`, an open is stranded. That is this bug, stated as a guarantee, and `quiesce` already has the machinery — `VibeIsSettled` (`DebugHealth.m:264`) iterates the whole `pending` dictionary, so a counter added to `VibePendingCounts` is automatically waited on, and a wedged run keeps `settled: false` and names itself in the reported `pending` block at the 15 s deadline. Highest leverage single change in this document.
+- **In-flight opens must reach zero at rest.** `handleOpensStarted - handleOpensCompleted` is the count of live handle runs; if it is non-zero after a `quiesce`, an open is stranded. That is this bug, stated as a guarantee, and `quiesce` already has the machinery — `VibeIsSettled` (`DebugHealth.m:332`) iterates the whole `pending` dictionary, so a counter added to `VibePendingCounts` is automatically waited on, and a wedged run keeps `settled: false` and names itself in the reported `pending` block at the 15 s deadline. Highest leverage single change in this document.
 - **Convergence, stated in user terms.** After a folder is opened and everything settles, *every* row should carry resolved metadata. That assertion knows nothing about lanes, claims or slots, so it survives every refactor of the mechanism and catches the whole class rather than this instance. `resolvedRows` is the landed signal; see item E5.
 
 ## Test coverage to add

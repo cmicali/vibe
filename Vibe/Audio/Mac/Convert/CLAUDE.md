@@ -24,7 +24,7 @@ All three rungs move the file **on the converter queue, not main**: file coordin
 
 The panel rung refuses a selection that names the source itself — including a symlink, case alias or hard link — before its atomic replace. Its off-main `NSURL+FileIdentity` check resolves paths and compares current device/inode identity; do not move that blocking check onto the panel callback. A WAV container can legitimately arrive under a `.flac` filename and ask-mode permits replacing an existing destination, so extension and menu checks alone cannot guarantee the two URLs differ. The controller keeps a same-path guard as the final defense before it creates an undo record or disposes either file.
 
-**TRAP: the related-item rung's sandbox extension lives exactly as long as the presenter registration.** Unregistering after the move leaves a file the app has just written and can no longer *read* — the player fails with `avfaudio error -54` — so successful presenters are kept for the session (`_relatedItemPresenters`), which the app needs anyway: the file is now in the playlist.
+**TRAP: the related-item rung's sandbox extension lives exactly as long as the presenter registration.** Unregistering after the move leaves a file the app has just written and can no longer *read* — the player's open fails with a permission error — so successful presenters are kept for the session (`_relatedItemPresenters`), which the app needs anyway: the file is now in the playlist.
 
 **TRAP: inside the related-item coordination block, a handed URL other than the sibling path is a tracked older item** — a previously trashed `foo.flac` — and following it would file the new FLAC in the Trash. The accessor compares standardized paths and falls back to the intended destination.
 

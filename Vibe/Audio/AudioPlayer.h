@@ -63,11 +63,11 @@ NS_ASSUME_NONNULL_BEGIN
 // queue reads it per ramp.
 @property (atomic) BOOL declick;
 
-// Whether a tap publishes band levels for active equalizer indicators. Off by
-// default and demand-driven. The shells enable it only for counted indicator
-// demand, modeled output audio and material presentation visibility. Setting
-// it installs or removes the tap on the player queue, and every master-bus
-// rewire re-installs to match.
+// Whether the meter publishes band levels for active equalizer indicators.
+// Off by default and demand-driven. The shells enable it only for counted
+// indicator demand, modeled output audio and material presentation
+// visibility. Setting it applies or drops the render's meter stage on the
+// player queue (applyLevelMeterOnQueue), and a rate change re-applies it.
 //
 // Main thread only, like every other transport-facing setter here.
 @property (nonatomic) BOOL levelsEnabled;
