@@ -292,8 +292,8 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
         NSUInteger channels = [stage[@"channels"] unsignedIntegerValue]; // the channels driven, not the stream's width
         NSDictionary *bitPerfect = stage[@"bitPerfect"];
         NSMutableArray<NSString *> *status = [NSMutableArray array];
-        if ([bitPerfect[@"enabled"] boolValue] && [bitPerfect[@"status"] isEqualToString:@"active"]) [status addObject:STR_SETTINGS_BIT_PERFECT];
-        if ([stage[@"exclusive"] boolValue]) [status addObject:STR_SETTINGS_EXCLUSIVE_OUTPUT];
+        if ([bitPerfect[@"enabled"] boolValue] && [bitPerfect[@"status"] isEqualToString:@"active"]) [status addObject:STR_SETTINGS_AUDIO_PATH_BIT_PERFECT];
+        if ([stage[@"exclusive"] boolValue]) [status addObject:STR_SETTINGS_AUDIO_PATH_HOG];
         return VibeAudioPathRow(stage[@"name"], [formatters sampleRateString:[stage[@"nominalSampleRate"] doubleValue]],
                                 bits ? VibeAudioPathDepth(bits, [stage[@"physicalFloat"] boolValue]) : nil,
                                 channels ? VibeAudioPathChannelCount(channels) : nil, VibeAudioPathJoin(status), stage[@"latencySeconds"]);
