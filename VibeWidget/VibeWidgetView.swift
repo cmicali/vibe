@@ -18,7 +18,6 @@
 
 import AppIntents
 import SwiftUI
-import UIKit
 import WidgetKit
 
 private let kCornerRadius: CGFloat = 8
@@ -42,11 +41,54 @@ private let kTextSize: CGFloat = 22
 
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
     let entry: VibeEntry
 
     private var state: VibeWidgetState? {
         guard let state = entry.state, state.hasTrack else { return nil }
         return state
+    }
+
+    // The mac theme's choices (VibeWidgetState.theme), for this appearance.
+    // Every read falls back to the widget's own look, which is all iOS has.
+    private var themeValues: [String: Any] { entry.state?.theme ?? [:] }
+
+    // The light side only where the theme paints the light surface; anywhere
+    // else the tile is the widget's own dark one, whatever the appearance
+    // (WidgetPublisher's palette says why).
+    private var lightSurface: Bool {
+        colorScheme == .light
+            && (themeValues[kVibeWidgetThemeLight] as? [String: [NSNumber]])?[kVibeWidgetColorBackground] != nil
+    }
+
+    private func themeComponents(_ key: String) -> [Double]? {
+        let side = lightSurface ? kVibeWidgetThemeLight : kVibeWidgetThemeDark
+        guard let palette = themeValues[side] as? [String: [NSNumber]],
+              let rgba = palette[key], rgba.count == 4 else { return nil }
+        return rgba.map { $0.doubleValue }
+    }
+
+    private func themeColor(_ key: String) -> Color? {
+        themeComponents(key).map { Color(.sRGB, red: $0[0], green: $0[1], blue: $0[2], opacity: $0[3]) }
+    }
+
+    // Whether the tile itself is light, which is not lightSurface: that picks
+    // the palette, and a single-mode theme publishes its dark look on both
+    // sides. So the painted background's own lightness decides, as it shows:
+    // over the black the container draws under it, so a transparent white is
+    // a dark tile. The widget's own tile is dark.
+    private var surfaceIsLight: Bool {
+        guard let rgba = themeComponents(kVibeWidgetColorBackground) else { return false }
+        let luma: Double = 0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]
+        return luma * rgba[3] > 0.5
+    }
+
+    private func themeGlyph(_ key: String) -> String? {
+        themeValues[key] as? String
+    }
+
+    private var placeholder: CGImage? {
+        lightSurface ? entry.placeholderLight : entry.placeholderDark
     }
 
     var body: some View {
@@ -56,6 +98,10 @@ struct VibeWidgetView: View {
         .containerBackground(for: .widget) { background }
     }
 
+    // The tinted modes — the mac desktop whenever a window covers it, the iOS
+    // tinted and clear Home Screens — remove this background and tint
+    // everything else; the images opt into keeping their pictures.
+    //
     // The desktop's header tint is the artwork's dominant colour washed behind
     // the text. Sampling one here would cost a decode per render, so the art
     // itself is blurred and dimmed instead — the same effect by a cheaper
@@ -64,13 +110,18 @@ struct VibeWidgetView: View {
         ZStack {
             Color.black
             if let blurred = entry.blurredArtwork {
-                Image(uiImage: blurred)
+                Image(decorative: blurred, scale: 1)
                     .resizable()
                     .scaledToFill()
                     .opacity(0.55)
             }
             LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.7)],
                            startPoint: .top, endPoint: .bottom)
+            // A solid theme's cover, over what the window would show as glass:
+            // its opacity decides how much of the art still shows, as there.
+            if let solid = themeColor(kVibeWidgetColorBackground) {
+                solid
+            }
         }
     }
 
@@ -148,18 +199,19 @@ struct VibeWidgetView: View {
     // this type size a long title would otherwise lose its end to an ellipsis
     // on most tracks. A nil artist means the title is the filename-derived
     // single line, and it still takes the TITLE's colour — the rule both apps
-    // draw by.
+    // draw by. With nothing playing the title is the app's name, a String and
+    // so never looked up for translation.
     private var textLines: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(state?.title ?? "Vibe")
                 .font(.system(size: kTextSize, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(themeColor(kVibeWidgetColorTitle) ?? .white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             if let artist = state?.artist, !artist.isEmpty {
                 Text(artist)
                     .font(.system(size: kTextSize))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(themeColor(kVibeWidgetColorArtist) ?? .white.opacity(0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -168,8 +220,16 @@ struct VibeWidgetView: View {
 
     private func artworkTile(side: CGFloat) -> some View {
         Group {
-            if let artwork = entry.artwork {
-                Image(uiImage: artwork).resizable().scaledToFill()
+            if let picture = entry.artwork ?? placeholder {
+                // In the tinted modes — the mac desktop whenever a window
+                // covers it — the cover goes grey like every other widget's
+                // pictures, rather than staying the one coloured thing on a
+                // monochrome desktop. Grey, not tinted: tinting a photo reads as
+                // a colour cast, which is what made the first version look broken.
+                Image(decorative: picture, scale: 1)
+                    .resizable()
+                    .widgetAccentedRenderingMode(.desaturated)
+                    .scaledToFill()
             } else {
                 ZStack {
                     Color.white.opacity(0.08)
@@ -186,14 +246,30 @@ struct VibeWidgetView: View {
     // Play/pause is a filled disc and next a bare glyph: one primary action per
     // widget, which is what makes the row readable at a glance rather than a
     // strip of equal controls.
+    //
+    // The glyph is a hole in the disc, not a dark shape on it. TRAP: a black
+    // glyph over a white disc vanishes in the tinted modes, which recolour
+    // both to the same tint — the mac desktop whenever a window covers it. A
+    // cut-out shows whatever is behind the disc in every mode.
+    //
+    // A theme's own glyph is drawn bare, as the window draws it, since only the
+    // factory pair has a disc variant to cut it out of.
     private func playPauseButton(diameter: CGFloat) -> some View {
-        Button(intent: VibePlayPauseIntent()) {
-            ZStack {
-                Circle().fill(.white.opacity(0.92))
-                Image(systemName: entry.state?.playing == true ? "pause.fill" : "play.fill")
-                    .font(.system(size: diameter * 0.4))
-                    .foregroundStyle(.black.opacity(0.85))
+        let playing = entry.state?.playing == true
+        let color = themeColor(kVibeWidgetColorPlayButton) ?? .white.opacity(0.92)
+        let glyph = themeGlyph(playing ? kVibeWidgetThemePauseGlyph : kVibeWidgetThemePlayGlyph)
+        return Button(intent: VibePlayPauseIntent()) {
+            Group {
+                if let glyph {
+                    Image(systemName: glyph)
+                        .font(.system(size: diameter * 0.55))
+                } else {
+                    Image(systemName: playing ? "pause.circle.fill" : "play.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                }
             }
+            .foregroundStyle(color)
             .frame(width: diameter, height: diameter)
             .contentShape(Circle())
         }
@@ -202,9 +278,10 @@ struct VibeWidgetView: View {
 
     private func nextButton(diameter: CGFloat) -> some View {
         Button(intent: VibeNextIntent()) {
-            Image(systemName: "forward.end.fill")   // the mac's glyph, and the mini player's
+            // The factory glyph is the mac's, and the mini player's.
+            Image(systemName: themeGlyph(kVibeWidgetThemeNextGlyph) ?? "forward.end.fill")
                 .font(.system(size: diameter * 0.46))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(themeColor(kVibeWidgetColorNextButton) ?? .white.opacity(0.85))
                 .frame(width: diameter, height: diameter)
                 .contentShape(Rectangle())
         }
@@ -218,19 +295,36 @@ struct VibeWidgetView: View {
     private var waveform: some View {
         GeometryReader { geometry in
             let progress = state.map { $0.progress(at: entry.date) } ?? 0
+            // The light pair on a light surface, when the app baked one.
+            let light = lightSurface && entry.playedLight != nil && entry.unplayedLight != nil
+            let unplayedStrip = light ? entry.unplayedLight : entry.unplayed
+            let playedStrip = light ? entry.playedLight : entry.played
             ZStack(alignment: .leading) {
-                if let unplayed = entry.unplayed {
-                    Image(uiImage: unplayed).resizable()
-                }
-                if let played = entry.played {
-                    Image(uiImage: played)
+                // Baked at 3x; the scale only matters for layout, which the
+                // resizable frame overrides.
+                if let unplayed = unplayedStrip {
+                    Image(decorative: unplayed, scale: 3)
                         .resizable()
+                        .widgetAccentedRenderingMode(.accentedDesaturated)
+                }
+                if let played = playedStrip {
+                    Image(decorative: played, scale: 3)
+                        .resizable()
+                        .widgetAccentedRenderingMode(.accentedDesaturated)
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
                 }
                 if state != nil {
                     seekZones
+                } else {
+                    // The mac player's empty state: its loading indicator's
+                    // midline at rest, full width, in the same height and alpha.
+                    let line = VibeLoadingIndicatorMetricsForStyle(.waveform, geometry.size.width)
+                    Rectangle()
+                        .fill((surfaceIsLight ? Color.black : Color.white).opacity(line.trackAlpha))
+                        .frame(height: line.height)
+                        .frame(maxHeight: .infinity)
                 }
             }
         }

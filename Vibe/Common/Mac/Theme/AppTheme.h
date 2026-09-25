@@ -315,6 +315,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *playButtonGlyph;
 @property (nonatomic, copy) NSString *pauseButtonGlyph;
 @property (nonatomic, copy) NSString *nextButtonGlyph;
+// A glyph as it draws: the name, or `factory` when this macOS has no symbol
+// for it. A button drawing nothing is never the answer. Main thread.
++ (NSString *)resolvedGlyph:(NSString *)glyph factory:(NSString *)factory;
 @property (nonatomic) BOOL showFileInfo;
 @property (nonatomic) BOOL showStatusIcons;
 @property (nonatomic) BOOL showTimeLabels;

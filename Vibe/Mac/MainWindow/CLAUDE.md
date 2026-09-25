@@ -60,6 +60,8 @@ The drag is `Playlist/Mac/CLAUDE.md`'s. This side owns **`playlistOrderDidChange
 
 **Now Playing** publishes the same wall-clock position and duration, rate 1.0 playing and 0 paused, and nothing until the first real play — `NowPlayingController`'s rule (`System/CLAUDE.md`). Artwork reads non-blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves.
 
+**The desktop widget is fed from the same publish**: `updateNowPlaying` hands `widgetPublisher` its locals, with the Loading gap as `startPending`; the waveform delivery offers the complete envelope (`percentLoaded >= 1`, which a cache hit also delivers); `applySettingsLiveEffects:` calls its `settingsDidChange` on any theme or waveform effect; `AppDelegate`'s activation asks whether a widget is still placed. Its intents drive `playPause:`, `next:` and `seekToProgress:ofTrack:` (+Transport) through `VibeWidgetPerformAction` (`AppDelegate.m`), once the launch open has settled — which is before the file has opened, so the seek takes the tags' duration when the player has none, and with neither holds itself until the tags arrive or the open lands (`didLoadMetadata:`, `didStartPlaying:`). Any other track's start drops it, and so does any new play submission (`playWillStartHandler`), since replaying the same row keeps the same `AudioTrack`. The contract is `System/CLAUDE.md`'s.
+
 ## The window
 
 Undo and Redo forward from the window to its controller so responder-chain menu routing retains the conversion-in-flight guard.

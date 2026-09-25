@@ -1,6 +1,6 @@
 //
 //  VibeWidgetIntents.swift
-//  Vibe (iOS) and VibeWidget
+//  Vibe and VibeWidget
 //
 //  The widget's three buttons. COMPILED INTO BOTH TARGETS, because the
 //  extension has to name the types to put them in a Button and the app has to
@@ -27,6 +27,19 @@
 //  the intent — the app opens and the tap is lost — which is what the
 //  continuation replaced. The common case, where the app is already alive
 //  with its restore long settled, waits for nothing.
+//
+//  The mac has only the second wait. Its player controller exists from
+//  applicationWillFinishLaunching and a launch shows the window on its own,
+//  so there is no scene to connect and nothing to continue into; the launch
+//  open is AppDelegate's grant restore and playlist restore, and the waiter
+//  is AppDelegate's, behind VibeWidgetPerformAction.
+//
+//  TRAP: on the mac this file must not see AppKit. A Swift file that sees both
+//  AppKit and AppIntents gets their cross-import overlay, _AppIntents_AppKit,
+//  which links all of SwiftUI into the app — for every user, widget or not.
+//  So the mac bodies are one call into Objective-C, through a bridging header
+//  that names nothing but WidgetPublisher.h. Check with otool -L after adding
+//  any import or bridged header: SwiftUI must not appear.
 //
 //  TRAP: the bodies are behind VIBE_APP because the extension cannot link a
 //  single app class. In the extension these compile to a no-op — which is
@@ -59,11 +72,13 @@ import AppIntents
 // is noise — do not chase it when a button misbehaves.
 
 // A seek zone's width as a fraction of the strip. Widgets have no continuous
-// gesture — the home screen forwards discrete hits and nothing else — so a
+// gesture — the host forwards discrete hits and nothing else — so a
 // scrub is impossible and this is the resolution of what replaces it. 32 zones
 // is ~3% of a track, about 6 seconds in a three-minute one.
 let kVibeSeekZoneCount = 32
 
+// 26: supportedModes. The mac app itself deploys to 13.
+@available(macOS 26.0, *)
 struct VibePlayPauseIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource =
         LocalizedStringResource("widget.intent.play_pause", defaultValue: "Play or Pause")
@@ -71,12 +86,13 @@ struct VibePlayPauseIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if VIBE_APP
-        try await VibeWidgetTransport.perform(self) { $0.playPause() }
+        try await VibeWidgetTransport.playPause(self)
         #endif
         return .result()
     }
 }
 
+@available(macOS 26.0, *)
 struct VibeNextIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource =
         LocalizedStringResource("widget.intent.next", defaultValue: "Next Track")
@@ -84,12 +100,13 @@ struct VibeNextIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if VIBE_APP
-        try await VibeWidgetTransport.perform(self) { $0.next() }
+        try await VibeWidgetTransport.next(self)
         #endif
         return .result()
     }
 }
 
+@available(macOS 26.0, *)
 struct VibeSeekIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource =
         LocalizedStringResource("widget.intent.seek", defaultValue: "Seek")
@@ -117,32 +134,46 @@ struct VibeSeekIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if VIBE_APP
-        try await VibeWidgetTransport.perform(self) { playback in
-            // Dropped, not escalated: the tap was on a render that no longer
-            // describes anything, and there is nothing right to do with it.
-            guard (playback.displayedTrack?.url as NSURL?)?.pathKey() == trackKey else { return }
-            // The zone's CENTRE, so a tap lands in the middle of what it covers
-            // rather than at its leading edge — half a zone of bias otherwise,
-            // in one direction, every time.
-            let progress = (Double(zone) + 0.5) / Double(kVibeSeekZoneCount)
-            playback.seek(toProgress: Float(progress))
-        }
+        // The zone's CENTRE, so a tap lands in the middle of what it covers
+        // rather than at its leading edge — half a zone of bias otherwise, in
+        // one direction, every time.
+        let progress = (Double(zone) + 0.5) / Double(kVibeSeekZoneCount)
+        try await VibeWidgetTransport.seek(self, toProgress: progress, ofTrackKey: trackKey)
         #endif
         return .result()
     }
 }
 
 #if VIBE_APP
-// The app-side runner. It hops to the main actor because PlaybackController
-// is main-thread-only (its header says so), and an intent performs on whatever
-// the system gives it.
+// The app-side runner. Each verb waits for the shell's launch open to settle
+// before acting (the header's TRAP). A seek names the track whose strip was
+// tapped and is dropped, not escalated, when that is no longer the one
+// playing: the tap was on a render that no longer describes anything.
+@available(macOS 26.0, *)
 enum VibeWidgetTransport {
-    // Drives the connected controller once its launch open has settled —
-    // bringing the app forward first when no scene has connected, since that
-    // is what connects one. `intent` is only the handle the continuation hangs
-    // off. The settle wait is unconditional: see the header's TRAP.
-    static func perform(_ intent: some AppIntent,
-                        _ action: @escaping @MainActor (PlaybackController) -> Void) async throws {
+    #if os(iOS)
+    static func playPause(_ intent: some AppIntent) async throws {
+        try await perform(intent) { $0.playPause() }
+    }
+
+    static func next(_ intent: some AppIntent) async throws {
+        try await perform(intent) { $0.next() }
+    }
+
+    static func seek(_ intent: some AppIntent, toProgress progress: Double,
+                     ofTrackKey trackKey: String) async throws {
+        try await perform(intent) { playback in
+            guard (playback.displayedTrack?.url as NSURL?)?.pathKey() == trackKey else { return }
+            playback.seek(toProgress: Float(progress))
+        }
+    }
+
+    // Drives the scene's controller, bringing the app forward first when no
+    // scene has connected, since that is what connects one. It hops to the
+    // main actor because PlaybackController is main-thread-only, and an intent
+    // performs on whatever the system gives it.
+    private static func perform(_ intent: some AppIntent,
+                                _ action: @escaping @MainActor (PlaybackController) -> Void) async throws {
         var playback = await connectedPlayback()
         if playback == nil {
             try await intent.continueInForeground(alwaysConfirm: false)
@@ -159,8 +190,32 @@ enum VibeWidgetTransport {
     private static func connectedPlayback() -> PlaybackController? {
         VibeiOSSceneDelegate.connectedPlayback()
     }
+    #else
+    static func playPause(_ intent: some AppIntent) async throws {
+        await perform(.playPause)
+    }
+
+    static func next(_ intent: some AppIntent) async throws {
+        await perform(.next)
+    }
+
+    static func seek(_ intent: some AppIntent, toProgress progress: Double,
+                     ofTrackKey trackKey: String) async throws {
+        await perform(.seek, progress: progress, trackKey: trackKey)
+    }
+
+    private static func perform(_ action: VibeWidgetAction, progress: Double = 0,
+                                trackKey: String? = nil) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                VibeWidgetPerformAction(action, progress, trackKey) { continuation.resume() }
+            }
+        }
+    }
+    #endif
 }
 
+#if os(iOS)
 private extension PlaybackController {
     // The controller's waiter as an await.
     @MainActor
@@ -170,4 +225,5 @@ private extension PlaybackController {
         }
     }
 }
+#endif
 #endif

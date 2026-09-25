@@ -10,6 +10,7 @@
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
 #import "PlaylistController.h"
+#import "WidgetPublisher.h"
 
 @implementation MainPlayerController (NowPlaying)
 
@@ -73,6 +74,14 @@
                                           rate:loadingGap ? 0.0 : 1.0
                                        hasNext:self.playlistController.hasNextTrack
                                    hasPrevious:self.playlistController.hasPreviousTrack];
+    // The widget is told the same instant, so it can never disagree with the
+    // system card. The Loading gap is its startPending: a pinned placeholder
+    // position, not a seek.
+    [self.widgetPublisher updateWithTrack:track
+                                 position:position
+                                 duration:duration
+                                  playing:(state == NowPlayingPlaybackStatePlaying)
+                             startPending:loadingGap];
 }
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)

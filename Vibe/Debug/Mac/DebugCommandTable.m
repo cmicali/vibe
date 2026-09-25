@@ -17,10 +17,13 @@
 #import "DebugInfo.h"
 #import "OutputDevicesMenuController.h"
 #import "VibeStrings.h"
+#import "NSURL+Hash.h"
+#import "WidgetPublisher.h"
 
 #if DEBUG
 
 #import "VibeWorkTally.h"
+#import "WidgetPublisherInternal.h"
 #import <sys/resource.h>
 
 #pragma mark Command table
@@ -284,6 +287,29 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 [controller.trackDisplay showWaveformLoadingIndicator];
                 [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
+                return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
+            }),
+            VibeDebugCmd(@"set_widget_placed <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The publisher's gate, as WidgetKit's answer (off) or the
+                // extension's read signal (on) moves it — so the last widget
+                // going can be staged without taking one off the desktop.
+                BOOL on;
+                if (!VibeParseOnOff(tokens, &on)) {
+                    return VibeErrorJSON(@"usage: set_widget_placed <on|off>");
+                }
+                [controller.widgetPublisher setWidgetPlaced:on];
+                return VibeJSONString(@{@"ok": @YES, @"placed": @(controller.widgetPublisher.widgetPlaced)});
+            }),
+            VibeDebugCmd(@"widget_seek <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // The widget strip's click, through the same entry the seek
+                // intent calls — the launch waiter and a held seek included —
+                // aimed at the current track, as a fresh render would be.
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: widget_seek <fraction>");
+                }
+                double fraction = MIN(MAX(tokens[1].doubleValue, 0), 1);
+                VibeWidgetPerformAction(VibeWidgetActionSeek, fraction,
+                                        controller.playlistController.currentTrack.url.pathKey, ^{});
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
             VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

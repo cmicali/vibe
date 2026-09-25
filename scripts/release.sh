@@ -17,8 +17,11 @@
 #                        is rejected by Gatekeeper if handed out directly, so
 #                        that pipeline cannot produce a shareable build.
 #
-# The app embeds no frameworks/helpers (see the empty Embed Frameworks phase),
-# so there is no nested code to sign — the archive/export handles everything.
+# The app embeds one piece of nested code, the desktop widget
+# (Contents/PlugIns/VibeWidget.appex). The export re-signs it inside-out with
+# its archived entitlements, so nothing here calls codesign on it;
+# asc_require_mac_widget checks the result, since an extension that lost its
+# app group ships as an empty widget and nothing else would say so.
 #
 # ---------------------------------------------------------------------------
 # One-time prerequisites (this script only checks for them, it can't create them):
@@ -146,6 +149,7 @@ write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
 asc_export_archive "Developer ID, universal" developer-id
 asc_require_binary_architectures \
     "$UNIVERSAL_APP/Contents/MacOS/$PRODUCT" arm64 x86_64
+asc_require_mac_widget "$UNIVERSAL_APP" arm64 x86_64
 
 # asc_generate_and_archive deliberately wipes BUILD_DIR, so the second archive
 # uses asc_archive directly and lives under the already-clean release tree.
@@ -161,6 +165,7 @@ asc_require_binary_architectures \
 write_developer_id_export_options "$BUILD_DIR/ExportOptions.plist"
 asc_export_archive "Developer ID, arm64-only" developer-id
 asc_require_binary_architectures "$ARM64_APP/Contents/MacOS/$PRODUCT" arm64
+asc_require_mac_widget "$ARM64_APP" arm64
 
 # ---------------------------------------------------------------------------
 # Notarize + staple each app, then package, sign and notarize its disk image.

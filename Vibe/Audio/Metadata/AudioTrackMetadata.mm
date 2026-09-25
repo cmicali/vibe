@@ -13,8 +13,6 @@
 #import "Formatters.h"
 #import "VibeStrings.h"
 
-#import <ImageIO/ImageIO.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <exception>
 #include <memory>
@@ -363,42 +361,6 @@ static AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
     return self;
 }
 
-// JPEG cannot store alpha, so transparent art such as a PNG cover would
-// render composited in the fresh-parse session but flattened in every
-// cache-hit session afterwards. Keep alpha-bearing images as PNG; everything
-// else stays JPEG, which is far smaller for photographic covers. ImageIO
-// sniffs the bytes on the decode side, so both forms read back through the
-// same keys.
-static NSData *VibeEncodedArtData(VibeImage *image) {
-#if TARGET_OS_OSX
-    // CGImageForProposedRect returns the backing CGImage directly for
-    // CGImage-backed images, and rasterizes anything else.
-    CGImageRef cgImage = [image CGImageForProposedRect:NULL context:nil hints:nil];
-#else
-    CGImageRef cgImage = image.CGImage;
-#endif
-    if (!cgImage) {
-        return nil;
-    }
-    CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(cgImage);
-    BOOL hasAlpha = !(alphaInfo == kCGImageAlphaNone ||
-                      alphaInfo == kCGImageAlphaNoneSkipFirst ||
-                      alphaInfo == kCGImageAlphaNoneSkipLast);
-    NSString *type = hasAlpha ? UTTypePNG.identifier : UTTypeJPEG.identifier;
-    NSMutableData *encoded = [NSMutableData data];
-    CGImageDestinationRef destination =
-        CGImageDestinationCreateWithData((__bridge CFMutableDataRef)encoded,
-                                         (__bridge CFStringRef)type, 1, NULL);
-    if (!destination) {
-        return nil;
-    }
-    NSDictionary *options = hasAlpha ? @{} : @{(id)kCGImageDestinationLossyCompressionQuality: @0.85};
-    CGImageDestinationAddImage(destination, cgImage, (__bridge CFDictionaryRef)options);
-    BOOL finalized = CGImageDestinationFinalize(destination);
-    CFRelease(destination);
-    return finalized ? encoded : nil;
-}
-
 - (NSData *)encodeThumbnailDataIfNeeded {
     NSData *stored = [self.artwork encodedThumbnailDataForStorage];
     if (stored) {
@@ -410,7 +372,7 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
     if (!thumbnail) {
         return nil;
     }
-    NSData *encoded = VibeEncodedArtData(thumbnail);
+    NSData *encoded = VibeEncodedImageData(VibeCGImageOfImage(thumbnail));
     if (!encoded) {
         return nil;
     }
@@ -438,7 +400,7 @@ static NSData *VibeEncodedArtData(VibeImage *image) {
         return;
     }
     VibeImage *scaled = VibeDecodedImageWithData(original, kVibeArchivedDisplayArtDimension);
-    NSData *encoded = scaled ? VibeEncodedArtData(scaled) : nil;
+    NSData *encoded = scaled ? VibeEncodedImageData(VibeCGImageOfImage(scaled)) : nil;
     if (encoded) {
         [self.artwork stashArchivedDisplayArtDataForStorage:encoded];
     }

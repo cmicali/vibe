@@ -94,6 +94,52 @@ asc_require_binary_architectures() {
     }
 }
 
+# The exported mac app's widget pieces, which fail silently when wrong: the
+# extension present and sandboxed (WidgetKit will not load it otherwise); it
+# and the app both holding the team-prefixed app group (VibeWidgetState.m's
+# TRAP), or the widget draws empty; the app's WidgetKit bridge bundle
+# (VibeWidgetReloader.swift), or the widget is never told to redraw; and the
+# app itself linking neither WidgetKit nor SwiftUI (System/CLAUDE.md's TRAP),
+# or every launch pays for them. Further arguments are the slices both nested
+# binaries must carry.
+asc_require_mac_widget() {
+    local app="$1"
+    shift
+    local appex="$app/Contents/PlugIns/VibeWidget.appex"
+    local center="$app/Contents/PlugIns/VibeWidgetCenter.bundle"
+    local group="$TEAM_ID.com.commonwealthrecordings.Vibe"
+    local bundle
+
+    [[ -d "$appex" ]] || {
+        echo "error: $appex is missing — the widget did not embed" >&2
+        exit 1
+    }
+    [[ -d "$center" ]] || {
+        echo "error: $center is missing — the app could not reach WidgetKit" >&2
+        exit 1
+    }
+    grep -q 'com.apple.security.app-sandbox' \
+            <<<"$(codesign -d --entitlements - --xml "$appex" 2>/dev/null)" || {
+        echo "error: $appex is not sandboxed — WidgetKit will not load it" >&2
+        exit 1
+    }
+    for bundle in "$app" "$appex"; do
+        grep -q "$group" <<<"$(codesign -d --entitlements - --xml "$bundle" 2>/dev/null)" || {
+            echo "error: $bundle lacks the app group $group — the widget would draw empty" >&2
+            exit 1
+        }
+    done
+    if otool -L "$app/Contents/MacOS/$(basename "$app" .app)" \
+            | grep -qE '/(WidgetKit|SwiftUI)\.framework/'; then
+        echo "error: $app links WidgetKit or SwiftUI — every launch would load them" >&2
+        exit 1
+    fi
+    if (($#)); then
+        asc_require_binary_architectures "$appex/Contents/MacOS/VibeWidget" "$@"
+        asc_require_binary_architectures "$center/Contents/MacOS/VibeWidgetCenter" "$@"
+    fi
+}
+
 # Export $ARCHIVE into $EXPORT_DIR using $BUILD_DIR/ExportOptions.plist, which
 # the caller writes first — the plist is where the two pipelines differ.
 #   $1  label for the progress line ("Developer ID", "App Store package")

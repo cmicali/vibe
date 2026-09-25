@@ -35,6 +35,7 @@
 #import "PitchControlPanel.h"
 #import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
+#import "WidgetPublisher.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MusicalKey.h"
 #import "MainPlayerController+NowPlaying.h"
@@ -178,8 +179,17 @@
     // updateUI funnel. Registering the command handlers now lets the media
     // keys route to us as soon as the first track starts playing.
     self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
-
     __weak MainPlayerController *weakSelf = self;
+    // The desktop widget, fed from the same publish (System/CLAUDE.md). Its
+    // extension needs macOS 26, so below that there is no publisher at all —
+    // every call to it is a message to nil.
+    if (@available(macOS 26.0, *)) {
+        self.widgetPublisher = [[WidgetPublisher alloc] init];
+        self.widgetPublisher.activationHandler = ^{
+            [weakSelf updateNowPlaying];
+        };
+    }
+
     _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
         [weakSelf updatePlaybackUI];
         // Reconciliation, not an edge: a play settlement dropped as stale
@@ -227,6 +237,10 @@
         // its reloadData — so the mark keeps this updateUI from rebuilding a
         // row that was just built.
         strongSelf->_lastReloadedTrack = strongSelf.playlistController.currentTrack;
+        // A held widget seek belonged to the play before this one. Replaying
+        // the same row keeps the same AudioTrack, so its start would otherwise
+        // match the held seek and land a restart mid-track.
+        strongSelf->_pendingSeekTrack = nil;
         [strongSelf updateUI];
     };
 

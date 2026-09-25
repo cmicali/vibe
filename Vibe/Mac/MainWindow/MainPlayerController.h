@@ -11,6 +11,7 @@
 @class AudioWaveformCache;
 @class AudioFileConverter;
 @class OutputDevicesMenuController;
+@class WidgetPublisher;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -33,6 +34,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Convert to FLAC's engine. The controller owns it because it also owns the
 // swap afterwards, and every menu's item validates against it.
 @property (readonly, strong) AudioFileConverter *fileConverter;
+// The desktop widget's publisher, fed beside the Now Playing publish. Public so
+// the app delegate can ask it, on activation, whether a widget is still placed.
+@property (readonly, strong) WidgetPublisher *widgetPublisher;
 
 - (void)play:(NSArray<NSURL *> *)urls;
 

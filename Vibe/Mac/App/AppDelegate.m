@@ -9,6 +9,7 @@
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Transport.h"
 #import "NSURLUtil.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
@@ -24,6 +25,10 @@
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
 #import "VibeStrings.h"
+#import "WidgetPublisher.h"
+#import "AudioTrack.h"
+#import "NSURL+Hash.h"
+#import "PlaylistController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if DEBUG
@@ -36,6 +41,8 @@
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
+
+- (void)performWhenLaunchOpenSettled:(dispatch_block_t)block;
 
 @end
 
@@ -57,6 +64,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // The live ⌘O panel, so repeated opens re-front it instead of stacking
     // independent panels whose completions each do a replacing play.
     NSOpenPanel *_openPanel;
+    // performWhenLaunchOpenSettled:'s waiters; nil once the launch restore
+    // has settled, which runs later ones at once.
+    NSMutableArray<dispatch_block_t> *_launchOpenWaiters;
 }
 
 - (instancetype)init {
@@ -68,6 +78,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                                sink:^(NSArray<NSURL *> *urls, BOOL append) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
+        _launchOpenWaiters = [NSMutableArray array];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -151,7 +162,35 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyState];
         }];
+        [self settleLaunchOpen];
     }];
+}
+
+// Runs `block` on main once the launch open has settled — the grant restore,
+// then the queued launch-time open or the remembered playlist — or at once if
+// it already has. The widget's buttons wait on it: a click that launched the
+// app must not act on a playlist the restore has not landed yet.
+- (void)performWhenLaunchOpenSettled:(dispatch_block_t)block {
+    if (!_launchOpenWaiters) {
+        block();
+        return;
+    }
+    [_launchOpenWaiters addObject:[block copy]];
+}
+
+- (void)settleLaunchOpen {
+    NSArray<dispatch_block_t> *waiters = _launchOpenWaiters;
+    _launchOpenWaiters = nil;
+    for (dispatch_block_t waiter in waiters) {
+        waiter();
+    }
+}
+
+// The one moment a widget can have been REMOVED, since removing one means
+// leaving the app for the desktop. Adding one is covered by the extension's
+// read signal (WidgetPublisher.h).
+- (void)applicationDidBecomeActive:(NSNotification *)notification {
+    [self.mainPlayerController.widgetPublisher refreshPlaced];
 }
 
 // Opens file and directory paths passed as command-line arguments, as in:
@@ -323,6 +362,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Persist the in-progress listening run; quitting fires no player callback.
     [[AppStats sharedInstance] playbackStopped];
     [self.mainPlayerController saveLastPlaylist];
+    [self.mainPlayerController.widgetPublisher publishEmptyForTermination];
 }
 
 // Launch Services can split one multi-file open into several openURLs: events.
@@ -399,3 +439,36 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #endif
 
 @end
+
+void VibeWidgetPerformAction(VibeWidgetAction action, double progress, NSString *trackKey,
+                             dispatch_block_t completion) {
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    if (![delegate isKindOfClass:AppDelegate.class]) {
+        completion();
+        return;
+    }
+    [delegate performWhenLaunchOpenSettled:^{
+        MainPlayerController *controller = delegate.mainPlayerController;
+        switch (action) {
+            case VibeWidgetActionPlayPause:
+                [controller playPause:nil];
+                break;
+            case VibeWidgetActionNext:
+                [controller next:nil];
+                break;
+            case VibeWidgetActionSeek:
+            {
+                AudioTrack *track = controller.playlistController.currentTrack;
+                if (![track.url.pathKey isEqualToString:trackKey]) {
+                    break;
+                }
+                // The launch waiter settles before the open does, so this can
+                // arrive with the file still opening; the controller holds it
+                // until a duration is known.
+                [controller seekToProgress:progress ofTrack:track];
+                break;
+            }
+        }
+        completion();
+    }];
+}

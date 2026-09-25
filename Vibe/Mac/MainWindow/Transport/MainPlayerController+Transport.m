@@ -68,6 +68,34 @@ static double SkipBaseBars(void) {
     [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() * 4 fallbackWallClockSeconds:kSkipMostSeconds]];
 }
 
+- (void)seekToProgress:(double)progress ofTrack:(AudioTrack *)track {
+    _pendingSeekTrack = nil;
+    if (!track || track != self.playlistController.currentTrack) {
+        return;
+    }
+    NSTimeInterval duration = self.audioPlayer.duration;
+    if (duration <= 0) {
+        duration = track.duration;
+    }
+    if (duration <= 0) {
+        _pendingSeekTrack = track;
+        _pendingSeekProgress = progress;
+        return;
+    }
+    [self.audioPlayer seekToPosition:progress * duration];
+}
+
+- (void)applyPendingSeekForTrack:(AudioTrack *)track started:(BOOL)started {
+    AudioTrack *pending = _pendingSeekTrack;
+    if (!pending || (pending != track && !started)) {
+        return;     // tags for some other row: the sweep delivers them all
+    }
+    _pendingSeekTrack = nil;
+    if (pending == track) {
+        [self seekToProgress:_pendingSeekProgress ofTrack:track];
+    }
+}
+
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
     // When Stopped, at the end of the playlist or after an error, the finished
     // file stays open, so duration alone looks seekable with no node left to

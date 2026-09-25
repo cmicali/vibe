@@ -31,12 +31,20 @@ else
     xcodegen generate
 fi
 
+# VIBE_SIGN_MAC=1 signs with the Apple Development certificate instead of
+# ad-hoc — the only way to exercise the desktop widget locally (the Makefile's
+# signing TRAP says why). No profile: the team-prefixed app group needs none.
+SIGN_ARGS=()
+if [[ "${VIBE_SIGN_MAC:-}" == "1" ]]; then
+    SIGN_ARGS=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Apple Development")
+fi
+
 echo "🔊 xcodebuild ($CONFIGURATION)"
 xcodebuild \
     -project Vibe.xcodeproj \
     -scheme Vibe \
     -configuration "$CONFIGURATION" \
     -parallelizeTargets \
-    -derivedDataPath build/DerivedData build
+    -derivedDataPath build/DerivedData ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} build
 
 echo "🔊 built build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"

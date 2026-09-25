@@ -66,6 +66,10 @@ NS_ASSUME_NONNULL_BEGIN
     __weak AudioTrack*          _lastReloadedTrack;
     PitchControlPanel*          _pitchPanel;
     ArtworkDisplayController*   _artworkController;
+    // A widget seek that arrived with no duration known (seekToProgress:
+    // ofTrack:); nil when none is held.
+    __weak AudioTrack*          _pendingSeekTrack;
+    double                      _pendingSeekProgress;
 }
 
 // The public collaborators' single assignment point is init's construction
@@ -76,6 +80,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readwrite, strong) AudioTrackMetadataCache *metadataCache;
 @property (readwrite, strong) AudioWaveformCache *waveformCache;
 @property (readwrite, strong) AudioFileConverter *fileConverter;
+@property (readwrite, strong) WidgetPublisher *widgetPublisher;
 
 // The system Now Playing bridge. The publish and command-routing code lives in
 // MainPlayerController+NowPlaying.

@@ -27,18 +27,22 @@ project:
 build: project
 	SKIP_GENERATE=1 scripts/build.sh $(CONFIG)
 
-# Unsigned by default, which is what CI wants: no credentials, no keychain.
+# Unsigned (iOS) or ad-hoc (macOS) by default, which is what CI wants: no
+# credentials, no keychain.
 #
-# TRAP: unsigned means NO ENTITLEMENTS, and without
-# com.apple.security.application-groups the shared container is never created.
-# containerURLForSecurityApplicationGroupIdentifier then returns nil, the app
-# publishes no widget snapshot, and the home-screen widget stays empty however
-# you drive it — which looks exactly like a broken widget rather than a
-# build-flag consequence. VIBE_SIGN_SIM=1 ad-hoc signs the simulator build WITH
-# its entitlements, the only way to exercise or screenshot the widget on a
-# simulator. Ad-hoc is enough because the simulator validates no provisioning
-# profile; it still needs no credentials, so this is a local convenience, not
-# a second signing path.
+# TRAP: neither default gets the widget an app-group container, and an empty
+# widget then looks exactly like a broken one rather than a build-flag
+# consequence. Unsigned means NO ENTITLEMENTS: without
+# com.apple.security.application-groups the container is never created,
+# containerURLForSecurityApplicationGroupIdentifier returns nil and the app
+# publishes nothing. VIBE_SIGN_SIM=1 ad-hoc signs the simulator build WITH its
+# entitlements, the only way to exercise or screenshot the widget on a
+# simulator; ad-hoc is enough there because the simulator validates no
+# provisioning profile. The mac is stricter: its group is team-prefixed
+# (VibeWidgetState.m), and an ad-hoc signature carries no team, so the
+# extension is denied the container. VIBE_SIGN_MAC=1 on `make build` signs
+# with the Apple Development certificate instead (scripts/build.sh). Both are
+# local conveniences, not second signing paths.
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=NO
 ifeq ($(VIBE_SIGN_SIM),1)
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-

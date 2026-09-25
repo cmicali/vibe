@@ -795,24 +795,6 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _currentTimeTextField.textColor = theme.resolvedTimeColor;
 }
 
-// A glyph this macOS has a symbol for, else the factory one — the free-text
-// glyph fields' resolve-time fallback, the way Fonts resolves an uninstalled
-// face. A button drawing nothing is never the answer.
-static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
-    // Whether this macOS has a symbol never changes within a run, and the
-    // probe allocates an image, so remember each name's answer.
-    static NSMutableDictionary<NSString *, NSNumber *> *known;
-    if (!known) {
-        known = [NSMutableDictionary dictionary];
-    }
-    NSNumber *has = known[glyph];
-    if (has == nil) {
-        has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
-        known[glyph] = has;
-    }
-    return has.boolValue ? glyph : factory;
-}
-
 // One button's whole themed look: its picture for the art under it
 // (AppTheme.buttonImageForKey:, either side of the pair), else its glyph,
 // and the resting color the states derive from.
@@ -820,7 +802,7 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
                                NSString *glyph, NSString *factoryGlyph,
                                NSString *colorBase, BOOL dark) {
     button.image = [theme buttonImageForKey:imageKey];
-    button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
+    button.symbolName = [AppTheme resolvedGlyph:glyph factory:factoryGlyph];
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
 

@@ -57,6 +57,18 @@ FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
 // UIImage itself (UIImage+DominantColor).
 FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
+// The image's backing CGImage, rasterizing one when it has none. Not
+// retained: it lives as long as the image. Extract it on the thread that owns
+// the image and hand the CGImage on — a CGImage is immutable and safe to read
+// anywhere, an NSImage is not safe to draw concurrently with the UI.
+FOUNDATION_EXPORT CGImageRef _Nullable VibeCGImageOfImage(VibeImage *_Nullable image) CF_RETURNS_NOT_RETAINED;
+
+// The image encoded for disk: PNG when it carries alpha, which JPEG cannot
+// store, else JPEG, which is far smaller for a photographic cover. ImageIO
+// sniffs the bytes on the way back in, so either reads through the same path.
+// nil when the encode fails.
+FOUNDATION_EXPORT NSData *_Nullable VibeEncodedImageData(CGImageRef _Nullable image);
+
 // Whether the bottom `fraction` of the image reads as dark — the mean
 // relative luminance of that band under the midpoint — so a control drawn
 // over it can pick its light or dark color from the picture rather than from

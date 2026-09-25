@@ -257,6 +257,17 @@ if [[ "$PLATFORM" == ios ]]; then
     esac
 fi
 
+# The mac payload's twin: the .pkg carries the desktop widget, whose
+# team-prefixed group needs no portal capability — but an export that dropped
+# it would ship the same blank widget.
+if [[ "$PLATFORM" == macos ]]; then
+    PKG_EXPANDED="$BUILD_DIR/pkg-expanded"
+    rm -rf "$PKG_EXPANDED"
+    pkgutil --expand-full "$UPLOAD_FILE" "$PKG_EXPANDED"
+    asc_require_mac_widget "$(find "$PKG_EXPANDED" -type d -name "$PRODUCT.app" -prune | head -1)"
+    echo "🔊 app group   : held by the app and the widget"
+fi
+
 # ---------------------------------------------------------------------------
 # Validate — the same checks the upload runs, without submitting anything.
 # ---------------------------------------------------------------------------

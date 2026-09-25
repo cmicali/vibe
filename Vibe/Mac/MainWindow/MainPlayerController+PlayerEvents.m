@@ -113,6 +113,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self performPerTrackRefreshForStartedTrack:track];
+    [self applyPendingSeekForTrack:track started:YES];
 }
 
 // Everything a track start refreshes: artwork, recents, metadata, waveform,

@@ -12,6 +12,7 @@
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
+#import "WidgetPublisher.h"
 
 #if DEBUG
 
@@ -167,6 +168,9 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
                     theme.playlistFontSize],
         },
     }];
+    // iOS's field, same name: whether track changes are reaching the shared
+    // container at all.
+    state[@"widget"] = @{ @"placed": @(controller.widgetPublisher.widgetPlaced) };
     return state;
 }
 

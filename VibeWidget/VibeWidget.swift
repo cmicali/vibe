@@ -8,7 +8,7 @@
 //
 
 import CoreImage
-import CoreImage.CIFilterBuiltins
+import ImageIO
 import SwiftUI
 import WidgetKit
 
@@ -24,21 +24,28 @@ private let kPlayheadStep: TimeInterval = 5
 private let kMaxEntries = 24
 
 struct VibeEntry: TimelineEntry {
-    let date: Date
+    var date: Date
     let state: VibeWidgetState?
     // Decoded once per timeline and shared by every entry, rather than read
-    // from disk per render: the same three files back all of them, and the
-    // extension's memory limit is small.
-    let artwork: UIImage?
+    // from disk per render: the same files back all of them, and the
+    // extension's memory limit is small. CGImage rather than either platform's
+    // image type, so this file and the view are one source for both.
+    var artwork: CGImage? = nil
     // Pre-blurred once per timeline rather than per entry: the background is
     // pixel-identical across every entry, and a 40pt blur in a process with a
     // hard memory cap is not something to repeat 24 times for one result.
-    let blurredArtwork: UIImage?
-    let played: UIImage?
-    let unplayed: UIImage?
+    var blurredArtwork: CGImage? = nil
+    var played: CGImage? = nil
+    var unplayed: CGImage? = nil
+    // Only for a theme that paints the light surface.
+    var playedLight: CGImage? = nil
+    var unplayedLight: CGImage? = nil
+    // The mac theme's no-artwork image, one per appearance; nil on iOS, and
+    // whenever there is artwork to draw instead.
+    var placeholderDark: CGImage? = nil
+    var placeholderLight: CGImage? = nil
 
-    static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
-                                 blurredArtwork: nil, played: nil, unplayed: nil)
+    static let empty = VibeEntry(date: Date(), state: nil)
 }
 
 struct VibeProvider: TimelineProvider {
@@ -50,15 +57,18 @@ struct VibeProvider: TimelineProvider {
     func placeholder(in context: Context) -> VibeEntry { .empty }
 
     func getSnapshot(in context: Context, completion: @escaping (VibeEntry) -> Void) {
+        noteDemand(context)
         completion(loadEntry(at: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<VibeEntry>) -> Void) {
+        noteDemand(context)
         let now = Date()
         let first = loadEntry(at: now)
-        guard let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
-            // Paused, parked or empty: one entry, held until the app publishes
-            // again. Nothing moves, so nothing needs re-rendering.
+        guard let state = first.state, state.hasTrack, state.playing, !state.startPending,
+              state.duration > 0 else {
+            // Paused, parked, still opening or empty: one entry, held until the
+            // app publishes again. Nothing moves, so nothing needs re-rendering.
             completion(Timeline(entries: [first], policy: .never))
             return
         }
@@ -71,12 +81,19 @@ struct VibeProvider: TimelineProvider {
         let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
         let steps = min(kMaxEntries, Int(remaining / step) + 1)
         let entries = (0..<steps).map { index in
-            VibeEntry(date: now.addingTimeInterval(Double(index) * step),
-                      state: state, artwork: first.artwork,
-                      blurredArtwork: first.blurredArtwork,
-                      played: first.played, unplayed: first.unplayed)
+            var entry = first
+            entry.date = now.addingTimeInterval(Double(index) * step)
+            return entry
         }
         completion(Timeline(entries: entries, policy: .atEnd))
+    }
+
+    // A placed widget rendering is what turns the app's publishing on; the
+    // gallery renders its preview with nothing placed (VibeWidgetState.h's TRAP).
+    private func noteDemand(_ context: Context) {
+        if !context.isPreview {
+            VibeWidgetState.noteWidgetDemand()
+        }
     }
 
     private func loadEntry(at date: Date) -> VibeEntry {
@@ -84,28 +101,38 @@ struct VibeProvider: TimelineProvider {
         // The state's OWN images, named by its track: three separate reads,
         // but a publish landing between them can only make one of these nil,
         // never hand this title another track's cover.
-        let artwork = image(state.artworkURL)
-        return VibeEntry(date: date, state: state,
-                         artwork: artwork,
-                         blurredArtwork: artwork.map(blurred),
-                         played: image(state.waveformPlayedURL),
-                         unplayed: image(state.waveformUnplayedURL))
+        var entry = VibeEntry(date: date, state: state)
+        entry.artwork = image(state.artworkURL)
+        entry.blurredArtwork = entry.artwork.map(blurred)
+        entry.played = image(state.waveformURL(played: true, light: false))
+        entry.unplayed = image(state.waveformURL(played: false, light: false))
+        let lightSide = state.theme?[kVibeWidgetThemeLight] as? [String: Any]
+        let lightSurface = lightSide?[kVibeWidgetColorBackground] != nil
+        if lightSurface {
+            entry.playedLight = image(state.waveformURL(played: true, light: true))
+            entry.unplayedLight = image(state.waveformURL(played: false, light: true))
+        }
+        if entry.artwork == nil {
+            entry.placeholderDark = image(VibeWidgetState.placeholderURL(forDark: true))
+            entry.placeholderLight = lightSurface ? image(VibeWidgetState.placeholderURL(forDark: false)) : nil
+        }
+        return entry
     }
 
-    private func image(_ url: URL?) -> UIImage? {
-        guard let url, let data = try? Data(contentsOf: url) else { return nil }
-        return UIImage(data: data)
+    private func image(_ url: URL?) -> CGImage? {
+        guard let url, let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    private func blurred(_ artwork: UIImage) -> UIImage {
-        guard let input = CIImage(image: artwork),
-              let filter = CIFilter(name: "CIGaussianBlur",
+    private func blurred(_ artwork: CGImage) -> CGImage {
+        let input = CIImage(cgImage: artwork)
+        guard let filter = CIFilter(name: "CIGaussianBlur",
                                     parameters: [kCIInputImageKey: input,
                                                  kCIInputRadiusKey: 40]),
               let output = filter.outputImage,
               let cgImage = Self.blurContext.createCGImage(output, from: input.extent)
         else { return artwork }
-        return UIImage(cgImage: cgImage)
+        return cgImage
     }
 }
 
@@ -116,6 +143,7 @@ struct VibeWidgetBundle: WidgetBundle {
 
 struct VibeNowPlayingWidget: Widget {
     var body: some WidgetConfiguration {
+        // VibeWidgetReloader.swift counts placements of this kind alone.
         StaticConfiguration(kind: "VibeNowPlaying", provider: VibeProvider()) { entry in
             VibeWidgetView(entry: entry)
         }
