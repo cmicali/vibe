@@ -220,10 +220,6 @@ static NSString *VibeAudioPathDepth(NSUInteger bits, BOOL isFloat) {
     return [NSString stringWithFormat:STR_SETTINGS_AUDIO_PATH_BITS, [Formatters.sharedInstance countString:bits]];
 }
 
-static NSString *VibeAudioPathSampleFormat(NSString *name) {
-    return [name isEqualToString:@"int16"] ? STR_SETTINGS_AUDIO_PATH_INT16 : STR_SETTINGS_AUDIO_PATH_FLOAT;
-}
-
 // One row, the same shape for every stage: name · rate · depth · channels ·
 // status · latency, each column present only where the stage has one, so the
 // rows read across. The latency is the stage's own, and only a stage in the
@@ -291,7 +287,7 @@ static NSDictionary<NSString *, id> *VibeAudioPathCarrierFormat(NSArray<NSDictio
         // The decoder's output: the conversion's side when there is one,
         // the file's decoded format when it is read direct.
         return VibeAudioPathRow(nil, [formatters sampleRateString:[stage[@"toSampleRate"] ?: stage[@"sampleRate"] doubleValue]],
-                                VibeAudioPathSampleFormat(stage[@"toSampleFormat"] ?: stage[@"sampleFormat"]),
+                                STR_SETTINGS_AUDIO_PATH_FLOAT,
                                 VibeAudioPathChannelCount([stage[@"toChannels"] ?: stage[@"channels"] unsignedIntegerValue]),
                                 VibeAudioPathJoin(status), nil);
     }

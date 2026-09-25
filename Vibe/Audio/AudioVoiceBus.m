@@ -417,11 +417,9 @@ VIBE_REALTIME_END
 @public
     VibeVoiceID identifier;
     AudioFileHandle *file;
-    BOOL quantizeToInt16;
     AudioConverterRef converter;     // disposed with the record, or when it is re-prepared
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
     AVAudioPCMBuffer *mixBuffer;     // the bus's channels at the file's rate, what a converter takes after the mix
-    AVAudioPCMBuffer *convertBuffer; // the converter's output: the stage itself for a float target, a buffer of its own for the 16-bit form
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life
     NSData *mixMap;                  // Float32[source channels][bus channels], when the widths differ
     NSError *failure;               // decoder writes, queue reads under _tableLock
@@ -436,7 +434,6 @@ VIBE_REALTIME_END
     BOOL positioned;
     VibeStreamState stream;
     AudioFileHandle *successorFile;
-    BOOL successorQuantizeToInt16;
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
     _Atomic uint32_t fillTarget;     // the drain raises it under a scheduled fill, which reads it on the decode queue
@@ -713,51 +710,41 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 // or the order a wider layout names — is mixed first, on the file's own rate,
 // as the mixer would, so a converter carries the bus's channels only and none
 // is needed at the bus rate. A rate difference is converted at mastering
-// quality; a lossy source under bit-perfect output is converted to the 16-bit
-// form it wants — at the bus's rate and width, so the rounding is the
-// converter's last step — which the decoder expands back to float exactly so
-// the bus stays float on the 16-bit grid.
-- (BOOL)prepareRecord:(AudioVoiceRecord *)record file:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16 {
+// quality.
+- (BOOL)prepareRecord:(AudioVoiceRecord *)record file:(AudioFileHandle *)file {
     AVAudioFormat *source = file.processingFormat;
     os_unfair_lock_lock(&_tableLock);
     record->file = file; // filesInUse reads the file pair under the lock; the decoder writes it there
     os_unfair_lock_unlock(&_tableLock);
-    record->quantizeToInt16 = quantizeToInt16;
     VibeDisposeConverter(record);
     record->readBuffer = nil;
     record->mixBuffer = nil;
-    record->convertBuffer = nil;
     record->mixMap = nil;
     record->stream = VibeStreamReading;
     record->fedFrames = 0;
     [self setConversion:nil forRecord:record];
-    BOOL integer = quantizeToInt16;
-    if (!integer && VibePCMFormatsMatch(source, _format)) {
+    if (VibePCMFormatsMatch(source, _format)) {
         return YES;
     }
     AVAudioFormat *fed = source; // what the converter takes
     if (!VibeChannelsMatch(source, _format)) {
         record->mixMap = VibeMixMap(source, _format);
         record->readBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-        if (!integer && source.sampleRate == _format.sampleRate) {
-            [self setConversion:[self conversionFrom:source to:_format mixed:YES converter:nil] forRecord:record];
+        if (source.sampleRate == _format.sampleRate) {
+            [self setConversion:[self conversionFrom:source mixed:YES converter:nil] forRecord:record];
             return record->readBuffer != nil; // the mix lands in the stage
         }
         fed = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:source.sampleRate
                                                  channels:_format.channelCount interleaved:NO];
         record->mixBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fed frameCapacity:kDecodeChunkFrames];
     }
-    // TRAP: round at the bus rate and width, after mixing and resampling. An
-    // Int16 target at the file's 48 kHz rate fed a 96 kHz bus at double speed.
-    AVAudioFormat *target = integer ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16
-            sampleRate:_format.sampleRate channels:_format.channelCount interleaved:YES] : _format;
     AudioConverterRef converter = NULL;
-    if (AudioConverterNew(fed.streamDescription, target.streamDescription, &converter) != noErr || !converter) {
+    if (AudioConverterNew(fed.streamDescription, _format.streamDescription, &converter) != noErr || !converter) {
         return NO;
     }
     UInt32 quality = kAudioConverterQuality_Max;
     AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterQuality, sizeof(quality), &quality);
-    if (fed.sampleRate != target.sampleRate) {
+    if (fed.sampleRate != _format.sampleRate) {
         // The read-back is the check: macOS reports the complexity it took,
         // iOS reports none (its resampler has no selectable complexity) and
         // runs at the quality alone.
@@ -772,21 +759,18 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     record->converter = converter;
     record->readBuffer = record->readBuffer ?: [[AVAudioPCMBuffer alloc] initWithPCMFormat:source frameCapacity:kDecodeChunkFrames];
-    record->convertBuffer = integer ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:target frameCapacity:kDecodeChunkFrames]
-                                    : record->stageBuffer;
-    [self setConversion:[self conversionFrom:source to:target mixed:record->mixMap != nil converter:converter] forRecord:record];
-    return record->readBuffer && record->convertBuffer && (!record->mixMap || record->mixBuffer);
+    [self setConversion:[self conversionFrom:source mixed:record->mixMap != nil converter:converter] forRecord:record];
+    return record->readBuffer && (!record->mixMap || record->mixBuffer);
 }
 
-- (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source to:(AVAudioFormat *)target mixed:(BOOL)mixed
+- (NSDictionary<NSString *, id> *)conversionFrom:(AVAudioFormat *)source mixed:(BOOL)mixed
                                        converter:(AudioConverterRef)converter {
     NSMutableDictionary *conversion = [@{
-        @"fromSampleRate": @(source.sampleRate), @"toSampleRate": @(target.sampleRate),
-        @"fromChannels": @(source.channelCount), @"toChannels": @(target.channelCount),
-        @"toSampleFormat": target.commonFormat == AVAudioPCMFormatInt16 ? @"int16" : @"float32",
-        @"mixed": @(mixed), @"resampled": @(source.sampleRate != target.sampleRate),
+        @"fromSampleRate": @(source.sampleRate), @"toSampleRate": @(_format.sampleRate),
+        @"fromChannels": @(source.channelCount), @"toChannels": @(_format.channelCount),
+        @"mixed": @(mixed), @"resampled": @(source.sampleRate != _format.sampleRate),
     } mutableCopy];
-    if (converter && source.sampleRate != target.sampleRate) {
+    if (converter && source.sampleRate != _format.sampleRate) {
         conversion[@"algorithm"] = VibeConverterAlgorithm(converter); // nil sets nothing
         conversion[@"quality"] = @(VibeConverterQuality(converter));
     }
@@ -894,7 +878,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 }
 
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
-                     quantizeToInt16:(BOOL)quantizeToInt16 gain:(float)gain
+                             gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp paused:(BOOL)paused {
     VibeVoiceID identifier = _nextIdentifier++;
     if ([self freeSlotCount] <= kFreeSlotReserve) {
@@ -903,7 +887,6 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     AudioVoiceRecord *record = [[AudioVoiceRecord alloc] init];
     record->identifier = identifier;
     record->file = file;
-    record->quantizeToInt16 = quantizeToInt16;
     record->startFrame = frame;
     record->gain = gain;
     record->ramp = ramp;
@@ -941,13 +924,12 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     bound->positioned = NO;
     // A successor queued while the start was pending rides into the slot.
     bound->successorFile = record->successorFile;
-    bound->successorQuantizeToInt16 = record->successorQuantizeToInt16;
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
     atomic_store_explicit(&bound->fillTarget, kInitialFillFrames, memory_order_release);
     bound->liveReported = bound->endedReported = NO;
     bound->reportedBoundary = kUnset;
-    BOOL prepared = [self prepareRecord:bound file:record->file quantizeToInt16:record->quantizeToInt16];
+    BOOL prepared = [self prepareRecord:bound file:record->file];
     bound->convertedBase = atomic_load_explicit(&s->written, memory_order_relaxed);
     atomic_store_explicit(&s->armedWritten, atomic_load_explicit(&s->written, memory_order_relaxed), memory_order_relaxed);
     atomic_store_explicit(&s->armedConsumed, atomic_load_explicit(&s->consumed, memory_order_relaxed), memory_order_relaxed);
@@ -1100,14 +1082,13 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 }
 #endif
 
-- (BOOL)queueSuccessor:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16 forVoice:(VibeVoiceID)voice {
+- (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice {
     if ([_withheldFiles containsObject:file]) {
         return NO; // a retired decoder may be inside it; the transport asks again once it has left
     }
     AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         pending->successorFile = file;
-        pending->successorQuantizeToInt16 = quantizeToInt16;
         return YES;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -1124,7 +1105,6 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     AudioVoiceRecord *record = _records[slot];
     record->successorFile = file;
-    record->successorQuantizeToInt16 = quantizeToInt16;
     int32_t expected = VibeSuccessorNone;
     if (!atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorQueued,
                                                  memory_order_release, memory_order_relaxed)) {
@@ -1142,7 +1122,6 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     AudioVoiceRecord *pending = [self pendingRecordForIdentifier:voice];
     if (pending) {
         pending->successorFile = nil;
-        pending->successorQuantizeToInt16 = NO;
         return YES;
     }
     NSUInteger slot = [self ownedSlotForIdentifier:voice];
@@ -1154,7 +1133,6 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     if (atomic_compare_exchange_strong_explicit(&s->successorState, &expected, VibeSuccessorNone,
                                                 memory_order_acq_rel, memory_order_acquire)) {
         _records[slot]->successorFile = nil;
-        _records[slot]->successorQuantizeToInt16 = NO;
         return YES;
     }
     // The decoder won the race, or had already switched: successor frames
@@ -1367,10 +1345,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     VibeDisposeConverter(record);
     record->readBuffer = nil;
     record->mixBuffer = nil;
-    record->convertBuffer = nil;
     record->mixMap = nil;
-    record->quantizeToInt16 = NO;
-    record->successorQuantizeToInt16 = NO;
     record->retireOrder = 0;
     atomic_store_explicit(&record->fillScheduled, 0, memory_order_relaxed);
     atomic_store_explicit(&s->endOfStream, kUnset, memory_order_relaxed);
@@ -1454,13 +1429,12 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 }
 
 // A successor read the same way as the file before it — the same format,
-// layout included, and the same Int16 rounding policy — continues through the
+// layout included — continues through the
 // voice's converter, which is told nothing of the boundary, so its filter
 // carries across as the mixer's once did; the next read is the successor's
 // from its start. NO when it needs a converter of its own.
 - (BOOL)continueRecord:(AudioVoiceRecord *)record intoSuccessor:(AudioFileHandle *)successor {
-    if (!VibePCMFormatsMatch(record->file.processingFormat, successor.processingFormat)
-            || record->quantizeToInt16 != record->successorQuantizeToInt16) {
+    if (!VibePCMFormatsMatch(record->file.processingFormat, successor.processingFormat)) {
         return NO;
     }
     // TRAP: the pair moves as one under the lock: a retirement snapshot
@@ -1473,7 +1447,6 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     os_unfair_lock_unlock(&_tableLock);
     record->startFrame = 0;
     record->positioned = NO;
-    record->successorQuantizeToInt16 = NO;
     return YES;
 }
 
@@ -1481,16 +1454,14 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 // own, to be read from its start; NO with none there.
 - (BOOL)prepareSuccessorForRecord:(AudioVoiceRecord *)record {
     AudioFileHandle *successor = record->successorFile;
-    BOOL quantizeToInt16 = record->successorQuantizeToInt16;
     if (!successor) {
         return NO;
     }
     // The successor stays in the pair until prepareRecord: makes it the file,
     // so a retirement snapshot meanwhile still lists it.
-    record->successorQuantizeToInt16 = NO;
     record->startFrame = 0;
     record->positioned = NO;
-    BOOL prepared = [self prepareRecord:record file:successor quantizeToInt16:quantizeToInt16];
+    BOOL prepared = [self prepareRecord:record file:successor];
     os_unfair_lock_lock(&_tableLock);
     record->successorFile = nil;
     os_unfair_lock_unlock(&_tableLock);
@@ -1585,7 +1556,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         }
         return frames;
     }
-    AVAudioPCMBuffer *converted = record->convertBuffer;
+    AVAudioPCMBuffer *converted = record->stageBuffer;
     AudioBufferList *output = converted.mutableAudioBufferList;
     UInt32 bytesPerFrame = converted.format.streamDescription->mBytesPerFrame;
     for (UInt32 b = 0; b < output->mNumberBuffers; b++) {
@@ -1606,19 +1577,6 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     }
     converted.frameLength = frames;
     *final = flushing && frames < kDecodeChunkFrames;
-    if (converted != record->stageBuffer) {
-        // Back to float on the 16-bit grid: v × 2⁻¹⁵ is exact. One strided
-        // conversion deinterleaves each channel.
-        const int16_t *in = converted.int16ChannelData[0];
-        uint32_t channels = converted.format.channelCount;
-        const float scale = 1.0f / 32768.0f;
-        for (uint32_t c = 0; c < channels; c++) {
-            float *out = record->stageBuffer.floatChannelData[c];
-            vDSP_vflt16(in + c, channels, out, 1, frames);
-            vDSP_vsmul(out, 1, &scale, out, 1, frames);
-        }
-        record->stageBuffer.frameLength = frames;
-    }
     return frames;
 }
 

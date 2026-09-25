@@ -120,9 +120,6 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // restarts the output for a playing one. The one owner of "rebuild and keep
 // the track", for the device rebind, the route follow and the debug seam.
 - (BOOL)reconcileSourceSegmentOnQueue;
-// Output policy only; the bus constructs its own conversion target.
-- (BOOL)quantizesToInt16OnQueueForFile:(AudioFileHandle *)file;
-- (nullable AVAudioFormat *)currentVoiceConversionFormatOnQueue;
 // Pitch in percent onto the varispeed's rate, and whether it is in the
 // chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;

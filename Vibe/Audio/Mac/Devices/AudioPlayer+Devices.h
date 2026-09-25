@@ -125,10 +125,6 @@ NS_ASSUME_NONNULL_BEGIN
 // format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file;
 
-// VibeBitPerfectDecodesAsInteger16 against the device prepared for file: the
-// voice's decode format. Read after preparing, which every caller does.
-- (BOOL)decodesAsInteger16OnQueueForFile:(AudioFileHandle *)file;
-
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
 // Hog for the bound device, when the setting, an eligible device and writable
 // HAL hog mode all hold. Idempotent through the HAL read; a rebuild on the

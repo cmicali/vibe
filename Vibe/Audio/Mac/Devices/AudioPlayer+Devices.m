@@ -858,11 +858,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return needsSwitch;
 }
 
-- (BOOL)decodesAsInteger16OnQueueForFile:(AudioFileHandle *)file {
-    return _bitPerfectWanted && file && _preparedDeviceID != kAudioObjectUnknown
-            && VibeBitPerfectDecodesAsInteger16(*file.fileFormat.streamDescription, _preparedFormat);
-}
-
 // The chosen device vanished: the mode cannot follow the fallback onto System
 // Output. The off path verbatim — a confirmed removal retires any restore
 // obligation. The shell persists System Output on the -1 announcement;
@@ -1328,24 +1323,10 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
     };
 }
 
-// "44100 Hz i16 interleaved 2ch": what the current voice decodes its file to.
-static NSString *VibeFormatText(AVAudioFormat *format) {
-    if (!format) {
-        return @"";
-    }
-    NSString *sample = format.commonFormat == AVAudioPCMFormatInt16 ? @"i16"
-            : format.commonFormat == AVAudioPCMFormatInt32 ? @"i32"
-            : format.commonFormat == AVAudioPCMFormatFloat32 ? @"f32"
-            : format.commonFormat == AVAudioPCMFormatFloat64 ? @"f64" : @"other";
-    return [NSString stringWithFormat:@"%.0f Hz %@%@ %uch", format.sampleRate, sample,
-            format.interleaved ? @" interleaved" : @"", (unsigned)format.channelCount];
-}
-
 - (NSDictionary<NSString *, id> *)outputDeviceDiagnosticSnapshot {
     __block NSDictionary *snapshot;
     [self runSyncOnQueue:^{
         snapshot = @{
-            @"decodeFormat": VibeFormatText([self currentVoiceConversionFormatOnQueue]),
             @"boundOutputDeviceId": @([self activeOutputDeviceID]),
             @"requestedOutputDeviceId": @(self.currentlyRequestedAudioDeviceId),
             @"pendingDeviceUID": self->_pendingSavedDeviceUID ?: @"",

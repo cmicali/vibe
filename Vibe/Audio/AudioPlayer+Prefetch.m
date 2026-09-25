@@ -51,8 +51,7 @@
         return;
     }
 #endif
-    if (![_voiceBus queueSuccessor:_prefetchedFile quantizeToInt16:[self quantizesToInt16OnQueueForFile:_prefetchedFile]
-                          forVoice:_voice]) {
+    if (![_voiceBus queueSuccessor:_prefetchedFile forVoice:_voice]) {
         return;
     }
     _successorTrack = _prefetchedTrack;

@@ -831,25 +831,6 @@ VIBE_REALTIME_END
 
 #pragma mark - The source segment
 
-- (BOOL)quantizesToInt16OnQueueForFile:(AudioFileHandle *)file {
-#if TARGET_OS_OSX
-    return [self decodesAsInteger16OnQueueForFile:file];
-#else
-    return NO;
-#endif
-}
-
-- (AVAudioFormat *)currentVoiceConversionFormatOnQueue {
-    if (!_voice) return nil;
-    NSDictionary *conversion = [_voiceBus conversionOfVoice:_voice];
-    if ([conversion[@"toSampleFormat"] isEqual:@"int16"]) {
-        return [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16
-                sampleRate:[conversion[@"toSampleRate"] doubleValue]
-                channels:[conversion[@"toChannels"] unsignedIntValue] interleaved:YES];
-    }
-    return _voiceBus.format;
-}
-
 // The unit and its rings go together, after the render was seen outside them.
 static void VibeVarispeedHostFree(VibeVarispeedHost *host) {
     if (!host) {

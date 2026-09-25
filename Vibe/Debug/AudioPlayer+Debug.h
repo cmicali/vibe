@@ -30,10 +30,6 @@ NS_ASSUME_NONNULL_BEGIN
 // until decoding is allowed again.
 - (void)debugStarveDecoder:(BOOL)starve;
 
-// The current voice's conversion output: the bus format, or Int16 at the
-// bus rate and width when rounding a lossy source. nil with no current voice.
-- (nullable AVAudioFormat *)debugCurrentDecodeFormat;
-
 // How the current voice's file reaches the bus (AudioVoiceBus's
 // conversionOfVoice:): nil when it is read direct.
 - (nullable NSDictionary<NSString *, id> *)debugCurrentConversion;

@@ -152,15 +152,13 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the
-// resume. quantizeToInt16 asks for one final rounding after conversion to the bus
-// format. The file is read in its processing format. A decode failure ends
+// resume. The file is read in its processing format. A decode failure ends
 // the voice through VibeVoiceEndFailed; read errorOfVoice:failedFile: inside
 // the ended handler. Allocation always returns an id: a full pool cuts its
 // oldest retiring voice, and a start that still finds no slot is pending
 // until the drain frees one. Returns the voice's id.
 - (VibeVoiceID)startVoiceWithFile:(AudioFileHandle *)file
                           atFrame:(AVAudioFramePosition)frame
-                     quantizeToInt16:(BOOL)quantizeToInt16
                              gain:(float)gain
                              ramp:(VibeVoiceRamp)ramp
                            paused:(BOOL)paused;
@@ -204,7 +202,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // first, in which case the voice ends as it would have and the successor
 // never begins. NO for a dead voice, one retired at declick length, or one
 // already continuing.
-- (BOOL)queueSuccessor:(AudioFileHandle *)file quantizeToInt16:(BOOL)quantizeToInt16 forVoice:(VibeVoiceID)voice;
+- (BOOL)queueSuccessor:(AudioFileHandle *)file forVoice:(VibeVoiceID)voice;
 
 // Drops the queued successor. NO means the decoder had already claimed it:
 // successor frames sit in the ring or are on their way, and the caller must
@@ -227,10 +225,9 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // How the voice's file reaches the bus, for the audio-path report: nil when
 // it is read direct, else the rates and widths either side (`fromSampleRate`,
-// `toSampleRate`, `fromChannels`, `toChannels`), the sample format it lands
-// in (`toSampleFormat`), whether it was mixed by layout (`mixed`) and
-// resampled (`resampled`), and for a resample the converter's `algorithm`
-// and `quality` as read back. Any thread; a pending or unknown voice is nil.
+// `toSampleRate`, `fromChannels`, `toChannels`), whether it was mixed by
+// layout (`mixed`) and resampled (`resampled`), and for a resample the
+// converter's `algorithm` and `quality` as read back. Any thread; a pending or unknown voice is nil.
 - (nullable NSDictionary<NSString *, id> *)conversionOfVoice:(VibeVoiceID)voice;
 
 // Slots that are not free, pending voices included. The drain-timer gate.

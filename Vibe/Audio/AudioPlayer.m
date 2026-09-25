@@ -1010,7 +1010,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused {
     VibeVoiceRamp ramp = [self rampOnQueueToGain:1 milliseconds:milliseconds action:VibeVoiceActionNone];
-    VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame quantizeToInt16:[self quantizesToInt16OnQueueForFile:file]
+    VibeVoiceID voice = [_voiceBus startVoiceWithFile:file atFrame:frame
                                                  gain:ramp.frames ? 0 : 1
                                                  ramp:ramp
                                                paused:paused];
@@ -1426,12 +1426,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (BOOL)manualRenderingActive {
     return _manualPump != nil;
-}
-
-- (AVAudioFormat *)debugCurrentDecodeFormat {
-    __block AVAudioFormat *format;
-    [self runSyncOnQueue:^{ format = [self currentVoiceConversionFormatOnQueue]; }];
-    return format;
 }
 
 - (AudioLevelMeter *)debugLevelMeter {

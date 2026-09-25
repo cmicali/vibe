@@ -261,18 +261,6 @@ static inline BOOL VibePhysicalFormatsEquivalent(AudioStreamBasicDescription a,
             && a.mChannelsPerFrame == b.mChannelsPerFrame;
 }
 
-// A lossy source played to a device prepared at 16-bit integer is decoded
-// straight to 16-bit integers: the voice's decode format is Int16, so the
-// bus's converter does the one rounding and the output unit only repacks. Apple's MP3 decoder produces 16-bit samples natively, so for
-// MP3 no sample changes; AAC decodes to float and rounds here instead of in
-// the HAL. Lossless sources keep float32, which carries their depth exactly.
-static inline BOOL VibeBitPerfectDecodesAsInteger16(AudioStreamBasicDescription source,
-                                                    AudioStreamBasicDescription prepared) {
-    return source.mFormatID != 0 && VibeSourceBitDepth(source) == 0
-            && prepared.mFormatID == kAudioFormatLinearPCM
-            && !VibePhysicalFormatIsFloat(prepared) && prepared.mBitsPerChannel == 16;
-}
-
 // Shared by the silent settlement and the gapless gate: even an unchanged
 // device needs a rebuild when the mixer would resample into it.
 static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription current,
@@ -282,17 +270,21 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
 }
 
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
-// source's (a lossy source prefers 16), else the smallest integer depth above
-// it, else float32 — and for a float source the float format first, since
-// no integer depth delivers one unchanged. Only formats wide enough for all
-// source channels qualify. Returns NO when none is usable at `rate`; the
-// caller compares the choice against what the device has before writing.
+// source's, else the smallest integer depth above it, else float32 — and for
+// a float source the float format first, since no integer depth delivers one
+// unchanged. A lossy source has no depth of its own: what reaches the device
+// is its float32 decode, so it is chosen like a float source, the float
+// format first, else the widest integer, which rounds that decode least —
+// never 16 bits because it is lossy, which rounded every AAC sample to 16
+// bits. Only formats wide enough for all source channels qualify. Returns NO when none is usable at `rate`;
+// the caller compares the choice against what the device has before writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count,
                                               AudioStreamBasicDescription *chosen) {
-    UInt32 depth = VibeSourceBitDepth(source) ?: 16;
+    UInt32 depth = VibeSourceBitDepth(source);
+    BOOL lossy = depth == 0;
     BOOL haveInteger = NO, haveFloat = NO;
     AudioStreamBasicDescription integerPick = {0}, floatPick = {0};
     for (UInt32 i = 0; i < count; i++) {
@@ -313,8 +305,10 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
         if (candidate.mBitsPerChannel < depth) {
             continue; // never below the source
         }
-        // Candidates below the source were excluded, so the smallest wins.
-        if (!haveInteger || candidate.mBitsPerChannel < integerPick.mBitsPerChannel) {
+        // Candidates below the source were excluded, so the smallest wins;
+        // a lossy source's widest.
+        if (!haveInteger || (lossy ? candidate.mBitsPerChannel > integerPick.mBitsPerChannel
+                                   : candidate.mBitsPerChannel < integerPick.mBitsPerChannel)) {
             integerPick = candidate;
             haveInteger = YES;
         }
@@ -322,7 +316,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    BOOL preferFloat = VibeSourceIsFloat(source) ? haveFloat : !haveInteger;
+    BOOL preferFloat = VibeSourceIsFloat(source) || lossy ? haveFloat : !haveInteger;
     *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }
