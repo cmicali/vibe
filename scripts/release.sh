@@ -4,7 +4,7 @@
 # generate -> archive (Release) -> export signed with Developer ID -> notarize
 # -> staple -> disk image -> notarize -> staple. Each architecture gets its own
 # archive and trust chain; scripts/github-release.sh publishes all four DMG/zip
-# carriers, with each published DMG named for its architecture.
+# assets, with each published DMG named for its architecture.
 #
 # This is NOT scripts/release-appstore.sh. The two release paths are different
 # products:

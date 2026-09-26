@@ -2,7 +2,7 @@
 
 **Status: parked (2026-09-25).** Two pieces landed on their own. The device-selected Int16 path for lossy files is gone: a lossy file now picks the float format, else the widest integer depth, and reaches the bus as float32 like every other file. The host-less render suite compares wider sources at full width (`CompareWidePCM`), so float32's narrowing of integer32 and float64 samples is counted rather than shared by the reference. The remainder only changes output for 32-bit integer and float64 sources, which the report already refuses to call Active (`depthOK`) and which are rare in real libraries, at the cost of rewriting the bus's sample storage. Revisit when users bring such files, and only with a digital loopback that captures wider than float32 to prove the result.
 
-Validated 2026-09-25 against [PR66](https://github.com/cmicali/vibe/pull/66) on `worktree-voice-bus`, including the consolidation and review fixes. Source-preserving playback remains unimplemented: the production opener still selects float32, and the bus and HAL client still require planar float32. The owned reader and carrier consolidation are already complete; do not reimplement them.
+Validated 2026-09-25 against [PR66](https://github.com/cmicali/vibe/pull/66) on `worktree-voice-bus`, including the consolidation and review fixes. Source-preserving playback remains unimplemented: the production opener still selects float32, and the bus and HAL client still require planar float32. The owned reader and output unit consolidation are already complete; do not reimplement them.
 
 The proposal is to preserve the source's decoded PCM representation through the existing voice bus and into CoreAudio wherever the destination permits it. Ordinary mixing and FX retain their float32 path. This is a change to the bus's sample storage, copy operations, decoder opening and output negotiation, not a second player or transport.
 
@@ -40,7 +40,7 @@ Apple exposes supported/current codec output formats, but a supported int16 outp
 
 The storage container and valid precision are separate. Packed 24-bit audio need not use three-byte samples in the ring: a verified integer widening to Int32 is exact. Byte order and interleaving can also change without changing the samples. None of these changes should be described as numerical processing.
 
-Initial scope is macOS bit-perfect playback through the existing `AudioOutputUnit` HAL carrier. The shared implementation must continue to build and work on iOS, whose RemoteIO route retains its present format policy. Extending the user-facing mode to iOS is separate work.
+Initial scope is macOS bit-perfect playback through the existing HAL `AudioOutputUnit`. The shared implementation must continue to build and work on iOS, whose RemoteIO route retains its present format policy. Extending the user-facing mode to iOS is separate work.
 
 ## Existing owners and the required changes
 
@@ -115,11 +115,11 @@ If the only OS path includes float32, a 16/24-bit integer file may still be valu
 
 Use the existing playback settlement and `ensureSourceSegmentOnQueueRebuilt:` to change sample format, retaining position and Playing/Paused intent. Rebuild on a format change even when the rate is unchanged. A prefetch may discover the next format; it must not reconfigure the device while the current track is still playing.
 
-Keep gapless when the next file can be carried by the current ring/client/device formats without numerical loss. For example, a wider integer carrier can accept a narrower integer successor by exact alignment, without renegotiation. If the selected policy requires a different carrier or device format, take the existing settlement path and accept a format-switch gap. Never promise gapless continuity through a DAC relock, and never silently reduce precision to preserve a splice.
+Keep gapless when the next file can be carried by the current ring/client/device formats without numerical loss. For example, a wider integer format can accept a narrower integer successor by exact alignment, without renegotiation. If the selected policy requires a different output-unit or device format, take the existing settlement path and accept a format-switch gap. Never promise gapless continuity through a DAC relock, and never silently reduce precision to preserve a splice.
 
 Exercise same-rate depth changes, integer/float changes, channel-layout changes, short successors, late successor publication, cancellation after the decoder's claim, and mode/device changes during a pending open. The new format comparison must participate in the same successor compatibility decision already used by the bus and transport.
 
-For the equalizer and beta signal capture, convert a read-only copy into the analyzer's current float representation. Allocate any scratch at setup; run no observation work when there is no demand. For float playback, retain the direct observation path. Meter toggles and diagnostics must never alter the bytes delivered to the carrier. Include diagnostic signal logging in the audit, not only the visible equalizer.
+For the equalizer and beta signal capture, convert a read-only copy into the analyzer's current float representation. Allocate any scratch at setup; run no observation work when there is no demand. For float playback, retain the direct observation path. Meter toggles and diagnostics must never alter the bytes delivered to the output unit. Include diagnostic signal logging in the audit, not only the visible equalizer.
 
 Extend the existing `audioPathSnapshot`, `dump_audio_path`, bit-perfect report and Advanced Audio rows to describe:
 
@@ -154,7 +154,7 @@ Run `make test`, `make test-audio`, both Debug builds, `make analyze CONFIG=Rele
 
 ## Delivery and complexity budget
 
-Use six reviewable commits following the steps above, keeping each commit's supported behavior and tests coherent. The capability/reference work lands first; native playback remains unselected until its reader, bus, carrier and report agree. Keep the final reporting and acceptance work in the same feature before presenting it as complete.
+Use six reviewable commits following the steps above, keeping each commit's supported behavior and tests coherent. The capability/reference work lands first; native playback remains unselected until its reader, bus, output unit and report agree. Keep the final reporting and acceptance work in the same feature before presenting it as complete.
 
 Budget: **zero new production files, zero new test files, zero new types**. Extend the existing bus/record/master/output structures and tests. If implementation reveals a need for a new type or backend, revisit the design before writing it.
 

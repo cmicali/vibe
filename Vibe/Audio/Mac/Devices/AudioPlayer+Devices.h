@@ -4,7 +4,7 @@
 //
 //  The output-device half of the player, macOS only: which device the hosted
 //  output unit is bound to and at what rate, the bit-perfect and exclusive
-//  modes, no-device parking and the report. It owns the AudioOutputUnit carrier.
+//  modes, no-device parking and the report. It owns the AudioOutputUnit.
 //  (Devices) is the public API a shell imports beside AudioPlayer.h; (DevicesInternal) is what the rest of the player and the
 //  tests reach. AudioPlayer+Devices.m implements both. It lives under Mac/ so
 //  only the macOS target compiles it: a shared caller would compile on iOS
@@ -62,7 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Only the entry points used outside AudioPlayer+Devices.m.
 @interface AudioPlayer (DevicesInternal) <AudioDeviceManagerObserver>
 
-// The carrier, made now if it could not be made at init. A unit brings its
+// The output unit, made now if it could not be made at init. A unit brings its
 // device's rate, so a source segment built at the fallback format follows
 // it here — the current voice restarted at its intent — before anything is
 // built or started at the old one. YES with a unit, or under the pump,

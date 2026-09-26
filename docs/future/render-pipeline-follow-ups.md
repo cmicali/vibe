@@ -1,6 +1,6 @@
 # Audio pipeline: remaining work
 
-Validated 2026-09-25 against PR66 on `worktree-voice-bus`, including the consolidation and review fixes. The carrier split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup and explicit decoder-error handling are implemented. Their current contracts live in [Audio/CLAUDE.md](../../Vibe/Audio/CLAUDE.md), [Devices/CLAUDE.md](../../Vibe/Audio/Mac/Devices/CLAUDE.md) and [iOS/CLAUDE.md](../../Vibe/Audio/iOS/CLAUDE.md).
+Validated 2026-09-25 against PR66 on `worktree-voice-bus`, including the consolidation and review fixes. The output-unit split, owned-file migration, waveform consolidation, conversion-policy naming, metering cleanup and explicit decoder-error handling are implemented. Their current contracts live in [Audio/CLAUDE.md](../../Vibe/Audio/CLAUDE.md), [Devices/CLAUDE.md](../../Vibe/Audio/Mac/Devices/CLAUDE.md) and [iOS/CLAUDE.md](../../Vibe/Audio/iOS/CLAUDE.md).
 
 ## Unresolved: Apple mastering SRC tail length
 
@@ -22,7 +22,7 @@ The 2026-09-25 review-fix pass reran 1,479 unit tests (the two scoped SRC durati
 
 Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The 2026-09-25 device-lifecycle pass below covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. They do not establish:
 
-- Physical iOS interruptions, media-services reset, and the rest of the route pass. The iOS carrier is a RemoteIO `AudioOutputUnit` since #72. **Run on an iPhone 17 Pro (iOS 27), 2026-09-26, with the route/recovery log lines #72 added:**
+- Physical iOS interruptions, media-services reset, and the rest of the route pass. The iOS output unit is a RemoteIO `AudioOutputUnit` since #72. **Run on an iPhone 17 Pro (iOS 27), 2026-09-26, with the route/recovery log lines #72 added:**
   - AirPods Pro connected while playing, several times: the verdict was recover, the unit kept running, and the one audible effect was a ~200–300 ms render-clock stall as iOS moved the audio, seen on some connects and not others.
   - AirPods disconnected while playing, several times: the verdict was pause, and **iOS then stopped RemoteIO itself about 0.75 s after the route change**, every time. The system-stop path handled it (the player stopped its output while already paused) and the next play restarted the unit in ~95 ms. `iOS/CLAUDE.md` now says the unit does not always survive a route change.
   - AirPlay to the speaker by a category change: paused, as external-to-built-in should. The rate follow ran at play start (48 → 44.1 kHz on AirPlay) and at resume (44.1 → 48 kHz on the speaker).
@@ -36,7 +36,7 @@ Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptanc
 
 ## Device lifecycle acceptance
 
-Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each described no longer exists; their *symptoms* are what the new carrier must show absent. On 2026-09-25 (Mac Studio, macOS 27, Debug `ed0361dd`, real HAL, silent, Now Playing suppressed; Fireface 802, Audient iD4, FiiO E10, BlackHole 2ch) the software layer passed everywhere except #53:
+Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each described no longer exists; their *symptoms* are what the new output unit must show absent. On 2026-09-25 (Mac Studio, macOS 27, Debug `ed0361dd`, real HAL, silent, Now Playing suppressed; Fireface 802, Audient iD4, FiiO E10, BlackHole 2ch) the software layer passed everywhere except #53:
 
 - **#50, software layer:** 750 `device-flap.py` vanish flaps over three DACs and 1,800 move flaps across six device pairs — no silent stop, dropout, refusal, consistency violation or pending counter; the at-rest heap matched a no-flap control.
 - **#56:** 40 BlackHole `--ordinary` loopback captures, each spanning 8–9 system-default changes between two other DACs, all PCM-exact, with no rebind and continuous render cycles.
@@ -54,7 +54,7 @@ Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each de
 The stress harness defaults to the manual pump (`--no-audio-hw --silent`). Before any change to that default:
 
 - **Long HAL campaigns.** Cloud/artwork and transport campaigns on real HAL, long enough to be a soak; the 240-operation torture run above is bounded evidence. Keep deliberate pump coverage if the default ever changes.
-- **Seeded campaigns across carriers.** Repeat seeded campaigns and shrinking under the pump and under HAL, recording journals, endings, failures and settled resource counters. A seed reproduces the generated operations, not callback timing, on either carrier; retune waits only where the measurements show a need.
+- **Seeded campaigns under the pump and the output unit.** Repeat seeded campaigns and shrinking under the pump and under HAL, recording journals, endings, failures and settled resource counters. A seed reproduces the generated operations, not callback timing, under either; retune waits only where the measurements show a need.
 
 Independent of the default, the consistency oracle checks meter demand and output liveness but not that equalizer publications advance with nonzero signal. If that coverage is wanted, drive a known non-silent fixture and read the [equalizer counters](../../.claude/skills/vibe-debug/references/equalizer-counters.md); an occluded view, no demand or genuine silence must not fail it, and the beta probe's independent meter hold must be respected.
 

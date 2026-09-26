@@ -436,7 +436,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 }
 
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue {
-    NSArray *carrierPath = [self carrierAudioPathOnQueue];
+    NSArray *outputUnitPath = [self outputUnitAudioPathOnQueue];
     NSDictionary *renderFacts = [self pipelineRenderSnapshotOnQueue];
     AudioFileHandle *file = _file;
     NSMutableDictionary *source = [@{@"stage": @"source", @"present": @(file != nil)} mutableCopy];
@@ -515,25 +515,25 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #if DEBUG
     VibeManualRenderPump *pump = _manualPump;
     if (pump) {
-        output[@"carrier"] = @"pump";
+        output[@"renderedBy"] = @"pump";
         output[@"automatic"] = @(pump.automatic);
     }
     else
 #endif
     {
-        output[@"carrier"] = @"outputUnit";
+        output[@"renderedBy"] = @"outputUnit";
         if (_outputUnit) {
             output[@"unitSampleRate"] = @(_outputUnit.format.sampleRate);
             output[@"unitRunning"] = @(_outputUnit.running);
-            [output addEntriesFromDictionary:[self carrierCountersOnQueue]];
+            [output addEntriesFromDictionary:[self outputUnitCountersOnQueue]];
             output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
             output[@"bufferLatency"] = @(_outputUnit.bufferLatency); // the IO cycle the unit fills ahead of the hardware
         }
-        [output addEntriesFromDictionary:carrierPath.firstObject];
+        [output addEntriesFromDictionary:outputUnitPath.firstObject];
     }
 
     NSMutableArray *stages = [NSMutableArray arrayWithObjects:source, decode, busStage, varispeedStage, fx, meter, output, nil];
-    if (carrierPath.count > 1) [stages addObjectsFromArray:[carrierPath subarrayWithRange:NSMakeRange(1, carrierPath.count - 1)]];
+    if (outputUnitPath.count > 1) [stages addObjectsFromArray:[outputUnitPath subarrayWithRange:NSMakeRange(1, outputUnitPath.count - 1)]];
 
     return stages;
 }

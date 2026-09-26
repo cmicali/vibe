@@ -1247,7 +1247,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [_player debugHoldRenderInside:YES];
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_async(stuck, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
-        [self->_player debugRenderOnCallerThread:256]; // a carrier's callback, blocked inside the old bus
+        [self->_player debugRenderOnCallerThread:256]; // an output unit's callback, blocked inside the old bus
     });
     [self settleUntil:^BOOL { return [self->_player.debugRenderCounts[@"rendersHeld"] unsignedIntegerValue] == 1; }];
     XCTAssertTrue([_player debugSetOutputRate:96000]);
@@ -2593,8 +2593,8 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 
 // A failed effect render is silence, not audio, and the status reaches the
-// carrier; a rebuild hosts the units again and the chain renders.
-- (void)testAFailedEffectSilencesTheSliceAndReachesTheCarrier {
+// output unit; a rebuild hosts the units again and the chain renders.
+- (void)testAFailedEffectSilencesTheSliceAndReachesTheOutputUnit {
     for (NSNumber *unit in @[@0, @1]) {
         [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
         _player.fx.lowKillEnabled = unit.intValue == 0;
@@ -2606,14 +2606,14 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertTrue(uninitialized, @"unit %@", unit);
         NSError *error = nil;
         AVAudioPCMBuffer *output = [_player debugRenderFrames:256 error:&error];
-        XCTAssertNil(output, @"unit %@: the carrier received a failed slice as audio", unit);
+        XCTAssertNil(output, @"unit %@: the output unit received a failed slice as audio", unit);
         XCTAssertNotNil(error, @"unit %@", unit);
         XCTAssertTrue([_player debugSetOutputRate:96000], @"unit %@", unit);
         [self assertFinite:[self renderSeconds:0.1] peak:1.0f];
     }
 }
 
-// A production player with no carrier — the output unit could not be made —
+// A production player whose output unit could not be made —
 // fails the start with an error instead of publishing Playing over nothing.
 - (void)testAMissingOutputUnitFailsTheStart {
     self.continueAfterFailure = YES;
@@ -2626,7 +2626,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertFalse(_player.manualRenderingActive);
         [_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
-        XCTAssertNotNil(_playError, @"a missing carrier must fail the start");
+        XCTAssertNotNil(_playError, @"a missing output unit must fail the start");
         XCTAssertEqual(_playError.code, VibeAudioErrorEngineStartFailed);
         XCTAssertTrue(_player.isStopped);
         XCTAssertFalse(_player.outputAudioActive);
@@ -2637,11 +2637,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
-// The carrier made late — its unit could not be made at init — brings its
+// An output unit made late — it could not be made at init — brings its
 // device's rate before the play's segment is built, so the voice is built at
-// that rate, not the fallback's; the carrier itself stays device-free here,
+// that rate, not the fallback's; the output unit itself stays device-free here,
 // so the start then fails as one without a unit does.
-- (void)testACarrierMadeLateBringsItsRateBeforeTheVoice {
+- (void)testAnOutputUnitMadeLateBringsItsRateBeforeTheVoice {
     self.continueAfterFailure = YES;
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     AudioPlayer *target = _player;
@@ -2674,7 +2674,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
             AudioVoiceBus *bus = [target valueForKey:@"voiceBus"];
             XCTAssertNotNil(bus);
             XCTAssertEqual([target masterBusFormatOnQueue].sampleRate, 48000.0);
-            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the segment was built at the fallback rate, not the carrier's");
+            XCTAssertEqual(bus.format.sampleRate, 48000.0, @"the segment was built at the fallback rate, not the output unit's");
         }];
     } @finally {
         method_setImplementation(drives, originalDrives);
@@ -2685,10 +2685,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 
 // A voice parked at the fallback rate — a paused start with no unit — is
-// re-voiced at the carrier's rate when a resume makes the unit, before the
-// start; the device-free carrier then fails the start, and the voice stays
+// re-voiced at the output unit's rate when a resume makes the unit, before the
+// start; the device-free output unit then fails the start, and the voice stays
 // parked at its position.
-- (void)testACarrierMadeLateReconcilesAParkedVoice {
+- (void)testAnOutputUnitMadeLateReconcilesAParkedVoice {
     self.continueAfterFailure = YES;
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"noise-44100-24-2.wav"] paused:YES position:1.5];
@@ -2733,11 +2733,11 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     }
 }
 
-// Runs `body` on a pump player whose carrier is a real AudioOutputUnit that
+// Runs `body` on a pump player whose output is a real AudioOutputUnit that
 // never reaches the HAL: its configure does nothing and its start is `start`.
 // The unit is attached through the production wiring, so its refusals reach
 // the player the way a device's would.
-- (void)withCarrierStartingAs:(OSStatus (^)(void))start body:(void (^)(AudioPlayer *target))body {
+- (void)withOutputUnitStartingAs:(OSStatus (^)(void))start body:(void (^)(AudioPlayer *target))body {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     AudioPlayer *target = _player;
     Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
@@ -2782,7 +2782,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 - (void)testASlowDeviceStartHoldsNeitherThePlayNorThePlayerQueue {
     self.continueAfterFailure = YES;
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
-    [self withCarrierStartingAs:^OSStatus {
+    [self withOutputUnitStartingAs:^OSStatus {
         dispatch_semaphore_signal(entered);
         dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
         return noErr;
@@ -2810,7 +2810,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 // play Paused where it is and says why.
 - (void)testARefusedDeviceStartParksThePlayAndSaysSo {
     self.continueAfterFailure = YES;
-    [self withCarrierStartingAs:^OSStatus { return kAudioHardwareNotRunningError; } body:^(AudioPlayer *target) {
+    [self withOutputUnitStartingAs:^OSStatus { return kAudioHardwareNotRunningError; } body:^(AudioPlayer *target) {
         [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return self->_playError != nil; }];
         [self->_player runSyncOnQueue:^{}];
@@ -2857,7 +2857,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertNotNil(fx[@"latencySeconds"], @"the dry path's latency");
     XCTAssertGreaterThanOrEqual([fx[@"latencySeconds"] doubleValue], 0);
     XCTAssertFalse([meter[@"present"] boolValue]);
-    XCTAssertEqualObjects(output[@"carrier"], @"pump");
+    XCTAssertEqualObjects(output[@"renderedBy"], @"pump");
     XCTAssertEqual([output[@"sampleRate"] doubleValue], 48000.0);
     XCTAssertTrue([output[@"running"] boolValue]);
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);

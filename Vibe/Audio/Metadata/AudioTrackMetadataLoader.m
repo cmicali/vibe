@@ -118,7 +118,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 @interface AudioTrackMetadataLoader ()
 - (nullable AudioTrackMetadata *)readCachedMetadataForTrack:(AudioTrack *)track;
 - (void)retirePriorityMarkSatisfiedByTrack:(AudioTrack *)track;
-- (void)finishCarrierForTrack:(AudioTrack *)track;
+- (void)finishScanInFlightForTrack:(AudioTrack *)track;
 - (void)finishParseOperation:(NSOperation *)operation forTrack:(AudioTrack *)track;
 - (void)dropRecordsForExhaustedPathLocked:(NSString * _Nonnull)path
                              currentTrack:(AudioTrack * _Nonnull)track;
@@ -145,11 +145,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // prioritizeTrack: (main) both touch it.
     NSMutableSet<AudioTrack *>* _queuedTracks;
     // Tracks whose stage-1 record, materialization, or parse attempt can still
-    // settle a priority mark. Once its carrier finishes, a fresh priority edge
+    // settle a priority mark. Once that scan finishes, a fresh priority edge
     // mints a new cache-check record; the central coordinators absorb any
     // same-path materialization or parse already owned by another loader.
     // Guarded by _materializationLock.
-    NSMutableSet<AudioTrack *>* _tracksWithCarrier;
+    NSMutableSet<AudioTrack *>* _tracksWithScanInFlight;
     // Queued and running parses by exact track identity. Priority can arrive
     // after Ready enqueues a utility operation, so that operation must remain
     // reachable for promotion. Guarded by _materializationLock.
@@ -238,7 +238,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         _isCancelled = NO;
         _owner = owner;
         _queuedTracks = [NSMutableSet set];
-        _tracksWithCarrier = [NSMutableSet set];
+        _tracksWithScanInFlight = [NSMutableSet set];
         _parseOperationsByTrack = [NSMapTable strongToStrongObjectsMapTable];
         _priorityURLs = [NSMutableSet set];
         _priorityMarks = [NSMutableDictionary dictionary];
@@ -302,7 +302,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             alreadyQueued = [setupSelf->_queuedTracks containsObject:track];
             if (!alreadyQueued) {
                 [setupSelf->_queuedTracks addObject:track];
-                [setupSelf->_tracksWithCarrier addObject:track];
+                [setupSelf->_tracksWithScanInFlight addObject:track];
             }
             os_unfair_lock_unlock(&setupSelf->_materializationLock);
             if (alreadyQueued) continue;
@@ -386,12 +386,12 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // Failed metadata, with parsedOK == NO, does not count as done: re-parsing
     // it is the whole point of the re-queue.
     if (track.metadata.parsedOK) {
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
     if ([self loadTrackFromDiskCache:track]) {
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
@@ -446,7 +446,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         return;
     }
     BOOL alreadyQueued;
-    BOOL needsCarrier;
+    BOOL needsScan;
     NSOperation *parseOperation;
     os_unfair_lock_lock(&_materializationLock);
     MetadataPriorityMark *mark = [[MetadataPriorityMark alloc] init];
@@ -473,9 +473,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     if (!alreadyQueued) {
         [_queuedTracks addObject:track];
     }
-    needsCarrier = ![_tracksWithCarrier containsObject:track];
-    if (needsCarrier) {
-        [_tracksWithCarrier addObject:track];
+    needsScan = ![_tracksWithScanInFlight containsObject:track];
+    if (needsScan) {
+        [_tracksWithScanInFlight addObject:track];
     }
     parseOperation = [_parseOperationsByTrack objectForKey:track];
     if (parseOperation) {
@@ -490,13 +490,13 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // Closes install-before-mark: a cache/parse winner that retired just
     // before registration made the first parsedOK sample stale.
     if (track.metadata.parsedOK) {
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
     LogDebug(@"Priority load %@%@", url.lastPathComponent,
              alreadyQueued ? @": already queued" : @"");
-    if (!needsCarrier) {
+    if (!needsScan) {
         // A pending/delayed record was reactivated above. An in-flight or
         // mid-stage-1 record adopts the mark at completion or enqueue.
         [self dispatchNextScanMaterialization];
@@ -509,12 +509,12 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             return;
         }
         if (track.metadata.parsedOK) {
-            [strongSelf finishCarrierForTrack:track];
+            [strongSelf finishScanInFlightForTrack:track];
             [strongSelf retirePriorityMarkSatisfiedByTrack:track];
             return;
         }
         if ([strongSelf loadTrackFromDiskCache:track]) {
-            [strongSelf finishCarrierForTrack:track];
+            [strongSelf finishScanInFlightForTrack:track];
             [strongSelf retirePriorityMarkSatisfiedByTrack:track];
             return;
         }
@@ -1275,9 +1275,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
 }
 
-- (void)finishCarrierForTrack:(AudioTrack *)track {
+- (void)finishScanInFlightForTrack:(AudioTrack *)track {
     os_unfair_lock_lock(&_materializationLock);
-    [_tracksWithCarrier removeObject:track];
+    [_tracksWithScanInFlight removeObject:track];
     os_unfair_lock_unlock(&_materializationLock);
 }
 
@@ -1290,20 +1290,20 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 // _materializationLock held. D7 is a path budget, not a row budget: once one
-// carrier spends the final attempt, duplicate pending/delayed rows must not
+// scan spends the final attempt, duplicate pending/delayed rows must not
 // each buy another provider run from the same exhausted ledger.
 - (void)dropRecordsForExhaustedPathLocked:(NSString * _Nonnull)path
                              currentTrack:(AudioTrack * _Nonnull)track {
     for (MetadataScanEntry *candidate in [_pendingMaterializations copy]) {
         if ([candidate.standardizedPath isEqualToString:path]) {
             [_pendingMaterializations removeObjectIdenticalTo:candidate];
-            [_tracksWithCarrier removeObject:candidate.track];
+            [_tracksWithScanInFlight removeObject:candidate.track];
         }
     }
     for (MetadataScanEntry *candidate in [_delayedScanRetryEntries copy]) {
         if ([candidate.standardizedPath isEqualToString:path]) {
             [_delayedScanRetryEntries removeObject:candidate];
-            [_tracksWithCarrier removeObject:candidate.track];
+            [_tracksWithScanInFlight removeObject:candidate.track];
         }
     }
     for (NSURL *priorityURL in [_priorityMarks.allKeys copy]) {
@@ -1312,7 +1312,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             [_priorityMarks removeObjectForKey:priorityURL];
         }
     }
-    [_tracksWithCarrier removeObject:track];
+    [_tracksWithScanInFlight removeObject:track];
     _scanOrderGeneration++;
 }
 
@@ -1342,7 +1342,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
     AudioTrack *track = entry.track;
     if (track.metadata.parsedOK) {
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
@@ -1353,7 +1353,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     MetadataParseClaim *claim = [_parseCoordinator claimParseForKey:entry.standardizedPath
                                                          participant:track];
     if (!claim.isOwner) {
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
@@ -1361,7 +1361,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     // disk entry, between the entry check and claim acquisition.
     if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
         [self serveWaitersFromCache:[_parseCoordinator completeClaim:claim] owner:track];
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
@@ -1384,7 +1384,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         for (AudioTrack *waiter in adopted) {
             [self publishTrack:waiter];
         }
-        [self finishCarrierForTrack:track];
+        [self finishScanInFlightForTrack:track];
         [self retirePriorityMarkSatisfiedByTrack:track];
         return;
     }
@@ -1400,7 +1400,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             [self publishTrack:waiter expectedMetadata:copy];
         }
     }
-    [self finishCarrierForTrack:track];
+    [self finishScanInFlightForTrack:track];
     [self retirePriorityMarkSatisfiedByTrack:track];
 }
 
@@ -1544,7 +1544,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
     if (removed) {
         _scanOrderGeneration++;
-        // With no in-flight carrier left, drop the identity marks too, so a
+        // With no scan in flight left, drop the identity marks too, so a
         // later prioritizeTrack: — the undo of the removal — builds a fresh
         // record rather than reactivating one that no longer exists.
         // In-flight work keeps them: its settlement is what retires a mark. A
@@ -1557,7 +1557,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                         || [path isEqualToString:_priorityMaterializationPath]));
         if (!inFlight) {
             [_queuedTracks removeObject:track];
-            [_tracksWithCarrier removeObject:track];
+            [_tracksWithScanInFlight removeObject:track];
         }
     }
     os_unfair_lock_unlock(&_materializationLock);
@@ -1586,7 +1586,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     [_delayedScanRetryEntries removeAllObjects];
     [_priorityURLs removeAllObjects];
     [_priorityMarks removeAllObjects];
-    [_tracksWithCarrier removeAllObjects];
+    [_tracksWithScanInFlight removeAllObjects];
     [_parseOperationsByTrack removeAllObjects];
     _scanOrderGeneration++;
     [_materializationAttemptsByPath removeAllObjects];

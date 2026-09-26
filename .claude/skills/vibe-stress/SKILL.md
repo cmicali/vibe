@@ -65,7 +65,7 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **TRAP: this moves audio for every app on the machine, not just Vibe** — which is why device changes are excluded from the stress profiles rather than added as a profile, and why this is run deliberately rather than left soaking unattended. It restores the original default on every exit path including SIGINT/SIGTERM, but a SIGKILL leaves the default moved and may strand a public aggregate.
 
-**Rotating real devices, when the question is what a bind COSTS.** The helper's `rotate` mode cycles the system default across a list of real devices in one process, creating nothing. Measured on the hosted-unit carrier with Vibe on System Output, rotating Fireface → Audient → FiiO → speakers, 200 changes, playback unbroken (the output unit's `AudioOutputUnit: bind to device N took` and `start on device N took` lines):
+**Rotating real devices, when the question is what a bind COSTS.** The helper's `rotate` mode cycles the system default across a list of real devices in one process, creating nothing. Measured on the hosted output unit with Vibe on System Output, rotating Fireface → Audient → FiiO → speakers, 200 changes, playback unbroken (the output unit's `AudioOutputUnit: bind to device N took` and `start on device N took` lines):
 
 | Destination | median HAL time per switch | of which output start | what the rest is |
 | --- | --- | --- | --- |

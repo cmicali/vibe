@@ -27,9 +27,9 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
 // tighter bound would warn about working correctly.
 static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
-@implementation AudioPlayer (Carrier)
+@implementation AudioPlayer (PlatformOutput)
 
-- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
+- (NSArray<NSDictionary<NSString *, id> *> *)outputUnitAudioPathOnQueue {
     NSMutableDictionary *output = [NSMutableDictionary dictionary];
     if (_outputUnit) {
         output[@"deviceId"] = @(_outputUnit.deviceID == kAudioObjectUnknown ? -1 : (NSInteger)_outputUnit.deviceID);
@@ -62,14 +62,14 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return @[output, device];
 }
 
-- (void)createCarrierOnQueue {
+- (void)prepareOutputOnQueue {
     [self createOutputUnitOnQueue];
     if (!_masterFormat) {
         [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:2]];
     }
 }
 
-- (BOOL)startCarrierOnQueueWithError:(NSError **)error {
+- (BOOL)startOutputUnitOnQueueWithError:(NSError **)error {
     if (!_outputUnit) {
         if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
         return NO;
@@ -84,15 +84,15 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES;
 }
 
-- (void)releaseIdleCarrierOnQueue {
+- (void)releaseIdleOutputUnitOnQueue {
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
 #endif
 }
-- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
+- (BOOL)adoptOutputFormatOnQueue:(AVAudioFormat *)format {
     return [self applyOutputRateOnQueue:format.sampleRate];
 }
-- (BOOL)followCarrierRateOnQueue {
+- (BOOL)followOutputRateOnQueue {
     [self ensureOutputUnitOnQueue]; // a missing unit is the start's to report
     return YES;
 }

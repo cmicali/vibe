@@ -369,7 +369,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             //
             // `--silent` zeroes the output after the meter, so the bars are
             // live under it and under `--no-audio-hw` alike; the three launch
-            // facts say which carrier produced the counters.
+            // facts say whether the output unit or the pump produced the counters.
             VibeDebugCmd(@"dump_equalizer", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

@@ -41,7 +41,7 @@ typedef void (^VibeMediaServicesResetCompletion)(
 // contract for AVAudioSessionMediaServicesWereResetNotification. Call this on
 // the notification's receiving thread. It establishes a player-queue barrier
 // at that edge, ordered with play submissions, then drops the invalid objects,
-// rebuilds the carrier and reports Stopped with no currentTrack. completion
+// rebuilds the output unit and reports Stopped with no currentTrack. completion
 // runs on main with the pre-reset track and its position after that state is
 // authoritative. It is dropped when a play submitted after the reset edge
 // owns the rebuilt output instead. Like stop, rebuilding fires no delegate

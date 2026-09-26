@@ -10,9 +10,9 @@
 #import "AudioPlayerInternal.h"
 #import "PlaybackDeliveryRules.h"
 
-@implementation AudioPlayer (Carrier)
+@implementation AudioPlayer (PlatformOutput)
 
-- (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
+- (NSArray<NSDictionary<NSString *, id> *> *)outputUnitAudioPathOnQueue {
     return @[@{@"routeSampleRate": @(AVAudioSession.sharedInstance.sampleRate)}];
 }
 
@@ -20,12 +20,12 @@
 // start, after the play has activated the session. Reading the session's
 // rate claims nothing, and no audio object exists before a play asks for
 // one, so a cold launch cannot stop another app's audio.
-- (void)createCarrierOnQueue {
+- (void)prepareOutputOnQueue {
     double rate = AVAudioSession.sharedInstance.sampleRate;
     [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2]];
 }
 
-- (BOOL)startCarrierOnQueueWithError:(NSError **)error {
+- (BOOL)startOutputUnitOnQueueWithError:(NSError **)error {
     if (!_outputUnit) {
         AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
         if (!unit) {
@@ -39,11 +39,11 @@
     return YES;
 }
 
-- (void)releaseIdleCarrierOnQueue {}
+- (void)releaseIdleOutputUnitOnQueue {}
 
 // Stopped, as every caller has it. Before the first start there is no unit,
 // and the next start makes one at the format set here.
-- (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
+- (BOOL)adoptOutputFormatOnQueue:(AVAudioFormat *)format {
     [_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus];
     [self setMasterBusFormatOnQueue:format];
     return YES;
@@ -53,7 +53,7 @@
 // pipeline left at the old rate would still play — resampled a second time.
 // Following the session's rate keeps the one conversion the bus's. The
 // debug pump has no route, and keeps the rate it was made at.
-- (BOOL)followCarrierRateOnQueue {
+- (BOOL)followOutputRateOnQueue {
     if (![self drivesOutputDeviceOnQueue] || !_masterFormat) {
         return YES;
     }
@@ -81,7 +81,7 @@
             LogInfo(@"AudioPlayer: output recovery: nothing playing, the next start follows the route");
             return; // idle or Loading: the next start follows the route
         }
-        if (![self followCarrierRateOnQueue]) {
+        if (![self followOutputRateOnQueue]) {
             return; // reset or parked, and said why
         }
         if (self->_outputUnit.running) {

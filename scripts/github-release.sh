@@ -6,7 +6,7 @@
 #
 # Takes the universal and arm64-only products from `make release`, verifies
 # every app/image staple and exact binary architecture, tags HEAD as v<version>
-# and attaches four carriers:
+# and attaches four assets:
 #
 #   Vibe-macOS-universal-<version>.dmg   universal, website default
 #   Vibe-macOS-universal-<version>.zip   universal bare bundle
@@ -157,7 +157,7 @@ verify_release_variant() (
         candidate_build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' \
             "$candidate/Contents/Info.plist")"
         [[ "$candidate_version" == "$version" && "$candidate_build" == "$build" ]] || {
-            echo "error: $label app carriers do not have one version/build" >&2
+            echo "error: $label app assets do not have one version/build" >&2
             exit 1
         }
     done
@@ -194,7 +194,7 @@ fi
 # ---------------------------------------------------------------------------
 # Publish.
 # ---------------------------------------------------------------------------
-# Every carrier names its verified architecture. The website and its stable
+# Every asset names its verified architecture. The website and its stable
 # /download redirect point to this same universal asset name.
 ASSET_UNIVERSAL_DMG="$BUILD_DIR/Vibe-macOS-universal-$VERSION.dmg"
 ASSET_UNIVERSAL_ZIP="$BUILD_DIR/Vibe-macOS-universal-$VERSION.zip"

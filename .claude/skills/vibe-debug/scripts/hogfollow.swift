@@ -1,5 +1,5 @@
 // The measurement behind the output-unit follow that taking the system default
-// causes, and the HAL carrier that avoids it (Audio/Mac/Devices/CLAUDE.md).
+// causes, and the HAL output unit that avoids it (Audio/Mac/Devices/CLAUDE.md).
 // Run it against
 // the device that IS the default, or let it make one the default for the run:
 //
@@ -7,7 +7,7 @@
 //
 // `engine` (the default) is AVAudioEngine's own output node, a default output
 // unit whatever device it was pinned to. `hal` is an explicitly hosted
-// HALOutput unit, the carrier now used by Vibe. This probe renders silence
+// HALOutput unit, which Vibe now uses. This probe renders silence
 // without the app’s pipeline. Both count IO cycles, because `running`
 // alone is not success — a unit started while a follow is in flight reports
 // running and then never gets an IO cycle.

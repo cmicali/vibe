@@ -73,11 +73,11 @@ struct VibeMasterBus {
     _Atomic int32_t gate;            // 1 while the output may render
     // The pipeline's door: 1 while a render is inside, taken at the entry and
     // released at the exit by that render alone. A second render finding it
-    // taken — a carrier's callback outlived its bounded stop and another
-    // carrier's began — renders silence and touches nothing, so no two
+    // taken — an output unit's callback outlived its bounded stop and another
+    // output unit's began — renders silence and touches nothing, so no two
     // renders are ever inside the same state, and the queue's evidence that
     // one is inside is that render's own. TRAP: a flag any render could
-    // clear let the new carrier's first callback clear the stuck one's, and
+    // clear let the new output unit's first callback clear the stuck one's, and
     // the drain then freed the bus that render was still mixing.
     _Atomic int32_t inRender;
     _Atomic uint64_t refusedRenders; // renders the door turned away; a soak holds it at zero
@@ -89,7 +89,7 @@ struct VibeMasterBus {
     _Atomic(VibeLevelMeter *) meter; // the equalizer's, while wanted
     AudioTimeStamp stamp;            // the slice's own stamp, which the bus reads through the varispeed's pull
     _Atomic double hostTicksPerFrame;
-    _Atomic uint32_t channels;       // the output's, 1 or 2: what a slice carries; the app's carriers are stereo
+    _Atomic uint32_t channels;       // the output's, 1 or 2: what a slice carries; every output unit the app makes is stereo
     // The varispeed: hosted for ordinary playback on macOS, and in the chain
     // only while the pitch is off zero. The queue writes `wanted` and the
     // rate; the render engages and disengages the unit at a slice boundary
@@ -385,7 +385,7 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     uint32_t channels = slice.mNumberBuffers;
     AudioBufferList *list = (AudioBufferList *)&slice;
     // The stamp every stage sees: sample time on the output timeline, host
-    // time from the carrier's cycle when it has one, advanced for a later
+    // time from the output unit's cycle when it has one, advanced for a later
     // slice of it.
     uint64_t rendered = atomic_load_explicit(&master->frames, memory_order_relaxed);
     AudioTimeStamp stamp = {0};
@@ -426,7 +426,7 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
         OSStatus fxStatus = VibeFXChainRender(chain, &stamp, frames, list);
         if (fxStatus != noErr) {
             // A failed effect leaves nothing usable: the slice is silence,
-            // and the status reaches the carrier, which counts a dropout.
+            // and the status reaches the output unit, which counts a dropout.
             VibeMasterBusZero(list, 0, frames);
             status = fxStatus;
         }
@@ -445,7 +445,7 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
 }
 
 // The pipeline over `data`'s first buffers — the output's channels — in
-// slices of at most kVibeMasterBusMaxFrames, whatever count the carrier
+// slices of at most kVibeMasterBusMaxFrames, whatever count the output unit
 // hands it; any further buffers stay silent.
 OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp *hostStamp, UInt32 frames,
                                     AudioBufferList *data) CA_REALTIME_API {
@@ -494,11 +494,11 @@ VIBE_REALTIME_END
 
 @implementation AudioPlayer (Pipeline)
 
-#pragma mark - The carrier
+#pragma mark - The output unit
 
 - (void)createOutputOnQueue {
 #if DEBUG
-    // --no-audio-hw, for testing: no carrier at all, on either platform. The
+    // --no-audio-hw, for testing: no output unit at all, on either platform. The
     // pump stands in for the IO thread, calling the pipeline at real-time
     // pace or, frame-driven, when a test asks. Starting the hardware IO —
     // even muted — counts as the Mac playing audio, which is enough for
@@ -532,7 +532,7 @@ VIBE_REALTIME_END
         return;
     }
 #endif
-    [self createCarrierOnQueue];
+    [self prepareOutputOnQueue];
 }
 
 - (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit {
@@ -578,7 +578,7 @@ VIBE_REALTIME_END
            forSubmittedPlay:_activeSubmittedPlayIdentifier];
 }
 
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+- (NSDictionary<NSString *, NSNumber *> *)outputUnitCountersOnQueue {
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
              @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
@@ -605,7 +605,7 @@ VIBE_REALTIME_END
     return (NSUInteger)atomic_load_explicit(&_masterBus->rendersHeld, memory_order_seq_cst);
 }
 
-// A carrier's callback on the caller's thread: buffers of its own, the
+// An output unit's callback on the caller's thread: buffers of its own, the
 // pipeline's channels, nothing of the player's queue-owned state read.
 - (void)debugRenderOnCallerThread:(NSUInteger)frames {
     VibeMasterBus *master = _masterBus;
@@ -1062,7 +1062,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     else
 #endif
     {
-        followed = [self adoptCarrierFormatOnQueue:format];
+        followed = [self adoptOutputFormatOnQueue:format];
     }
     if (!followed) {
         return NO;
@@ -1118,13 +1118,13 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }
     _outputIdleStopGeneration++; // playback is starting: cancel any pending idle stop
     if (![self renderingOnQueue]) {
-        // TRAP: only the manual pump may start without a production carrier.
+        // TRAP: only the manual pump may start without a production output unit.
         // Otherwise Playing and didStartPlaying: had no render callback to
         // advance the voice; the shell received neither audio nor an error.
         atomic_store_explicit(&_masterBus->gate, 1, memory_order_seq_cst);
         NSError *error = nil;
         uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        BOOL started = ![self drivesOutputDeviceOnQueue] || [self startCarrierOnQueueWithError:&error];
+        BOOL started = ![self drivesOutputDeviceOnQueue] || [self startOutputUnitOnQueueWithError:&error];
         NSTimeInterval seconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startedAt) / NSEC_PER_SEC;
         BOOL slow = seconds > kSlowOutputStartLogThresholdSeconds;
         LogTiming(slow, @"AudioPlayer: %@output start %.3fs on the player queue",
@@ -1191,7 +1191,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
             return;
         }
         [strongSelf stopOutputOnQueue];
-        [strongSelf releaseIdleCarrierOnQueue];
+        [strongSelf releaseIdleOutputUnitOnQueue];
     }];
 }
 

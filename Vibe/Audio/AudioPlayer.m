@@ -189,7 +189,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 }
 
 - (BOOL)drivesOutputDeviceOnQueue {
-    return _manualPump == nil; // under the pump there is no carrier on either platform
+    return _manualPump == nil; // under the pump there is no output unit on either platform
 }
 
 // The one home for the same-queue guard every synchronous accessor needs.
@@ -246,7 +246,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // either holds a strongSelf, in which case dealloc is not running, or
     // resolves its weakSelf to nil and returns. The one remaining hazard is
     // dealloc itself running on _queue, when a queued block releases the last
-    // reference, so that case tears down inline. The carrier stops before the
+    // reference, so that case tears down inline. The output unit stops before the
     // pipeline is freed and the bus released with the rest of the ivars, so
     // no render is in flight — and one still inside leaks all of it, since
     // nothing a render is inside may be freed. Locals, not self: the open
@@ -498,7 +498,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     // A unit made late, or a route that moved while nothing played, brings
     // its rate before the segment below is built at a stale one.
-    [self followCarrierRateOnQueue];
+    [self followOutputRateOnQueue];
 #if TARGET_OS_OSX
     // Gates itself on the mode. A format switch stops the output, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
@@ -710,11 +710,11 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // The carrier's rate may have moved while it was stopped (the iOS route,
+    // The output unit's rate may have moved while it was stopped (the iOS route,
     // a mac unit made late); the pipeline follows it first, re-voicing paused
     // in place, so the start below runs at that rate and the output converts
     // nothing.
-    if (![self followCarrierRateOnQueue]) {
+    if (![self followOutputRateOnQueue]) {
         return; // the follow reset the player and said why
     }
     NSError *startError = nil;
@@ -1446,13 +1446,13 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     __block NSDictionary *counts = nil;
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
-        NSDictionary *carrier = [self carrierCountersOnQueue];
+        NSDictionary *unit = [self outputUnitCountersOnQueue];
         counts = @{@"hostedUnits": @([self hostedUnitCountOnQueue]),
                    @"unitRenders": @(self.fx.unitRenders),
-                   @"outputDropouts": carrier[@"dropouts"],
-                   @"renderCycles": carrier[@"renderCycles"],
-                   @"renderMeanMicros": carrier[@"renderMeanMicros"],
-                   @"renderMaxMicros": carrier[@"renderMaxMicros"],
+                   @"outputDropouts": unit[@"dropouts"],
+                   @"renderCycles": unit[@"renderCycles"],
+                   @"renderMeanMicros": unit[@"renderMeanMicros"],
+                   @"renderMaxMicros": unit[@"renderMaxMicros"],
                    @"retiredFades": @(self->_retiringVoices.count),
                    @"renderLeaveWork": @(self->_renderLeaveWork.count),
                    @"renderRefusals": @([self renderRefusalsOnQueue]),

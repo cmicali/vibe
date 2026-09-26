@@ -20,7 +20,7 @@ container every run without trusting `clear_caches` to have covered everything.
 
 **This is isolation work, not a prerequisite for hardware testing.** Validated against the PR66 working copy on 2026-09-25: the macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering remains the default. The remaining hardware measurements are in [render-pipeline-follow-ups.md](render-pipeline-follow-ups.md#hardware-stress-campaigns); suppression alone does not establish AirPods isolation.
 
-A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected carrier explicit; do not make VM provisioning depend on an assumed future harness-default change.
+A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected render path (pump or HAL output unit) explicit; do not make VM provisioning depend on an assumed future harness-default change.
 
 ## Decisions
 

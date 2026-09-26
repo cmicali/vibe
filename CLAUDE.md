@@ -126,6 +126,7 @@ One word per pattern; a new synonym is a bug.
 | `intent` | the desired end state a request must land in | the request itself |
 | `snapshot` | immutable copy handed across threads | live references |
 | `sequence` | delivery order within one generation | anything else |
+| `output unit` | the hosted `AudioOutputUnit` that pulls the render: HALOutput on macOS, RemoteIO on iOS (Apple's `kAudioUnitType_Output`) | the device, the route, or the debug pump (`VibeManualRenderPump`, Apple's "manual rendering") |
 | `embedded` | art carried in the audio file's own tag | the folder's cover |
 | `cover` | the sidecar image beside the audio file | embedded art |
 

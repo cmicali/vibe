@@ -130,7 +130,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"%lu units hosted by the pipeline", (unsigned long)units);
     }
 
-    // The pipeline admits one render at a time; a refusal means a carrier's
+    // The pipeline admits one render at a time; a refusal means an output unit's
     // callback found a stuck one inside, which nothing in a healthy run does.
     checked++;
     NSUInteger refusals = engine[@"renderRefusals"].unsignedIntegerValue;

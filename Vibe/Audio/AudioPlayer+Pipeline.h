@@ -3,14 +3,14 @@
 //  Vibe
 //
 //  Master renderer, source/stage publication and render retirement.
-//  voice bus -> [varispeed] -> [FX] -> [meter] -> carrier buffers.
+//  voice bus -> [varispeed] -> [FX] -> [meter] -> the output unit's buffers.
 //
 //  The player queue owns mutations. The render reads plain memory and atomics,
-//  admits one callback at a time and splits larger carrier requests into bounded
+//  admits one callback at a time and splits the output unit's larger requests into bounded
 //  slices. Withdrawn storage survives until afterRenderLeavesOnQueue: observes
-//  the render outside; a bounded carrier stop alone cannot free it.
+//  the render outside; the output unit's bounded stop alone cannot free it.
 //
-//  Platform categories own carrier construction, device/session operations and
+//  Platform categories own making the output unit, device/session operations and
 //  observations. The shared pipeline owns the gate, format/segment reconciliation,
 //  idle stop, drain scheduling and debug-pump attachment. Transport interprets
 //  drained events; Diagnostics assembles reports from this owner's render facts.
@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The largest slice the pipeline renders at once — the bus's own span, so
 // the bus mixes every slice whole — and every hosted unit's frames per
-// slice; a carrier's larger cycle is rendered in slices.
+// slice; an output unit's larger cycle is rendered in slices.
 static const AVAudioFrameCount kVibeMasterBusMaxFrames = kVibeVoiceBusMaxRenderFrames;
 
 // The pipeline's audio-thread state, AudioPlayer+Pipeline.m's.
@@ -37,18 +37,18 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 
 @interface AudioPlayer (Pipeline)
 
-// Creates the carrier — the hosted unit on the system default at that
+// Creates the output — the hosted unit on the system default at that
 // device's rate on macOS; on iOS the pipeline at the route's rate, the unit
 // itself made at the first start; the debug pump under --no-audio-hw — and
 // the master bus it pulls; the init path and the iOS media-services rebuild
 // must configure them identically.
 - (void)createOutputOnQueue;
-// Makes `unit` the carrier and routes its later failures back to the queue:
+// Makes `unit` the output unit and routes its later failures back to the queue:
 // one a later start or stop has not superseded stops the output, and a
 // refused start also parks the current voice Paused and tells the owning play.
 - (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit;
 // The unit's IO-cycle counters, for the reports.
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
+- (NSDictionary<NSString *, NSNumber *> *)outputUnitCountersOnQueue;
 // Whether the FX segment belongs in the chain: the setting, unless
 // bit-perfect output outranks it. The one home of the rule.
 - (BOOL)fxWantedOnQueue;
@@ -79,10 +79,10 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 #endif
 
 // The output's format moved under the pipeline — the iOS route's rate, the
-// debug pump's — and the pipeline follows it: the output stops, the carrier
+// debug pump's — and the pipeline follows it: the output stops, the output unit
 // takes the format (the unit, or the pump's buffers), the bus is rebuilt at it and the current track kept
 // (reconcileSourceSegmentOnQueue), and a playing output restarts. NO when
-// the carrier or the segment refuses; the player is then Stopped, or parked
+// the output unit or the segment refuses; the player is then Stopped, or parked
 // Paused, with an error sent. A no-op at the current format. The macOS
 // device paths rebind through AudioPlayer+Devices instead, which does the
 // device's own work between the same steps.
@@ -92,10 +92,10 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 - (AVAudioFormat *)masterBusFormatOnQueue;
 - (void)setMasterBusFormatOnQueue:(AVAudioFormat *)format;
 - (NSDictionary<NSString *, id> *)pipelineRenderSnapshotOnQueue;
-// The shared gate and carrier state; under the pump, the gate alone.
+// The shared gate and output unit state; under the pump, the gate alone.
 - (BOOL)renderingOnQueue;
 // The output-timeline frame the next render begins at, plus the block in
-// flight: the signal probe's clock on every carrier, and as a bare count the
+// flight: the signal probe's clock under the output unit and the pump, and as a bare count the
 // render-clock check's.
 - (uint64_t)renderedFramesOnQueue;
 // As a timestamp: sample time only, in the pipeline's frames; no flag set
@@ -135,12 +135,12 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;
 
-// Opens the gate and starts the carrier, then the meter, so the pipeline
-// renders whenever the output pulls; a carrier that will not start closes
+// Opens the gate and starts the output unit, then the meter, so the pipeline
+// renders whenever the output pulls; an output unit that will not start closes
 // the gate again. Every path that starts or resumes playback goes through
 // here, which is what dissolves a pending idle stop.
 - (BOOL)startOutputOnQueue:(NSError * _Nullable * _Nullable)outError;
-// Stops the carrier, closes the gate and waits for the render to leave, and
+// Stops the output unit, closes the gate and waits for the render to leave, and
 // kills every retiring voice: silence cannot click, and nothing would ever
 // land their fades. The one stop site.
 - (void)stopOutputOnQueue;
@@ -161,7 +161,7 @@ VibeMasterBus *VibeMasterBusCreate(void);
 // Whether a render is inside the pipeline right now: the teardown's last
 // check before it frees what one could be inside.
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
-// Disposes the hosted varispeed and frees the master bus; the carrier is
+// Disposes the hosted varispeed and frees the master bus; the output unit is
 // stopped and no render is inside. The player's dealloc.
 void VibeMasterBusFree(VibeMasterBus *master);
 

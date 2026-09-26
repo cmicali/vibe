@@ -305,7 +305,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             // pipeline failed to render; cumulative, and a soak holds it at 0.
             @"outputDropouts": counts[@"outputDropouts"],
             // Renders the pipeline turned away because a stuck one was still
-            // inside when the next carrier's callback came; cumulative, 0.
+            // inside when the next output unit's callback came; cumulative, 0.
             @"renderRefusals": counts[@"renderRefusals"],
             // The output unit's callback cost over the cycles it rendered:
             // cumulative, so diff across a run, and mean against max.

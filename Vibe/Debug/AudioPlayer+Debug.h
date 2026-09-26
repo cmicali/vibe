@@ -91,7 +91,7 @@ NS_ASSUME_NONNULL_BEGIN
 // withdrawal defers what it could be inside (`renderLeaveWork` in
 // debugRenderCounts counts those deferrals) and every other render is
 // refused meanwhile (`renderRefusals`). debugRenderOnCallerThread: is the
-// render to hold: a carrier's callback on the calling thread, into buffers
+// render to hold: an output unit's callback on the calling thread, into buffers
 // of its own, which blocks there until the hold lifts; debugRendersHeld
 // counts the renders blocked inside (`rendersHeld`). Any thread.
 - (void)debugHoldRenderInside:(BOOL)hold;
