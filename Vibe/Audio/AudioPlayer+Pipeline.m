@@ -566,6 +566,8 @@ VIBE_REALTIME_END
 #endif
     [self stopOutputOnQueue];
     if (!error) {
+        LogInfo(@"AudioPlayer: output stopped by the system while %@; the session's verdict decides the transport",
+                _state == VibePlayerStatePlaying && _voice ? @"playing" : @"not playing");
         return;
     }
     if (_state == VibePlayerStatePlaying && _voice) {

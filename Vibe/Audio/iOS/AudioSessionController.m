@@ -19,6 +19,28 @@ typedef NS_OPTIONS(NSUInteger, VibeAudioSessionRecoveryBlocker) {
     VibeAudioSessionRecoveryBlockerMediaReset = 1 << 2,
 };
 
+static NSString *VibeRouteChangeReasonName(NSUInteger reason) {
+    switch (reason) {
+        case AVAudioSessionRouteChangeReasonNewDeviceAvailable: return @"new device";
+        case AVAudioSessionRouteChangeReasonOldDeviceUnavailable: return @"old device unavailable";
+        case AVAudioSessionRouteChangeReasonCategoryChange: return @"category change";
+        case AVAudioSessionRouteChangeReasonOverride: return @"override";
+        case AVAudioSessionRouteChangeReasonWakeFromSleep: return @"wake from sleep";
+        case AVAudioSessionRouteChangeReasonNoSuitableRouteForCategory: return @"no suitable route";
+        case AVAudioSessionRouteChangeReasonRouteConfigurationChange: return @"configuration change";
+        default: return [NSString stringWithFormat:@"reason %lu", (unsigned long)reason];
+    }
+}
+
+static NSString *VibeConfigurationActionName(VibeAudioSessionConfigurationAction action) {
+    switch (action) {
+        case VibeAudioSessionConfigurationActionIgnore: return @"ignore";
+        case VibeAudioSessionConfigurationActionPause: return @"pause";
+        case VibeAudioSessionConfigurationActionRecover: return @"recover";
+    }
+    return @"unknown";
+}
+
 static VibeOutputRouteKind VibeOutputRouteKindForPort(AVAudioSessionPort portType) {
     if ([portType isEqualToString:AVAudioSessionPortBuiltInSpeaker]) {
         return VibeOutputRouteKindBuiltInSpeaker;
@@ -458,6 +480,9 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
                     VibeAudioSessionOutputRouteKindForRouteKind(routeKind)
                     outputLost:reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable
                     generation:&configurationRecoveryGeneration];
+    LogInfo(@"AudioSession: route change (%@) to %@: %@",
+            VibeRouteChangeReasonName(reason), routeName ?: @"unnamed",
+            VibeConfigurationActionName(action));
     // Published whatever the verdict: a new device, an override and a
     // category change are exactly the cases the indicator exists for.
     if ([self recordOutputRoute:routeKind name:routeName]) {
@@ -468,12 +493,16 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     }
     [self onMain:^{
         if (action == VibeAudioSessionConfigurationActionRecover) {
-            [self deliverConfigurationRecoveryForGeneration:
-                    configurationRecoveryGeneration];
+            if (![self deliverConfigurationRecoveryForGeneration:
+                    configurationRecoveryGeneration]) {
+                LogInfo(@"AudioSession: output recovery %llu dropped (coalesced or blocked)",
+                        configurationRecoveryGeneration);
+            }
             return;
         }
         if (![self hasConfigurationRecoveryBlocker:
                 VibeAudioSessionRecoveryBlockerRouteLoss]) {
+            LogInfo(@"AudioSession: route-loss pause superseded by an activation");
             return; // an explicit activation superseded this late pause
         }
         [self.delegate audioSessionShouldPause:self];

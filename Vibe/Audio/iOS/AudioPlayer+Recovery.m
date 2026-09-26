@@ -61,6 +61,7 @@
     if (rate <= 0 || rate == _masterFormat.sampleRate) {
         return YES;
     }
+    LogInfo(@"AudioPlayer: following the route's rate, %.0f Hz to %.0f Hz", _masterFormat.sampleRate, rate);
     return [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2]];
 }
 
@@ -77,11 +78,17 @@
 - (void)recoverOutput {
     dispatch_async(_queue, ^{
         if (self->_state != VibePlayerStatePlaying || !self->_voice) {
+            LogInfo(@"AudioPlayer: output recovery: nothing playing, the next start follows the route");
             return; // idle or Loading: the next start follows the route
         }
-        if (![self followCarrierRateOnQueue] || self->_outputUnit.running) {
-            return; // reset or parked and said why, or the output is running
+        if (![self followCarrierRateOnQueue]) {
+            return; // reset or parked, and said why
         }
+        if (self->_outputUnit.running) {
+            LogInfo(@"AudioPlayer: output recovery: the output is running");
+            return;
+        }
+        LogInfo(@"AudioPlayer: output recovery: restarting an output the system stopped");
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {
             // No output to restart on. Park Paused at the same position, so
