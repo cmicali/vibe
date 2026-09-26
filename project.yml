@@ -377,7 +377,7 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
     dependencies:
-      - sdk: AVFoundation.framework
+      - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework

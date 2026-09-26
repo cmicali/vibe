@@ -12,8 +12,6 @@
 #import "CloudTransferRegistryInternal.h"
 #import "NSURLUtil.h"
 
-#import <AVFAudio/AVFAudio.h>
-
 #import <os/lock.h>
 
 #include <float.h>
