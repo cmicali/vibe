@@ -73,30 +73,79 @@ static const VibeOutputRouteKind kAllKinds[] = {
 
 - (void)testEveryKindHasASymbol {
     for (size_t i = 0; i < sizeof(kAllKinds) / sizeof(kAllKinds[0]); i++) {
-        XCTAssertGreaterThan(VibeOutputRouteSymbolName(kAllKinds[i]).length, 0u);
+        XCTAssertGreaterThan(VibeOutputRouteSymbolName(kAllKinds[i], nil).length, 0u);
     }
 }
 
 // On-device is the state the control exists to change, so it advertises the
 // affordance rather than describing the speaker — the unknown route included.
 - (void)testOnDeviceRoutesDrawTheAirPlayGlyph {
-    NSString *airPlay = VibeOutputRouteSymbolName(VibeOutputRouteKindAirPlay);
-    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindNone), airPlay);
-    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInSpeaker), airPlay);
-    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInReceiver), airPlay);
+    NSString *airPlay = VibeOutputRouteSymbolName(VibeOutputRouteKindAirPlay, nil);
+    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindNone, nil), airPlay);
+    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInSpeaker, nil), airPlay);
+    XCTAssertEqualObjects(VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInReceiver, nil), airPlay);
 }
 
 // Once the audio is somewhere else, the glyph describes that somewhere.
 - (void)testOffDeviceRoutesEachDrawTheirOwn {
     NSArray<NSString *> *symbols = @[
-        VibeOutputRouteSymbolName(VibeOutputRouteKindWired),
-        VibeOutputRouteSymbolName(VibeOutputRouteKindBluetooth),
-        VibeOutputRouteSymbolName(VibeOutputRouteKindCarPlay),
-        VibeOutputRouteSymbolName(VibeOutputRouteKindOther),
+        VibeOutputRouteSymbolName(VibeOutputRouteKindWired, nil),
+        VibeOutputRouteSymbolName(VibeOutputRouteKindBluetooth, nil),
+        VibeOutputRouteSymbolName(VibeOutputRouteKindCarPlay, nil),
+        VibeOutputRouteSymbolName(VibeOutputRouteKindOther, nil),
     ];
     XCTAssertEqual([NSSet setWithArray:symbols].count, symbols.count);
     XCTAssertFalse([symbols containsObject:
-            VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInSpeaker)]);
+            VibeOutputRouteSymbolName(VibeOutputRouteKindBuiltInSpeaker, nil)]);
+}
+
+#pragma mark - The Bluetooth guess
+
+static NSString *BluetoothSymbol(NSString *name) {
+    return VibeOutputRouteSymbolName(VibeOutputRouteKindBluetooth, name);
+}
+
+// The possessive moves with the locale, so the match is anywhere in the name.
+- (void)testDefaultNamesInEveryShapeDrawTheirProduct {
+    XCTAssertEqualObjects(BluetoothSymbol(@"Chris's AirPods Pro"), @"airpodspro");
+    XCTAssertEqualObjects(BluetoothSymbol(@"Chris’s AirPods Max"), @"airpodsmax");
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods de Chris"), @"airpods");
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods Pro de Chris"), @"airpodspro");
+    XCTAssertEqualObjects(BluetoothSymbol(@"ChrisのAirPods Pro"), @"airpodspro");
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods Max von Chris #2"), @"airpodsmax");
+    XCTAssertEqualObjects(BluetoothSymbol(@"Chris's Beats Studio Pro"), @"beats.headphones");
+}
+
+// Each name contains the next probe's, so a probe out of order draws plain
+// earbuds for a Pro or a Max.
+- (void)testTheLongerProductNameWins {
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods Pro"), @"airpodspro");
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods Max"), @"airpodsmax");
+    XCTAssertEqualObjects(BluetoothSymbol(@"AirPods"), @"airpods");
+}
+
+// Recognising nothing is today's glyph, never a worse one.
+- (void)testRenamedOrUnknownDevicesKeepTheGenericGlyph {
+    NSString *generic = BluetoothSymbol(nil);
+    XCTAssertEqualObjects(generic, @"hifispeaker.fill");
+    XCTAssertEqualObjects(BluetoothSymbol(@""), generic);
+    XCTAssertEqualObjects(BluetoothSymbol(@"Chris's earbuds"), generic);
+    XCTAssertEqualObjects(BluetoothSymbol(@"Golf"), generic);
+    XCTAssertEqualObjects(BluetoothSymbol(@"airpods"), generic);
+}
+
+// Only the Bluetooth row reads the name: every other kind already knows what
+// it is, and USB-C Beats are still wired headphones.
+- (void)testTheNameOnlyChangesTheBluetoothRow {
+    for (size_t i = 0; i < sizeof(kAllKinds) / sizeof(kAllKinds[0]); i++) {
+        if (kAllKinds[i] == VibeOutputRouteKindBluetooth) {
+            continue;
+        }
+        XCTAssertEqualObjects(VibeOutputRouteSymbolName(kAllKinds[i], @"Chris's AirPods Pro"),
+                              VibeOutputRouteSymbolName(kAllKinds[i], nil));
+        XCTAssertEqualObjects(VibeOutputRouteSymbolName(kAllKinds[i], @"Beats"),
+                              VibeOutputRouteSymbolName(kAllKinds[i], nil));
+    }
 }
 
 #pragma mark - The device name

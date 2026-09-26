@@ -30,3 +30,17 @@ The fake provider operation in `Tests/AudioTrackMetadataLoaderTests.m` could esc
 - **Lengthening the test's settle delay.** The settle exists to let an erroneous fourth start appear; the bug is a first start taking the wrong branch, which has already happened by then. Slower, no more correct.
 - **Making every hold/clear pair observable** with a second expectation each test waits on. Defensible, but it edits all ten pairs for the same guarantee; the hook that shipped pins one interleaving.
 - **Serializing the fake behind one lock** across the vulnerable steps. Works only if the lock is released before the completion step, and pulls the controller's flag, failure and start access into one critical section for no stronger guarantee than the hoisted read.
+
+## The Bluetooth route glyph: asking the system what the device is
+
+Checked against the iOS 27.0 SDK headers (a superset of the iOS 26 floor), September 2026.
+
+The iOS player card's route indicator draws a device-specific glyph for a Bluetooth route (`airpodspro`, `airpodsmax`, `airpods`, `beats.headphones`), and does it by matching the route's `portName` as a substring (`VibeOutputRouteSymbolName`, `Audio/iOS/OutputRouteRules.h`). The name is user-renamable, so a guess is the most it can be. Apple has said no audio API answers the question: "not currently possible to determine unambiguously from our audio APIs" (<https://developer.apple.com/forums/thread/815255>). Every other signal was checked and rejected:
+
+- **`AVAudioSessionPortDescription`.** Its fields are `portType`, `portName`, `UID`, the channel and data-source lists, `spatialAudioEnabled`, `hasHardwareVoiceCallProcessing` and iOS 26's `bluetoothMicrophoneExtension`. None of them identifies the model; the extension reports only two recording capabilities.
+- **Parsing the Bluetooth `UID`.** In practice it is the MAC address plus a transport suffix, a format Apple has never documented. The manufacturer prefix could say "Apple" at most, never which model, and treating a hardware address as data is a privacy liability.
+- **CoreBluetooth.** It sees GATT peripherals only, while A2DP audio is paired in Settings. Even where AirPods appear, the peripheral gives the same user-set name and an app-scoped UUID, and asking costs a Bluetooth permission prompt.
+- **ExternalAccessory and AccessorySetupKit.** ExternalAccessory covers only MFi accessories whose protocols the app declares, and AccessorySetupKit only accessories the app set up itself. Neither covers AirPods or Beats.
+- **`CMHeadphoneMotionManager`.** It gives availability and motion, with no descriptor. Knowing motion is available narrows the route to head-tracking headphones, not to a model.
+- **The system picker's own icon.** `AVRoutePickerView` draws the right glyph in system UI, and reading it means walking AVKit's subviews, which is undocumented. `MPVolumeView`'s route images are deprecated and return only what the app set.
+- **iOS 27 `AVSystemRoute.routeSymbolName`.** It returns a symbol only for routes the app's own media device extensions provide, not for Bluetooth headphones, and it needs iOS 27.
