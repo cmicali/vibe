@@ -158,9 +158,6 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Position lock
 
-// The lock is movable = NO, set by the controller's applyWindowLock; this
-// class never reads the setting. movable stops the background drag on its own.
-
 // TRAP: from macOS 26 this call ignores isMovable and starts the drag in the
 // window server anyway, so the waveform's handoff would move a locked window.
 // The lock is enforced here, for every caller.
@@ -175,19 +172,18 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 // left where no screen is, out of reach. The screens are tested directly:
 // self.screen is not to be trusted straight after a reconfiguration.
 - (void)keepLockedWindowOnScreen {
-    NSScreen *primary = NSScreen.screens.firstObject;
-    if (self.isMovable || !primary) {
+    NSArray<NSScreen *> *screens = NSScreen.screens;
+    if (self.isMovable || screens.count == 0) {
         return;
     }
-    for (NSScreen *screen in NSScreen.screens) {
-        if (NSIntersectsRect(screen.visibleFrame, self.frame)) {
+    NSRect frame = self.frame;
+    for (NSScreen *screen in screens) {
+        if (NSIntersectsRect(screen.visibleFrame, frame)) {
             return;
         }
     }
-    // Centered, size kept, with the top edge (traffic lights, transport) never
-    // above the visible area.
-    NSRect visible = primary.visibleFrame;
-    NSRect frame = self.frame;
+    // The top edge (traffic lights, transport) never above the visible area.
+    NSRect visible = screens.firstObject.visibleFrame;
     frame.origin.x = NSMidX(visible) - NSWidth(frame) / 2;
     frame.origin.y = MIN(NSMidY(visible) - NSHeight(frame) / 2, NSMaxY(visible) - NSHeight(frame));
     [self setFrame:frame display:YES];
@@ -349,11 +345,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 // that the left edge (traffic lights, transport) goes off the other side.
 // A locked window stays put, so its growth may extend past the screen edge.
 - (NSRect)frameKeptOnScreen:(NSRect)frame {
-    if (!self.isMovable) {
-        return frame;
-    }
     NSRect screenRect = self.screen.visibleFrame;
-    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
+    if (self.isMovable && screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
         frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
     }
     return frame;
