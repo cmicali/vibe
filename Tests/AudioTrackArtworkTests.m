@@ -602,6 +602,20 @@
     [AudioTrackArtwork setDecodedThumbnailCacheLimitForTesting:0];
 }
 
+// A row's entry is keyed by its artwork alone, so it leaves with it: every
+// playlist reload used to strand a whole set of thumbnails until 16k newer
+// rows pushed them out.
+- (void)testADeallocatedRowTakesItsThumbnailWithIt {
+    NSUInteger before = AudioTrackArtwork.decodedThumbnailCacheCountForTesting;
+    @autoreleasepool {
+        AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
+        [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
+        XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
+        XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, before + 1);
+    }
+    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, before);
+}
+
 // Decodes completing against a full cache evict the oldest entries rather
 // than growing past the bound, and the rows that just decoded stay readable.
 // Runs against the shrunken bound; the production number is pinned above.

@@ -396,6 +396,14 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
     return self;
 }
 
+// The decoded thumbnail is keyed by this instance alone, so once it is gone
+// nothing can look the entry up again. Without this every playlist reload
+// stranded a fresh set of row thumbnails, and their pixels, until 16k newer
+// rows pushed them out. A decode in flight retains self, so none lands after.
+- (void)dealloc {
+    [VibeEmbeddedThumbnailCache() removeImageForKey:_thumbnailCacheKey];
+}
+
 - (id)copyWithZone:(NSZone *)zone {
     AudioTrackArtwork *copy = [[[self class] allocWithZone:zone]
             initWithSourceFilePath:self.sourceFilePath extractor:_extractor];
