@@ -17,15 +17,20 @@
 #endif
 
 #if VIBE_VERBOSE_LOGGING
-#if TARGET_OS_OSX
 #import <dlfcn.h>
 #import <mach/mach.h>
 #import <mach-o/dyld.h>
 #import <pthread.h>
 
-// macOS gives user space 47 bits; anything above is a pointer-authentication
-// signature on a return address saved by an arm64e system frame.
+// Anything above user space's address bits is a pointer-authentication
+// signature on a return address saved by an arm64e system frame. macOS gives
+// user space 47 bits; iOS 43, which its SDK names. The simulator runs on the
+// macOS kernel, and its SDK does not name the device's.
+#if TARGET_OS_OSX || TARGET_OS_SIMULATOR
 static const uintptr_t kVibeReturnAddressMask = 0x00007FFFFFFFFFFFULL;
+#else
+static const uintptr_t kVibeReturnAddressMask = MACH_VM_ADDRESS_MASK;
+#endif
 
 // A stack of any depth keeps its first and last kVibeStackEnd frames: where
 // the thread is stuck, and how it got there (main, the run loop, and the Vibe
@@ -240,7 +245,6 @@ static NSString *VibeSampleStack(thread_t thread, NSString *name, double millise
     }
     return stack;
 }
-#endif
 
 // One stall's samples: 250 ms in, then every 500 ms — a long freeze can move
 // between causes, and a single sample would show only the first — six at
@@ -276,7 +280,6 @@ static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSStrin
         if (waiting) {
             uint64_t stuck = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - pingedAt;
             if (VibeStallSampleDue(name, stuck, &samples, &nextSampleAt)) {
-#if TARGET_OS_OSX
                 // The queue has no fixed thread: find the one draining it.
                 // None means it is queued but starved.
                 thread_t thread = VibeFindThread(queue, NULL);
@@ -287,7 +290,6 @@ static dispatch_source_t VibeWatchQueueForStalls(dispatch_queue_t queue, NSStrin
                     lastStack = VibeSampleStack(thread, name, stuck / 1e6, lastStack);
                     mach_port_deallocate(mach_task_self(), thread);
                 }
-#endif
             }
             return; // the ping's delivery reports recovery
         }
@@ -348,7 +350,6 @@ static void VibeWatchMainThreadForStalls(mach_port_t thread) {
             lastStack = nil;
         }
         if (since && VibeStallSampleDue(@"main thread", now - since, &samples, &nextSampleAt)) {
-#if TARGET_OS_OSX
             thread_t target = thread != MACH_PORT_NULL ? thread : VibeFindThread(dispatch_get_main_queue(), NULL);
             if (target != MACH_PORT_NULL) {
                 lastStack = VibeSampleStack(target, @"main thread", (now - since) / 1e6, lastStack);
@@ -356,7 +357,6 @@ static void VibeWatchMainThreadForStalls(mach_port_t thread) {
                     mach_port_deallocate(mach_task_self(), target);
                 }
             }
-#endif
         }
         if (!since && seen == lastPasses) {
             // Nothing ran since the last tick: park. The timer parks before
@@ -540,11 +540,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     // since there is no public way to name the main thread from another.
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-#if TARGET_OS_OSX
         VibeWatchMainThreadForStalls(NSThread.isMainThread ? pthread_mach_thread_np(pthread_self()) : MACH_PORT_NULL);
-#else
-        VibeWatchMainThreadForStalls(MACH_PORT_NULL);
-#endif
     });
     // The player queue runs on whichever pool thread is free; the watcher
     // finds the one draining it at each sample.
@@ -703,10 +699,13 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         _renderClockStalledSince = _renderClockAdvancedAt;
         LogWarn(@"Stall: output render clock stalled %.0f ms (play %llu, %@)", (now - _renderClockStalledSince) / 1e6,
                 [self diagnosticPlayIdentifierOnQueue], self.currentTrack.url.lastPathComponent);
-#if TARGET_OS_OSX
         // Stuck in our render, or waiting for a device that stopped asking:
-        // the IO thread's stack tells the two apart.
+        // the IO thread's stack tells the two apart. RemoteIO names its own.
+#if TARGET_OS_OSX
         thread_t io = VibeFindThread(nil, "com.apple.audio.IOThread.client");
+#else
+        thread_t io = VibeFindThread(nil, "AURemoteIO::IOThread");
+#endif
         if (io == MACH_PORT_NULL) {
             LogWarn(@"Stall stack: no audio IO thread exists");
         }
@@ -714,7 +713,6 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
             VibeSampleStack(io, @"audio IO thread", (now - _renderClockStalledSince) / 1e6, nil);
             mach_port_deallocate(mach_task_self(), io);
         }
-#endif
     }
 #endif
 }
