@@ -166,8 +166,10 @@ class App:
         a no-op. Without this reopen every flap after the first at-rest sample
         ran against an idle player, and the silent-stop oracle — which needs
         `playing` before the flap — passed them all vacuously. The launch
-        grant covers the folder, so the channel's open reaches it."""
-        self.json("open", str(corpus))
+        grant covers the folder, so the channel's open reaches it. Absolute:
+        the app's working directory is not the shell's, so a relative corpus
+        is "no file or directory" there."""
+        self.json("open", str(Path(corpus).resolve()))
         for _ in range(20):
             if (self.json("dump_state").get("playlist") or {}).get("count"):
                 break

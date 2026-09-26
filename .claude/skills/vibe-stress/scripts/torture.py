@@ -375,12 +375,17 @@ def main():
         # parses. At rest, after a quiesce, every count and every hold belongs
         # at zero, and a stranded claim is a few hundred bytes that no memory
         # oracle would ever notice.
+        # Only the gauges must be zero: the materialization reply also
+        # carries lifetime totals (handleOpensStarted/Completed, requests*),
+        # which every run that opened anything leaves nonzero.
         cloud = app.json("dump_cloud_health") or {}
         mat = cloud.get("materialization") or {}
+        cumulative = {"handleOpensStarted", "handleOpensCompleted"}
         left = {k: v for k, v in
                 {"cloudParsesPending": cloud.get("cloudParsesPending"),
                  "cloudLaneHeld": cloud.get("cloudLaneHeld"),
-                 **{k: mat.get(k) for k in sorted(mat)}}.items() if v}
+                 **{k: mat.get(k) for k in sorted(mat)
+                    if k not in cumulative and not k.startswith("requests")}}.items() if v}
         print(f"at rest: cloud {cloud.get('cloudParsesPending')} parses, "
               f"lane held {cloud.get('cloudLaneHeld')}, materialization {mat}")
         if left:
