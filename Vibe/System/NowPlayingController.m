@@ -325,9 +325,9 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // same pass. The identity check below promotes either recovered thumbnail
     // or full art when the next publish sees it.
     //
-    // The placeholder is rasterized like any art. A two-sided theme's
-    // placeholder draws for the current drawing appearance, which on main is
-    // the app's and so the system's, since Vibe never sets NSApp.appearance.
+    // The placeholder is rasterized like any art, so it must already be the
+    // side the app's appearance shows: here the current drawing appearance is
+    // the system's, not the window's.
     VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholderArt;
 
     // The elapsed time is never republished at 3 Hz, because the system
@@ -410,3 +410,16 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 }
 
 @end
+
+#if DEBUG
+#import "NowPlayingController+Debug.h"
+
+@implementation NowPlayingController (Debug)
+
+- (VibeImage *)debugPublishedArtwork {
+    return _publishedArtworkImage;
+}
+
+@end
+#endif
+

@@ -308,6 +308,9 @@
             // The solid background's color pair resolves per appearance and
             // its layer color is not dynamic.
             [strongSelf applyWindowBackground];
+            // Now Playing's placeholder is the window appearance's side of the
+            // theme's; a flip changes it, which the dirty check republishes.
+            [strongSelf updateNowPlaying];
         }
     };
 }

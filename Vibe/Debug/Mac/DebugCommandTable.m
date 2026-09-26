@@ -21,6 +21,10 @@
 #if DEBUG
 
 #import "VibeWorkTally.h"
+#import "NowPlayingController+Debug.h"
+#import "AppTheme.h"
+#import "AudioTrack.h"
+#import "NSView+DarkMode.h"
 #import <sys/resource.h>
 
 #pragma mark Command table
@@ -198,6 +202,38 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                     }));
                 });
                 return nil;
+            }),
+            VibeDebugCmd(@"dump_now_playing_artwork", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                // Which image Now Playing's artwork was drawn from, by identity:
+                // the displayed track's art or thumbnail, or a side of the
+                // theme's placeholder with the reference that side names.
+                NSImage *published = controller.nowPlayingController.debugPublishedArtwork;
+                AudioTrack *track = controller.debugDisplayedTrack;
+                AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+                NSString *dark = [theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark] ?: @"";
+                NSString *light = [theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight] ?: @"";
+                NSMutableDictionary *out = [NSMutableDictionary dictionary];
+                if (!published) {
+                    out[@"artwork"] = NSNull.null;
+                }
+                else if (published == track.cachedArt) {
+                    out[@"artwork"] = @"art";
+                }
+                else if (published == track.cachedThumbnail) {
+                    out[@"artwork"] = @"thumbnail";
+                }
+                else if (published == [AppTheme imageForReference:dark] || published == [AppTheme imageForReference:light]) {
+                    BOOL isDark = published == [AppTheme imageForReference:dark];
+                    BOOL isLight = published == [AppTheme imageForReference:light];
+                    out[@"artwork"] = @"placeholder";
+                    out[@"placeholderSide"] = isDark && isLight ? @"both" : isDark ? @"dark" : @"light";
+                    out[@"placeholderReference"] = isDark ? dark : light; // "" is the factory image
+                }
+                else {
+                    out[@"artwork"] = @"other";
+                }
+                out[@"windowAppearance"] = controller.window.effectiveAppearance.isDark ? @"dark" : @"light";
+                return VibeJSONString(out);
             }),
             VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeViewTreeDump();

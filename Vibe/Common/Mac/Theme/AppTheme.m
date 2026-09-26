@@ -1475,6 +1475,11 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
                                            light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
 }
 
+- (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance {
+    return [AppTheme imageForReference:[self imageReferenceForKey:appearance.isDark ? kVibeThemeImageDefaultArtworkDark
+                                                                                     : kVibeThemeImageDefaultArtworkLight]];
+}
+
 - (BOOL)showPlaylistNumberColumn { return [self boolForKey:kFieldShowPlaylistNumberColumn]; }
 - (void)setShowPlaylistNumberColumn:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowPlaylistNumberColumn]; }
 

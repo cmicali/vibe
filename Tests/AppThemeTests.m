@@ -978,6 +978,26 @@ static NSData *SquarePNG(NSInteger side) {
     return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
 }
 
+// Now Playing rasterizes outside any view, where the drawing appearance is
+// the system's, so it asks for the side its window shows. Each side is one
+// cached image: the identity is what its dirty check compares.
+- (void)testDefaultArtworkSideFollowsTheAppearanceItIsAskedFor {
+    NSString *dark = [AppTheme storeCustomImageData:SquarePNG(96) error:NULL];
+    NSString *light = [AppTheme storeCustomImageData:SquarePNG(64) error:NULL];
+    XCTAssertNotEqualObjects(dark, light);
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    [theme setImageReference:dark forKey:kVibeThemeImageDefaultArtworkDark];
+    [theme setImageReference:light forKey:kVibeThemeImageDefaultArtworkLight];
+    NSAppearance *darkAqua = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    NSAppearance *aqua = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    XCTAssertEqual([theme defaultArtworkImageForAppearance:darkAqua], [AppTheme imageForReference:dark]);
+    XCTAssertEqual([theme defaultArtworkImageForAppearance:aqua], [AppTheme imageForReference:light]);
+    XCTAssertEqual([theme defaultArtworkImageForAppearance:aqua], [theme defaultArtworkImageForAppearance:aqua]);
+    // Single mode keeps one image, the dark slot's, for either appearance.
+    theme.mode = @"single";
+    XCTAssertEqual([theme defaultArtworkImageForAppearance:aqua], [AppTheme imageForReference:dark]);
+}
+
 - (void)testCustomImageStoreValidatesAndRoundTripsThroughTheArchive {
     NSError *error = nil;
     // Not square: rejected.

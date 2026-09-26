@@ -373,6 +373,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // asks for — the dynamic-color pattern for pixels — so consumers need no
 // dark flag and an appearance flip re-resolves by itself.
 @property (readonly, nonatomic) NSImage *resolvedDefaultArtworkImage;
+// The one side of it `appearance` draws, for a consumer that rasterizes
+// outside a view, where the current drawing appearance is the system's rather
+// than the window's (Now Playing). Each side is its cached image, so the
+// identity changes exactly when the side does.
+- (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance;
 
 // Per-appearance color pairs — one color per appearance, like every stored
 // color pair before them. nil means unset: the consumer draws today's

@@ -67,7 +67,8 @@
     // position is a placeholder, so freeze the readout there until
     // didStartPlaying:'s republish flips it live.
     [self.nowPlayingController updateWithTrack:track
-                                placeholderArt:AppSettings.sharedInstance.currentTheme.resolvedDefaultArtworkImage
+                                placeholderArt:[AppSettings.sharedInstance.currentTheme
+                                                       defaultArtworkImageForAppearance:self.window.effectiveAppearance]
                                       position:position
                                       duration:duration
                                          state:state
