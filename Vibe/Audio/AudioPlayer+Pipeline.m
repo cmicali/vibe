@@ -556,15 +556,18 @@ VIBE_REALTIME_END
     if (_terminating || !_outputUnit || runGeneration != _outputUnit.runGeneration) {
         return;
     }
+#if TARGET_OS_OSX
+    if (error && bindRefused) {
+        // Before the stop, whose liveness edge republishes the bit-perfect
+        // report: it must not name the refused device. The next default or
+        // selection binds again rather than reading a no-op.
+        [_outputUnit forgetDevice];
+    }
+#endif
     [self stopOutputOnQueue];
     if (!error) {
         return;
     }
-#if TARGET_OS_OSX
-    if (bindRefused) {
-        [_outputUnit forgetDevice]; // the next default or selection binds again rather than reading a no-op
-    }
-#endif
     if (_state == VibePlayerStatePlaying && _voice) {
         [self pauseCurrentVoiceOnQueue];
     }
