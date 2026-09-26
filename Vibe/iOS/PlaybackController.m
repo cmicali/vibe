@@ -382,7 +382,6 @@ static const NSUInteger kUIUpdateHz = 3;
 // callback already in flight, since the playlist it names is gone.
 - (void)clearPlaylist {
     [_player stop];
-    [_player prefetchTrack:nil];          // drop the parked successor handle
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;

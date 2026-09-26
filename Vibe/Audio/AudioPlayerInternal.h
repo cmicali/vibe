@@ -21,7 +21,6 @@
 #import "AudioPlayer.h"
 #import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
-#import "AudioFileOpenTimeoutMath.h"
 #import "AudioLevelMeter.h"
 #import "AudioVoiceBus.h"
 #import "PlaybackRequestCoordinator.h"
@@ -112,9 +111,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // capture it so a same-row replay cannot pass a track-identity guard.
     uint64_t                _activeSubmittedPlayIdentifier;
     PlaybackRequestCoordinator *_pendingRequest;
-    // The fade-in length for the play in flight: the user's crossfade when it
-    // replaced an audibly playing track, the declick minimum otherwise.
-    uint64_t                _incomingFadeMilliseconds;
     // Voices fading out after a track change, seek or stop. Each leaves when
     // the drain reports it ended; together with the current voice they are
     // what outputAudioActive folds over.
@@ -124,15 +120,6 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     // that decoder to finish its read on its own — counted per retired bus;
     // the current bus withholds reads of them until the count reaches zero.
     NSCountedSet<AudioFileHandle *> *_retiredDecoderFiles;
-
-    // ---- The pending open: its token, and the abandon deadline in monotonic
-    // uptime. A new underlying open snapshots its configuration; a same-row
-    // replay preserves that open identifier and snapshot.
-    AudioFileOpenToken      *_playOpenToken;
-    uint64_t                _playOpenRequestId;
-    NSTimeInterval          _openSubmittedUptime;
-    NSTimeInterval          _openLastPositiveMovementUptime;
-    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
 
     // ---- The park and the successor (AudioPlayer+Prefetch.m).
     NSString                *_prefetchedPath;

@@ -44,10 +44,6 @@ NS_ASSUME_NONNULL_BEGIN
     // rate syncUITimerRate scales to the playhead's on-screen speed. +Window
     // feeds it the visibility gate.
     UIUpdateTimer*              _uiTimer;
-    uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
-    // Playing-row indicators currently reading band levels. The tap is off at
-    // zero; see syncEqualizerActivity.
-    NSInteger                   _levelConsumers;
     // Polls (and on macOS subscribes to) a materializing cloud file's
     // download progress while the loading shimmer is up; nil otherwise. The
     // player events start and cancel it.
@@ -99,10 +95,6 @@ NS_ASSUME_NONNULL_BEGIN
 // view's delegate, style and appearance, the Menus category included, while
 // the per-track rendering states go through trackDisplay.
 @property (weak) AudioWaveformView *waveformView;
-
-// Conversion undo/redo moves files asynchronously after NSUndoManager has
-// already moved its stack. Menus, actions and debug commands share this gate
-// so the inverse cannot start against a half-mutated conversion record.
 
 // The undo/redo settled hook MainPlayerController+Convert fires. The debug
 // channel is its only setter; in a shipping build it costs one always-nil
@@ -189,8 +181,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Deferred metadata load and the error mask
 
-- (void)scheduleDeferredMetadataLoad;
-- (void)cancelDeferredMetadataLoad;
 - (void)startPendingMetadataLoad;
 // The only writers of the error-mask ivar pair, which stays private to
 // MainPlayerController.m.

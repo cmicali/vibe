@@ -110,16 +110,6 @@ NS_ASSUME_NONNULL_BEGIN
                              name:(NSString *)deviceName enableFX:(BOOL)enableFX
                          delegate:(id <AudioPlayerDelegate>)delegate;
 
-// No settings surface uses this initializer. It is the diagnostic/test seam
-// for loading budgets. The player starts with this immutable snapshot, and
-// each new underlying file open snapshots its timeout values. A same-row
-// replay keeps the open and therefore keeps its snapshot.
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID
-                              name:(NSString *)deviceName
-                          enableFX:(BOOL)enableFX
-                          delegate:(id <AudioPlayerDelegate>)delegate
-              loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
-
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 

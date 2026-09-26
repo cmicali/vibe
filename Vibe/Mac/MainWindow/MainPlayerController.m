@@ -82,6 +82,10 @@
     // Coalesces the redraws behind FolderArtDidResolveNotification; see
     // folderArtDidResolve:. Main thread only.
     BOOL                        _folderArtRefreshScheduled;
+    uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
+    // Playing-row indicators currently reading band levels. The tap is off at
+    // zero; see syncEqualizerActivity.
+    NSInteger                   _levelConsumers;
 }
 
 - (void)dealloc {
@@ -455,13 +459,16 @@
     });
 }
 
+- (NSUInteger)wantedUIUpdateHz {
+    return VibeUIUpdateHzForPlayhead(self.waveformView.devicePixelWidth, _currentTrackDuration, self.playbackRate,
+                                     AppSettings.sharedInstance.uiUpdateHzCap);
+}
+
 - (void)syncUITimerRate {
-    CGFloat widthPx = self.waveformView.devicePixelWidth;
-    NSUInteger hz = VibeUIUpdateHzForPlayhead(widthPx, _currentTrackDuration, self.playbackRate,
-                                              AppSettings.sharedInstance.uiUpdateHzCap);
+    NSUInteger hz = [self wantedUIUpdateHz];
     if (hz != _uiTimer.hz) {
         LogDebug(@"UI update rate %lu Hz (waveform %.0f px, duration %.2fs, rate %.3f)",
-                 (unsigned long)hz, widthPx, _currentTrackDuration, self.playbackRate);
+                 (unsigned long)hz, self.waveformView.devicePixelWidth, _currentTrackDuration, self.playbackRate);
         _uiTimer.hz = hz;
     }
 }
@@ -625,9 +632,9 @@
     // Show key off blanks the readout entirely; detection and tags are
     // untouched, so flipping it back on redraws whatever the track carries.
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSInteger key = track && theme.showKey ? track.key : -1;
+    VibeMusicalKey key = track && theme.showKey ? track.key : VibeMusicalKeyNone;
     NSString *keyText = @"";
-    if (key >= 0) {
+    if (VibeMusicalKeyIsValid(key)) {
         keyText = [theme.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
@@ -637,7 +644,7 @@
     float labelBPM = track && theme.showBPM ? scaledBPM : 0;
     [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
-                        colorKey:(theme.keyColorsEnabled ? key : -1)];
+                        colorKey:(theme.keyColorsEnabled ? key : VibeMusicalKeyNone)];
 }
 
 - (IBAction)playPause:(nullable id)sender {
@@ -752,7 +759,6 @@
     [OpenRequestCoordinator.sharedCoordinator invalidate];
     [self teardownDownloadMonitor];
     [self.audioPlayer stop];
-    [self.audioPlayer prefetchTrack:nil]; // drop the parked next-track handle
     [self.waveformCache cancelLoad];
     [self.playlistController clear];
     // Cancel the deferred playlist-wide metadata load, since nothing will play
@@ -825,10 +831,6 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (void)removeLastPlaylist {
     [PlaylistFile removeSessionAtURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults];
-}
-
-- (NSArray<NSURL *> *)lastPlaylistURLs {
-    return [PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]];
 }
 
 - (BOOL)restoreLastPlaylist {
@@ -1151,8 +1153,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (void)applyEndOfTrackAction {
     // Re-park the successor, or drop it: prefetchTrack: with nil unschedules
     // an armed splice, which is what keeps a mid-track switch to Pause from
-    // advancing anyway. The claim acknowledgement is not wanted here — the
-    // cloud-lane hold belongs to a play's settlement, not to a settings write.
+    // advancing anyway.
     [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
 }
 
@@ -1252,16 +1253,13 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // rate actually armed: the two diverge exactly when some path moved the width,
 // duration or rate without calling syncUITimerRate.
 - (NSUInteger)debugExpectedUIUpdateHz {
-    return VibeUIUpdateHzForPlayhead(self.waveformView.devicePixelWidth,
-                                     _currentTrackDuration,
-                                     self.playbackRate,
-                                     AppSettings.sharedInstance.uiUpdateHzCap);
+    return [self wantedUIUpdateHz];
 }
 
 - (NSDictionary *)debugLastPlaylistDictionary {
     return @{
         @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([self lastPlaylistURLs].count),
+        @"rows": @([PlaylistFile fileURLsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
         @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
 }

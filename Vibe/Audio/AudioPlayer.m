@@ -75,34 +75,36 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 @implementation AudioPlayer {
     float                   _maxPitch;
     AudioLoadingConfiguration *_loadingConfiguration;
+    // The fade-in length for the play in flight: the user's crossfade when it
+    // replaced an audibly playing track, the declick minimum otherwise.
+    uint64_t                _incomingFadeMilliseconds;
+
+    // ---- The pending open: its token, and the abandon deadline in monotonic
+    // uptime. A new underlying open snapshots its configuration; a same-row
+    // replay preserves that open identifier and snapshot.
+    AudioFileOpenToken      *_playOpenToken;
+    uint64_t                _playOpenRequestId;
+    NSTimeInterval          _openSubmittedUptime;
+    NSTimeInterval          _openLastPositiveMovementUptime;
+    VibeAudioOpenTimeoutConfiguration _openTimeoutSnapshot;
 }
 
 #pragma mark - Init
 
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName
                          enableFX:(BOOL)enableFX delegate:(id <AudioPlayerDelegate>)delegate {
-    return [self initWithDeviceUID:deviceUID name:deviceName enableFX:enableFX delegate:delegate
-              loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+    return [self initWithDeviceUID:deviceUID modelUID:@"" name:deviceName enableFX:enableFX delegate:delegate manualPump:nil];
 }
 
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
                              name:(NSString *)deviceName enableFX:(BOOL)enableFX
                          delegate:(id <AudioPlayerDelegate>)delegate {
     return [self initWithDeviceUID:deviceUID modelUID:modelUID name:deviceName enableFX:enableFX delegate:delegate
-              loadingConfiguration:[AudioLoadingConfiguration productionConfiguration] manualPump:nil];
-}
-
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID name:(NSString *)deviceName enableFX:(BOOL)enableFX
-                         delegate:(id<AudioPlayerDelegate>)delegate
-             loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
-    return [self initWithDeviceUID:deviceUID modelUID:@"" name:deviceName enableFX:enableFX delegate:delegate
-             loadingConfiguration:loadingConfiguration manualPump:nil];
+                        manualPump:nil];
 }
 
 - (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID name:(NSString *)deviceName
-                         enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate
-             loadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration manualPump:(id)pump {
-    NSParameterAssert(loadingConfiguration);
+                         enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate manualPump:(id)pump {
     self = [super init];
     if (self) {
         _stateLock = OS_UNFAIR_LOCK_INIT;
@@ -111,7 +113,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
         _declick = YES;
-        _loadingConfiguration = [loadingConfiguration copy];
+        _loadingConfiguration = [AudioLoadingConfiguration productionConfiguration];
         _retiringVoices = [NSMutableArray array];
         _renderLeaveWork = [NSMutableArray array];
         _retiredDecoderFiles = [NSCountedSet set];
@@ -298,12 +300,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         }
         VibeMasterBusFree(masterBus);
     };
-    if (dispatch_get_specific(kAudioPlayerQueueKey) == (__bridge void *)self) {
-        teardown();
-    }
-    else {
-        dispatch_sync(_queue, teardown);
-    }
+    [self runSyncOnQueue:teardown];
 }
 
 #pragma mark - Play
@@ -372,10 +369,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                                  submittedPlayIdentifier:submittedPlayIdentifier];
     // Enter the loading state: no voice or file yet, but a play is committed,
     // so the UI stops showing a stale duration and position for up to the
-    // full open timeout. publishState: mirrors the request; this only has to
-    // retire the pre-Loading handoff a seek would otherwise still aim at.
+    // full open timeout. publishState: mirrors the request and retires the
+    // pre-Loading handoff a seek would otherwise still aim at.
     [self publishState:VibePlayerStateLoading voice:0 file:nil startSeconds:0 baseFrames:0];
-    [self clearSubmittedPlayIdentifier:submittedPlayIdentifier];
     // Detach the previous play from its path claim and cancel any still-
     // abortable materialization. A park from the previous playlist
     // neighborhood must not compete with the foreground provider transfer; a
@@ -413,7 +409,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return NO;
     }
     VibePlaybackRequest *request = _pendingRequest.currentRequest;
-    [self mirrorLoadingRequest:request clearingSubmittedPlayIdentifier:submittedPlayIdentifier];
+    os_unfair_lock_lock(&_stateLock);
+    [self mirrorLoadingRequestLocked:request];
+    os_unfair_lock_unlock(&_stateLock);
     if (rebind.shouldNotifySlowLoad) {
         [self notifyDidBeginLoadingForRequest:request];
     }
@@ -561,8 +559,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // Dropped for a superseded submission, for the same reason its error is:
     // the shell's own guard compares the track, and a replay of the SAME row
     // is the same AudioTrack, so a start that belongs to the previous play
-    // reads as current and re-runs didStartPlaying:'s whole tail, including
-    // the successor prefetch that releases the metadata materialization hold.
+    // reads as current and re-runs didStartPlaying:'s whole tail, the
+    // successor prefetch included.
     uint64_t settledPlay = request.submittedPlayIdentifier;
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
@@ -583,8 +581,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // landed open fails the identifier check before it can read another
 // request's stamps.
 - (void)fileOpenDeadlineDueForRequest:(uint64_t)openId {
-    VibePlaybackRequest *pending = _pendingRequest.currentRequest;
-    if (!pending || pending.identifier != openId) {
+    if (![_pendingRequest isCurrentRequest:openId]) {
         return; // The open landed in time, or a newer play superseded it.
     }
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
@@ -620,8 +617,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     dispatch_async(_queue, ^{
-        VibePlaybackRequest *pending = self->_pendingRequest.currentRequest;
-        if (!pending || pending.identifier != openRequestIdentifier
+        if (![self->_pendingRequest isCurrentRequest:openRequestIdentifier]
                 || self->_playOpenRequestId != openRequestIdentifier) {
             return;
         }
@@ -919,12 +915,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     });
 }
 
-// The shared terminus for "the current track is done": the natural end, whose
-// voice has already died and so retires as a no-op, and finishCurrentTrack,
-// whose voice may be at full volume and fades. It marks the player Stopped and
-// notifies the delegate, whose handler drives auto-advance or the
-// end-of-playlist stop. The output stop is deferred so that the auto-advance
-// play, which arrives within milliseconds, reuses the running output.
 - (void)handleVoiceEventOnQueue:(VibeVoiceEvent)event voice:(VibeVoiceID)voice {
     BOOL current = voice == self->_voice;
     [self noteBusEvent:event voice:voice current:current];
@@ -975,6 +965,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self finishPlaybackOnQueue];
 }
 
+// The shared terminus for "the current track is done": the natural end, whose
+// voice has already died and so retires as a no-op, and finishCurrentTrack,
+// whose voice may be at full volume and fades. It marks the player Stopped and
+// notifies the delegate, whose handler drives auto-advance or the
+// end-of-playlist stop. The output stop is deferred so that the auto-advance
+// play, which arrives within milliseconds, reuses the running output.
 - (void)finishPlaybackOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
@@ -1033,7 +1029,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // A new voice for the current file at `position`, the old one retiring at
 // the declick beside it: the seek's shape, shared with an unqueue the decoder
 // won, where only a new voice discards the successor frames already in the
-// ring. Playing or paused alike; the published tuple moves with the voice.
+// ring, and with a rebuild's restore, where there is no old voice left.
+// Playing or paused alike; the published tuple moves with the voice.
 // TRAP: the old voice retires before the new one starts. Both read the same
 // AudioFileHandle, whose cursor the new voice's first decode turn positions; a
 // turn of the old voice queued between the two calls reads after that and
@@ -1129,7 +1126,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (void)setPitch:(float)pitch {
     os_unfair_lock_lock(&_stateLock);
-    pitch = MAX(-_maxPitch, MIN(_maxPitch, pitch));
+    pitch = clampRange(pitch, -_maxPitch, _maxPitch);
     _pitch = pitch;
     os_unfair_lock_unlock(&_stateLock);
     // The rate is an AU parameter, but touch the unit only on the player's
@@ -1149,7 +1146,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (void)setMaxPitch:(float)maxPitch {
     os_unfair_lock_lock(&_stateLock);
     _maxPitch = maxPitch;
-    float pitch = MAX(-maxPitch, MIN(maxPitch, _pitch));
+    float pitch = clampRange(_pitch, -maxPitch, maxPitch);
     _pitch = pitch;
     os_unfair_lock_unlock(&_stateLock);
     dispatch_async(_queue, ^{
@@ -1193,19 +1190,19 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
 }
 
-// Both halves in one critical section: the loading mirror a main-thread getter
-// reads, and the retirement of the pre-Loading handoff, which only the play
-// that set it may clear — a newer play submitted since owns it now.
-- (void)mirrorLoadingRequest:(VibePlaybackRequest *)request clearingSubmittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
-    os_unfair_lock_lock(&_stateLock);
+// Under _stateLock, both halves in one critical section: the loading mirror a
+// main-thread getter reads, nil for a player not Loading, and the retirement
+// of the pre-Loading handoff, which only the play that set it may clear — a
+// newer play submitted since owns it now. An edited request's play retired
+// its handoff when it first mirrored, so an edit never matches.
+- (void)mirrorLoadingRequestLocked:(VibePlaybackRequest *)request {
     _loadingTrack = request.track;
     _loadingStartPaused = request.intent.paused;
     _loadingSubmittedPlayIdentifier = request.submittedPlayIdentifier;
-    if (_lastSubmittedPlayIdentifier == submittedPlayIdentifier) {
+    if (request && _lastSubmittedPlayIdentifier == request.submittedPlayIdentifier) {
         _lastSubmittedPlayIdentifier = 0;
         _lastSubmittedPlayTrack = nil;
     }
-    os_unfair_lock_unlock(&_stateLock);
 }
 
 // A pause or resume during Loading edits the request's landing intent; nil
@@ -1214,43 +1211,28 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     if (!request) {
         return;
     }
-    [self mirrorLoadingRequest:request clearingSubmittedPlayIdentifier:0];
-    [self notifyLoadingPausedForRequest:request];
-}
-
-- (void)clearSubmittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     os_unfair_lock_lock(&_stateLock);
-    if (_lastSubmittedPlayIdentifier == submittedPlayIdentifier) {
-        _lastSubmittedPlayIdentifier = 0;
-        _lastSubmittedPlayTrack = nil;
-    }
+    [self mirrorLoadingRequestLocked:request];
     os_unfair_lock_unlock(&_stateLock);
+    [self notifyLoadingPausedForRequest:request];
 }
 
 - (void)notifyDidBeginLoadingForRequest:(VibePlaybackRequest *)request {
     AudioTrack *track = request.track;
     uint64_t openRequestIdentifier = request.identifier;
     uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
-    run_on_main_thread({
-        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
-            LogInfo(@"Dropping didBeginLoading for superseded play %llu", submittedPlayIdentifier);
-            return;
-        }
+    [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"didBeginLoading" block:^{
         [self.delegate audioPlayer:self didBeginLoading:track openRequestIdentifier:openRequestIdentifier];
-    });
+    }];
 }
 
 - (void)notifyLoadingPausedForRequest:(VibePlaybackRequest *)request {
     AudioTrack *track = request.track;
     BOOL paused = request.intent.paused;
     uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
-    run_on_main_thread({
-        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
-            LogInfo(@"Dropping didChangeLoadingPaused for superseded play %llu", submittedPlayIdentifier);
-            return;
-        }
+    [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"didChangeLoadingPaused" block:^{
         [self.delegate audioPlayer:self didChangeLoadingPaused:paused forTrack:track];
-    });
+    }];
 }
 
 #pragma mark - The published tuple
@@ -1274,16 +1256,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _fileLength = fileLength;
     _voiceStartSeconds = startSeconds;
     _promotedBaseFrames = baseFrames;
-    if (state == VibePlayerStateLoading) {
-        _loadingTrack = request.track;
-        _loadingStartPaused = request.intent.paused;
-        _loadingSubmittedPlayIdentifier = request.submittedPlayIdentifier;
-    }
-    else {
-        _loadingTrack = nil;
-        _loadingStartPaused = NO;
-        _loadingSubmittedPlayIdentifier = 0;
-    }
+    [self mirrorLoadingRequestLocked:request];
     os_unfair_lock_unlock(&_stateLock);
     if (state == VibePlayerStatePlaying) {
         [self notePublishedPlayingPosition:startSeconds track:self.currentTrack ?: self.loadingTrack voice:voice];
@@ -1368,6 +1341,17 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return VibePlaybackDeliveryIsCurrent(submittedPlayIdentifier, newest);
 }
 
+// A delegate call on main, dropped there when a newer play has been submitted.
+- (void)deliverOnMainForSubmittedPlay:(uint64_t)submittedPlayIdentifier named:(NSString *)name block:(dispatch_block_t)block {
+    run_on_main_thread({
+        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
+            LogInfo(@"Dropping %@ for superseded play %llu", name, submittedPlayIdentifier);
+            return;
+        }
+        block();
+    });
+}
+
 // TRAP: the delegate cannot make this judgement itself, and its existing
 // guards look like they can. A play failure is published as Stopped and its
 // error hops to main; if the user re-plays the SAME row in the window before
@@ -1379,13 +1363,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // still matches and its error is still delivered.
 - (void)sendDelegateError:(NSError *)error forSubmittedPlay:(uint64_t)submittedPlayIdentifier {
     LogError(@"AudioPlayer Error: %@", error.localizedDescription);
-    run_on_main_thread({
-        if (![self submittedPlayIsCurrent:submittedPlayIdentifier]) {
-            LogInfo(@"Dropping error for superseded play %llu", submittedPlayIdentifier);
-            return;
-        }
+    [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"error" block:^{
         [self.delegate audioPlayer:self error:error];
-    });
+    }];
 }
 
 #pragma mark - Debug introspection
@@ -1393,8 +1373,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 - (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate {
     NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
     return [self initWithDeviceUID:@"" modelUID:@"" name:@"" enableFX:enableFX delegate:delegate
-             loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]
-                       manualPump:[[VibeManualRenderPump alloc] initWithFormat:format automatic:automatic]];
+                        manualPump:[[VibeManualRenderPump alloc] initWithFormat:format automatic:automatic]];
 }
 
 - (AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error {

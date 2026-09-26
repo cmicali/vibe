@@ -952,9 +952,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         [self endFailedSlot:slot frames:0 written:atomic_load_explicit(&s->written, memory_order_relaxed)];
         return;
     }
-    if (!_inlineDecoding) {
-        [self scheduleFillForSlot:slot];
-    }
+    [self scheduleFillForSlot:slot];
 }
 
 - (void)bindPendingVoices {
@@ -1062,9 +1060,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
             continue;
         }
         atomic_store_explicit(&_mix->slots[s].readsAllowed, 1, memory_order_release);
-        if (!_inlineDecoding) {
-            [self scheduleFillForSlot:s];
-        }
+        [self scheduleFillForSlot:s];
     }
 }
 
@@ -1112,9 +1108,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     }
     // The decoder may have no turn scheduled — its stream drained or ended —
     // so one is asked for; a turn with nothing to do returns.
-    if (!_inlineDecoding) {
-        [self scheduleFillForSlot:slot];
-    }
+    [self scheduleFillForSlot:slot];
     return YES;
 }
 
@@ -1259,9 +1253,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
             continue; // dead, its recycle already queued behind decode work
         }
         if (state == VibeVoiceStateArmed) {
-            if (!_inlineDecoding) {
-                [self scheduleFillForSlot:slot];
-            }
+            [self scheduleFillForSlot:slot];
             continue;
         }
         if (!record->liveReported) {
@@ -1369,7 +1361,11 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     atomic_store_explicit(&s->state, VibeVoiceStateNone, memory_order_release);
 }
 
+// Inline decoding has no decode queue: fillInline reaches every slot.
 - (void)scheduleFillForSlot:(NSUInteger)slot {
+    if (_inlineDecoding) {
+        return;
+    }
     AudioVoiceRecord *record = _records[slot];
     int32_t expected = 0;
     if (!atomic_compare_exchange_strong_explicit(&record->fillScheduled, &expected, 1,

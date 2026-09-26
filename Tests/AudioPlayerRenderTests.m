@@ -2617,8 +2617,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     IMP failure = imp_implementationWithBlock(^id(id receiver) { return nil; });
     IMP original = method_setImplementation(initializer, failure);
     @try {
-        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self
-                                  loadingConfiguration:[AudioLoadingConfiguration productionConfiguration]];
+        _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
         [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
         XCTAssertFalse(_player.manualRenderingActive);
         [_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];

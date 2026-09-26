@@ -24,9 +24,9 @@ typedef NS_ENUM(NSInteger, VibeAudioPrefetchDisposition) {
 // superseded request must change nothing) and the one stateful behavior —
 // a different-path prefetch requested while playback is still opening is
 // retained but SUPPRESSED, and the play's success resumes that exact target.
-// The acknowledgement half this state machine once carried is gone: the
+// Nothing waits on the successor's claim being registered: the
 // foreground/background rule derives from the materialization coordinator's
-// claim table, so nothing waits on "the successor's claim is registered".
+// claim table.
 typedef NS_OPTIONS(NSUInteger, VibeAudioPrefetchRequestAction) {
     VibeAudioPrefetchRequestActionNone = 0,
     VibeAudioPrefetchRequestActionResume = 1 << 0,

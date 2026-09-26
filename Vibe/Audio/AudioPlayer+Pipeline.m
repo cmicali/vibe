@@ -381,13 +381,8 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
 // `offset`.
 static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeStamp *hostStamp, UInt32 offset, UInt32 frames,
                                          AudioBufferList *data) CA_REALTIME_API {
-    uint32_t channels = VibeMasterBusChannels(master);
-    VibeMasterBusStereoList slice = { channels, {{0}} };
-    for (UInt32 c = 0; c < channels; c++) {
-        slice.mBuffers[c].mNumberChannels = 1;
-        slice.mBuffers[c].mDataByteSize = frames * (UInt32)sizeof(float);
-        slice.mBuffers[c].mData = (float *)data->mBuffers[c].mData + offset;
-    }
+    VibeMasterBusStereoList slice = VibeMasterBusSubList(master, data, offset, frames);
+    uint32_t channels = slice.mNumberBuffers;
     AudioBufferList *list = (AudioBufferList *)&slice;
     // The stamp every stage sees: sample time on the output timeline, host
     // time from the carrier's cycle when it has one, advanced for a later
@@ -993,12 +988,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     if (!rebuilt || !restore) {
         return YES;
     }
-    double sampleRate = file.processingFormat.sampleRate;
-    AVAudioFramePosition startFrame = VibeClampedStartFrame(intent.position, sampleRate, file.length);
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
-                                      fadeMilliseconds:kFadeDurationMilliseconds paused:intent.paused];
-    [self publishState:(intent.paused ? VibePlayerStatePaused : VibePlayerStatePlaying) voice:voice file:file
-          startSeconds:(NSTimeInterval)startFrame / sampleRate baseFrames:0];
+    [self revoiceOnQueueAtPosition:intent.position];
     return YES;
 }
 
