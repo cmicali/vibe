@@ -2875,6 +2875,24 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
     XCTAssertFalse([output[@"idleStopPending"] boolValue]);
 }
 
+// iOS's Resampling setting: a conversion begun after the write takes the
+// player's quality, and one already running keeps the converter it started
+// with until its voice ends — here, until a seek re-voices the file.
+- (void)testResamplingQualityAppliesFromTheNextConversion {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    XCTAssertEqual(_player.resamplingQuality, VibeResamplingQualityMaximum, @"Maximum unless a shell asks");
+    _player.resamplingQuality = VibeResamplingQualityHigh;
+    [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
+    [self render:4800];
+    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High);
+    _player.resamplingQuality = VibeResamplingQualityMaximum;
+    [self render:4800];
+    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_High,
+                   @"a running conversion keeps its converter");
+    [_player seekToPosition:1.0]; [self render:9600];
+    XCTAssertEqual([_player.debugCurrentConversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
+}
+
 // The idle stop waits for a send's tail: a reverb released before a pause
 // keeps the output past the delay until the unit's declared tail rests, and
 // a send still held through the pause keeps it no longer than that tail.

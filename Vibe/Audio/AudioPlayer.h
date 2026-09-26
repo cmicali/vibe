@@ -17,6 +17,11 @@
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
 #import "PlaybackIntent.h"
 
+typedef NS_ENUM(NSInteger, VibeResamplingQuality) {
+    VibeResamplingQualityMaximum = 0,
+    VibeResamplingQualityHigh,
+};
+
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
@@ -62,6 +67,16 @@ NS_ASSUME_NONNULL_BEGIN
 // so NO applies no gain at all there. Atomic: the UI writes it, the player
 // queue reads it per ramp.
 @property (atomic) BOOL declick;
+
+// The sample-rate converter's quality, used when a file's rate differs from
+// the output's. Maximum by default, and always on macOS. iOS offers High as a
+// setting, and defaults to it: flat to 21 kHz with the same alias rejection
+// (below -150 dBFS), differing from Maximum only in how steeply it rolls off
+// between 21 and 22 kHz, for about half the CPU — on an iPhone 17 Pro the
+// resampler was 3.3% of a core at Maximum and 1.8% at High, measured, the
+// largest single cost of playback there. A change applies to conversions
+// begun after it: the next track, seek or re-voice. Atomic: the UI writes it.
+@property (atomic) VibeResamplingQuality resamplingQuality;
 
 // Whether the meter publishes band levels for active equalizer indicators.
 // Off by default and demand-driven. The shells enable it only for counted

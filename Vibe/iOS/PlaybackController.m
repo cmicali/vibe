@@ -59,6 +59,7 @@ static const NSUInteger kUIUpdateHz = 3;
         _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
         // The stored choice as is: no bit-perfect mode here to hold it down.
         _player.crossfadeMilliseconds = AppSettings.sharedInstance.crossfadeMilliseconds;
+        [self applyResamplingSetting];
 
 
         __weak PlaybackController *weakSelf = self;
@@ -482,6 +483,11 @@ static const NSUInteger kUIUpdateHz = 3;
     // an armed splice, which is what keeps a mid-track switch to Pause from
     // advancing anyway. Same shape as the mac's applyEndOfTrackAction.
     [_player prefetchTrack:self.successorPrefetchTrack];
+}
+
+- (void)applyResamplingSetting {
+    _player.resamplingQuality = AppSettings.sharedInstance.maximumResamplingQuality
+            ? VibeResamplingQualityMaximum : VibeResamplingQualityHigh;
 }
 
 // Clamped because a list's rows can be stale — an external "Open in Vibe"

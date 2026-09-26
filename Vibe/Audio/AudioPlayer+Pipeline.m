@@ -1000,6 +1000,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         LogError(@"AudioPlayer: no voice bus for %@", busFormat);
         return NO;
     }
+    bus.converterQuality = VibeConverterQualityForResampling(self.resamplingQuality);
     __weak AudioPlayer *weakSelf = self;
     bus.voiceWentLive = ^{ [weakSelf drainVoiceBusOnQueue]; };
     for (AudioFileHandle *file in _retiredDecoderFiles) {

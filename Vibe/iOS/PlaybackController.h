@@ -171,6 +171,11 @@ NS_ASSUME_NONNULL_BEGIN
 // mid-track switch to Pause from advancing through an armed splice.
 - (void)applyTrackTransitionSettings;
 
+// Settings > Playback > Resampling was written: pushes the quality to the
+// player, which uses it from the next conversion it starts (the next track
+// or seek), so a change never interrupts what is playing.
+- (void)applyResamplingSetting;
+
 // The priority metadata lane, for a screen that needs one track's tags before
 // the playlist-wide scan would reach them — the pager's art prefetch, whose
 // dispatch hangs off the metadata object. A no-op once the track is parsed.

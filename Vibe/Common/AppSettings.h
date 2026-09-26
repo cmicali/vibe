@@ -99,6 +99,14 @@ FOUNDATION_EXPORT const size_t kVibeCrossfadePresetCount;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+
+// Settings > Playback > Resampling, iOS only: NO, the default, converts a
+// file whose rate differs from the output's at High quality; YES at Maximum,
+// the only quality macOS uses. The two differ only above 21 kHz, and High
+// costs about half the CPU (AudioPlayer.resamplingQuality). Like the
+// track-transition settings, the writer applies it through PlaybackController.
+- (BOOL)maximumResamplingQuality;
+- (void)setMaximumResamplingQuality:(BOOL)maximum;
 #endif  // !TARGET_OS_OSX
 
 // Settings > Playback > Track transitions, on both platforms. The store never

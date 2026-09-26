@@ -494,6 +494,7 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
             || busFormat.sampleRate <= 0) {
         return nil;
     }
+    _converterQuality = kAudioConverterQuality_Max;
     uint32_t capacity = 1;
     while (capacity < busFormat.sampleRate) {
         capacity <<= 1; // ≥ 1 s at the bus rate
@@ -710,7 +711,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
 // or the order a wider layout names — is mixed first, on the file's own rate,
 // as the mixer would, so a converter carries the bus's channels only and none
 // is needed at the bus rate. A rate difference is converted at mastering
-// quality.
+// complexity and at converterQuality.
 - (BOOL)prepareRecord:(AudioVoiceRecord *)record file:(AudioFileHandle *)file {
     AVAudioFormat *source = file.processingFormat;
     os_unfair_lock_lock(&_tableLock);
@@ -742,7 +743,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     if (AudioConverterNew(fed.streamDescription, _format.streamDescription, &converter) != noErr || !converter) {
         return NO;
     }
-    UInt32 quality = kAudioConverterQuality_Max;
+    UInt32 quality = self.converterQuality;
     AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterQuality, sizeof(quality), &quality);
     if (fed.sampleRate != _format.sampleRate) {
         // The read-back is the check: macOS reports the complexity it took,
@@ -752,9 +753,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         AudioConverterSetProperty(converter, kAudioConverterSampleRateConverterComplexity, sizeof(complexity), &complexity);
         NSString *algorithm = VibeConverterAlgorithm(converter);
         UInt32 took = VibeConverterQuality(converter);
-        if ((algorithm && ![algorithm isEqualToString:@"Mastering"]) || took != kAudioConverterQuality_Max) {
-            LogWarn(@"AudioVoiceBus: the converter for %@ runs %@ at quality %u, not mastering at maximum",
-                    file.url.lastPathComponent, algorithm, (unsigned)took);
+        if ((algorithm && ![algorithm isEqualToString:@"Mastering"]) || took != quality) {
+            LogWarn(@"AudioVoiceBus: the converter for %@ runs %@ at quality %u, not mastering at quality %u",
+                    file.url.lastPathComponent, algorithm, (unsigned)took, (unsigned)quality);
         }
     }
     record->converter = converter;

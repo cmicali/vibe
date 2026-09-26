@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_FOLDER_OPEN_SORT                    @"Files.folderOpenSort"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
 #define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
+#define SETTING_MAXIMUM_RESAMPLING_QUALITY          @"AudioPlayer.maximumResamplingQuality"
 
 #if TARGET_OS_OSX
 
