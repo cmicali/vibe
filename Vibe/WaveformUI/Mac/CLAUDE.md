@@ -66,6 +66,10 @@ the empty and loading states and the view's margins always drag the window. A
 drag in flight is presentation state: `resetWaveformContentState` clears it
 with the press, so a track change mid-drag makes the release a no-op.
 
+A locked window (`Mac/MainWindow/CLAUDE.md`) declines every handoff, so under
+`drag_window` a drag past the hysteresis does nothing by design: the press is
+already disarmed, so it neither seeks nor moves. A stationary click still seeks.
+
 ## The convert sweep
 
 `convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed mid-recovery. It gates on having a waveform, like hover, and resets in `prepareForWaveformLoad` and the empty and loading states. A value at or below the front just moves the front — that is the post-conversion reset. The mechanism is shared; see `WaveformUI/Renderers/CLAUDE.md`.

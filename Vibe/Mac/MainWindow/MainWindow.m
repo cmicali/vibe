@@ -119,6 +119,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
                                 [strongSelf syncPlaylistShownFromHeight];
                             }
                         }];
+        // Auto-removed at dealloc, like every selector-based observer.
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(keepLockedWindowOnScreen)
+                                                     name:NSApplicationDidChangeScreenParametersNotification
+                                                   object:nil];
     }
     return self;
 }
@@ -149,6 +154,43 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 - (BOOL)canBecomeMainWindow {
     return YES;
+}
+
+#pragma mark - Position lock
+
+// The lock is movable = NO, set by the controller's applyWindowLock; this
+// class never reads the setting. movable stops the background drag on its own.
+
+// TRAP: from macOS 26 this call ignores isMovable and starts the drag in the
+// window server anyway, so the waveform's handoff would move a locked window.
+// The lock is enforced here, for every caller.
+- (void)performWindowDragWithEvent:(NSEvent *)event {
+    if (self.isMovable) {
+        [super performWindowDragWithEvent:event];
+    }
+}
+
+// TRAP: the system never moves a non-movable window when displays change
+// (NSWindow.h, isMovable), so a locked window whose display goes away would be
+// left where no screen is, out of reach. The screens are tested directly:
+// self.screen is not to be trusted straight after a reconfiguration.
+- (void)keepLockedWindowOnScreen {
+    NSScreen *primary = NSScreen.screens.firstObject;
+    if (self.isMovable || !primary) {
+        return;
+    }
+    for (NSScreen *screen in NSScreen.screens) {
+        if (NSIntersectsRect(screen.visibleFrame, self.frame)) {
+            return;
+        }
+    }
+    // Centered, size kept, with the top edge (traffic lights, transport) never
+    // above the visible area.
+    NSRect visible = primary.visibleFrame;
+    NSRect frame = self.frame;
+    frame.origin.x = NSMidX(visible) - NSWidth(frame) / 2;
+    frame.origin.y = MIN(NSMidY(visible) - NSHeight(frame) / 2, NSMaxY(visible) - NSHeight(frame));
+    [self setFrame:frame display:YES];
 }
 
 #pragma mark - Drag and Drop
@@ -305,7 +347,11 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 // A window grown at the right edge can end up hanging off the screen, where
 // the part the growth was for isn't visible; slide it back, but never so far
 // that the left edge (traffic lights, transport) goes off the other side.
+// A locked window stays put, so its growth may extend past the screen edge.
 - (NSRect)frameKeptOnScreen:(NSRect)frame {
+    if (!self.isMovable) {
+        return frame;
+    }
     NSRect screenRect = self.screen.visibleFrame;
     if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
         frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);

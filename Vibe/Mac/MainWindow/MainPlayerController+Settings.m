@@ -43,6 +43,9 @@
     if (effects & VibeSettingsLiveEffectAlwaysOnTop) {
         [self applyAlwaysOnTop];
     }
+    if (effects & VibeSettingsLiveEffectWindowLock) {
+        [self applyWindowLock];
+    }
     if (effects & VibeSettingsLiveEffectTrafficLights) {
         [self applyTrafficLights];
     }

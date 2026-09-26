@@ -284,6 +284,10 @@
     [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
 }
 
+- (void)applyWindowLock {
+    self.window.movable = !AppSettings.sharedInstance.windowPositionLocked;
+}
+
 - (void)applyTrafficLights {
     [self.playerContentView setTrafficLightsShown:AppSettings.sharedInstance.showTrafficLights];
 }

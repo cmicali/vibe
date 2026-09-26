@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) CGFloat contentWidth;
 - (void)setContentWidth:(CGFloat)width animate:(BOOL)animate;
 
+// The frame slid left so a right-edge growth stays on screen; unchanged while
+// the window's position is locked (movable NO). Every app-made resize that
+// grows the width passes through this.
+- (NSRect)frameKeptOnScreen:(NSRect)frame;
+
 - (IBAction)toggleSize:(id)sender;
 
 // The height a drag-resize is allowed to rest at, given the one it is asking

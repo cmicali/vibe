@@ -61,6 +61,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectBitPerfect       = 1UL << 23,
     // Declick: pushes the choice to the player; nothing is rebuilt.
     VibeSettingsLiveEffectDeclick          = 1UL << 24,
+    // The window's movability; no theme carries it.
+    VibeSettingsLiveEffectWindowLock       = 1UL << 25,
     // Everything applying a whole theme moves at once. WindowAppearance is
     // included because a single-mode theme demands the pinned dark
     // appearance (AppTheme.requiredWindowAppearance) even though the

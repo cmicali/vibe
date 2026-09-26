@@ -20,6 +20,7 @@
 #define SETTING_PITCH_PANEL_SHOWN                   @"MainWindow.pitchPanelShown"
 #define SETTING_PLAYLIST_SHOWN                      @"MainWindow.playlistShown"
 #define SETTING_ALWAYS_ON_TOP                       @"MainWindow.alwaysOnTop"
+#define SETTING_WINDOW_POSITION_LOCKED              @"MainWindow.positionLocked"
 #define SETTING_SHOW_TRAFFIC_LIGHTS                 @"Appearance.showTrafficLights"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"
@@ -79,6 +80,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_PITCH_PANEL_SHOWN:              @(NO),
             SETTING_PLAYLIST_SHOWN:                 @(NO),
             SETTING_ALWAYS_ON_TOP:                  @(NO),
+            SETTING_WINDOW_POSITION_LOCKED:         @(NO),
             SETTING_SHOW_TRAFFIC_LIGHTS:            @(YES),
             SETTING_PITCH_RANGE:                    @(8),
             SETTING_WAVEFORM_DRAG_BEHAVIOR:         SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW,
@@ -705,6 +707,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setAlwaysOnTop:(BOOL)onTop {
     [[NSUserDefaults standardUserDefaults] setBool:onTop forKey:SETTING_ALWAYS_ON_TOP];
+}
+
+- (BOOL)windowPositionLocked {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WINDOW_POSITION_LOCKED];
+}
+
+- (void)setWindowPositionLocked:(BOOL)locked {
+    [[NSUserDefaults standardUserDefaults] setBool:locked forKey:SETTING_WINDOW_POSITION_LOCKED];
 }
 
 - (BOOL)showTrafficLights {

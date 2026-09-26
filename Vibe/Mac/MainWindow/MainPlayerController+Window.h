@@ -61,6 +61,10 @@ NS_ASSUME_NONNULL_BEGIN
 // construction and by the settings live-effect mapping.
 - (void)applyAlwaysOnTop;
 
+// Pushes AppSettings.sharedInstance.windowPositionLocked to the window's
+// movable flag, the lock's only state. Same two callers.
+- (void)applyWindowLock;
+
 // Pushes AppSettings.sharedInstance.showTrafficLights to the content view's
 // hover fade. Same two callers, so the setting is read in one place.
 - (void)applyTrafficLights;

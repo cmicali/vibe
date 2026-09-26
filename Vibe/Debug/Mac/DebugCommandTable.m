@@ -140,11 +140,7 @@ static NSRect VibeWindowFrameForBodyWidth(MainWindow *window, CGFloat bodyPoints
     CGFloat panel = window.isPitchPanelShown ? kPitchPanelWidth : 0;
     NSRect frame = window.frame;
     frame.size.width = MAX(window.minSize.width, bodyPoints + panel);
-    NSRect screenRect = window.screen.visibleFrame;
-    if (screenRect.size.width > 0 && NSMaxX(frame) > NSMaxX(screenRect)) {
-        frame.origin.x = MAX(NSMinX(screenRect), NSMaxX(screenRect) - frame.size.width);
-    }
-    return frame;
+    return [window frameKeptOnScreen:frame];
 }
 
 static double VibeProcessCPUSeconds(void) {

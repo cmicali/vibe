@@ -99,6 +99,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),
+            @"movable": @(window.isMovable),
             @"playlistShown": @(window.isPlaylistShown),
             @"pitchPanelShown": @(window.isPitchPanelShown),
             @"keyWindow": @(window.isKeyWindow),
