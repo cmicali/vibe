@@ -40,13 +40,13 @@ struct VibeLevelMeter {
     _Atomic uint64_t signalFramesResult, signalHostResult, signalOffsetResult, signalNonfiniteResult, signalLeadingFramesResult;
     _Atomic int64_t signalSampleResult;
     _Atomic double signalPeakResult, signalRMSResult, signalRateResult;
-    _Atomic double signalHostOrigin, signalSampleOrigin, signalHostCutoff, signalSampleCutoff;
+    _Atomic double signalSampleOrigin, signalSampleCutoff;
     _Atomic double signalObservationStartResult, signalFirstAfterStartResult;
     uint64_t signalObservedRequest, signalFrames, signalSamples, signalNonfinite;
     uint64_t signalFirstHost, signalFirstOffset, signalLeadingFrames;
     int64_t signalFirstSample;
     double signalPeak, signalSum, signalRate;
-    double signalObservationStart, signalFirstAfterStart, hostSecondsPerTick;
+    double signalObservationStart, signalFirstAfterStart;
     BOOL signalFound;
 #endif
 };
@@ -80,19 +80,13 @@ static void VibeLevelMeterCapture(VibeLevelMeter *meter, float *const *channels,
     BOOL hostValid = (when->mFlags & kAudioTimeStampHostTimeValid) != 0;
     BOOL sampleValid = (when->mFlags & kAudioTimeStampSampleTimeValid) != 0;
     // A block can still carry the previous track's audio: everything before
-    // the cutoff is excluded.
-    double origin = atomic_load(&meter->signalHostOrigin), cutoff = atomic_load(&meter->signalHostCutoff);
-    double bufferTime = hostValid ? when->mHostTime * meter->hostSecondsPerTick : NAN;
-    // On the sample clock the origin is a whole frame, so offsets from it are
-    // computed in frames: two times converted to seconds and subtracted can
-    // land a hair under a boundary they meet exactly.
-    int64_t originFrame = -1;
-    if (!isfinite(origin) || !isfinite(bufferTime)) {
-        origin = atomic_load(&meter->signalSampleOrigin);
-        cutoff = atomic_load(&meter->signalSampleCutoff);
-        bufferTime = sampleValid && rate > 0 ? when->mSampleTime / rate : NAN;
-        if (isfinite(origin)) originFrame = llround(origin * rate);
-    }
+    // the cutoff is excluded. The clock is the pipeline's sample clock, on
+    // which the origin is a whole frame, so offsets from it are computed in
+    // frames: two times converted to seconds and subtracted can land a hair
+    // under a boundary they meet exactly.
+    double origin = atomic_load(&meter->signalSampleOrigin), cutoff = atomic_load(&meter->signalSampleCutoff);
+    double bufferTime = sampleValid && rate > 0 ? when->mSampleTime / rate : NAN;
+    int64_t originFrame = isfinite(origin) ? llround(origin * rate) : -1;
     if (request != atomic_load(&meter->signalRequest) || !isfinite(origin) || !isfinite(bufferTime)
             || !isfinite(cutoff) || bufferTime + frames / rate <= cutoff) return;
     UInt32 skip = (UInt32)MIN((double)frames, MAX(0, ceil((cutoff - bufferTime) * rate - 1e-6)));
@@ -213,7 +207,7 @@ VIBE_REALTIME_END
     void (^_signalCompletion)(NSDictionary<NSString *, id> *);
     NSDictionary<NSString *, id> *_signalSnapshot;
     BOOL _signalWaitingForRetiredAudio;
-    AVAudioTime *_signalOverlapEndTime;
+    AudioTimeStamp _signalOverlapEndTime; // no flag set until an overlap ends
 #endif
 }
 
@@ -254,13 +248,10 @@ VIBE_REALTIME_END
     atomic_init(&meter->signalPeakResult, 0);
     atomic_init(&meter->signalRMSResult, 0);
     atomic_init(&meter->signalRateResult, 0);
-    atomic_init(&meter->signalHostOrigin, NAN);
     atomic_init(&meter->signalSampleOrigin, NAN);
-    atomic_init(&meter->signalHostCutoff, INFINITY);
     atomic_init(&meter->signalSampleCutoff, INFINITY);
     atomic_init(&meter->signalObservationStartResult, 0);
     atomic_init(&meter->signalFirstAfterStartResult, -1);
-    meter->hostSecondsPerTick = [AVAudioTime secondsForHostTime:NSEC_PER_SEC] / NSEC_PER_SEC;
 #endif
     _publisher = publisher;
     meter->publisherState = [publisher publisherState];
@@ -318,6 +309,15 @@ VIBE_REALTIME_END
 
 #pragma mark - The signal probe
 
+#if VIBE_VERBOSE_LOGGING
+// A probe timestamp in seconds, NAN where it carries no sample time. Its
+// sample time is in the pipeline's frames, which run at the meter's own rate.
+static double VibeLevelMeterSampleSeconds(VibeLevelMeter *meter, const AudioTimeStamp *time) {
+    return (time->mFlags & kAudioTimeStampSampleTimeValid) && meter->sampleRate > 0
+            ? time->mSampleTime / meter->sampleRate : NAN;
+}
+#endif
+
 - (void)finishSignalDiagnostics:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
     if (!_signalCompletion) return;
@@ -331,7 +331,7 @@ VIBE_REALTIME_END
 #endif
 }
 
-- (uint64_t)beginSignalDiagnosticsAtTime:(AVAudioTime *)startTime waitingForRetiredAudio:(BOOL)waiting
+- (uint64_t)beginSignalDiagnosticsAtTime:(AudioTimeStamp)startTime waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *))completion {
 #if VIBE_VERBOSE_LOGGING
     if (!_installed) return 0;
@@ -342,13 +342,10 @@ VIBE_REALTIME_END
     // Clear the request before replacing its clock pair; the render checks
     // the request again after reading it, so clocks cannot cross requests.
     atomic_store(&_meter->signalRequest, 0);
-    double host = startTime.hostTimeValid ? [AVAudioTime secondsForHostTime:startTime.hostTime] : NAN;
-    double sample = startTime.sampleTimeValid && startTime.sampleRate > 0 ? startTime.sampleTime / startTime.sampleRate : NAN;
-    atomic_store(&_meter->signalHostOrigin, host);
+    double sample = VibeLevelMeterSampleSeconds(_meter, &startTime);
     atomic_store(&_meter->signalSampleOrigin, sample);
-    atomic_store(&_meter->signalHostCutoff, waiting ? INFINITY : host);
     atomic_store(&_meter->signalSampleCutoff, waiting ? INFINITY : sample);
-    if (!waiting && _signalOverlapEndTime) {
+    if (!waiting && (_signalOverlapEndTime.mFlags & kAudioTimeStampSampleTimeValid)) {
         _signalWaitingForRetiredAudio = YES;
         [self endSignalOverlapAtTime:_signalOverlapEndTime];
     }
@@ -360,16 +357,14 @@ VIBE_REALTIME_END
 #endif
 }
 
-- (void)endSignalOverlapAtTime:(AVAudioTime *)time {
+- (void)endSignalOverlapAtTime:(AudioTimeStamp)time {
 #if VIBE_VERBOSE_LOGGING
     // The fade can settle before the deferred start publishes its capture.
     _signalOverlapEndTime = time;
     if (!_signalCompletion || !_signalWaitingForRetiredAudio) return;
     _signalWaitingForRetiredAudio = NO;
-    if (time.hostTimeValid) atomic_store(&_meter->signalHostCutoff,
-            MAX(atomic_load(&_meter->signalHostOrigin), [AVAudioTime secondsForHostTime:time.hostTime]));
-    if (time.sampleTimeValid && time.sampleRate > 0) atomic_store(&_meter->signalSampleCutoff,
-            MAX(atomic_load(&_meter->signalSampleOrigin), time.sampleTime / time.sampleRate));
+    double sample = VibeLevelMeterSampleSeconds(_meter, &time);
+    if (isfinite(sample)) atomic_store(&_meter->signalSampleCutoff, MAX(atomic_load(&_meter->signalSampleOrigin), sample));
 #endif
 }
 
@@ -414,8 +409,8 @@ VIBE_REALTIME_END
         double firstAfterStart = atomic_load(&meter->signalFirstAfterStartResult);
         if (before != atomic_load(&meter->signalVersion)) continue;
         if (observed != request) {
-            NSString *status = !isfinite(atomic_load(&meter->signalHostOrigin))
-                    && !isfinite(atomic_load(&meter->signalSampleOrigin)) ? @"start clock unavailable" : @"no buffers observed";
+            NSString *status = !isfinite(atomic_load(&meter->signalSampleOrigin))
+                    ? @"start clock unavailable" : @"no buffers observed";
             return @{@"status": status, @"request": @(request)};
         }
         _signalSnapshot = @{@"status": @"captured", @"request": @(request), @"frames": @(frames),

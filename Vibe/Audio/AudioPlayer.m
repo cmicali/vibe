@@ -123,11 +123,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // Meaningful before the async init block resolves the saved device:
         // -1 means follow the system default, rather than a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
-        // Default QoS, not user-initiated: on iOS this queue calls blocking
-        // AVAudioEngine APIs that wait on the engine's own
-        // Default-QoS reconfiguration thread; a higher class would invert. The
-        // latency-critical work — the file open and the decode — runs on its
-        // own lanes.
+        // Default QoS, not user-initiated: this queue waits on the output
+        // unit's own Default-QoS queue (waitUntilIdle); a higher class would
+        // invert. The latency-critical work — the file open and the decode —
+        // runs on its own lanes.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, (__bridge void *)self, NULL);
@@ -258,11 +257,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     AudioFX *fx = _fx;
     NSArray<dispatch_block_t> *renderLeaveWork = [_renderLeaveWork copy];
     _renderLeaveWork = nil;
-#if TARGET_OS_OSX
     AudioOutputUnit *outputUnit = _outputUnit;
-#else
-    AVAudioEngine *engine = _engine;
-#endif
     VibeMasterBus *masterBus = _masterBus;
     _masterBus = NULL;
     dispatch_source_t drainTimer = _drainTimer;
@@ -278,12 +273,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [pendingRequest invalidate];
         [levelMeter remove];
         if (drainTimer) dispatch_source_cancel(drainTimer);
-#if TARGET_OS_OSX
         [outputUnit stop]; // no cycle in flight before the pipeline it pulls is freed
         [outputUnit waitUntilIdle]; // and no queued start left to pull it afterwards
-#else
-        [engine stop];
-#endif
         if (VibeMasterBusRenderInside(masterBus)) {
             // Kept for the process's life: nothing a render is inside may be freed.
             LogError(@"AudioPlayer: a render is still inside the pipeline at teardown; the pipeline is leaked");
@@ -504,15 +495,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
+    // A unit made late, or a route that moved while nothing played, brings
+    // its rate before the segment below is built at a stale one.
+    [self followCarrierRateOnQueue];
 #if TARGET_OS_OSX
-    [self ensureOutputUnitOnQueue]; // a unit made late brings its device's rate, before the segment is built at it
     // Gates itself on the mode. A format switch stops the output, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
 #endif
-    // The iOS route's rate may have moved while nothing played; the
-    // segment below is built at the route's rate, not a stale one.
-    [self followOutputRouteOnQueue];
     if (![self ensureSourceSegmentOnQueueRebuilt:NULL]) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -719,15 +709,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // The carrier's rate may have moved while it was stopped (the iOS
-    // route); the pipeline follows it first, re-voicing paused in place, so
-    // the start below runs at the route's rate and the output converts nothing.
-    if (![self followOutputRouteOnQueue]) {
+    // The carrier's rate may have moved while it was stopped (the iOS route,
+    // a mac unit made late); the pipeline follows it first, re-voicing paused
+    // in place, so the start below runs at that rate and the output converts
+    // nothing.
+    if (![self followCarrierRateOnQueue]) {
         return; // the follow reset the player and said why
     }
-#if TARGET_OS_OSX
-    [self ensureOutputUnitOnQueue]; // a unit made late re-voices the parked voice at its device's rate first
-#endif
     NSError *startError = nil;
     if (![self startOutputOnQueue:&startError]) {
         // startOutputOnQueue cancelled the pending idle stop at entry; the
@@ -825,8 +813,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     BOOL paused = _state == VibePlayerStatePaused;
     [self revoiceOnQueueAtPosition:position];
     if (!paused) {
-        // Playing can carry a stopped output for the moment between a
-        // configuration change and its recovery.
+        // Playing can carry a stopped output for the moment between the
+        // system stopping the iOS unit and its recovery.
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {
             [self pauseCurrentVoiceOnQueue];
@@ -1426,7 +1414,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (void)debugClearRenderCounters {
     [self runSyncOnQueue:^{
-        [self clearCarrierCountersOnQueue];
+        [self->_outputUnit clearCounters];
         [self clearRenderRefusalsOnQueue];
     }];
 }

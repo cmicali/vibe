@@ -22,6 +22,7 @@
 #import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLevelMeter.h"
+#import "AudioOutputUnit.h"
 #import "AudioVoiceBus.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFAudio/AVFAudio.h>
@@ -32,8 +33,6 @@
 // category it uses. Exactly one platform member is compiled.
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
-#import "AudioOutputUnit.h"
-#import <AudioToolbox/AudioToolbox.h>
 #else
 #import "AudioPlayer+Recovery.h"
 #endif
@@ -43,20 +42,26 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// What differs per platform about the one hosted output unit (AudioOutputUnit,
+// _outputUnit): how it is made, started and fed a rate. Implemented by Devices
+// on macOS and Recovery on iOS; player queue only. The platform-blind half —
+// the attach, the counters, the failures — is AudioPlayer+Pipeline's.
 @interface AudioPlayer (Carrier)
 
-// Implemented by Devices on macOS and Recovery on iOS; player queue only.
-// iOS follows route changes before starting; macOS follows its rate listener.
-- (BOOL)followOutputRouteOnQueue;
+// The carrier brings its rate before a segment is built or a voice started
+// at the old one: macOS makes a unit it could not make at init, whose device
+// brings a rate (ensureOutputUnitOnQueue); iOS follows the session's route
+// rate. The pipeline follows, the current track kept. NO only when that left
+// the player reset or parked and said why; a carrier still missing is the
+// start's to report.
+- (BOOL)followCarrierRateOnQueue;
 - (void)createCarrierOnQueue;
 - (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
-- (void)stopCarrierOnQueue;
-- (BOOL)carrierRunningOnQueue;
 - (void)releaseIdleCarrierOnQueue;
 - (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
-- (void)clearCarrierCountersOnQueue;
-// Report-only device queries; never polled by the stall watcher.
+// Report-only: the platform's own keys for the output stage — the unit's
+// shared ones are the report's — then any stages past it. Never polled by
+// the stall watcher.
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
 
 @end
@@ -159,10 +164,10 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     NSMutableArray<dispatch_block_t> *_renderLeaveWork;
     BOOL                    _renderStuck;
     uint64_t                _renderStuckFrames;
-#if !TARGET_OS_OSX
-    AVAudioEngine           *_engine;           // the carrier: one source node into its output node
-    AVAudioSourceNode       *_sourceNode;       // at the pipeline's format; replaced when the route's rate moves
-#endif
+    // The hosted output unit that pulls the pipeline: HALOutput bound to the
+    // output device on macOS, RemoteIO on iOS. nil under the debug pump, which
+    // has no device, and on iOS until the first start.
+    AudioOutputUnit         *_outputUnit;
     // The equalizer's meter: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
     BOOL                    _levelsWanted;
@@ -178,11 +183,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     uint64_t                _firstRenderVoice;
 
 #if TARGET_OS_OSX
-    // ---- The output device. The hosted HAL output unit that pulls the
-    // pipeline is AudioPlayer+Pipeline.m's: its bound device is the output, and
-    // it is nil under the debug pump, which has no device.
-    // AudioPlayer+Devices.m owns every field below it.
-    AudioOutputUnit         *_outputUnit;
+    // ---- The output device: the device _outputUnit is bound to.
+    // AudioPlayer+Devices.m owns every field below.
     // The bound device's nominal rate, watched in every mode: another process
     // moving it rebinds the unit at the new rate. Delivered on the queue.
     AudioObjectPropertyListenerBlock _boundRateListener;
@@ -289,8 +291,8 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
 
 // The mode: bit-perfect output wanted. Always NO on iOS.
 - (BOOL)bitPerfectOnQueue;
-// Whether a real output device is being driven: the hosted unit on macOS,
-// the engine's own output node on iOS; never under the debug pump.
+// Whether a real output is being driven by the hosted unit; never under the
+// debug pump.
 - (BOOL)drivesOutputDeviceOnQueue;
 
 // The terminus every file open lands in, whether the play opened it or the

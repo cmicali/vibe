@@ -37,8 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface EqualizerIndicatorView : UIView
 #endif
 
-// These two facts are deliberately separate. Audio output means the graph has
-// a playing source node or a tracked outgoing fade; presentation visibility
+// These two facts are deliberately separate. Audio output means the player has
+// a playing voice or a tracked outgoing fade; presentation visibility
 // means the platform has established that this row and its surface are
 // materially exposed. Both default to NO, and both must be YES before the view
 // asks for level production or creates its snapshot poller.

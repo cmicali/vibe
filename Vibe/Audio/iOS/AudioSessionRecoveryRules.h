@@ -20,9 +20,9 @@ typedef NS_ENUM(NSUInteger, VibeAudioSessionConfigurationAction) {
     VibeAudioSessionConfigurationActionRecover,
 };
 
-// The configuration notification can precede the route notification. The
-// route transition itself therefore decides whether this is an ordinary
-// engine restart or disappearing output that must park playback. Existing
+// A route change's reason does not always name the loss: the route
+// transition itself decides whether this is an ordinary recovery on the new
+// route or disappearing output that must park playback. Existing
 // interruption, route-loss and reset ownership always wins.
 static inline VibeAudioSessionConfigurationAction
 VibeAudioSessionConfigurationActionForRoutes(
@@ -45,8 +45,8 @@ VibeAudioSessionConfigurationActionForRoutes(
     return VibeAudioSessionConfigurationActionRecover;
 }
 
-// A later configuration notification coalesces an earlier ordinary restart;
-// any safety verdict received before main delivery blocks it.
+// A later route change coalesces an earlier ordinary recovery; any safety
+// verdict received before main delivery blocks it.
 static inline BOOL VibeAudioSessionMayDeliverConfigurationRecovery(
         uint64_t owningConfigurationRecoveryGeneration,
         uint64_t newestConfigurationRecoveryGeneration,

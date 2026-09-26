@@ -535,6 +535,55 @@ VIBE_REALTIME_END
     [self createCarrierOnQueue];
 }
 
+- (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit {
+    _outputUnit = unit;
+    __weak AudioPlayer *weakSelf = self;
+    dispatch_queue_t queue = _queue;
+    unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
+        dispatch_async(queue, ^{
+            [weakSelf outputUnitFailedOnQueue:error runGeneration:runGeneration bindRefused:bindRefused];
+        });
+    };
+}
+
+// The unit stopped without being asked — unless a later start or stop, or
+// another unit, owns the output, which makes this moot. The output is
+// stopped either way, so the model follows at the edge. A stop the system
+// made (iOS, no error) is all: the session's verdict decides what the
+// transport does. A refused start also parks the current voice Paused where
+// it is and tells the owning play.
+- (void)outputUnitFailedOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused {
+    if (_terminating || !_outputUnit || runGeneration != _outputUnit.runGeneration) {
+        return;
+    }
+#if TARGET_OS_OSX
+    if (error && bindRefused) {
+        // Before the stop, whose liveness edge republishes the bit-perfect
+        // report: it must not name the refused device. The next default or
+        // selection binds again rather than reading a no-op.
+        [_outputUnit forgetDevice];
+    }
+#endif
+    [self stopOutputOnQueue];
+    if (!error) {
+        LogInfo(@"AudioPlayer: output stopped by the system while %@; the session's verdict decides the transport",
+                _state == VibePlayerStatePlaying && _voice ? @"playing" : @"not playing");
+        return;
+    }
+    if (_state == VibePlayerStatePlaying && _voice) {
+        [self pauseCurrentVoiceOnQueue];
+    }
+    [self sendDelegateError:VibeAudioError(bindRefused ? VibeAudioErrorDeviceUnavailable : VibeAudioErrorEngineStartFailed,
+                                           @"Could not start the audio output", error)
+           forSubmittedPlay:_activeSubmittedPlayIdentifier];
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+    return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
+             @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+}
+
 #if DEBUG
 - (void)attachPumpOnQueue:(VibeManualRenderPump *)pump render:(VibeManualRenderBlock)render running:(BOOL (^)(void))running {
     // The pump stands in for the IO thread: the frame-driven mode decodes
@@ -751,12 +800,13 @@ VIBE_REALTIME_END
 #if !TARGET_OS_OSX
 // The iOS media-services reset: every audio object is dead and must not be
 // messaged. The gate closes first, so a late render writes silence — the
-// engine is dead, but the guarantee costs nothing — and the bus and the
+// unit is dead, but the guarantee costs nothing — and the bus and the
 // meter go with it, the voices' files having died with the media server.
-// The park and the pending open go too: the file handles they would produce
-// are dead, and a download without a consumer is waste. createOutputOnQueue
-// rebuilds.
-- (void)dropEngineBoundStateOnQueue {
+// The unit is released unstopped: its dealloc disposes the instance, which
+// is what the reset contract asks of an orphaned audio object. The park and the
+// pending open go too: the file handles they would produce are dead, and a
+// download without a consumer is waste. createOutputOnQueue rebuilds.
+- (void)dropOutputBoundStateOnQueue {
     if (_drainTimer) {
         dispatch_source_cancel(_drainTimer);
         _drainTimer = nil;
@@ -764,8 +814,7 @@ VIBE_REALTIME_END
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
     [self dropVoiceBusOnQueue];
     [self dropLevelMeterOnQueue];
-    _sourceNode = nil;
-    _engine = nil;
+    _outputUnit = nil;
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];
@@ -777,7 +826,7 @@ VIBE_REALTIME_END
 
 - (BOOL)renderingOnQueue {
     return atomic_load_explicit(&_masterBus->gate, memory_order_relaxed) != 0
-            && (![self drivesOutputDeviceOnQueue] || [self carrierRunningOnQueue]);
+            && (![self drivesOutputDeviceOnQueue] || _outputUnit.running);
 }
 
 - (uint64_t)renderedFramesOnQueue {
@@ -785,11 +834,13 @@ VIBE_REALTIME_END
             + atomic_load_explicit(&_masterBus->pendingFrames, memory_order_acquire);
 }
 
-- (AVAudioTime *)outputRenderTimeOnQueue {
-    if (!_masterFormat) {
-        return nil;
+- (AudioTimeStamp)outputRenderTimeOnQueue {
+    AudioTimeStamp time = {0};
+    if (_masterFormat) {
+        time.mSampleTime = (Float64)[self renderedFramesOnQueue];
+        time.mFlags = kAudioTimeStampSampleTimeValid;
     }
-    return [AVAudioTime timeWithSampleTime:(AVAudioFramePosition)[self renderedFramesOnQueue] atRate:_masterFormat.sampleRate];
+    return time;
 }
 
 - (BOOL)varispeedPresentOnQueue {
@@ -1093,7 +1144,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 }
 
 - (void)stopOutputOnQueue {
-    [self stopCarrierOnQueue];
+    [_outputUnit stop];
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
     [self waitForRenderToLeaveOnQueue]; // the join a stop offers its callers; a stuck render's teardowns defer themselves
     for (NSNumber *voice in _retiringVoices) {

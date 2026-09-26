@@ -40,7 +40,7 @@ Apple exposes supported/current codec output formats, but a supported int16 outp
 
 The storage container and valid precision are separate. Packed 24-bit audio need not use three-byte samples in the ring: a verified integer widening to Int32 is exact. Byte order and interleaving can also change without changing the samples. None of these changes should be described as numerical processing.
 
-Initial scope is macOS bit-perfect playback through the existing `AudioOutputUnit` HAL carrier. The shared implementation must continue to build and work on iOS, whose route and source-node path retain their present format policy. Extending the user-facing mode to iOS is separate work.
+Initial scope is macOS bit-perfect playback through the existing `AudioOutputUnit` HAL carrier. The shared implementation must continue to build and work on iOS, whose RemoteIO route retains its present format policy. Extending the user-facing mode to iOS is separate work.
 
 ## Existing owners and the required changes
 
@@ -49,7 +49,7 @@ Initial scope is macOS bit-perfect playback through the existing `AudioOutputUni
 | `Audio/AudioFileHandle.{h,m}` and `Loading/AudioFileMaterializationCoordinator.m`, `kProductionFileOpener` | The reader supports explicit PCM formats, but the production opener chooses float32 before any voice exists | Source-preserving reader selection within the existing admitted handle-open run |
 | `Audio/AudioVoiceBus.{h,m}` | Float pointers, float buffers and float-only initialization | Format-sized PCM storage and a direct copy operation, sharing all slot, decode and transport machinery |
 | `Audio/AudioPlayer+Pipeline.{h,m}` | Master slicing and pointer offsets assume `sizeof(float)`; `_masterFormat` selected around float playback | A full-format reconcile and byte-correct rendering for the selected PCM format |
-| `Audio/Mac/Devices/AudioOutputUnit.{h,m}` and its existing internal header | Client format asserts noninterleaved float32; callback shape assumes one buffer per channel | Validated PCM client formats and buffer geometry derived from their ASBD |
+| `Audio/AudioOutputUnit.{h,m}` and its existing internal header | Client format asserts noninterleaved float32; callback shape assumes one buffer per channel | Validated PCM client formats and buffer geometry derived from their ASBD |
 | `Audio/Mac/Devices/OutputFormatRules.h`, `AudioPlayer+Devices.m`, `CoreAudioUtil` | Lossy picks float, else the widest integer; precision report checks source/reader/physical format | One format choice and precision assessment across the actual reader, bus, client, virtual and physical formats |
 | `Audio/Levels/AudioLevelMeter` and `AudioPlayer+Diagnostics` | Meter and diagnostic signal capture read floats | Bounded conversion of an observation copy only, with no write back into playback |
 | `Debug/VibeManualRenderPump`, existing audio tests and verifier | Pump/capture and comparison use float32 | Preserve reference and capture precision independently of playback |

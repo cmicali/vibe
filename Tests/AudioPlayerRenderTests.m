@@ -2279,7 +2279,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 
 // The output's rate moves under the pipeline — a device's would under the
-// unit, the route's under the iOS engine; here the pump's — and the pipeline
+// mac unit, the route's under the iOS one; here the pump's — and the pipeline
 // follows it, keeping the track: playing, the tone continues at the new rate
 // from the same position; paused, the position holds through the change and
 // the resume continues there.
@@ -2336,6 +2336,10 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         XCTAssertEqual([conversion[@"quality"] integerValue], (NSInteger)kAudioConverterQuality_Max);
         XCTAssertEqual([conversion[@"mixed"] boolValue], decoded.format.channelCount == 1);
         NSData *capture = [self renderSeconds:decoded.frameLength / decoded.format.sampleRate + 0.1];
+        // The finish reaches main by an async hop, which a loaded runner can
+        // land after the last block's run-loop turn; nothing renders while
+        // this waits, so the frame count the speed check rests on holds.
+        [self settleUntil:^BOOL { return [self count:@"finish"] > 0; }];
         XCTAssertEqual([self count:@"finish"], 1u, @"%@ played at its own speed", url.lastPathComponent);
         [self assertReference:PCM([self resample:[self stereo:decoded] to:96000]) capture:capture
                          skip:[self startupSkip] tolerance:[url.pathExtension isEqual:@"m4a"] ? kVibeAACDecodeTolerance : 0];

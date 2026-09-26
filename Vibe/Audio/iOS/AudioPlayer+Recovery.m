@@ -13,66 +13,55 @@
 @implementation AudioPlayer (Carrier)
 
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
-    NSMutableDictionary *output = [NSMutableDictionary dictionary];
-    output[@"carrier"] = @"engine";
-    output[@"engineRunning"] = @(_engine.isRunning);
-    output[@"outputNodeSampleRate"] = @([_engine.outputNode outputFormatForBus:0].sampleRate);
-    output[@"presentationLatency"] = @(_engine.outputNode.presentationLatency);
-    return @[output];
+    return @[@{@"routeSampleRate": @(AVAudioSession.sharedInstance.sampleRate)}];
 }
 
-- (void)attachSourceNodeOnQueueWithFormat:(AVAudioFormat *)format {
-    if (_sourceNode) {
-        [_engine detachNode:_sourceNode];
-    }
-    VibeMasterBus *master = _masterBus; // the block captures the pointer, never self
-    _sourceNode = [[AVAudioSourceNode alloc] initWithFormat:format
-            renderBlock:^OSStatus(BOOL *isSilence, const AudioTimeStamp *timestamp, AVAudioFrameCount frameCount, AudioBufferList *outputData) {
-        *isSilence = NO;
-        return VibeMasterBusRender(master, timestamp, frameCount, outputData);
-    }];
-    [_engine attachNode:_sourceNode];
-    [_engine connect:_sourceNode to:_engine.outputNode format:format];
-}
-
+// The pipeline takes the route's rate now; the unit is made at the first
+// start, after the play has activated the session. Reading the session's
+// rate claims nothing, and no audio object exists before a play asks for
+// one, so a cold launch cannot stop another app's audio.
 - (void)createCarrierOnQueue {
-    _engine = [[AVAudioEngine alloc] init];
-    double rate = [_engine.outputNode outputFormatForBus:0].sampleRate;
-    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2];
-    [self setMasterBusFormatOnQueue:format];
-    [self attachSourceNodeOnQueueWithFormat:format];
+    double rate = AVAudioSession.sharedInstance.sampleRate;
+    [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2]];
 }
 
 - (BOOL)startCarrierOnQueueWithError:(NSError **)error {
-    if (!_engine) {
-        if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
-        return NO;
+    if (!_outputUnit) {
+        AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+        if (!unit) {
+            if (error) *error = VibeAudioError(VibeAudioErrorEngineStartFailed, @"No audio output is available", nil);
+            return NO;
+        }
+        [self attachOutputUnitOnQueue:unit];
+        [unit configureFormat:_masterFormat renderProc:VibeMasterBusRender refCon:_masterBus];
     }
-    __block NSError *startError = nil;
-    BOOL started = [self performDiagnosticPhase:@"output start" device:-1 operation:^BOOL{
-        return [self->_engine startAndReturnError:&startError];
-    }];
-    if (error) *error = startError;
-    return started;
+    [_outputUnit start]; // a refusal arrives later, at outputUnitFailedOnQueue:
+    return YES;
 }
-- (void)stopCarrierOnQueue { [_engine stop]; }
-- (BOOL)carrierRunningOnQueue { return _engine.isRunning; }
+
 - (void)releaseIdleCarrierOnQueue {}
+
+// Stopped, as every caller has it. Before the first start there is no unit,
+// and the next start makes one at the format set here.
 - (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
-    [self attachSourceNodeOnQueueWithFormat:format];
+    [_outputUnit configureFormat:format renderProc:VibeMasterBusRender refCon:_masterBus];
     [self setMasterBusFormatOnQueue:format];
     return YES;
 }
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
-    return @{@"dropouts": @0, @"renderCycles": @0, @"renderMeanMicros": @0, @"renderMaxMicros": @0};
-}
-- (void)clearCarrierCountersOnQueue {}
 
-- (BOOL)followOutputRouteOnQueue {
-    double rate = _engine ? [_engine.outputNode outputFormatForBus:0].sampleRate : 0;
-    if (rate <= 0 || !_masterFormat || rate == _masterFormat.sampleRate) {
+// RemoteIO converts a client format the hardware does not run at, so a
+// pipeline left at the old rate would still play — resampled a second time.
+// Following the session's rate keeps the one conversion the bus's. The
+// debug pump has no route, and keeps the rate it was made at.
+- (BOOL)followCarrierRateOnQueue {
+    if (![self drivesOutputDeviceOnQueue] || !_masterFormat) {
         return YES;
     }
+    double rate = AVAudioSession.sharedInstance.sampleRate; // a call into the media server
+    if (rate <= 0 || rate == _masterFormat.sampleRate) {
+        return YES;
+    }
+    LogInfo(@"AudioPlayer: following the route's rate, %.0f Hz to %.0f Hz", _masterFormat.sampleRate, rate);
     return [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2]];
 }
 
@@ -80,50 +69,44 @@
 
 @implementation AudioPlayer (Recovery)
 
-// A route at the pipeline's rate is a restart: the voice's ring and gain
-// survived the stop, so nothing is rescheduled. A route at another rate is
-// followed — the source node and the bus rebuilt at it, the track kept —
-// so the bus converts once, at the route's rate, and the output node
-// converts nothing; the follow restarts a playing output itself. The same
-// follow runs before every engine start (a resume, a play's settlement),
-// because a route loss or an interruption can leave this recovery
-// unanswered and the next start would otherwise run on the stale rate.
-- (void)recoverFromEngineConfigurationChange {
+// Only a playing voice has anything to recover: every start follows the
+// route itself. A rate follow restarts a playing output itself; otherwise
+// the one thing to recover is a unit the system stopped under a playing
+// voice — an interruption whose resume raced the pause — which restarts in
+// place: the voice's ring and gain survived the stop, so nothing is
+// rescheduled.
+- (void)recoverOutput {
     dispatch_async(_queue, ^{
-        BOOL engineRunning = self->_engine.isRunning;
-        if (!engineRunning) {
-            // The notification arrives after the graph has already stopped.
-            // Publish that edge before any state-specific recovery can return
-            // or wait; a quick successful restart coalesces active on main.
-            [self refreshOutputAudioActiveOnQueue];
-            [self updateDrainTimerOnQueue];
+        if (self->_state != VibePlayerStatePlaying || !self->_voice) {
+            LogInfo(@"AudioPlayer: output recovery: nothing playing, the next start follows the route");
+            return; // idle or Loading: the next start follows the route
         }
-        double routeRate = [self->_engine.outputNode outputFormatForBus:0].sampleRate;
-        if (routeRate > 0 && routeRate != [self masterBusFormatOnQueue].sampleRate) {
-            [self followOutputRouteOnQueue];
+        if (![self followCarrierRateOnQueue]) {
+            return; // reset or parked, and said why
+        }
+        if (self->_outputUnit.running) {
+            LogInfo(@"AudioPlayer: output recovery: the output is running");
             return;
         }
-        if (self->_state != VibePlayerStatePlaying || !self->_voice || engineRunning) {
-            return; // idle, Loading, or the engine survived the change
-        }
+        LogInfo(@"AudioPlayer: output recovery: restarting an output the system stopped");
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {
             // No output to restart on. Park Paused at the same position, so
-            // the next resume restarts the engine, and say why.
-            LogError(@"AudioPlayer: config-change restart failed (%@)", startError);
+            // the next resume starts it, and say why.
+            LogError(@"AudioPlayer: output recovery failed (%@)", startError);
             [self pauseCurrentVoiceOnQueue];
             return;
         }
-        [self armSignalProbeOnQueue:@"configuration change"];
+        [self armSignalProbeOnQueue:@"output recovery"];
     });
 }
 
-// Dead objects are dropped, never stopped or detached — messaging the defunct
-// engine's graph is what must not happen here, which is
-// dropEngineBoundStateOnQueue's contract — and createOutputOnQueue
-// rebuilds exactly what init built: one source node wired to the engine
-// output, or the shared debug pump. The
-// source segment rebuilds itself at the next settlement.
+// Dead objects are dropped, never stopped — messaging the defunct unit is
+// what must not happen here, which is dropOutputBoundStateOnQueue's
+// contract — and createOutputOnQueue rebuilds exactly what init built: the
+// pipeline at the route's rate, its unit made at the next start, or the
+// shared debug pump. The source segment rebuilds itself at the next
+// settlement.
 - (void)beginMediaServicesResetWithCompletion:
         (VibeMediaServicesResetCompletion)completion {
     // TRAP: playTrack: mints its identifier and enqueues its work under this
@@ -134,7 +117,7 @@
     uint64_t capturedNewestSubmittedPlayIdentifier =
             _nextSubmittedPlayIdentifier;
     dispatch_async(_queue, ^{
-        LogWarn(@"AudioPlayer: rebuilding engine after media services reset");
+        LogWarn(@"AudioPlayer: rebuilding the output after media services reset");
         AudioTrack *resetTrack = self.currentTrack;
         // The voice's consumed frames, read before the bus is dropped; 0 for
         // a Stopped player, so a later replay of a finished track begins at
@@ -145,7 +128,7 @@
             resetTrack = self.loadingTrack ?: self.lastSubmittedPlayTrack;
             os_unfair_lock_unlock(&self->_stateLock);
         }
-        [self dropEngineBoundStateOnQueue];
+        [self dropOutputBoundStateOnQueue];
         self->_activeSubmittedPlayIdentifier = 0;
         self.currentTrack = nil;
         [self publishState:VibePlayerStateStopped voice:0 file:nil startSeconds:0 baseFrames:0];

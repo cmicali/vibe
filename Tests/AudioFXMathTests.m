@@ -4,9 +4,8 @@
 //
 //  AudioFX's toggles resolved to numbers: the low-kill cutoff, the ping-pong
 //  delay's tap and lane times, its lane feedback, and a held send's swell
-//  target. AudioFX itself owns an AVAudioEngine graph and cannot be reached
-//  from a host-less suite, so this is the half of it that can be asserted
-//  rather than driven through the debug channel.
+//  target: the numbers alone, asserted without hosting a unit. The chain
+//  itself is hosted and rendered in AudioFXChainTests.
 //
 
 #import <XCTest/XCTest.h>

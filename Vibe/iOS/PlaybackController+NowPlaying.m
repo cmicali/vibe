@@ -78,7 +78,7 @@
     // reaches for the same state.
     [_audioSession activate];
     [_player resume];
-    [_player recoverFromEngineConfigurationChange];
+    [_player recoverOutput];
 }
 
 - (void)nowPlayingControllerPause:(NowPlayingController *)controller {

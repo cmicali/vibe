@@ -63,8 +63,8 @@ done
 # direct-exec to be sure WHICH build came up), so the flag rules have to be
 # repeated here rather than inherited. Unset: manual rendering, no output
 # device ever opened. `silent`: the real device with final output buffers zeroed, which is
-# the only way to reach the HAL device layer, engine config-change
-# notifications. `1`: audible. Media focus needs VIBE_NOW_PLAYING=1 too.
+# the only way to reach the HAL device layer and its rate and device-change
+# listeners. `1`: audible. Media focus needs VIBE_NOW_PLAYING=1 too.
 case "${VIBE_AUDIBLE:-}" in
     "")     AUDIO_FLAGS=(--no-audio-hw --silent) ;;
     silent) AUDIO_FLAGS=(--silent) ;;

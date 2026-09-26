@@ -9,8 +9,8 @@
 #import <os/lock.h>
 
 // How long a pause or stop must stand before the session is released. Longer
-// than the engine's own ~6s idle stop, so the session is never deactivated
-// under a still-running engine, whose I/O makes setActive:NO fail.
+// than the player's own ~6s idle stop, so the session is never deactivated
+// under a still-running output unit, whose I/O makes setActive:NO fail.
 static const NSTimeInterval kDeactivateDelaySeconds = 10.0;
 
 typedef NS_OPTIONS(NSUInteger, VibeAudioSessionRecoveryBlocker) {
@@ -18,6 +18,28 @@ typedef NS_OPTIONS(NSUInteger, VibeAudioSessionRecoveryBlocker) {
     VibeAudioSessionRecoveryBlockerRouteLoss = 1 << 1,
     VibeAudioSessionRecoveryBlockerMediaReset = 1 << 2,
 };
+
+static NSString *VibeRouteChangeReasonName(NSUInteger reason) {
+    switch (reason) {
+        case AVAudioSessionRouteChangeReasonNewDeviceAvailable: return @"new device";
+        case AVAudioSessionRouteChangeReasonOldDeviceUnavailable: return @"old device unavailable";
+        case AVAudioSessionRouteChangeReasonCategoryChange: return @"category change";
+        case AVAudioSessionRouteChangeReasonOverride: return @"override";
+        case AVAudioSessionRouteChangeReasonWakeFromSleep: return @"wake from sleep";
+        case AVAudioSessionRouteChangeReasonNoSuitableRouteForCategory: return @"no suitable route";
+        case AVAudioSessionRouteChangeReasonRouteConfigurationChange: return @"configuration change";
+        default: return [NSString stringWithFormat:@"reason %lu", (unsigned long)reason];
+    }
+}
+
+static NSString *VibeConfigurationActionName(VibeAudioSessionConfigurationAction action) {
+    switch (action) {
+        case VibeAudioSessionConfigurationActionIgnore: return @"ignore";
+        case VibeAudioSessionConfigurationActionPause: return @"pause";
+        case VibeAudioSessionConfigurationActionRecover: return @"recover";
+    }
+    return @"unknown";
+}
 
 static VibeOutputRouteKind VibeOutputRouteKindForPort(AVAudioSessionPort portType) {
     if ([portType isEqualToString:AVAudioSessionPortBuiltInSpeaker]) {
@@ -79,6 +101,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 - (BOOL)activateForInterruptionResume;
 - (VibeAudioSessionConfigurationAction)beginConfigurationActionForOutputRoute:
         (VibeAudioSessionOutputRouteKind)currentRoute
+        outputLost:(BOOL)outputLost
         generation:(uint64_t *)generation;
 - (BOOL)recordOutputRoute:(VibeOutputRouteKind)kind name:(nullable NSString *)name;
 - (void)publishOutputRouteChange;
@@ -96,10 +119,9 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // Both main-confined, like every other verdict path here.
     //
     // Whether playback was running when the current interruption began,
-    // recorded at the Began edge only: the config-change and route-loss
-    // pauses that often follow mid-interruption (the route moves to the
-    // call's receiver, the engine posts a configuration change) must not
-    // overwrite the verdict the Ended resume depends on.
+    // recorded at the Began edge only: the route-loss pauses that often
+    // follow mid-interruption (the route moves to the call's receiver) must
+    // not overwrite the verdict the Ended resume depends on.
     BOOL _wasPlayingAtInterruption;
     // An interruption is in progress; deactivateWhenIdle holds off while set.
     BOOL _interruptionActive;
@@ -107,18 +129,15 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // it, and the deferred block no-ops when its captured value went stale.
     uint64_t _activationGeneration;
 
-    // Route, interruption, reset and engine notifications arrive on separate
-    // system queues. The lock makes their receipt order authoritative before
-    // any main-thread verdict runs. The route snapshot also lets an engine
-    // configuration notification recognize disappearing external output even
-    // when AVAudioSession posts it before the route-change notification.
+    // Route, interruption and reset notifications arrive on separate system
+    // queues. The lock makes their receipt order authoritative before any
+    // main-thread verdict runs. The route snapshot also lets a route change
+    // of any reason recognize disappearing external output.
     os_unfair_lock _configurationRecoveryLock;
     uint64_t _configurationRecoveryGeneration;
     VibeAudioSessionRecoveryBlocker _configurationRecoveryBlockers;
-    VibeAudioSessionOutputRouteKind _lastOutputRoute;
-    // The same route, at the resolution the card's indicator draws. Written
-    // with _lastOutputRoute under the lock above, so the pair and the fold can
-    // never describe two different routes.
+    // The last recorded route, at the resolution the card's indicator draws;
+    // the pause/recover decision reads its coarse fold.
     VibeOutputRouteKind _outputRouteKind;
     NSString *_outputRouteName;
 }
@@ -142,27 +161,12 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
                        name:AVAudioSessionRouteChangeNotification object:session];
         [center addObserver:self selector:@selector(handleMediaServicesReset:)
                        name:AVAudioSessionMediaServicesWereResetNotification object:session];
-        // object:nil — only one engine exists at a time, and the player does
-        // not expose it; nil also keeps observing across the media-services
-        // rebuild's fresh engine. The macOS handler for this notification
-        // lives in the excluded AudioPlayer+Devices; here the delegate routes
-        // it to the player's own in-place restart.
-        [center addObserver:self selector:@selector(handleEngineConfigurationChange:)
-                       name:AVAudioEngineConfigurationChangeNotification object:nil];
     }
     return self;
 }
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
-
-+ (void)prepareIdleCategory {
-    NSError *error = nil;
-    if (![[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryAmbient
-                                                error:&error]) {
-        LogError(@"AudioSession: idle setCategory failed (%@)", error);
-    }
 }
 
 - (BOOL)activate {
@@ -256,19 +260,23 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     }
 }
 
+// The route's reason names a loss only sometimes: an output that fell from
+// external to built-in, or to nothing, is one whatever the reason says.
 - (VibeAudioSessionConfigurationAction)beginConfigurationActionForOutputRoute:
         (VibeAudioSessionOutputRouteKind)currentRoute
+        outputLost:(BOOL)outputLost
         generation:(uint64_t *)generation {
     os_unfair_lock_lock(&_configurationRecoveryLock);
-    VibeAudioSessionOutputRouteKind previousRoute = _lastOutputRoute;
+    VibeAudioSessionOutputRouteKind previousRoute =
+            VibeAudioSessionOutputRouteKindForRouteKind(_outputRouteKind);
     VibeAudioSessionRecoveryBlocker blockers = _configurationRecoveryBlockers;
-    VibeAudioSessionConfigurationAction action =
-            VibeAudioSessionConfigurationActionForRoutes(
+    VibeAudioSessionConfigurationAction action = outputLost
+            ? VibeAudioSessionConfigurationActionPause
+            : VibeAudioSessionConfigurationActionForRoutes(
                     previousRoute, currentRoute,
                     (blockers & VibeAudioSessionRecoveryBlockerInterruption) != 0,
                     (blockers & VibeAudioSessionRecoveryBlockerRouteLoss) != 0,
                     (blockers & VibeAudioSessionRecoveryBlockerMediaReset) != 0);
-    _lastOutputRoute = currentRoute;
     uint64_t newestGeneration = ++_configurationRecoveryGeneration;
     if (action == VibeAudioSessionConfigurationActionPause) {
         _configurationRecoveryBlockers |=
@@ -284,15 +292,13 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 // Returns whether the pair actually moved, so the display edge is published
 // once per real change rather than once per play.
 - (BOOL)recordOutputRoute:(VibeOutputRouteKind)kind name:(nullable NSString *)name {
-    // A non-loss route notification may follow the configuration notification
-    // it explains. Recording it must not cancel that pending restart; safety
+    // Recording a route must not cancel a pending recovery; safety
     // notifications separately add a blocker, which does cancel it.
     os_unfair_lock_lock(&_configurationRecoveryLock);
     BOOL changed = kind != _outputRouteKind
             || !(name == _outputRouteName || [name isEqualToString:_outputRouteName]);
     _outputRouteKind = kind;
     _outputRouteName = [name copy];
-    _lastOutputRoute = VibeAudioSessionOutputRouteKindForRouteKind(kind);
     os_unfair_lock_unlock(&_configurationRecoveryLock);
     if (changed) {
         LogInfo(@"AudioSession: output route is now %lu (%@)",
@@ -405,7 +411,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     if (allowed) {
         // Keep validation and player-queue admission indivisible from a route
         // loss or media-reset receipt on another system notification queue.
-        [self.delegate audioSessionEngineConfigurationChanged:self];
+        [self.delegate audioSessionShouldRecoverOutput:self];
     }
     os_unfair_lock_unlock(&_configurationRecoveryLock);
     return allowed;
@@ -463,26 +469,44 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     NSString *routeName = nil;
     VibeOutputRouteKind routeKind = VibeOutputRouteKindForRoute(
             [AVAudioSession sharedInstance].currentRoute, &routeName);
-    // Published outside the loss branch below: a new device, an override and a
+    // Only disappearing output pauses — the unplugged-headphones rule.
+    // Overrides and new devices keep playing on the new route, whose rate the
+    // recovery verdict has the pipeline follow, coalesced with the changes
+    // after it before main delivery. Classified before the route is
+    // recorded: the transition is read against the last one.
+    uint64_t configurationRecoveryGeneration = 0;
+    VibeAudioSessionConfigurationAction action =
+            [self beginConfigurationActionForOutputRoute:
+                    VibeAudioSessionOutputRouteKindForRouteKind(routeKind)
+                    outputLost:reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable
+                    generation:&configurationRecoveryGeneration];
+    LogInfo(@"AudioSession: route change (%@) to %@: %@",
+            VibeRouteChangeReasonName(reason), routeName ?: @"unnamed",
+            VibeConfigurationActionName(action));
+    // Published whatever the verdict: a new device, an override and a
     // category change are exactly the cases the indicator exists for.
     if ([self recordOutputRoute:routeKind name:routeName]) {
         [self publishOutputRouteChange];
     }
-    // Only the disappearing-output case pauses — the unplugged-headphones
-    // rule. Overrides and new devices keep playing on the new route: the
-    // engine stops itself on those too, and the configuration-change verdict
-    // below restarts it in place.
-    if (reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable) {
-        [self addConfigurationRecoveryBlocker:
-                VibeAudioSessionRecoveryBlockerRouteLoss];
-        [self onMain:^{
-            if (![self hasConfigurationRecoveryBlocker:
-                    VibeAudioSessionRecoveryBlockerRouteLoss]) {
-                return; // an explicit activation superseded this late pause
-            }
-            [self.delegate audioSessionShouldPause:self];
-        }];
+    if (action == VibeAudioSessionConfigurationActionIgnore) {
+        return;
     }
+    [self onMain:^{
+        if (action == VibeAudioSessionConfigurationActionRecover) {
+            if (![self deliverConfigurationRecoveryForGeneration:
+                    configurationRecoveryGeneration]) {
+                LogInfo(@"AudioSession: output recovery %llu dropped (coalesced or blocked)",
+                        configurationRecoveryGeneration);
+            }
+            return;
+        }
+        if (![self hasConfigurationRecoveryBlocker:
+                VibeAudioSessionRecoveryBlockerRouteLoss]) {
+            LogInfo(@"AudioSession: route-loss pause superseded by an activation");
+            return; // an explicit activation superseded this late pause
+        }
+        [self.delegate audioSessionShouldPause:self];
+    }];
 }
 
 - (void)handleMediaServicesReset:(NSNotification *)note {
@@ -491,38 +515,13 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
             VibeAudioSessionRecoveryBlockerMediaReset];
     // This is deliberately before the main hop: beginMediaServicesReset uses
     // the same lock-and-enqueue edge as play submissions, so a play received
-    // after this notification runs on the rebuilt engine rather than being
+    // after this notification runs on the rebuilt output rather than being
     // destroyed by a reset queued later from main.
     [self.delegate audioSessionDidReceiveMediaServicesReset:self];
     [self onMain:^{
         self->_activationGeneration++; // every pending session operation belonged to the dead server
         self->_interruptionActive = NO; // whatever was in progress died with the server
         self->_wasPlayingAtInterruption = NO;
-    }];
-}
-
-- (void)handleEngineConfigurationChange:(NSNotification *)note {
-    uint64_t configurationRecoveryGeneration = 0;
-    VibeAudioSessionConfigurationAction action =
-            [self beginConfigurationActionForOutputRoute:
-                    VibeAudioSessionOutputRouteKindForRouteKind(
-                            VibeOutputRouteKindForRoute(
-                                    [AVAudioSession sharedInstance].currentRoute, NULL))
-                    generation:&configurationRecoveryGeneration];
-    if (action == VibeAudioSessionConfigurationActionIgnore) {
-        return;
-    }
-    [self onMain:^{
-        if (action == VibeAudioSessionConfigurationActionPause) {
-            if (![self hasConfigurationRecoveryBlocker:
-                    VibeAudioSessionRecoveryBlockerRouteLoss]) {
-                return;
-            }
-            [self.delegate audioSessionShouldPause:self];
-            return;
-        }
-        [self deliverConfigurationRecoveryForGeneration:
-                configurationRecoveryGeneration];
     }];
 }
 

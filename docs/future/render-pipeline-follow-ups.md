@@ -22,7 +22,7 @@ The 2026-09-25 review-fix pass reran 1,479 unit tests (the two scoped SRC durati
 
 Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The 2026-09-25 device-lifecycle pass below covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. They do not establish:
 
-- Physical iOS route changes, interruptions, media-services reset, or provider-backed file access.
+- Physical iOS route changes, interruptions, media-services reset, or provider-backed file access. Since #69 the iOS carrier is a RemoteIO `AudioOutputUnit`, so this pass must run on it: headphones and Bluetooth plugged and unplugged while playing and while paused, with the rate follow when the route's rate differs; a phone call ended with and without `ShouldResume` (the unit's `IsRunning` listener is what makes the resume start it again); a media-services reset re-making the unit; background playback across the lock screen with Now Playing still commanding it; and a cold launch leaving another app's audio playing, now that `prepareIdleCategory` is gone. None of it has run on a device.
 - Physical macOS unplug and wake: [device lifecycle acceptance](#device-lifecycle-acceptance) below. Integer-format DAC negotiation through `verify-bit-perfect --device-check` (`test-audio.md`), which the pass did not run.
 - Performance comparisons, ASan/UBSan, or the owned-file migration’s all-configuration binary audit.
 
@@ -60,6 +60,5 @@ Each validated 2026-09-25 against this tree.
 
 - [Source-preserving PCM output](source-format-output.md): accurate. The production opener still takes the float32 default (`AudioFileMaterializationCoordinator.m`, `initForReading:error:`), the bus still refuses anything but planar float32, and the 24,641,537 → 24,641,536 narrowing it cites is recorded in `OutputFormatRules.h`. Unimplemented; nothing in it is overtaken by PR66's consolidation, which it already credits.
 - [Stress harness in a VM](vm-stress-harness.md): isolation work, not a prerequisite for any of the above, and listed so the relationship is stated once.
-- [RemoteIO carrier on iOS, #69](https://github.com/cmicali/vibe/issues/69): the last `AVAudioEngine` use, with the `AVAudioTime` fold and the physical-iPhone acceptance the first bullet of the evidence list already requires.
 
 Use existing owners and test files for these fixes. Preserve the regression coverage for held renders/reads, successor identity, complete PCM, slot reuse and the pump’s 16,384-frame requests into 4,096-frame render slices.

@@ -7,7 +7,7 @@
 #import <objc/runtime.h>
 
 #import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
-#import "../Vibe/Audio/Mac/Devices/AudioOutputUnitInternal.h"
+#import "../Vibe/Audio/AudioOutputUnitInternal.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
