@@ -56,6 +56,28 @@ VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKind kind) {
     }
 }
 
+// Default names keep the product name in English in every locale but move the
+// possessive ("AirPods de Chris", "ChrisのAirPods", a German "#2" suffix), so the
+// match is a substring anywhere, never an English pattern, and each probe runs
+// before the one it contains. A renamed or unrecognised device draws "some
+// external box", as every Bluetooth route did before the guess, and the name
+// label beside it carries the truth — so the guess is never worse than that.
+static inline NSString *VibeOutputRouteBluetoothSymbolName(NSString *_Nullable deviceName) {
+    if ([deviceName containsString:@"AirPods Max"]) {
+        return @"airpodsmax";
+    }
+    if ([deviceName containsString:@"AirPods Pro"]) {
+        return @"airpodspro";
+    }
+    if ([deviceName containsString:@"AirPods"]) {
+        return @"airpods";
+    }
+    if ([deviceName containsString:@"Beats"]) {
+        return @"beats.headphones";
+    }
+    return @"hifispeaker.fill";
+}
+
 // The glyph the indicator draws. No default: in the switch, so a new kind is a
 // build error rather than a blank corner.
 //
@@ -66,11 +88,11 @@ VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKind kind) {
 // the audio IS somewhere else does the glyph describe that somewhere, with the
 // device's name beside it.
 //
-// Bluetooth is the one arguable row. There is no way to tell earbuds from a car
-// stereo without inspecting the device, which this deliberately does not do, so
-// it errs toward "some external box" and lets the name label beside it carry
-// the truth.
-static inline NSString *VibeOutputRouteSymbolName(VibeOutputRouteKind kind) {
+// Bluetooth is the one row that guesses, and it guesses from the user-renamable
+// name because that is the only public signal: no audio, Bluetooth or accessory
+// API says what the device is (docs/not-doing/rejected-alternatives.md).
+static inline NSString *VibeOutputRouteSymbolName(VibeOutputRouteKind kind,
+                                                  NSString *_Nullable deviceName) {
     switch (kind) {
         case VibeOutputRouteKindNone:
         case VibeOutputRouteKindBuiltInSpeaker:
@@ -80,7 +102,7 @@ static inline NSString *VibeOutputRouteSymbolName(VibeOutputRouteKind kind) {
         case VibeOutputRouteKindWired:
             return @"headphones";
         case VibeOutputRouteKindBluetooth:
-            return @"hifispeaker.fill";
+            return VibeOutputRouteBluetoothSymbolName(deviceName);
         case VibeOutputRouteKindCarPlay:
             return @"car.fill";
         case VibeOutputRouteKindOther:

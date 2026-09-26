@@ -159,7 +159,7 @@ static const CGFloat kRoutePressedAlpha = 0.35;
 - (void)setRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name {
     _kind = kind;
     _name = [name copy];
-    _symbolName = [VibeOutputRouteSymbolName(kind) copy];
+    _symbolName = [VibeOutputRouteSymbolName(kind, name) copy];
     _showsDeviceName = VibeOutputRouteShowsDeviceName(kind, name);
 
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
