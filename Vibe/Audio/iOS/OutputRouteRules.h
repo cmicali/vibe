@@ -104,7 +104,7 @@ static inline NSString *VibeOutputRouteSymbolName(VibeOutputRouteKind kind,
         case VibeOutputRouteKindBluetooth:
             return VibeOutputRouteBluetoothSymbolName(deviceName);
         case VibeOutputRouteKindCarPlay:
-            return @"car.fill";
+            return @"car.card.fill";
         case VibeOutputRouteKindOther:
             return @"cable.connector";
     }
