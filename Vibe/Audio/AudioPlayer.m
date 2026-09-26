@@ -816,8 +816,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     BOOL paused = _state == VibePlayerStatePaused;
     [self revoiceOnQueueAtPosition:position];
     if (!paused) {
-        // Playing can carry a stopped output for the moment between a
-        // configuration change and its recovery.
+        // Playing can carry a stopped output for the moment between the
+        // system stopping the iOS unit and its recovery.
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {
             [self pauseCurrentVoiceOnQueue];
