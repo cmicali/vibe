@@ -1,6 +1,6 @@
 # Bug: the display-art stash is retained on rows when the cache write is skipped
 
-Found 2026-08-21 by audit (item C1), investigated but **not fixed**. The file:line anchors below are against `main` at `f814829`; the working tree was dirty at that commit but none of the anchored files were among the modifications, so the anchors are clean. Re-check them before acting.
+Found 2026-08-21 by audit (item C1), investigated but **not fixed**. The file:line anchors below are against `main` at `f814829`; the working tree was dirty at that commit but none of the anchored files were among the modifications, so the anchors are clean. Re-check them before acting. Re-verified 2026-09-26: still unfixed. The anchors have moved (the loader's take is now `AudioTrackMetadataLoader.m:1482` inside the guards at :1457 and :1475; the ivar is `AudioTrackArtwork.m:348`), and the `Audio/Metadata/CLAUDE.md` rule quoted below now reads "the rendition is disk-resident only: rows never retain it" without the parenthetical — the contradiction with the code stands.
 
 Severity: **low**. The audit filed it as medium on a magnitude claim that does not survive checking — see *What the audit got wrong*.
 

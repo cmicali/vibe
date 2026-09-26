@@ -1,14 +1,14 @@
 # Bug: two DownloadProgressMonitors watch the same file on every cloud playback open
 
-Found 2026-08-21 by audit (item B2), re-evaluated but **not fixed**. The file:line anchors below are against `main` at `07d7777` with a clean working tree; every one was re-verified after the re-evaluation. Re-check them before acting.
+Found 2026-08-21 by audit (item B2), re-evaluated but **not fixed**. The file:line anchors below are against `main` at `07d7777` with a clean working tree; every one was re-verified after the re-evaluation. Re-check them before acting. Re-verified 2026-09-26: still unfixed; the registry moved to `Vibe/Audio/Loading/`, and most anchors have drifted.
 
 Severity: **medium**. Bounded resource waste plus a violated guarantee — no wrong pixels, no crash, no leak. The audit's magnitude claim needs two corrections and misses two aggravations; see *What the audit got wrong* and *What the audit missed*.
 
 ## The guarantee it breaks
 
-Root `CLAUDE.md:106`:
+Root `CLAUDE.md` (the loading-bar guarantee):
 
-> The playing row's fraction comes from the shell's own open-request-identified monitor via `noteProgress:forURL:`, **so no file is watched by two monitors.**
+> The playing row's fraction comes from the shell's own monitor via `noteProgress:forURL:`, **so no file is watched twice.**
 
 Restated in `Vibe/Audio/Loading/CLAUDE.md` ("The transfer registry") ("one `DownloadProgressMonitor` per transferring path unless the shell's own monitor already feeds that path"). The code does not keep either sentence. As with the display-art stash, the docs state the intent correctly, so the fix restores a rule already written rather than inventing one.
 
@@ -75,7 +75,7 @@ The root cause is that ownership is **inferred from a fraction** instead of **de
 
 ### 1. An explicit single-slot external-feed declaration
 
-`Vibe/Audio/CloudTransferRegistry.h` — beside `noteProgress:forURL:`:
+`Vibe/Audio/Loading/CloudTransferRegistry.h` — beside `noteProgress:forURL:`:
 
 ```objc
 - (void)beginExternalProgressForURL:(NSURL *)url;
@@ -105,7 +105,7 @@ Spelled `monitorGeneration`, never bare `_generation`, per the vocabulary rule �
 - **Declare before minting**, inside the same `if` block that constructs the monitor (`MainPlayerController+PlayerEvents.m:58-74`, `PlaybackController+PlayerEvents.m:53-73`), so no instant exists with both alive. The same-open-identifier preserve branch correctly re-declares nothing.
 - Add `_downloadMonitorURL` beside `_downloadMonitor` and `_downloadMonitorOpenRequestIdentifier`. The release must name the path that was **monitored**; after a track change that is not the current track's URL, so it cannot be derived at teardown.
 - macOS releases in the existing `teardownDownloadMonitor` (`MainPlayerController.m:637`), whose comment already exists so the pair cannot drift — the URL joins that pair. Guard the call on a non-nil URL rather than widening the registry API to nullable. Needs a `CloudTransferRegistry.h` import in `MainPlayerController.m`.
-- **iOS has no teardown helper** — the same three lines are duplicated at `PlaybackController+PlayerEvents.m:104-106` and `:241-243`. Add `teardownDownloadMonitor` to `PlaybackControllerInternal.h` and fold both sites into it, so each shell has exactly one release point. This is what makes the fix structurally safe instead of three copies to keep in sync.
+- **iOS has no teardown helper** — the same cancel-and-nil lines appear at `PlaybackController+PlayerEvents.m:107-108` and `:269-270` and in `PlaybackController.m:379-380` (`clearPlaylist`). Add `teardownDownloadMonitor` to `PlaybackControllerInternal.h` and fold all three sites into it, so each shell has exactly one release point. This is what makes the fix structurally safe instead of three copies to keep in sync.
 
 ### 4. Tests — `Tests/CloudTransferRegistryTests.m`
 

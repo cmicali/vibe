@@ -1,6 +1,6 @@
 # Future: Shuffle mode
 
-Written 2026-08-20, planned but not implemented. Nothing in the repo has changed for it yet. The file:line anchors below are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree**. Re-check every anchor before acting.
+Written 2026-08-20, planned but not implemented. Re-verified 2026-09-26: still unimplemented, but the model and iOS changed underneath it — playlist editing (#16), the gapless `advanceFromTrack:toTrack:` (#29) and an iOS successor prefetch (#43) — each corrected below. The file:line anchors are against branch `ios-app` at `a19c5c5` **with its uncommitted working tree** and predate all three; re-check every anchor before acting.
 
 This plan is written to be executed phase by phase by an implementation agent. Each phase compiles, passes `make test`, and is verifiable on its own. Read the root `CLAUDE.md` (especially the successor-prefetch and settlement guarantees), `Vibe/Playlist/CLAUDE.md`, `Vibe/Playlist/Mac/CLAUDE.md`, `Vibe/iOS/CLAUDE.md`, `Vibe/Mac/Settings/CLAUDE.md` and `Tests/CLAUDE.md` first; strings need the `vibe-strings` skill, verification the `vibe-debug` skill.
 
@@ -23,9 +23,11 @@ Behavior spec, matching convention:
 ## How advance works today (anchors verified at `a19c5c5`)
 
 - `Playlist` (shared, tested) owns `currentIndex` and the advance API, and its boundary predicates are *documented* as "the single source of truth for whether there is a track after or before the current one" (`Playlist.h:74-77`). `hasNextTrack` is `_currentIndex + 1 < _tracks.count`; `next`/`previous` move `currentIndex` through its setter (`Playlist.m:127-149`), which fires the one observer.
-- Both shells funnel through it: mac `PlaylistController.next/previous` advance the model then `play` (`PlaylistController.m:390-405`), with `advanceToNextTrackWithoutPlaying` as the gapless splice's bookkeeping half (`:408-413`); iOS `PlaybackController.next/previous` call `[_playlist next/previous]` then `playCurrentTrack` (`PlaybackController.m:374-387`).
+- Both shells funnel through it: mac `PlaylistController.next/previous` advance the model then `play` (`PlaylistController.m:390-405`), with the model's `advanceFromTrack:toTrack:` (`Playlist.m`, shared) as the gapless splice's bookkeeping half — it checks the started track against `trackAtIndex:_currentIndex + 1`, a second linear-order leak that must ask the peek; iOS `PlaybackController.next/previous` call `[_playlist next/previous]` then `playCurrentTrack` (`PlaybackController.m:374-387`).
 - Track end funnels through `didFinishPlaying:` → `advanceOrParkAtTrackEnd`, which reads `hasNextTrack` *before* advancing (`MainPlayerController+PlayerEvents.m:196-215`).
-- **The one linear-order leak**: the mac's `successorPrefetchTrack` computes the gapless arm point as `trackAtIndex:currentIndex + 1` directly (`MainPlayerController.m:735-740`) instead of asking the model. Per the root `CLAUDE.md` guarantee, that parked handle is what a gapless splice advances into — so under shuffle it *must* answer the shuffled successor, or track ends splice into the linear neighbor while the UI expects the shuffled one.
+- **The linear-order leaks**: besides the model's own `advanceFromTrack:toTrack:` above, the mac's `successorPrefetchTrack` computes the gapless arm point as `trackAtIndex:currentIndex + 1` directly (`MainPlayerController.m:735-740`) instead of asking the model. Per the root `CLAUDE.md` guarantee, that parked handle is what a gapless splice advances into — so under shuffle it *must* answer the shuffled successor, or track ends splice into the linear neighbor while the UI expects the shuffled one.
+- **iOS has the same two leaks.** `PlaybackController.successorPrefetchTrack` parks a gapless successor as `trackAtIndex:currentIndex + 1`, and the boundary check in `PlaybackController+PlayerEvents.m` compares the started track against the same row; both must use `nextTrackPeek`.
+- `Playlist` also has row-level `removeTracksAtIndexes:`, `insertTracks:atIndexes:` and `moveTracksAtIndexes:toIndex:` (mac editing, #16). `_playOrder` stores row indexes, so each must remap it — a removal drops its entries and shifts later indexes, an insert shifts them, a move permutes them — keeping the played/current/unplayed invariant.
 - Menu validation gates Next/Previous on the same predicates (`MainPlayerController+Menus.m:54-57`); the Playback menu holds the transport items (`MainMenuBuilder.m:227-260`).
 - `changeShuffleModeCommand` is currently in Now Playing's deliberately-disabled set (`System/NowPlayingController.m:225`).
 - `PlaylistTests.m` exists — the model is pure logic, host-less.
@@ -48,7 +50,7 @@ Internal: `NSMutableArray<NSNumber *> *_playOrder` (a permutation of row indexes
 
 - **`setShuffleEnabled:YES`** — Fisher-Yates over all row indexes (using `randomBelow`), then swap the current row's entry to position 0, cursor = 0. **`NO`** — discard order and cursor; linear predicates take over from `currentIndex` unchanged.
 - **`hasNextTrack`** under shuffle: `_playOrderCursor + 1 < _playOrder.count`; **`hasPreviousTrack`**: `_playOrderCursor > 0`. Linear bodies unchanged otherwise.
-- **`next`/`previous`** under shuffle: move the cursor, then set `currentIndex` to the row at the cursor — through an internal index write that *skips* the manual-pick re-anchor below but still fires `currentIndexDidChangeFromIndex:` (the observers must not care which mode moved it). `advanceToNextTrackWithoutPlaying` rides `next` and needs no change beyond that.
+- **`next`/`previous`** under shuffle: move the cursor, then set `currentIndex` to the row at the cursor — through an internal index write that *skips* the manual-pick re-anchor below but still fires `currentIndexDidChangeFromIndex:` (the observers must not care which mode moved it). `advanceFromTrack:toTrack:` calls `next`, but its successor check must compare against `nextTrackPeek`, not the linear row.
 - **Successor peek** — new public accessor, the model-side answer the mac prefetch will use:
 
   ```objc
@@ -122,7 +124,7 @@ No Settings-pane row: this is transport state like play/pause, not configuration
 
 ## Phase 3 — iOS integration
 
-- `PlaybackController` gets the same pass-through: apply `AppSettings.sharedInstance.shuffleEnabled` to its `Playlist` at init and expose `- (void)toggleShuffle` writing the setting and the model together (no gapless prefetch exists on iOS — verify while there: if the iOS player parks any successor handle, route it through `nextTrackPeek` the same way). `next`/`previous`/`selectTrackAtIndex:` already funnel through the model (`PlaybackController.m:374-395`) and inherit Phase 1.
+- `PlaybackController` gets the same pass-through: apply `AppSettings.sharedInstance.shuffleEnabled` to its `Playlist` at init and expose `- (void)toggleShuffle` writing the setting and the model together (iOS does park a gapless successor: route `successorPrefetchTrack` and the boundary check in `PlaybackController+PlayerEvents.m` through `nextTrackPeek`; `applyTrackTransitionSettings` is the iOS hook that re-parks on a toggle). `next`/`previous`/`selectTrackAtIndex:` already funnel through the model (`PlaybackController.m:374-395`) and inherit Phase 1.
 - UI: a shuffle button on the now-playing card's control row (`Vibe/iOS/Player/CLAUDE.md` owns the card's layout conventions — follow them; tinted when active, like the system players). The library rows and mini player need nothing: the visible order never changes.
 - The card's page-swipe navigation (`PlayerViewController+Pager.m`) previews neighbors — check what it uses for "next page": if it asks `trackAtIndex:currentIndex ± 1` anywhere, it must ask the model's peek instead, or the swiped-to page won't match the track that plays. This is the iOS twin of the mac's prefetch leak; grep for `currentIndex + 1` under `Vibe/iOS/` and fix every hit through the model.
 

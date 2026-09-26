@@ -49,7 +49,7 @@ If that gap ever matters, the shape of the work:
 
 - **Inference** is the easy half. Core ML runs a small tempo CNN on the Neural Engine in far less time than the current DSP path, it is public API, and it ships in the App Store without trouble. A mel-spectrogram front end can reuse the existing decode pass, so this still costs no second file read.
 - **The model is the hard half.** Training needs a corpus and a pipeline neither of which exist here, and shipping someone else's weights means auditing their license — several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and the vendored-code rules in `ThirdParty/CLAUDE.md` apply to weights as much as to source.
-- **Size and honesty about the payoff.** A tempo CNN is small, a few MB, so bundle size is not the objection. The objection is that it buys perhaps two points of Accuracy1 over a well-executed multi-band DSP analyzer, for a dependency on a trained artifact that cannot be reasoned about or hand-tuned the way the current 400 lines can.
+- **Size and honesty about the payoff.** A tempo CNN is small, a few MB, so bundle size is not the objection. The objection is that it buys perhaps two points of Accuracy1 over a well-executed multi-band DSP analyzer, for a dependency on a trained artifact that cannot be reasoned about or hand-tuned the way the current ~550 lines can.
 
 **Do proposal 1 first.** It is cheap, it is reversible, it targets the same failures, and if it lands near 90% the case for a model largely evaporates.
 

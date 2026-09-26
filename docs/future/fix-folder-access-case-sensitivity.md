@@ -2,6 +2,8 @@
 
 Written 2026-08-23. Planned, not implemented. The file:line anchors are against
 `bd2b0dc` with an uncommitted working tree; re-check them before implementation.
+Re-verified 2026-09-26: still unfixed (`readablePath:isCoveredByAnyOf:` still folds case); the
+anchors have drifted by a few lines.
 
 ## Outcome
 
