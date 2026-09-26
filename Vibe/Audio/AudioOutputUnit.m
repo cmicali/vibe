@@ -108,6 +108,10 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 
 @interface AudioOutputUnit ()
 @property (atomic, copy, readwrite, nullable) NSArray<NSNumber *> *channelMap;
+#if TARGET_OS_OSX
+@property (atomic, readwrite) NSTimeInterval presentationLatency;
+@property (atomic, readwrite) NSTimeInterval bufferLatency;
+#endif
 #if !TARGET_OS_OSX
 - (void)reportSystemStop;
 #endif
@@ -135,6 +139,9 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     // HAL-queue confined.
     BOOL _initialized;
     OSStatus _bindStatus;       // the last bind's refusal, until a bind lands; macOS only
+#if TARGET_OS_OSX
+    AudioDeviceID _boundDeviceID; // the device the last landed bind set
+#endif
     OSStatus _configureStatus;  // the last configure's refusal, until one lands
 }
 
@@ -251,6 +258,10 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 
 - (void)forgetDevice {
     _deviceID = kAudioObjectUnknown;
+    dispatch_async(_halQueue, ^{
+        self->_boundDeviceID = kAudioObjectUnknown;
+        [self halReadLatencies];
+    });
 }
 #endif
 
@@ -296,37 +307,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     dispatch_sync(_halQueue, ^{});
 }
 
-#if TARGET_OS_OSX
-- (NSTimeInterval)presentationLatency {
-    if (_deviceID == kAudioObjectUnknown) {
-        return 0;
-    }
-    // The device's own reckoning of when a rendered sample is heard.
-    AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    Float64 rate = 0;
-    UInt32 size = sizeof(rate);
-    AudioObjectGetPropertyData(_deviceID, &rateAddress, 0, NULL, &size, &rate);
-    AudioObjectPropertyAddress streamsAddress = { kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
-    AudioStreamID stream = kAudioObjectUnknown;
-    size = sizeof(stream);
-    AudioObjectGetPropertyData(_deviceID, &streamsAddress, 0, NULL, &size, &stream);
-    return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput, 0, rate)
-            + VibeSecondsOfLatency(_deviceID, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
-            + (stream != kAudioObjectUnknown
-               ? VibeSecondsOfLatency(_deviceID, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
-}
-
-- (NSTimeInterval)bufferLatency {
-    if (_deviceID == kAudioObjectUnknown) {
-        return 0;
-    }
-    AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    Float64 rate = 0;
-    UInt32 size = sizeof(rate);
-    AudioObjectGetPropertyData(_deviceID, &rateAddress, 0, NULL, &size, &rate);
-    return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
-}
-#else
+#if !TARGET_OS_OSX
 - (NSTimeInterval)presentationLatency {
     return AVAudioSession.sharedInstance.outputLatency;
 }
@@ -353,6 +334,8 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         _initialized = NO;
     }
     _bindStatus = status;
+    _boundDeviceID = status == noErr ? deviceID : kAudioObjectUnknown;
+    [self halReadLatencies];
     double milliseconds = VibeMillisecondsSinceUptime(began);
     if (status != noErr) {
         LogError(@"AudioOutputUnit: bind to device %u refused (OSStatus %d) after %.1f ms", deviceID, (int)status, milliseconds);
@@ -360,6 +343,30 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     }
     [self halReadChannelMap];
     LogInfo(@"AudioOutputUnit: bind to device %u took %.1f ms", deviceID, milliseconds);
+}
+
+// The device's own reckoning of when a rendered sample is heard, and its IO
+// cycle, at its nominal rate.
+- (void)halReadLatencies {
+    AudioDeviceID device = _boundDeviceID;
+    if (device == kAudioObjectUnknown) {
+        self.presentationLatency = 0;
+        self.bufferLatency = 0;
+        return;
+    }
+    AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    Float64 rate = 0;
+    UInt32 size = sizeof(rate);
+    AudioObjectGetPropertyData(device, &rateAddress, 0, NULL, &size, &rate);
+    AudioObjectPropertyAddress streamsAddress = { kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
+    AudioStreamID stream = kAudioObjectUnknown;
+    size = sizeof(stream);
+    AudioObjectGetPropertyData(device, &streamsAddress, 0, NULL, &size, &stream);
+    self.presentationLatency = VibeSecondsOfLatency(device, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput, 0, rate)
+            + VibeSecondsOfLatency(device, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
+            + (stream != kAudioObjectUnknown
+               ? VibeSecondsOfLatency(device, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
+    self.bufferLatency = VibeSecondsOfLatency(device, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
 }
 #endif
 
@@ -380,6 +387,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     }
     _initialized = YES;
     [self halReadChannelMap];
+#if TARGET_OS_OSX
+    [self halReadLatencies];
+#endif
 }
 
 // The map the unit applies between its input and the device's stream, read
@@ -427,6 +437,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
             atomic_store_explicit(&_startedGeneration, generation, memory_order_release);
             double milliseconds = VibeMillisecondsSinceUptime(began);
             LogTiming(milliseconds > 100, @"AudioOutputUnit: start on device %u took %.1f ms", deviceID, milliseconds);
+#if TARGET_OS_OSX
+            [self halReadLatencies]; // a started device may have resized its buffer
+#endif
             return;
         }
         atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);

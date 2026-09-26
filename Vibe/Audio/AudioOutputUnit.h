@@ -72,13 +72,16 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // error, on whatever thread the unit reports it, the gate still open until
 // the receiver stops the unit.
 @property (atomic, copy, nullable) void (^failureHandler)(NSError * _Nullable error, uint64_t runGeneration, BOOL bindRefused);
-// Device plus stream latency and the safety offset, read live, in seconds;
-// on iOS the session's output latency.
-@property (nonatomic, readonly) NSTimeInterval presentationLatency;
+// Device plus stream latency and the safety offset, in seconds; on iOS the
+// session's output latency. On macOS read by the unit's queue after each
+// bind, configure and start, like channelMap, so a reader never waits on
+// the HAL: a hung device held the player queue 30 s per read, and main with
+// it through dump_state.
+@property (atomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
-// unit renders ahead of the device — read live, since the HAL may resize it;
-// on iOS the session's IO buffer duration.
-@property (nonatomic, readonly) NSTimeInterval bufferLatency;
+// unit renders ahead of the device — read as presentationLatency is; on iOS
+// the session's IO buffer duration.
+@property (atomic, readonly) NSTimeInterval bufferLatency;
 // The unit's input channel map onto the device's stream, as its queue read it
 // after the last bind or configure; nil before one, or when unreadable. For
 // the bit-perfect report, which must not wait on the unit's queue.
