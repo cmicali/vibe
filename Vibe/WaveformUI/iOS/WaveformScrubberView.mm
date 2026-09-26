@@ -107,11 +107,23 @@ static const NSTimeInterval kLoadBakeMinInterval = 0.25;
     // image layers — unplayed across the full width, played stacked on top of
     // it (the same compositing order as the live tree's played clip) and
     // cropped by contentsRect. Non-nil _bakedHost means the fast path is in
-    // and _rendererHost is hidden. The generation invalidates in-flight bakes.
+    // and _rendererHost is hidden.
     CALayer                 *_bakedHost;
     CALayer                 *_bakedUnplayed;
     CALayer                 *_bakedPlayed;
-    NSUInteger              _bakeGeneration;
+    // Two counters, because a bake can be stale in two different ways. The
+    // request is bumped by every schedule, so only the newest pending timer
+    // bakes. The epoch is bumped only by a teardown — the picture changing
+    // what it means (a reset, a resize, an appearance or theme change) — and
+    // is what a finished bake must match to be installed. A bake overtaken by
+    // a newer streaming delivery is still the same waveform, a little behind,
+    // so it lands rather than being thrown away (see bakeEnvelopeForRequest:).
+    NSUInteger              _bakeRequest;
+    NSUInteger              _bakeEpoch;
+    // One bake at a time per view: a request that fires while one is running
+    // is remembered, and the running bake's completion schedules it.
+    BOOL                    _bakeInFlight;
+    BOOL                    _bakeWanted;
     // When the last bake actually started, for the load-time rate limit. Zero
     // means "never", which reads as long ago and so bakes at once.
     CFTimeInterval          _lastBakeAt;
@@ -690,7 +702,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // path down first, and the bake re-lands after the morph has settled.
 
 - (void)teardownBakedWaveform {
-    _bakeGeneration++;
+    _bakeEpoch++;
+    _bakeRequest++;
+    _bakeWanted = NO;
     if (!_bakedHost) {
         return;
     }
@@ -709,23 +723,34 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)scheduleEnvelopeBakeAfter:(NSTimeInterval)delay {
-    _bakeGeneration++;
+    _bakeRequest++;
     // The renderer answers for its own bake fidelity — a kind-of test here
     // let Basic (class-wise a Detailed subclass) through and baked both its
     // gradient and its block quantization wrong.
     if (!self.waveform || !_renderer.supportsEnvelopeBake) {
         return;
     }
-    NSUInteger generation = _bakeGeneration;
+    NSUInteger request = _bakeRequest;
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        [weakSelf bakeEnvelopeForGeneration:generation];
+        [weakSelf bakeEnvelopeForRequest:request];
     });
 }
 
-- (void)bakeEnvelopeForGeneration:(NSUInteger)generation {
-    if (generation != _bakeGeneration || !self.waveform) {
+// A streaming load delivers about ten times a second and each delivery
+// schedules a bake, so a bake used to be discarded whenever the next delivery
+// arrived before it finished — full-size pixel work, doubled by a two-hue
+// theme, thrown away. Measured on device, waveform bakes were about 8% of the
+// app's CPU across a session of track swipes. Now a finished bake is installed
+// whenever the picture still means the same thing (the epoch), and a request
+// arriving mid-bake waits for it instead of running beside it.
+- (void)bakeEnvelopeForRequest:(NSUInteger)request {
+    if (request != _bakeRequest || !self.waveform) {
+        return;
+    }
+    if (_bakeInFlight) {
+        _bakeWanted = YES;
         return;
     }
     CGSize size = [self virtualBounds].size;
@@ -762,6 +787,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // budget; a deliberate trade, still bounded by the GPU texture ceiling
     // per image.
     BOOL separateUnplayed = !renderer.theme.unplayedSharesPlayedHue;
+    NSUInteger epoch = _bakeEpoch;
+    _bakeInFlight = YES;
+    _bakeWanted = NO;
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         VibeSignpostBegin(waveform_bake);
@@ -770,8 +798,15 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
                 ? [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples] : NULL;
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf installEnvelopeImage:image unplayedImage:unplayedImage
-                                      size:size generation:generation];
+            WaveformScrubberView *strongSelf = weakSelf;
+            if (strongSelf) {
+                strongSelf->_bakeInFlight = NO;
+                [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage size:size epoch:epoch];
+                if (strongSelf->_bakeWanted) {
+                    strongSelf->_bakeWanted = NO;
+                    [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
+                }
+            }
             CGImageRelease(image);
             CGImageRelease(unplayedImage);
             // Deliberately captured: if the view died during the bake, the
@@ -783,10 +818,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)installEnvelopeImage:(CGImageRef)image unplayedImage:(nullable CGImageRef)unplayedImage
-                        size:(CGSize)size generation:(NSUInteger)generation {
+                        size:(CGSize)size epoch:(NSUInteger)epoch {
     CGSize currentSize = [self virtualBounds].size;
     BOOL stretchForPinch = _isPinching && size.height == currentSize.height;
-    if (!image || generation != _bakeGeneration ||
+    if (!image || epoch != _bakeEpoch || !self.waveform ||
         (!CGSizeEqualToSize(size, currentSize) && !stretchForPinch)) {
         return;
     }
