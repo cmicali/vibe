@@ -20,41 +20,28 @@ The bus now drives the converter as an AudioToolbox `AudioConverterRef` rather t
 
 The 2026-09-25 review-fix pass reran 1,479 unit tests (the two scoped SRC duration issues above are expected failures), 87 rendered-audio tests, all 49 bus tests and all 87 rendered-audio tests under ThreadSanitizer, both Debug platform builds, both Release static analyses, and layout/vocabulary/strings/translations checks. All passed.
 
-Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. They do not establish:
+Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The 2026-09-25 device-lifecycle pass below covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. They do not establish:
 
 - Physical iOS route changes, interruptions, media-services reset, or provider-backed file access.
-- Final-tree macOS unplug/rebind and the stale-device and slow-bind symptoms of the closed engine-era issues: the [device lifecycle acceptance](#device-lifecycle-acceptance) below. Exclusive ownership and integer-format DAC negotiation: `bitperfect-soak.py` and `verify-bit-perfect --device-check` (`vibe-stress`, `test-audio.md`). Older engine-era captures are not acceptance of this renderer.
-- Extended soak/resource and performance comparisons, ASan/UBSan, or the owned-file migration’s all-configuration binary audit.
+- Physical macOS unplug and wake: [device lifecycle acceptance](#device-lifecycle-acceptance) below. Integer-format DAC negotiation through `verify-bit-perfect --device-check` (`test-audio.md`), which the pass did not run.
+- Performance comparisons, ASan/UBSan, or the owned-file migration’s all-configuration binary audit.
 
-Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md) and [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and simulator. Prior run artifacts, while retained locally, are under `/private/tmp/vibe-consolidation-*` and `/private/tmp/vibe-any-device-*`.
+Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md) and [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and simulator.
 
 ## Device lifecycle acceptance
 
-Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each described — the engine graph, its bind-driven rebuild and the player's device bookkeeping around it — no longer exists. Their *symptoms* are what a device-lifecycle pass on the new carrier must show absent. These are live tests through the debug channel and the `vibe-stress` drivers, never unit tests. Read the `vibe-stress` skill's device-flap section first: every driver below moves audio for every app on the machine, and an `AudioDeviceID` changes on every re-enumeration, so read it fresh.
+Issues #50, #53, #56 and #57 were closed with PR66 because the mechanism each described no longer exists; their *symptoms* are what the new carrier must show absent. On 2026-09-25 (Mac Studio, macOS 27, Debug `ed0361dd`, real HAL, silent, Now Playing suppressed; Fireface 802, Audient iD4, FiiO E10, BlackHole 2ch) the software layer passed everywhere except #53:
 
-**Silent stop after a device vanishes and returns (#50).** Two layers. Software volume first, with Vibe on System Output — `dump_state.player.requestedOutputDeviceId` at -1, or the vanish never reaches it:
+- **#50, software layer:** 750 `device-flap.py` vanish flaps over three DACs and 1,800 move flaps across six device pairs — no silent stop, dropout, refusal, consistency violation or pending counter; the at-rest heap matched a no-flap control.
+- **#56:** 40 BlackHole `--ordinary` loopback captures, each spanning 8–9 system-default changes between two other DACs, all PCM-exact, with no rebind and continuous render cycles.
+- **#57:** all three cases against the app's own HAL reads, including 20 vanish/return cycles of an explicitly bound device (a fixed-UID aggregate) while playing and paused: `pendingDeviceUID` carried the lost UID, and the return re-bound under a new id — at once when paused, at the next pause when playing, by `VibeCanBindSavedOutputDevice`'s design.
+- **Exclusive + bit-perfect:** `bitperfect-soak.py --rounds 2` on each DAC — every rate Active or correctly `rateUnsupported`, hogs released, formats restored.
 
-```bash
-.claude/skills/vibe-stress/scripts/device-flap.py --corpus ~/Music/big --device <id> --flaps 250
-```
+**Still open.**
 
-The driver's oracles are the ones wanted: state and position per flap, `check_consistency`, the app alive, `dump_health` against its baseline, and a closing `quiesce` with every pending counter at zero. A clean run proves Vibe's rebind path and nothing about hardware wake latency, so the second layer is a real USB DAC power-cycled ten to fifteen times while playing, once on System Output and once explicitly bound to that DAC. The original was one silent stop in fifteen cycles with nothing logged; the oracle is the streamed log carrying the renderer's Timeline lines for every cycle and no `stopped` at position 0 without an error beside it.
-
-**A slow bind blocking the player queue (#53).** The renderer logs the number directly: every play submission logs how long it waited for admission on the player queue (`Timeline: play N admitted after X ms on player queue`, `AudioPlayer+Diagnostics`), and a slow output start logs how long the queue was blocked (`AudioPlayer+Pipeline`). Rotate the system default across real devices with the slowest one owned in the list (the helper's `rotate` mode; the skill's table puts an RME bind at half a second), submit plays during the binds, and read those lines. An admission wait that tracks the bind time is the symptom back on the new carrier; one under a few milliseconds whatever the destination is the fix holding.
-
-**A bind rebuilding when the device has not changed (#56).** The stimulus is a default-device change that does not concern the bound device: bind Vibe explicitly to BlackHole (`set_output_device "BlackHole 2ch"`, then poll `dump_state.player.outputDeviceUID` until it names it), run a sample-exact loopback capture, and rotate the system default between two *other* real devices while it runs:
-
-```bash
-build/verify-bit-perfect "$PWD/build/audio-fixtures/noise-48000-24-2.wav" 3 "BlackHole 2ch" --play-app "$V" --force-volume --ordinary
-```
-
-Any rebuild that interrupts the render is a PCM mismatch, and `dump_health`'s render cycles must be continuous with the dropout count unchanged. Clear BlackHole's device mute first; a muted loopback reads as silence. The bound device's *nominal rate* moving under another process is a legitimate rebind (`Mac/Devices/CLAUDE.md`), not this case.
-
-**The player's device notion going stale (#57).** After every flap or rotation compare the app's answer to the HAL's, never the app to itself: the app's side is `dump_state.player.outputDeviceId`, `outputDeviceUID` and `requestedOutputDeviceId`, and the device stage of `dump_audio_path`; the HAL's side is what the flap helper reports. Three cases: on System Output `requestedOutputDeviceId` is -1 and the bound id is the current default's; explicitly bound to a device that vanishes, `outputDeviceUID` stops naming it and `bitPerfect.pendingDeviceUID` carries the UID the player is waiting to rebind, never the stale id; when that device returns under a new `AudioDeviceID`, `outputDeviceUID` names it again and the bound id is the new one.
-
-Record selected device, actual carrier, silent state and media-publication mode with each result, and keep hardware results distinct from the pump and the simulator. The AirPods are usually the default output and a real-HAL launch can take them; select the speakers first. The installed Vibe is often running; direct-exec the Debug build beside it.
-
-**Silent HAL playback and output auto-switching.** Run with the pass above: launch with `VIBE_AUDIBLE=silent` (Now Playing stays suppressed unless `VIBE_NOW_PLAYING=1`) and see whether playback still pulls auto-switching AirPods or moves the system output, once on System Output and once explicitly bound. Zero output samples and suppressed Now Playing do not by themselves establish isolation. Hardware stays opt-in until this has evidence; use the existing device selection before proposing another launch flag.
+- **#53, a slow bind blocking the player queue: failed, then fixed.** A play submitted during a bind waited it out — median 127 ms, max 270 ms across 104 plays — because the whole rebind ran on the player queue. The output unit now waits on the HAL on its own queue (`Mac/Devices/CLAUDE.md`); the same rotate-plus-plays measurement after the fix admitted every play submitted during a bind within 3.4 ms (109 plays, median 0.1 ms), with no player-queue stall, and the rest of this pass — vanish flaps, the #57 cycles, the #56 loopback and the bit-perfect soak — passed again on the fix. It stays on this list only until the physical power-cycle below confirms a waking DAC no longer freezes transport.
+- **#50, hardware layer.** A real USB DAC power-cycled ten to fifteen times while playing, once on System Output and once explicitly bound to it. The original was one silent stop in fifteen cycles with nothing logged; the oracle is the streamed log carrying the renderer's Timeline lines for every cycle and no `stopped` at position 0 without an error beside it. It must also settle a discrepancy: `Mac/Devices/CLAUDE.md` says an unplug parks playback as Paused, but a vanished explicitly-bound aggregate kept playing on System Output in every playing cycle — either the doc is stale or a real unplug takes another path.
+- **Silent HAL playback and output auto-switching.** Launch with `VIBE_AUDIBLE=silent` (Now Playing stays suppressed unless `VIBE_NOW_PLAYING=1`) with auto-switching AirPods paired, and see whether playback still pulls them or moves the system output, once on System Output and once explicitly bound. Zero output samples and suppressed Now Playing do not by themselves establish isolation; the 2026-09-25 pass had no Bluetooth device. Hardware stays opt-in until this has evidence.
 
 ## Hardware stress campaigns
 

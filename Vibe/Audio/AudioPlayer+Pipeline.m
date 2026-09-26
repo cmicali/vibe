@@ -1085,7 +1085,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         BOOL started = ![self drivesOutputDeviceOnQueue] || [self startCarrierOnQueueWithError:&error];
         NSTimeInterval seconds = (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - startedAt) / NSEC_PER_SEC;
         BOOL slow = seconds > kSlowOutputStartLogThresholdSeconds;
-        LogTiming(slow, @"AudioPlayer: %@output start %.3fs (the player queue was blocked for this long)",
+        LogTiming(slow, @"AudioPlayer: %@output start %.3fs on the player queue",
                   slow ? @"slow " : @"", seconds);
         if (!started) {
             atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);

@@ -82,9 +82,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readPhysicalFormat:(AudioStreamBasicDescription *)format forStream:(AudioStreamID)stream;
 + (BOOL)setPhysicalFormat:(AudioStreamBasicDescription)format forStream:(AudioStreamID)stream;
 
-// Read the output AU's live destination-indexed channel map. Source channels
-// must reach the prepared stream in order, with every unused output silent.
-+ (BOOL)outputUnit:(AudioUnit)unit preservesChannels:(UInt32)channels
+// An output AU's destination-indexed channel map (AudioOutputUnit.channelMap).
+// Source channels must reach the prepared stream in order, with every unused
+// output silent.
++ (BOOL)channelMap:(nullable NSArray<NSNumber *> *)map preservesChannels:(UInt32)channels
           inStream:(AudioStreamID)stream physicalChannelCount:(UInt32)physicalChannels;
 
 // Optional output controls. Missing controls mean unity volume, centered

@@ -4,6 +4,7 @@
 //
 
 #import "AudioOutputUnitInternal.h"
+#import "CoreAudioUtil.h"
 #include <unistd.h>
 
 // A stop waits this long, at most, for a render already inside the callback.
@@ -94,10 +95,23 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 
 #pragma mark - The unit
 
+@interface AudioOutputUnit ()
+@property (atomic, copy, readwrite, nullable) NSArray<NSNumber *> *channelMap;
+@end
+
 @implementation AudioOutputUnit {
     AudioUnit _unit;
     VibeOutputUnitState *_state;
+    dispatch_queue_t _halQueue;
+    // Player-queue confined: the state the queued HAL work is headed for.
+    AudioDeviceID _deviceID;
+    AVAudioFormat *_format;
+    BOOL _running;
+    _Atomic uint64_t _runGeneration;
+    // HAL-queue confined.
     BOOL _initialized;
+    OSStatus _bindStatus;       // the last bind's refusal, until a bind lands
+    OSStatus _configureStatus;  // the last configure's refusal, until one lands
 }
 
 - (instancetype)init {
@@ -121,20 +135,26 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     AURenderCallbackStruct callback = { .inputProc = VibeOutputUnitRender, .inputProcRefCon = _state };
     AudioUnitSetProperty(_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
     _deviceID = kAudioObjectUnknown;
+    // Default QoS, as the player queue: the waits here are for a device's IO
+    // thread, and the player queue is the only thing that ever waits on this.
+    _halQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.outputUnit", DISPATCH_QUEUE_SERIAL);
     return self;
 }
 
+// Every queued block retains the unit, so none is pending here, and this may
+// run on the unit's own queue: it must not wait on it.
 - (void)dealloc {
     if (_unit) {
-        [self stop];
+        atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+        [self halStopUnit];
         AudioUnitUninitialize(_unit);
         AudioComponentInstanceDispose(_unit);
     }
     free(_state);
 }
 
-- (AudioUnit)audioUnit {
-    return _unit;
+- (uint64_t)runGeneration {
+    return atomic_load_explicit(&_runGeneration, memory_order_seq_cst);
 }
 
 - (uint64_t)dropouts {
@@ -158,6 +178,10 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     VibeOutputUnitStateClearCounters(_state);
 }
 
+- (VibeOutputUnitState *)state {
+    return _state;
+}
+
 static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
                                    AudioObjectID object, double rate) {
     AudioObjectPropertyAddress address = { selector, scope, kAudioObjectPropertyElementMain };
@@ -168,37 +192,79 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
     return frames / rate;
 }
 
+static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
+    return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
+                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ (OSStatus %d)", what, (int)status]}];
+}
+
+static double VibeMillisecondsSinceUptime(uint64_t began) {
+    return (double)(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
+}
+
+#pragma mark Player-queue API
+
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID {
-    NSParameterAssert(!self.running);
-    // AUHAL takes a new device cleanly only across an initialize, and a bind
-    // at the same rate is not followed by a reconfigure.
-    if (_initialized) {
-        AudioUnitUninitialize(_unit);
-    }
-    OSStatus status = AudioUnitSetProperty(_unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                                           &deviceID, sizeof(deviceID));
-    if (_initialized && AudioUnitInitialize(_unit) != noErr) {
-        _initialized = NO;
-    }
-    if (status != noErr) {
-        return status;
+    NSParameterAssert(!_running);
+    if ([CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
+        return kAudioHardwareBadDeviceError;
     }
     _deviceID = deviceID;
-    // The device's own reckoning of when a rendered sample is heard, for the
-    // diagnostics.
+    dispatch_async(_halQueue, ^{ [self halBindToDevice:deviceID]; });
+    return noErr;
+}
+
+- (void)forgetDevice {
+    _deviceID = kAudioObjectUnknown;
+}
+
+- (void)configureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon {
+    NSParameterAssert(!_running);
+    NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved && format.channelCount > 0);
+    _format = format;
+    dispatch_async(_halQueue, ^{ [self halConfigureFormat:format renderProc:renderProc refCon:refCon]; });
+}
+
+- (void)start {
+    if (_running) {
+        return;
+    }
+    _running = YES;
+    uint64_t generation = atomic_fetch_add_explicit(&_runGeneration, 1, memory_order_seq_cst) + 1;
+    AudioDeviceID deviceID = _deviceID;
+    dispatch_async(_halQueue, ^{ [self halStartForGeneration:generation device:deviceID]; });
+}
+
+- (void)stop {
+    atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+    if (!_running) {
+        return; // every start is already superseded, and the last stop is queued
+    }
+    atomic_fetch_add_explicit(&_runGeneration, 1, memory_order_seq_cst);
+    _running = NO;
+    dispatch_async(_halQueue, ^{ [self halStopUnit]; });
+}
+
+- (void)waitUntilIdle {
+    dispatch_sync(_halQueue, ^{});
+}
+
+- (NSTimeInterval)presentationLatency {
+    if (_deviceID == kAudioObjectUnknown) {
+        return 0;
+    }
+    // The device's own reckoning of when a rendered sample is heard.
     AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     Float64 rate = 0;
     UInt32 size = sizeof(rate);
-    AudioObjectGetPropertyData(deviceID, &rateAddress, 0, NULL, &size, &rate);
+    AudioObjectGetPropertyData(_deviceID, &rateAddress, 0, NULL, &size, &rate);
     AudioObjectPropertyAddress streamsAddress = { kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
     AudioStreamID stream = kAudioObjectUnknown;
     size = sizeof(stream);
-    AudioObjectGetPropertyData(deviceID, &streamsAddress, 0, NULL, &size, &stream);
-    _presentationLatency = VibeSecondsOfLatency(deviceID, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput, 0, rate)
-            + VibeSecondsOfLatency(deviceID, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
+    AudioObjectGetPropertyData(_deviceID, &streamsAddress, 0, NULL, &size, &stream);
+    return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyLatency, kAudioObjectPropertyScopeOutput, 0, rate)
+            + VibeSecondsOfLatency(_deviceID, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
             + (stream != kAudioObjectUnknown
-               ? VibeSecondsOfLatency(deviceID, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
-    return noErr;
+               ? VibeSecondsOfLatency(_deviceID, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
 }
 
 - (NSTimeInterval)bufferLatency {
@@ -212,59 +278,117 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
     return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
 }
 
-static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
-    return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
-                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ (OSStatus %d)", what, (int)status]}];
+#pragma mark The unit's queue
+
+- (void)halBindToDevice:(AudioDeviceID)deviceID {
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    // AUHAL takes a new device cleanly only across an initialize, and a bind
+    // at the same rate is not followed by a reconfigure. Leaving a device
+    // waits here for its IO to stop.
+    if (_initialized) {
+        AudioUnitUninitialize(_unit);
+    }
+    OSStatus status = AudioUnitSetProperty(_unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                           &deviceID, sizeof(deviceID));
+    if (_initialized && AudioUnitInitialize(_unit) != noErr) {
+        _initialized = NO;
+    }
+    _bindStatus = status;
+    double milliseconds = VibeMillisecondsSinceUptime(began);
+    if (status != noErr) {
+        LogError(@"AudioOutputUnit: bind to device %u refused (OSStatus %d) after %.1f ms", deviceID, (int)status, milliseconds);
+        return;
+    }
+    [self halReadChannelMap];
+    LogInfo(@"AudioOutputUnit: bind to device %u took %.1f ms", deviceID, milliseconds);
 }
 
-- (BOOL)configureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon
-                  error:(NSError **)error {
-    NSParameterAssert(!self.running);
-    NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
+- (void)halConfigureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon {
     AudioUnitUninitialize(_unit);
     _initialized = NO;
     AudioStreamBasicDescription description = *format.streamDescription;
     OSStatus status = AudioUnitSetProperty(_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
                                            &description, sizeof(description));
-    if (status != noErr) {
-        if (error) *error = VibeOutputUnitError(status, @"Could not set the output unit's format");
-        return NO;
+    if (status == noErr) {
+        VibeOutputUnitStateInitialize(_state, format.channelCount, renderProc, refCon);
+        status = AudioUnitInitialize(_unit);
     }
-    if (!VibeOutputUnitStateInitialize(_state, format.channelCount, renderProc, refCon)) {
-        if (error) *error = VibeOutputUnitError(kAudioUnitErr_FormatNotSupported, @"Unsupported output unit format");
-        return NO;
-    }
-    status = AudioUnitInitialize(_unit);
+    _configureStatus = status;
     if (status != noErr) {
-        if (error) *error = VibeOutputUnitError(status, @"Could not initialize the output unit");
-        return NO;
+        LogError(@"AudioOutputUnit: %.0f Hz refused (OSStatus %d)", format.sampleRate, (int)status);
+        return;
     }
     _initialized = YES;
-    _format = format;
-    return YES;
+    [self halReadChannelMap];
 }
 
-- (BOOL)startWithError:(NSError **)error {
-    if (_running) {
-        return YES;
+// The map the unit applies between its input and the device's stream, read
+// where the unit is changed, so a reader never waits on this queue for it.
+- (void)halReadChannelMap {
+    AudioStreamBasicDescription output = {0};
+    UInt32 size = sizeof(output);
+    Boolean writable = false;
+    NSMutableArray<NSNumber *> *map = nil;
+    if (AudioUnitGetProperty(_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &output, &size) == noErr
+            && size == sizeof(output)
+            && AudioUnitGetPropertyInfo(_unit, kAudioOutputUnitProperty_ChannelMap, kAudioUnitScope_Input, 0, &size, &writable) == noErr
+            && size > 0 && size == (uint64_t)output.mChannelsPerFrame * sizeof(SInt32)) {
+        SInt32 *entries = malloc(size);
+        UInt32 read = size;
+        if (entries && AudioUnitGetProperty(_unit, kAudioOutputUnitProperty_ChannelMap, kAudioUnitScope_Input, 0,
+                                            entries, &read) == noErr && read == size) {
+            map = [NSMutableArray arrayWithCapacity:size / sizeof(SInt32)];
+            for (UInt32 i = 0; i < size / sizeof(SInt32); i++) [map addObject:@(entries[i])];
+        }
+        free(entries);
     }
-    atomic_store_explicit(&_state->gate, 1, memory_order_release);
-    OSStatus status = AudioOutputUnitStart(_unit);
-    if (status != noErr) {
-        atomic_store_explicit(&_state->gate, 0, memory_order_release);
-        if (error) *error = VibeOutputUnitError(status, @"Could not start the output unit");
-        return NO;
-    }
-    _running = YES;
-    return YES;
+    self.channelMap = map;
 }
 
-- (void)stop {
-    atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
-    if (_running) {
-        AudioOutputUnitStop(_unit);
-        _running = NO;
+- (void)halStartForGeneration:(uint64_t)generation device:(AudioDeviceID)deviceID {
+    if (generation != atomic_load_explicit(&_runGeneration, memory_order_seq_cst)) {
+        return; // a later start or stop owns the unit; this one never happened
     }
+    OSStatus refusal = _bindStatus ?: _configureStatus;
+    if (refusal == noErr) {
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        // TRAP: open, then re-check. A stop that landed between the check
+        // above and this store must win, or the unit would pull the pipeline
+        // after the player moved it to another device's rate. The stop bumps
+        // the generation before it closes the gate, so one of the two sees
+        // the other.
+        atomic_store_explicit(&_state->gate, 1, memory_order_seq_cst);
+        if (generation != atomic_load_explicit(&_runGeneration, memory_order_seq_cst)) {
+            atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+            return;
+        }
+        refusal = [self halStartUnit];
+        if (refusal == noErr) {
+            double milliseconds = VibeMillisecondsSinceUptime(began);
+            LogTiming(milliseconds > 100, @"AudioOutputUnit: start on device %u took %.1f ms", deviceID, milliseconds);
+            return;
+        }
+        atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+    }
+    BOOL bindRefused = _bindStatus != noErr;
+    NSError *error = VibeOutputUnitError(refusal, bindRefused ? @"The output device refused the bind"
+                                                             : @"Could not start the output unit");
+    LogError(@"AudioOutputUnit: start refused: %@", error.localizedDescription);
+    void (^handler)(NSError *, uint64_t, BOOL) = self.failureHandler;
+    if (handler) handler(error, generation, bindRefused);
+}
+
+- (OSStatus)halStartUnit {
+    return AudioOutputUnitStart(_unit);
+}
+
+// Also the dealloc's stop, which may run on this queue. Stopping a stopped
+// unit is a no-op.
+- (void)halStopUnit {
+    uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    AudioOutputUnitStop(_unit);
+    double milliseconds = VibeMillisecondsSinceUptime(began);
+    LogTiming(milliseconds > 100, @"AudioOutputUnit: stop took %.1f ms", milliseconds);
     // The gate store and the callback's gate load are both seq_cst, so a
     // cycle that read the gate open has inRender set before this read sees
     // it clear; it finishes on its own within a buffer's time.
@@ -272,6 +396,5 @@ static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
         usleep(kStopSpinMicroseconds);
     }
 }
-
 
 @end

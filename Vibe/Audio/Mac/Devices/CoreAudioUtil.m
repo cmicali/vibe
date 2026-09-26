@@ -208,27 +208,17 @@ static BOOL VibeReadStartingChannel(AudioStreamID stream, UInt32 *firstChannel) 
             && *firstChannel != 0;
 }
 
-+ (BOOL)outputUnit:(AudioUnit)unit preservesChannels:(UInt32)channels
++ (BOOL)channelMap:(NSArray<NSNumber *> *)map preservesChannels:(UInt32)channels
           inStream:(AudioStreamID)stream physicalChannelCount:(UInt32)physicalChannels {
-    if (!unit || channels == 0) return NO;
+    if (map.count == 0 || channels == 0) return NO;
     UInt32 firstChannel = 0;
     if (!VibeReadStartingChannel(stream, &firstChannel)) return NO;
-    AudioStreamBasicDescription output = {0};
-    UInt32 size = sizeof(output);
-    if (AudioUnitGetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output,
-            0, &output, &size) != noErr || size != sizeof(output)) return NO;
-    Boolean writable = false;
-    if (AudioUnitGetPropertyInfo(unit, kAudioOutputUnitProperty_ChannelMap,
-            kAudioUnitScope_Input, 0, &size, &writable) != noErr || size == 0
-            || size != (uint64_t)output.mChannelsPerFrame * sizeof(SInt32)) return NO;
-    UInt32 capacity = size;
-    SInt32 *map = malloc(capacity);
-    if (!map) return NO;
-    BOOL preserves = AudioUnitGetProperty(unit, kAudioOutputUnitProperty_ChannelMap,
-            kAudioUnitScope_Input, 0, map, &size) == noErr && size == capacity
-            && VibeBitPerfectChannelMapPreservesSource(map, size / sizeof(*map), channels,
-                                                       firstChannel, physicalChannels);
-    free(map);
+    SInt32 *entries = calloc(map.count, sizeof(SInt32));
+    if (!entries) return NO;
+    for (NSUInteger i = 0; i < map.count; i++) entries[i] = map[i].intValue;
+    BOOL preserves = VibeBitPerfectChannelMapPreservesSource(entries, (UInt32)map.count, channels,
+                                                            firstChannel, physicalChannels);
+    free(entries);
     return preserves;
 }
 

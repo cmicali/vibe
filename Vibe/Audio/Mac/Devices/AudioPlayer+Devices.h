@@ -74,7 +74,8 @@ NS_ASSUME_NONNULL_BEGIN
 // reconfigured, the FX chain re-hosted, the meter replaced. The bus is the
 // caller's to reconcile through ensureSourceSegmentOnQueueRebuilt:, which
 // rebuilds one at the old rate and reports it, so the caller re-voices. A
-// no-op at the current rate. NO without a unit, or when the unit refuses.
+// no-op at the current rate. NO without a unit; a format the HAL refuses
+// fails the next start instead (AudioOutputUnit.h).
 - (BOOL)applyOutputRateOnQueue:(double)rate;
 
 

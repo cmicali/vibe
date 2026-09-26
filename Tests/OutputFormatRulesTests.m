@@ -4,6 +4,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import <objc/runtime.h>
 
 #import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
 #import "../Vibe/Audio/Mac/Devices/AudioOutputUnitInternal.h"
@@ -1205,6 +1206,116 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     VibeOutputUnitState state = {0};
     XCTAssertFalse(VibeOutputUnitStateInitialize(&state, 0, NULL, NULL));
     XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, NULL, NULL));
+}
+
+// Runs `body` with the unit's HAL start replaced; the original is back after,
+// whatever the body asserted.
+static void VibeWithHALStart(OSStatus (^start)(void), void (^body)(void)) {
+    Method method = class_getInstanceMethod(AudioOutputUnit.class, @selector(halStartUnit));
+    IMP replacement = imp_implementationWithBlock(^OSStatus(id receiver) { return start(); });
+    IMP original = method_setImplementation(method, replacement);
+    @try {
+        body();
+    } @finally {
+        method_setImplementation(method, original);
+        imp_removeBlock(replacement);
+    }
+}
+
+static int32_t VibeGate(AudioOutputUnit *unit) {
+    return atomic_load_explicit(&unit.state->gate, memory_order_seq_cst);
+}
+
+// #53: the player queue asks for a start and goes on; the device's IO thread
+// is waited for on the unit's own queue. A stop closes the gate at once, even
+// with that wait still in progress.
+- (void)testAStartReturnsBeforeTheDeviceHasStartedAndAStopClosesTheGateAtOnce {
+    AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    XCTAssertNotNil(unit);
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    VibeWithHALStart(^OSStatus {
+        dispatch_semaphore_signal(entered);
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        return noErr;
+    }, ^{
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        [unit start];
+        XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 20.0, @"the start waited for the device");
+        XCTAssertTrue(unit.running);
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        XCTAssertEqual(VibeGate(unit), 1, @"the gate opens before the device starts, so its first cycle renders");
+        [unit stop];
+        XCTAssertEqual(VibeGate(unit), 0, @"a stop closes the gate before it returns");
+        XCTAssertFalse(unit.running);
+        dispatch_semaphore_signal(release);
+        [unit waitUntilIdle];
+        XCTAssertEqual(VibeGate(unit), 0);
+    });
+}
+
+// A start that a later stop or start supersedes before the unit's queue reaches
+// it never runs: a unit still headed for the previous device or format must
+// never pull the pipeline the player has already moved on.
+- (void)testAStartSupersededBeforeItRunsNeverStartsTheDevice {
+    AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    __block int starts = 0;
+    VibeWithHALStart(^OSStatus {
+        if (++starts == 1) {
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+        }
+        return noErr;
+    }, ^{
+        [unit start];
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0);
+        [unit stop];
+        [unit start]; // superseded by the stop below before the queue reaches it
+        [unit stop];
+        [unit start]; // the one that owns the unit
+        dispatch_semaphore_signal(release);
+        [unit waitUntilIdle];
+        XCTAssertEqual(starts, 2, @"the superseded start reached the device");
+        XCTAssertEqual(VibeGate(unit), 1);
+        XCTAssertTrue(unit.running);
+        [unit stop];
+        [unit waitUntilIdle];
+        XCTAssertEqual(VibeGate(unit), 0);
+    });
+}
+
+// A refusal arrives later, through the handler, with the generation of the
+// start it refused; a stop after it makes that generation stale, which is how
+// the player tells a refusal it must act on from a moot one.
+- (void)testARefusedStartReportsItsGenerationAndLeavesTheGateClosed {
+    AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    __block NSError *reported = nil;
+    __block uint64_t reportedGeneration = 0;
+    __block BOOL reportedBind = YES;
+    unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
+        reported = error;
+        reportedGeneration = runGeneration;
+        reportedBind = bindRefused;
+    };
+    VibeWithHALStart(^OSStatus { return kAudioHardwareNotRunningError; }, ^{
+        [unit start];
+        [unit waitUntilIdle];
+        XCTAssertNotNil(reported);
+        XCTAssertEqual(reported.code, kAudioHardwareNotRunningError);
+        XCTAssertFalse(reportedBind);
+        XCTAssertEqual(reportedGeneration, unit.runGeneration, @"nothing superseded this start");
+        XCTAssertEqual(VibeGate(unit), 0);
+        [unit stop];
+        XCTAssertNotEqual(reportedGeneration, unit.runGeneration, @"a stop makes the refusal moot");
+    });
+}
+
+// A device the HAL no longer knows is refused at once, before anything is
+// queued, and the unit keeps no claim to it.
+- (void)testABindToADeviceTheHALDoesNotKnowIsRefusedAtOnce {
+    AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    XCTAssertNotEqual([unit bindToDevice:(AudioDeviceID)0x7FFFFFF0], noErr);
+    XCTAssertEqual(unit.deviceID, kAudioObjectUnknown);
 }
 
 - (void)testOutputUnitIsUnboundAtInitAndStopsSafelyBeforeAnyStart {

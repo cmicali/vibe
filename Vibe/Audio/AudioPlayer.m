@@ -278,6 +278,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         if (drainTimer) dispatch_source_cancel(drainTimer);
 #if TARGET_OS_OSX
         [outputUnit stop]; // no cycle in flight before the pipeline it pulls is freed
+        [outputUnit waitUntilIdle]; // and no queued start left to pull it afterwards
 #else
         [engine stop];
 #endif

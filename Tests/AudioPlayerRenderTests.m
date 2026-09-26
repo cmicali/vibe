@@ -10,6 +10,7 @@
 #import "AudioDevice.h"
 #import "VibeManualRenderPump.h"
 #import "AudioVoiceBusInternal.h"
+#import "AudioOutputUnitInternal.h"
 #import "AudioFixtures.h"
 #import <objc/runtime.h>
 #include <float.h>
@@ -2727,6 +2728,97 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
         imp_removeBlock(driveReplacement);
         imp_removeBlock(createReplacement);
     }
+}
+
+// Runs `body` on a pump player whose carrier is a real AudioOutputUnit that
+// never reaches the HAL: its configure does nothing and its start is `start`.
+// The unit is attached through the production wiring, so its refusals reach
+// the player the way a device's would.
+- (void)withCarrierStartingAs:(OSStatus (^)(void))start body:(void (^)(AudioPlayer *target))body {
+    [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    AudioPlayer *target = _player;
+    Method drives = class_getInstanceMethod(AudioPlayer.class, @selector(drivesOutputDeviceOnQueue));
+    Method create = class_getInstanceMethod(AudioPlayer.class, NSSelectorFromString(@"createOutputUnitOnQueue"));
+    Method configure = class_getInstanceMethod(AudioOutputUnit.class, @selector(halConfigureFormat:renderProc:refCon:));
+    Method halStart = class_getInstanceMethod(AudioOutputUnit.class, @selector(halStartUnit));
+    __block IMP originalDrives, originalCreate;
+    IMP driveReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        return receiver == target ? YES : ((BOOL (*)(id, SEL))originalDrives)(receiver, @selector(drivesOutputDeviceOnQueue));
+    });
+    IMP createReplacement = imp_implementationWithBlock(^BOOL(AudioPlayer *receiver) {
+        if (receiver != target) return ((BOOL (*)(id, SEL))originalCreate)(receiver, NSSelectorFromString(@"createOutputUnitOnQueue"));
+        SEL attach = NSSelectorFromString(@"attachOutputUnitOnQueue:");
+        ((void (*)(id, SEL, id))[receiver methodForSelector:attach])(receiver, attach, [[AudioOutputUnit alloc] init]);
+        return YES;
+    });
+    IMP configureReplacement = imp_implementationWithBlock(^(id receiver, AVAudioFormat *format, void *proc, void *refCon) {});
+    IMP startReplacement = imp_implementationWithBlock(^OSStatus(id receiver) { return start(); });
+    originalDrives = method_setImplementation(drives, driveReplacement);
+    originalCreate = method_setImplementation(create, createReplacement);
+    IMP originalConfigure = method_setImplementation(configure, configureReplacement);
+    IMP originalStart = method_setImplementation(halStart, startReplacement);
+    @try {
+        body(target);
+    } @finally {
+        __block AudioOutputUnit *unit = nil;
+        [_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
+        [unit waitUntilIdle];
+        method_setImplementation(drives, originalDrives);
+        method_setImplementation(create, originalCreate);
+        method_setImplementation(configure, originalConfigure);
+        method_setImplementation(halStart, originalStart);
+        imp_removeBlock(driveReplacement);
+        imp_removeBlock(createReplacement);
+        imp_removeBlock(configureReplacement);
+        imp_removeBlock(startReplacement);
+    }
+}
+
+// #53: a device slow to start — an RME takes ~215 ms, a waking DAC seconds —
+// holds neither the play that asked for it nor the player queue behind it.
+- (void)testASlowDeviceStartHoldsNeitherThePlayNorThePlayerQueue {
+    self.continueAfterFailure = YES;
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    [self withCarrierStartingAs:^OSStatus {
+        dispatch_semaphore_signal(entered);
+        dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
+        return noErr;
+    } body:^(AudioPlayer *target) {
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
+        XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)), 0,
+                       @"the device start never began");
+        XCTAssertNil(self->_playError);
+        XCTAssertEqual([self count:@"start"], 1u, @"the play settled only once the device had started");
+        XCTAssertTrue(self->_player.isPlaying);
+        uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        [self->_player runSyncOnQueue:^{}];
+        XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 50.0,
+                          @"the player queue waited on the device's start");
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self settleUntil:^BOOL { return [self count:@"start"] > 1 || self->_playError; }];
+        XCTAssertEqual([self count:@"start"], 2u, @"a play submitted during the device start waited for it");
+        dispatch_semaphore_signal(release);
+    }];
+    XCTAssertNil(_playError);
+}
+
+// A start the device refuses after the player published Playing parks the
+// play Paused where it is and says why.
+- (void)testARefusedDeviceStartParksThePlayAndSaysSo {
+    self.continueAfterFailure = YES;
+    [self withCarrierStartingAs:^OSStatus { return kAudioHardwareNotRunningError; } body:^(AudioPlayer *target) {
+        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self settleUntil:^BOOL { return self->_playError != nil; }];
+        [self->_player runSyncOnQueue:^{}];
+        XCTAssertNotNil(self->_playError, @"the refusal was never reported");
+        XCTAssertEqual(self->_playError.code, VibeAudioErrorEngineStartFailed);
+        XCTAssertTrue(self->_player.isPaused, @"the refused start left the play Playing over nothing");
+        XCTAssertFalse(self->_player.outputAudioActive);
+        __block BOOL running = YES;
+        [self->_player runSyncOnQueue:^{ running = [[target valueForKey:@"outputUnit"] running]; }];
+        XCTAssertFalse(running, @"the refused unit is still asked to run");
+    }];
 }
 
 // The path, stage by stage, as the Settings window and dump_audio_path read it.

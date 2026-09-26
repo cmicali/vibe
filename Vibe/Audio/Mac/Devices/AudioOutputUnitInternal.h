@@ -37,6 +37,15 @@ BOOL VibeOutputUnitStateInitialize(VibeOutputUnitState *state, uint32_t channels
 OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFlags, const AudioTimeStamp *timestamp,
                               UInt32 bus, UInt32 frameCount, AudioBufferList * _Nullable data);
 
+// The unit's own HAL calls, made on its queue. The host-less suite replaces
+// them to make a device slow to start, or refuse, without opening one.
+@interface AudioOutputUnit (HAL)
+@property (nonatomic, readonly) VibeOutputUnitState *state;
+- (void)halConfigureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc _Nullable)renderProc
+                    refCon:(void * _Nullable)refCon;
+- (OSStatus)halStartUnit;
+@end
+
 // Zeroes the dropout and callback-cost counters. Any thread; a cycle in
 // flight lands in the new count, which a measurement tolerates.
 void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state);

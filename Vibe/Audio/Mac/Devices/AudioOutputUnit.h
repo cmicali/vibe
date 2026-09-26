@@ -15,8 +15,17 @@
 //  start and closes in stop says whether the proc is called at all; closed,
 //  the callback writes silence, so a render that lands during a rebuild or
 //  before the player is ready is silence, never a call into state being
-//  changed. Every method here is player-queue confined except the two clock
-//  reads.
+//  changed.
+//
+//  Every method is called on the player queue and returns without waiting on
+//  the HAL (#53). A call records its effect at once — the properties answer
+//  the state the unit is headed for — and hands the HAL work to the unit's own
+//  serial queue, in call order; that is where a device's IO thread is waited
+//  on: stopping the device the unit leaves and starting the one it joins,
+//  each hundreds of milliseconds on some interfaces. A stop closes the gate before it returns, and a
+//  start superseded by a later start or stop never opens it, so the proc is
+//  never called on a unit still at its previous device or format. A refusal
+//  the HAL makes later reaches `failureHandler`.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -38,20 +47,29 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // installed. nil when the component cannot be instantiated.
 - (nullable instancetype)init;
 
-// The bound device: a field, never a HAL read; kAudioObjectUnknown before the
-// first bind.
+// The device the last bind named: a field, never a HAL read;
+// kAudioObjectUnknown before the first bind and after `forgetDevice`.
 @property (nonatomic, readonly) AudioDeviceID deviceID;
 // What the unit pulls at: the player's render format. nil until configured.
 @property (nonatomic, readonly, nullable) AVAudioFormat *format;
-// Between start and stop.
+// Between start and stop, as requested; the device may still be starting.
 @property (nonatomic, readonly) BOOL running;
-// Device plus stream latency and the safety offset, read at bind, in seconds.
+// Bumped by every start and stop. A failure carries the one its start was
+// given, so the receiver can tell whether a later start or stop owns the unit.
+@property (nonatomic, readonly) uint64_t runGeneration;
+// A start the HAL refused, or one made on a unit whose bind or configure it
+// refused: the error, the start's runGeneration, and whether the bind was the
+// refusal. Called on the unit's queue; the gate is already closed.
+@property (atomic, copy, nullable) void (^failureHandler)(NSError *error, uint64_t runGeneration, BOOL bindRefused);
+// Device plus stream latency and the safety offset, read live, in seconds.
 @property (nonatomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
 // unit renders ahead of the device — read live, since the HAL may resize it.
 @property (nonatomic, readonly) NSTimeInterval bufferLatency;
-// For the report's channel-map read only.
-@property (nonatomic, readonly) AudioUnit audioUnit;
+// The unit's input channel map onto the device's stream, as its queue read it
+// after the last bind or configure; nil before one, or when unreadable. For
+// the bit-perfect report, which must not wait on the unit's queue.
+@property (atomic, copy, readonly, nullable) NSArray<NSNumber *> *channelMap;
 // IO cycles the proc could not render, so silence was written. Cumulative.
 @property (nonatomic, readonly) uint64_t dropouts;
 // The callback's cost, for dump_health and a before/after measurement: the
@@ -64,22 +82,33 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // thread; a cycle in flight lands in the new count.
 - (void)clearCounters;
 
-// Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice.
+// Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice. Refuses at once
+// only a device the HAL no longer reports alive; a later refusal fails the
+// next start.
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID;
+// The bind is known not to have landed: the next bind is never a no-op.
+- (void)forgetDevice;
 
 // Stopped only: uninitialize, set the input stream format, remember the
 // proc, initialize. refCon is the caller's to keep valid until the next
-// configure or the unit's end.
-- (BOOL)configureFormat:(AVAudioFormat *)format
+// configure or the unit's end. A refusal fails the next start.
+- (void)configureFormat:(AVAudioFormat *)format
              renderProc:(VibeOutputRenderProc)renderProc
-                 refCon:(void * _Nullable)refCon
-                  error:(NSError * _Nullable * _Nullable)error;
+                 refCon:(void * _Nullable)refCon;
 
-// Opens the gate, then starts the unit; a refused start closes it again.
-- (BOOL)startWithError:(NSError * _Nullable * _Nullable)error;
-// Closes the gate and stops the unit. Its explicit wait for a callback is
-// bounded; the pipeline retains render state until that callback actually leaves.
+// Asks the unit to start: its queue opens the gate, then starts the unit, and
+// a refused start closes it again and reports through failureHandler.
+- (void)start;
+// Closes the gate, then has the unit stopped. The unit's own wait for a
+// callback is bounded; the pipeline retains render state until that callback
+// actually leaves.
 - (void)stop;
+
+// Returns once every call made before it has reached the HAL. For a caller
+// about to change the device's format or ownership, which must not overtake
+// the stop it follows (a hogged device's format restored under a running
+// output strands its next start with error 35). Never on the unit's queue.
+- (void)waitUntilIdle;
 
 
 @end
