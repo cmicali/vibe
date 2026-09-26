@@ -61,6 +61,13 @@ POLL = 0.15
 MIN_SCENARIO_ROWS = 6
 MAX_SCENARIO_ROWS = 40
 
+# A real-sized file CoreAudio must refuse, identical on every run.
+# TRAP: never os.urandom. AudioToolbox's MP3 parser scans for a frame sync, and
+# about half of all random 64 KiB blobs hold one: the "bad" file then opens as
+# a few hundred frames of 24 kHz MPEG, plays, and ends with no error at all.
+# Seven-bit bytes contain no 0xFF, so no MPEG or ADTS sync can occur.
+UNPLAYABLE_BYTES = bytes(i & 0x7F for i in range(64 * 1024))
+
 
 # --------------------------------------------------------------------------
 # Result plumbing
@@ -1036,7 +1043,7 @@ def s4b_replay_stays_out_of_error_while_its_transfer_is_live(ctx):
         raise Failed(f"refusing to overwrite corpus fixture {bad}")
     created = False
     try:
-        bad.write_bytes(os.urandom(64 * 1024))
+        bad.write_bytes(UNPLAYABLE_BYTES)
         created = True
         # Sticky, so the file never reads as materialized and EVERY open of it
         # pays the transfer again; otherwise only the first half of the replay
@@ -1128,13 +1135,20 @@ def s4b_replay_stays_out_of_error_while_its_transfer_is_live(ctx):
             live_replay_samples += 1
 
             deadline = time.monotonic() + 5
+            seen = []
             while time.monotonic() < deadline:
-                if ctx.state().get("ui", {}).get("displayState") == "error":
+                display = ctx.state().get("ui", {}).get("displayState")
+                if display == "error":
                     valid_error_observations += 1
                     break
+                if display not in seen:
+                    seen.append(display)
                 time.sleep(POLL)
             else:
-                raise Failed(f"replay {pair + 1}'s own valid open error never landed")
+                # "track" here means the fixture opened: a fixture fault, not
+                # a dropped error.
+                raise Failed(f"replay {pair + 1}'s own valid open error never "
+                             f"landed; the header showed {seen}")
 
         events = ctx.trace()
         requests = events_of(events, event="requested", role="playback", file=bad.name)

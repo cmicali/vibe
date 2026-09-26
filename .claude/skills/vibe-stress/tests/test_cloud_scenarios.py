@@ -2,6 +2,8 @@ import ast
 import importlib.util
 import json
 import random
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -652,6 +654,18 @@ class TraceHelperTests(unittest.TestCase):
             (second / "duplicate.mp3").touch()
             with self.assertRaisesRegex(SystemExit, "duplicate.mp3"):
                 cloud.check_unique_basenames(corpus)
+
+    def test_unplayable_fixture_holds_no_frame_sync(self):
+        self.assertEqual(len(cloud.UNPLAYABLE_BYTES), 64 * 1024)
+        self.assertNotIn(0xFF, cloud.UNPLAYABLE_BYTES)
+
+    @unittest.skipUnless(shutil.which("afinfo"), "AudioToolbox's afinfo is macOS-only")
+    def test_audiotoolbox_refuses_the_unplayable_fixture(self):
+        with tempfile.TemporaryDirectory() as temp:
+            bad = Path(temp) / "zzz-bad.mp3"
+            bad.write_bytes(cloud.UNPLAYABLE_BYTES)
+            result = subprocess.run(["afinfo", str(bad)], capture_output=True, text=True)
+        self.assertNotIn("Data format", result.stdout)
 
 
 if __name__ == "__main__":
