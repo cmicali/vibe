@@ -21,6 +21,9 @@
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
 
+// The floor between two timeline reloads (scheduleReload).
+static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC;
+
 // How far the real playhead may drift from what the widget would extrapolate
 // before the snapshot is republished. It is a seek detector: playing straight
 // through never trips it, because the widget's own arithmetic is right. Looser
@@ -71,8 +74,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     // new signature — without this a one-second drag queued dozens of bakes,
     // all but the last thrown away after they ran.
     dispatch_block_t      _pendingBake;
-    // Queue-only: whether a reload is already enqueued behind the writes.
+    // Queue-only: whether a reload is already enqueued behind the writes, and
+    // when the last one was sent (uptime nanos), for scheduleReload's throttle.
     BOOL                  _reloadQueued;
+    uint64_t              _lastReloadAt;
 
     // Whether at least one widget is on a Home screen, as last known. Two
     // sources, because each can only be right about one direction: WidgetKit's
@@ -254,15 +259,30 @@ static const CGFloat kWidgetWaveformScale = 3;
 // the reload behind everything already queued, and a write queued meanwhile
 // rides the same one. A track change with an envelope in hand is two writes
 // and was two reloads — each an extension launch rendering a whole timeline.
+//
+// And at most one a second: a reload that follows another inside the window
+// waits out its remainder, so a run of seeks or play/pause taps costs one
+// trailing reload, not one apiece (33 in a three-minute session, measured). The
+// first of a quiet period still goes at once — a lone pause from the lock
+// screen must not sit on a timer the app may be suspended before it fires —
+// and the trailing one always goes, carrying whatever was written last.
 - (void)scheduleReload {
     if (_reloadQueued) {
         return;
     }
     _reloadQueued = YES;
-    dispatch_async(_queue, ^{
+    dispatch_block_t reload = ^{
         self->_reloadQueued = NO;
+        self->_lastReloadAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         [VibeWidgetReloader reload];
-    });
+    };
+    uint64_t since = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - _lastReloadAt;
+    if (_lastReloadAt == 0 || since >= kWidgetReloadMinInterval) {
+        dispatch_async(_queue, reload);
+    }
+    else {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWidgetReloadMinInterval - since)), _queue, reload);
+    }
 }
 
 // Republished on a structural change or a seek, never on the tick that merely
