@@ -77936,186 +77936,186 @@
       "extractionState": "manual"
     },
     "settings.playback.resampling.caption": {
-      "comment": "iOS Settings, Playback screen: footer under the Resampling row. kHz is the international unit symbol for kilohertz and is not translated; keep the number 21.",
+      "comment": "iOS Settings, Playback screen: footer under the Resampling row, saying when the setting matters: only when a music file's sample rate differs from the output device's.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Използва се, когато честотата на дискретизация на файла се различава от тази на изхода. „Високо“ се различава от „Максимално“ само над 21 kHz и използва около половината енергия."
+            "value": "Използва се, когато честотата на дискретизация на файла се различава от тази на изхода."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Použije se, když se vzorkovací frekvence souboru liší od frekvence výstupu. „Vysoká“ se od „Maximální“ liší jen nad 21 kHz a spotřebuje zhruba polovinu energie."
+            "value": "Použije se, když se vzorkovací frekvence souboru liší od frekvence výstupu."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bruges, når en fils samplingfrekvens afviger fra udgangens. Høj adskiller sig kun fra Maksimal over 21 kHz og bruger omtrent halvt så meget strøm."
+            "value": "Bruges, når en fils samplingfrekvens afviger fra udgangens."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird verwendet, wenn die Abtastrate einer Datei von der der Ausgabe abweicht. „Hoch“ unterscheidet sich von „Maximal“ nur oberhalb von 21 kHz und verbraucht etwa halb so viel Energie."
+            "value": "Wird verwendet, wenn die Abtastrate einer Datei von der der Ausgabe abweicht."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Χρησιμοποιείται όταν ο ρυθμός δειγματοληψίας ενός αρχείου διαφέρει από αυτόν της εξόδου. Η «Υψηλή» διαφέρει από τη «Μέγιστη» μόνο πάνω από τα 21 kHz και καταναλώνει περίπου τη μισή ενέργεια."
+            "value": "Χρησιμοποιείται όταν ο ρυθμός δειγματοληψίας ενός αρχείου διαφέρει από αυτόν της εξόδου."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Used when a file's sample rate differs from the output's. High differs from Maximum only above 21 kHz and uses about half the power."
+            "value": "Used when a file's sample rate differs from the output's."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se usa cuando la frecuencia de muestreo de un archivo es distinta de la de la salida. Alta solo se diferencia de Máxima por encima de 21 kHz y consume aproximadamente la mitad de energía."
+            "value": "Se usa cuando la frecuencia de muestreo de un archivo es distinta de la de la salida."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Käytetään, kun tiedoston näytteenottotaajuus poikkeaa ulostulon taajuudesta. Korkea eroaa enimmäisestä vain yli 21 kHz:n alueella ja kuluttaa noin puolet energiasta."
+            "value": "Käytetään, kun tiedoston näytteenottotaajuus poikkeaa ulostulon taajuudesta."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilisé lorsque la fréquence d’échantillonnage d’un fichier diffère de celle de la sortie. « Élevée » ne diffère de « Maximale » qu’au-delà de 21 kHz et consomme environ moitié moins d’énergie."
+            "value": "Utilisé lorsque la fréquence d’échantillonnage d’un fichier diffère de celle de la sortie."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Koristi se kada se frekvencija uzorkovanja datoteke razlikuje od frekvencije izlaza. „Visoka” se od „Najviše” razlikuje samo iznad 21 kHz i troši otprilike upola manje energije."
+            "value": "Koristi se kada se frekvencija uzorkovanja datoteke razlikuje od frekvencije izlaza."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Akkor használatos, ha a fájl mintavételezési frekvenciája eltér a kimenetétől. A „Magas” csak 21 kHz felett tér el a „Maximális” beállítástól, és nagyjából feleannyi energiát használ."
+            "value": "Akkor használatos, ha a fájl mintavételezési frekvenciája eltér a kimenetétől."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Digunakan saat laju sampel file berbeda dengan output. Tinggi hanya berbeda dari Maksimum di atas 21 kHz dan menggunakan sekitar setengah daya."
+            "value": "Digunakan saat laju sampel file berbeda dengan output."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si usa quando la frequenza di campionamento di un file è diversa da quella dell’uscita. Alta differisce da Massima solo sopra i 21 kHz e consuma circa metà dell’energia."
+            "value": "Si usa quando la frequenza di campionamento di un file è diversa da quella dell’uscita."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルのサンプルレートが出力と異なる場合に使用します。「高」と「最高」の違いは21 kHzを超える帯域だけで、「高」の消費電力は約半分です。"
+            "value": "ファイルのサンプルレートが出力と異なる場合に使用します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일의 샘플 레이트가 출력과 다를 때 사용됩니다. ‘높음’은 21 kHz 이상에서만 ‘최고’와 차이가 나며 전력을 약 절반만 사용합니다."
+            "value": "파일의 샘플 레이트가 출력과 다를 때 사용됩니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Brukes når samplingsfrekvensen i en fil er forskjellig fra utgangens. Høy skiller seg fra Maksimal bare over 21 kHz og bruker omtrent halvparten så mye strøm."
+            "value": "Brukes når samplingsfrekvensen i en fil er forskjellig fra utgangens."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wordt gebruikt als de samplefrequentie van een bestand afwijkt van die van de uitvoer. ‘Hoog’ verschilt alleen boven 21 kHz van ‘Maximaal’ en gebruikt ongeveer de helft van de energie."
+            "value": "Wordt gebruikt als de samplefrequentie van een bestand afwijkt van die van de uitvoer."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Używane, gdy częstotliwość próbkowania pliku różni się od częstotliwości wyjścia. „Wysoka” różni się od „Maksymalnej” tylko powyżej 21 kHz i zużywa mniej więcej połowę energii."
+            "value": "Używane, gdy częstotliwość próbkowania pliku różni się od częstotliwości wyjścia."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usado quando a taxa de amostragem de um arquivo é diferente da saída. Alta só difere de Máxima acima de 21 kHz e consome cerca de metade da energia."
+            "value": "Usado quando a taxa de amostragem de um arquivo é diferente da saída."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilizado quando a frequência de amostragem de um ficheiro é diferente da saída. Alta só difere de Máxima acima de 21 kHz e consome cerca de metade da energia."
+            "value": "Utilizado quando a frequência de amostragem de um ficheiro é diferente da saída."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se folosește când rata de eșantionare a unui fișier diferă de cea a ieșirii. „Ridicată” diferă de „Maximă” doar peste 21 kHz și consumă aproximativ jumătate din energie."
+            "value": "Se folosește când rata de eșantionare a unui fișier diferă de cea a ieșirii."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используется, когда частота дискретизации файла отличается от частоты выхода. «Высокое» отличается от «Максимального» только выше 21 kHz и потребляет примерно вдвое меньше энергии."
+            "value": "Используется, когда частота дискретизации файла отличается от частоты выхода."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Používa sa, keď sa vzorkovacia frekvencia súboru líši od frekvencie výstupu. „Vysoká“ sa od „Maximálnej“ líši len nad 21 kHz a spotrebuje približne polovicu energie."
+            "value": "Používa sa, keď sa vzorkovacia frekvencia súboru líši od frekvencie výstupu."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Används när en fils samplingsfrekvens skiljer sig från utgångens. Hög skiljer sig från Högsta bara över 21 kHz och använder ungefär hälften så mycket ström."
+            "value": "Används när en fils samplingsfrekvens skiljer sig från utgångens."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ใช้เมื่ออัตราการสุ่มตัวอย่างของไฟล์ต่างจากเอาต์พุต ระดับสูงต่างจากระดับสูงสุดเฉพาะช่วงที่สูงกว่า 21 kHz และใช้พลังงานประมาณครึ่งหนึ่ง"
+            "value": "ใช้เมื่ออัตราการสุ่มตัวอย่างของไฟล์ต่างจากเอาต์พุต"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bir dosyanın örnekleme hızı çıkışınkinden farklı olduğunda kullanılır. Yüksek, En yüksek ayarından yalnızca 21 kHz’in üzerinde ayrılır ve yaklaşık yarısı kadar güç kullanır."
+            "value": "Bir dosyanın örnekleme hızı çıkışınkinden farklı olduğunda kullanılır."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Використовується, коли частота дискретизації файлу відрізняється від частоти виходу. «Висока» відрізняється від «Максимальної» лише вище 21 kHz і споживає приблизно вдвічі менше енергії."
+            "value": "Використовується, коли частота дискретизації файлу відрізняється від частоти виходу."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dùng khi tần số lấy mẫu của tệp khác với đầu ra. Cao chỉ khác Tối đa ở dải trên 21 kHz và dùng khoảng một nửa năng lượng."
+            "value": "Dùng khi tần số lấy mẫu của tệp khác với đầu ra."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "当文件的采样率与输出不同时使用。“高”与“最高”仅在 21 kHz 以上有区别，耗电量约为一半。"
+            "value": "当文件的采样率与输出不同时使用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "當檔案的取樣率與輸出不同時使用。「高」與「最高」僅在 21 kHz 以上有差異，耗電量約為一半。"
+            "value": "當檔案的取樣率與輸出不同時使用。"
           }
         }
       },
