@@ -4,7 +4,9 @@
 //
 
 #import "AudioOutputUnitInternal.h"
+#if TARGET_OS_OSX
 #import "CoreAudioUtil.h"
+#endif
 #include <unistd.h>
 
 // A stop waits this long, at most, for a render already inside the callback.
@@ -86,6 +88,22 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
     return status;
 }
 
+#if !TARGET_OS_OSX
+// The system stops RemoteIO under the app when an interruption takes the
+// session, and says so only here. Our own stop closes the gate before the
+// unit stops and our start opens it before, so an edge seen with the gate
+// open is the system's, and a system restart clears it again.
+static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property,
+                                         AudioUnitScope scope, AudioUnitElement element) {
+    VibeOutputUnitState *state = refCon;
+    UInt32 running = 1, size = sizeof(running);
+    if (AudioUnitGetProperty(unit, kAudioOutputUnitProperty_IsRunning, kAudioUnitScope_Global, 0, &running, &size) == noErr
+            && atomic_load_explicit(&state->gate, memory_order_seq_cst)) {
+        atomic_store_explicit(&state->stoppedBySystem, running ? 0 : 1, memory_order_seq_cst);
+    }
+}
+#endif
+
 void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     atomic_store_explicit(&state->dropouts, 0, memory_order_relaxed);
     atomic_store_explicit(&state->cycles, 0, memory_order_relaxed);
@@ -104,13 +122,15 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     VibeOutputUnitState *_state;
     dispatch_queue_t _halQueue;
     // Player-queue confined: the state the queued HAL work is headed for.
+#if TARGET_OS_OSX
     AudioDeviceID _deviceID;
+#endif
     AVAudioFormat *_format;
     BOOL _running;
     _Atomic uint64_t _runGeneration;
     // HAL-queue confined.
     BOOL _initialized;
-    OSStatus _bindStatus;       // the last bind's refusal, until a bind lands
+    OSStatus _bindStatus;       // the last bind's refusal, until a bind lands; macOS only
     OSStatus _configureStatus;  // the last configure's refusal, until one lands
 }
 
@@ -121,7 +141,11 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     }
     AudioComponentDescription description = {
         .componentType = kAudioUnitType_Output,
+#if TARGET_OS_OSX
         .componentSubType = kAudioUnitSubType_HALOutput,
+#else
+        .componentSubType = kAudioUnitSubType_RemoteIO,
+#endif
         .componentManufacturer = kAudioUnitManufacturer_Apple,
     };
     AudioComponent component = AudioComponentFindNext(NULL, &description);
@@ -134,7 +158,11 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     _state = calloc(1, sizeof(VibeOutputUnitState));
     AURenderCallbackStruct callback = { .inputProc = VibeOutputUnitRender, .inputProcRefCon = _state };
     AudioUnitSetProperty(_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
+#if TARGET_OS_OSX
     _deviceID = kAudioObjectUnknown;
+#else
+    AudioUnitAddPropertyListener(_unit, kAudioOutputUnitProperty_IsRunning, VibeOutputUnitRunningChanged, _state);
+#endif
     // Default QoS, as the player queue: the waits here are for a device's IO
     // thread, and the player queue is the only thing that ever waits on this.
     _halQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.outputUnit", DISPATCH_QUEUE_SERIAL);
@@ -151,6 +179,10 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
         AudioComponentInstanceDispose(_unit);
     }
     free(_state);
+}
+
+- (BOOL)running {
+    return _running && !atomic_load_explicit(&_state->stoppedBySystem, memory_order_seq_cst);
 }
 
 - (uint64_t)runGeneration {
@@ -182,6 +214,7 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     return _state;
 }
 
+#if TARGET_OS_OSX
 static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
                                    AudioObjectID object, double rate) {
     AudioObjectPropertyAddress address = { selector, scope, kAudioObjectPropertyElementMain };
@@ -191,6 +224,7 @@ static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySele
     }
     return frames / rate;
 }
+#endif
 
 static NSError *VibeOutputUnitError(OSStatus status, NSString *what) {
     return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
@@ -203,6 +237,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 
 #pragma mark Player-queue API
 
+#if TARGET_OS_OSX
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID {
     NSParameterAssert(!_running);
     if ([CoreAudioUtil deviceIsConfirmedDead:deviceID]) {
@@ -216,6 +251,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 - (void)forgetDevice {
     _deviceID = kAudioObjectUnknown;
 }
+#endif
 
 - (void)configureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon {
     NSParameterAssert(!_running);
@@ -225,17 +261,34 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 }
 
 - (void)start {
-    if (_running) {
+    BOOL stoppedBySystem = atomic_load_explicit(&_state->stoppedBySystem, memory_order_seq_cst) != 0;
+    if (_running && !stoppedBySystem) {
         return;
+    }
+    if (stoppedBySystem) {
+        // Closed first, so the stop below balancing the start the system
+        // undid is ours to the listener, not another system stop.
+        atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+        atomic_store_explicit(&_state->stoppedBySystem, 0, memory_order_seq_cst);
     }
     _running = YES;
     uint64_t generation = atomic_fetch_add_explicit(&_runGeneration, 1, memory_order_seq_cst) + 1;
+#if TARGET_OS_OSX
     AudioDeviceID deviceID = _deviceID;
-    dispatch_async(_halQueue, ^{ [self halStartForGeneration:generation device:deviceID]; });
+#else
+    UInt32 deviceID = 0; // the route is the session's
+#endif
+    dispatch_async(_halQueue, ^{
+        if (stoppedBySystem) {
+            [self halStopUnit];
+        }
+        [self halStartForGeneration:generation device:deviceID];
+    });
 }
 
 - (void)stop {
     atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+    atomic_store_explicit(&_state->stoppedBySystem, 0, memory_order_seq_cst);
     if (!_running) {
         return; // every start is already superseded, and the last stop is queued
     }
@@ -248,6 +301,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     dispatch_sync(_halQueue, ^{});
 }
 
+#if TARGET_OS_OSX
 - (NSTimeInterval)presentationLatency {
     if (_deviceID == kAudioObjectUnknown) {
         return 0;
@@ -277,9 +331,19 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     AudioObjectGetPropertyData(_deviceID, &rateAddress, 0, NULL, &size, &rate);
     return VibeSecondsOfLatency(_deviceID, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
 }
+#else
+- (NSTimeInterval)presentationLatency {
+    return AVAudioSession.sharedInstance.outputLatency;
+}
+
+- (NSTimeInterval)bufferLatency {
+    return AVAudioSession.sharedInstance.IOBufferDuration;
+}
+#endif
 
 #pragma mark The unit's queue
 
+#if TARGET_OS_OSX
 - (void)halBindToDevice:(AudioDeviceID)deviceID {
     uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     // AUHAL takes a new device cleanly only across an initialize, and a bind
@@ -302,6 +366,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     [self halReadChannelMap];
     LogInfo(@"AudioOutputUnit: bind to device %u took %.1f ms", deviceID, milliseconds);
 }
+#endif
 
 - (void)halConfigureFormat:(AVAudioFormat *)format renderProc:(VibeOutputRenderProc)renderProc refCon:(void *)refCon {
     AudioUnitUninitialize(_unit);
@@ -345,7 +410,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     self.channelMap = map;
 }
 
-- (void)halStartForGeneration:(uint64_t)generation device:(AudioDeviceID)deviceID {
+- (void)halStartForGeneration:(uint64_t)generation device:(UInt32)deviceID {
     if (generation != atomic_load_explicit(&_runGeneration, memory_order_seq_cst)) {
         return; // a later start or stop owns the unit; this one never happened
     }

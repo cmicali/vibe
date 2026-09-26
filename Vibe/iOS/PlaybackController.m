@@ -52,15 +52,6 @@ static const NSUInteger kUIUpdateHz = 3;
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         _widgetPublisher = [[WidgetPublisher alloc] init];
         _launchOpenWaiters = [NSMutableArray array];
-        // TRAP: this must precede the player, and cannot move down to where
-        // the session controller is created. AVAudioEngine wires its master
-        // bus on the player's own queue moments after this init returns, and
-        // instantiating the output unit runs against whatever category the
-        // session carries — the system default, SoloAmbient, is not mixable,
-        // so the engine's construction alone stopped whatever else the device
-        // was playing at every cold launch, before the user had asked for a
-        // track. Nothing is activated here; the play does that.
-        [AudioSessionController prepareIdleCategory];
         // No FX on iOS: nothing surfaces them, so the FX graph segment is
         // never created or attached — the mixer wires straight to the output.
         // A hard NO, not the shared audioFXEnabled setting, so the mac default
@@ -934,16 +925,16 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_player resume];
     // If Ended raced the short pause fade, resume dissolves the pending pause
     // while the state still reads Playing. Follow it with the idempotent health
-    // check so an engine already stopped by the interruption is rebuilt too.
-    [_player recoverFromEngineConfigurationChange];
+    // check so an output the interruption stopped is started again too.
+    [_player recoverOutput];
 }
 
 - (void)audioSessionOutputRouteDidChange:(AudioSessionController *)controller {
     [self notifyDidChangeOutputRoute];
 }
 
-- (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller {
-    [_player recoverFromEngineConfigurationChange];
+- (void)audioSessionShouldRecoverOutput:(AudioSessionController *)controller {
+    [_player recoverOutput];
 }
 
 - (void)audioSessionDidReceiveMediaServicesReset:(AudioSessionController *)controller {

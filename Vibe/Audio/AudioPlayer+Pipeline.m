@@ -535,6 +535,53 @@ VIBE_REALTIME_END
     [self createCarrierOnQueue];
 }
 
+- (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit {
+    _outputUnit = unit;
+    __weak AudioPlayer *weakSelf = self;
+    __weak AudioOutputUnit *weakUnit = unit; // the handler is the unit's own
+    dispatch_queue_t queue = _queue;
+    unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
+        AudioOutputUnit *refusing = weakUnit;
+        dispatch_async(queue, ^{
+            [weakSelf outputUnitRefusedStartOnQueue:error runGeneration:runGeneration bindRefused:bindRefused
+                                               unit:refusing];
+        });
+    };
+}
+
+// A start the unit refused after the player went on: stop the output, park the
+// current voice Paused where it is and tell the owning play — unless a later
+// start or stop owns the unit, or the unit is no longer the carrier (the iOS
+// media-services reset replaced it, and its successor counts generations
+// from zero again), which makes this refusal moot.
+- (void)outputUnitRefusedStartOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused
+                                 unit:(AudioOutputUnit *)unit {
+    if (_terminating || !_outputUnit || unit != _outputUnit || runGeneration != _outputUnit.runGeneration) {
+        return;
+    }
+#if TARGET_OS_OSX
+    if (bindRefused) {
+        [_outputUnit forgetDevice]; // the next default or selection binds again rather than reading a no-op
+    }
+#endif
+    [self stopOutputOnQueue];
+    if (_state == VibePlayerStatePlaying && _voice) {
+        [self pauseCurrentVoiceOnQueue];
+    }
+    [self sendDelegateError:VibeAudioError(bindRefused ? VibeAudioErrorDeviceUnavailable : VibeAudioErrorEngineStartFailed,
+                                           @"Could not start the audio output", error)
+           forSubmittedPlay:_activeSubmittedPlayIdentifier];
+}
+
+- (void)stopCarrierOnQueue { [_outputUnit stop]; }
+- (BOOL)carrierRunningOnQueue { return _outputUnit.running; }
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
+    return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
+             @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+}
+- (void)clearCarrierCountersOnQueue { [_outputUnit clearCounters]; }
+
 #if DEBUG
 - (void)attachPumpOnQueue:(VibeManualRenderPump *)pump render:(VibeManualRenderBlock)render running:(BOOL (^)(void))running {
     // The pump stands in for the IO thread: the frame-driven mode decodes
@@ -751,12 +798,14 @@ VIBE_REALTIME_END
 #if !TARGET_OS_OSX
 // The iOS media-services reset: every audio object is dead and must not be
 // messaged. The gate closes first, so a late render writes silence — the
-// engine is dead, but the guarantee costs nothing — and the bus and the
+// unit is dead, but the guarantee costs nothing — and the bus and the
 // meter go with it, the voices' files having died with the media server.
-// The park and the pending open go too: the file handles they would produce
-// are dead, and a download without a consumer is waste. createOutputOnQueue
-// rebuilds.
-- (void)dropEngineBoundStateOnQueue {
+// The unit is released unstopped: its dealloc disposes the instance, which
+// is what the reset contract asks of an orphaned audio object, and a refusal
+// from its last start is moot once it is no longer the carrier. The park and the
+// pending open go too: the file handles they would produce are dead, and a
+// download without a consumer is waste. createOutputOnQueue rebuilds.
+- (void)dropOutputBoundStateOnQueue {
     if (_drainTimer) {
         dispatch_source_cancel(_drainTimer);
         _drainTimer = nil;
@@ -764,8 +813,7 @@ VIBE_REALTIME_END
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
     [self dropVoiceBusOnQueue];
     [self dropLevelMeterOnQueue];
-    _sourceNode = nil;
-    _engine = nil;
+    _outputUnit = nil;
     [self refreshOutputAudioActiveOnQueue];
     [self cancelPlayOpenOnQueue];
     [self clearPrefetchOnQueue];
@@ -785,11 +833,13 @@ VIBE_REALTIME_END
             + atomic_load_explicit(&_masterBus->pendingFrames, memory_order_acquire);
 }
 
-- (AVAudioTime *)outputRenderTimeOnQueue {
-    if (!_masterFormat) {
-        return nil;
+- (AudioTimeStamp)outputRenderTimeOnQueue {
+    AudioTimeStamp time = {0};
+    if (_masterFormat) {
+        time.mSampleTime = (Float64)[self renderedFramesOnQueue];
+        time.mFlags = kAudioTimeStampSampleTimeValid;
     }
-    return [AVAudioTime timeWithSampleTime:(AVAudioFramePosition)[self renderedFramesOnQueue] atRate:_masterFormat.sampleRate];
+    return time;
 }
 
 - (BOOL)varispeedPresentOnQueue {

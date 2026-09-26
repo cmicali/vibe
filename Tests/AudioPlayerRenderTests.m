@@ -2279,7 +2279,7 @@ involuntaryFallbackName:(NSString *)fallbackName carriedModesFromUID:(NSString *
 }
 
 // The output's rate moves under the pipeline — a device's would under the
-// unit, the route's under the iOS engine; here the pump's — and the pipeline
+// mac unit, the route's under the iOS one; here the pump's — and the pipeline
 // follows it, keeping the track: playing, the tone continues at the new rate
 // from the same position; paused, the position holds through the change and
 // the resume continues there.

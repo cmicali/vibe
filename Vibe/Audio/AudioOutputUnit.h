@@ -2,12 +2,13 @@
 //  AudioOutputUnit.h
 //  Vibe
 //
-//  The output device, hosted by Vibe: one HALOutput audio unit bound to one
-//  device, whose render callback pulls the player's render proc into the
-//  device's buffers. AVAudioEngine's own output node is a default output unit
-//  that follows the system default wherever it moves; this one moves only
-//  when the player rebinds it (hogfollow.swift’s `hal` measurement;
-//  Audio/Mac/Devices/CLAUDE.md).
+//  The output, hosted by Vibe: one output audio unit whose render callback
+//  pulls the player's render proc into the hardware's buffers. On macOS a
+//  HALOutput unit bound to one device; AVAudioEngine's own output node is a
+//  default output unit that follows the system default wherever it moves,
+//  and this one moves only when the player rebinds it (hogfollow.swift’s
+//  `hal` measurement; Audio/Mac/Devices/CLAUDE.md). On iOS a RemoteIO unit,
+//  which has no device: the route is the audio session's.
 //
 //  The callback is a C function under the same realtime discipline as the
 //  voice bus's render: plain memory and atomics, no lock, allocation,
@@ -30,7 +31,9 @@
 
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
+#if TARGET_OS_OSX
 #import <CoreAudio/CoreAudio.h>
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -43,16 +46,21 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 
 @interface AudioOutputUnit : NSObject
 
-// A HALOutput instance with output enabled, input disabled and the callback
-// installed. nil when the component cannot be instantiated.
+// A HALOutput instance on macOS, RemoteIO on iOS, with output enabled, input
+// disabled and the callback installed. nil when the component cannot be
+// instantiated.
 - (nullable instancetype)init;
 
+#if TARGET_OS_OSX
 // The device the last bind named: a field, never a HAL read;
 // kAudioObjectUnknown before the first bind and after `forgetDevice`.
 @property (nonatomic, readonly) AudioDeviceID deviceID;
+#endif
 // What the unit pulls at: the player's render format. nil until configured.
 @property (nonatomic, readonly, nullable) AVAudioFormat *format;
 // Between start and stop, as requested; the device may still be starting.
+// On iOS, NO once the system has stopped the unit under an open gate, as an
+// interruption does; the next start starts it again.
 @property (nonatomic, readonly) BOOL running;
 // Bumped by every start and stop. A failure carries the one its start was
 // given, so the receiver can tell whether a later start or stop owns the unit.
@@ -61,10 +69,12 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // refused: the error, the start's runGeneration, and whether the bind was the
 // refusal. Called on the unit's queue; the gate is already closed.
 @property (atomic, copy, nullable) void (^failureHandler)(NSError *error, uint64_t runGeneration, BOOL bindRefused);
-// Device plus stream latency and the safety offset, read live, in seconds.
+// Device plus stream latency and the safety offset, read live, in seconds;
+// on iOS the session's output latency.
 @property (nonatomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
-// unit renders ahead of the device — read live, since the HAL may resize it.
+// unit renders ahead of the device — read live, since the HAL may resize it;
+// on iOS the session's IO buffer duration.
 @property (nonatomic, readonly) NSTimeInterval bufferLatency;
 // The unit's input channel map onto the device's stream, as its queue read it
 // after the last bind or configure; nil before one, or when unreadable. For
@@ -82,12 +92,14 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // thread; a cycle in flight lands in the new count.
 - (void)clearCounters;
 
+#if TARGET_OS_OSX
 // Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice. Refuses at once
 // only a device the HAL no longer reports alive; a later refusal fails the
 // next start.
 - (OSStatus)bindToDevice:(AudioDeviceID)deviceID;
 // The bind is known not to have landed: the next bind is never a no-op.
 - (void)forgetDevice;
+#endif
 
 // Stopped only: uninitialize, set the input stream format, remember the
 // proc, initialize. refCon is the caller's to keep valid until the next
@@ -109,7 +121,6 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // the stop it follows (a hogged device's format restored under a running
 // output strands its next start with error 35). Never on the unit's queue.
 - (void)waitUntilIdle;
-
 
 @end
 

@@ -10,6 +10,7 @@
 #import "AudioPlayerInternal.h"
 #import "AudioTrack.h"
 #import "AudioFX.h"
+#include <mach/mach_time.h>
 #import <stdatomic.h>
 #if DEBUG
 #import "VibeManualRenderPump.h"
@@ -666,7 +667,6 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     }
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     BOOL playing = _state == VibePlayerStatePlaying;
-#if TARGET_OS_OSX
     // The other stall: the device keeps pulling, the pipeline cannot render.
     // A count below the last one was cleared by a measurement, not a stall.
     uint64_t dropouts = _outputUnit.dropouts;
@@ -676,7 +676,6 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
                 self.currentTrack.url.lastPathComponent);
     }
     _renderClockDropouts = dropouts;
-#endif
     uint64_t frames = [self renderedFramesOnQueue];
     if (!playing || frames != _renderClockFrames) {
         if (_renderClockStalledSince) {
@@ -729,15 +728,16 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         return; // not yet rendered
     }
     _firstRenderVoice = 0;
+    mach_timebase_info_data_t timebase = {0};
+    mach_timebase_info(&timebase);
+    // Signed: a render's host time is when its buffer is heard, which can
+    // still be ahead of now.
+    double ticksAgo = (double)mach_absolute_time() - (double)start.mHostTime;
     NSString *when = (start.mFlags & kAudioTimeStampHostTimeValid)
             ? [NSString stringWithFormat:@"host time %llu (%.1f ms ago)", start.mHostTime,
-               ([AVAudioTime secondsForHostTime:mach_absolute_time()] - [AVAudioTime secondsForHostTime:start.mHostTime]) * 1000]
+               ticksAgo * timebase.numer / timebase.denom / 1e6]
             : [NSString stringWithFormat:@"sample time %.0f", start.mSampleTime];
-#if TARGET_OS_OSX
     NSTimeInterval latency = _outputUnit.presentationLatency;
-#else
-    NSTimeInterval latency = _engine.outputNode.presentationLatency;
-#endif
     LogInfo(@"Timeline: play %llu voice %llu %@ live; first render at %@; reported output presentation latency %.1f ms (not measured audible output)",
             [self diagnosticPlayIdentifierOnQueue], voice, self.currentTrack.url.lastPathComponent, when, latency * 1000);
 #endif
@@ -850,13 +850,10 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 // chain is skipped, and the meter reads the render's final samples.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
-    AVAudioTime *time = [self outputRenderTimeOnQueue];
+    AudioTimeStamp time = [self outputRenderTimeOnQueue];
     NSTimeInterval latency = [self varispeedLatencyOnQueue];
-    if (time && latency > 0) {
-        AudioTimeStamp stamp = time.audioTimeStamp;
-        if (time.sampleTimeValid) stamp.mSampleTime += ceil(latency * time.sampleRate);
-        if (time.hostTimeValid) stamp.mHostTime += [AVAudioTime hostTimeForSeconds:latency];
-        time = [AVAudioTime timeWithAudioTimeStamp:&stamp sampleRate:time.sampleRate];
+    if ((time.mFlags & kAudioTimeStampSampleTimeValid) && latency > 0) {
+        time.mSampleTime += ceil(latency * _masterFormat.sampleRate);
     }
     [_levelMeter endSignalOverlapAtTime:time];
 #endif

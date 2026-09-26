@@ -21,7 +21,7 @@
 #import "AudioVoiceBus.h"
 #import <AVFAudio/AVFAudio.h>
 
-@class AudioFileHandle;
+@class AudioFileHandle, AudioOutputUnit;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -38,10 +38,21 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 @interface AudioPlayer (Pipeline)
 
 // Creates the carrier — the hosted unit on the system default at that
-// device's rate on macOS, the engine and its source node on iOS, the debug
-// pump under --no-audio-hw — and the master bus it pulls; the init path and
-// the iOS media-services rebuild must configure them identically.
+// device's rate on macOS; on iOS the pipeline at the route's rate, the unit
+// itself made at the first start; the debug pump under --no-audio-hw — and
+// the master bus it pulls; the init path and the iOS media-services rebuild
+// must configure them identically.
 - (void)createOutputOnQueue;
+// Makes `unit` the carrier and routes its later start refusals back to the
+// queue, where one a later start or stop has not superseded parks the current
+// voice Paused and tells the owning play.
+- (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit;
+// The unit's own state, the same on both platforms: stopping it, whether it
+// runs, and its IO-cycle counters.
+- (void)stopCarrierOnQueue;
+- (BOOL)carrierRunningOnQueue;
+- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
+- (void)clearCarrierCountersOnQueue;
 // Whether the FX segment belongs in the chain: the setting, unless
 // bit-perfect output outranks it. The one home of the rule.
 - (BOOL)fxWantedOnQueue;
@@ -66,15 +77,14 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // long as a render could be inside it. Never captures the player.
 - (void)afterRenderLeavesOnQueue:(dispatch_block_t)work;
 #if !TARGET_OS_OSX
-// Forgets every reference bound to the dead engine without messaging it —
-// the media-services-reset rebuild's first half.
-- (void)dropEngineBoundStateOnQueue;
+// Forgets every reference bound to the dead media server without messaging
+// it — the media-services-reset rebuild's first half.
+- (void)dropOutputBoundStateOnQueue;
 #endif
 
 // The output's format moved under the pipeline — the iOS route's rate, the
 // debug pump's — and the pipeline follows it: the output stops, the carrier
-// takes the format (the unit on macOS, a new source node on iOS, the pump's
-// buffers), the bus is rebuilt at it and the current track kept
+// takes the format (the unit, or the pump's buffers), the bus is rebuilt at it and the current track kept
 // (reconcileSourceSegmentOnQueue), and a playing output restarts. NO when
 // the carrier or the segment refuses; the player is then Stopped, or parked
 // Paused, with an error sent. A no-op at the current format. The macOS
@@ -92,7 +102,9 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // flight: the signal probe's clock on every carrier, and as a bare count the
 // render-clock check's.
 - (uint64_t)renderedFramesOnQueue;
-- (nullable AVAudioTime *)outputRenderTimeOnQueue;
+// As a timestamp: sample time only, in the pipeline's frames; no flag set
+// before the pipeline has a format.
+- (AudioTimeStamp)outputRenderTimeOnQueue;
 // The hosted varispeed, in ordinary playback on macOS: whether it exists,
 // whether the render has it in the chain (the pitch off zero), its declared
 // latency while it does and 0 otherwise, and how often it has rendered.

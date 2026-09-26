@@ -123,11 +123,10 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         // Meaningful before the async init block resolves the saved device:
         // -1 means follow the system default, rather than a bogus device id 0.
         self.currentlyRequestedAudioDeviceId = -1;
-        // Default QoS, not user-initiated: on iOS this queue calls blocking
-        // AVAudioEngine APIs that wait on the engine's own
-        // Default-QoS reconfiguration thread; a higher class would invert. The
-        // latency-critical work — the file open and the decode — runs on its
-        // own lanes.
+        // Default QoS, not user-initiated: this queue waits on the output
+        // unit's own Default-QoS queue (waitUntilIdle); a higher class would
+        // invert. The latency-critical work — the file open and the decode —
+        // runs on its own lanes.
         _queue = dispatch_queue_create("com.vibe.audioplayer",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, 0));
         dispatch_queue_set_specific(_queue, kAudioPlayerQueueKey, (__bridge void *)self, NULL);
@@ -258,11 +257,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     AudioFX *fx = _fx;
     NSArray<dispatch_block_t> *renderLeaveWork = [_renderLeaveWork copy];
     _renderLeaveWork = nil;
-#if TARGET_OS_OSX
     AudioOutputUnit *outputUnit = _outputUnit;
-#else
-    AVAudioEngine *engine = _engine;
-#endif
     VibeMasterBus *masterBus = _masterBus;
     _masterBus = NULL;
     dispatch_source_t drainTimer = _drainTimer;
@@ -278,12 +273,8 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         [pendingRequest invalidate];
         [levelMeter remove];
         if (drainTimer) dispatch_source_cancel(drainTimer);
-#if TARGET_OS_OSX
         [outputUnit stop]; // no cycle in flight before the pipeline it pulls is freed
         [outputUnit waitUntilIdle]; // and no queued start left to pull it afterwards
-#else
-        [engine stop];
-#endif
         if (VibeMasterBusRenderInside(masterBus)) {
             // Kept for the process's life: nothing a render is inside may be freed.
             LogError(@"AudioPlayer: a render is still inside the pipeline at teardown; the pipeline is leaked");

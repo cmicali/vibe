@@ -90,8 +90,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return YES;
 }
 
-- (void)stopCarrierOnQueue { [_outputUnit stop]; }
-- (BOOL)carrierRunningOnQueue { return _outputUnit.running; }
 - (void)releaseIdleCarrierOnQueue {
 #if VIBE_ENABLE_EXCLUSIVE_OUTPUT
     [self releaseExclusiveOutputOnQueue];
@@ -101,13 +99,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     return [self applyOutputRateOnQueue:format.sampleRate];
 }
 - (BOOL)followOutputRouteOnQueue { return YES; }
-
-- (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
-    return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
-             @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
-             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
-}
-- (void)clearCarrierCountersOnQueue { [_outputUnit clearCounters]; }
 
 @end
 
@@ -134,36 +125,6 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     // path.
     [self resolvePendingSavedOutputDeviceOnQueue];
     return YES;
-}
-
-- (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit {
-    _outputUnit = unit;
-    __weak AudioPlayer *weakSelf = self;
-    dispatch_queue_t queue = _queue;
-    unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
-        dispatch_async(queue, ^{
-            [weakSelf outputUnitRefusedStartOnQueue:error runGeneration:runGeneration bindRefused:bindRefused];
-        });
-    };
-}
-
-// A start the unit refused after the player went on: stop the output, park the
-// current voice Paused where it is and tell the owning play — unless a later
-// start or stop owns the unit, which makes this refusal moot.
-- (void)outputUnitRefusedStartOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused {
-    if (_terminating || !_outputUnit || runGeneration != _outputUnit.runGeneration) {
-        return;
-    }
-    if (bindRefused) {
-        [_outputUnit forgetDevice]; // the next default or selection binds again rather than reading a no-op
-    }
-    [self stopOutputOnQueue];
-    if (_state == VibePlayerStatePlaying && _voice) {
-        [self pauseCurrentVoiceOnQueue];
-    }
-    [self sendDelegateError:VibeAudioError(bindRefused ? VibeAudioErrorDeviceUnavailable : VibeAudioErrorEngineStartFailed,
-                                           @"Could not start the audio output", error)
-           forSubmittedPlay:_activeSubmittedPlayIdentifier];
 }
 
 - (BOOL)ensureOutputUnitOnQueue {

@@ -52,11 +52,12 @@ typedef struct VibeLevelMeter VibeLevelMeter;
 // seconds. All calls and completion belong to the player queue. Poll returns
 // YES while pending; removal and replacement also complete partial captures.
 // No call creates demand or opens a file. The last snapshot survives removal.
-- (uint64_t)beginSignalDiagnosticsAtTime:(nullable AVAudioTime *)startTime
+- (uint64_t)beginSignalDiagnosticsAtTime:(AudioTimeStamp)startTime
                 waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
 // Called when the last outgoing fade has actually settled, including smoothing.
-- (void)endSignalOverlapAtTime:(nullable AVAudioTime *)time;
+// A timestamp carrying neither clock leaves the capture's clock unset.
+- (void)endSignalOverlapAtTime:(AudioTimeStamp)time;
 - (BOOL)pollSignalDiagnostics:(uint64_t)request;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;
 

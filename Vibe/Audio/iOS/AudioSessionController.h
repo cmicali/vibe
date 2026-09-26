@@ -3,10 +3,10 @@
 //  Vibe (iOS)
 //
 //  The AVAudioSession half of what AudioPlayer+Devices does on macOS:
-//  activation and idle release, and the route, interruption, media-services
-//  and engine-configuration events, each mapped to a delegate verdict. It
-//  never touches the engine graph itself — the delegate maps the verdicts
-//  onto the player's public transport and recovery API.
+//  activation and idle release, and the route, interruption and
+//  media-services events, each mapped to a delegate verdict. It never touches
+//  the player's output itself — the delegate maps the verdicts onto the
+//  player's public transport and recovery API.
 //
 //  Main thread only: activate, deactivateWhenIdle and every delegate verdict
 //  run there. The media-reset receipt edge is the sole exception, documented
@@ -37,15 +37,16 @@ NS_ASSUME_NONNULL_BEGIN
 // has reactivated without clearing a newer route-loss or media-reset verdict.
 - (void)audioSessionShouldResume:(AudioSessionController *)controller;
 
-// The engine stopped itself because the output configuration changed — a new
-// route or sample rate, as when headphones or Bluetooth connect — not because
-// output was lost. Playback should continue on the new route: route the
-// verdict to the player's recoverFromEngineConfigurationChange, which
-// restarts in place while playing and no-ops otherwise. The controller
-// classifies the previous and current output routes before sending it, so a
-// configuration notification that precedes headphone-loss notification is a
-// pause instead.
-- (void)audioSessionEngineConfigurationChanged:(AudioSessionController *)controller;
+// The route moved — headphones or Bluetooth connected, an override, a
+// category change — without output being lost. Playback should continue on
+// the new route: route the verdict to the player's recoverOutput, which
+// follows the route's rate and restarts a stopped output while playing. The
+// controller classifies the previous and current output routes before
+// sending it, so external output falling back to built-in is a pause
+// instead, whatever reason the route change carried. Coalesced: a later
+// route change supersedes an undelivered earlier one, and an interruption,
+// route loss or media reset received before delivery blocks it.
+- (void)audioSessionShouldRecoverOutput:(AudioSessionController *)controller;
 
 // Media services crashed and were relaunched: every live audio object is
 // invalid. This is called synchronously on the notification's receiving
@@ -65,16 +66,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, readonly) id<AudioSessionControllerDelegate> delegate;
 
-// Parks the mixable Ambient category on the shared session. Claims nothing,
-// activates nothing, registers nothing — call it once before anything can
-// build an audio graph, which is why it is a class method rather than part of
-// init. AVAudioEngine instantiates its output unit while its master bus is
-// wired, and that runs against whatever category the session carries; the
-// system default is SoloAmbient, which is not mixable, so without this the
-// engine's construction alone stops whatever else the device is playing.
-// activate switches to Playback at the first play.
-+ (void)prepareIdleCategory;
-
 // Registration begins during initialization, so the delegate must already be
 // present when the first notification can arrive.
 - (instancetype)initWithDelegate:(id<AudioSessionControllerDelegate>)delegate
@@ -92,7 +83,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Releases the session, with NotifyOthersOnDeactivation so the app Vibe
 // interrupted gets its resume hint, once playback has sat idle for a grace
-// period longer than the engine's own idle stop. Call whenever playback
+// period longer than the player's own idle stop. Call whenever playback
 // pauses or ends; a subsequent activate cancels it, and it holds off while an
 // interruption is in progress, because deactivating mid-interruption can
 // forfeit the interruption-ended notification the resume depends on.

@@ -8,6 +8,7 @@
 #import "AudioLevelAnalyzer.h"
 #import "AudioLevelPublisherInternal.h"
 
+#include <mach/mach_time.h>
 #include <stdatomic.h>
 #include <unistd.h>
 
@@ -213,7 +214,7 @@ VIBE_REALTIME_END
     void (^_signalCompletion)(NSDictionary<NSString *, id> *);
     NSDictionary<NSString *, id> *_signalSnapshot;
     BOOL _signalWaitingForRetiredAudio;
-    AVAudioTime *_signalOverlapEndTime;
+    AudioTimeStamp _signalOverlapEndTime; // no flag set until an overlap ends
 #endif
 }
 
@@ -260,7 +261,9 @@ VIBE_REALTIME_END
     atomic_init(&meter->signalSampleCutoff, INFINITY);
     atomic_init(&meter->signalObservationStartResult, 0);
     atomic_init(&meter->signalFirstAfterStartResult, -1);
-    meter->hostSecondsPerTick = [AVAudioTime secondsForHostTime:NSEC_PER_SEC] / NSEC_PER_SEC;
+    mach_timebase_info_data_t timebase = {0};
+    mach_timebase_info(&timebase);
+    meter->hostSecondsPerTick = (double)timebase.numer / timebase.denom / NSEC_PER_SEC;
 #endif
     _publisher = publisher;
     meter->publisherState = [publisher publisherState];
@@ -318,6 +321,19 @@ VIBE_REALTIME_END
 
 #pragma mark - The signal probe
 
+#if VIBE_VERBOSE_LOGGING
+// A probe timestamp's clocks in seconds, NAN where it carries none. Its sample
+// time is in the pipeline's frames, which run at the meter's own rate.
+static double VibeLevelMeterHostSeconds(VibeLevelMeter *meter, const AudioTimeStamp *time) {
+    return (time->mFlags & kAudioTimeStampHostTimeValid) ? time->mHostTime * meter->hostSecondsPerTick : NAN;
+}
+
+static double VibeLevelMeterSampleSeconds(VibeLevelMeter *meter, const AudioTimeStamp *time) {
+    return (time->mFlags & kAudioTimeStampSampleTimeValid) && meter->sampleRate > 0
+            ? time->mSampleTime / meter->sampleRate : NAN;
+}
+#endif
+
 - (void)finishSignalDiagnostics:(NSString *)reason {
 #if VIBE_VERBOSE_LOGGING
     if (!_signalCompletion) return;
@@ -331,7 +347,7 @@ VIBE_REALTIME_END
 #endif
 }
 
-- (uint64_t)beginSignalDiagnosticsAtTime:(AVAudioTime *)startTime waitingForRetiredAudio:(BOOL)waiting
+- (uint64_t)beginSignalDiagnosticsAtTime:(AudioTimeStamp)startTime waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *))completion {
 #if VIBE_VERBOSE_LOGGING
     if (!_installed) return 0;
@@ -342,13 +358,13 @@ VIBE_REALTIME_END
     // Clear the request before replacing its clock pair; the render checks
     // the request again after reading it, so clocks cannot cross requests.
     atomic_store(&_meter->signalRequest, 0);
-    double host = startTime.hostTimeValid ? [AVAudioTime secondsForHostTime:startTime.hostTime] : NAN;
-    double sample = startTime.sampleTimeValid && startTime.sampleRate > 0 ? startTime.sampleTime / startTime.sampleRate : NAN;
+    double host = VibeLevelMeterHostSeconds(_meter, &startTime);
+    double sample = VibeLevelMeterSampleSeconds(_meter, &startTime);
     atomic_store(&_meter->signalHostOrigin, host);
     atomic_store(&_meter->signalSampleOrigin, sample);
     atomic_store(&_meter->signalHostCutoff, waiting ? INFINITY : host);
     atomic_store(&_meter->signalSampleCutoff, waiting ? INFINITY : sample);
-    if (!waiting && _signalOverlapEndTime) {
+    if (!waiting && (_signalOverlapEndTime.mFlags & (kAudioTimeStampHostTimeValid | kAudioTimeStampSampleTimeValid))) {
         _signalWaitingForRetiredAudio = YES;
         [self endSignalOverlapAtTime:_signalOverlapEndTime];
     }
@@ -360,16 +376,15 @@ VIBE_REALTIME_END
 #endif
 }
 
-- (void)endSignalOverlapAtTime:(AVAudioTime *)time {
+- (void)endSignalOverlapAtTime:(AudioTimeStamp)time {
 #if VIBE_VERBOSE_LOGGING
     // The fade can settle before the deferred start publishes its capture.
     _signalOverlapEndTime = time;
     if (!_signalCompletion || !_signalWaitingForRetiredAudio) return;
     _signalWaitingForRetiredAudio = NO;
-    if (time.hostTimeValid) atomic_store(&_meter->signalHostCutoff,
-            MAX(atomic_load(&_meter->signalHostOrigin), [AVAudioTime secondsForHostTime:time.hostTime]));
-    if (time.sampleTimeValid && time.sampleRate > 0) atomic_store(&_meter->signalSampleCutoff,
-            MAX(atomic_load(&_meter->signalSampleOrigin), time.sampleTime / time.sampleRate));
+    double host = VibeLevelMeterHostSeconds(_meter, &time), sample = VibeLevelMeterSampleSeconds(_meter, &time);
+    if (isfinite(host)) atomic_store(&_meter->signalHostCutoff, MAX(atomic_load(&_meter->signalHostOrigin), host));
+    if (isfinite(sample)) atomic_store(&_meter->signalSampleCutoff, MAX(atomic_load(&_meter->signalSampleOrigin), sample));
 #endif
 }
 
