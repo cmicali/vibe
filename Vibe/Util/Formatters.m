@@ -13,6 +13,7 @@
     NSString *_lastDurationText;
     NSDateComponentsFormatter *_timeFormatter;
     NSDateComponentsFormatter *_hourTimeFormatter;
+    NSCache<NSNumber *, NSString *> *_timeStrings;
     NSDateComponentsFormatter *_spelledDurationFormatter;
     NSNumberFormatter         *_decimalFormatter;
     NSNumberFormatter         *_signedPercentFormatter;
@@ -54,6 +55,12 @@
     // zero here, because this formatter is chosen only for durations of an
     // hour or more.
     _hourTimeFormatter.zeroFormattingBehavior = NSDateComponentsFormatterZeroFormattingBehaviorDropLeading;
+    _timeStrings = [[NSCache alloc] init];
+    _timeStrings.countLimit = 512;
+    // A region change can move the digits without relaunching the app.
+    NSCache *timeStrings = _timeStrings;
+    [NSNotificationCenter.defaultCenter addObserverForName:NSCurrentLocaleDidChangeNotification object:nil queue:nil
+                                                usingBlock:^(NSNotification *note) { [timeStrings removeAllObjects]; }];
 
     // Fraction digits are set per call. No grouping: small readouts (kHz, BPM).
     _decimalFormatter = [[NSNumberFormatter alloc] init];
@@ -122,9 +129,19 @@
     if (!isfinite(duration) || duration < 0) {
         duration = 0;
     }
+    // Keyed by the whole second, which is exact: both formatters truncate the
+    // fraction (59.99 is "0:59"). The time labels ask several times a second
+    // and on every scrub frame, and NSDateComponentsFormatter was two-thirds
+    // of the iOS player's tick, measured.
+    NSNumber *second = @(floor(duration));
+    NSString *cached = [_timeStrings objectForKey:second];
+    if (cached) {
+        return cached;
+    }
     NSDateComponentsFormatter *formatter = duration >= 3600 ? _hourTimeFormatter : _timeFormatter;
-    NSString *result = [formatter stringFromTimeInterval:duration];
-    return result ?: @"";
+    NSString *result = [formatter stringFromTimeInterval:duration] ?: @"";
+    [_timeStrings setObject:result forKey:second];
+    return result;
 }
 
 - (NSString *)sampleRateString:(double)hertz {
