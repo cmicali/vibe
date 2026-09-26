@@ -40,6 +40,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     SettingsRowView *_declickRow;
     NSButton *_defaultPlayerButton;
     NSSwitch *_alwaysOnTopSwitch;
+    NSSwitch *_lockWindowPositionSwitch;
     NSSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
@@ -80,6 +81,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
 
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
+    _lockWindowPositionSwitch = [self switchWithAction:@selector(toggleLockWindowPosition:)];
     _reopenPlaylistSwitch = [self switchWithAction:@selector(toggleReopenPlaylist:)];
 
     // Identifiers in representedObject, localized names in the titles — a
@@ -103,6 +105,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION control:_lockWindowPositionSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
         ]],
@@ -167,6 +170,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }
     [self refreshDefaultPlayerButton];
     _alwaysOnTopSwitch.state = AppSettings.sharedInstance.alwaysOnTop ? NSControlStateValueOn : NSControlStateValueOff;
+    _lockWindowPositionSwitch.state = AppSettings.sharedInstance.windowPositionLocked ? NSControlStateValueOn : NSControlStateValueOff;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
     // The getters are normalized, so a match always exists.
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
@@ -249,6 +253,11 @@ static const CGFloat kGeneralPopUpWidth = 280;
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
+}
+
+- (void)toggleLockWindowPosition:(id)sender {
+    AppSettings.sharedInstance.windowPositionLocked = (_lockWindowPositionSwitch.state == NSControlStateValueOn);
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowLock];
 }
 
 - (void)toggleReopenPlaylist:(id)sender {

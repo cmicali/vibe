@@ -350,6 +350,7 @@
 
     [self applyStoredAppearance];
     [self applyAlwaysOnTop];
+    [self applyWindowLock];
     [self applyAppIcon];
 
     self.waveformView.delegate = self;
