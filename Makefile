@@ -256,7 +256,8 @@ screenshots:
 # permissions — only those captures, so run `screenshots` first if the UI has
 # changed. LOCALE deliberately, not LANG or LANGUAGE — both are real
 # environment variables make would silently import.
-# macOS only; the iOS shots have no pipeline yet (docs/ios-release-punchlist.md D).
+# This target composites the macOS shots; the iOS canvases come from the script
+# directly: scripts/appstore-generate-store-screenshots.sh --platform ios [LOCALE].
 #   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/macos/
 #   make appstore-generate-store-screenshots LOCALE=de     # copy/de/macos captions → screenshots/de/macos/
 appstore-generate-store-screenshots:
@@ -268,8 +269,8 @@ appstore-generate-store-screenshots-all:
 
 # Fail unless every catalog language has complete App Store copy in
 # Assets/app-store/copy/<lang>/<platform>/, within ASC limits, and every
-# caption fits the screenshot layout. macOS is required; an absent iOS
-# directory is reported, a half-written one fails. For review/CI.
+# caption fits the screenshot layout. Both platforms are required. For
+# review/CI.
 appstore-validate-copy:
 	scripts/appstore-validate-copy.sh
 

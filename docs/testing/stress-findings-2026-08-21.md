@@ -11,7 +11,10 @@
        media-heavy soaks (instrumentation, not the app), and resting-views jumps
        whenever the Settings window has ever existed in the run (it is kept alive
        hidden and ui.views counts all windows).
-     - Regressions to watch: the five fixes in section G, each with its repro. -->
+     - Regressions to watch: the five fixes in section G, each with its repro.
+     - Since #66 (2026-09-25) there is no AVAudioEngine: the "engine nodes" baseline and the
+       AudioLevelTap TSan signal no longer exist. dump_health reports hosted units instead;
+       don't expect either. -->
 
 # Overnight stress campaign — findings
 

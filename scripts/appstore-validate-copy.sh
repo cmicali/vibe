@@ -166,6 +166,6 @@ while read -r l; do
     done
 done <<< "$LANGS"
 
-[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING iOS file(s) not written yet (docs/ios-release-punchlist.md D4)"
+[ "$PENDING" = 0 ] || echo "appstore-validate-copy: $PENDING iOS file(s) not written yet"
 
 [ "$FAIL" = 0 ] && echo "appstore-validate-copy: OK" || exit 1

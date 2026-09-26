@@ -1,7 +1,11 @@
 # Future: per-agent build slots
 
-Written 2026-08-13, planned but not implemented. Nothing in the repo has changed for it yet — the
-file:line anchors below are against `main` at that date and should be re-checked before acting.
+Written 2026-08-13, planned but not implemented. Re-verified 2026-09-26: still unimplemented, but
+some of the ground it describes has moved. The debug channel now lives in
+`Vibe/Debug/DebugChannel.m` and `Vibe/Debug/Mac/DebugScreenshot.m`, not `DebugUtil.m`; `launch.sh`
+already quits through the channel and polls, instead of `pkill` then `sleep 1`; `slow-open.sh` and
+`AppDelegate.logBuildInfo` no longer exist; and iOS already isolates sessions through
+`sim-udid.sh`. Every file:line anchor below predates those moves — re-derive before acting.
 
 The verified facts that shaped the design, in case they drift: `CLAUDE_CODE_SESSION_ID` is
 exported into every agent shell **and inherited by Task subagents** (so an agent and its subagents

@@ -1,12 +1,13 @@
 # Future: running the stress harness in a Tart VM
 
-Written 2026-08-21, revised 2026-08-22. Planned, not implemented. The file:line anchors are
-against `main` at the revision date and should be re-checked before acting.
+Written 2026-08-21, revised 2026-08-22. Planned, not implemented; re-verified 2026-09-26, still
+unimplemented. The references below are to files and skill sections, which should be re-checked
+before acting.
 
 ## Context
 
 The stress and torture harnesses run in the developer's own login session, against the
-developer's own `~/Library` container, on a binary that whatever is in `build/DerivedData` at
+developer's own `~/Library` container, on whatever binary is in `build/DerivedData` at
 that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 
 - a second Vibe instance colliding with the one under test

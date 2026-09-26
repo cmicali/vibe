@@ -123,12 +123,11 @@ version field, and versions are per platform** — which is the whole reason for
 the directory. The three URL files stay shared at `copy/`, because they are not
 version fields.
 
-**iOS text copy exists in English only so far.** `copy/en/ios/` holds the four
-text fields; the other languages are still to write, and the iOS screenshot
-pipeline does not exist at all (`docs/ios-release-punchlist.md`, sections C
-and D). `appstore-validate-copy` reports an absent `ios/` directory as pending
-rather than failing — but validates one that exists in full, so half-written
-iOS copy cannot slip through.
+**Both platforms carry copy in every catalog language**, and
+`appstore-validate-copy` requires both: a missing `ios/` or `macos/` directory
+fails, as does a half-written one. The iOS store screenshots come from the same
+pipeline as the macOS ones, with `--platform ios`
+(`scripts/appstore-generate-store-screenshots.sh`).
 
 The iOS copy deliberately does not reuse the macOS text, and must not: that
 copy sells BPM and key analysis, the pitch fader and the FX rack, and says the

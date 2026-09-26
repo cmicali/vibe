@@ -12,7 +12,7 @@ Increasing input/output buffers from 4,096 to 16,384 frames does not repair it. 
 
 `testRefusedSuccessorSeekFlushesMoreThanOneChunk` still compares a refused successor’s output against isolated predecessor playback. It proves the failure path adds no truncation. The refused-seek fix flushes the healthy predecessor tail through the existing chunked path, retaining error attribution to the unheard successor and suppressing its promotion. Do not replace it with one flush call: the measured tail exceeds one 4,096-frame chunk.
 
-A mastering-quality workaround still needs complete duration, alignment, passband and alias evidence on both platforms. Do not pad the output or relax the duration oracle to conceal the missing tail.
+A mastering-quality workaround still needs complete duration, alignment, passband and alias evidence on both platforms. The shortfall is measured at Maximum quality; iOS has converted at High by default since #74, which has not been measured for it. Do not pad the output or relax the duration oracle to conceal the missing tail.
 
 The bus now drives the converter as an AudioToolbox `AudioConverterRef` rather than through `AVAudioConverter` (34cbed68). The two shortfalls reproduce with the identical frame counts, as expected of the same resampler underneath; the swap is not a lead.
 
@@ -22,9 +22,15 @@ The 2026-09-25 review-fix pass reran 1,479 unit tests (the two scoped SRC durati
 
 Earlier implementation live checks covered macOS silent HAL transport, a 240-operation torture run (seed 660925), iOS simulator transport, owned-file waveform/analysis and WAV→FLAC conversion, and the Advanced Bluetooth eligibility override. The 2026-09-25 device-lifecycle pass below covered the macOS rebind path, the stale-device and rebuild symptoms, and exclusive ownership on three DACs. They do not establish:
 
-- Physical iOS route changes, interruptions, media-services reset, or provider-backed file access. Since #69 the iOS carrier is a RemoteIO `AudioOutputUnit`, so this pass must run on it: headphones and Bluetooth plugged and unplugged while playing and while paused, with the rate follow when the route's rate differs; a phone call ended with and without `ShouldResume` (the unit's `IsRunning` listener is what makes the resume start it again); a media-services reset re-making the unit; background playback across the lock screen with Now Playing still commanding it; and a cold launch leaving another app's audio playing, now that `prepareIdleCategory` is gone. None of it has run on a device.
+- Physical iOS interruptions, media-services reset, and the rest of the route pass. The iOS carrier is a RemoteIO `AudioOutputUnit` since #72. **Run on an iPhone 17 Pro (iOS 27), 2026-09-26, with the route/recovery log lines #72 added:**
+  - AirPods Pro connected while playing, several times: the verdict was recover, the unit kept running, and the one audible effect was a ~200–300 ms render-clock stall as iOS moved the audio, seen on some connects and not others.
+  - AirPods disconnected while playing, several times: the verdict was pause, and **iOS then stopped RemoteIO itself about 0.75 s after the route change**, every time. The system-stop path handled it (the player stopped its output while already paused) and the next play restarted the unit in ~95 ms. `iOS/CLAUDE.md` now says the unit does not always survive a route change.
+  - AirPlay to the speaker by a category change: paused, as external-to-built-in should. The rate follow ran at play start (48 → 44.1 kHz on AirPlay) and at resume (44.1 → 48 kHz on the speaker).
+  - Background playback on the Home screen, with the app out of the foreground for ~20 s at a time.
+
+  **Not yet run:** a route change that keeps playing *and* has iOS stop the unit, which is the path where `recoverOutput` restarts it (switching output from Control Center, or wired headphones, are the likely triggers); a rate follow mid-playback on a route change; a phone call ended with and without `ShouldResume` (the unit's `IsRunning` listener is what makes the resume start it again); a media-services reset re-making the unit; playback across the lock screen with Now Playing commanding it; and a cold launch leaving another app's audio playing, now that `prepareIdleCategory` is gone. Provider-backed file access on a device is unverified too.
 - Physical macOS unplug and wake: [device lifecycle acceptance](#device-lifecycle-acceptance) below. Integer-format DAC negotiation through `verify-bit-perfect --device-check` (`test-audio.md`), which the pass did not run.
-- Performance comparisons, ASan/UBSan, or the owned-file migration’s all-configuration binary audit.
+- ASan/UBSan, or the owned-file migration’s all-configuration binary audit. Performance has had one pass, iOS only: Instruments on device against Release builds (#74), which lowered the iOS resampling quality to High by default and fixed the main-thread costs it found. macOS has had no comparable profile.
 
 Use the existing [test instructions](../../Tests/CLAUDE.md), [hardware acceptance workflow](../../.claude/skills/vibe-debug/references/test-audio.md) and [debug skill](../../.claude/skills/vibe-debug/SKILL.md). Keep hardware results distinct from the manual pump and simulator.
 

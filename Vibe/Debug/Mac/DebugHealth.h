@@ -19,10 +19,10 @@
 
 // Process and UI resource counts: memory footprint, threads, file
 // descriptors, mach ports, window/view/layer counts, and the player's
-// attached engine nodes. Every field is a number the driver diffs between
+// hosted audio units. Every field is a number the driver diffs between
 // iteration N and iteration N+k — none of them is meaningful in isolation.
 //
-// It reads the engine node count through the player's own serial queue, so a
+// It reads the hosted-unit count through the player's own serial queue, so a
 // wedged player queue makes this command time out. That is deliberate: the
 // command channel runs on the main thread and would otherwise never notice.
 NSString *VibeDebugHealthJSON(MainPlayerController *controller);
