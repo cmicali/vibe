@@ -16,6 +16,10 @@
 #import "VibeManualRenderPump.h"
 #endif
 
+// NO only between the iOS shell's resign-active and become-active; see
+// noteSceneActive:.
+static _Atomic bool VibeSceneActive = true;
+
 #if VIBE_VERBOSE_LOGGING
 #import <dlfcn.h>
 #import <mach/mach.h>
@@ -379,7 +383,9 @@ static void VibeWatchMainThreadForStalls(mach_port_t thread) {
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         uint64_t previous = atomic_load_explicit(&passStart, memory_order_relaxed);
         if (previous && now - previous > 200 * NSEC_PER_MSEC) {
-            LogWarn(@"Stall: the main thread could not run anything for %.0f ms", (now - previous) / 1e6);
+            LogWarn(@"Stall: the main thread could not run anything for %.0f ms%@", (now - previous) / 1e6,
+                    atomic_load_explicit(&VibeSceneActive, memory_order_relaxed)
+                            ? @"" : @" (scene inactive: likely the system's app-switcher snapshot)");
         }
         if (activity == kCFRunLoopBeforeWaiting) {
             atomic_store_explicit(&passStart, 0, memory_order_seq_cst);
@@ -532,6 +538,10 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     return stages;
 }
 
+
++ (void)noteSceneActive:(BOOL)active {
+    atomic_store_explicit(&VibeSceneActive, active, memory_order_relaxed);
+}
 
 - (void)startStallWatchers {
 #if VIBE_VERBOSE_LOGGING

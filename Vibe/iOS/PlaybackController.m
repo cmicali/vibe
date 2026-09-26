@@ -15,6 +15,7 @@
 
 #import "AppSettings.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -208,6 +209,7 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     _sceneActive = sceneActive;
     _updateTimer.windowVisible = sceneActive;
+    [AudioPlayer noteSceneActive:sceneActive];
     [self syncLevelsEnabled];
     if (sceneActive) {
         // The one moment a widget can have been removed — see WidgetPublisher.h.
