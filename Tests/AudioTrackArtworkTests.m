@@ -606,14 +606,25 @@
 // playlist reload used to strand a whole set of thumbnails until 16k newer
 // rows pushed them out.
 - (void)testADeallocatedRowTakesItsThumbnailWithIt {
-    NSUInteger before = AudioTrackArtwork.decodedThumbnailCacheCountForTesting;
+    __weak AudioTrackArtwork *departed;
+    NSUInteger cached;
     @autoreleasepool {
         AudioTrackArtwork *artwork = [self artworkWithExtractor:nil];
         [artwork adoptArchivedThumbnailData:[self embeddedArtData] hasEmbeddedArt:YES];
         XCTAssertNotNil([self waitForThumbnailDecode:artwork]);
-        XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, before + 1);
+        XCTAssertTrue(artwork.decodedThumbnailIsCachedForTesting);
+        cached = AudioTrackArtwork.decodedThumbnailCacheCountForTesting;
+        departed = artwork;
     }
-    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, before);
+    // TRAP: the pool is not the row's last owner. The decode worker releases
+    // its capture of the row only after main has consumed the result, so on a
+    // loaded machine the row outlived the pool and the count read one high.
+    NSPredicate *gone = [NSPredicate predicateWithBlock:^BOOL(id object, NSDictionary *bindings) {
+        return departed == nil;
+    }];
+    [self waitForExpectations:@[[[XCTNSPredicateExpectation alloc] initWithPredicate:gone object:nil]]
+                      timeout:5.0];
+    XCTAssertEqual(AudioTrackArtwork.decodedThumbnailCacheCountForTesting, cached - 1);
 }
 
 // Decodes completing against a full cache evict the oldest entries rather
