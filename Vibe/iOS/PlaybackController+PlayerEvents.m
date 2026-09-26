@@ -157,6 +157,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // A resume from a media-reset (or interrupted-load) park goes through
     // playPause directly, never playCurrentTrack, so the flag clears here.
     _parked = NO;
+    // A start refused under a loaded track (a route change, the unit failing)
+    // parks it Paused and reports the error; resuming proves the error wrong.
+    // Left set, the Error state kept the header and hid the track from Now
+    // Playing and the mini player while it played. Same as the mac's
+    // clearErrorMask.
+    if (_errorText) {
+        _errorText = nil;
+        [self notifyDidRenderCurrentTrack];
+    }
     [[AppStats sharedInstance] playbackStarted];
     _updateTimer.wanted = YES;
     [self notifyDidChangePlayState];
