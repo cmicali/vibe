@@ -61,6 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 // construction and by the settings live-effect mapping.
 - (void)applyAlwaysOnTop;
 
+- (IBAction)toggleWindowPositionLock:(nullable id)sender;
 // Pushes AppSettings.sharedInstance.windowPositionLocked to the window's
 // movable flag, the lock's only state. Same two callers.
 - (void)applyWindowLock;

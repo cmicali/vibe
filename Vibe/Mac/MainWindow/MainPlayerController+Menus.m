@@ -83,6 +83,9 @@
     else if ([menuItem.identifier isEqualToString:kVibeMenuAlwaysOnTop]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
     }
+    else if ([menuItem.identifier isEqualToString:kVibeMenuLockWindowPosition]) {
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.windowPositionLocked);
+    }
 }
 
 // Checkmark whichever preset the current body width already sits at, which

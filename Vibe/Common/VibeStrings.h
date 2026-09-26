@@ -141,6 +141,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel.")
 #define STR_MENU_VIEW_FILE_INFO     NSLS(@"menu.view.file_info",         @"Show File Info",     @"View menu item: checkmarked toggle showing the header's file-format readout (codec, bitrate, sample rate) and the BPM/key line.")
 #define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"View menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
+#define STR_MENU_VIEW_LOCK_WINDOW_POSITION NSLS(@"menu.view.lock_window_position", @"Lock Window Position", @"View menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.")
 #define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"The Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for both.")
 #define STR_MENU_APPEARANCE_SYSTEM  NSLS(@"menu.view.appearance.system", @"Follow System",               @"Appearance choice in Settings: follow the system's light/dark setting. Shown beside Light and Dark.")
 #define STR_MENU_APPEARANCE_LIGHT   NSLS(@"menu.view.appearance.light",  @"Light",              @"Appearance choice in Settings: always use the light appearance.")
