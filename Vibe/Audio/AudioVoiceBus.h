@@ -149,6 +149,13 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // Called on the queue when a voice goes live off the decode queue, so the
 // player can drain promptly rather than at its next poll.
 @property (nonatomic, copy, nullable) dispatch_block_t voiceWentLive;
+// The sample-rate converter's quality (a kAudioConverterQuality_* value) for
+// every converter made after the write; a stream already converting keeps
+// its converter, and so its quality, until its voice ends — a gapless
+// successor read through the same converter included.
+// kAudioConverterQuality_Max by default. Atomic: the player writes it on the
+// queue, and a successor's converter is made on the decode queue.
+@property (atomic) UInt32 converterQuality;
 
 // Starts rendering `file` from `frame` (file frames) at `gain`, with `ramp`
 // pending — or paused, which carries no ramp: the first ramp set later is the

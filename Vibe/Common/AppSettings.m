@@ -56,6 +56,8 @@ const size_t kVibeCrossfadePresetCount =
     } mutableCopy];
 #if TARGET_OS_OSX
     [self registerMacDefaultsInto:appDefaults];
+#else
+    appDefaults[SETTING_MAXIMUM_RESAMPLING_QUALITY] = @(NO);
 #endif
     return appDefaults;
 }
@@ -203,6 +205,14 @@ static NSString *NormalizedWaveformStyle(NSString *stored) {
 - (void)setWaveformCustomUnplayedColor:(VibeColor *)color forDark:(BOOL)isDark {
     [self setHexColor:color forKey:
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
+}
+
+- (BOOL)maximumResamplingQuality {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_MAXIMUM_RESAMPLING_QUALITY];
+}
+
+- (void)setMaximumResamplingQuality:(BOOL)maximum {
+    [[NSUserDefaults standardUserDefaults] setBool:maximum forKey:SETTING_MAXIMUM_RESAMPLING_QUALITY];
 }
 #endif  // !TARGET_OS_OSX
 

@@ -88,6 +88,11 @@ static inline AVAudioFramePosition VibeClampedStartFrame(NSTimeInterval seconds,
     return MAX(0, MIN(frame, fileLength - 1));
 }
 
+// The AudioConverter spelling of a resamplingQuality.
+static inline UInt32 VibeConverterQualityForResampling(VibeResamplingQuality quality) {
+    return quality == VibeResamplingQualityHigh ? kAudioConverterQuality_High : kAudioConverterQuality_Max;
+}
+
 @interface AudioPlayer () {
     dispatch_queue_t        _queue;
     os_unfair_lock          _stateLock;

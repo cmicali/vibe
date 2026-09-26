@@ -25,6 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<NSDictionary<NSString *, id> *> *)audioPathOnQueue;
 
 
+// Whether the app's scene is foreground-active, for the stall log: iOS makes
+// an app that has just left the screen redraw itself for the app-switcher
+// snapshot, a main-thread stall of ~250 ms on device that the user never sees,
+// so a stall while inactive says so. The iOS shell reports its scene; macOS
+// never calls it. Main thread; any process-wide player's log reads it.
++ (void)noteSceneActive:(BOOL)active;
+
 // Installs the production player's stall watchers: the main thread's run loop
 // observer, one per process, and the player queue's ping, suspended until the
 // player has work that can stall. Main thread.

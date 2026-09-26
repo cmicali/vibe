@@ -26,7 +26,7 @@ Everything the app plays and nothing that draws it: engine, `Playlist`, metadata
 
 **A scrub on a parked track seeks; it does not play.** Parked, the player holds no file, so `seekToProgress:` opens the file at the scrubbed position, paused, with the duration from metadata. The seek target outranks Loading in the card's progress paths, or the waveform would snap to zero during that open. `didStartPlaying:` clears the in-flight flag; this seek has no `didFinishSeeking:`.
 
-**The metadata sweep waits for the picked track to settle**: `folderSession:didOpenTracks:` schedules it, `didStartPlaying:` and the error path start it, and a two-second fallback covers an open that never lands. The rule underneath is `AudioFileMaterializationCoordinator`'s (root `CLAUDE.md`); this is only the scheduling.
+**The metadata sweep waits for the picked track to settle**: `folderSession:didOpenTracks:` schedules it, `didStartPlaying:` and the error path start it, and a two-second fallback covers an open that never lands. **A launch restore starts it at once**: the park opens nothing, so there is nothing to starve and no `didStartPlaying:` coming — left to the fallback, every row outside the parked track's neighborhood appeared two seconds after launch, all together. The rule underneath is `AudioFileMaterializationCoordinator`'s (root `CLAUDE.md`); this is only the scheduling.
 
 **Display state is resolved once**, in `PlayerScreenRules.h` (header-only, tested from the macOS suite). `screenState` gathers the inputs; the card, the mini strip, Now Playing and the debug dump read the result. Separate from the mac's `TrackDisplayRules.h`: no launch grace here, and parked tracks the mac has no equivalent of.
 

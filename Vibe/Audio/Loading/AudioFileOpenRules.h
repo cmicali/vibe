@@ -33,9 +33,12 @@ static inline BOOL VibeAudioFileOpenDetachDelivery(
     return YES;
 }
 
-// One spelling of a file path for single-flight ownership. Standardization is
-// deliberately lexical: resolving symlinks would stat the target, which is one
-// of the operations this key exists to keep inside a bounded worker.
+// One spelling of a file path for single-flight ownership. Symlinks are
+// deliberately not resolved: that would stat the target, which is one of the
+// operations this key exists to keep inside a bounded worker.
+// TRAP: it is still not free. URLByStandardizingPath stats the path to decide
+// whether a /private prefix can go, and every iOS cloud path has one, so keep
+// it off per-row and per-frame paths (CloudTransferRegistry's entryForURL:).
 static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
     if (url.isFileURL) {
         return url.URLByStandardizingPath.path ?: url.path ?: @"";

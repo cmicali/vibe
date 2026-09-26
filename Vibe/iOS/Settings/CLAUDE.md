@@ -4,7 +4,7 @@ The screens behind the Playlist tab's gear, **pushed onto that navigation stack 
 
 **These screens write settings and never reach for the screens that draw them.** A display setting's writer ends on `VibeNotifyDisplaySettingsChanged()`, never a hand-composed post, and the card's `displaySettingsDidChange` (`../Player/CLAUDE.md`) is the reader. A notification is right here where macOS uses its synchronous named-effect mapping (`Common/CLAUDE.md`), because the settings screens and the card share no owner below `RootViewController`.
 
-**The Playback screen posts nothing, because nothing draws from it.** On track end and Crossfade — the mac pane's Track transitions group, the only part of that pane iOS has — are played, so each write ends on `PlaybackController.applyTrackTransitionSettings`, which is what the gear hands the model down the stack for. The rule it enforces is the root doc's.
+**The Playback screen posts nothing, because nothing draws from it.** On track end and Crossfade — the mac pane's Track transitions group, the only part of that pane iOS has — are played, so each write ends on `PlaybackController.applyTrackTransitionSettings`, which is what the gear hands the model down the stack for. The rule it enforces is the root doc's. Its Audio section's one row, Resampling, is iOS's own (macOS always resamples at Maximum); its write ends on `PlaybackController.applyResamplingSetting`, which takes effect from the next track or seek.
 
 **"When opening a folder" notifies nothing.** No screen draws from it; it governs the next open. Its case writes `AppSettings.folderOpenSort`, reloads its section for the checkmark, and returns.
 

@@ -112,6 +112,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
         _pendingRequest = [PlaybackRequestCoordinator new];
         _maxPitch = kDefaultMaxPitchPercent;
         _crossfadeMilliseconds = kFadeDurationMilliseconds;
+        _resamplingQuality = VibeResamplingQualityMaximum;
         _declick = YES;
         _loadingConfiguration = [AudioLoadingConfiguration productionConfiguration];
         _retiringVoices = [NSMutableArray array];
@@ -1102,6 +1103,26 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         else if (self->_successorTrack) {
             [self unqueueSuccessorOnQueue];
         }
+    });
+}
+
+// Manual accessors so the write reaches the bus, whose converters read it as
+// they are made; a bus built later takes it from here (ensureSourceSegmentOnQueueRebuilt:).
+@synthesize resamplingQuality = _resamplingQuality;
+
+- (VibeResamplingQuality)resamplingQuality {
+    os_unfair_lock_lock(&_stateLock);
+    VibeResamplingQuality quality = _resamplingQuality;
+    os_unfair_lock_unlock(&_stateLock);
+    return quality;
+}
+
+- (void)setResamplingQuality:(VibeResamplingQuality)quality {
+    os_unfair_lock_lock(&_stateLock);
+    _resamplingQuality = quality;
+    os_unfair_lock_unlock(&_stateLock);
+    dispatch_async(_queue, ^{
+        self->_voiceBus.converterQuality = VibeConverterQualityForResampling(quality);
     });
 }
 

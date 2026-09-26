@@ -33,6 +33,9 @@
 
 @implementation CloudTransferRegistry {
     NSMutableDictionary<NSString *, VibeCloudTransferEntry *> *_entries;
+    // The last component of every key, so a read can rule a URL out without
+    // standardizing it (entryForURL:).
+    NSCountedSet<NSString *> *_fileNames;
     VibeCloudTransferMonitorFactory _monitorFactory;
     BOOL _notifyPending;
 }
@@ -64,6 +67,7 @@
     self = [super init];
     if (self) {
         _entries = [NSMutableDictionary dictionary];
+        _fileNames = [NSCountedSet set];
         _monitorFactory = [monitorFactory copy];
     }
     return self;
@@ -72,14 +76,32 @@
 #pragma mark - Reads
 
 - (BOOL)isTransferringURL:(NSURL *)url {
-    NSString *path = VibeStandardizedAudioOpenPath(url);
-    return path != nil && _entries[path] != nil;
+    return [self entryForURL:url] != nil;
 }
 
 - (float)progressForURL:(NSURL *)url {
-    NSString *path = VibeStandardizedAudioOpenPath(url);
-    VibeCloudTransferEntry *entry = path ? _entries[path] : nil;
+    VibeCloudTransferEntry *entry = [self entryForURL:url];
     return entry ? entry.progress : -1;
+}
+
+// TRAP: VibeStandardizedAudioOpenPath is not free. URLByStandardizingPath
+// stats the file to strip a /private prefix, and every cloud path has one
+// (/private/var/mobile/Library/CloudStorage/...), so a list row asking for its
+// loading state paid two stats on main — 81% of an iOS library cell's render,
+// measured. Standardizing never changes a file path's last component unless
+// that component is "." or "..", so a name no key ends in is not transferring,
+// and the common case, nothing in flight, costs nothing.
+- (nullable VibeCloudTransferEntry *)entryForURL:(NSURL *)url {
+    if (_entries.count == 0) {
+        return nil;
+    }
+    NSString *name = url.lastPathComponent;
+    if (url.isFileURL && name.length && ![name isEqualToString:@"."] && ![name isEqualToString:@".."]
+            && ![_fileNames containsObject:name]) {
+        return nil;
+    }
+    NSString *path = VibeStandardizedAudioOpenPath(url);
+    return path ? _entries[path] : nil;
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)transferSnapshot {
@@ -103,6 +125,7 @@
     entry.url = url;
     entry.progress = -1;
     _entries[path] = entry;
+    [_fileNames addObject:path.lastPathComponent];
     __weak CloudTransferRegistry *weakSelf = self;
     entry.monitor = _monitorFactory(url, ^(float fraction) {
         [weakSelf monitorReportedProgress:fraction forPath:path];
@@ -118,6 +141,7 @@
     }
     [entry.monitor cancel];
     [_entries removeObjectForKey:path];
+    [_fileNames removeObject:path.lastPathComponent];
     [self scheduleObserverNotification];
 }
 
@@ -142,8 +166,7 @@
 
 - (void)noteProgress:(float)fraction forURL:(NSURL *)url {
     NSParameterAssert(NSThread.isMainThread);
-    NSString *path = VibeStandardizedAudioOpenPath(url);
-    VibeCloudTransferEntry *entry = path ? _entries[path] : nil;
+    VibeCloudTransferEntry *entry = [self entryForURL:url];
     if (!entry) {
         return;
     }
