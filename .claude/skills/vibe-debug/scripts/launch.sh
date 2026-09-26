@@ -102,10 +102,13 @@ for _ in 1 2 3 4 5 6; do
             "")     ARGS+=(--no-audio-hw --silent) ;;
             silent) ARGS+=(--silent) ;;
         esac
+        # TRAP: under set -e a failing open ends the script before the retry
+        # loop, so a transient Launch Services refusal right after a quit leaves
+        # no app. Keep the error and let the loop try again.
         if [ "${#ARGS[@]}" -gt 0 ]; then
-            open -a "$APP" "$@" --args ${ARGS[@]+"${ARGS[@]}"}
+            OPEN_ERR="$(open -a "$APP" "$@" --args ${ARGS[@]+"${ARGS[@]}"} 2>&1)" || OPEN_ERR="open -a failed ($?): $OPEN_ERR"
         else
-            open -a "$APP" "$@"
+            OPEN_ERR="$(open -a "$APP" "$@" 2>&1)" || OPEN_ERR="open -a failed ($?): $OPEN_ERR"
         fi
         sleep 2
     fi
@@ -120,5 +123,9 @@ for _ in 1 2 3 4 5 6; do
         exit 0
     fi
 done
-echo "vibe: app never answered on the debug channel" >&2
+if pgrep -x Vibe >/dev/null; then
+    echo "vibe: app never answered on the debug channel" >&2
+else
+    echo "vibe: no app process ever started; last open: ${OPEN_ERR:-no error}" >&2
+fi
 exit 1

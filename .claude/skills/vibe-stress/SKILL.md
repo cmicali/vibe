@@ -65,20 +65,24 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 
 **TRAP: this moves audio for every app on the machine, not just Vibe** — which is why device changes are excluded from the stress profiles rather than added as a profile, and why this is run deliberately rather than left soaking unattended. It restores the original default on every exit path including SIGINT/SIGTERM, but a SIGKILL leaves the default moved and may strand a public aggregate.
 
-**Rotating real devices, when the question is what a bind COSTS.** The helper's `rotate` mode cycles the system default across a list of real devices in one process, creating nothing. Measured with Vibe on System Output over 42 changes, playback unbroken:
+**Rotating real devices, when the question is what a bind COSTS.** The helper's `rotate` mode cycles the system default across a list of real devices in one process, creating nothing. Measured on the hosted-unit carrier with Vibe on System Output, rotating Fireface → Audient → FiiO → speakers, 200 changes, playback unbroken (the output unit's `AudioOutputUnit: bind to device N took` and `start on device N took` lines):
 
-| Destination | median settle | max |
-| --- | --- | --- |
-| RME Fireface 802 (USB, 30ch) | 0.525 s | 0.533 s |
-| Audient iD4 (USB, 4ch) | 0.314 s | 0.352 s |
-| FiiO USB DAC-E10 (USB, 2ch) | 0.127 s | 0.131 s |
-| Built-in speakers | 0.086 s | 0.394 s |
+| Destination | median HAL time per switch | of which output start | what the rest is |
+| --- | --- | --- | --- |
+| RME Fireface 802 (USB, 30ch) | 0.271 s | 215 ms | bind ~47 ms |
+| Audient iD4 (USB, 4ch) | 0.271 s | 50 ms | ~210 ms waiting for the **Fireface** to stop |
+| FiiO USB DAC-E10 (USB, 2ch) | 0.076 s | 46 ms | |
+| Built-in speakers | 0.045 s | 24 ms | |
 
-**Bind cost does not track device quality** — the RME is 4x slower than the cheap FiiO, consistently. Do not assume a better interface binds faster.
+**TRAP: a rebind pays for the device it LEAVES as well as the one it joins.** Binding the unit to a new device waits for the old device's IO to stop, and the RME takes ~200 ms to stop as well as ~215 ms to start, so in this rotation the Audient's row is mostly the Fireface. Read the unit's bind and stop lines before attributing a cost; the engine-era table here once put the Audient at 0.314 s for the same reason. **Bind cost does not track device quality** — the RME is the slowest interface in both directions.
+
+**What a slow bind costs transport (#53).** Before the output unit waited on the HAL on its own queue, the whole rebind ran on the player queue and a play submitted during it waited it out: median 127 ms, max 270 ms, against ≤ 4 ms outside one (742 plays). Measure it by submitting a `play_index` every ~0.35 s during the rotation and reading `Timeline: play N admitted after X ms on player queue` against the device's busy windows — since the fix those are the `AudioOutputUnit: bind to device N took` / `start on device N took` / `stop took` lines, not the player's own rebind, which is now a few milliseconds. After the fix: max 3.4 ms during a bind (109 plays, median 0.1 ms), no player-queue stall. The rotation table above is the HAL's time either way.
 
 **TRAP: Vibe must be on System Output for a rotation to test anything.** An explicitly bound device does not follow the default, so rotating it produces zero rebinds while looking like a successful run. Verify `dump_state.player.requestedOutputDeviceId` is -1 before believing a result; a first attempt at the table above was invalid for exactly this.
 
-**TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 300 flaps — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
+**TRAP: a clean run does not clear the hardware path.** A destroyed software aggregate returns in microseconds; a real DAC waking from sleep takes seconds to become usable, and that latency is where the delay in #47 lives. This driver proves Vibe's own rebind path survives — measured flat across 750 vanish flaps over three DACs and 1,800 move flaps across six device pairs — and nothing about a physical device. Only power-cycling real hardware tests that, and it cannot be automated.
+
+**TRAP: every flap must begin PLAYING, or the silent-stop oracle passes vacuously.** The at-rest `quiesce` empties the playlist, and a `play_index` on an empty one is a no-op; before the driver reopened the corpus after each at-rest sample, every flap after the first sample ran against an idle player and the run reported clean. The driver now reopens through the channel's `open` (the launch grant covers the folder) and fails any flap that begins not playing. Judge the at-rest heap against a no-flap control at the same cadence: at rest it wanders ±0.5 MB in both directions with or without flapping.
 
 **Bit-perfect and exclusive output.** `bitperfect-soak.py` is the only suite that exercises them. Per track, at settle pace, it asserts: status Active, the device running at **that file's** rate (read from `afinfo`, never from the app — asserting the app against itself proves nothing), the bus and the hosted output unit at that rate, no varispeed in the chain, `outputDropouts` unchanged, `rateExact`/`formatConfirmed`/`channelsMatch`/`depthOK` all true, and the hog held on the chosen device. Then a mode toggle must return to Active and release the hog, and the device's nominal rate must be back where it started — read from the HAL, since the app's own report of what it restored is the thing under test.
 
@@ -90,6 +94,8 @@ The first two corpus folders must each hold 6–40 playable files; larger folder
 **TRAP: torture.py cannot test either mode, and passes anyway.** Torture runs at 10–70 ops/s; a bit-perfect format switch needs about a second to confirm. Under torture the switch never completes before the next track change, so the mode sits in `switchFailed` for the whole run — and since exclusive only acquires once bit-perfect confirms, **hog is never taken at all**. Measured: a 720-op run with both settings enabled reported `PASSED, no violations` having exercised neither. Same class as the folder-art trap: a disabled feature looks exactly like a clean run.
 
 **TRAP: the System Output row embeds the default device's name**, so `--device-name "Fireface 802 (24240711)"` matches `System Output (Fireface 802 (24240711))` first. That row is the -1 policy and is never eligible, so the mode refuses to arm and the run dies looking like a device fault. The matcher excludes System Output rows and prefers an exact match; keep it that way.
+
+**A device's own volume below unity is a truthful `volumeScaled`, not a failure of the mode.** The device scales the samples, so the report is right and every track would fail. The driver holds each target's settable volume scalars at 1.0 for the run and restores the exact prior values on every exit path, SIGKILL excepted (a FiiO at 0.877 failed 10/10 before this).
 
 **A rate the hardware lacks is not a failure.** The driver reads `kAudioDevicePropertyAvailableNominalSampleRates` and requires `rateUnsupported` for those tracks instead of Active. Measured: the FiiO USB DAC-E10 offers 32/44.1/48/96 kHz and no 88.2, so an 88.2 kHz file must report `rateUnsupported` on it and Active on an RME Fireface, which has it. Without that check a device limitation reads as a bug.
 

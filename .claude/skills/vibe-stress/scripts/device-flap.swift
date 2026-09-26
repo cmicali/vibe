@@ -18,6 +18,7 @@
 // path including SIGINT/SIGTERM, and destroys its aggregate before exiting —
 // but a SIGKILL leaves both behind. That is why device changes are excluded
 // from the unattended stress profiles and live here instead.
+import AudioToolbox
 import CoreAudio
 import Foundation
 
@@ -93,8 +94,9 @@ case "move":
 // original default is restored once at the end rather than bounced back after
 // every step. Creates and destroys nothing, so unlike vanish it cannot degrade
 // coreaudiod — and it exercises each device's real bind cost, which differs by
-// an order of magnitude between interfaces (measured: built-in 26ms, FiiO and
-// Audient ~55ms, RME Fireface 223ms to engine start).
+// an order of magnitude between interfaces (measured output start: built-in
+// 24ms, FiiO and Audient ~50ms, RME Fireface 215ms — and the RME takes ~200ms
+// more to STOP, which the next device's bind pays).
 case "rotate":
     guard args.count >= 5 else {
         emit(["ok": false, "error": "rotate needs a comma-separated device list"]); exit(64)
@@ -170,6 +172,44 @@ case "rates":
     let st = AudioObjectGetPropertyData(devA, &addr, 0, nil, &sz, &ranges)
     emit(["ok": st == noErr, "mode": "rates", "device": devA,
           "ranges": ranges.map { ["min": $0.mMinimum, "max": $0.mMaximum] }])
+
+// Read, or set, the output volume scalar per element, so a bit-perfect run can
+// hold a DAC at unity and put the user's level back afterwards. A device below
+// unity truthfully reports volumeScaled, which reads as a failed soak rather
+// than a precondition. devA is the device; args[4], when present, is
+// "key:scalar,…" to write, a key being an element number or "v" for the
+// virtual main volume the app's report reads. Replies with every settable
+// key's value after the write.
+case "volume":
+    var writes: [String: Float32] = [:]
+    if args.count >= 5 {
+        for pair in args[4].split(separator: ",") {
+            let kv = pair.split(separator: ":")
+            if kv.count == 2, let v = Float32(kv[1]) { writes[String(kv[0])] = v }
+        }
+    }
+    var values: [String: Float32] = [:]
+    var ok = true
+    var keyed = (0...64).map { element in
+        ("\(element)", AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                  mScope: kAudioDevicePropertyScopeOutput, mElement: UInt32(element)))
+    }
+    keyed.append(("v", AudioObjectPropertyAddress(mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                                                  mScope: kAudioDevicePropertyScopeOutput,
+                                                  mElement: kAudioObjectPropertyElementMain)))
+    for (key, address) in keyed {
+        var addr = address
+        guard AudioObjectHasProperty(devA, &addr) else { continue }
+        var settable: DarwinBoolean = false
+        guard AudioObjectIsPropertySettable(devA, &addr, &settable) == noErr, settable.boolValue else { continue }
+        if var v = writes[key] {
+            ok = ok && AudioObjectSetPropertyData(devA, &addr, 0, nil, UInt32(MemoryLayout<Float32>.size), &v) == noErr
+        }
+        var v: Float32 = 0
+        var sz = UInt32(MemoryLayout<Float32>.size)
+        if AudioObjectGetPropertyData(devA, &addr, 0, nil, &sz, &v) == noErr { values[key] = v }
+    }
+    emit(["ok": ok, "mode": "volume", "device": devA, "elements": values])
 
 default:
     emit(["ok": false, "error": "unknown mode \(mode)"]); exit(64)

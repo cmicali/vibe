@@ -99,7 +99,13 @@ GROWTH_FACTOR = 3.0
 #
 # So: a large run is opt-in, and a long one pauses to let the daemon breathe.
 # These numbers are judgement, not measurement — 400 broke it and 300 did not,
-# and nobody has bisected the threshold.
+# and nobody has bisected the threshold. It moves: on macOS 27 (Mac Studio,
+# 2026-09-25) ~935 aggregates in batches of 250 with these pauses left the
+# daemon healthy, and it wedged at ~990 — a fresh process could no longer make
+# an output unit (AudioComponentInstanceNew hung in HALC_ProxyObject::HasProperty)
+# while reading the default device still answered in 0.14 s. So a health check
+# between batches must make an output unit, not just read a property, and the
+# cap stays.
 MAX_UNCAPPED_FLAPS = 250
 RECOVER_EVERY = 20.0      # seconds of quiet
 RECOVER_BATCH = 100       # ...every this many flaps
@@ -154,6 +160,21 @@ class App:
     def playback(self):
         s = self.json("dump_state").get("player", {})
         return s.get("state"), s.get("position")
+
+    def reload(self, corpus):
+        """TRAP: quiesce empties the playlist, and play_index on an empty one is
+        a no-op. Without this reopen every flap after the first at-rest sample
+        ran against an idle player, and the silent-stop oracle — which needs
+        `playing` before the flap — passed them all vacuously. The launch
+        grant covers the folder, so the channel's open reaches it."""
+        self.json("open", str(corpus))
+        for _ in range(20):
+            if (self.json("dump_state").get("playlist") or {}).get("count"):
+                break
+            time.sleep(0.5)
+        self.json("play_index", "0")
+        time.sleep(1.5)
+        return self.playback()[0] == "playing"
 
 
 def build_helper(out):
@@ -260,6 +281,13 @@ def main():
     samples, breaches, at_rest = [], {}, []
     for i in range(1, args.flaps + 1):
         before_state, before_pos = app.playback()
+        if before_state != "playing":
+            # A flap over an idle player tests nothing and must not count as clean.
+            failures.append((i, f"not playing before the flap (state={before_state})"))
+            print(f"  flap {i}: *** NOT PLAYING before flap ({before_state}) ***", flush=True)
+            if not app.reload(args.corpus):
+                break
+            before_state, before_pos = app.playback()
         res = flap(helper, args.mode, args.device, args.gone_ms, args.device_b)
         if not res.get("ok"):
             helper_errors += 1
@@ -283,8 +311,7 @@ def main():
                 stops.append((i, before_pos, state))
                 print(f"  flap {i}: *** SILENT STOP *** was playing at "
                       f"{before_pos:.1f}s, now {state}", flush=True)
-            app.json("play_index", "0")
-            time.sleep(1.5)
+            app.reload(args.corpus)  # counted once here, not again as "not playing" at the next flap
 
         viol = app.json("check_consistency").get("violations") or []
         if viol:
@@ -332,8 +359,10 @@ def main():
             if rest:
                 at_rest.append((i, rest))
                 print(f"  flap {i}: AT REST live heap {rest:,}", flush=True)
-            app.json("play_index", "0")
-            time.sleep(1.5)
+            if not app.reload(args.corpus):
+                failures.append((i, "could not resume playback after the at-rest quiesce"))
+                print(f"  flap {i}: *** NOT PLAYING after reload ***", flush=True)
+                break
 
     q = app.json("quiesce", timeout=40)
     pending = q.get("pending")

@@ -33,8 +33,10 @@ and documented; the run releases it, but a SIGKILL mid-run leaves it taken.
 """
 
 import argparse
+import atexit
 import json
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -74,13 +76,26 @@ def file_format(path):
     return float(m.group(1)), int(m.group(2))
 
 
-def device_rate(helper, device):
+def helper_json(helper, mode, device, *extra):
+    """The helper's one-line JSON reply to `mode` on `device`, or {}."""
     try:
-        out = subprocess.run([str(helper), "rate", str(device), "0"],
+        out = subprocess.run([str(helper), mode, str(device), "0", *extra],
                              capture_output=True, text=True, timeout=30).stdout
-        return json.loads(out.strip().splitlines()[-1]).get("rate")
+        return json.loads(out.strip().splitlines()[-1])
     except Exception:
-        return None
+        return {}
+
+
+def device_rate(helper, device):
+    return helper_json(helper, "rate", device).get("rate")
+
+
+def device_volume(helper, device, writes=None):
+    """{element: scalar} for every SETTABLE output volume — each element, and "v"
+    for the virtual main volume the app's own volumeScaled check reads — after
+    applying `writes` ({element: scalar}) if given. Empty for a device with none."""
+    extra = [",".join(f"{e}:{v!r}" for e, v in writes.items())] if writes else []
+    return helper_json(helper, "volume", device, *extra).get("elements", {})
 
 
 def build_helper(out):
@@ -96,13 +111,8 @@ def device_rates(helper, device):
     """The rates the device can actually run at. Without this, a DAC that simply
     lacks a rate is indistinguishable from a failure to switch to it — the FiiO
     DAC-E10 has no 88.2 kHz, and reporting rateUnsupported there is CORRECT."""
-    try:
-        out = subprocess.run([str(helper), "rates", str(device), "0"],
-                             capture_output=True, text=True, timeout=30).stdout
-        d = json.loads(out.strip().splitlines()[-1])
-        return {r["min"] for r in d.get("ranges", [])} if d.get("ok") else None
-    except Exception:
-        return None
+    d = helper_json(helper, "rates", device)
+    return {r["min"] for r in d.get("ranges", [])} if d.get("ok") else None
 
 
 def check_track(report, want_rate, want_exclusive, device, label, failures,
@@ -161,6 +171,12 @@ def main():
     ap.add_argument("--no-exclusive", action="store_true")
     ap.add_argument("--settle", type=float, default=SETTLE_SECONDS)
     args = ap.parse_args()
+    also = []
+    for spec in args.also_device:
+        did, _, dname = spec.partition(":")
+        if not did.isdigit() or not dname:
+            sys.exit(f"--also-device wants ID:NAME, got {spec!r}")
+        also.append((int(did), dname))
 
     helper = build_helper(HERE / "device-flap-helper")
     binary = args.app / "Contents/MacOS/Vibe"
@@ -187,6 +203,24 @@ def main():
         if missing:
             print(f"  note: corpus has rates this device lacks {missing} — those "
                   f"tracks must report rateUnsupported", flush=True)
+
+    # TRAP: a DAC whose own volume sits below unity makes every track report
+    # volumeScaled — a TRUE report, since the device scales the samples — and the
+    # soak then reads as a run of failures that says nothing about the mode (a
+    # FiiO at the user's 0.877 did exactly that). Hold every target at unity for
+    # the run and put the user's exact levels back on every exit path.
+    saved_volumes = {d: device_volume(helper, d) for d in [args.device, *(d for d, _ in also)]}
+    saved_volumes = {d: v for d, v in saved_volumes.items() if v}
+
+    def restore_volumes():
+        for d, v in saved_volumes.items():
+            device_volume(helper, d, v)
+        saved_volumes.clear()
+    atexit.register(restore_volumes)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    for d, v in saved_volumes.items():
+        forced = device_volume(helper, d, {e: 1.0 for e in v})
+        print(f"device {d} volume held at unity for the run (was {v}, now {forced})", flush=True)
 
     launch = (REPO / ".claude/skills/vibe-debug/scripts/launch.sh").resolve()
     subprocess.run([str(launch), str(args.corpus)], capture_output=True, text=True,
@@ -241,17 +275,14 @@ def main():
     # Each entry is (device id, row index, supported rates). The primary is
     # first; --also-device adds the rest.
     targets = [(args.device, row, supported)]
-    for spec in args.also_device:
-        did, _, dname = spec.partition(":")
-        if not dname:
-            sys.exit(f"--also-device wants ID:NAME, got {spec!r}")
+    for did, dname in also:
         cand = [(i, r) for i, r in enumerate(rows) if not r.startswith("System Output")]
         r_i = next((i for i, r in cand if r == dname), None)
         if r_i is None:
             r_i = next((i for i, r in cand if dname in r), None)
         if r_i is None:
-            sys.exit(f"--also-device {spec!r}: no Output row matches {dname!r}")
-        targets.append((int(did), r_i, device_rates(helper, int(did))))
+            sys.exit(f"--also-device {did}:{dname}: no Output row matches {dname!r}")
+        targets.append((did, r_i, device_rates(helper, did)))
     if len(targets) > 1:
         print(f"rotating across {len(targets)} devices between rounds: "
               f"{[t[0] for t in targets]}", flush=True)
@@ -308,6 +339,7 @@ def main():
     run(binary, "quit")
     time.sleep(2)
 
+    restore_volumes()
     rate_after = device_rate(helper, args.device)
     restored = rate_before is not None and rate_after is not None and \
         abs(rate_before - rate_after) < 1
