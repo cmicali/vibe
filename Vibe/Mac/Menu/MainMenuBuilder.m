@@ -371,6 +371,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     AddSeparator(viewMenu);
     AddSymbolItem(viewMenu, STR_MENU_VIEW_ALWAYS_ON_TOP, @"pin", @selector(toggleAlwaysOnTop:), player, @"", 0, kVibeMenuAlwaysOnTop);
+    AddSymbolItem(viewMenu, STR_MENU_VIEW_LOCK_WINDOW_POSITION, @"lock", @selector(toggleWindowPositionLock:), player, @"", 0, kVibeMenuLockWindowPosition);
 }
 
 + (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

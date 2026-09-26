@@ -27,7 +27,8 @@
 
 - (void)testEveryBuilderOwnedIdentifierHasADomain {
     [self assertIdentifiers:@[kVibeMenuShowPlaylist, kVibeMenuShowPitch,
-                              kVibeMenuShowFileInfo, kVibeMenuAlwaysOnTop]
+                              kVibeMenuShowFileInfo, kVibeMenuAlwaysOnTop,
+                              kVibeMenuLockWindowPosition]
                    classify:VibeMenuValidationDomainViewToggle];
 
     [self assertIdentifiers:@[kVibeMenuNextTrack, kVibeMenuPreviousTrack, kVibeMenuPlaySelected,

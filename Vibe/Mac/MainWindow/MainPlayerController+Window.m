@@ -284,6 +284,11 @@
     [(AppDelegate *)NSApp.delegate applyAuxiliaryWindowLevels];
 }
 
+- (IBAction)toggleWindowPositionLock:(id)sender {
+    AppSettings.sharedInstance.windowPositionLocked = !AppSettings.sharedInstance.windowPositionLocked;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectWindowLock];
+}
+
 - (void)applyWindowLock {
     self.window.movable = !AppSettings.sharedInstance.windowPositionLocked;
 }

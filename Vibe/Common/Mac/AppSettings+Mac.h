@@ -212,8 +212,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setAlwaysOnTop:(BOOL)onTop;
 
 // YES stops the player window from being moved by a drag; it stays resizable.
-// Settings > General is the one writer; VibeSettingsLiveEffectWindowLock is the
-// post-write path that acts on it.
+// View > Lock Window Position and Settings > General share this setting;
+// VibeSettingsLiveEffectWindowLock is the shared post-write path that acts on it.
 - (BOOL)windowPositionLocked;
 - (void)setWindowPositionLocked:(BOOL)locked;
 
