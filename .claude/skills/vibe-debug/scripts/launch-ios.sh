@@ -10,7 +10,8 @@
 #   <repo>/build/DerivedData/Build/Products/Debug-iphonesimulator/Vibe.app
 # Audio is SILENT by default (launches with --no-audio-hw --silent — the
 # shared engine honors the same debug argv flags as macOS), so a test run
-# never plays through the mac's speakers; set VIBE_AUDIBLE=1 to hear it.
+# never plays through the mac's speakers; set VIBE_AUDIBLE=1 to hear it, or
+# VIBE_AUDIBLE=silent for the real RemoteIO output unit with its buffers zeroed.
 # Set VIBE_LANGUAGE=de (a catalog code) to launch in that language.
 #
 # Seeded files land in Documents/Music inside the app container — the same
@@ -55,7 +56,10 @@ fi
 
 ARGS=()
 [ -n "${VIBE_LANGUAGE:-}" ] && ARGS+=(-AppleLanguages "(${VIBE_LANGUAGE})")
-[ -z "${VIBE_AUDIBLE:-}" ] && ARGS+=(--no-audio-hw --silent)
+case "${VIBE_AUDIBLE:-}" in
+    "")     ARGS+=(--no-audio-hw --silent) ;;
+    silent) ARGS+=(--silent) ;;
+esac
 xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 
 # Poll the debug channel until the app answers, as launch.sh does — no guessed

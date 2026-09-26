@@ -224,7 +224,11 @@ def main():
 
     launch = (REPO / ".claude/skills/vibe-debug/scripts/launch.sh").resolve()
     subprocess.run([str(launch), str(args.corpus)], capture_output=True, text=True,
-                   env={**__import__("os").environ, "VIBE_AUDIBLE": "silent"})
+                   # TRAP: without VIBE_APP, launch.sh starts the default Debug build and
+                   # --app reaches only the channel client, so a missing or stale default
+                   # build ran the whole soak against the wrong app.
+                   env={**__import__("os").environ, "VIBE_AUDIBLE": "silent",
+                        "VIBE_APP": str(args.app.resolve())})
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline and not run(binary, "dump_state").get("player"):
         time.sleep(0.5)

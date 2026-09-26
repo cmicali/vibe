@@ -53,7 +53,7 @@ if [ -n "$(mac_instances)" ]; then
 fi
 for _ in 1 2 3; do
     [ -z "$(mac_instances)" ] && break
-    pkill -x Vibe 2>/dev/null
+    kill $(mac_instances) 2>/dev/null
     sleep 2
 done
 [ -z "$(mac_instances)" ] || { echo "ABORT: could not clear existing Vibe processes: $(mac_instances | tr '\n' ' ')" >&2; exit 2; }

@@ -273,13 +273,14 @@ def app_pid():
     The CLI client is the app binary, so `pgrep -x Vibe` also matches every
     in-flight `--debug-cmd` invocation. Sampling one of those yields a stack of
     the client polling for its own response, which looks like a hang and says
-    nothing about the app — filter them out by argv.
+    nothing about the app — filter them out by argv. The iOS Simulator's app
+    is named Vibe too, and sampling it instead is the same wrong answer.
     """
     found = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True)
     for pid in found.stdout.split():
         listing = subprocess.run(["ps", "-o", "command=", "-p", pid],
                                  capture_output=True, text=True)
-        if "--debug-cmd" not in listing.stdout:
+        if "--debug-cmd" not in listing.stdout and "CoreSimulator" not in listing.stdout:
             return int(pid)
     return None
 
@@ -1366,7 +1367,7 @@ GROWTH_LIMITS = {
     # is unbounded and clears this too.
     ("ui", "layers"): (2400, "layers"),
     ("app", "hostedUnits"): (4, "hosted units"),
-    # Cumulative and zero in a healthy run: a refusal is a carrier's callback
+    # Cumulative and zero in a healthy run: a refusal is an output unit's callback
     # meeting a render stuck past its bounded stop.
     ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},

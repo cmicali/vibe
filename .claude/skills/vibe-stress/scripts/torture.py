@@ -55,7 +55,7 @@ class App:
         for pid in out.split():
             argv = subprocess.run(["ps", "-o", "command=", "-p", pid],
                                   capture_output=True, text=True).stdout
-            if "--debug-cmd" not in argv:
+            if "--debug-cmd" not in argv and "CoreSimulator" not in argv:
                 return int(pid)
         return None
 

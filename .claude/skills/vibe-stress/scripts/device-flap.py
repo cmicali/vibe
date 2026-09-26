@@ -73,8 +73,8 @@ HEALTH_KEYS = (
     # so any dropout across the soak is reported.
     "app.outputDropouts",
     # Renders the pipeline refused because a stuck one was still inside when
-    # the next carrier's callback came: a rebind is exactly where two
-    # carriers meet, and a zero baseline makes any refusal a finding.
+    # the next output unit's callback came: a rebind is exactly where two
+    # output units meet, and a zero baseline makes any refusal a finding.
     "app.renderRefusals",
     "ui.views",
     "ui.layers",
@@ -256,7 +256,11 @@ def main():
     print(f"launching {args.app} with corpus {args.corpus}", flush=True)
     subprocess.run([str(launch.resolve()), str(args.corpus)],
                    capture_output=True, text=True,
-                   env={**__import__("os").environ, "VIBE_AUDIBLE": "silent"})
+                   # TRAP: without VIBE_APP, launch.sh starts the default Debug build and
+                   # --app reaches only the channel client, so a missing or stale default
+                   # build ran the whole soak against the wrong app.
+                   env={**__import__("os").environ, "VIBE_AUDIBLE": "silent",
+                        "VIBE_APP": str(args.app.resolve())})
 
     app = App(binary)
     if not app.alive():

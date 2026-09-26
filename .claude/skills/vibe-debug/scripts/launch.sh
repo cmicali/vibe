@@ -30,7 +30,14 @@ V="$APP/Contents/MacOS/Vibe"
 # answering nothing, and every later --debug-cmd burned its full timeout. Ask
 # through the channel first — no signal, so a debugged instance quits cleanly
 # and Xcode ends the session — and never signal one that is being debugged.
-vibe_pids() { pgrep -x Vibe 2>/dev/null || true; }
+# TRAP: the iOS Simulator's app is also named Vibe, and another session may be
+# driving it. Matching it here quit-waited on it forever and then SIGKILLed it.
+vibe_pids() {
+    local p
+    for p in $(pgrep -x Vibe 2>/dev/null); do
+        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
+    done
+}
 
 # ps prints p_flag in hex; P_TRACED is 0x800 (sys/proc.h).
 vibe_traced() {
@@ -77,9 +84,9 @@ if [ -n "$(vibe_pids)" ]; then
             # hang this whole dance exists to avoid.
             vibe_traced "$PID" && vibe_xcode_bail "$PID" "and it did not answer the quit command."
         done
-        pkill -x Vibe 2>/dev/null || true
+        kill $(vibe_pids) 2>/dev/null || true
         if ! vibe_wait_gone 3; then
-            pkill -9 -x Vibe 2>/dev/null || true
+            kill -9 $(vibe_pids) 2>/dev/null || true
             vibe_wait_gone 3 || { echo "vibe: Vibe survived SIGKILL: $(vibe_pids | tr '\n' ' ')" >&2; exit 1; }
         fi
     fi
@@ -90,7 +97,7 @@ fi
 # open is re-issued if the process isn't up — right after a rebuild the first
 # open can silently produce nothing (LaunchServices re-registering the bundle).
 for _ in 1 2 3 4 5 6; do
-    if ! pgrep -x Vibe >/dev/null; then
+    if [ -z "$(vibe_pids)" ]; then
         # --args must come last; everything after it becomes the app's argv.
         # The -AppleLanguages value must be one argv element shaped like a
         # plist array: (de). bash 3.2 + set -u dies on "${ARGS[@]}" when the
@@ -115,7 +122,7 @@ for _ in 1 2 3 4 5 6; do
     if "$V" --debug-cmd dump_state 2>/dev/null; then
         # Guard against LaunchServices having routed open -a to an
         # Xcode-run instance of a different build.
-        RUNNING="$(ps -o command= -p "$(pgrep -x Vibe | head -1)" 2>/dev/null || true)"
+        RUNNING="$(ps -o command= -p "$(vibe_pids | head -1)" 2>/dev/null || true)"
         case "$RUNNING" in
             "$V"*) ;;
             *) echo "warning: running binary is: $RUNNING" >&2 ;;
@@ -123,7 +130,7 @@ for _ in 1 2 3 4 5 6; do
         exit 0
     fi
 done
-if pgrep -x Vibe >/dev/null; then
+if [ -n "$(vibe_pids)" ]; then
     echo "vibe: app never answered on the debug channel" >&2
 else
     echo "vibe: no app process ever started; last open: ${OPEN_ERR:-no error}" >&2
