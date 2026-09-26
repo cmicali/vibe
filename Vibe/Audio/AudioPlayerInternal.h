@@ -45,17 +45,23 @@ NS_ASSUME_NONNULL_BEGIN
 // What differs per platform about the one hosted output unit (AudioOutputUnit,
 // _outputUnit): how it is made, started and fed a rate. Implemented by Devices
 // on macOS and Recovery on iOS; player queue only. The platform-blind half —
-// stop, running, counters, refusals — is AudioPlayer+Pipeline's.
+// the attach, the counters, the failures — is AudioPlayer+Pipeline's.
 @interface AudioPlayer (Carrier)
 
-// iOS follows the session's route rate before starting; macOS follows its
-// bound device's rate listener and answers YES.
-- (BOOL)followOutputRouteOnQueue;
+// The carrier brings its rate before a segment is built or a voice started
+// at the old one: macOS makes a unit it could not make at init, whose device
+// brings a rate (ensureOutputUnitOnQueue); iOS follows the session's route
+// rate. The pipeline follows, the current track kept. NO only when that left
+// the player reset or parked and said why; a carrier still missing is the
+// start's to report.
+- (BOOL)followCarrierRateOnQueue;
 - (void)createCarrierOnQueue;
 - (BOOL)startCarrierOnQueueWithError:(NSError * _Nullable * _Nullable)error;
 - (void)releaseIdleCarrierOnQueue;
 - (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format;
-// Report-only device queries; never polled by the stall watcher.
+// Report-only: the platform's own keys for the output stage — the unit's
+// shared ones are the report's — then any stages past it. Never polled by
+// the stall watcher.
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue;
 
 @end

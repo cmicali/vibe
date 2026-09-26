@@ -495,15 +495,14 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
                forSubmittedPlay:request.submittedPlayIdentifier];
         return;
     }
+    // A unit made late, or a route that moved while nothing played, brings
+    // its rate before the segment below is built at a stale one.
+    [self followCarrierRateOnQueue];
 #if TARGET_OS_OSX
-    [self ensureOutputUnitOnQueue]; // a unit made late brings its device's rate, before the segment is built at it
     // Gates itself on the mode. A format switch stops the output, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
     [self prepareOutputOnQueueForFile:file];
 #endif
-    // The iOS route's rate may have moved while nothing played; the
-    // segment below is built at the route's rate, not a stale one.
-    [self followOutputRouteOnQueue];
     if (![self ensureSourceSegmentOnQueueRebuilt:NULL]) {
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -710,15 +709,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         return;
     }
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
-    // The carrier's rate may have moved while it was stopped (the iOS
-    // route); the pipeline follows it first, re-voicing paused in place, so
-    // the start below runs at the route's rate and the output converts nothing.
-    if (![self followOutputRouteOnQueue]) {
+    // The carrier's rate may have moved while it was stopped (the iOS route,
+    // a mac unit made late); the pipeline follows it first, re-voicing paused
+    // in place, so the start below runs at that rate and the output converts
+    // nothing.
+    if (![self followCarrierRateOnQueue]) {
         return; // the follow reset the player and said why
     }
-#if TARGET_OS_OSX
-    [self ensureOutputUnitOnQueue]; // a unit made late re-voices the parked voice at its device's rate first
-#endif
     NSError *startError = nil;
     if (![self startOutputOnQueue:&startError]) {
         // startOutputOnQueue cancelled the pending idle stop at entry; the
@@ -1417,7 +1414,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 - (void)debugClearRenderCounters {
     [self runSyncOnQueue:^{
-        [self clearCarrierCountersOnQueue];
+        [self->_outputUnit clearCounters];
         [self clearRenderRefusalsOnQueue];
     }];
 }

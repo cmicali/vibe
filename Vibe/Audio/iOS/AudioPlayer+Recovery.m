@@ -13,17 +13,7 @@
 @implementation AudioPlayer (Carrier)
 
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
-    NSMutableDictionary *output = [NSMutableDictionary dictionary];
-    output[@"carrier"] = @"outputUnit";
-    output[@"routeSampleRate"] = @(AVAudioSession.sharedInstance.sampleRate);
-    if (_outputUnit) {
-        output[@"unitSampleRate"] = @(_outputUnit.format.sampleRate);
-        output[@"unitRunning"] = @(_outputUnit.running);
-        [output addEntriesFromDictionary:[self carrierCountersOnQueue]];
-        output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
-        output[@"bufferLatency"] = @(_outputUnit.bufferLatency);
-    }
-    return @[output];
+    return @[@{@"routeSampleRate": @(AVAudioSession.sharedInstance.sampleRate)}];
 }
 
 // The pipeline takes the route's rate now; the unit is made at the first
@@ -45,7 +35,7 @@
         [self attachOutputUnitOnQueue:unit];
         [unit configureFormat:_masterFormat renderProc:VibeMasterBusRender refCon:_masterBus];
     }
-    [_outputUnit start]; // a refusal arrives later, at outputUnitRefusedStartOnQueue:
+    [_outputUnit start]; // a refusal arrives later, at outputUnitFailedOnQueue:
     return YES;
 }
 
@@ -63,9 +53,12 @@
 // pipeline left at the old rate would still play — resampled a second time.
 // Following the session's rate keeps the one conversion the bus's. The
 // debug pump has no route, and keeps the rate it was made at.
-- (BOOL)followOutputRouteOnQueue {
-    double rate = AVAudioSession.sharedInstance.sampleRate;
-    if (![self drivesOutputDeviceOnQueue] || rate <= 0 || !_masterFormat || rate == _masterFormat.sampleRate) {
+- (BOOL)followCarrierRateOnQueue {
+    if (![self drivesOutputDeviceOnQueue] || !_masterFormat) {
+        return YES;
+    }
+    double rate = AVAudioSession.sharedInstance.sampleRate; // a call into the media server
+    if (rate <= 0 || rate == _masterFormat.sampleRate) {
         return YES;
     }
     return [self followOutputFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:2]];
@@ -75,23 +68,19 @@
 
 @implementation AudioPlayer (Recovery)
 
-// A rate follow restarts a playing output itself. Otherwise the one thing to
-// recover is a unit the system stopped under a playing voice — an
-// interruption whose resume raced the pause — which restarts in place: the
-// voice's ring and gain survived the stop, so nothing is rescheduled.
+// Only a playing voice has anything to recover: every start follows the
+// route itself. A rate follow restarts a playing output itself; otherwise
+// the one thing to recover is a unit the system stopped under a playing
+// voice — an interruption whose resume raced the pause — which restarts in
+// place: the voice's ring and gain survived the stop, so nothing is
+// rescheduled.
 - (void)recoverOutput {
     dispatch_async(_queue, ^{
-        if (![self carrierRunningOnQueue]) {
-            // Publish that edge before anything below returns or waits; a
-            // quick successful restart coalesces active on main.
-            [self refreshOutputAudioActiveOnQueue];
-            [self updateDrainTimerOnQueue];
+        if (self->_state != VibePlayerStatePlaying || !self->_voice) {
+            return; // idle or Loading: the next start follows the route
         }
-        if (![self followOutputRouteOnQueue]) {
-            return; // the follow reset or parked the player and said why
-        }
-        if (self->_state != VibePlayerStatePlaying || !self->_voice || [self carrierRunningOnQueue]) {
-            return; // idle, Loading, or the output is running
+        if (![self followCarrierRateOnQueue] || self->_outputUnit.running) {
+            return; // reset or parked and said why, or the output is running
         }
         NSError *startError = nil;
         if (![self startOutputOnQueue:&startError]) {

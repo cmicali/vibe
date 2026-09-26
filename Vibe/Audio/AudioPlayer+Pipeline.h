@@ -43,16 +43,12 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // the master bus it pulls; the init path and the iOS media-services rebuild
 // must configure them identically.
 - (void)createOutputOnQueue;
-// Makes `unit` the carrier and routes its later start refusals back to the
-// queue, where one a later start or stop has not superseded parks the current
-// voice Paused and tells the owning play.
+// Makes `unit` the carrier and routes its later failures back to the queue:
+// one a later start or stop has not superseded stops the output, and a
+// refused start also parks the current voice Paused and tells the owning play.
 - (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit;
-// The unit's own state, the same on both platforms: stopping it, whether it
-// runs, and its IO-cycle counters.
-- (void)stopCarrierOnQueue;
-- (BOOL)carrierRunningOnQueue;
+// The unit's IO-cycle counters, for the reports.
 - (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue;
-- (void)clearCarrierCountersOnQueue;
 // Whether the FX segment belongs in the chain: the setting, unless
 // bit-perfect output outranks it. The one home of the rule.
 - (BOOL)fxWantedOnQueue;

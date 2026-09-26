@@ -20,7 +20,7 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioPlayer.h` | the public API, platform-free: the transport verbs, the `(State)` getters, the delegate |
 | `AudioPlayer.m` | the transport: init and teardown, play submission → open → settlement, pause/resume/seek/stop/finish, the voice vocabulary, the published tuple, bus-event interpretation, delegate delivery with submitted-play identity |
 | `AudioPlayerInternal.h` | the class extension the categories share: every ivar, the queue helpers, and the ownership statement |
-| `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, shared carrier orchestration and the unit's platform-blind half (stop, running, counters, start refusals), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, shared carrier orchestration and the unit's platform-blind half (the attach, the counters, its failures and system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file) and the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, without player-queue waits |
 | `AudioFileHandle` | the shared parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes |

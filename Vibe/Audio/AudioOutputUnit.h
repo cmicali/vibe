@@ -59,16 +59,19 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // What the unit pulls at: the player's render format. nil until configured.
 @property (nonatomic, readonly, nullable) AVAudioFormat *format;
 // Between start and stop, as requested; the device may still be starting.
-// On iOS, NO once the system has stopped the unit under an open gate, as an
-// interruption does; the next start starts it again.
 @property (nonatomic, readonly) BOOL running;
-// Bumped by every start and stop. A failure carries the one its start was
-// given, so the receiver can tell whether a later start or stop owns the unit.
+// Moved by every start and stop, from one counter every unit shares, so it
+// names one start or stop of one unit. A failure carries the one its start
+// was given, so the receiver can tell whether a later start or stop — or
+// another unit — owns the output.
 @property (nonatomic, readonly) uint64_t runGeneration;
 // A start the HAL refused, or one made on a unit whose bind or configure it
 // refused: the error, the start's runGeneration, and whether the bind was the
-// refusal. Called on the unit's queue; the gate is already closed.
-@property (atomic, copy, nullable) void (^failureHandler)(NSError *error, uint64_t runGeneration, BOOL bindRefused);
+// refusal; called on the unit's queue, the gate already closed. On iOS also
+// a started unit the system stopped itself, as an interruption does: no
+// error, on whatever thread the unit reports it, the gate still open until
+// the receiver stops the unit.
+@property (atomic, copy, nullable) void (^failureHandler)(NSError * _Nullable error, uint64_t runGeneration, BOOL bindRefused);
 // Device plus stream latency and the safety offset, read live, in seconds;
 // on iOS the session's output latency.
 @property (nonatomic, readonly) NSTimeInterval presentationLatency;

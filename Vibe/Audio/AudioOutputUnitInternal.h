@@ -13,14 +13,10 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The callback's world. Writers: the queue (`gate`, the proc and the channel
-// count, between stop and start), the running listener (`stoppedBySystem`),
-// the callback (everything else).
+// count, between stop and start), the callback (everything else).
 typedef struct {
     _Atomic int32_t gate;           // 1 between start and stop
     _Atomic int32_t inRender;       // 1 while the callback is inside the struct
-    // iOS: 1 while the system holds the unit stopped under an open gate, as
-    // an interruption does. Written by the unit's IsRunning listener.
-    _Atomic int32_t stoppedBySystem;
     _Atomic uint64_t dropouts;
     // The callback's cost: IO cycles the gate was open for, the nanoseconds
     // spent inside the callback over them, and the longest one. Cumulative;

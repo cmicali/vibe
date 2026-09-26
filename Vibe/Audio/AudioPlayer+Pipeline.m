@@ -538,25 +538,26 @@ VIBE_REALTIME_END
 - (void)attachOutputUnitOnQueue:(AudioOutputUnit *)unit {
     _outputUnit = unit;
     __weak AudioPlayer *weakSelf = self;
-    __weak AudioOutputUnit *weakUnit = unit; // the handler is the unit's own
     dispatch_queue_t queue = _queue;
     unit.failureHandler = ^(NSError *error, uint64_t runGeneration, BOOL bindRefused) {
-        AudioOutputUnit *refusing = weakUnit;
         dispatch_async(queue, ^{
-            [weakSelf outputUnitRefusedStartOnQueue:error runGeneration:runGeneration bindRefused:bindRefused
-                                               unit:refusing];
+            [weakSelf outputUnitFailedOnQueue:error runGeneration:runGeneration bindRefused:bindRefused];
         });
     };
 }
 
-// A start the unit refused after the player went on: stop the output, park the
-// current voice Paused where it is and tell the owning play — unless a later
-// start or stop owns the unit, or the unit is no longer the carrier (the iOS
-// media-services reset replaced it, and its successor counts generations
-// from zero again), which makes this refusal moot.
-- (void)outputUnitRefusedStartOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused
-                                 unit:(AudioOutputUnit *)unit {
-    if (_terminating || !_outputUnit || unit != _outputUnit || runGeneration != _outputUnit.runGeneration) {
+// The unit stopped without being asked — unless a later start or stop, or
+// another unit, owns the output, which makes this moot. The output is
+// stopped either way, so the model follows at the edge. A stop the system
+// made (iOS, no error) is all: the session's verdict decides what the
+// transport does. A refused start also parks the current voice Paused where
+// it is and tells the owning play.
+- (void)outputUnitFailedOnQueue:(NSError *)error runGeneration:(uint64_t)runGeneration bindRefused:(BOOL)bindRefused {
+    if (_terminating || !_outputUnit || runGeneration != _outputUnit.runGeneration) {
+        return;
+    }
+    [self stopOutputOnQueue];
+    if (!error) {
         return;
     }
 #if TARGET_OS_OSX
@@ -564,7 +565,6 @@ VIBE_REALTIME_END
         [_outputUnit forgetDevice]; // the next default or selection binds again rather than reading a no-op
     }
 #endif
-    [self stopOutputOnQueue];
     if (_state == VibePlayerStatePlaying && _voice) {
         [self pauseCurrentVoiceOnQueue];
     }
@@ -573,14 +573,11 @@ VIBE_REALTIME_END
            forSubmittedPlay:_activeSubmittedPlayIdentifier];
 }
 
-- (void)stopCarrierOnQueue { [_outputUnit stop]; }
-- (BOOL)carrierRunningOnQueue { return _outputUnit.running; }
 - (NSDictionary<NSString *, NSNumber *> *)carrierCountersOnQueue {
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
              @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
 }
-- (void)clearCarrierCountersOnQueue { [_outputUnit clearCounters]; }
 
 #if DEBUG
 - (void)attachPumpOnQueue:(VibeManualRenderPump *)pump render:(VibeManualRenderBlock)render running:(BOOL (^)(void))running {
@@ -801,8 +798,7 @@ VIBE_REALTIME_END
 // unit is dead, but the guarantee costs nothing — and the bus and the
 // meter go with it, the voices' files having died with the media server.
 // The unit is released unstopped: its dealloc disposes the instance, which
-// is what the reset contract asks of an orphaned audio object, and a refusal
-// from its last start is moot once it is no longer the carrier. The park and the
+// is what the reset contract asks of an orphaned audio object. The park and the
 // pending open go too: the file handles they would produce are dead, and a
 // download without a consumer is waste. createOutputOnQueue rebuilds.
 - (void)dropOutputBoundStateOnQueue {
@@ -825,7 +821,7 @@ VIBE_REALTIME_END
 
 - (BOOL)renderingOnQueue {
     return atomic_load_explicit(&_masterBus->gate, memory_order_relaxed) != 0
-            && (![self drivesOutputDeviceOnQueue] || [self carrierRunningOnQueue]);
+            && (![self drivesOutputDeviceOnQueue] || _outputUnit.running);
 }
 
 - (uint64_t)renderedFramesOnQueue {
@@ -1143,7 +1139,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 }
 
 - (void)stopOutputOnQueue {
-    [self stopCarrierOnQueue];
+    [_outputUnit stop];
     atomic_store_explicit(&_masterBus->gate, 0, memory_order_seq_cst);
     [self waitForRenderToLeaveOnQueue]; // the join a stop offers its callers; a stuck render's teardowns defer themselves
     for (NSNumber *voice in _retiringVoices) {

@@ -9,6 +9,15 @@
 #endif
 #include <unistd.h>
 
+// Every unit's run generations, so that one names a single start or stop of
+// a single unit: a unit made after an iOS media-services reset never repeats
+// a generation its predecessor's late refusal carries.
+static _Atomic uint64_t VibeOutputUnitGenerations;
+
+static uint64_t VibeOutputUnitNextGeneration(void) {
+    return atomic_fetch_add_explicit(&VibeOutputUnitGenerations, 1, memory_order_seq_cst) + 1;
+}
+
 // A stop waits this long, at most, for a render already inside the callback.
 static const useconds_t kStopSpinMicroseconds = 200;
 static const int kStopSpinLimit = 500; // 100 ms
@@ -88,22 +97,6 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
     return status;
 }
 
-#if !TARGET_OS_OSX
-// The system stops RemoteIO under the app when an interruption takes the
-// session, and says so only here. Our own stop closes the gate before the
-// unit stops and our start opens it before, so an edge seen with the gate
-// open is the system's, and a system restart clears it again.
-static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property,
-                                         AudioUnitScope scope, AudioUnitElement element) {
-    VibeOutputUnitState *state = refCon;
-    UInt32 running = 1, size = sizeof(running);
-    if (AudioUnitGetProperty(unit, kAudioOutputUnitProperty_IsRunning, kAudioUnitScope_Global, 0, &running, &size) == noErr
-            && atomic_load_explicit(&state->gate, memory_order_seq_cst)) {
-        atomic_store_explicit(&state->stoppedBySystem, running ? 0 : 1, memory_order_seq_cst);
-    }
-}
-#endif
-
 void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     atomic_store_explicit(&state->dropouts, 0, memory_order_relaxed);
     atomic_store_explicit(&state->cycles, 0, memory_order_relaxed);
@@ -115,7 +108,17 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 
 @interface AudioOutputUnit ()
 @property (atomic, copy, readwrite, nullable) NSArray<NSNumber *> *channelMap;
+#if !TARGET_OS_OSX
+- (void)reportSystemStop;
+#endif
 @end
+
+#if !TARGET_OS_OSX
+static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property,
+                                         AudioUnitScope scope, AudioUnitElement element) {
+    [(__bridge AudioOutputUnit *)refCon reportSystemStop];
+}
+#endif
 
 @implementation AudioOutputUnit {
     AudioUnit _unit;
@@ -161,7 +164,8 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 #if TARGET_OS_OSX
     _deviceID = kAudioObjectUnknown;
 #else
-    AudioUnitAddPropertyListener(_unit, kAudioOutputUnitProperty_IsRunning, VibeOutputUnitRunningChanged, _state);
+    AudioUnitAddPropertyListener(_unit, kAudioOutputUnitProperty_IsRunning, VibeOutputUnitRunningChanged,
+                                 (__bridge void *)self);
 #endif
     // Default QoS, as the player queue: the waits here are for a device's IO
     // thread, and the player queue is the only thing that ever waits on this.
@@ -179,10 +183,6 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
         AudioComponentInstanceDispose(_unit);
     }
     free(_state);
-}
-
-- (BOOL)running {
-    return _running && !atomic_load_explicit(&_state->stoppedBySystem, memory_order_seq_cst);
 }
 
 - (uint64_t)runGeneration {
@@ -261,38 +261,26 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 }
 
 - (void)start {
-    BOOL stoppedBySystem = atomic_load_explicit(&_state->stoppedBySystem, memory_order_seq_cst) != 0;
-    if (_running && !stoppedBySystem) {
+    if (_running) {
         return;
     }
-    if (stoppedBySystem) {
-        // Closed first, so the stop below balancing the start the system
-        // undid is ours to the listener, not another system stop.
-        atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
-        atomic_store_explicit(&_state->stoppedBySystem, 0, memory_order_seq_cst);
-    }
     _running = YES;
-    uint64_t generation = atomic_fetch_add_explicit(&_runGeneration, 1, memory_order_seq_cst) + 1;
+    uint64_t generation = VibeOutputUnitNextGeneration();
+    atomic_store_explicit(&_runGeneration, generation, memory_order_seq_cst);
 #if TARGET_OS_OSX
     AudioDeviceID deviceID = _deviceID;
 #else
     UInt32 deviceID = 0; // the route is the session's
 #endif
-    dispatch_async(_halQueue, ^{
-        if (stoppedBySystem) {
-            [self halStopUnit];
-        }
-        [self halStartForGeneration:generation device:deviceID];
-    });
+    dispatch_async(_halQueue, ^{ [self halStartForGeneration:generation device:deviceID]; });
 }
 
 - (void)stop {
     atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
-    atomic_store_explicit(&_state->stoppedBySystem, 0, memory_order_seq_cst);
     if (!_running) {
         return; // every start is already superseded, and the last stop is queued
     }
-    atomic_fetch_add_explicit(&_runGeneration, 1, memory_order_seq_cst);
+    atomic_store_explicit(&_runGeneration, VibeOutputUnitNextGeneration(), memory_order_seq_cst);
     _running = NO;
     dispatch_async(_halQueue, ^{ [self halStopUnit]; });
 }
@@ -442,6 +430,23 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     void (^handler)(NSError *, uint64_t, BOOL) = self.failureHandler;
     if (handler) handler(error, generation, bindRefused);
 }
+
+#if !TARGET_OS_OSX
+// iOS stops RemoteIO under the app when an interruption takes the session,
+// and says so only through IsRunning. The player's own stops close the gate
+// before the unit stops, so a stop seen with the gate open is the system's.
+- (void)reportSystemStop {
+    UInt32 running = 1, size = sizeof(running);
+    if (!atomic_load_explicit(&_state->gate, memory_order_seq_cst)
+            || AudioUnitGetProperty(_unit, kAudioOutputUnitProperty_IsRunning, kAudioUnitScope_Global, 0, &running, &size) != noErr
+            || running) {
+        return;
+    }
+    LogWarn(@"AudioOutputUnit: the system stopped the unit");
+    void (^handler)(NSError *, uint64_t, BOOL) = self.failureHandler;
+    if (handler) handler(nil, self.runGeneration, NO);
+}
+#endif
 
 - (OSStatus)halStartUnit {
     return AudioOutputUnitStart(_unit);

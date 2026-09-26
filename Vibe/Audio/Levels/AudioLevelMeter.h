@@ -56,7 +56,8 @@ typedef struct VibeLevelMeter VibeLevelMeter;
                 waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
 // Called when the last outgoing fade has actually settled, including smoothing.
-// A timestamp carrying neither clock leaves the capture's clock unset.
+// The probe's clock is the timestamp's sample time, in the pipeline's
+// frames; a timestamp without one leaves the capture's clock unset.
 - (void)endSignalOverlapAtTime:(AudioTimeStamp)time;
 - (BOOL)pollSignalDiagnostics:(uint64_t)request;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;

@@ -31,14 +31,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
 - (NSArray<NSDictionary<NSString *, id> *> *)carrierAudioPathOnQueue {
     NSMutableDictionary *output = [NSMutableDictionary dictionary];
-    output[@"carrier"] = @"outputUnit";
     if (_outputUnit) {
         output[@"deviceId"] = @(_outputUnit.deviceID == kAudioObjectUnknown ? -1 : (NSInteger)_outputUnit.deviceID);
-        output[@"unitSampleRate"] = @(_outputUnit.format.sampleRate);
-        output[@"unitRunning"] = @(_outputUnit.running);
-        [output addEntriesFromDictionary:[self carrierCountersOnQueue]];
-        output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
-        output[@"bufferLatency"] = @(_outputUnit.bufferLatency); // the IO cycle the unit fills ahead of the device
     }
     AudioDeviceID deviceID = _outputUnit ? _outputUnit.deviceID : kAudioObjectUnknown;
     NSMutableDictionary *device = [@{@"stage": @"device", @"present": @(deviceID != kAudioObjectUnknown)} mutableCopy];
@@ -86,7 +80,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
         return YES;
     }];
 #endif
-    [_outputUnit start]; // a refusal arrives later, at outputUnitRefusedStartOnQueue:
+    [_outputUnit start]; // a refusal arrives later, at outputUnitFailedOnQueue:
     return YES;
 }
 
@@ -98,7 +92,10 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 - (BOOL)adoptCarrierFormatOnQueue:(AVAudioFormat *)format {
     return [self applyOutputRateOnQueue:format.sampleRate];
 }
-- (BOOL)followOutputRouteOnQueue { return YES; }
+- (BOOL)followCarrierRateOnQueue {
+    [self ensureOutputUnitOnQueue]; // a missing unit is the start's to report
+    return YES;
+}
 
 @end
 

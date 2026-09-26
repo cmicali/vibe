@@ -515,6 +515,14 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     else
 #endif
     {
+        output[@"carrier"] = @"outputUnit";
+        if (_outputUnit) {
+            output[@"unitSampleRate"] = @(_outputUnit.format.sampleRate);
+            output[@"unitRunning"] = @(_outputUnit.running);
+            [output addEntriesFromDictionary:[self carrierCountersOnQueue]];
+            output[@"presentationLatency"] = @(_outputUnit.presentationLatency);
+            output[@"bufferLatency"] = @(_outputUnit.bufferLatency); // the IO cycle the unit fills ahead of the hardware
+        }
         [output addEntriesFromDictionary:carrierPath.firstObject];
     }
 
