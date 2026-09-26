@@ -431,12 +431,21 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // the equalizer — travel with their rows, and selection and scroll are
     // preserved rather than reconstructed. The model is final, so the emitted
     // evolving-coordinate sequence lands every row exactly.
-    [tableView beginUpdates];
-    VibePlaylistMoveSequenceEnumerate(sourceIndexes, destinationIndexes,
-                                      ^(NSUInteger from, NSUInteger to) {
-        [tableView moveRowAtIndex:(NSInteger)from toIndex:(NSInteger)to];
-    });
-    [tableView endUpdates];
+    // TRAP: moveRowAtIndex: has no animation argument and slides by default,
+    // and the slide is where AppKit's view-based move breaks. A row moved in
+    // from off screen landed as a blank slot, and a row still sliding when
+    // endUpdates' zero-delay cleanup ran stayed in the table's private
+    // row-view purgatory for the app's life. A zero-length group is how a move
+    // says "no animation", which the insert and removal spell as an argument.
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0;
+        [tableView beginUpdates];
+        VibePlaylistMoveSequenceEnumerate(sourceIndexes, destinationIndexes,
+                                          ^(NSUInteger from, NSUInteger to) {
+            [tableView moveRowAtIndex:(NSInteger)from toIndex:(NSInteger)to];
+        });
+        [tableView endUpdates];
+    }];
     // The landed rows are selected deterministically: AppKit carries selection
     // with moved rows, but a drag begun outside the selection would otherwise
     // leave it wherever it was — and an undo's scattered restore reads as its
