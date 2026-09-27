@@ -533,6 +533,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_ERROR_OPEN_FAILED         NSLS(@"error.open_failed",         @"Could not open file",      @"Inline playback error: the audio file could not be opened.")
 #define STR_ERROR_ENGINE_START_FAILED NSLS(@"error.engine_start_failed", @"Could not start playback", @"Inline playback error: the audio engine failed to start.")
 #define STR_ERROR_DEVICE_UNAVAILABLE  NSLS(@"error.device_unavailable",  @"Audio device unavailable", @"Inline playback error: no usable audio output device.")
+#define STR_ERROR_DEVICE_IN_USE       NSLS(@"error.device_in_use",       @"Audio device in use by another app", @"Inline playback error: another app has taken exclusive use of the audio output device, so playback paused.")
 #define STR_ERROR_PLAYBACK_GENERIC    NSLS(@"error.playback_generic",    @"Playback error",           @"Inline playback error: fallback for an unrecognized failure.")
 
 #pragma mark - Playlist files (CUE, M3U)

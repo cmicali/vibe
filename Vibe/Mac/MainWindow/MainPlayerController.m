@@ -427,7 +427,7 @@
                              track:(state == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                       errorStatus:_errorStatus];
+                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];

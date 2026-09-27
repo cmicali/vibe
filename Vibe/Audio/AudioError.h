@@ -22,6 +22,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
     VibeAudioErrorDeviceUnavailable,
     VibeAudioErrorNotPlaying,
     VibeAudioErrorFileOpenTimedOut,
+    VibeAudioErrorDeviceInUse, // another process holds the device exclusively (macOS hog mode)
 };
 
 NS_ASSUME_NONNULL_END

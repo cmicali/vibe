@@ -221,8 +221,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // Only Stopped takes the failure path. Play-path errors publish Stopped
     // before delivery, so a stale one reads Loading or Playing; and a
     // device-loss error for a parked track must not mask a resumable track or
-    // zero the duration cache.
+    // zero the duration cache. The parked track still says why, on its info
+    // line: the display state masks only a Stopped track, and a resume or a
+    // new play clears the mark.
     if (!self.audioPlayer.isStopped) {
+        if (self.audioPlayer.isPaused) {
+            [self setErrorMaskForTrack:self.playlistController.currentTrack status:VibeStatusForPlayError(error)];
+        }
         [self updateUI];
         return;
     }
