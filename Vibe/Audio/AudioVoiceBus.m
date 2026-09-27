@@ -1506,10 +1506,25 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         *ioPackets = fed.frameLength;
         return noErr;
     }
-    *ioPackets = 0;
     if (input->flushing) {
-        return noErr; // zero packets is the end: the converter gives up its tail
+        // TRAP: silence, never zero packets, which is the end: at high
+        // up-conversion ratios Apple's end-of-stream flush gives up only part
+        // of its tail (measured: 915 frames short at 22.05 → 192 kHz on macOS,
+        // 3,989 on iOS). Silence pushes the whole tail out, and the fill stops
+        // at the frames fed (produceChunkForSlot:final:).
+        AVAudioPCMBuffer *silence = record->mixMap ? record->mixBuffer : readBuffer;
+        silence.frameLength = wanted;
+        for (AVAudioChannelCount c = 0; c < silence.format.channelCount; c++) {
+            memset(silence.floatChannelData[c], 0, wanted * sizeof(float));
+        }
+        const AudioBufferList *buffers = silence.audioBufferList;
+        for (UInt32 b = 0; b < ioData->mNumberBuffers && b < buffers->mNumberBuffers; b++) {
+            ioData->mBuffers[b] = buffers->mBuffers[b];
+        }
+        *ioPackets = wanted;
+        return noErr;
     }
+    *ioPackets = 0;
     // TRAP: dry with the stream open, never zero packets under noErr: that
     // declares the end, and the resampler flushes its tail a filter's length
     // early. This private status ends the fill and keeps the filter primed.
@@ -1521,7 +1536,8 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
 // format. The file's end is a read that comes up short or empty — never
 // framePosition == length, which a truncated file never reaches — and drains
 // the stream: a converter is told nothing of it until the stream is flushing,
-// when it is told the end and gives up its tail. *final says the end is out.
+// when silence pushes its tail out up to the frames fed, at the bus rate
+// (streamEndForRecord:written:). *final says the end is out.
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final {
     AudioVoiceRecord *record = _records[slot];
     BOOL flushing = record->stream == VibeStreamFlushing;
@@ -1556,7 +1572,18 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
     for (UInt32 b = 0; b < output->mNumberBuffers; b++) {
         output->mBuffers[b].mDataByteSize = kDecodeChunkFrames * bytesPerFrame;
     }
-    UInt32 frames = kDecodeChunkFrames;
+    // A flush fills up to the frames fed, at the bus rate, and no further.
+    uint64_t left = UINT64_MAX;
+    if (flushing) {
+        uint64_t written = atomic_load_explicit(&_mix->slots[slot].written, memory_order_relaxed); // the decoder's own
+        uint64_t end = [self streamEndForRecord:record written:written];
+        left = end > written ? end - written : 0;
+        if (left == 0) {
+            *final = YES;
+            return 0;
+        }
+    }
+    UInt32 frames = (UInt32)MIN((uint64_t)kDecodeChunkFrames, left);
     VibeConverterInput input = { self, record, slot, flushing };
     OSStatus status = AudioConverterFillComplexBuffer(record->converter, VibeConverterSupplyInput, &input, &frames, output, NULL);
 #if DEBUG
@@ -1570,7 +1597,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
         return 0;
     }
     converted.frameLength = frames;
-    *final = flushing && frames < kDecodeChunkFrames;
+    *final = flushing && frames >= left;
     return frames;
 }
 

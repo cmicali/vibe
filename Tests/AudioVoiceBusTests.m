@@ -1439,7 +1439,10 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
 
 #pragma mark - Conversion
 
-// Independent Apple reader/converter: no bus, AudioFileHandle or Vibe flush policy.
+// Independent Apple reader/converter: no bus and no AudioFileHandle. Its tail
+// is pushed out with silence and cut at the frames fed, at the output rate:
+// Apple's own end-of-stream flush drops part of it at high up-conversion
+// ratios, so a reference ending there would excuse a short tail.
 - (NSData *)referenceConversionOfURL:(NSURL *)url toRate:(double)rate {
     NSError *error = nil;
     AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:&error];
@@ -1452,25 +1455,31 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     AVAudioPCMBuffer *input = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
     AVAudioPCMBuffer *output = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:4096];
     NSMutableData *reference = [NSMutableData data];
-    for (NSUInteger turn = 0; turn < 1000; turn++) {
+    NSUInteger frameBytes = format.channelCount * sizeof(float);
+    NSUInteger length = (NSUInteger)llround((double)file.length * rate / file.processingFormat.sampleRate) * frameBytes;
+    for (NSUInteger turn = 0; turn < 1000 && reference.length < length; turn++) {
         AVAudioConverterOutputStatus status = [converter convertToBuffer:output error:&error
                 withInputFromBlock:^AVAudioBuffer *(AVAudioPacketCount requested, AVAudioConverterInputStatus *inputStatus) {
+            AVAudioFrameCount count = MIN(requested, input.frameCapacity);
             AVAudioFramePosition remaining = file.length - file.framePosition;
-            if (remaining <= 0) {
-                *inputStatus = AVAudioConverterInputStatus_EndOfStream;
-                return nil;
+            if (remaining > 0) {
+                NSError *readError = nil;
+                XCTAssertTrue([file readIntoBuffer:input frameCount:(AVAudioFrameCount)MIN(remaining, count) error:&readError], @"%@", readError);
             }
-            NSError *readError = nil;
-            AVAudioFrameCount count = (AVAudioFrameCount)MIN(remaining, MIN(requested, input.frameCapacity));
-            XCTAssertTrue([file readIntoBuffer:input frameCount:count error:&readError], @"%@", readError);
-            *inputStatus = input.frameLength ? AVAudioConverterInputStatus_HaveData : AVAudioConverterInputStatus_EndOfStream;
-            return input.frameLength ? input : nil;
+            else {
+                input.frameLength = count;
+                for (AVAudioChannelCount c = 0; c < input.format.channelCount; c++) {
+                    memset(input.floatChannelData[c], 0, count * sizeof(float));
+                }
+            }
+            *inputStatus = AVAudioConverterInputStatus_HaveData;
+            return input;
         }];
         XCTAssertNotEqual(status, AVAudioConverterOutputStatus_Error, @"%@", error);
         VibeAppendPCM(reference, output);
-        if (status == AVAudioConverterOutputStatus_EndOfStream) return reference;
     }
-    XCTFail(@"the independent converter never reached EOF");
+    XCTAssertGreaterThanOrEqual(reference.length, length, @"the independent converter never reached the frames fed");
+    reference.length = MIN(reference.length, length);
     return reference;
 }
 
@@ -1489,15 +1498,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
         NSURL *b = [self writePCM:[whole subdataWithRange:NSMakeRange(split * 8, (count - split) * 8)] rate:sourceRate channels:2 name:@"b.wav"];
         NSData *reference = [self referenceConversionOfURL:full toRate:busRate];
         uint64_t end = reference.length / (2 * sizeof(float));
-        // Apple's mastering SRC drops these tails itself; the duration assertion
-        // stays visible without excusing a Vibe mismatch.
-        XCTExpectedFailureOptions *knownTail = [[XCTExpectedFailureOptions alloc] init];
-        knownTail.enabled = busRate == 192000 && ((sourceRate == 22050 && end == 191085)
-                                              || (sourceRate == 24000 && end == 191496));
-        self.continueAfterFailure = YES; // an expected issue must not skip the PCM and gapless checks
-        XCTExpectFailureWithOptionsInBlock(@"Apple mastering SRC truncates high-ratio EOF; docs/future/render-pipeline-follow-ups.md",
-                knownTail, ^{ XCTAssertEqualWithAccuracy((double)end, busRate, 2); });
-        self.continueAfterFailure = NO;
         [self makeBusAtRate:busRate channels:2];
         VibeVoiceID voice = [self startFile:[self open:full] gain:1 ramp:[self unity] paused:NO];
         NSData *clean = [self renderUntilEnded:voice blockSize:256 limit:500000];
