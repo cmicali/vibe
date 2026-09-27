@@ -678,24 +678,6 @@ VIBE_REALTIME_END
     self.fx.shortDelaySendEnabled = NO;
 }
 
-- (void)setFXEnabled:(BOOL)enabled {
-    if (!enabled) {
-        [self clearFXIntent];
-    }
-    dispatch_async(_queue, ^{
-        if (self->_terminating || self->_fxEnabled == enabled) {
-            return;
-        }
-        BOOL wasPlaying = self->_state == VibePlayerStatePlaying && self->_voice != 0;
-        // The segment connects and disconnects with the output stopped; the
-        // voices keep their state across the stop, so nothing is rescheduled.
-        [self stopOutputOnQueue];
-        self->_fxEnabled = enabled;
-        [self reconcileFXOnQueue];
-        [self resumeOutputAfterEditOnQueue:wasPlaying reason:@"FX toggled"];
-    });
-}
-
 - (BOOL)resumeOutputAfterEditOnQueue:(BOOL)wasPlaying reason:(NSString *)reason {
     if (wasPlaying) {
         NSError *startError = nil;
