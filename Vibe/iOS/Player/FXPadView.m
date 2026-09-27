@@ -270,10 +270,13 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     if (!_engaged) {
         return;
     }
-    // Disabling a recognizer mid-gesture cancels it, which releases through
-    // the path a lift takes and frees the touch for the pager.
+    // Disabling a recognizer mid-gesture cancels it, which frees the touch
+    // for the pager. The release itself is not left to the cancelled action,
+    // whose delivery UIKit does not promise for a view leaving the hierarchy;
+    // releaseHold no-ops when the action does arrive.
     _press.enabled = NO;
     _press.enabled = YES;
+    [self releaseHold];
 }
 
 // The captions sit inside the pad's frame, in this view's coordinates as the

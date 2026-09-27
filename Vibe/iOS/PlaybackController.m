@@ -486,9 +486,15 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
     [_playlist stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
+        float shown = track.bpm;
         track.detectedBPM = bpm;
-        // The event a tag landing sends: the page redraws its codec line.
-        [self notifyDidLoadMetadataForTrack:track];
+        // Only a tempo that changed what the row shows: the delivery repeats
+        // on every load of the file, cache hits included, and a tag outranks
+        // it. The event is the one a tag landing sends, so the page redraws
+        // its codec line.
+        if (track.bpm != shown) {
+            [self notifyDidLoadMetadataForTrack:track];
+        }
     }];
     [self refreshTempoFeed]; // a no-op unless the current track's tempo moved
 }

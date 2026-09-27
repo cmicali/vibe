@@ -51,6 +51,9 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 }
 @end
 
+// Set once the cache written before tempo detection has been cleared.
+static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfilled";
+
 @implementation PlayerViewController {
     // The model's 3 Hz tick is too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
@@ -82,6 +85,15 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
+    // Once: an entry cached before tempo detection existed here carries no
+    // BPM, and a cache hit never re-analyzes, so those tracks would show no
+    // tempo and echo at the default for as long as the entry lived. Ahead of
+    // the first load on the cache's serial queue, so no lookup sees the old
+    // entries.
+    if (![NSUserDefaults.standardUserDefaults boolForKey:kWaveformTempoBackfillKey]) {
+        [_waveformCache invalidateWithCompletion:nil];
+        [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
+    }
     // Asked once per decode, so Settings > Playback lands on the next load
     // with nothing to republish. Tempo only: key detection is macOS-only.
     _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
