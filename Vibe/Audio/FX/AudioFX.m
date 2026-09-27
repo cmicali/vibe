@@ -784,6 +784,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
     if (!chain->storage) {
         return NO;
     }
+    // TRAP: mapped here, not at the render's first write (AudioVoiceBus's pre-touch).
+    vDSP_vclr(chain->storage, 1, (vDSP_Length)maximumFrameCount * 12);
     float **pairs[] = { chain->send, chain->wet, chain->halfTap, chain->lane, chain->echoes, chain->returns };
     for (size_t p = 0; p < 6; p++) {
         pairs[p][0] = chain->storage + (p * 2) * maximumFrameCount;

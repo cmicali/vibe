@@ -14,6 +14,7 @@
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #endif
+#import <Accelerate/Accelerate.h>
 #include <mach/mach_time.h>
 #include <stdatomic.h>
 #include <unistd.h>
@@ -327,7 +328,7 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
     // Read once: a re-host swaps the pointer, and this render finishes
     // inside the hosting it read — and the unit's pulls read the bus this
     // slice read, never the atomic again.
-    VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_relaxed);
+    VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_seq_cst);
     if (host) {
         host->mix = mix;
     }
@@ -398,7 +399,10 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     master->stamp = stamp;
     atomic_store_explicit(&master->pendingFrames, frames, memory_order_release);
     OSStatus status = noErr;
-    VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_relaxed);
+    // Every pointer the queue withdraws is loaded sequentially consistent,
+    // after the door's CAS: either the withdrawal is seen here, or the
+    // queue's wait sees this render inside, whether or not the gate is closed.
+    VibeVoiceMix *mix = atomic_load_explicit(&master->mix, memory_order_seq_cst);
 #if DEBUG
     // The held render has read the bus: whatever the queue withdraws now,
     // this render is inside it until the hold lifts.
@@ -412,7 +416,7 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
 #endif
     if (!mix) {
         VibeMasterBusZero(list, 0, frames);
-        VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_relaxed);
+        VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_seq_cst);
         if (host) {
             atomic_store_explicit(&host->engaged, 0, memory_order_relaxed);
             host->replayRemaining = 0;
@@ -421,7 +425,7 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     else {
         status = VibeMasterBusRenderSource(master, mix, &stamp, frames, list);
     }
-    VibeFXChain *chain = atomic_load_explicit(&master->chain, memory_order_relaxed);
+    VibeFXChain *chain = atomic_load_explicit(&master->chain, memory_order_seq_cst);
     if (chain) {
         OSStatus fxStatus = VibeFXChainRender(chain, &stamp, frames, list);
         if (fxStatus != noErr) {
@@ -956,6 +960,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         VibeVarispeedHostFree(host);
         return NO;
     }
+    // TRAP: mapped here, not at the render's first write (AudioVoiceBus's pre-touch).
+    vDSP_vclr(host->recent[0], 1, (vDSP_Length)capacity * 2);
+    vDSP_vclr(host->scratch[0], 1, (vDSP_Length)capacity * 2);
     host->recent[1] = host->recent[0] + capacity;
     host->scratch[1] = host->scratch[0] + capacity;
     host->recentMask = capacity - 1;

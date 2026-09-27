@@ -362,11 +362,14 @@ static const NSUInteger kUIUpdateHz = 3;
     _seekInFlight = NO;
     // Before the render, so the first draw already shows the track at rest.
     _trackStartPending = YES;
+    // Submitted before the repaint and the metadata kick, as the mac's play
+    // funnel does, so the open does not wait behind either. The session comes
+    // first: a parked file settles inline and starts RemoteIO at once.
     [_audioSession activate];
+    [_player play:track];
     [self notifyDidRenderCurrentTrack];
     [self notifyDidMoveToCurrentTrackAnimated:YES];
     [_metadataCache loadMetadataNow:track];
-    [_player play:track];
     [self notifyDidChangePlayState];
 }
 

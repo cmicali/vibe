@@ -107,6 +107,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_downloadMonitor cancel];
     _downloadMonitor = nil;
     _downloadMonitorOpenRequestIdentifier = 0;
+    // Before the repaint and the metadata kicks, so a quick second Next finds
+    // the park. The foreground/background rule needs no release here: the
+    // coordinator derives it from its own claim table, and the prefetch's
+    // registration preempts any background transfer that beat it to the lane.
+    // Same rule as the mac's MainPlayerController+PlayerEvents.
+    [_player prefetchTrack:self.successorPrefetchTrack];
     [self notifyDidRenderCurrentTrack];
     // Not a blanket "hide the loading indicator": the open landing says
     // nothing about the waveform decode, which may still be streaming over the
@@ -118,11 +124,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [_metadataCache loadMetadataNow:track];
     // The open settled, so the playlist-wide sweep it was deferred behind runs.
     [self startPendingMetadataLoad];
-    // The foreground/background rule needs no release here: the coordinator
-    // derives it from its own claim table, and the prefetch's registration
-    // preempts any background transfer that beat it to the lane. Same rule as
-    // the mac's MainPlayerController+PlayerEvents.
-    [_player prefetchTrack:self.successorPrefetchTrack];
     _folderSession.persistedTrackPath = track.url.URLByStandardizingPath.path;
     // The landing can be parked — a pause verdict during the load, or the
     // media-reset re-park — in which case playback is idle, so the session is

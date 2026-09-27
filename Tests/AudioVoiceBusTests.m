@@ -786,6 +786,31 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     XCTAssertGreaterThan(_bus.decodeTurns, turns);
 }
 
+// The same for a resampled file past its last frame: its converter stays
+// open for a late successor while the render is far from the end, so a turn
+// could write nothing, and a paused voice there was handed an empty one every
+// drain until the idle stop. The successor still restarts the decoder.
+- (void)testADrainAsksNoTurnOfAStreamHeldOpenForASuccessor {
+    [self makeBusAtRate:48000 channels:2 inlineDecoding:NO];
+    NSURL *url = [self writePCM:[self noiseFrames:22050 channels:2 seed:7] rate:44100 channels:2 name:@"held441.wav"];
+    VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:YES];
+    dispatch_queue_t decoder = _bus.decodeQueue;
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].written >= 20000; }];
+    dispatch_sync(decoder, ^{});
+    XCTAssertEqual([_bus snapshotOfVoice:voice].endOfStream, UINT64_MAX, @"the stream was not held open");
+    uint64_t turns = _bus.decodeTurns;
+    for (int i = 0; i < 100; i++) {
+        [self drain];
+    }
+    dispatch_sync(decoder, ^{});
+    XCTAssertEqual(_bus.decodeTurns, turns, @"a drain asked for a turn that could write nothing");
+    NSURL *next = [self writePCM:[self noiseFrames:22050 channels:2 seed:8] rate:44100 channels:2 name:@"held441-next.wav"];
+    XCTAssertTrue([_bus queueSuccessor:[self open:next] forVoice:voice]);
+    [self settleDecoder:decoder until:^BOOL { return [self->_bus snapshotOfVoice:voice].boundary != UINT64_MAX; }];
+    XCTAssertEqualWithAccuracy((double)[_bus snapshotOfVoice:voice].boundary, 24000, 2);
+    XCTAssertGreaterThan(_bus.decodeTurns, turns);
+}
+
 // Waits for `condition` on the main thread, a run-loop turn at a time, up
 // to five seconds; the bus's threads keep running meanwhile.
 - (BOOL)waitUntil:(BOOL (^)(void))condition {

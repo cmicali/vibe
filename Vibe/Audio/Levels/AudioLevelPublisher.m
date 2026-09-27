@@ -158,7 +158,11 @@ BOOL VibeLevelPublisherPublish(VibeLevelPublisherState *state, uint64_t session,
         return NO;
     }
 
-    atomic_fetch_add_explicit(&state->writeVersion, 1, memory_order_acq_rel);
+    // The fence, not the increment's own ordering, keeps the level stores
+    // below from becoming visible before the odd version: an RMW's release
+    // half orders only what precedes it.
+    atomic_fetch_add_explicit(&state->writeVersion, 1, memory_order_relaxed);
+    atomic_thread_fence(memory_order_release);
     for (NSUInteger band = 0; band < kLevelBandCount; band++) {
         float level = isfinite(levels[band]) ? clampRange(levels[band], 0.0f, 1.0f) : 0.0f;
         uint32_t bits = 0;

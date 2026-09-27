@@ -21,11 +21,10 @@ enum {
     kMaxBusChannels = 8,
     kDecodeChunkFrames = 4096,
     // A voice goes live with this much buffered: one chunk, so a start costs
-    // one decode and one IO cycle. The initial fill then stops at eight
-    // chunks and the drain tops the ring up, so a skip storm's next start
-    // never waits behind a full-ring fill on the decode queue.
+    // one decode and one IO cycle. Fills are one chunk per turn, round-robin
+    // on the decode queue, so a skip storm's next start waits behind at most
+    // one chunk of each other filling voice, never a full ring.
     kLiveThresholdFrames = kDecodeChunkFrames,
-    kInitialFillFrames = 8 * kDecodeChunkFrames,
     // Below this the drain re-kicks the decoder. Half a ring is ~0.7 s at
     // every rate, against a ≤10 ms poll and a sub-10 ms chunk decode.
     kLowWaterDivisor = 2,
@@ -436,7 +435,10 @@ VIBE_REALTIME_END
     AudioFileHandle *successorFile;
     uint64_t retireOrder;            // when a retire ramp was submitted; 0 = not retiring
     _Atomic int32_t fillScheduled;
-    _Atomic uint32_t fillTarget;     // the drain raises it under a scheduled fill, which reads it on the decode queue
+    // The decoder's: `written` when it last held a drained stream open for a
+    // late successor, kUnset otherwise. The drain asks for no turn while it
+    // still matches, since the turn would find the same.
+    _Atomic uint64_t heldOpenAt;
     BOOL liveReported;
     uint64_t reportedBoundary;      // the last boundary the drain reported; kUnset = none
     BOOL endedReported;
@@ -522,6 +524,10 @@ static void VibeDisposeConverter(AudioVoiceRecord *record) {
         atomic_init(&_mix->slots[slot].boundary, kUnset);
     }
     _mix->gains = _mixStorage + ringFloats;
+    // TRAP: calloc's pages are mapped at their first write, so the scratch
+    // only the render writes is written here: a fault on the audio thread
+    // waits for a free page. The rings' first writer is the decoder.
+    vDSP_vclr(_mix->gains, 1, kVibeVoiceBusMaxRenderFrames);
     _format = busFormat;
     _queue = queue;
     _inlineDecoding = inlineDecoding;
@@ -927,7 +933,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     bound->successorFile = record->successorFile;
     bound->retireOrder = record->ramp.action == VibeVoiceActionRetire ? _nextRetireOrder++ : 0;
     atomic_store_explicit(&bound->fillScheduled, 0, memory_order_relaxed);
-    atomic_store_explicit(&bound->fillTarget, kInitialFillFrames, memory_order_release);
+    atomic_store_explicit(&bound->heldOpenAt, kUnset, memory_order_relaxed);
     bound->liveReported = bound->endedReported = NO;
     bound->reportedBoundary = kUnset;
     BOOL prepared = [self prepareRecord:bound file:record->file];
@@ -1254,7 +1260,9 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
             continue; // dead, its recycle already queued behind decode work
         }
         if (state == VibeVoiceStateArmed) {
-            [self scheduleFillForSlot:slot];
+            if (VibeSlotCanWrite(s)) {
+                [self scheduleFillForSlot:slot]; // withheld or stopped reads are re-asked for by whoever allows them
+            }
             continue;
         }
         if (!record->liveReported) {
@@ -1274,12 +1282,16 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
         }
         if (state == VibeVoiceStateLive) {
             if (!_inlineDecoding) {
-                uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
-                        - atomic_load_explicit(&s->consumed, memory_order_relaxed);
-                // A voice paused near its published end sat below the
-                // low-water mark and was handed an empty turn every drain.
-                if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor) {
-                    atomic_store_explicit(&record->fillTarget, _mix->capacity, memory_order_release);
+                uint64_t written = atomic_load_explicit(&s->written, memory_order_relaxed);
+                uint64_t buffered = written - atomic_load_explicit(&s->consumed, memory_order_relaxed);
+                // A voice paused near its published end, or past its file with
+                // the stream held open, sat below the low-water mark and was
+                // handed an empty turn every drain. A successor queued since
+                // asks for its own turn.
+                BOOL heldOpen = atomic_load_explicit(&record->heldOpenAt, memory_order_acquire) == written
+                        && atomic_load_explicit(&s->successorState, memory_order_relaxed) == VibeSuccessorNone
+                        && buffered >= kOpenStreamReserveFrames;
+                if (VibeSlotCanWrite(s) && buffered < _mix->capacity / kLowWaterDivisor && !heldOpen) {
                     [self scheduleFillForSlot:slot];
                 }
             }
@@ -1392,7 +1404,7 @@ static UInt32 VibeConverterQuality(AudioConverterRef converter) {
     if (more) {
         uint64_t buffered = atomic_load_explicit(&s->written, memory_order_relaxed)
                 - atomic_load_explicit(&s->consumed, memory_order_acquire);
-        more = buffered < atomic_load_explicit(&record->fillTarget, memory_order_acquire);
+        more = _mix->capacity - buffered >= kDecodeChunkFrames;
     }
     if (more) {
         dispatch_async(_decodeQueue, ^{ [self decodeTurnForSlot:slot identifier:identifier]; });
@@ -1619,6 +1631,7 @@ static OSStatus VibeConverterSupplyInput(AudioConverterRef converter, UInt32 *io
             return YES;
         }
         if (!successor && record->converter && written - consumed >= kOpenStreamReserveFrames) {
+            atomic_store_explicit(&record->heldOpenAt, written, memory_order_release);
             return NO;
         }
         record->stream = VibeStreamFlushing;

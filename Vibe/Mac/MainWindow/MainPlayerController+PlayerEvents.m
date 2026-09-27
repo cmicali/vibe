@@ -123,6 +123,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // The convert swap's Now Playing resume hint is spent: the live position
     // republishes from here.
     self.convertSwapResumeTrack = nil;
+    // Pre-open the likely-next file, so that auto-advance and Next skip the
+    // file open, which dominates transition latency. It is recomputed on every
+    // track start, since next, previous, a double-click and a re-drop all land
+    // here. Past the last track, nil drops the parked handle. First, so a
+    // quick second Next finds the park rather than waiting behind the rest of
+    // this refresh. The foreground/background rule needs no release here: the
+    // coordinator derives it from its own claim table, and the prefetch's
+    // registration preempts any background transfer that beat it to the lane.
+    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self teardownDownloadMonitor];
@@ -139,14 +148,6 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     _currentTrackDuration = self.audioPlayer.duration;
     [self.trackDisplay prepareForWaveformLoad];
     [self.waveformCache loadWaveformForTrack:track];
-    // Pre-open the likely-next file, so that auto-advance and Next skip the
-    // file open, which dominates transition latency. It is recomputed on every
-    // track start, since next, previous, a double-click and a re-drop all land
-    // here. Past the last track, nil drops the parked handle. The
-    // foreground/background rule needs no release here: the coordinator
-    // derives it from its own claim table, and the prefetch's registration
-    // preempts any background transfer that beat it to the lane.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
     // Whoever initiated this play has already fully rendered the row: play:'s
     // reloadData, next and previous's two-row window, or doubleClick's pair.
     // The mark keeps resumeUIUpdateTimer's updateUI from rebuilding it again;

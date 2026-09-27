@@ -131,6 +131,7 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     AVAudioFormat *_format;
     BOOL _running;
     _Atomic uint64_t _runGeneration;
+    _Atomic uint64_t _startedGeneration; // the HAL queue's, read by the iOS system-stop report
     // HAL-queue confined.
     BOOL _initialized;
     OSStatus _bindStatus;       // the last bind's refusal, until a bind lands; macOS only
@@ -276,13 +277,19 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
 }
 
 - (void)stop {
-    atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
-    if (!_running) {
-        return; // every start is already superseded, and the last stop is queued
+    // Not running: every start is already superseded, and the last stop is queued.
+    BOOL wasRunning = _running;
+    if (wasRunning) {
+        atomic_store_explicit(&_runGeneration, VibeOutputUnitNextGeneration(), memory_order_seq_cst);
+        _running = NO;
     }
-    atomic_store_explicit(&_runGeneration, VibeOutputUnitNextGeneration(), memory_order_seq_cst);
-    _running = NO;
-    dispatch_async(_halQueue, ^{ [self halStopUnit]; });
+    // TRAP: after the bump, as halStartForGeneration requires. A gate closed
+    // first let a start re-check the old generation after it and leave the
+    // gate open under a stopped unit.
+    atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
+    if (wasRunning) {
+        dispatch_async(_halQueue, ^{ [self halStopUnit]; });
+    }
 }
 
 - (void)waitUntilIdle {
@@ -417,6 +424,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         }
         refusal = [self halStartUnit];
         if (refusal == noErr) {
+            atomic_store_explicit(&_startedGeneration, generation, memory_order_release);
             double milliseconds = VibeMillisecondsSinceUptime(began);
             LogTiming(milliseconds > 100, @"AudioOutputUnit: start on device %u took %.1f ms", deviceID, milliseconds);
             return;
@@ -443,8 +451,11 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         return;
     }
     LogWarn(@"AudioOutputUnit: the system stopped the unit");
+    // The generation the unit last started under, never the current one: our
+    // own stop's callback can land after the next start has opened the gate
+    // and before its unit runs, and must not fail that start.
     void (^handler)(NSError *, uint64_t, BOOL) = self.failureHandler;
-    if (handler) handler(nil, self.runGeneration, NO);
+    if (handler) handler(nil, atomic_load_explicit(&_startedGeneration, memory_order_acquire), NO);
 }
 #endif
 

@@ -498,7 +498,9 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     // A unit made late, or a route that moved while nothing played, brings
     // its rate before the segment below is built at a stale one.
-    [self followOutputRateOnQueue];
+    if (![self followOutputRateOnQueue]) {
+        return; // the follow reset the player and said why
+    }
 #if TARGET_OS_OSX
     // Gates itself on the mode. A format switch stops the output, which cuts
     // any declick still fading — a declick is what a cut in this mode costs.
