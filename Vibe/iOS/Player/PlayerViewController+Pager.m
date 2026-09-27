@@ -233,8 +233,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     if (bpm <= 0) {
         return line;
     }
-    NSString *tempo = [NSString stringWithFormat:STR_LABEL_BPM,
-            [[Formatters sharedInstance] decimalString:bpm fractionDigits:1]];
+    NSString *tempo = [[Formatters sharedInstance] bpmString:bpm];
     return line.length == 0 ? tempo : [@[line, tempo] componentsJoinedByString:VibeNotLocalized(@" | ")];
 }
 

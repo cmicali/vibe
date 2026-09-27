@@ -46,11 +46,6 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     if (recognizer == self.panGestureRecognizer) {
         UIView *hit = [self hitTest:[recognizer locationInView:self] withEvent:nil];
         for (UIView *view = hit; view && view != self; view = view.superview) {
-            // The FX pad owns its touch from the press, so the pager never
-            // begins on it either.
-            if ([view isKindOfClass:[FXPadView class]]) {
-                return NO;
-            }
             if ([view isKindOfClass:[WaveformScrubberView class]]) {
                 // An unloaded scrubber disables its own pan so the failure
                 // requirement below can hand the gesture to the pager. Match
@@ -348,10 +343,13 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 // Every position goes to the model's one funnel, and the pager is held for
 // the length of the hold exactly as it is for a scrub: the pad owns the
-// touch, but UIKit would still chain an overscroll into the pager.
+// touch, but UIKit would still chain an overscroll into the pager. The hold
+// moves only on the edges; the frames between are positions alone.
 - (void)fxPadView:(FXPadView *)view didChangePosition:(CGPoint)position engaged:(BOOL)engaged {
     [_playback setFXPadPosition:position engaged:engaged];
-    [self setPagerHeld:engaged byView:view];
+    if (engaged != (_pagerHoldView == view)) {
+        [self setPagerHeld:engaged byView:view];
+    }
 }
 
 #pragma mark - OutputRouteViewDelegate

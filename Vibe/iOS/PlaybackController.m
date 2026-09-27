@@ -34,13 +34,6 @@
 // change once a second, and the Now Playing publish.
 static const NSUInteger kUIUpdateHz = 3;
 
-// The delay taps' tempo, and the metadata event the BPM delivery reuses:
-// this file's own, so not in the internal header the categories share.
-@interface PlaybackController (TempoFeed)
-- (void)refreshTempoFeed;
-- (void)notifyDidLoadMetadataForTrack:(AudioTrack *)track;
-@end
-
 @implementation PlaybackController {
     // Weakly held: an observer is a view or a view controller, and every one
     // of them outlives its registration only by accident. NSPointerArray
@@ -515,13 +508,10 @@ static const NSUInteger kUIUpdateHz = 3;
 #pragma mark - Effects and tempo
 
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged {
-    AudioFX *fx = _player.fx;
     if (!engaged) {
-        fx.lowKillCutoffHz = 0;
-        fx.reverbSendLevel = 0;
-        fx.delaySendLevel = 0;
-        return;
+        position = CGPointZero; // the corner is off on both axes
     }
+    AudioFX *fx = _player.fx;
     fx.lowKillCutoffHz = VibeFXPadLowCutHz((float)position.y);
     fx.reverbSendLevel = VibeFXPadReverbLevel((float)position.x);
     fx.delaySendLevel = VibeFXPadDelayLevel((float)position.x);
@@ -536,18 +526,13 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url {
-    __block BOOL current = NO;
-    [[_playlist indexesOfTracksWithURL:url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *track = [self->_playlist trackAtIndex:index];
+    [_playlist stampTracksWithURL:url usingBlock:^(AudioTrack *track) {
         track.detectedBPM = bpm;
-        current |= [self->_playlist isCurrentTrack:track];
         // The same event a tag landing sends: the page redraws its codec
         // line from AudioTrack.bpm either way.
         [self notifyDidLoadMetadataForTrack:track];
     }];
-    if (current) {
-        [self refreshTempoFeed];
-    }
+    [self refreshTempoFeed]; // a no-op unless the current track's tempo moved
 }
 
 // Clamped because a list's rows can be stale — an external "Open in Vibe"

@@ -951,6 +951,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model indexesOfTracksWithURL:url];
 }
 
+- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    return [_model stampTracksWithURL:url usingBlock:stamp];
+}
+
 - (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {
     return [_model replaceTracksMatchingTrack:track withURL:url];
 }

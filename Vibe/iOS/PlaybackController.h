@@ -194,9 +194,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
 
 // The waveform decode pass detected a tempo for `url`. Stamped on every
-// playlist track with that URL — the same file can occupy more than one row
-// — and, when one of them is current, fed to the delay taps and redrawn.
-// The delivery can race a track change, which the URL match closes.
+// playlist track with that URL (Playlist.stampTracksWithURL:usingBlock:),
+// each redrawn, and the delay taps refed. The delivery can race a track
+// change, which the URL match closes.
 - (void)noteDetectedBPM:(float)bpm forURL:(NSURL *)url;
 
 // The priority metadata lane, for a screen that needs one track's tags before

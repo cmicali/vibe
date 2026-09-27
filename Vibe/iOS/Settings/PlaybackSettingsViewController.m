@@ -39,7 +39,6 @@ static const NSInteger kOnEndRowPlayNext = 0;
 static const NSInteger kOnEndRowPause    = 1;
 
 static NSString *const kValueCellIdentifier = @"value";
-static NSString *const kSwitchCellIdentifier = @"switch";
 
 @implementation PlaybackSettingsViewController {
     PlaybackController *_playback;
@@ -130,41 +129,17 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     }
 }
 
-// The two switches, built the way the Appearance screen's file-info switch
-// is: the row itself does not select, the switch writes in place.
-- (UITableViewCell *)switchCellInTableView:(UITableView *)tableView
-                                     title:(NSString *)title
-                                        on:(BOOL)on
-                                    action:(SEL)action {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kSwitchCellIdentifier];
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.accessoryView = [[UISwitch alloc] init];
-    }
-    UISwitch *toggle = (UISwitch *)cell.accessoryView;
-    // A recycled cell carries the other row's target.
-    [toggle removeTarget:nil action:NULL forControlEvents:UIControlEventValueChanged];
-    [toggle addTarget:self action:action forControlEvents:UIControlEventValueChanged];
-    toggle.on = on;
-    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = title;
-    cell.contentConfiguration = content;
-    return cell;
-}
-
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == VibePlaybackSectionEffects) {
-        return [self switchCellInTableView:tableView title:STR_SETTINGS_ENABLE_FX
-                                        on:AppSettings.sharedInstance.audioFXEnabled
-                                    action:@selector(effectsToggled:)];
+        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_ENABLE_FX
+                                                                on:AppSettings.sharedInstance.audioFXEnabled
+                                                            target:self action:@selector(effectsToggled:)];
     }
     if (indexPath.section == VibePlaybackSectionAnalysis) {
-        return [self switchCellInTableView:tableView title:STR_SETTINGS_DETECT_BPM
-                                        on:AppSettings.sharedInstance.analyzeBPM
-                                    action:@selector(detectBPMToggled:)];
+        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_DETECT_BPM
+                                                                on:AppSettings.sharedInstance.analyzeBPM
+                                                            target:self action:@selector(detectBPMToggled:)];
     }
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {

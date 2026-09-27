@@ -194,6 +194,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Every row holding url — the same file can sit in the playlist more than
 // once, and a caller acting on a file has to reach all of them.
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
+// Playlist's: stamps every row holding url, YES when one of them is current.
+- (BOOL)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 
 - (void)reloadCurrentTrack;
 - (void)reloadTrackAtIndex:(NSUInteger)index;

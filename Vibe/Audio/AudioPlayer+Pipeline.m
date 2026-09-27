@@ -668,12 +668,9 @@ VIBE_REALTIME_END
 }
 
 - (void)clearFXIntent {
-    self.fx.lowKillBoostActive = NO;
-    self.fx.lowKillEnabled = NO;
+    // A cutoff or level written directly clears its stage's toggles with it.
     self.fx.lowKillCutoffHz = 0;
-    self.fx.reverbSendEnabled = NO;
     self.fx.reverbSendLevel = 0;
-    self.fx.delaySendEnabled = NO;
     self.fx.delaySendLevel = 0;
     self.fx.shortDelaySendEnabled = NO;
 }

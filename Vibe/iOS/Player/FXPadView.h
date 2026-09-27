@@ -2,19 +2,12 @@
 //  FXPadView.h
 //  Vibe (iOS)
 //
-//  The card's FX pad: at rest the capsule labelled FX in the left half of
-//  the action bar, and under a finger a square pad growing up and right from
-//  the capsule's bottom-left corner, with a circle at the finger. The point
-//  the finger pressed is the origin of both axes and the pad's top and right
-//  edges are 1, so a press with no movement is silent wherever it lands and
-//  the whole capsule is a valid start; below or left of the press clamps to
-//  0. Lifting collapses the pad and releases every effect.
-//
-//  It draws and reports positions only. What the axes mean is the model's
-//  (PlaybackController.setFXPadPosition:engaged:, over AudioFXMath.h): the
-//  vertical is the low kill's cutoff, the horizontal the reverb and, past its
-//  onset, the delay. OutputRouteView's twin: the cell places it, the
-//  controller wires its delegate.
+//  The card's FX pad: the FX capsule at rest, a square pad under a finger.
+//  It draws and reports normalized positions from the press point only; what
+//  the axes mean is the model's (PlaybackController.setFXPadPosition:engaged:
+//  over AudioFXMath.h), and the geometry's rationale is Player/CLAUDE.md's.
+//  OutputRouteView's twin: the cell places and styles it, the controller
+//  wires its delegate.
 //
 
 #import <UIKit/UIKit.h>

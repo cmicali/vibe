@@ -10,9 +10,9 @@
 
 // The pad's side at most; the cell's extent caps it on a small window.
 static const CGFloat kFXPadSide = 260;
-// The capsule and the pad share the action bar's fill.
-static const CGFloat kFXPadFillAlpha = 0.12;
 static const CGFloat kFXPadCornerRadius = 20;
+// The label's weight at rest, the route control's own.
+static const CGFloat kFXPadRestingAlpha = 0.6;
 // The circle under the finger, and the fingertip it stands for.
 static const CGFloat kFXPadCursorDiameter = 44;
 static const CGFloat kFXPadCursorFillAlpha = 0.3;
@@ -56,7 +56,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
 }
 
 - (void)buildUI {
-    self.backgroundColor = [UIColor colorWithWhite:1 alpha:kFXPadFillAlpha];
+    // The fill is the owner's, the action bar's own (TrackPageCell).
     self.layer.cornerCurve = kCACornerCurveContinuous;
     self.isAccessibilityElement = YES;
     self.accessibilityLabel = STR_A11Y_PLAYER_FX_PAD;
@@ -69,14 +69,13 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     _pillLabel.text = STR_PLAYER_FX_PILL;
     _pillLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
     _pillLabel.textColor = UIColor.whiteColor;
-    _pillLabel.alpha = 0.6; // the route control's resting weight
+    _pillLabel.alpha = kFXPadRestingAlpha;
     _pillLabel.isAccessibilityElement = NO;
     _pillLabel.userInteractionEnabled = NO;
     _pillLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_pillLabel];
 
     _padView = [[UIView alloc] init];
-    _padView.backgroundColor = [UIColor colorWithWhite:1 alpha:kFXPadFillAlpha];
     _padView.layer.cornerRadius = kFXPadCornerRadius;
     _padView.layer.cornerCurve = kCACornerCurveContinuous;
     _padView.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.25].CGColor;
@@ -172,9 +171,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
             [self engageAtPoint:point];
             break;
         case UIGestureRecognizerStateChanged:
-            if (_engaged) {
-                [self moveToPoint:point];
-            }
+            [self moveToPoint:point];
             break;
         case UIGestureRecognizerStateEnded:
         case UIGestureRecognizerStateCancelled:
@@ -197,6 +194,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     // The capsule becomes the pad: the pad starts at the capsule's frame and
     // grows to the square, on top of everything the square covers.
     [self.superview bringSubviewToFront:self];
+    _padView.backgroundColor = self.backgroundColor;
     _padView.frame = self.bounds;
     _padView.layer.cornerRadius = self.bounds.size.height / 2;
     _padView.hidden = NO;
@@ -248,7 +246,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
         self->_verticalCaption.alpha = 0;
         self->_horizontalCaption.alpha = 0;
         self->_cursorView.alpha = 0;
-        self->_pillLabel.alpha = 0.6;
+        self->_pillLabel.alpha = kFXPadRestingAlpha;
     } completion:^(BOOL finished) {
         if (!self->_engaged) {
             self->_padView.hidden = YES;
@@ -262,12 +260,10 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     if (!_engaged) {
         return;
     }
-    // Cancelling the recognizer delivers its Cancelled state, which releases
-    // through the same path a lift takes; a recognizer already past its end
-    // state has nothing to cancel, so release directly.
+    // Disabling a recognizer mid-gesture cancels it, which releases through
+    // the path a lift takes and frees the touch for the pager.
     _press.enabled = NO;
     _press.enabled = YES;
-    [self releaseHold];
 }
 
 // The captions sit inside the pad's frame, in this view's coordinates as the

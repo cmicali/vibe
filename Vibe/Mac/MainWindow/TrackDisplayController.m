@@ -390,10 +390,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         keyText = @"";
         colorKey = -1;
     }
-    NSString *bpmText = displayBPM > 0
-            ? [NSString stringWithFormat:STR_LABEL_BPM,
-                    [[Formatters sharedInstance] decimalString:displayBPM fractionDigits:1]]
-            : @"";
+    NSString *bpmText = displayBPM > 0 ? [[Formatters sharedInstance] bpmString:displayBPM] : @"";
     NSString *text;
     if (bpmText.length > 0 && keyText.length > 0) {
         // Layout punctuation between two readouts, not prose — and the same

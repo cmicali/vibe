@@ -23,6 +23,8 @@
 // A sample rate in hertz as the codec line and the bit-perfect caption both
 // spell it: "44.1 kHz", one fraction digit, per locale.
 - (NSString *)sampleRateString:(double)hertz;
+// "128.0 BPM": the tempo readout both platforms draw.
+- (NSString *)bpmString:(double)bpm;
 
 // Signed percentage for the pitch readout ("+3.2%", "−3.2%", "0.0%"), placed
 // per locale; the minus is U+2212, matching the fader's printed scale.

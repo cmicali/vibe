@@ -17,6 +17,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface SettingsChoiceViewController : UITableViewController
 
+// The settings screens' switch row, built once here since this is the one
+// class they all share: a plain cell that does not select, its switch the
+// accessory, `action` sent to `target` on a change with the switch as the
+// sender. Dequeued under one identifier, so a screen with several switch
+// rows re-targets the recycled switch each time.
++ (UITableViewCell *)switchCellInTableView:(UITableView *)tableView
+                                     title:(NSString *)title
+                                        on:(BOOL)on
+                                    target:(id)target
+                                    action:(SEL)action;
+
 // The checkmark moves before onSelect runs, so the block only has to write the
 // value. The screen stays up afterwards, as the system's own pickers do.
 - (instancetype)initWithTitle:(NSString *)title

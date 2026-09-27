@@ -9,7 +9,31 @@
 
 static NSString *const kChoiceCellIdentifier = @"choice";
 
-@implementation SettingsChoiceViewController {
+static NSString *const kSwitchCellIdentifier = @"switch";
+
+@implementation SettingsChoiceViewController
+
++ (UITableViewCell *)switchCellInTableView:(UITableView *)tableView
+                                     title:(NSString *)title
+                                        on:(BOOL)on
+                                    target:(id)target
+                                    action:(SEL)action {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:kSwitchCellIdentifier];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        cell.accessoryView = [[UISwitch alloc] init];
+    }
+    UISwitch *toggle = (UISwitch *)cell.accessoryView;
+    [toggle removeTarget:nil action:NULL forControlEvents:UIControlEventValueChanged];
+    [toggle addTarget:target action:action forControlEvents:UIControlEventValueChanged];
+    toggle.on = on;
+    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+    content.text = title;
+    cell.contentConfiguration = content;
+    return cell;
+} {
     NSArray<NSString *> *_choices;
     NSInteger            _selectedIndex;
     void               (^_onSelect)(NSInteger index);

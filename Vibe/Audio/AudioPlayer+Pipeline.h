@@ -55,9 +55,8 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // Connects or disconnects the FX segment per fxWantedOnQueue, with the
 // output stopped. Idempotent.
 - (void)reconcileFXOnQueue;
-// Clears every effect's intent — the mac's five toggles, the iOS pad's
-// levels — at submission, so a queued bypass cannot erase a newer FX action.
-// Every bypass calls it before it queues.
+// Clears every stage's intent at submission, so a queued bypass cannot erase
+// a newer FX action. Every bypass calls it before it queues.
 - (void)clearFXIntent;
 // After an output stop for a pipeline edit — a format follow, an FX toggle
 // — puts the output back: a playing voice restarts it and re-arms the signal

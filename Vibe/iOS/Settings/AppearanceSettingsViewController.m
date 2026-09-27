@@ -29,7 +29,6 @@ static const NSInteger kTimeRowTotal     = 0;
 static const NSInteger kTimeRowRemaining = 1;
 
 static NSString *const kValueCellIdentifier  = @"value";
-static NSString *const kSwitchCellIdentifier = @"switch";
 
 @implementation AppearanceSettingsViewController {
     // Style IDENTIFIERS, sorted by their localized display names so the list
@@ -94,21 +93,9 @@ static NSString *const kSwitchCellIdentifier = @"switch";
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if ((VibeAppearanceRow)indexPath.row == VibeAppearanceRowFileInfo) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kSwitchCellIdentifier];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                          reuseIdentifier:kSwitchCellIdentifier];
-            cell.selectionStyle = UITableViewCellSelectionStyleNone;
-            UISwitch *toggle = [[UISwitch alloc] init];
-            [toggle addTarget:self action:@selector(fileInfoToggled:)
-             forControlEvents:UIControlEventValueChanged];
-            cell.accessoryView = toggle;
-        }
-        UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-        content.text = STR_SETTINGS_FILE_INFO;
-        cell.contentConfiguration = content;
-        ((UISwitch *)cell.accessoryView).on = VibeShowsFileInfo();
-        return cell;
+        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_FILE_INFO
+                                                                on:VibeShowsFileInfo()
+                                                            target:self action:@selector(fileInfoToggled:)];
     }
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];

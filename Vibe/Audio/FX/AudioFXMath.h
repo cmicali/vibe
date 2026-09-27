@@ -13,6 +13,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "HelperMacros.h" // clampRange
 
 // Low-kill high-pass cutoff while engaged: bass and kick gone, mids untouched.
 static const float kLowKillCutoffHz = 200.0f;
@@ -60,26 +61,21 @@ static inline float VibeFXPadLowCutHz(float y) {
     if (!(y > 0)) {
         return kLowKillParkedHz;
     }
-    float clamped = y > 1 ? 1 : y;
-    return kLowKillParkedHz * powf(kFXPadLowCutMaxHz / kLowKillParkedHz, clamped);
+    return kLowKillParkedHz * powf(kFXPadLowCutMaxHz / kLowKillParkedHz, clampRange(y, 0.0f, 1.0f));
 }
 
 // The pad's horizontal position, 0 at the left edge and 1 at the right, as
 // the reverb send's level: 0 to 1 across the whole axis, where 1 is the level
 // a held key swells to. Clamped at both ends.
 static inline float VibeFXPadReverbLevel(float x) {
-    return !(x > 0) ? 0 : (x > 1 ? 1 : x);
+    return clampRange(x, 0.0f, 1.0f);
 }
 
 // The same position as the 1/8-note delay send's level: nothing up to the
 // onset, then 0 to 1 over the rest of the axis, so the echo arrives once the
 // reverb is already half up.
 static inline float VibeFXPadDelayLevel(float x) {
-    if (!(x > kFXPadDelayOnset)) {
-        return 0;
-    }
-    float level = (x - kFXPadDelayOnset) / (1 - kFXPadDelayOnset);
-    return level > 1 ? 1 : level;
+    return clampRange((x - kFXPadDelayOnset) / (1 - kFXPadDelayOnset), 0.0f, 1.0f);
 }
 
 // Seconds per tap at the effective, pitch-scaled tempo. The delays sit

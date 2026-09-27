@@ -235,10 +235,10 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_playPauseGap;
     NSLayoutConstraint *_nextGap;
     NSLayoutConstraint *_routeMaxWidth;
-    // The route capsule's leading edge: the bar's, or half a gap past its
-    // middle when the FX pad has the left half. Outside the portrait set,
-    // since only one may be active, and active only in portrait.
-    NSLayoutConstraint *_actionBarLeadingFull;
+    // The route capsule's leading edge when the FX pad has the left half:
+    // half a gap past the bar's middle, required, outranking the full-width
+    // leading edge the portrait set holds at a lower priority. Active only
+    // in portrait, where that set is.
     NSLayoutConstraint *_actionBarLeadingHalf;
     BOOL               _fxPadShown;
 
@@ -381,6 +381,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         // The FX pad, last so its expanded square draws over everything it
         // covers — the transport, the waveform, the times.
         _fxPadView = [[FXPadView alloc] initWithFrame:CGRectZero];
+        _fxPadView.backgroundColor = _actionBar.backgroundColor;
         _fxPadView.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_fxPadView];
 
@@ -502,12 +503,12 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [content addLayoutGuide:labelBand];
     UILayoutGuide *labels = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:labels];
-    // The bar's whole width, which the two capsules split at its middle.
-    UILayoutGuide *bar = [[UILayoutGuide alloc] init];
-    [content addLayoutGuide:bar];
-    _actionBarLeadingFull = [_actionBar.leadingAnchor constraintEqualToAnchor:bar.leadingAnchor];
-    _actionBarLeadingHalf = [_actionBar.leadingAnchor constraintEqualToAnchor:bar.centerXAnchor
+    // The bar is inset alike on both sides, so its middle is the safe area's.
+    _actionBarLeadingHalf = [_actionBar.leadingAnchor constraintEqualToAnchor:safe.centerXAnchor
                                                                       constant:kCellActionBarGap / 2];
+    NSLayoutConstraint *actionBarLeadingFull = [_actionBar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
+                                                                                        constant:kCellActionBarInset];
+    actionBarLeadingFull.priority = UILayoutPriorityDefaultHigh;
 
     // layoutSubviews keeps these on the scaled fonts. The two single-line
     // labels keep their line reserved so a track with no artist lays out like
@@ -538,10 +539,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     topBand.priority = UILayoutPriorityRequired - 1;
 
     return @[
-        [bar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kCellActionBarInset],
-        [bar.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kCellActionBarInset],
-        [bar.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
-        [bar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
+        actionBarLeadingFull,
         topBand,
         [artBand.topAnchor constraintGreaterThanOrEqualToAnchor:safe.topAnchor],
         [_artCard.heightAnchor constraintGreaterThanOrEqualToConstant:0],
@@ -594,7 +592,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
         [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
                                                  constant:kCellActionBarInset],
-        [_fxPadView.trailingAnchor constraintEqualToAnchor:bar.centerXAnchor
+        [_fxPadView.trailingAnchor constraintEqualToAnchor:safe.centerXAnchor
                                                   constant:-kCellActionBarGap / 2],
         [_fxPadView.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
 
@@ -715,15 +713,14 @@ static void VibeConfigureTimeLabel(UILabel *label) {
 }
 
 // The two capsules or the one, and only in portrait: landscape has no bar,
-// and its set leaves the route capsule with no other edges, so neither
-// leading constraint may be active there. A pad hidden mid-hold releases.
+// and its set leaves the route capsule with no other edges. A pad hidden
+// mid-hold releases.
 - (void)applyActionBarSplit {
     if (!_layoutApplied) {
         return; // the first applyLayoutForBounds: activates a set, then this
     }
     BOOL split = _fxPadShown && !_landscapeActive;
     _actionBarLeadingHalf.active = split;
-    _actionBarLeadingFull.active = !split && !_landscapeActive;
     BOOL padHidden = !split;
     if (padHidden != _fxPadView.hidden) {
         if (padHidden) {

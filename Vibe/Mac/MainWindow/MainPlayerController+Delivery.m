@@ -50,21 +50,12 @@
 }
 
 // A delivery usually belongs to the current track, but a late one can land
-// after next: has advanced the playlist, and the same file can occupy more
-// than one row. An analyzed value is valid for every track owning that URL —
-// the first match alone would strand a duplicate row that happens to be the
-// one playing — so stamp them all, and refresh the label only when one of them
-// is on display. The BPM and the key share the label line, so both refresh
-// through effectiveTempoDidChange.
-- (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (^)(AudioTrack *track))stamp {
-    __block BOOL refresh = NO;
-    [[self.playlistController indexesOfTracksWithURL:url]
-            enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *track = [self.playlistController trackAtIndex:index];
-        stamp(track);
-        refresh |= [self.playlistController isCurrentTrack:track];
-    }];
-    if (refresh) {
+// after next: has advanced the playlist, so the playlist stamps every row
+// holding the URL and says whether one of them is on display, which is when
+// the label refreshes. The BPM and the key share the label line, so both
+// refresh through effectiveTempoDidChange.
+- (void)stampTracksWithURL:(NSURL *)url usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
+    if ([self.playlistController stampTracksWithURL:url usingBlock:stamp]) {
         [self effectiveTempoDidChange];
     }
 }
