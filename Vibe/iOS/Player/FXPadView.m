@@ -17,9 +17,9 @@ static const CGFloat kFXPadRestingAlpha = 0.6;
 static const CGFloat kFXPadCursorDiameter = 44;
 static const CGFloat kFXPadCursorFillAlpha = 0.3;
 static const CGFloat kFXPadCursorStrokeAlpha = 0.8;
-// The shortest span a press may leave to an edge; a press this close to the
-// right end of the capsule still gets a usable axis, since below it the
-// mapping would jump.
+// The shortest span a press may leave to an edge; on a window that caps the
+// pad near the circle's own size a press still gets a usable axis, since
+// below it the mapping would jump.
 static const CGFloat kFXPadMinimumSpan = 60;
 static const CGFloat kFXPadCaptionInset = 10;
 static const NSTimeInterval kFXPadExpandDuration = 0.22;
@@ -31,7 +31,13 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     // view's bounds while expanded, drawn because nothing up the tree clips,
     // and never touched because they take no interaction. The recognizer on
     // this view owns the finger from the press, wherever it goes.
-    UIView                      *_padView;
+    // Glass only under a finger: at rest the effect is nil and the view
+    // hidden, so the live backdrop filter costs nothing while the pad is
+    // unused (Util/iOS/CLAUDE.md on why the page itself has none).
+    UIVisualEffectView          *_padView;
+    // The circle's fill at rest, the owner's; cleared under the glass, which
+    // would otherwise refract it as a disc in the pad's corner.
+    UIColor                     *_restingFill;
     UILabel                     *_verticalCaption;
     UILabel                     *_horizontalCaption;
     UIView                      *_cursorView;
@@ -75,11 +81,9 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     _pillLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_pillLabel];
 
-    _padView = [[UIView alloc] init];
-    _padView.layer.cornerRadius = kFXPadCornerRadius;
-    _padView.layer.cornerCurve = kCACornerCurveContinuous;
-    _padView.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.25].CGColor;
-    _padView.layer.borderWidth = 1;
+    _padView = [[UIVisualEffectView alloc] initWithEffect:nil];
+    // The captions and the cursor are white, whatever the appearance.
+    _padView.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     _padView.userInteractionEnabled = NO;
     _padView.hidden = YES;
     [self addSubview:_padView];
@@ -122,7 +126,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     label.isAccessibilityElement = NO;
     label.userInteractionEnabled = NO;
     [label sizeToFit];
-    [_padView addSubview:label];
+    [_padView.contentView addSubview:label];
     return label;
 }
 
@@ -135,9 +139,13 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     return _press;
 }
 
+- (UICornerConfiguration *)cornersWithRadius:(CGFloat)radius {
+    return [UICornerConfiguration configurationWithUniformRadius:[UICornerRadius fixedRadius:radius]];
+}
+
 #pragma mark - The pad's geometry
 
-// The square, from the capsule's bottom-left corner up and to the right,
+// The square, from the circle's bottom-left corner up and to the right,
 // capped by the cell's extent. In this view's coordinates, y down.
 - (CGRect)padFrameForBounds:(CGRect)bounds {
     CGFloat side = MIN(kFXPadSide, MIN(_padExtent.width, _padExtent.height));
@@ -191,14 +199,13 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     [_engageHaptics prepare];
     [_onsetHaptics prepare];
 
-    // The capsule becomes the pad: the pad starts at the capsule's frame and
+    // The circle becomes the pad: the pad starts at the circle's frame and
     // grows to the square, on top of everything the square covers.
     [self.superview bringSubviewToFront:self];
-    _padView.backgroundColor = self.backgroundColor;
+    _restingFill = self.backgroundColor;
     _padView.frame = self.bounds;
-    _padView.layer.cornerRadius = self.bounds.size.height / 2;
+    _padView.cornerConfiguration = [self cornersWithRadius:self.bounds.size.height / 2];
     _padView.hidden = NO;
-    _padView.alpha = 0;
     _verticalCaption.alpha = 0;
     _horizontalCaption.alpha = 0;
     [self layoutCaptionsForFrame:_padFrame];
@@ -210,8 +217,10 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
                         options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
                      animations:^{
         self->_padView.frame = self->_padFrame;
-        self->_padView.layer.cornerRadius = kFXPadCornerRadius;
-        self->_padView.alpha = 1;
+        self->_padView.cornerConfiguration = [self cornersWithRadius:kFXPadCornerRadius];
+        // Glass materializes by animating the effect in, not the alpha.
+        self->_padView.effect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
+        self.backgroundColor = UIColor.clearColor;
         self->_verticalCaption.alpha = 1;
         self->_horizontalCaption.alpha = 1;
         self->_cursorView.alpha = 1;
@@ -241,8 +250,9 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
                         options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
                      animations:^{
         self->_padView.frame = self.bounds;
-        self->_padView.layer.cornerRadius = self.bounds.size.height / 2;
-        self->_padView.alpha = 0;
+        self->_padView.cornerConfiguration = [self cornersWithRadius:self.bounds.size.height / 2];
+        self->_padView.effect = nil;
+        self.backgroundColor = self->_restingFill;
         self->_verticalCaption.alpha = 0;
         self->_horizontalCaption.alpha = 0;
         self->_cursorView.alpha = 0;

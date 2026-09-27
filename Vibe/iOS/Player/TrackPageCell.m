@@ -30,11 +30,14 @@ static const CGFloat kCellLabelGap = 6;
 static const CGFloat kCellLabelBandPadding = 10;
 static const CGFloat kCellWaveformTransportGap = 28;
 
-// With audio effects on, two capsules a gap apart, the FX pad left and the
-// route control right; off, the route capsule alone.
+// With audio effects on, the FX pad's circle and, a gap to its right, the
+// route capsule over the rest of the width; off, the route capsule alone.
 static const CGFloat kCellActionBarHeight = 56;
 static const CGFloat kCellActionBarInset = 20;
 static const CGFloat kCellActionBarGap = 12;
+// The route control keeps this far inside the capsule's ends, where a long
+// device name truncates.
+static const CGFloat kCellActionBarContentInset = 16;
 static const CGFloat kCellActionBarTransportGap = 16;
 // The pad grows toward the safe edges and stops this short of them.
 static const CGFloat kCellFXPadMargin = 16;
@@ -190,11 +193,11 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     NSLayoutConstraint *_playPauseGap;
     NSLayoutConstraint *_nextGap;
     NSLayoutConstraint *_routeMaxWidth;
-    // The route capsule's leading edge when the FX pad has the left half:
-    // half a gap past the bar's middle, required, outranking the full-width
-    // leading edge the portrait set holds at a lower priority. Active only
-    // in portrait, where that set is.
-    NSLayoutConstraint *_actionBarLeadingHalf;
+    // The route capsule's leading edge when the FX pad is shown: a gap past
+    // the pad's circle, required, outranking the full-width leading edge the
+    // portrait set holds at a lower priority. Active only in portrait, where
+    // that set is.
+    NSLayoutConstraint *_actionBarLeadingAfterPad;
     BOOL               _fxPadShown;
 
     // Swapped on the cell's own aspect, so a rotation mid-reuse cannot
@@ -424,9 +427,8 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [content addLayoutGuide:labelBand];
     UILayoutGuide *labels = [[UILayoutGuide alloc] init];
     [content addLayoutGuide:labels];
-    // The bar is inset alike on both sides, so its middle is the safe area's.
-    _actionBarLeadingHalf = [_actionBar.leadingAnchor constraintEqualToAnchor:safe.centerXAnchor
-                                                                      constant:kCellActionBarGap / 2];
+    _actionBarLeadingAfterPad = [_actionBar.leadingAnchor constraintEqualToAnchor:_fxPadView.trailingAnchor
+                                                                          constant:kCellActionBarGap];
     NSLayoutConstraint *actionBarLeadingFull = [_actionBar.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
                                                                                         constant:kCellActionBarInset];
     actionBarLeadingFull.priority = UILayoutPriorityDefaultHigh;
@@ -500,12 +502,17 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         [_actionBar.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
         [_routeView.centerXAnchor constraintEqualToAnchor:_actionBar.centerXAnchor],
         [_routeView.centerYAnchor constraintEqualToAnchor:_actionBar.centerYAnchor],
-        // The pad's capsule: the bar's left half, a gap short of its middle.
+        // Required, so the device name gives (it truncates) rather than the
+        // capsule: the width cap alone is wider than a narrow capsule.
+        [_routeView.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionBar.leadingAnchor
+                                                              constant:kCellActionBarContentInset],
+        [_routeView.trailingAnchor constraintLessThanOrEqualToAnchor:_actionBar.trailingAnchor
+                                                            constant:-kCellActionBarContentInset],
+        // The pad's circle, at the bar's leading end.
         [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
         [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
                                                  constant:kCellActionBarInset],
-        [_fxPadView.trailingAnchor constraintEqualToAnchor:safe.centerXAnchor
-                                                  constant:-kCellActionBarGap / 2],
+        [_fxPadView.widthAnchor constraintEqualToConstant:kCellActionBarHeight],
         [_fxPadView.heightAnchor constraintEqualToConstant:kCellActionBarHeight],
 
         [_transportView.bottomAnchor constraintEqualToAnchor:_actionBar.topAnchor
@@ -612,7 +619,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
         return; // the first applyLayoutForBounds: activates a set, then this
     }
     BOOL split = _fxPadShown && !_landscapeActive;
-    _actionBarLeadingHalf.active = split;
+    _actionBarLeadingAfterPad.active = split;
     BOOL padHidden = !split;
     if (padHidden != _fxPadView.hidden) {
         if (padHidden) {
@@ -657,7 +664,7 @@ static void VibeConfigureTimeLabel(UILabel *label) {
     [self applyLayoutForBounds:self.bounds];
     [self updateHeaderMetrics];
     [super layoutSubviews];
-    // The room the pad may grow into from its capsule's corner: to the safe
+    // The room the pad may grow into from its circle's corner: to the safe
     // trailing edge and up to the safe top, a margin short.
     UIView *content = self.contentView;
     CGRect safe = UIEdgeInsetsInsetRect(content.bounds, content.safeAreaInsets);

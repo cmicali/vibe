@@ -2,7 +2,7 @@
 //  FXPadView.h
 //  Vibe (iOS)
 //
-//  The card's FX pad: the FX capsule at rest, a square pad under a finger.
+//  The card's FX pad: the FX circle at rest, a square glass pad under a finger.
 //  It draws and reports normalized positions from the press point only; what
 //  the axes mean is the model's (PlaybackController.setFXPadPosition:engaged:
 //  over AudioFXMath.h), and the geometry's rationale is Player/CLAUDE.md's.
@@ -29,7 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<FXPadViewDelegate> delegate;
 
-// The room the pad may grow into from the capsule's bottom-left corner: to
+// The room the pad may grow into from the circle's bottom-left corner: to
 // the right and upward, in points. The cell restates it from its safe area on
 // every layout; the pad's side is the smaller of the two and its own cap.
 @property (nonatomic) CGSize padExtent;
